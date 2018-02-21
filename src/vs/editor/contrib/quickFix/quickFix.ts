@@ -13,7 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedExternalError, illegalArgument } from 'vs/base/common/errors';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, mergeSort } from 'vs/base/common/arrays';
 import { CodeActionKind } from './codeActionTrigger';
 
 export function getCodeActions(model: ITextModel, range: Range, scope?: CodeActionKind): TPromise<CodeAction[]> {
@@ -36,7 +36,7 @@ export function getCodeActions(model: ITextModel, range: Range, scope?: CodeActi
 	});
 
 	return TPromise.join(promises).then(
-		() => allResults.sort(codeActionsComparator)
+		() => mergeSort(allResults, codeActionsComparator)
 	);
 }
 

@@ -5,18 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/tgjones/shaders-tmLanguage/commit/cd1ef40f549f9ce2b9e6b73498688de114a85382",
-	"scopeName": "source.hlsl",
 	"name": "HLSL",
-	"fileTypes": [
-		"hlsl",
-		"hlsli",
-		"fx",
-		"fxh",
-		"vsh",
-		"psh",
-		"cginc",
-		"compute"
-	],
+	"scopeName": "source.hlsl",
 	"patterns": [
 		{
 			"name": "comment.line.block.hlsl",

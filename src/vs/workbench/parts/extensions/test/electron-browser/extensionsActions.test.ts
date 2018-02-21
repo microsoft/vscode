@@ -467,8 +467,8 @@ suite('ExtensionsActions Test', () => {
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
 				testObject.extension = extensions[0];
-				assert.ok(!testObject.enabled);
-				assert.equal('extension-action manage hide', testObject.class);
+				assert.ok(testObject.enabled);
+				assert.equal('extension-action manage', testObject.class);
 				assert.equal('', testObject.tooltip);
 			});
 	});

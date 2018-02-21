@@ -1,0 +1,35 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench > .notifications-toasts {
+	position: absolute;
+	z-index: 1000;
+	right: 3px;
+	bottom: 28px; /* above status bar */
+	display: none;
+	overflow: hidden;
+}
+
+.monaco-workbench.nostatusbar > .notifications-toasts {
+	right: 12px;
+	bottom: 12px;
+}
+
+.monaco-workbench > .notifications-toasts.visible {
+	display: flex;
+	flex-direction: column-reverse;
+}
+
+.monaco-workbench > .notifications-toasts .notification-toast {
+	margin: 5px; /* enables separation and drop shadows around toasts */
+	position: relative;
+
+	-webkit-transition:	left 300ms ease-in;
+	-ms-transition:		left 300ms ease-in;
+	-moz-transition:	left 300ms ease-in;
+	-khtml-transition:	left 300ms ease-in;
+	-o-transition:		left 300ms ease-in;
+	transition:			left 300ms ease-in;
+}

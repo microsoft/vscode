@@ -11,7 +11,7 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot } from 'vs/platform/files/common/files';
-import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
+import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
 import arrays = require('vs/base/common/arrays');
@@ -36,6 +36,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/watcherService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { getBaseLabel } from 'vs/base/common/labels';
@@ -131,6 +132,7 @@ export class FileService implements IFileService {
 
 	constructor(
 		private contextService: IWorkspaceContextService,
+		private environmentService: IEnvironmentService,
 		private textResourceConfigurationService: ITextResourceConfigurationService,
 		private configurationService: IConfigurationService,
 		private lifecycleService: ILifecycleService,
@@ -163,7 +165,7 @@ export class FileService implements IFileService {
 
 	private registerListeners(): void {
 		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => {
-			if (this.lifecycleService.phase === LifecyclePhase.Running) {
+			if (this.lifecycleService.phase >= LifecyclePhase.Running) {
 				this.setupFileWatching();
 			}
 		}));
@@ -316,12 +318,20 @@ export class FileService implements IFileService {
 			}
 
 			// Return early if file is too large to load
-			if (typeof stat.size === 'number' && stat.size > MAX_FILE_SIZE) {
-				return onStatError(new FileOperationError(
-					nls.localize('fileTooLargeError', "File too large to open"),
-					FileOperationResult.FILE_TOO_LARGE,
-					options
-				));
+			if (typeof stat.size === 'number') {
+				if (stat.size > Math.max(this.environmentService.args['max-memory'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
+					return onStatError(new FileOperationError(
+						nls.localize('fileTooLargeForHeapError', "File size exceeds window memory limit, please try to run code --max-memory=NEWSIZE"),
+						FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
+					));
+				}
+
+				if (stat.size > MAX_FILE_SIZE) {
+					return onStatError(new FileOperationError(
+						nls.localize('fileTooLargeError', "File too large to open"),
+						FileOperationResult.FILE_TOO_LARGE
+					));
+				}
 			}
 
 			return void 0;
@@ -453,6 +463,13 @@ export class FileService implements IFileService {
 							// if we received a position argument as option we need to ensure that
 							// we advance the position by the number of bytesread
 							currentPosition += bytesRead;
+						}
+
+						if (totalBytesRead > Math.max(this.environmentService.args['max-memory'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
+							finish(new FileOperationError(
+								nls.localize('fileTooLargeForHeapError', "File size exceeds window memory limit, please try to run code --max-memory=NEWSIZE"),
+								FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
+							));
 						}
 
 						if (totalBytesRead > MAX_FILE_SIZE) {
@@ -895,8 +912,8 @@ export class FileService implements IFileService {
 	private toStatResolver(resource: uri): TPromise<StatResolver> {
 		const absolutePath = this.toAbsolutePath(resource);
 
-		return pfs.stat(absolutePath).then(stat => {
-			return new StatResolver(resource, stat.isDirectory(), stat.mtime.getTime(), stat.size, this.options.verboseLogging ? this.options.errorLogger : void 0);
+		return pfs.statLink(absolutePath).then(({ isSymbolicLink, stat }) => {
+			return new StatResolver(resource, isSymbolicLink, stat.isDirectory(), stat.mtime.getTime(), stat.size, this.options.verboseLogging ? this.options.errorLogger : void 0);
 		});
 	}
 
@@ -1129,25 +1146,21 @@ export class FileService implements IFileService {
 }
 
 export class StatResolver {
-	private resource: uri;
-	private isDirectory: boolean;
-	private mtime: number;
 	private name: string;
 	private etag: string;
-	private size: number;
-	private errorLogger: (error: Error | string) => void;
 
-	constructor(resource: uri, isDirectory: boolean, mtime: number, size: number, errorLogger?: (error: Error | string) => void) {
+	constructor(
+		private resource: uri,
+		private isSymbolicLink: boolean,
+		private isDirectory: boolean,
+		private mtime: number,
+		private size: number,
+		private errorLogger?: (error: Error | string) => void
+	) {
 		assert.ok(resource && resource.scheme === Schemas.file, `Invalid resource: ${resource}`);
 
-		this.resource = resource;
-		this.isDirectory = isDirectory;
-		this.mtime = mtime;
 		this.name = getBaseLabel(resource);
 		this.etag = etag(size, mtime);
-		this.size = size;
-
-		this.errorLogger = errorLogger;
 	}
 
 	public resolve(options: IResolveFileOptions): TPromise<IFileStat> {
@@ -1156,6 +1169,7 @@ export class StatResolver {
 		const fileStat: IFileStat = {
 			resource: this.resource,
 			isDirectory: this.isDirectory,
+			isSymbolicLink: this.isSymbolicLink,
 			name: this.name,
 			etag: this.etag,
 			size: this.size,
@@ -1206,6 +1220,7 @@ export class StatResolver {
 			flow.parallel(files, (file: string, clb: (error: Error, children: IFileStat) => void) => {
 				const fileResource = uri.file(paths.resolve(absolutePath, file));
 				let fileStat: fs.Stats;
+				let isSymbolicLink = false;
 				const $this = this;
 
 				flow.sequence(
@@ -1218,7 +1233,10 @@ export class StatResolver {
 					},
 
 					function stat(this: any): void {
-						fs.stat(fileResource.fsPath, this);
+						extfs.statLink(fileResource.fsPath, (error: Error, statAndIsLink) => {
+							isSymbolicLink = statAndIsLink.isSymbolicLink;
+							this(null, statAndIsLink.stat);
+						});
 					},
 
 					function countChildren(this: any, fsstat: fs.Stats): void {
@@ -1237,6 +1255,7 @@ export class StatResolver {
 						const childStat: IFileStat = {
 							resource: fileResource,
 							isDirectory: fileStat.isDirectory(),
+							isSymbolicLink,
 							name: file,
 							mtime: fileStat.mtime.getTime(),
 							etag: etag(fileStat),

@@ -17,7 +17,6 @@ import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/com
 import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,6 +29,7 @@ import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/composit
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -46,7 +46,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	constructor(
 		id: string,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -56,7 +56,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		@IThemeService themeService: IThemeService,
 	) {
 		super(
-			messageService,
+			notificationService,
 			storageService,
 			telemetryService,
 			contextMenuService,

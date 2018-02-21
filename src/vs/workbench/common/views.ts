@@ -97,7 +97,7 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 					this._viewLocations.push(viewDescriptor.location);
 				}
 				if (views.some(v => v.id === viewDescriptor.id)) {
-					throw new Error(localize('duplicateId', "A view with id `{0}` is already registered in the location `{1}`", viewDescriptor.id, viewDescriptor.location.id));
+					throw new Error(localize('duplicateId', "A view with id '{0}' is already registered in the location '{1}'", viewDescriptor.id, viewDescriptor.location.id));
 				}
 				views.push(viewDescriptor);
 			}
@@ -158,7 +158,7 @@ export interface IViewsViewlet extends IViewlet {
 
 export interface ITreeViewer extends IDisposable {
 
-	readonly dataProvider: ITreeViewDataProvider;
+	dataProvider: ITreeViewDataProvider;
 
 	refresh(treeItems?: ITreeItem[]): TPromise<void>;
 
@@ -168,7 +168,7 @@ export interface ITreeViewer extends IDisposable {
 
 	layout(height: number): void;
 
-	render(container: HTMLElement);
+	show(container: HTMLElement);
 
 	getOptimalWidth(): number;
 }
@@ -185,8 +185,6 @@ export interface ICustomViewsService {
 	_serviceBrand: any;
 
 	getTreeViewer(id: string): ITreeViewer;
-
-	registerTreeViewDataProvider(id: string, ITreeViewDataProvider): void;
 }
 
 export type TreeViewItemHandleArg = {
@@ -206,6 +204,8 @@ export interface ITreeItem {
 
 	parentHandle: string;
 
+	collapsibleState: TreeItemCollapsibleState;
+
 	label?: string;
 
 	icon?: string;
@@ -214,13 +214,14 @@ export interface ITreeItem {
 
 	resourceUri?: UriComponents;
 
+	tooltip?: string;
+
 	contextValue?: string;
 
 	command?: Command;
 
 	children?: ITreeItem[];
 
-	collapsibleState?: TreeItemCollapsibleState;
 }
 
 export interface ITreeViewDataProvider {

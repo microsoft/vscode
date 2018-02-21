@@ -147,6 +147,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/dialogs",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/editor",
 			"project": "vscode-workbench"
 		},
@@ -160,10 +164,6 @@
 		},
 		{
 			"name": "vs/workbench/services/keybinding",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/services/message",
 			"project": "vscode-workbench"
 		},
 		{

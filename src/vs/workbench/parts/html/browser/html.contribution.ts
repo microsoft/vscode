@@ -20,6 +20,8 @@ import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 
+import './webview.contribution';
+
 function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI | string) {
 	const uri = resource instanceof URI ? resource : URI.parse(resource);
 	return accessor.get(IWorkbenchEditorService).getVisibleEditors()
@@ -90,27 +92,6 @@ CommandsRegistry.registerCommand('_workbench.htmlPreview.postMessage', function 
 		preview.sendMessage(message);
 	}
 	return activePreviews.length > 0;
-});
-
-CommandsRegistry.registerCommand('_workbench.htmlPreview.updateOptions', function (
-	accessor: ServicesAccessor,
-	resource: URI | string,
-	options: HtmlInputOptions
-) {
-
-	const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-	const inputOptions: HtmlInputOptions = options;
-	const allowedBadgeProviders = extensionsWorkbenchService.allowedBadgeProviders;
-	inputOptions.svgWhiteList = allowedBadgeProviders;
-
-	const uri = resource instanceof URI ? resource : URI.parse(resource);
-	const activePreviews = getActivePreviewsForResource(accessor, resource);
-	for (const preview of activePreviews) {
-		if (preview.input && preview.input instanceof HtmlInput) {
-			const input = accessor.get(IInstantiationService).createInstance(HtmlInput, preview.input.getName(), '', uri, options);
-			preview.setInput(input);
-		}
-	}
 });
 
 CommandsRegistry.registerCommand('_webview.openDevTools', function () {

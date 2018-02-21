@@ -15,6 +15,8 @@ import { escape } from 'vs/base/common/strings';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import * as os from 'os';
+import { debounce } from 'vs/base/common/decorators';
+import * as platform from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -31,16 +33,25 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
-import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData } from 'vs/platform/issue/common/issue';
+import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures } from 'vs/platform/issue/common/issue';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { debounce } from 'vs/base/common/decorators';
-import * as platform from 'vs/base/common/platform';
+import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
+import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
+import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
+import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 const MAX_URL_LENGTH = 5400;
 
+interface SearchResult {
+	html_url: string;
+	title: string;
+	state?: string;
+}
+
 export interface IssueReporterConfiguration extends IWindowConfiguration {
 	data: IssueReporterData;
+	features: IssueReporterFeatures;
 }
 
 export function startup(configuration: IssueReporterConfiguration) {
@@ -53,8 +64,9 @@ export function startup(configuration: IssueReporterConfiguration) {
 export class IssueReporter extends Disposable {
 	private environmentService: IEnvironmentService;
 	private telemetryService: ITelemetryService;
+	private logService: ILogService;
 	private issueReporterModel: IssueReporterModel;
-	private shouldQueueSearch = true;
+	private numberOfSearchResultsDisplayed = 0;
 	private receivedSystemInfo = false;
 	private receivedPerformanceInfo = false;
 
@@ -65,20 +77,15 @@ export class IssueReporter extends Disposable {
 
 		this.issueReporterModel = new IssueReporterModel({
 			issueType: configuration.data.issueType || IssueType.Bug,
-			includeSystemInfo: true,
-			includeWorkspaceInfo: true,
-			includeProcessInfo: true,
-			includeSearchedExtensions: true,
-			includeSettingsSearchDetails: true,
 			versionInfo: {
 				vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
 				os: `${os.type()} ${os.arch()} ${os.release()}`
 			},
 			extensionsDisabled: this.environmentService.disableExtensions,
-			reprosWithoutExtensions: false
 		});
 
 		ipcRenderer.on('issuePerformanceInfoResponse', (event, info) => {
+			this.logService.trace('issueReporter: Received performance data');
 			this.issueReporterModel.update(info);
 			this.receivedPerformanceInfo = true;
 
@@ -89,6 +96,7 @@ export class IssueReporter extends Disposable {
 		});
 
 		ipcRenderer.on('issueSystemInfoResponse', (event, info) => {
+			this.logService.trace('issueReporter: Received system data');
 			this.issueReporterModel.update({ systemInfo: info });
 			this.receivedSystemInfo = true;
 
@@ -98,6 +106,7 @@ export class IssueReporter extends Disposable {
 
 		ipcRenderer.send('issueSystemInfoRequest');
 		ipcRenderer.send('issuePerformanceInfoRequest');
+		this.logService.trace('issueReporter: Sent data requests');
 
 		if (window.document.documentElement.lang !== 'en') {
 			show(document.getElementById('english'));
@@ -132,7 +141,7 @@ export class IssueReporter extends Disposable {
 		const content: string[] = [];
 
 		if (styles.inputBackground) {
-			content.push(`input[type="text"], textarea, select { background-color: ${styles.inputBackground}; }`);
+			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state { background-color: ${styles.inputBackground}; }`);
 		}
 
 		if (styles.inputBorder) {
@@ -142,7 +151,7 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.inputForeground) {
-			content.push(`input[type="text"], textarea, select { color: ${styles.inputForeground}; }`);
+			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state { color: ${styles.inputForeground}; }`);
 		}
 
 		if (styles.inputErrorBorder) {
@@ -175,15 +184,15 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.sliderBackgroundColor) {
-			content.push(`body::-webkit-scrollbar-thumb { background-color: ${styles.sliderBackgroundColor}; }`);
+			content.push(`::-webkit-scrollbar-thumb { background-color: ${styles.sliderBackgroundColor}; }`);
 		}
 
 		if (styles.sliderActiveColor) {
-			content.push(`body::-webkit-scrollbar-thumb:active { background-color: ${styles.sliderActiveColor}; }`);
+			content.push(`::-webkit-scrollbar-thumb:active { background-color: ${styles.sliderActiveColor}; }`);
 		}
 
 		if (styles.sliderHoverColor) {
-			content.push(`body::-webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
+			content.push(`::--webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
 		}
 
 		styleTag.innerHTML = content.join('\n');
@@ -257,6 +266,10 @@ export class IssueReporter extends Disposable {
 		serviceCollection.set(IWindowsService, new WindowsChannelClient(windowsChannel));
 		this.environmentService = new EnvironmentService(configuration, configuration.execPath);
 
+		const logService = createSpdLogService(`issuereporter${configuration.windowId}`, getLogLevel(this.environmentService), this.environmentService.logsPath);
+		const logLevelClient = new LogLevelSetterChannelClient(mainProcessClient.getChannel('loglevel'));
+		this.logService = new FollowerLogService(logLevelClient, logService);
+
 		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${configuration.windowId}`));
 
@@ -318,10 +331,26 @@ export class IssueReporter extends Disposable {
 		});
 
 		document.getElementById('description').addEventListener('input', (event: Event) => {
-			this.issueReporterModel.update({ issueDescription: (<HTMLInputElement>event.target).value });
+			const issueDescription = (<HTMLInputElement>event.target).value;
+			this.issueReporterModel.update({ issueDescription });
+
+			const title = (<HTMLInputElement>document.getElementById('issue-title')).value;
+			if (title || issueDescription) {
+				this.searchDuplicates(title, issueDescription);
+			} else {
+				this.clearSearchResults();
+			}
 		});
 
-		document.getElementById('issue-title').addEventListener('input', (e) => { this.searchGitHub(e); });
+		document.getElementById('issue-title').addEventListener('input', (e) => {
+			const description = this.issueReporterModel.getData().issueDescription;
+			const title = (<HTMLInputElement>event.target).value;
+			if (title || description) {
+				this.searchDuplicates(title, description);
+			} else {
+				this.clearSearchResults();
+			}
+		});
 
 		document.getElementById('github-submit-btn').addEventListener('click', () => this.createIssue());
 
@@ -404,72 +433,93 @@ export class IssueReporter extends Disposable {
 		return false;
 	}
 
-	@debounce(300)
-	private searchGitHub(event: Event): void {
-		const title = (<HTMLInputElement>event.target).value;
+	private clearSearchResults(): void {
 		const similarIssues = document.getElementById('similar-issues');
-		if (title) {
-			const query = `is:issue+repo:microsoft/vscode+${title}`;
-			window.fetch(`https://api.github.com/search/issues?q=${query}`).then((response) => {
-				response.json().then(result => {
-					similarIssues.innerHTML = '';
-					if (result && result.items && result.items.length) {
-						const issues = $('ul');
-						const issuesText = $('div.list-title');
-						issuesText.textContent = localize('similarIssues', "Similar issues");
+		similarIssues.innerHTML = '';
+		this.numberOfSearchResultsDisplayed = 0;
+	}
 
-						const { items } = result;
-						const numResultsToDisplay = items.length < 5 ? items.length : 5;
-						for (let i = 0; i < numResultsToDisplay; i++) {
-							const link = $('a', { href: items[i].html_url });
-							link.textContent = items[i].title;
-							link.addEventListener('click', openLink);
-							link.addEventListener('auxclick', openLink);
+	@debounce(300)
+	private searchDuplicates(title: string, body: string): void {
+		const url = 'https://vscode-probot.westus.cloudapp.azure.com:7890/duplicate_candidates';
+		const init = {
+			method: 'POST',
+			body: JSON.stringify({
+				title,
+				body
+			}),
+			headers: new Headers({
+				'Content-Type': 'application/json'
+			})
+		};
 
-							const item = $('li', {}, link);
-							issues.appendChild(item);
-						}
+		window.fetch(url, init).then((response) => {
+			response.json().then(result => {
+				this.clearSearchResults();
 
-						similarIssues.appendChild(issuesText);
-						similarIssues.appendChild(issues);
-					} else if (result && result.items) {
-						const message = $('div.list-title');
-						message.textContent = localize('noResults', "No results found");
-						similarIssues.appendChild(message);
-					} else {
-						const message = $('div.list-title');
-						message.textContent = localize('rateLimited', "GitHub query limit exceeded. Please wait.");
-						similarIssues.appendChild(message);
-
-						const resetTime = response.headers.get('X-RateLimit-Reset');
-						const timeToWait = parseInt(resetTime) - Math.floor(Date.now() / 1000);
-						if (this.shouldQueueSearch) {
-							this.shouldQueueSearch = false;
-							setTimeout(() => {
-								this.searchGitHub(event);
-								this.shouldQueueSearch = true;
-							}, timeToWait * 1000);
-						}
-
-						throw new Error(result.message);
-					}
-				}).catch((error) => {
-					this.logSearchError(error);
-				});
+				if (result && result.candidates) {
+					this.displaySearchResults(result.candidates);
+				} else {
+					throw new Error('Unexpected response, no candidates property');
+				}
 			}).catch((error) => {
 				this.logSearchError(error);
 			});
+		}).catch((error) => {
+			this.logSearchError(error);
+		});
+	}
+
+	private displaySearchResults(results: SearchResult[]) {
+		const similarIssues = document.getElementById('similar-issues');
+		if (results.length) {
+			const issues = $('div.issues-container');
+			const issuesText = $('div.list-title');
+			issuesText.textContent = localize('similarIssues', "Similar issues");
+
+			this.numberOfSearchResultsDisplayed = results.length < 5 ? results.length : 5;
+			for (let i = 0; i < this.numberOfSearchResultsDisplayed; i++) {
+				const issue = results[i];
+				const link = $('a.issue-link', { href: issue.html_url });
+				link.textContent = issue.title;
+				link.title = issue.title;
+				link.addEventListener('click', (e) => this.openLink(e));
+				link.addEventListener('auxclick', (e) => this.openLink(<MouseEvent>e));
+
+				let issueState: HTMLElement;
+				if (issue.state) {
+					issueState = $('span.issue-state');
+
+					const issueIcon = $('span.issue-icon');
+					const octicon = new OcticonLabel(issueIcon);
+					octicon.text = issue.state === 'open' ? '$(issue-opened)' : '$(issue-closed)';
+
+					const issueStateLabel = $('span.issue-state.label');
+					issueStateLabel.textContent = issue.state === 'open' ? localize('open', "Open") : localize('closed', "Closed");
+
+					issueState.title = issue.state === 'open' ? localize('open', "Open") : localize('closed', "Closed");
+					issueState.appendChild(issueIcon);
+					issueState.appendChild(issueStateLabel);
+				}
+
+				const item = $('div.issue', {}, issueState, link);
+				issues.appendChild(item);
+			}
+
+			similarIssues.appendChild(issuesText);
+			similarIssues.appendChild(issues);
 		} else {
-			similarIssues.innerHTML = '';
+			const message = $('div.list-title');
+			message.textContent = localize('noResults', "No results found");
+			similarIssues.appendChild(message);
 		}
 	}
 
 	private logSearchError(error: Error) {
-		// TODO: Use LogService here.
-		console.log(error);
+		this.logService.warn('issueReporter#search ', error.message);
 		/* __GDPR__
 		"issueReporterSearchError" : {
-				"message" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
 			}
 		*/
 		this.telemetryService.publicLog('issueReporterSearchError', { message: error.message });
@@ -583,14 +633,13 @@ export class IssueReporter extends Disposable {
 			return false;
 		}
 
-		if (this.telemetryService) {
-			/* __GDPR__
-				"issueReporterSubmit" : {
-					"issueType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType });
-		}
+		/* __GDPR__
+			"issueReporterSubmit" : {
+				"issueType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"numSimilarIssuesDisplayed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this.telemetryService.publicLog('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType, numSimilarIssuesDisplayed: this.numberOfSearchResultsDisplayed });
 
 		const issueTitle = encodeURIComponent((<HTMLInputElement>document.getElementById('issue-title')).value);
 		const queryStringPrefix = product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
@@ -703,6 +752,20 @@ export class IssueReporter extends Disposable {
 
 		return table;
 	}
+
+	private openLink(event: MouseEvent): void {
+		event.preventDefault();
+		event.stopPropagation();
+		// Exclude right click
+		if (event.which < 3) {
+			shell.openExternal((<HTMLAnchorElement>event.target).href);
+
+			/* __GDPR__
+				"issueReporterViewSimilarIssue" : { }
+			*/
+			this.telemetryService.publicLog('issueReporterViewSimilarIssue');
+		}
+	}
 }
 
 // helper functions
@@ -712,13 +775,4 @@ function hide(el) {
 }
 function show(el) {
 	el.classList.remove('hidden');
-}
-
-function openLink(event: MouseEvent) {
-	event.preventDefault();
-	event.stopPropagation();
-	// Exclude right click
-	if (event.which < 3) {
-		shell.openExternal((<HTMLAnchorElement>event.target).href);
-	}
 }

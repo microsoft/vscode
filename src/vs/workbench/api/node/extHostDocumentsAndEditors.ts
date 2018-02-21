@@ -85,7 +85,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 
 				const documentData = this._documents.get(resource.toString());
 				const editor = new ExtHostTextEditor(
-					this._mainContext.getProxy(MainContext.MainThreadEditors),
+					this._mainContext.getProxy(MainContext.MainThreadTextEditors),
 					data.id,
 					documentData,
 					data.selections.map(typeConverters.toSelection),

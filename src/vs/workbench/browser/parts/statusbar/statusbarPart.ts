@@ -6,7 +6,6 @@
 'use strict';
 
 import 'vs/css!./media/statusbarpart';
-import dom = require('vs/base/browser/dom');
 import nls = require('vs/nls');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -20,7 +19,6 @@ import { Part } from 'vs/workbench/browser/part';
 import { StatusbarAlignment, IStatusbarRegistry, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IStatusbarService, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -31,6 +29,8 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
+import { addClass, EventHelper } from 'vs/base/browser/dom';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
@@ -151,12 +151,12 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	private doCreateStatusItem(alignment: StatusbarAlignment, priority: number = 0): HTMLElement {
 		const el = document.createElement('div');
-		dom.addClass(el, 'statusbar-item');
+		addClass(el, 'statusbar-item');
 
 		if (alignment === StatusbarAlignment.RIGHT) {
-			dom.addClass(el, 'right');
+			addClass(el, 'right');
 		} else {
-			dom.addClass(el, 'left');
+			addClass(el, 'left');
 		}
 
 		$(el).setProperty(StatusbarPart.PRIORITY_PROP, priority);
@@ -206,13 +206,12 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 let manageExtensionAction: ManageExtensionAction;
 class StatusBarEntryItem implements IStatusbarItem {
-	private entry: IStatusbarEntry;
 
 	constructor(
-		entry: IStatusbarEntry,
+		private entry: IStatusbarEntry,
 		@ICommandService private commandService: ICommandService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -227,7 +226,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 	public render(el: HTMLElement): IDisposable {
 		let toDispose: IDisposable[] = [];
-		dom.addClass(el, 'statusbar-entry');
+		addClass(el, 'statusbar-entry');
 
 		// Text Container
 		let textContainer: HTMLElement;
@@ -264,7 +263,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 		// Context Menu
 		if (this.entry.extensionId) {
 			$(textContainer).on('contextmenu', e => {
-				dom.EventHelper.stop(e, true);
+				EventHelper.stop(e, true);
 
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => el,
@@ -300,7 +299,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 			}
 		*/
 		this.telemetryService.publicLog('workbenchActionExecuted', { id, from: 'status bar' });
-		this.commandService.executeCommand(id, ...args).done(undefined, err => this.messageService.show(Severity.Error, toErrorMessage(err)));
+		this.commandService.executeCommand(id, ...args).done(undefined, err => this.notificationService.error(toErrorMessage(err)));
 	}
 }
 

@@ -56,8 +56,8 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 	}
 
 	constructor(editor: ICodeEditor,
-		@IOpenerService private _openerService: IOpenerService,
-		@IModeService private _modeService: IModeService
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IModeService private readonly _modeService: IModeService
 	) {
 		this._editor = editor;
 

@@ -17,7 +17,7 @@ import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer
 import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IExpressionContainer, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
 import { Model, RawObjectReplElement, Expression, SimpleReplElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
-import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
+import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction, CopyAllAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

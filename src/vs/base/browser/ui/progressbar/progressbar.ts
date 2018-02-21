@@ -45,7 +45,9 @@ export class ProgressBar {
 	private animationStopToken: ValueCallback;
 	private progressBarBackground: Color;
 
-	constructor(builder: Builder, options?: IProgressBarOptions) {
+	constructor(container: Builder, options?: IProgressBarOptions);
+	constructor(container: HTMLElement, options?: IProgressBarOptions);
+	constructor(container: any, options?: IProgressBarOptions) {
 		this.options = options || Object.create(null);
 		mixin(this.options, defaultOpts, false);
 
@@ -54,11 +56,13 @@ export class ProgressBar {
 
 		this.progressBarBackground = this.options.progressBarBackground;
 
-		this.create(builder);
+		this.create(container);
 	}
 
-	private create(parent: Builder): void {
-		parent.div({ 'class': css_progress_container }, (builder) => {
+	private create(container: Builder): void;
+	private create(container: HTMLElement): void;
+	private create(container: any): void {
+		$(container).div({ 'class': css_progress_container }, (builder) => {
 			this.element = builder.clone();
 
 			builder.div({ 'class': css_progress_bit }).on([DOM.EventType.ANIMATION_START, DOM.EventType.ANIMATION_END, DOM.EventType.ANIMATION_ITERATION], (e: Event) => {

@@ -5,12 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/atom/language-xml/commit/507de2ee7daca60cf02e9e21fbeb92bbae73e280",
-	"scopeName": "text.xml.xsl",
 	"name": "XSL",
-	"fileTypes": [
-		"xsl",
-		"xslt"
-	],
+	"scopeName": "text.xml.xsl",
 	"patterns": [
 		{
 			"begin": "(<)(xsl)((:))(template)",

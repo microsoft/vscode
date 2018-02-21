@@ -28,7 +28,7 @@ export interface IStreamProvider {
 	(cancellationToken?: ICancellationToken): NodeJS.ReadWriteStream;
 }
 
-export function incremental(streamProvider: IStreamProvider, initial: NodeJS.ReadWriteStream, supportsCancellation: boolean): NodeJS.ReadWriteStream {
+export function incremental(streamProvider: IStreamProvider, initial: NodeJS.ReadWriteStream, supportsCancellation?: boolean): NodeJS.ReadWriteStream {
 	const input = es.through();
 	const output = es.through();
 	let state = 'idle';
@@ -223,7 +223,7 @@ export function rimraf(dir: string): (cb: any) => void {
 		_rimraf(dir, { maxBusyTries: 1 }, (err: any) => {
 			if (!err) {
 				return cb();
-			};
+			}
 
 			if (err.code === 'ENOTEMPTY' && ++retries < 5) {
 				return setTimeout(() => retry(cb), 10);

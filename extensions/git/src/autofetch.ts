@@ -57,7 +57,7 @@ export class AutoFetcher {
 		const readMore: MessageItem = { title: localize('read more', "Read More") };
 		const no: MessageItem = { isCloseAffordance: true, title: localize('no', "No") };
 		const askLater: MessageItem = { title: localize('not now', "Ask Me Later") };
-		const result = await window.showInformationMessage(localize('suggest auto fetch', "Would you like Code to periodically run `git fetch`?"), yes, readMore, no, askLater);
+		const result = await window.showInformationMessage(localize('suggest auto fetch', "Would you like Code to periodically run 'git fetch'?"), yes, readMore, no, askLater);
 
 		if (result === askLater) {
 			return;

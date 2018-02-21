@@ -20,7 +20,6 @@ import { IKeybindingItem, KeybindingsRegistry, IKeybindingRule2 } from 'vs/platf
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { keybindingsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as dom from 'vs/base/browser/dom';
@@ -37,6 +36,7 @@ import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationN
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { release } from 'os';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class KeyboardMapperFactory {
 	public static readonly INSTANCE = new KeyboardMapperFactory();
@@ -263,12 +263,12 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStatusbarService statusBarService: IStatusbarService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(contextKeyService, commandService, telemetryService, messageService, statusBarService);
+		super(contextKeyService, commandService, telemetryService, notificationService, statusBarService);
 
 		let dispatchConfig = getDispatchConfig(configurationService);
 		configurationService.onDidChangeConfiguration((e) => {

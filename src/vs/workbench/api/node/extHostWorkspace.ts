@@ -16,9 +16,9 @@ import { compare } from 'vs/base/common/strings';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { basenameOrAuthority, isEqual } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
-import { Severity } from 'vs/platform/message/common/message';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { localize } from 'vs/nls';
+import { Severity } from 'vs/platform/notification/common/notification';
 
 function isFolderEqual(folderA: URI, folderB: URI): boolean {
 	return isEqual(folderA, folderB, !isLinux);

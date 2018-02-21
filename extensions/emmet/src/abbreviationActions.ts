@@ -10,6 +10,12 @@ import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages,
 const trimRegex = /[\u00a0]*[\d|#|\-|\*|\u2022]+\.?/;
 const hexColorRegex = /^#\d+$/;
 
+const inlineElements = ['a', 'abbr', 'acronym', 'applet', 'b', 'basefont', 'bdo',
+	'big', 'br', 'button', 'cite', 'code', 'del', 'dfn', 'em', 'font', 'i',
+	'iframe', 'img', 'input', 'ins', 'kbd', 'label', 'map', 'object', 'q',
+	's', 'samp', 'select', 'small', 'span', 'strike', 'strong', 'sub', 'sup',
+	'textarea', 'tt', 'u', 'var'];
+
 interface ExpandAbbreviationInput {
 	syntax: string;
 	abbreviation: string;
@@ -62,7 +68,8 @@ export function wrapWithAbbreviation(args: any) {
 			const preceedingWhiteSpace = matches ? matches[1].length : 0;
 
 			rangeToReplace = new vscode.Range(rangeToReplace.start.line, rangeToReplace.start.character + preceedingWhiteSpace, rangeToReplace.end.line, rangeToReplace.end.character);
-			expandAbbrList.push({ syntax, abbreviation, rangeToReplace, textToWrap: ['\n\t$TM_SELECTED_TEXT\n'], filter });
+			let textToWrap = rangeToReplace.isSingleLine ? ['$TM_SELECTED_TEXT'] : ['\n\t$TM_SELECTED_TEXT\n'];
+			expandAbbrList.push({ syntax, abbreviation, rangeToReplace, textToWrap, filter });
 		});
 
 		return expandAbbreviationInRange(editor, expandAbbrList, true);
@@ -253,12 +260,14 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			if (propertyNode.terminatorToken
 				&& propertyNode.separator
 				&& position.isAfterOrEqual(propertyNode.separatorToken.end)
-				&& position.isBeforeOrEqual(propertyNode.terminatorToken.start)) {
+				&& position.isBeforeOrEqual(propertyNode.terminatorToken.start)
+				&& abbreviation.indexOf(':') === -1) {
 				return hexColorRegex.test(abbreviation);
 			}
 			if (!propertyNode.terminatorToken
 				&& propertyNode.separator
-				&& position.isAfterOrEqual(propertyNode.separatorToken.end)) {
+				&& position.isAfterOrEqual(propertyNode.separatorToken.end)
+				&& abbreviation.indexOf(':') === -1) {
 				return hexColorRegex.test(abbreviation);
 			}
 		}
@@ -433,17 +442,29 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 
 	try {
 		// Expand the abbreviation
-		let expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
+		let expandedText;
 
 		if (input.textToWrap) {
+			let parsedAbbr = helper.parseAbbreviation(input.abbreviation, expandOptions);
+			if (input.rangeToReplace.isSingleLine && input.textToWrap.length === 1) {
+
+				// Fetch rightmost element in the parsed abbreviation (i.e the element that will contain the wrapped text).
+				let wrappingNode = parsedAbbr;
+				while (wrappingNode && wrappingNode.children && wrappingNode.children.length > 0) {
+					wrappingNode = wrappingNode.children[wrappingNode.children.length - 1];
+				}
+
+				// If wrapping with a block element, insert newline in the text to wrap.
+				if (wrappingNode && inlineElements.indexOf(wrappingNode.name) === -1) {
+					wrappingNode.value = '\n\t' + wrappingNode.value + '\n';
+				}
+			}
+			expandedText = helper.expandAbbreviation(parsedAbbr, expandOptions);
 			// All $anyword would have been escaped by the emmet helper.
 			// Remove the escaping backslash from $TM_SELECTED_TEXT so that VS Code Snippet controller can treat it as a variable
 			expandedText = expandedText.replace('\\$TM_SELECTED_TEXT', '$TM_SELECTED_TEXT');
-
-			// If the expanded text is single line then we dont need the \t and \n we added to $TM_SELECTED_TEXT earlier
-			if (input.textToWrap.length === 1 && expandedText.indexOf('\n') === -1) {
-				expandedText = expandedText.replace(/\s*\$TM_SELECTED_TEXT\s*/, '$TM_SELECTED_TEXT');
-			}
+		} else {
+			expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
 		}
 
 		return expandedText;

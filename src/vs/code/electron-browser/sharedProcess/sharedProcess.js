@@ -131,6 +131,8 @@ function main() {
 	// In the bundled version the nls plugin is packaged with the loader so the NLS Plugins
 	// loads as soon as the loader loads. To be able to have pseudo translation
 	createScript(rootUrl + '/vs/loader.js', function () {
+		var define = global.define;
+		global.define = undefined;
 		define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
 
 		window.MonacoEnvironment = {};

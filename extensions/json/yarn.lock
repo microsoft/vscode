@@ -28,9 +28,9 @@ semver@^5.3.0:
   version "5.5.0"
   resolved "https://registry.yarnpkg.com/semver/-/semver-5.5.0.tgz#dc4bbc7a6ca9d916dee5d43516f0092b58f7b8ab"
 
-vscode-extension-telemetry@0.0.11:
-  version "0.0.11"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.11.tgz#f2dde487f01d2b079f55ab47a0247f5a772c4e06"
+vscode-extension-telemetry@0.0.13:
+  version "0.0.13"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.13.tgz#8a4438cbb0a9f9f8ad65479e4ec08683aa4de0f7"
   dependencies:
     applicationinsights "1.0.1"
 
@@ -38,15 +38,15 @@ vscode-jsonrpc@^3.6.0-next.1:
   version "3.6.0-next.1"
   resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.6.0-next.1.tgz#3cb463dffe5842d6aec16718ca9252708cd6aabe"
 
-vscode-languageclient@^4.0.0-next.7:
-  version "4.0.0-next.7"
-  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-4.0.0-next.7.tgz#d4d22937a46ad6c0884a678158c4d4a2269a747e"
+vscode-languageclient@^4.0.0-next.9:
+  version "4.0.0-next.9"
+  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-4.0.0-next.9.tgz#2a06568f46ee9de3490f85e227d3740a21a03d3a"
   dependencies:
-    vscode-languageserver-protocol "^3.6.0-next.4"
+    vscode-languageserver-protocol "^3.6.0-next.5"
 
-vscode-languageserver-protocol@^3.6.0-next.4:
-  version "3.6.0-next.4"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.6.0-next.4.tgz#5b9940e4d6afafd5b63f9731dbd3a9bcc65b3719"
+vscode-languageserver-protocol@^3.6.0-next.5:
+  version "3.6.0-next.5"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.6.0-next.5.tgz#ed2ec2db759826f753c0a13977dfb2bedc4d31b3"
   dependencies:
     vscode-jsonrpc "^3.6.0-next.1"
     vscode-languageserver-types "^3.6.0-next.1"

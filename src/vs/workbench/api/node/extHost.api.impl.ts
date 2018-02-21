@@ -57,6 +57,7 @@ import { ExtensionActivatedByAPI } from 'vs/workbench/api/node/extHostExtensionA
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { OverviewRulerLane } from 'vs/editor/common/model';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
+import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -99,7 +100,7 @@ export function createApiFactory(
 	const extHostDocumentsAndEditors = rpcProtocol.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(rpcProtocol));
 	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors));
-	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadEditors)));
+	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadTextEditors)));
 	const extHostEditors = rpcProtocol.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostCommands = rpcProtocol.set(ExtHostContext.ExtHostCommands, new ExtHostCommands(rpcProtocol, extHostHeapService, extHostLogService));
 	const extHostTreeViews = rpcProtocol.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(rpcProtocol.getProxy(MainContext.MainThreadTreeViews), extHostCommands));
@@ -116,6 +117,7 @@ export function createApiFactory(
 	const extHostTask = rpcProtocol.set(ExtHostContext.ExtHostTask, new ExtHostTask(rpcProtocol, extHostWorkspace));
 	const extHostWindow = rpcProtocol.set(ExtHostContext.ExtHostWindow, new ExtHostWindow(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostExtensionService, extensionService);
+	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol));
 
 	// Check that no named customers are missing
 	const expected: ProxyIdentifier<any>[] = Object.keys(ExtHostContext).map((key) => ExtHostContext[key]);
@@ -396,6 +398,9 @@ export function createApiFactory(
 			}),
 			registerDecorationProvider: proposedApiFunction(extension, (provider: vscode.DecorationProvider) => {
 				return extHostDecorations.registerDecorationProvider(provider, extension.id);
+			}),
+			createWebview: proposedApiFunction(extension, (name: string, column: vscode.ViewColumn, options: vscode.WebviewOptions) => {
+				return extHostWebviews.createWebview(name, column, options);
 			})
 		};
 
@@ -533,21 +538,21 @@ export function createApiFactory(
 			onDidReceiveDebugSessionCustomEvent(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidReceiveDebugSessionCustomEvent(listener, thisArg, disposables);
 			},
-			onDidChangeBreakpoints: proposedApiFunction(extension, (listener, thisArgs?, disposables?) => {
+			onDidChangeBreakpoints(listener, thisArgs?, disposables?) {
 				return extHostDebugService.onDidChangeBreakpoints(listener, thisArgs, disposables);
-			}),
-			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
-				return extHostDebugService.startDebugging(folder, nameOrConfig);
 			},
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider) {
 				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider);
 			},
-			addBreakpoints: proposedApiFunction(extension, (breakpoints: vscode.Breakpoint[]) => {
+			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
+				return extHostDebugService.startDebugging(folder, nameOrConfig);
+			},
+			addBreakpoints(breakpoints: vscode.Breakpoint[]) {
 				return extHostDebugService.addBreakpoints(breakpoints);
-			}),
-			removeBreakpoints: proposedApiFunction(extension, (breakpoints: vscode.Breakpoint[]) => {
+			},
+			removeBreakpoints(breakpoints: vscode.Breakpoint[]) {
 				return extHostDebugService.removeBreakpoints(breakpoints);
-			})
+			}
 		};
 
 

@@ -8,7 +8,7 @@ import Event from 'vs/base/common/event';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { sequence, always } from 'vs/base/common/async';
 import { illegalState } from 'vs/base/common/errors';
-import { ExtHostDocumentSaveParticipantShape, MainThreadEditorsShape, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostDocumentSaveParticipantShape, MainThreadTextEditorsShape, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { TextEdit } from 'vs/workbench/api/node/extHostTypes';
 import { fromRange, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
@@ -28,7 +28,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 	constructor(
 		private readonly _logService: ILogService,
 		private readonly _documents: ExtHostDocuments,
-		private readonly _mainThreadEditors: MainThreadEditorsShape,
+		private readonly _mainThreadEditors: MainThreadTextEditorsShape,
 		private readonly _thresholds: { timeout: number; errors: number; } = { timeout: 1500, errors: 3 }
 	) {
 		//

@@ -11,7 +11,6 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
-import Severity from 'vs/base/common/severity';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ISashEvent, IVerticalSashLayoutProvider, Sash } from 'vs/base/browser/ui/sash/sash';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -41,9 +40,9 @@ import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceCompute
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
 import URI from 'vs/base/common/uri';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IModelDeltaDecoration, IModelDecorationsChangeAccessor, ITextModel } from 'vs/editor/common/model';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 interface IEditorDiffDecorations {
 	decorations: IModelDeltaDecoration[];
@@ -192,7 +191,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	protected _contextKeyService: IContextKeyService;
 	private _codeEditorService: ICodeEditorService;
 	private _themeService: IThemeService;
-	private readonly _messageService: IMessageService;
+	private _notificationService: INotificationService;
 
 	private _reviewPane: DiffReview;
 
@@ -204,7 +203,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IThemeService themeService: IThemeService,
-		@IMessageService messageService: IMessageService
+		@INotificationService notificationService: INotificationService
 	) {
 		super();
 
@@ -213,7 +212,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._contextKeyService = contextKeyService.createScoped(domElement);
 		this._contextKeyService.createKey('isInDiffEditor', true);
 		this._themeService = themeService;
-		this._messageService = messageService;
+		this._notificationService = notificationService;
 
 		this.id = (++DIFF_EDITOR_ID);
 
@@ -853,7 +852,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			) {
 				this._lastOriginalWarning = currentOriginalModel.uri;
 				this._lastModifiedWarning = currentModifiedModel.uri;
-				this._messageService.show(Severity.Warning, nls.localize("diff.tooLarge", "Cannot compare files because one file is too large."));
+				this._notificationService.warn(nls.localize("diff.tooLarge", "Cannot compare files because one file is too large."));
 			}
 			return;
 		}

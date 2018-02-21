@@ -6,7 +6,7 @@
 import 'vs/css!./media/views';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
@@ -50,14 +50,6 @@ export class CustomViewsService extends Disposable implements ICustomViewsServic
 
 	getTreeViewer(id: string): ITreeViewer {
 		return this.viewers.get(id);
-	}
-
-	registerTreeViewDataProvider(id: string, dataProvider: ITreeViewDataProvider): void {
-		const treeViewer = <CustomTreeViewer>this.getTreeViewer(id);
-		if (treeViewer) {
-			treeViewer.setDataProvider(dataProvider);
-			dataProvider.onDispose(() => treeViewer.setDataProvider(null));
-		}
 	}
 
 	private createViewers(viewDescriptors: IViewDescriptor[]): void {
@@ -104,7 +96,7 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 	private refreshing = 0;
 
 	private _dataProvider: ITreeViewDataProvider;
-	private dataProviderElementChangeListener: IDisposable;
+	private dataProviderDisposables: IDisposable[] = [];
 
 	constructor(
 		private id: string,
@@ -123,10 +115,8 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 		return this._dataProvider;
 	}
 
-	setDataProvider(dataProvider: ITreeViewDataProvider) {
-		if (this.dataProviderElementChangeListener) {
-			this.dataProviderElementChangeListener.dispose();
-		}
+	set dataProvider(dataProvider: ITreeViewDataProvider) {
+		dispose(this.dataProviderDisposables);
 		if (dataProvider) {
 			const customTreeView: CustomTreeViewer = this;
 			this._dataProvider = new class implements ITreeViewDataProvider {
@@ -146,7 +136,8 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 					});
 				}
 			};
-			this.dataProviderElementChangeListener = this._register(dataProvider.onDidChange(elements => this.refresh(elements)));
+			this._register(dataProvider.onDidChange(elements => this.refresh(elements), this, this.dataProviderDisposables));
+			this._register(dataProvider.onDispose(() => this.dataProvider = null, this, this.dataProviderDisposables));
 		} else {
 			this._dataProvider = null;
 		}
@@ -204,24 +195,24 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 		}
 	}
 
-	render(container: HTMLElement): void {
-		this.treeContainer = DOM.append(container, DOM.$('.tree-explorer-viewlet-tree-view'));
+	show(container: HTMLElement): void {
+		if (!this.tree) {
+			this.createTree();
+		}
+		DOM.append(container, this.treeContainer);
+	}
 
+	private createTree() {
+		this.treeContainer = DOM.$('.tree-explorer-viewlet-tree-view');
 		const actionItemProvider = (action: IAction) => action instanceof MenuItemAction ? this.instantiationService.createInstance(ContextAwareMenuItemActionItem, action) : undefined;
 		const menus = this.instantiationService.createInstance(Menus, this.id);
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, this, menus, actionItemProvider);
 		const controller = this.instantiationService.createInstance(TreeController, this.id, menus);
-		this.tree = this.instantiationService.createInstance(FileIconThemableWorkbenchTree,
-			this.treeContainer,
-			{ dataSource, renderer, controller },
-			{}
-		);
-
+		this.tree = this.instantiationService.createInstance(FileIconThemableWorkbenchTree, this.treeContainer, { dataSource, renderer, controller }, {});
 		this.tree.contextKeyService.createKey<boolean>(this.id, true);
 		this._register(this.tree);
 		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
-
 		this.tree.setInput(this.root);
 	}
 
@@ -413,7 +404,7 @@ class TreeRenderer implements IRenderer {
 
 	public renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
-		const name = node.label || basename(resource.path);
+		const label = node.label ? node.label : resource ? basename(resource.path) : '';
 		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
 
 		// reset
@@ -424,11 +415,12 @@ class TreeRenderer implements IRenderer {
 		DOM.removeClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 
 		if (resource && !icon) {
-			templateData.resourceLabel.setLabel({ name, resource }, { fileKind: node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE });
+			templateData.resourceLabel.setLabel({ name: label, resource }, { fileKind: node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE, title: node.tooltip });
 			DOM.addClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 		} else {
-			templateData.label.textContent = name;
+			templateData.label.textContent = label;
 			DOM.addClass(templateData.label, 'custom-view-tree-node-item-label');
+			templateData.label.title = typeof node.tooltip === 'string' ? node.tooltip : label;
 		}
 
 		templateData.icon.treeItem = node;
@@ -496,7 +488,7 @@ class TreeController extends WorkbenchTreeController {
 		private treeViewId: string,
 		private menus: Menus,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({}, configurationService);

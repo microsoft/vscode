@@ -49,7 +49,7 @@ export interface IViewletPanelOptions extends IPanelOptions {
 
 export abstract class ViewletPanel extends Panel {
 
-	private static AlwaysShowActionsConfig = 'workbench.panel.alwaysShowActions';
+	private static AlwaysShowActionsConfig = 'workbench.view.alwaysShowHeaderActions';
 
 	private _onDidFocus = new Emitter<void>();
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
@@ -114,7 +114,7 @@ export abstract class ViewletPanel extends Panel {
 	}
 
 	protected updateActionsVisibility(): void {
-		const shouldAlwaysShowActions = this.configurationService.getValue<boolean>('workbench.panel.alwaysShowActions');
+		const shouldAlwaysShowActions = this.configurationService.getValue<boolean>('workbench.view.alwaysShowHeaderActions');
 		toggleClass(this.headerContainer, 'actions-always-visible', shouldAlwaysShowActions);
 	}
 

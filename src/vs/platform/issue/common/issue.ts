@@ -55,6 +55,9 @@ export interface ISettingsSearchIssueReporterData extends IssueReporterData {
 	filterResultCount: number;
 }
 
+export interface IssueReporterFeatures {
+}
+
 export interface IIssueService {
 	_serviceBrand: any;
 	openReporter(data: IssueReporterData): TPromise<void>;

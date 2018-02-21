@@ -151,8 +151,8 @@ gulp.task('tslint', () => {
 
 	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
 		.pipe(filter(tslintFilter))
-		.pipe(gulptslint({ rulesDirectory: 'build/lib/tslint' }))
-		.pipe(gulptslint.report(options));
+		.pipe(gulptslint.default({ rulesDirectory: 'build/lib/tslint' }))
+		.pipe(gulptslint.default.report(options));
 });
 
 const hygiene = exports.hygiene = (some, options) => {
@@ -202,6 +202,11 @@ const hygiene = exports.hygiene = (some, options) => {
 			verify: true,
 			tsfmt: true,
 			// verbose: true
+			// keep checkJS happy
+			editorconfig: undefined,
+			replace: undefined,
+			tsconfig: undefined,
+			tslint: undefined
 		}).then(result => {
 			if (result.error) {
 				console.error(result.message);
@@ -261,12 +266,12 @@ const hygiene = exports.hygiene = (some, options) => {
 			const tslintResult = linter.getResult();
 			if (tslintResult.failures.length > 0) {
 				for (const failure of tslintResult.failures) {
-					const name = failure.name || failure.fileName;
-					const position = failure.startPosition;
-					const line = position.lineAndCharacter ? position.lineAndCharacter.line : position.line;
-					const character = position.lineAndCharacter ? position.lineAndCharacter.character : position.character;
+					const name = failure.getFailure() || failure.getFileName;
+					const position = failure.getStartPosition();
+					const line = position.getLineAndCharacter().line;
+					const character = position.getLineAndCharacter().character;
 
-					console.error(`${name}:${line + 1}:${character + 1}:${failure.failure}`);
+					console.error(`${name}:${line + 1}:${character + 1}:${failure.getFailure()}`);
 				}
 
 				errorCount += tslintResult.failures.length;

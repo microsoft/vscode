@@ -5,10 +5,8 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import Severity from 'vs/base/common/severity';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ipcRenderer as ipc } from 'electron';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -16,6 +14,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mark } from 'vs/base/common/performance';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class LifecycleService implements ILifecycleService {
 
@@ -31,10 +30,10 @@ export class LifecycleService implements ILifecycleService {
 	private _phaseWhen = new Map<LifecyclePhase, Barrier>();
 
 	constructor(
-		@IMessageService private _messageService: IMessageService,
-		@IWindowService private _windowService: IWindowService,
-		@IStorageService private _storageService: IStorageService,
-		@ILogService private _logService: ILogService
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IWindowService private readonly _windowService: IWindowService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		const lastShutdownReason = this._storageService.getInteger(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);
 		this._storageService.remove(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);
@@ -93,7 +92,7 @@ export class LifecycleService implements ILifecycleService {
 			reason
 		});
 
-		return handleVetos(vetos, err => this._messageService.show(Severity.Error, toErrorMessage(err)));
+		return handleVetos(vetos, err => this._notificationService.error(toErrorMessage(err)));
 	}
 
 	public get phase(): LifecyclePhase {

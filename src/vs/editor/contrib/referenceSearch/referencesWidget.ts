@@ -164,7 +164,7 @@ class DecorationsManager implements IDisposable {
 class DataSource implements tree.IDataSource {
 
 	constructor(
-		@ITextModelService private _textModelResolverService: ITextModelService
+		@ITextModelService private readonly _textModelResolverService: ITextModelService
 	) {
 		//
 	}
@@ -305,7 +305,7 @@ class FileReferencesTemplate {
 
 	constructor(
 		container: HTMLElement,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@optional(IEnvironmentService) private _environmentService: IEnvironmentService,
 		@IThemeService themeService: IThemeService,
 	) {
@@ -372,8 +372,8 @@ class Renderer implements tree.IRenderer {
 	};
 
 	constructor(
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
-		@IThemeService private _themeService: IThemeService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
+		@IThemeService private readonly _themeService: IThemeService,
 		@optional(IEnvironmentService) private _environmentService: IEnvironmentService,
 	) {
 		//
