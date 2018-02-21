@@ -195,14 +195,15 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 				ariaLabel: localize('notificationActions', "Notification Actions"),
 				actionItemProvider: action => {
 					if (action instanceof ConfigureNotificationAction) {
-						const item = new DropdownMenuActionItem(action, action.configurationActions, this.contextMenuService, null, null, null, action.class);
+						const item = new DropdownMenuActionItem(action, action.configurationActions, this.contextMenuService, null, this.actionRunner, null, action.class);
 						data.toDispose.push(item);
 
 						return item;
 					}
 
 					return null;
-				}
+				},
+				actionRunner: this.actionRunner
 			}
 		);
 		data.toDispose.push(data.toolbar);
@@ -456,7 +457,7 @@ export class NotificationTemplateRenderer {
 		this.inputDisposeables.push(button.onDidClick(() => {
 
 			// Run action
-			this.actionRunner.run(action);
+			this.actionRunner.run(action, notification);
 
 			// Hide notification
 			notification.dispose();

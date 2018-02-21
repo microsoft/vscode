@@ -46,12 +46,17 @@ export interface IConfirmationService {
 export const IChoiceService = createDecorator<IChoiceService>('choiceService');
 
 /**
- * The choices to present to the user. The `isSecondary` hint allows to control where
+ * The choices to present to the user. The `ISecondaryChoice` hint allows to control where
  * choices appear when the `modal` option is set to `false`. In that case, the choices
  * are presented as part of a notification and secondary choices will appear less
  * prominent.
  */
-export type Choice = string | { label: string; isSecondary?: boolean; };
+export interface SecondaryChoice {
+	label: string;
+	keepOpen?: boolean;
+}
+export type PrimaryChoice = string;
+export type Choice = PrimaryChoice | SecondaryChoice;
 
 export interface IChoiceService {
 

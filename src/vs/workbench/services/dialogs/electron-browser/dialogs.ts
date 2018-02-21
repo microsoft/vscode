@@ -115,8 +115,12 @@ export class DialogService implements IChoiceService, IConfirmationService {
 		const promise = new TPromise<number>((c, e) => {
 
 			// Complete promise with index of action that was picked
-			const callback = (index: number) => () => {
+			const callback = (index: number, closeNotification: boolean) => () => {
 				c(index);
+
+				if (closeNotification) {
+					handle.dispose();
+				}
 
 				return TPromise.as(void 0);
 			};
@@ -130,15 +134,17 @@ export class DialogService implements IChoiceService, IConfirmationService {
 			choices.forEach((choice, index) => {
 				let isPrimary = true;
 				let label: string;
+				let closeNotification = false;
 
 				if (typeof choice === 'string') {
 					label = choice;
 				} else {
+					isPrimary = false;
 					label = choice.label;
-					isPrimary = !choice.isSecondary;
+					closeNotification = !choice.keepOpen;
 				}
 
-				const action = new Action(`workbench.dialog.choice.${index}`, label, null, true, callback(index));
+				const action = new Action(`workbench.dialog.choice.${index}`, label, null, true, callback(index, closeNotification));
 				if (isPrimary) {
 					actions.primary.push(action);
 				} else {

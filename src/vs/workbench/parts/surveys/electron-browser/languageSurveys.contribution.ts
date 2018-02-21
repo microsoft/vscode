@@ -88,7 +88,7 @@ class LanguageSurvey {
 		// __GDPR__TODO__ Need to move away from dynamic event names as those cannot be registered statically
 		telemetryService.publicLog(`${data.surveyId}.survey/userAsked`);
 
-		const choices: Choice[] = [nls.localize('takeShortSurvey', "Take Short Survey"), nls.localize('remindLater', "Remind Me later"), { label: nls.localize('neverAgain', "Don't Show Again"), isSecondary: true }];
+		const choices: Choice[] = [nls.localize('takeShortSurvey', "Take Short Survey"), nls.localize('remindLater', "Remind Me later"), { label: nls.localize('neverAgain', "Don't Show Again") }];
 		choiceService.choose(Severity.Info, nls.localize('helpUs', "Help us improve our support for {0}", data.languageId), choices).then(choice => {
 			switch (choice) {
 				case 0 /* Take Survey */:

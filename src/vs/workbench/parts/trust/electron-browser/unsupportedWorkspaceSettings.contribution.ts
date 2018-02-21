@@ -61,7 +61,7 @@ class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution
 	}
 
 	private showWarning(unsupportedKeys: string[]): void {
-		const choices: Choice[] = [nls.localize('openWorkspaceSettings', 'Open Workspace Settings'), { label: nls.localize('dontShowAgain', 'Don\'t Show Again'), isSecondary: true }];
+		const choices: Choice[] = [nls.localize('openWorkspaceSettings', 'Open Workspace Settings'), { label: nls.localize('dontShowAgain', 'Don\'t Show Again') }];
 		this.choiceService.choose(Severity.Warning, nls.localize('unsupportedWorkspaceSettings', 'This Workspace contains settings that can only be set in User Settings ({0}). Click [here]({1}) to learn more.', unsupportedKeys.join(', '), 'https://go.microsoft.com/fwlink/?linkid=839878'), choices).then(choice => {
 			switch (choice) {
 				case 0 /* Open Workspace Settings */:

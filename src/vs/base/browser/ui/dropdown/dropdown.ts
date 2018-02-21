@@ -10,12 +10,13 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
-import { IActionItem, BaseActionItem, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { BaseActionItem, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { EventHelper, EventType } from 'vs/base/browser/dom';
+import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 
 export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable;
@@ -164,16 +165,6 @@ export class Dropdown extends BaseDropdown {
 	}
 }
 
-export interface IContextMenuDelegate {
-	getAnchor(): HTMLElement | { x: number; y: number; };
-	getActions(): TPromise<IAction[]>;
-	getActionItem?(action: IAction): IActionItem;
-	getActionsContext?(): any;
-	getKeyBinding?(action: IAction): ResolvedKeybinding;
-	getMenuClassName?(): string;
-	onHide?(didCancel: boolean): void;
-}
-
 export interface IContextMenuProvider {
 	showContextMenu(delegate: IContextMenuDelegate): void;
 }
@@ -235,7 +226,8 @@ export class DropdownMenu extends BaseDropdown {
 			getActionItem: (action) => this.menuOptions && this.menuOptions.actionItemProvider ? this.menuOptions.actionItemProvider(action) : null,
 			getKeyBinding: (action: IAction) => this.menuOptions && this.menuOptions.getKeyBinding ? this.menuOptions.getKeyBinding(action) : null,
 			getMenuClassName: () => this.menuClassName,
-			onHide: () => this.element.removeClass('active')
+			onHide: () => this.element.removeClass('active'),
+			actionRunner: this.menuOptions ? this.menuOptions.actionRunner : null
 		});
 	}
 
