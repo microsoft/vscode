@@ -267,7 +267,12 @@ export abstract class TerminalService implements ITerminalService {
 					if (focus) {
 						// Do the focus call asynchronously as going through the
 						// command palette will force editor focus
-						setTimeout(() => this.getActiveInstance().focus(true), 0);
+						setTimeout(() => {
+							const instance = this.getActiveInstance();
+							if (instance) {
+								instance.focus(true);
+							}
+						}, 0);
 					}
 					complete(void 0);
 				});
@@ -275,7 +280,12 @@ export abstract class TerminalService implements ITerminalService {
 				if (focus) {
 					// Do the focus call asynchronously as going through the
 					// command palette will force editor focus
-					setTimeout(() => this.getActiveInstance().focus(true), 0);
+					setTimeout(() => {
+						const instance = this.getActiveInstance();
+						if (instance) {
+							instance.focus(true);
+						}
+					}, 0);
 				}
 				complete(void 0);
 			}
