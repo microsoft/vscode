@@ -116,6 +116,7 @@
 	flex: 1;
 	font-size: 12px;
 	overflow: hidden; /* always give away space to buttons container */
+	text-overflow: ellipsis;
 }
 
 /** Notification: Buttons */
@@ -126,7 +127,7 @@
 	font-size: 12px;
 }
 
-.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-button:not(:first-of-type) {
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-button {
 	margin-left: 10px;
 }
 
