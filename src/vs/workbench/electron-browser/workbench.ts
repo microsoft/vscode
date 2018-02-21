@@ -207,7 +207,7 @@ export class Workbench implements IPartService {
 	private sideBarPosition: Position;
 	private panelPosition: Position;
 	private panelHidden: boolean;
-	private editorBackgroundDelayer: Delayer<void>;
+	private editorBackgroundDelayer: Delayer<any>;
 	private closeEmptyWindowScheduler: RunOnceScheduler;
 	private editorsVisibleContext: IContextKey<boolean>;
 	private inZenMode: IContextKey<boolean>;
