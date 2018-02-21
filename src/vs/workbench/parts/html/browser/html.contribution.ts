@@ -38,17 +38,11 @@ function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI 
 
 // --- Register Commands
 
-const defaultPreviewHtmlOptions: HtmlInputOptions = {
-	allowScripts: true,
-	allowSvgs: true
-};
-
 CommandsRegistry.registerCommand('_workbench.previewHtml', function (
 	accessor: ServicesAccessor,
 	resource: URI | string,
 	position?: EditorPosition,
-	label?: string,
-	options?: HtmlInputOptions
+	label?: string
 ) {
 	const uri = resource instanceof URI ? resource : URI.parse(resource);
 	label = label || uri.fsPath;
@@ -65,9 +59,13 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (
 		}
 	}
 
-	const inputOptions = (Object as any).assign({}, options || defaultPreviewHtmlOptions);
 	const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-	inputOptions.svgWhiteList = extensionsWorkbenchService.allowedBadgeProviders;
+
+	const inputOptions: HtmlInputOptions = {
+		allowScripts: true,
+		allowSvgs: true,
+		svgWhiteList: extensionsWorkbenchService.allowedBadgeProviders
+	};
 
 	// Otherwise, create new input and open it
 	if (!input) {
