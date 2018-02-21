@@ -734,19 +734,19 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				const byExtension: ILocalExtension[][] = groupByExtension(extensions, e => ({ id: getGalleryExtensionIdFromLocal(e), uuid: e.identifier.uuid }));
 				toRemove.push(...flatten(byExtension.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version)).slice(1))));
 
-				return TPromise.join(toRemove.map(extension => this.removeExtension(extension)));
+				return TPromise.join(toRemove.map(extension => this.removeExtension(extension, 'outdated')));
 			}).then(() => null);
 	}
 
 	private removeUninstalledExtension(extension: ILocalExtension): TPromise<void> {
 		return this.extensionLifecycle.uninstall(extension)
-			.then(() => this.removeExtension(extension))
+			.then(() => this.removeExtension(extension, 'uninstalled'))
 			.then(() => this.withUninstalledExtensions(uninstalled => delete uninstalled[extension.identifier.id]))
 			.then(() => null);
 	}
 
-	private removeExtension(extension: ILocalExtension): TPromise<void> {
-		this.logService.trace(extension.identifier.id, 'Deleting from disk');
+	private removeExtension(extension: ILocalExtension, type: string): TPromise<void> {
+		this.logService.trace(extension.identifier.id, 'Deleting from disk', type);
 		return pfs.rimraf(extension.path).then(() => this.logService.info(extension.identifier.id, 'Deleted from disk'));
 	}
 
