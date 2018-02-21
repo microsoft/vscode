@@ -113,11 +113,16 @@ export class NotificationsToasts extends Themable {
 		// Make visible
 		notificationList.show();
 
-		// Layout
-		this.layout(this.workbenchDimensions);
+		// Layout lists
+		const maxDimensions = this.computeMaxDimensions();
+		this.layoutLists(maxDimensions.width);
 
 		// Show notification
 		notificationList.updateNotificationsList(0, 0, [item]);
+
+		// Layout container: only after we show the notification to ensure that
+		// the height computation takes the content of it into account!
+		this.layoutContainer(maxDimensions.height);
 
 		// Update when item height changes due to expansion
 		itemDisposeables.push(item.onDidExpansionChange(() => {
@@ -309,6 +314,16 @@ export class NotificationsToasts extends Themable {
 	public layout(dimension: Dimension): void {
 		this.workbenchDimensions = dimension;
 
+		const maxDimensions = this.computeMaxDimensions();
+
+		// Layout all lists of toasts
+		this.layoutLists(maxDimensions.width);
+
+		// Hide toasts that exceed height
+		this.layoutContainer(maxDimensions.height);
+	}
+
+	private computeMaxDimensions(): Dimension {
 		let maxWidth = NotificationsToasts.MAX_DIMENSIONS.width;
 		let maxHeight = NotificationsToasts.MAX_DIMENSIONS.height;
 
@@ -334,11 +349,14 @@ export class NotificationsToasts extends Themable {
 			availableHeight -= (2 * 12); // adjust for paddings top and bottom
 		}
 
-		// Apply width to all toasts
-		this.mapNotificationToToast.forEach(toast => toast.list.layout(Math.min(maxWidth, availableWidth)));
+		return new Dimension(Math.min(maxWidth, availableWidth), Math.min(maxHeight, availableHeight));
+	}
 
-		// Hide toasts that exceed height
-		let heightToGive = Math.min(maxHeight, availableHeight);
+	private layoutLists(width: number): void {
+		this.mapNotificationToToast.forEach(toast => toast.list.layout(width));
+	}
+
+	private layoutContainer(heightToGive: number): void {
 		this.getVisibleToasts().forEach(toast => {
 
 			// In order to measure the client height, the element cannot have display: none
