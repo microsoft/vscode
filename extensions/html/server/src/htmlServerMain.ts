@@ -271,11 +271,11 @@ connection.onCompletion(async textDocumentPosition => {
 		cachedCompletionList = null;
 		let emmetCompletionList: CompletionList = {
 			isIncomplete: true,
-			items: undefined
+			items: []
 		};
 		let pathCompletionList: CompletionList = {
 			isIncomplete: false,
-			items: undefined
+			items: []
 		};
 
 		if (mode.setCompletionParticipants) {
