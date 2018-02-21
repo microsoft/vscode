@@ -33,18 +33,24 @@ export interface IConfirmationService {
 	_serviceBrand: any;
 
 	/**
-	 * Ask the user for confirmation.
+	 * Ask the user for confirmation with a modal dialog.
 	 */
 	confirm(confirmation: IConfirmation): TPromise<boolean>;
 
 	/**
-	 * Ask the user for confirmation with a checkbox.
+	 * Ask the user for confirmation with a checkbox in a modal dialog.
 	 */
 	confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult>;
 }
 
 export const IChoiceService = createDecorator<IChoiceService>('choiceService');
 
+/**
+ * The choices to present to the user. The `isSecondary` hint allows to control where
+ * choices appear when the `modal` option is set to `false`. In that case, the choices
+ * are presented as part of a notification and secondary choices will appear less
+ * prominent.
+ */
 export type Choice = string | { label: string; isSecondary?: boolean; };
 
 export interface IChoiceService {
@@ -53,6 +59,11 @@ export interface IChoiceService {
 
 	/**
 	 * Prompt the user for a choice between multiple choices.
+	 *
+	 * @param choices the choices to present to the user. The `isSecondary` hint allows
+	 * to control where are presented as part of a notification and secondary choices will
+	 * appear less choices appear when the `modal` option is set to `false`. In that case,
+	 * the choices prominent.
 	 *
 	 * @param when `modal` is true, this will block the user until chooses.
 	 *
