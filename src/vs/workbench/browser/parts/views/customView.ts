@@ -13,7 +13,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { $ } from 'vs/base/browser/builder';
 import { LIGHT } from 'vs/platform/theme/common/themeService';
 import { ITree, IDataSource, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
-import { TreeItemCollapsibleState, ITreeItem, ITreeViewer, ICustomViewsService, ITreeViewDataProvider, ViewsRegistry, IViewDescriptor, TreeViewItemHandleArg, ICustomViewDescriptor } from 'vs/workbench/common/views';
+import { TreeItemCollapsibleState, ITreeItem, ITreeViewer, ICustomViewsService, ITreeViewDataProvider, ViewsRegistry, IViewDescriptor, TreeViewItemHandleArg, ICustomViewDescriptor, FileThemeIconCategoryId, FolderThemeIconCategoryId } from 'vs/workbench/common/views';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -414,8 +414,19 @@ class TreeRenderer implements IRenderer {
 		DOM.removeClass(templateData.label, 'custom-view-tree-node-item-label');
 		DOM.removeClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 
-		if (resource && !icon) {
-			templateData.resourceLabel.setLabel({ name: label, resource }, { fileKind: node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE, title: node.tooltip });
+		if (resource && (typeof icon !== 'string')) {
+			let fileKind = node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE;
+			if (icon && icon.id) {
+				switch (icon.id) {
+					case FileThemeIconCategoryId:
+						fileKind = FileKind.FILE;
+						break;
+					case FolderThemeIconCategoryId:
+						fileKind = FileKind.FOLDER;
+						break;
+				}
+			}
+			templateData.resourceLabel.setLabel({ name: label, resource }, { fileKind, title: node.tooltip });
 			DOM.addClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 		} else {
 			templateData.label.textContent = label;
@@ -460,7 +471,7 @@ class TreeItemIcon extends Disposable {
 			const fileIconTheme = this.themeService.getFileIconTheme();
 			const contributedIcon = this.themeService.getTheme().type === LIGHT ? this._treeItem.icon : this._treeItem.iconDark;
 
-			const hasContributedIcon = !!contributedIcon;
+			const hasContributedIcon = typeof contributedIcon === 'string';
 			const hasChildren = this._treeItem.collapsibleState !== TreeItemCollapsibleState.None;
 			const hasResource = !!this._treeItem.resourceUri;
 			const isFolder = hasResource && hasChildren;

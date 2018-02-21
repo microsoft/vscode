@@ -1544,6 +1544,18 @@ export enum TreeItemCollapsibleState {
 	Expanded = 2
 }
 
+export class ThemeIconCategory {
+	static readonly File = new ThemeIconCategory('file');
+
+	static readonly Folder = new ThemeIconCategory('folder');
+
+	readonly id: string;
+
+	private constructor(id: string) {
+		this.id = id;
+	}
+}
+
 export class ThemeColor {
 	id: string;
 	constructor(id: string) {
