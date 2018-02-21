@@ -1,5 +1,7 @@
 # Node npm
 
+**Notice** This is a an extension that is bundled with Visual Studio Code. 
+
 This extension supports running npm scripts defined in the `package.json` as [tasks](https://code.visualstudio.com/docs/editor/tasks). Scripts with the name 'build', 'compile', or 'watch'
 are treated as build tasks.
 
