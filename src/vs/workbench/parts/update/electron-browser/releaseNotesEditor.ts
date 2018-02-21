@@ -57,13 +57,13 @@ export class ReleaseNotesEditor extends WebviewEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService protected themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IOpenerService private openerService: IOpenerService,
-		@IModeService private modeService: IModeService,
-		@IPartService private partService: IPartService,
+		@IThemeService protected readonly themeService: IThemeService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IModeService private readonly modeService: IModeService,
+		@IPartService private readonly partService: IPartService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
 	) {
