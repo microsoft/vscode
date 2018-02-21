@@ -1,4 +1,6 @@
 {
+	"displayName": "CSS Language Features",
+	"description": "Provides rich language support for CSS, LESS and SCSS files.",
 	"css.title": "CSS",
 	"css.lint.argumentsInColorFunction.desc": "Invalid number of parameters",
 	"css.lint.boxModel.desc": "Do not use width or height when using padding or border",

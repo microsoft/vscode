@@ -3,15 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
-
 import * as vscode from 'vscode';
-import * as path from 'path';
 
 import { Command } from '../commandManager';
-import { ExtensionContentSecurityPolicyArbiter } from '../security';
-import { getMarkdownUri, } from '../features/previewContentProvider';
+import { MarkdownPreviewWebviewManager, } from '../features/previewContentProvider';
 import { TelemetryReporter } from '../telemetryReporter';
 
 
@@ -36,7 +31,7 @@ function getViewColumn(sideBySide: boolean): vscode.ViewColumn | undefined {
 }
 
 function showPreview(
-	cspArbiter: ExtensionContentSecurityPolicyArbiter,
+	webviewManager: MarkdownPreviewWebviewManager,
 	telemetryReporter: TelemetryReporter,
 	uri?: vscode.Uri,
 	sideBySide: boolean = false,
@@ -58,34 +53,29 @@ function showPreview(
 		return;
 	}
 
-	const thenable = vscode.commands.executeCommand('vscode.previewHtml',
-		getMarkdownUri(resource),
-		getViewColumn(sideBySide),
-		localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath)),
-		{
-			allowScripts: true,
-			allowSvgs: cspArbiter.shouldAllowSvgsForResource(resource)
-		});
+	const view = webviewManager.create(
+		resource,
+		getViewColumn(sideBySide) || vscode.ViewColumn.Active);
 
 	telemetryReporter.sendTelemetryEvent('openPreview', {
 		where: sideBySide ? 'sideBySide' : 'inPlace',
 		how: (uri instanceof vscode.Uri) ? 'action' : 'pallete'
 	});
 
-	return thenable;
+	return view;
 }
 
 export class ShowPreviewCommand implements Command {
 	public readonly id = 'markdown.showPreview';
 
 	public constructor(
-		private readonly cspArbiter: ExtensionContentSecurityPolicyArbiter,
+		private readonly webviewManager: MarkdownPreviewWebviewManager,
 		private readonly telemetryReporter: TelemetryReporter
 	) { }
 
 	public execute(mainUri?: vscode.Uri, allUris?: vscode.Uri[]) {
 		for (const uri of (allUris || [mainUri])) {
-			showPreview(this.cspArbiter, this.telemetryReporter, uri, false);
+			showPreview(this.webviewManager, this.telemetryReporter, uri, false);
 		}
 	}
 }
@@ -94,11 +84,11 @@ export class ShowPreviewToSideCommand implements Command {
 	public readonly id = 'markdown.showPreviewToSide';
 
 	public constructor(
-		private readonly cspArbiter: ExtensionContentSecurityPolicyArbiter,
+		private readonly webviewManager: MarkdownPreviewWebviewManager,
 		private readonly telemetryReporter: TelemetryReporter
 	) { }
 
 	public execute(uri?: vscode.Uri) {
-		showPreview(this.cspArbiter, this.telemetryReporter, uri, true);
+		showPreview(this.webviewManager, this.telemetryReporter, uri, true);
 	}
 }

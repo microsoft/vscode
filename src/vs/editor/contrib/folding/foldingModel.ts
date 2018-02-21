@@ -26,18 +26,21 @@ export class FoldingModel {
 
 	private _ranges: FoldingRanges;
 	private _editorDecorationIds: string[];
+	private _isInitialized: boolean;
 
 	private _updateEventEmitter = new Emitter<FoldingModelChangeEvent>();
 
 	public get ranges(): FoldingRanges { return this._ranges; }
 	public get onDidChange(): Event<FoldingModelChangeEvent> { return this._updateEventEmitter.event; }
 	public get textModel() { return this._textModel; }
+	public get isInitialized() { return this._isInitialized; }
 
 	constructor(textModel: ITextModel, decorationProvider: IDecorationProvider) {
 		this._textModel = textModel;
 		this._decorationProvider = decorationProvider;
 		this._ranges = new FoldingRanges(new Uint32Array(0), new Uint32Array(0));
 		this._editorDecorationIds = [];
+		this._isInitialized = false;
 	}
 
 	public toggleCollapseState(regions: FoldingRegion[]) {
@@ -128,6 +131,7 @@ export class FoldingModel {
 
 		this._editorDecorationIds = this._decorationProvider.deltaDecorations(this._editorDecorationIds, newEditorDecorations);
 		this._ranges = newRanges;
+		this._isInitialized = true;
 		this._updateEventEmitter.fire({ model: this });
 	}
 

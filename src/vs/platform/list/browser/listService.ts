@@ -24,6 +24,7 @@ import { DefaultController, IControllerOptions, OpenMode, ClickBehavior } from '
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
+
 export type ListWidget = List<any> | PagedList<any> | ITree;
 
 export const IListService = createDecorator<IListService>('listService');
@@ -85,9 +86,7 @@ export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListF
 export const WorkbenchListDoubleSelection = new RawContextKey<boolean>('listDoubleSelection', false);
 export const WorkbenchListMultiSelection = new RawContextKey<boolean>('listMultiSelection', false);
 
-export type Widget = List<any> | PagedList<any> | ITree;
-
-function createScopedContextKeyService(contextKeyService: IContextKeyService, widget: Widget): IContextKeyService {
+function createScopedContextKeyService(contextKeyService: IContextKeyService, widget: ListWidget): IContextKeyService {
 	const result = contextKeyService.createScoped(widget.getHTMLElement());
 
 	if (widget instanceof List || widget instanceof PagedList) {
@@ -128,7 +127,7 @@ class MultipleSelectionController<T> implements IMultipleSelectionController<T> 
 
 class WorkbenchOpenController implements IOpenController {
 
-	constructor(private configurationService: IConfigurationService) { }
+	constructor(private configurationService: IConfigurationService, private existingOpenController?: IOpenController) { }
 
 	shouldOpen(event: UIEvent): boolean {
 		if (event instanceof MouseEvent) {
@@ -137,10 +136,14 @@ class WorkbenchOpenController implements IOpenController {
 				return false;
 			}
 
-			return event.button === 0 /* left mouse button */ || event.button === 1 /* middle mouse button */;
+			if (event.button === 0 /* left mouse button */ || event.button === 1 /* middle mouse button */) {
+				return this.existingOpenController ? this.existingOpenController.shouldOpen(event) : true;
+			}
+
+			return false;
 		}
 
-		return true;
+		return this.existingOpenController ? this.existingOpenController.shouldOpen(event) : true;
 	}
 }
 
@@ -149,7 +152,7 @@ function handleListControllers<T>(options: IListOptions<T>, configurationService
 		options.multipleSelectionController = new MultipleSelectionController(configurationService);
 	}
 
-	options.openController = new WorkbenchOpenController(configurationService);
+	options.openController = new WorkbenchOpenController(configurationService, options.openController);
 
 	return options;
 }
@@ -181,7 +184,7 @@ export class WorkbenchList<T> extends List<T> {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(container, delegate, renderers, mixin(handleListControllers(options, configurationService), { keyboardSupport: false, selectOnMouseDown: true } as IListOptions<any>, false));
+		super(container, delegate, renderers, mixin(handleListControllers(options, configurationService), { keyboardSupport: false, selectOnMouseDown: true } as IListOptions<T>, false));
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
@@ -228,13 +231,13 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		container: HTMLElement,
 		delegate: IDelegate<number>,
 		renderers: IPagedRenderer<T, any>[],
-		options: IListOptions<any>,
+		options: IListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(container, delegate, renderers, mixin(handleListControllers(options, configurationService), { keyboardSupport: false, selectOnMouseDown: true } as IListOptions<any>, false));
+		super(container, delegate, renderers, mixin(handleListControllers(options, configurationService), { keyboardSupport: false, selectOnMouseDown: true } as IListOptions<T>, false));
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 

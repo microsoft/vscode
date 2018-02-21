@@ -13,8 +13,8 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	constructor(
 		@IContextViewService _contextViewService: IContextViewService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@ITerminalService private _terminalService: ITerminalService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(_contextViewService);
 		this._findInputFocused = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);

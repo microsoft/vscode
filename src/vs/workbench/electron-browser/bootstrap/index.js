@@ -205,6 +205,8 @@ function main() {
 	const loaderFilename = configuration.appRoot + '/out/vs/loader.js';
 	const loaderSource = require('fs').readFileSync(loaderFilename);
 	require('vm').runInThisContext(loaderSource, { filename: loaderFilename });
+	var define = global.define;
+	global.define = undefined;
 
 	window.nodeRequire = require.__$__nodeRequire;
 

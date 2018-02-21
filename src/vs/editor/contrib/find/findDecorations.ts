@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { editorFindMatchHighlight, editorFindMatch } from 'vs/platform/theme/common/colorRegistry';
+import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IModelDecorationsChangeAccessor, FindMatch, IModelDeltaDecoration, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model';
@@ -226,8 +226,8 @@ export class FindDecorations implements IDisposable {
 		className: 'currentFindMatch',
 		showIfCollapsed: true,
 		overviewRuler: {
-			color: themeColorFromId(editorFindMatch),
-			darkColor: themeColorFromId(editorFindMatch),
+			color: themeColorFromId(overviewRulerFindMatchForeground),
+			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});
@@ -237,8 +237,8 @@ export class FindDecorations implements IDisposable {
 		className: 'findMatch',
 		showIfCollapsed: true,
 		overviewRuler: {
-			color: themeColorFromId(editorFindMatchHighlight),
-			darkColor: themeColorFromId(editorFindMatchHighlight),
+			color: themeColorFromId(overviewRulerFindMatchForeground),
+			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});
@@ -252,8 +252,8 @@ export class FindDecorations implements IDisposable {
 	private static readonly _FIND_MATCH_ONLY_OVERVIEW_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		overviewRuler: {
-			color: themeColorFromId(editorFindMatchHighlight),
-			darkColor: themeColorFromId(editorFindMatchHighlight),
+			color: themeColorFromId(overviewRulerFindMatchForeground),
+			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});

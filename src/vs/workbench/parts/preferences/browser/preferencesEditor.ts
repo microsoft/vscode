@@ -64,7 +64,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
-	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
+	public static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
 
 	getTypeId(): string {
 		return PreferencesEditorInput.ID;
@@ -105,7 +105,7 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 
 export class PreferencesEditor extends BaseEditor {
 
-	public static ID: string = 'workbench.editor.preferencesEditor';
+	public static readonly ID: string = 'workbench.editor.preferencesEditor';
 
 	private defaultSettingsEditorContextKey: IContextKey<boolean>;
 	private focusSettingsContextKey: IContextKey<boolean>;
@@ -618,7 +618,7 @@ class PreferencesRenderersController extends Disposable {
 				} else {
 					/* __GDPR__
 						"defaultSettings.searchError" : {
-							"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" },
 							"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						}
 					*/
@@ -974,7 +974,7 @@ class SideBySidePreferencesWidget extends Widget {
 
 export class DefaultPreferencesEditor extends BaseTextEditor {
 
-	public static ID: string = 'workbench.editor.defaultPreferences';
+	public static readonly ID: string = 'workbench.editor.defaultPreferences';
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -1150,7 +1150,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 
 class DefaultSettingsEditorContribution extends AbstractSettingsEditorContribution implements ISettingsEditorContribution {
 
-	static ID: string = 'editor.contrib.defaultsettings';
+	static readonly ID: string = 'editor.contrib.defaultsettings';
 
 	getId(): string {
 		return DefaultSettingsEditorContribution.ID;
@@ -1171,7 +1171,7 @@ class DefaultSettingsEditorContribution extends AbstractSettingsEditorContributi
 
 class SettingsEditorContribution extends AbstractSettingsEditorContribution implements ISettingsEditorContribution {
 
-	static ID: string = 'editor.contrib.settings';
+	static readonly ID: string = 'editor.contrib.settings';
 
 	constructor(editor: ICodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService,

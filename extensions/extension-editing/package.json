@@ -1,5 +1,7 @@
 {
 	"name": "extension-editing",
+	"displayName": "%displayName%",
+	"description": "%description%",
 	"version": "0.0.1",
 	"publisher": "vscode",
 	"engines": {

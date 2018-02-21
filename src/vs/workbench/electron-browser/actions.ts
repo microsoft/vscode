@@ -11,12 +11,10 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService, IWindowsService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import nls = require('vs/nls');
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import errors = require('vs/base/common/errors');
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -51,6 +49,7 @@ import { getDomNodePagePosition, createStyleSheet, createCSSRule } from 'vs/base
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 // --- actions
 
@@ -79,7 +78,7 @@ export class CloseWorkspaceAction extends Action {
 		id: string,
 		label: string,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IWindowService private windowService: IWindowService
 	) {
 		super(id, label);
@@ -87,7 +86,7 @@ export class CloseWorkspaceAction extends Action {
 
 	run(): TPromise<void> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.messageService.show(Severity.Info, nls.localize('noWorkspaceOpened', "There is currently no workspace opened in this instance to close."));
+			this.notificationService.info(nls.localize('noWorkspaceOpened', "There is currently no workspace opened in this instance to close."));
 
 			return TPromise.as(null);
 		}
@@ -851,35 +850,6 @@ export class QuickOpenRecentAction extends BaseOpenRecentAction {
 
 	protected isQuickNavigate(): boolean {
 		return true;
-	}
-}
-
-export class CloseMessagesAction extends Action {
-
-	public static readonly ID = 'workbench.action.closeMessages';
-	public static readonly LABEL = nls.localize('closeMessages', "Close Notification Messages");
-
-	constructor(
-		id: string,
-		label: string,
-		@IMessageService private messageService: IMessageService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<boolean> {
-
-		// Close any Message if visible
-		this.messageService.hideAll();
-
-		// Restore focus if we got an editor
-		const editor = this.editorService.getActiveEditor();
-		if (editor) {
-			editor.focus();
-		}
-
-		return TPromise.as(true);
 	}
 }
 

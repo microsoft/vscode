@@ -194,8 +194,12 @@ suite('Files - View Model', () => {
 		assert(validateFileName(s, '') !== null);
 		assert(validateFileName(s, '  ') !== null);
 		assert(validateFileName(s, 'Read Me') === null, 'name containing space');
-		assert(validateFileName(s, 'foo/bar') !== null);
-		assert(validateFileName(s, 'foo\\bar') !== null);
+		assert(validateFileName(s, 'foo/bar') === null);
+		assert(validateFileName(s, 'foo\\bar') === null);
+		assert(validateFileName(s, 'all/slashes/are/same') === null);
+		assert(validateFileName(s, 'theres/one/different\\slash') === null);
+		assert(validateFileName(s, '/slashAtBeginning') === null);
+
 		if (isWindows) {
 			assert(validateFileName(s, 'foo:bar') !== null);
 			assert(validateFileName(s, 'foo*bar') !== null);

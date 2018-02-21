@@ -42,11 +42,11 @@ import { ExtensionManagementService } from 'vs/platform/extensionManagement/node
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/common/extensionEnablementService.test';
 import { IURLService } from 'vs/platform/url/common/url';
-import { IChoiceService } from 'vs/platform/message/common/message';
 import product from 'vs/platform/node/product';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -227,7 +227,7 @@ suite('ExtensionsTipsService Test', () => {
 			}
 		});
 
-		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: false, disableEagerRecommendations: false });
+		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: false, showRecommendationsOnlyOnDemand: false });
 		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, store: () => { } });
 		instantiationService.stub(IModelService, <IModelService>{
 			getModels(): any { return []; },
@@ -333,8 +333,8 @@ suite('ExtensionsTipsService Test', () => {
 		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
 	});
 
-	test('ExtensionTipsService: No Prompt for valid workspace recommendations if disableEagerRecommendations is set', () => {
-		testConfigurationService.setUserConfiguration(ConfigurationKey, { disableEagerRecommendations: true });
+	test('ExtensionTipsService: No Prompt for valid workspace recommendations if showRecommendationsOnlyOnDemand is set', () => {
+		testConfigurationService.setUserConfiguration(ConfigurationKey, { showRecommendationsOnlyOnDemand: true });
 		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
 			testObject = instantiationService.createInstance(ExtensionTipsService);
 			return testObject.promptWorkspaceRecommendationsPromise.then(() => {

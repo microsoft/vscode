@@ -196,7 +196,7 @@ export interface ITextDocumentShowOptions {
 	selection?: IRange;
 }
 
-export interface MainThreadEditorsShape extends IDisposable {
+export interface MainThreadTextEditorsShape extends IDisposable {
 	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): TPromise<string>;
 	$registerTextEditorDecorationType(key: string, options: editorCommon.IDecorationRenderOptions): void;
 	$removeTextEditorDecorationType(key: string): void;
@@ -343,6 +343,21 @@ export interface MainThreadStorageShape extends IDisposable {
 
 export interface MainThreadTelemetryShape extends IDisposable {
 	$publicLog(eventName: string, data?: any): void;
+}
+
+export interface MainThreadWebviewShape extends IDisposable {
+	$createWebview(handle: number): void;
+	$disposeWebview(handle: number): void;
+	$show(handle: number, column: EditorPosition): void;
+	$setTitle(handle: number, value: string): void;
+	$setHtml(handle: number, value: string): void;
+	$setOptions(handle: number, value: vscode.WebviewOptions): void;
+	$sendMessage(handle: number, value: any): Thenable<boolean>;
+}
+export interface ExtHostWebviewsShape {
+	$onMessage(handle: number, message: any): void;
+	$onBecameActive(handle: number): void;
+	$onBecameInactive(handle: number): void;
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
@@ -783,7 +798,7 @@ export const MainContext = {
 	MainThreadDialogs: createMainId<MainThreadDiaglogsShape>('MainThreadDiaglogs'),
 	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments'),
 	MainThreadDocumentContentProviders: createMainId<MainThreadDocumentContentProvidersShape>('MainThreadDocumentContentProviders'),
-	MainThreadEditors: createMainId<MainThreadEditorsShape>('MainThreadEditors'),
+	MainThreadTextEditors: createMainId<MainThreadTextEditorsShape>('MainThreadTextEditors'),
 	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors'),
 	MainThreadTreeViews: createMainId<MainThreadTreeViewsShape>('MainThreadTreeViews'),
 	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures'),
@@ -796,6 +811,7 @@ export const MainContext = {
 	MainThreadStorage: createMainId<MainThreadStorageShape>('MainThreadStorage'),
 	MainThreadTelemetry: createMainId<MainThreadTelemetryShape>('MainThreadTelemetry'),
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
+	MainThreadWebview: createMainId<MainThreadWebviewShape>('MainThreadWebview'),
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace'),
 	MainThreadFileSystem: createMainId<MainThreadFileSystemShape>('MainThreadFileSystem'),
 	MainThreadExtensionService: createMainId<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
@@ -828,4 +844,5 @@ export const ExtHostContext = {
 	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask'),
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
 	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
+	ExtHostWebviews: createExtId<ExtHostWebviewsShape>('ExtHostWebviews')
 };

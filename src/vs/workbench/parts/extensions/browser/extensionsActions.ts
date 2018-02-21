@@ -20,7 +20,6 @@ import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extens
 import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -38,12 +37,12 @@ import { Color } from 'vs/base/common/color';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import Severity from 'vs/base/common/severity';
 import { PagedModel } from 'vs/base/common/paging';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class InstallAction extends Action {
 
@@ -392,7 +391,7 @@ export class ManageExtensionAction extends Action {
 		this.class = ManageExtensionAction.HideManageExtensionClass;
 		this.tooltip = '';
 		this.enabled = false;
-		if (this.extension && this.extension.type !== LocalExtensionType.System) {
+		if (this.extension) {
 			const state = this.extension.state;
 			this.enabled = state === ExtensionState.Installed;
 			this.class = this.enabled || state === ExtensionState.Uninstalling ? ManageExtensionAction.Class : ManageExtensionAction.HideManageExtensionClass;
@@ -573,7 +572,7 @@ export class DisableForWorkspaceAction extends Action implements IExtensionActio
 	private update(): void {
 		this.enabled = false;
 		if (this.extension && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			this.enabled = this.extension.type !== LocalExtensionType.System && (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
+			this.enabled = (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
 
@@ -611,7 +610,7 @@ export class DisableGloballyAction extends Action implements IExtensionAction {
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = this.extension.type !== LocalExtensionType.System && (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
+			this.enabled = (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
 
@@ -665,7 +664,7 @@ export class DisableAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extension.state === ExtensionState.Installed && this.extension.type !== LocalExtensionType.System && this._disableActions.some(a => a.enabled);
+		this.enabled = this.extension.state === ExtensionState.Installed && this._disableActions.some(a => a.enabled);
 		this.class = this.enabled ? DisableAction.EnabledClass : DisableAction.DisabledClass;
 	}
 
@@ -1004,6 +1003,29 @@ export class ClearExtensionsInputAction extends Action {
 	}
 }
 
+export class ShowBuiltInExtensionsAction extends Action {
+
+	static readonly ID = 'workbench.extensions.action.listBuiltInExtensions';
+	static LABEL = localize('showBuiltInExtensions', "Show Built-in Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label, null, true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@builtin ');
+				viewlet.focus();
+			});
+	}
+}
+
 export class ShowOutdatedExtensionsAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.listOutdatedExtensions';
@@ -1087,7 +1109,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
-		@IMessageService private messageService: IMessageService
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(id, label, 'extension-action');
 		this.extensionsWorkbenchService.onChange(() => this.update(), this, this.disposables);
@@ -1114,7 +1136,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 				.then(viewlet => {
 					if (!toInstall.length) {
 						this.enabled = false;
-						this.messageService.show(Severity.Info, localize('allExtensionsInstalled', "All extensions recommended for this workspace have already been installed"));
+						this.notificationService.info(localize('allExtensionsInstalled', "All extensions recommended for this workspace have already been installed"));
 						viewlet.focus();
 						return TPromise.as(null);
 					}
@@ -1162,7 +1184,7 @@ export class InstallRecommendedExtensionAction extends Action {
 		extensionId: string,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IMessageService private messageService: IMessageService
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(InstallRecommendedExtensionAction.ID, InstallRecommendedExtensionAction.LABEL, null);
 		this.extensionId = extensionId;
@@ -1179,7 +1201,7 @@ export class InstallRecommendedExtensionAction extends Action {
 			.then(viewlet => {
 				if (this.extensionsWorkbenchService.local.some(x => x.id.toLowerCase() === this.extensionId.toLowerCase())) {
 					this.enabled = false;
-					this.messageService.show(Severity.Info, localize('extensionInstalled', "The recommended extension has already been installed"));
+					this.notificationService.info(localize('extensionInstalled', "The recommended extension has already been installed"));
 					viewlet.focus();
 					return TPromise.as(null);
 				}
@@ -1527,31 +1549,6 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		super.dispose();
-	}
-}
-
-export class BuiltinStatusLabelAction extends Action {
-
-	private static readonly Class = 'built-in-status';
-
-	private _extension: IExtension;
-	get extension(): IExtension { return this._extension; }
-	set extension(extension: IExtension) { this._extension = extension; this.update(); }
-
-	constructor() {
-		super('extensions.install', localize('builtin', "Built-in"), '', false);
-	}
-
-	private update(): void {
-		if (this.extension && this.extension.type === LocalExtensionType.System) {
-			this.class = `${BuiltinStatusLabelAction.Class} system`;
-		} else {
-			this.class = `${BuiltinStatusLabelAction.Class} user`;
-		}
-	}
-
-	run(): TPromise<any> {
-		return TPromise.as(null);
 	}
 }
 

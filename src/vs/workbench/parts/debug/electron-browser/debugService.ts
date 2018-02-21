@@ -24,7 +24,6 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { IMessageService, CloseAction, IChoiceService } from 'vs/platform/message/common/message';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
@@ -52,6 +51,8 @@ import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-br
 import { IRemoteConsoleLog, parse, getFirstFrame } from 'vs/base/node/console';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { TaskEvent, TaskEventKind } from 'vs/workbench/parts/tasks/common/tasks';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService, INotificationActions } from 'vs/platform/notification/common/notification';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -87,7 +88,7 @@ export class DebugService implements debug.IDebugService {
 		@ITextFileService private textFileService: ITextFileService,
 		@IViewletService private viewletService: IViewletService,
 		@IPanelService private panelService: IPanelService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IChoiceService private choiceService: IChoiceService,
 		@IPartService private partService: IPartService,
 		@IWindowService private windowService: IWindowService,
@@ -274,7 +275,7 @@ export class DebugService implements debug.IDebugService {
 						if (session) {
 							session.disconnect().done(null, errors.onUnexpectedError);
 						}
-						this.messageService.show(severity.Error, e.message);
+						this.notificationService.error(e.message);
 					});
 				}
 			};
@@ -309,7 +310,7 @@ export class DebugService implements debug.IDebugService {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (session && session.getId() === event.sessionId) {
 				if (event.body && event.body.restart && process) {
-					this.restartProcess(process, event.body.restart).done(null, err => this.messageService.show(severity.Error, err.message));
+					this.restartProcess(process, event.body.restart).done(null, err => this.notificationService.error(err.message));
 				} else {
 					session.disconnect().done(null, errors.onUnexpectedError);
 				}
@@ -707,7 +708,7 @@ export class DebugService implements debug.IDebugService {
 								launchForName = launch;
 							} else {
 								return TPromise.wrapError(new Error(launchesContainingName.length === 0 ? nls.localize('noConfigurationNameInWorkspace', "Could not find launch configuration '{0}' in the workspace.", name)
-									: nls.localize('multipleConfigurationNamesInWorkspace', "There are multiple launch configurations `{0}` in the workspace. Use folder name to qualify the configuration.", name)));
+									: nls.localize('multipleConfigurationNamesInWorkspace', "There are multiple launch configurations '{0}' in the workspace. Use folder name to qualify the configuration.", name)));
 							}
 						} else if (configData.folder) {
 							const launchesMatchingConfigData = this.configurationManager.getLaunches().filter(l => l.workspace && l.workspace.name === configData.folder && !!l.getConfiguration(configData.name));
@@ -779,15 +780,15 @@ export class DebugService implements debug.IDebugService {
 				if (!this.configurationManager.getAdapter(resolvedConfig.type) || (config.request !== 'attach' && config.request !== 'launch')) {
 					let message: string;
 					if (config.request !== 'attach' && config.request !== 'launch') {
-						message = config.request ? nls.localize('debugRequestNotSupported', "Attribute `{0}` has an unsupported value '{1}' in the chosen debug configuration.", 'request', config.request)
+						message = config.request ? nls.localize('debugRequestNotSupported', "Attribute '{0}' has an unsupported value '{1}' in the chosen debug configuration.", 'request', config.request)
 							: nls.localize('debugRequesMissing', "Attribute '{0}' is missing from the chosen debug configuration.", 'request');
 
 					} else {
 						message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :
-							nls.localize('debugTypeMissing', "Missing property `type` for the chosen launch configuration.");
+							nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
 					}
 
-					return TPromise.wrapError(errors.create(message, { actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
+					return TPromise.wrapError(errors.create(message, { actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
 				}
 
 				this.toDisposeOnSessionEnd.set(sessionId, []);
@@ -831,7 +832,7 @@ export class DebugService implements debug.IDebugService {
 				});
 			}, err => {
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-					this.messageService.show(severity.Error, nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
+					this.notificationService.error(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
 					return undefined;
 				}
 
@@ -944,8 +945,8 @@ export class DebugService implements debug.IDebugService {
 					isBuiltin: adapter.extensionDescription.isBuiltin,
 					launchJsonExists: root && !!this.configurationService.getValue<debug.IGlobalConfig>('launch', { resource: root.uri })
 				});
-			}).then(() => process, (error: any) => {
-				if (error instanceof Error && error.message === 'Canceled') {
+			}).then(() => process, (error: Error | string) => {
+				if (errors.isPromiseCanceledError(error)) {
 					// Do not show 'canceled' error messages to the user #7906
 					return TPromise.as(null);
 				}
@@ -954,7 +955,7 @@ export class DebugService implements debug.IDebugService {
 				/* __GDPR__
 					"debugMisconfiguration" : {
 						"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"error": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"error": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
 					}
 				*/
 				this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined, error: errorMessage });
@@ -974,8 +975,14 @@ export class DebugService implements debug.IDebugService {
 				}
 
 				const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
-				const actions = (error.actions && error.actions.length) ? error.actions.concat([configureAction]) : [CloseAction, configureAction];
-				this.messageService.show(severity.Error, { message: errorMessage, actions });
+
+				let actions: INotificationActions = { primary: [] };
+				if (errors.isErrorWithActions(error)) {
+					actions.primary.push(...error.actions);
+				}
+				actions.primary.push(configureAction);
+
+				this.notificationService.notify({ severity: severity.Error, message: errorMessage, actions });
 				return undefined;
 			});
 		});
@@ -1125,7 +1132,7 @@ export class DebugService implements debug.IDebugService {
 		});
 
 		this.model.removeProcess(session.getId());
-		if (process && process.state !== debug.ProcessState.INACTIVE) {
+		if (process) {
 			process.inactive = true;
 			this._onDidEndProcess.fire(process);
 		}

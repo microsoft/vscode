@@ -61,8 +61,8 @@ export class ProgressService2 implements IProgressService2 {
 	private _stack: [IProgressOptions, Progress<IProgressStep>][] = [];
 
 	constructor(
-		@IActivityService private _activityBar: IActivityService,
-		@IViewletService private _viewletService: IViewletService
+		@IActivityService private readonly _activityBar: IActivityService,
+		@IViewletService private readonly _viewletService: IViewletService
 	) {
 		//
 	}

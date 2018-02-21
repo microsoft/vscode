@@ -31,10 +31,10 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { IChoiceService } from 'vs/platform/message/common/message';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { mkdirp } from 'vs/base/node/pfs';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 

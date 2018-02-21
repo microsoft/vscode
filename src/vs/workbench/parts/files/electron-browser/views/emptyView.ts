@@ -25,7 +25,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 
 export class EmptyView extends ViewsViewletPanel {
 
-	public static ID: string = 'workbench.explorer.emptyView';
+	public static readonly ID: string = 'workbench.explorer.emptyView';
 	public static readonly NAME = nls.localize('noWorkspace', "No Folder Opened");
 
 	private button: Button;

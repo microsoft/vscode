@@ -18,7 +18,6 @@ import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/s
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -29,6 +28,7 @@ import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER } from 'vs/workbench/common/theme';
 import { ToggleSidebarVisibilityAction } from 'vs/workbench/browser/actions/toggleSidebarVisibility';
 import { Dimension } from 'vs/base/browser/builder';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class SidebarPart extends CompositePart<Viewlet> {
 
@@ -40,7 +40,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 
 	constructor(
 		id: string,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -50,7 +50,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		@IThemeService themeService: IThemeService
 	) {
 		super(
-			messageService,
+			notificationService,
 			storageService,
 			telemetryService,
 			contextMenuService,

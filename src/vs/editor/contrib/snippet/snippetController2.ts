@@ -42,7 +42,7 @@ export class SnippetController2 implements IEditorContribution {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@ILogService private _logService: ILogService,
+		@ILogService private readonly _logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this._inSnippet = SnippetController2.InSnippetMode.bindTo(contextKeyService);

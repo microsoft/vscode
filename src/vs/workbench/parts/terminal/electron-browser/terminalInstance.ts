@@ -17,7 +17,6 @@ import { Terminal as XTermTerminal } from 'vscode-xterm';
 import { Dimension } from 'vs/base/browser/builder';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
@@ -28,7 +27,7 @@ import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-brows
 import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
+import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -39,6 +38,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -118,17 +118,17 @@ export class TerminalInstance implements ITerminalInstance {
 		private _configHelper: TerminalConfigHelper,
 		private _container: HTMLElement,
 		private _shellLaunchConfig: IShellLaunchConfig,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IKeybindingService private _keybindingService: IKeybindingService,
-		@IMessageService private _messageService: IMessageService,
-		@IPanelService private _panelService: IPanelService,
-		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IClipboardService private _clipboardService: IClipboardService,
-		@IHistoryService private _historyService: IHistoryService,
-		@IThemeService private _themeService: IThemeService,
-		@IConfigurationResolverService private _configurationResolverService: IConfigurationResolverService,
-		@IWorkspaceContextService private _workspaceContextService: IWorkspaceContextService,
-		@IConfigurationService private _configurationService: IConfigurationService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IPanelService private readonly _panelService: IPanelService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@IHistoryService private readonly _historyService: IHistoryService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._instanceDisposables = [];
 		this._processDisposables = [];
@@ -168,7 +168,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 			// Only attach xterm.js to the DOM if the terminal panel has been opened before.
 			if (_container) {
-				this.attachToElement(_container);
+				this._attachToElement(_container);
 			}
 		});
 
@@ -243,14 +243,6 @@ export class TerminalInstance implements ITerminalInstance {
 		// The panel is minimized
 		if (!height) {
 			return TerminalInstance._lastKnownDimensions;
-		} else {
-			// Trigger scroll event manually so that the viewport's scroll area is synced. This
-			// needs to happen otherwise its scrollTop value is invalid when the panel is toggled as
-			// it gets removed and then added back to the DOM (resetting scrollTop to 0).
-			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
-			if (this._xterm) {
-				this._xterm.emit('scroll', this._xterm.buffer.ydisp);
-			}
 		}
 
 		if (!this._wrapperElement) {
@@ -260,10 +252,10 @@ export class TerminalInstance implements ITerminalInstance {
 		const wrapperElementStyle = getComputedStyle(this._wrapperElement);
 		const marginLeft = parseInt(wrapperElementStyle.marginLeft.split('px')[0], 10);
 		const marginRight = parseInt(wrapperElementStyle.marginRight.split('px')[0], 10);
-		const paddingBottom = parseInt(wrapperElementStyle.paddingBottom.split('px')[0], 10);
+		const bottom = parseInt(wrapperElementStyle.bottom.split('px')[0], 10);
 
-		const innerWidth = width - (marginLeft + marginRight);
-		const innerHeight = height - paddingBottom;
+		const innerWidth = width - marginLeft - marginRight;
+		const innerHeight = height - bottom;
 
 		TerminalInstance._lastKnownDimensions = new Dimension(innerWidth, innerHeight);
 		return TerminalInstance._lastKnownDimensions;
@@ -337,6 +329,25 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public attachToElement(container: HTMLElement): void {
+		// The container did not change, do nothing
+		if (this._container === container) {
+			return;
+		}
+
+		// Attach has not occured yet
+		if (!this._wrapperElement) {
+			this._attachToElement(container);
+			return;
+		}
+
+		// TODO: Verify listeners still work
+		// The container changed, reattach
+		this._container.removeChild(this._wrapperElement);
+		this._container = container;
+		this._container.appendChild(this._wrapperElement);
+	}
+
+	public _attachToElement(container: HTMLElement): void {
 		this._xtermReadyPromise.then(() => {
 			if (this._wrapperElement) {
 				throw new Error('The terminal instance has already been attached to a container');
@@ -462,7 +473,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this.hasSelection()) {
 			this._clipboardService.writeText(this._xterm.getSelection());
 		} else {
-			this._messageService.show(Severity.Warning, nls.localize('terminal.integrated.copySelection.noSelection', 'The terminal has no selection to copy'));
+			this._notificationService.warn(nls.localize('terminal.integrated.copySelection.noSelection', 'The terminal has no selection to copy'));
 		}
 	}
 
@@ -791,10 +802,10 @@ export class TerminalInstance implements ITerminalInstance {
 							return a;
 						}).join(' ');
 					}
-					this._messageService.show(Severity.Error, nls.localize('terminal.integrated.launchFailed', 'The terminal process command `{0}{1}` failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode));
+					this._notificationService.error(nls.localize('terminal.integrated.launchFailed', 'The terminal process command \'{0}{1}\' failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode));
 				} else {
 					if (this._configHelper.config.showExitAlert) {
-						this._messageService.show(Severity.Error, exitCodeMessage);
+						this._notificationService.error(exitCodeMessage);
 					} else {
 						console.warn(exitCodeMessage);
 					}
@@ -1100,6 +1111,13 @@ export class TerminalInstance implements ITerminalInstance {
 
 			this._xterm.resize(this._cols, this._rows);
 			this._xterm.element.style.width = terminalWidth + 'px';
+			if (this._isVisible) {
+				// Force the renderer to unpause by simulating an IntersectionObserver event. This
+				// is to fix an issue where dragging the window to the top of the screen to maximize
+				// on Winodws/Linux would fire an event saying that the terminal was not visible.
+				// This should only force a refresh if one is needed.
+				(<any>this._xterm).renderer.onIntersectionChange({ intersectionRatio: 1 });
+			}
 		}
 
 		this._processReady.then(() => {
@@ -1188,6 +1206,14 @@ export class TerminalInstance implements ITerminalInstance {
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	// Border
+	const border = theme.getColor(activeContrastBorder);
+	if (border) {
+		collector.addRule(`
+			.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus::before,
+			.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus::before { border-color: ${border}; }`
+		);
+	}
 
 	// Scrollbar
 	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);

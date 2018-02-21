@@ -70,7 +70,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [
 			this.instantiationService.createInstance(BreakpointsRenderer),
 			new ExceptionBreakpointsRenderer(this.debugService),
-			new FunctionBreakpointsRenderer(this.debugService),
+			this.instantiationService.createInstance(FunctionBreakpointsRenderer),
 			new FunctionBreakpointInputRenderer(this.debugService, this.contextViewService, this.themeService)
 		], {
 				identityProvider: element => element.getId(),
@@ -244,7 +244,11 @@ interface IBaseBreakpointTemplateData {
 	toDispose: IDisposable[];
 }
 
-interface IBreakpointTemplateData extends IBaseBreakpointTemplateData {
+interface IBaseBreakpointWithIconTemplateData extends IBaseBreakpointTemplateData {
+	icon: HTMLElement;
+}
+
+interface IBreakpointTemplateData extends IBaseBreakpointWithIconTemplateData {
 	lineNumber: HTMLElement;
 	filePath: HTMLElement;
 }
@@ -261,7 +265,8 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 	constructor(
 		@IDebugService private debugService: IDebugService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		// noop
 	}
@@ -276,6 +281,7 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 		const data: IBreakpointTemplateData = Object.create(null);
 		data.breakpoint = dom.append(container, $('.breakpoint'));
 
+		data.icon = $('.icon');
 		data.checkbox = <HTMLInputElement>$('input');
 		data.checkbox.type = 'checkbox';
 		data.toDispose = [];
@@ -283,6 +289,7 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
 
+		dom.append(data.breakpoint, data.icon);
 		dom.append(data.breakpoint, data.checkbox);
 
 		data.name = dom.append(data.breakpoint, $('span.name'));
@@ -305,6 +312,10 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 		}
 		data.filePath.textContent = getPathLabel(resources.dirname(breakpoint.uri), this.contextService, this.environmentService);
 		data.checkbox.checked = breakpoint.enabled;
+
+		const { message, className } = getBreakpointMessageAndClassName(this.debugService, this.textFileService, breakpoint);
+		data.icon.className = className + ' icon';
+		data.icon.title = message ? message : '';
 
 		const debugActive = this.debugService.state === State.Running || this.debugService.state === State.Stopped;
 		if (debugActive && !breakpoint.verified) {
@@ -367,10 +378,11 @@ class ExceptionBreakpointsRenderer implements IRenderer<IExceptionBreakpoint, IB
 	}
 }
 
-class FunctionBreakpointsRenderer implements IRenderer<IFunctionBreakpoint, IBaseBreakpointTemplateData> {
+class FunctionBreakpointsRenderer implements IRenderer<FunctionBreakpoint, IBaseBreakpointWithIconTemplateData> {
 
 	constructor(
-		private debugService: IDebugService
+		@IDebugService private debugService: IDebugService,
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		// noop
 	}
@@ -381,10 +393,11 @@ class FunctionBreakpointsRenderer implements IRenderer<IFunctionBreakpoint, IBas
 		return FunctionBreakpointsRenderer.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IBaseBreakpointTemplateData {
+	renderTemplate(container: HTMLElement): IBaseBreakpointWithIconTemplateData {
 		const data: IBreakpointTemplateData = Object.create(null);
 		data.breakpoint = dom.append(container, $('.breakpoint'));
 
+		data.icon = $('.icon');
 		data.checkbox = <HTMLInputElement>$('input');
 		data.checkbox.type = 'checkbox';
 		data.toDispose = [];
@@ -392,6 +405,7 @@ class FunctionBreakpointsRenderer implements IRenderer<IFunctionBreakpoint, IBas
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
 
+		dom.append(data.breakpoint, data.icon);
 		dom.append(data.breakpoint, data.checkbox);
 
 		data.name = dom.append(data.breakpoint, $('span.name'));
@@ -399,9 +413,12 @@ class FunctionBreakpointsRenderer implements IRenderer<IFunctionBreakpoint, IBas
 		return data;
 	}
 
-	renderElement(functionBreakpoint: IFunctionBreakpoint, index: number, data: IBaseBreakpointTemplateData): void {
+	renderElement(functionBreakpoint: FunctionBreakpoint, index: number, data: IBaseBreakpointWithIconTemplateData): void {
 		data.context = functionBreakpoint;
 		data.name.textContent = functionBreakpoint.name;
+		const { className, message } = getBreakpointMessageAndClassName(this.debugService, this.textFileService, functionBreakpoint);
+		data.icon.className = className + ' icon';
+		data.icon.title = message ? message : '';
 		data.checkbox.checked = functionBreakpoint.enabled;
 		data.breakpoint.title = functionBreakpoint.name;
 
@@ -413,7 +430,7 @@ class FunctionBreakpointsRenderer implements IRenderer<IFunctionBreakpoint, IBas
 		}
 	}
 
-	disposeTemplate(templateData: IBaseBreakpointTemplateData): void {
+	disposeTemplate(templateData: IBaseBreakpointWithIconTemplateData): void {
 		dispose(templateData.toDispose);
 	}
 }
@@ -516,7 +533,7 @@ export function openBreakpointSource(breakpoint: Breakpoint, sideBySide: boolean
 	}, sideBySide);
 }
 
-export function getBreakpointMessageAndClassName(debugService: IDebugService, textFileService: ITextFileService, breakpoint: IBreakpoint): { message: string, className: string } {
+export function getBreakpointMessageAndClassName(debugService: IDebugService, textFileService: ITextFileService, breakpoint: IBreakpoint | FunctionBreakpoint): { message?: string, className: string } {
 	const state = debugService.state;
 	const debugActive = state === State.Running || state === State.Stopped;
 
@@ -528,7 +545,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 	}
 
 	const appendMessage = (text: string): string => {
-		return breakpoint.message ? text.concat(breakpoint.message) : text;
+		return !(breakpoint instanceof FunctionBreakpoint) && breakpoint.message ? text.concat(breakpoint.message) : text;
 	};
 	if (debugActive && !breakpoint.verified) {
 		return {
@@ -537,8 +554,18 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 		};
 	}
 
+	const process = debugService.getViewModel().focusedProcess;
 	if (breakpoint instanceof FunctionBreakpoint) {
-		// TODO@Isidor handle funciton breakpoints take into account if adapter supports function breakpoints
+		if (process && !process.session.capabilities.supportsFunctionBreakpoints) {
+			return {
+				className: 'debug-breakpoint-unsupported-glyph',
+				message: nls.localize('functionBreakpointUnsupported', "Function breakpoints not supported by this debug type"),
+			};
+		}
+
+		return {
+			className: 'debug-breakpoint-glyph',
+		};
 	}
 
 	if (debugActive && textFileService.isDirty(breakpoint.uri)) {
@@ -549,7 +576,6 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 	}
 
 	if (breakpoint.condition || breakpoint.hitCondition) {
-		const process = debugService.getViewModel().focusedProcess;
 		if (process && breakpoint.condition && !process.session.capabilities.supportsConditionalBreakpoints) {
 			return {
 				className: 'debug-breakpoint-unsupported-glyph',

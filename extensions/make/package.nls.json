@@ -1,0 +1,4 @@
+{
+	"displayName": "Make Language Features",
+	"description": "Provides Syntax highlighting, Bracket matching and other language features in Make files"
+}

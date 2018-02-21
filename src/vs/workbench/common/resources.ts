@@ -32,8 +32,8 @@ export class ResourceContextKey implements IContextKey<URI> {
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IModeService private _modeService: IModeService,
-		@IFileService private _fileService: IFileService
+		@IModeService private readonly _modeService: IModeService,
+		@IFileService private readonly _fileService: IFileService
 	) {
 		this._schemeKey = ResourceContextKey.Scheme.bindTo(contextKeyService);
 		this._filenameKey = ResourceContextKey.Filename.bindTo(contextKeyService);

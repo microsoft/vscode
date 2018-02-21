@@ -14,7 +14,7 @@ import { loadDefaultTelemetryReporter } from './telemetryReporter';
 import { loadMarkdownExtensions } from './markdownExtensions';
 import LinkProvider from './features/documentLinkProvider';
 import MDDocumentSymbolProvider from './features/documentSymbolProvider';
-import { MDDocumentContentProvider, getMarkdownUri, isMarkdownFile } from './features/previewContentProvider';
+import { MarkdownContentProvider, getMarkdownUri, isMarkdownFile, MarkdownPreviewWebviewManager } from './features/previewContentProvider';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -27,22 +27,23 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const selector = 'markdown';
 
-	const contentProvider = new MDDocumentContentProvider(engine, context, cspArbiter, logger);
-	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(MDDocumentContentProvider.scheme, contentProvider));
-
+	const contentProvider = new MarkdownContentProvider(engine, context, cspArbiter, logger);
 	loadMarkdownExtensions(contentProvider, engine);
+
+	const webviewManager = new MarkdownPreviewWebviewManager(contentProvider);
+	context.subscriptions.push(webviewManager);
 
 	context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(selector, new MDDocumentSymbolProvider(engine)));
 	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider()));
 
-	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, contentProvider);
+	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, webviewManager);
 
 	const commandManager = new CommandManager();
 	context.subscriptions.push(commandManager);
-	commandManager.register(new commands.ShowPreviewCommand(cspArbiter, telemetryReporter));
-	commandManager.register(new commands.ShowPreviewToSideCommand(cspArbiter, telemetryReporter));
+	commandManager.register(new commands.ShowPreviewCommand(webviewManager, telemetryReporter));
+	commandManager.register(new commands.ShowPreviewToSideCommand(webviewManager, telemetryReporter));
 	commandManager.register(new commands.ShowSourceCommand());
-	commandManager.register(new commands.RefreshPreviewCommand(contentProvider));
+	commandManager.register(new commands.RefreshPreviewCommand(webviewManager));
 	commandManager.register(new commands.RevealLineCommand(logger));
 	commandManager.register(new commands.MoveCursorToPositionCommand());
 	commandManager.register(new commands.ShowPreviewSecuritySelectorCommand(previewSecuritySelector));
@@ -50,23 +51,9 @@ export function activate(context: vscode.ExtensionContext) {
 	commandManager.register(new commands.DidClickCommand());
 	commandManager.register(new commands.OpenDocumentLinkCommand(engine));
 
-	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {
-		if (isMarkdownFile(document)) {
-			const uri = getMarkdownUri(document.uri);
-			contentProvider.update(uri);
-		}
-	}));
-
-	context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
-		if (isMarkdownFile(event.document)) {
-			const uri = getMarkdownUri(event.document.uri);
-			contentProvider.update(uri);
-		}
-	}));
-
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
 		logger.updateConfiguration();
-		contentProvider.updateConfiguration();
+		webviewManager.updateConfiguration();
 	}));
 
 	context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(event => {

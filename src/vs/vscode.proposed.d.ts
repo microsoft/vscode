@@ -265,103 +265,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	export namespace debug {
-
-		/**
-		 * List of breakpoints.
-		 *
-		 * @readonly
-		 */
-		export let breakpoints: Breakpoint[];
-
-		/**
-		 * An event that is emitted when a breakpoint is added, removed, or changed.
-		 */
-		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
-
-		/**
-		 * Add breakpoints.
-		 * @param breakpoints The breakpoints to add.
-		*/
-		export function addBreakpoints(breakpoints: Breakpoint[]): void;
-
-		/**
-		 * Remove breakpoints.
-		 * @param breakpoints The breakpoints to remove.
-		 */
-		export function removeBreakpoints(breakpoints: Breakpoint[]): void;
-	}
-
-	/**
-	 * An event describing a change to the set of [breakpoints](#debug.Breakpoint).
-	 */
-	export interface BreakpointsChangeEvent {
-		/**
-		 * Added breakpoints.
-		 */
-		readonly added: Breakpoint[];
-
-		/**
-		 * Removed breakpoints.
-		 */
-		readonly removed: Breakpoint[];
-
-		/**
-		 * Changed breakpoints.
-		 */
-		readonly changed: Breakpoint[];
-	}
-
-	/**
-	 * The base class of all breakpoint types.
-	 */
-	export class Breakpoint {
-		/**
-		 * Is breakpoint enabled.
-		 */
-		readonly enabled: boolean;
-		/**
-		 * An optional expression for conditional breakpoints.
-		 */
-		readonly condition?: string;
-		/**
-		 * An optional expression that controls how many hits of the breakpoint are ignored.
-		 */
-		readonly hitCondition?: string;
-
-		protected constructor(enabled?: boolean, condition?: string, hitCondition?: string);
-	}
-
-	/**
-	 * A breakpoint specified by a source location.
-	 */
-	export class SourceBreakpoint extends Breakpoint {
-		/**
-		 * The source and line position of this breakpoint.
-		 */
-		readonly location: Location;
-
-		/**
-		 * Create a new breakpoint for a source location.
-		 */
-		constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string);
-	}
-
-	/**
-	 * A breakpoint specified by a function name.
-	 */
-	export class FunctionBreakpoint extends Breakpoint {
-		/**
-		 * The name of the function to which this breakpoint is attached.
-		 */
-		readonly functionName: string;
-
-		/**
-		 * Create a new function breakpoint.
-		 */
-		constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string);
-	}
-
 	/**
 	 * Represents a debug adapter executable and optional arguments passed to it.
 	 */
@@ -437,7 +340,6 @@ declare module 'vscode' {
 	}
 
 	export namespace languages {
-
 		export interface RenameProvider2 extends RenameProvider {
 			resolveInitialRenameValue?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameInitialValue>;
 		}
@@ -487,5 +389,104 @@ declare module 'vscode' {
 		 * the validation provider simply by setting this property to a different function.
 		 */
 		validateInput?(value: string, cursorPosition: number): ProviderResult<SourceControlInputBoxValidation | undefined | null>;
+	}
+
+	/**
+	 * Content settings for a webview.
+	 */
+	export interface WebviewOptions {
+		/**
+		 * Should scripts be enabled in the webview contetn?
+		 *
+		 * Defaults to false (scripts-disabled).
+		 */
+		readonly enableScripts?: boolean;
+
+		/**
+		 * Should command uris be enabled in webview content?
+		 *
+		 * Defaults to false.
+		 */
+		readonly enableCommandUris?: boolean;
+
+		/**
+		 * Should the webview content be kept arount even when the webview is no longer visible?
+		 *
+		 * Normally a webview content is created when the webview becomes visible
+		 * and destroyed when the webview is hidden. Apps that have complex state
+		 * or UI can set the `keepAlive` property to make VS Code keep the webview
+		 * content around, even when the webview itself is no longer visible. When
+		 * the webview becomes visible again, the content is automatically restored
+		 * in the exact same state it was in originally
+		 *
+		 * `keepAlive` has a high memory overhead and should only be used if your
+		 * webview content cannot be quickly saved and restored.
+		 */
+		readonly keepAlive?: boolean;
+	}
+
+	/**
+	 * A webview is an editor with html content, like an iframe.
+	 */
+	export interface Webview {
+		/**
+		 * Title of the webview.
+		 */
+		title: string;
+
+		/**
+		 * Contents of the webview.
+		 */
+		html: string;
+
+		/**
+		 * Content settings for the webview.
+		 */
+		options: WebviewOptions;
+
+		/**
+		 * The column in which the webview is showing.
+		 */
+		readonly viewColumn?: ViewColumn;
+
+		/**
+		 * Fired when the webview content posts a message.
+		 */
+		readonly onMessage: Event<any>;
+
+		/**
+		 * Fired when the webview becomes the active editor.
+		 */
+		readonly onBecameActive: Event<void>;
+
+		/**
+		 * Fired when the webview stops being the active editor
+		 */
+		readonly onBecameInactive: Event<void>;
+
+		/**
+		 * Post a message to the webview content.
+		 *
+		 * Messages are only develivered if the webview is visible.
+		 *
+		 * @param message Body of the message.
+		 */
+		postMessage(message: any): Thenable<any>;
+
+		/**
+		 * Dispose the webview.
+		 */
+		dispose(): any;
+	}
+
+	namespace window {
+		/**
+		 * Create and show a new webview.
+		 *
+		 * @param title Title of the webview.
+		 * @param column Editor column to show the new webview in.
+		 * @param options Webview content options.
+		 */
+		export function createWebview(title: string, column: ViewColumn, options: WebviewOptions): Webview;
 	}
 }
