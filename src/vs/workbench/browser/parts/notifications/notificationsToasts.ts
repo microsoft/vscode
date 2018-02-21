@@ -299,7 +299,7 @@ export class NotificationsToasts extends Themable {
 	protected updateStyles(): void {
 		this.mapNotificationToToast.forEach(toast => {
 			const widgetShadowColor = this.getColor(widgetShadow);
-			toast.container.style.boxShadow = widgetShadowColor ? `0 2px 8px ${widgetShadowColor}` : null;
+			toast.container.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : null;
 		});
 	}
 

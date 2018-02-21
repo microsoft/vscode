@@ -23,7 +23,7 @@ import { localize } from 'vs/nls';
 
 export class NotificationsCenter extends Themable {
 
-	private static MAX_DIMENSIONS = new Dimension(600, 400);
+	private static MAX_DIMENSIONS = new Dimension(450, 400);
 
 	private notificationsCenterContainer: HTMLElement;
 	private notificationsList: NotificationsList;
@@ -166,7 +166,7 @@ export class NotificationsCenter extends Themable {
 	protected updateStyles(): void {
 		if (this.notificationsCenterContainer) {
 			const widgetShadowColor = this.getColor(widgetShadow);
-			this.notificationsCenterContainer.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null;
+			this.notificationsCenterContainer.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : null;
 		}
 	}
 
@@ -219,6 +219,6 @@ export class NotificationsCenter extends Themable {
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const notificationBorderColor = theme.getColor(NOTIFICATIONS_BORDER);
 	if (notificationBorderColor) {
-		collector.addRule(`.monaco-workbench > .notifications-center .notifications-list-container .notification-list-item { border-bottom: 1px solid ${notificationBorderColor}; }`);
+		collector.addRule(`.monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row[data-last-element="false"] > .notification-list-item { border-bottom: 1px solid ${notificationBorderColor}; }`);
 	}
 });

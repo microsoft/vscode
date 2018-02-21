@@ -294,12 +294,14 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		item.row.domNode.style.top = `${this.elementTop(index)}px`;
 		item.row.domNode.style.height = `${item.size}px`;
 		item.row.domNode.setAttribute('data-index', `${index}`);
+		item.row.domNode.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
 		renderer.renderElement(item.element, index, item.row.templateData);
 	}
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {
 		item.row.domNode.style.top = `${this.elementTop(index)}px`;
 		item.row.domNode.setAttribute('data-index', `${index}`);
+		item.row.domNode.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
 	}
 
 	private removeItemFromDOM(item: IItem<T>): void {
