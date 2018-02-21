@@ -91,6 +91,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 			this._webview = new Webview(
 				this.content,
 				this.partService.getContainer(Parts.EDITOR_PART),
+				this.themeService,
 				this._environmentService,
 				this._contextService,
 				this._contextViewService,
@@ -107,7 +108,6 @@ export class HtmlPreviewPart extends WebviewEditor {
 				const resourceUri = this.input.getResource();
 				this.webview.baseUrl = resourceUri.toString(true);
 			}
-			this._webview.style(this.themeService.getTheme());
 			this._webviewDisposables = [
 				this._webview,
 				this._webview.onDidClickLink(uri => this.openerService.open(uri)),

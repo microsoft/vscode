@@ -204,7 +204,6 @@ class WebviewEditor extends BaseWebviewEditor {
 			enableWrappedPostMessage: true
 		};
 		this.webview.contents = input.html;
-		this.webview.style(this.themeService.getTheme());
 	}
 
 	private get webview(): Webview {
@@ -214,6 +213,7 @@ class WebviewEditor extends BaseWebviewEditor {
 			this._webview = new Webview(
 				this.webviewContent,
 				this._partService.getContainer(Parts.EDITOR_PART),
+				this.themeService,
 				this._environmentService,
 				this._contextService,
 				this._contextViewService,
@@ -223,16 +223,8 @@ class WebviewEditor extends BaseWebviewEditor {
 					enableWrappedPostMessage: true
 				},
 				false);
-			this.webview.style(this.themeService.getTheme());
 
 			this._webview.onDidClickLink(this.onDidClickLink, this, this._contentDisposables);
-
-
-			this.themeService.onThemeChange(theme => {
-				if (this._webview) {
-					this._webview.style(theme);
-				}
-			}, null, this._contentDisposables);
 
 			this._webview.onMessage(message => {
 				if (this.input) {

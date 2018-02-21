@@ -74,13 +74,6 @@ export abstract class WebviewEditor extends BaseWebviewEditor {
 		}
 	}
 
-	public updateStyles() {
-		super.updateStyles();
-		if (this._webview) {
-			this._webview.style(this.themeService.getTheme());
-		}
-	}
-
 	public get isWebviewEditor() {
 		return true;
 	}

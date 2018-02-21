@@ -10,7 +10,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { editorBackground, editorForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ITheme, LIGHT, DARK } from 'vs/platform/theme/common/themeService';
+import { ITheme, LIGHT, DARK, IThemeService } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -38,6 +38,7 @@ export class Webview {
 	constructor(
 		private readonly parent: HTMLElement,
 		private readonly _styleElement: Element,
+		private readonly _themeService: IThemeService,
 		private readonly _environmentService: IEnvironmentService,
 		private readonly _contextService: IWorkspaceContextService,
 		private readonly _contextViewService: IContextViewService,
@@ -178,6 +179,9 @@ export class Webview {
 		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this);
 		this._disposables.push(this._webviewFindWidget);
 
+		this.style(this._themeService.getTheme());
+		this._themeService.onThemeChange(this.style, this, this._disposables);
+
 		if (parent) {
 			parent.appendChild(this._webviewFindWidget.getDomNode());
 			parent.appendChild(this._webview);
@@ -257,7 +261,7 @@ export class Webview {
 		});
 	}
 
-	style(theme: ITheme): void {
+	private style(theme: ITheme): void {
 		const { fontFamily, fontWeight, fontSize } = window.getComputedStyle(this._styleElement); // TODO@theme avoid styleElement
 
 		const styles = {
