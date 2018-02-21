@@ -139,20 +139,6 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		this.contentDisposables.push(toDisposable(() => this._webview = null));
 	}
 
-	layout(): void {
-		if (this._webview) {
-			this._webview.layout();
-		}
-	}
-
-	focus(): void {
-		if (!this._webview) {
-			return;
-		}
-
-		this._webview.focus();
-	}
-
 	dispose(): void {
 		this.contentDisposables = dispose(this.contentDisposables);
 		super.dispose();

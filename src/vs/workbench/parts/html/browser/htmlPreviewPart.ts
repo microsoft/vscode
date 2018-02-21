@@ -157,13 +157,8 @@ export class HtmlPreviewPart extends WebviewEditor {
 		const { width, height } = dimension;
 		this.content.style.width = `${width}px`;
 		this.content.style.height = `${height}px`;
-		if (this._webview) {
-			this._webview.layout();
-		}
-	}
 
-	public focus(): void {
-		this.webview.focus();
+		super.layout(dimension);
 	}
 
 	public clearInput(): void {

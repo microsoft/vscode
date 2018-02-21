@@ -12,6 +12,7 @@ import { IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/cont
 
 import { Webview } from './webview';
 import { Builder } from 'vs/base/browser/builder';
+import { Dimension } from 'vs/workbench/services/part/common/partService';
 
 /**  A context key that is set when a webview editor has focus. */
 export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS = new RawContextKey<boolean>('webviewEditorFocus', false);
@@ -87,6 +88,18 @@ export abstract class WebviewEditor extends BaseWebviewEditor {
 	public reload() {
 		if (this._webview) {
 			this._webview.reload();
+		}
+	}
+
+	public layout(dimension: Dimension): void {
+		if (this._webview) {
+			this._webview.layout();
+		}
+	}
+
+	public focus(): void {
+		if (this._webview) {
+			this._webview.focus();
 		}
 	}
 

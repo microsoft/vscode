@@ -151,14 +151,8 @@ class WebviewEditor extends BaseWebviewEditor {
 	public layout(dimension: Dimension): void {
 		if (this._webview) {
 			this.doUpdateContainer();
-			this._webview.layout();
 		}
-	}
-
-	public focus() {
-		if (this._webview) {
-			this._webview.focus();
-		}
+		super.layout(dimension);
 	}
 
 	public dispose(): void {
