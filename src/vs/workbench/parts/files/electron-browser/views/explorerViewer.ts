@@ -799,11 +799,15 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 		// In-Explorer DND
 		else {
+			const sources: FileStat[] = data.getData();
 			if (target instanceof Model) {
+				if (sources.length === 1 && sources[0].isRoot) {
+					return DRAG_OVER_ACCEPT_BUBBLE_DOWN(false);
+				}
+
 				return DRAG_OVER_REJECT;
 			}
 
-			const sources: FileStat[] = data.getData();
 			if (!Array.isArray(sources)) {
 				return DRAG_OVER_REJECT;
 			}
@@ -864,9 +868,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 		// In-Explorer DND (Move/Copy file)
 		else {
-			if (target instanceof FileStat) {
-				promise = this.handleExplorerDrop(tree, data, target, originalEvent);
-			}
+			promise = this.handleExplorerDrop(tree, data, target, originalEvent);
 		}
 
 		promise.done(null, errors.onUnexpectedError);
@@ -915,7 +917,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		});
 	}
 
-	private handleExplorerDrop(tree: ITree, data: IDragAndDropData, target: FileStat, originalEvent: DragMouseEvent): TPromise<void> {
+	private handleExplorerDrop(tree: ITree, data: IDragAndDropData, target: FileStat | Model, originalEvent: DragMouseEvent): TPromise<void> {
 		const sources: FileStat[] = distinctParents(data.getData(), s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
@@ -955,19 +957,20 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		});
 	}
 
-	private doHandleExplorerDrop(tree: ITree, source: FileStat, target: FileStat, isCopy: boolean): TPromise<void> {
+	private doHandleExplorerDrop(tree: ITree, source: FileStat, target: FileStat | Model, isCopy: boolean): TPromise<void> {
 		return tree.expand(target).then(() => {
 			if (source.isRoot) {
 				const folders = this.contextService.getWorkspace().folders;
 				let sourceIndex: number;
 				let targetIndex: number;
 				const workspaceCreationData: IWorkspaceFolderCreationData[] = [];
+				const targetUri = target instanceof FileStat ? target.resource : folders[folders.length - 1].uri;
 
 				for (let index = 0; index < folders.length; index++) {
 					if (folders[index].uri.toString() === source.resource.toString()) {
 						sourceIndex = index;
 					}
-					if (folders[index].uri.toString() === target.resource.toString()) {
+					if (folders[index].uri.toString() === targetUri.toString()) {
 						targetIndex = index;
 					}
 					workspaceCreationData.push({
@@ -1004,6 +1007,9 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 				return TPromise.join(dirtyMoved.map(d => this.backupFileService.discardResourceBackup(d)));
 			};
+			if (!(target instanceof FileStat)) {
+				return TPromise.as(void 0);
+			}
 
 			// 1. check for dirty files that are being moved and backup to new target
 			const dirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, source.resource, !isLinux /* ignorecase */));
