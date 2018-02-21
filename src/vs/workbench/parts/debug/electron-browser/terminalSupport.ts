@@ -56,12 +56,17 @@ export class TerminalSupport {
 					const result = cp.spawnSync('wmic', ['process', 'get', 'ParentProcessId']);
 					if (result.stdout) {
 						const pids = result.stdout.toString().split('\r\n');
-						return pids.some(p => parseInt(p) === t.processId);
+						if (!pids.some(p => parseInt(p) === t.processId)) {
+							return false;
+						}
 					}
 				} else {
-					const result = cp.spawnSync('/usr/bin/pgrep', ['-P', String(t.processId)]);
+					const result = cp.spawnSync('/usr/bin/pgrep', ['-lP', String(t.processId)]);
 					if (result.stdout) {
-						return result.stdout.toString().trim().length > 0;
+						const r = result.stdout.toString().trim();
+						if (r.length === 0 || r.indexOf(' tmux') >= 0) { // ignore 'tmux'; see #43683
+							return false;
+						}
 					}
 				}
 			}
