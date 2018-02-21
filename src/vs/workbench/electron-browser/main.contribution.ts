@@ -408,6 +408,11 @@ configurationRegistry.registerConfiguration({
 			'default': true,
 			'description': nls.localize('zenMode.fullScreen', "Controls if turning on Zen Mode also puts the workbench into full screen mode.")
 		},
+		'zenMode.centeredLayout': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('zenMode.centeredLayout', "Controls if turning on Zen Mode also centers the layout.")
+		},
 		'zenMode.hideTabs': {
 			'type': 'boolean',
 			'default': true,
