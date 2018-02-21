@@ -396,7 +396,7 @@ declare module 'vscode' {
 	 */
 	export interface WebviewOptions {
 		/**
-		 * Should scripts be enabled in the webview contetn?
+		 * Should scripts be enabled in the webview content?
 		 *
 		 * Defaults to false (scripts-disabled).
 		 */
@@ -423,6 +423,15 @@ declare module 'vscode' {
 		 * webview content cannot be quickly saved and restored.
 		 */
 		readonly keepAlive?: boolean;
+
+		/**
+		 * Root paths from which the webview can load local (filesystem) resources using the `vscode-workspace-resource:` scheme.
+		 *
+		 * Default to the root folders of the current workspace.
+		 *
+		 * Pass in an empty array to disallow access to any local resources.
+		 */
+		readonly localResourceRoots?: Uri[];
 	}
 
 	/**

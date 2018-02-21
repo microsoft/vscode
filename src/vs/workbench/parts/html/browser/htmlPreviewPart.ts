@@ -26,7 +26,6 @@ import { Webview, WebviewOptions } from './webview';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { WebviewEditor } from './webviewEditor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 
 /**
@@ -55,8 +54,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IPartService private readonly partService: IPartService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService, themeService, storageService, contextKeyService);
 	}
@@ -93,7 +91,6 @@ export class HtmlPreviewPart extends WebviewEditor {
 				this.partService.getContainer(Parts.EDITOR_PART),
 				this.themeService,
 				this._environmentService,
-				this._contextService,
 				this._contextViewService,
 				this.contextKey,
 				this.findInputFocusContextKey,

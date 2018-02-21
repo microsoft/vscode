@@ -30,6 +30,7 @@ function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI 
 }
 
 // --- Register Editor
+
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(
 	HtmlPreviewPart,
 	HtmlPreviewPart.ID,

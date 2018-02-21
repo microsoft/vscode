@@ -201,7 +201,9 @@ class WebviewEditor extends BaseWebviewEditor {
 
 		this.webview.options = {
 			allowScripts: input.options.enableScripts,
-			enableWrappedPostMessage: true
+			enableWrappedPostMessage: true,
+			useSameOriginForRoot: false,
+			localResourceRoots: (input && input.options.localResourceRoots) || this._contextService.getWorkspace().folders.map(x => x.uri)
 		};
 		this.webview.contents = input.html;
 	}
@@ -215,7 +217,6 @@ class WebviewEditor extends BaseWebviewEditor {
 				this._partService.getContainer(Parts.EDITOR_PART),
 				this.themeService,
 				this._environmentService,
-				this._contextService,
 				this._contextViewService,
 				this.contextKey,
 				this.findInputFocusContextKey,

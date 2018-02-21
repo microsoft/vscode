@@ -17,7 +17,6 @@ import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { normalize, nativeSep } from 'vs/base/common/paths';
 import { startsWith } from 'vs/base/common/strings';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export interface WebviewOptions {
 	readonly allowScripts?: boolean;
@@ -25,6 +24,7 @@ export interface WebviewOptions {
 	readonly svgWhiteList?: string[];
 	readonly enableWrappedPostMessage?: boolean;
 	readonly useSameOriginForRoot?: boolean;
+	readonly localResourceRoots?: URI[];
 }
 
 export class Webview {
@@ -41,7 +41,6 @@ export class Webview {
 		private readonly _styleElement: Element,
 		private readonly _themeService: IThemeService,
 		private readonly _environmentService: IEnvironmentService,
-		private readonly _contextService: IWorkspaceContextService,
 		private readonly _contextViewService: IContextViewService,
 		private readonly _contextKey: IContextKey<boolean>,
 		private readonly _findInputContextKey: IContextKey<boolean>,
@@ -321,16 +320,16 @@ export class Webview {
 			return;
 		}
 
-		registerFileProtocol(contents, 'vscode-core-resource', [
+		registerFileProtocol(contents, 'vscode-core-resource', () => [
 			this._environmentService.appRoot
 		]);
-		registerFileProtocol(contents, 'vscode-extension-resource', [
+		registerFileProtocol(contents, 'vscode-extension-resource', () => [
 			this._environmentService.extensionsPath,
 			this._environmentService.appRoot,
 			this._environmentService.extensionDevelopmentPath
 		]);
-		registerFileProtocol(contents, 'vscode-workspace-resource',
-			this._contextService.getWorkspace().folders.map(folder => folder.uri.fsPath)
+		registerFileProtocol(contents, 'vscode-workspace-resource', () =>
+			this._options.localResourceRoots.map(uri => uri.fsPath)
 		);
 	}
 
@@ -352,7 +351,6 @@ export class Webview {
 
 		this._findStarted = true;
 		this._webview.findInPage(value, findOptions);
-		return;
 	}
 
 	/**
@@ -425,11 +423,11 @@ namespace ApiThemeClassName {
 function registerFileProtocol(
 	contents: Electron.WebContents,
 	protocol: string,
-	roots: string[]
+	getRoots: () => string[]
 ) {
 	contents.session.protocol.registerFileProtocol(protocol, (request, callback: any) => {
 		const requestPath = URI.parse(request.url).fsPath;
-		for (const root of roots) {
+		for (const root of getRoots()) {
 			const normalizedPath = normalize(requestPath, true);
 			if (startsWith(normalizedPath, root + nativeSep)) {
 				callback({ path: normalizedPath });

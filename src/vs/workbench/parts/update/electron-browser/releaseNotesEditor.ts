@@ -28,7 +28,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 function renderBody(
 	body: string,
@@ -64,8 +63,7 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IModeService private readonly modeService: IModeService,
 		@IPartService private readonly partService: IPartService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
+		@IContextViewService private readonly _contextViewService: IContextViewService
 	) {
 		super(ReleaseNotesEditor.ID, telemetryService, themeService, storageService, contextKeyService);
 	}
@@ -93,7 +91,6 @@ export class ReleaseNotesEditor extends WebviewEditor {
 			this.partService.getContainer(Parts.EDITOR_PART),
 			this.themeService,
 			this.environmentService,
-			this._contextService,
 			this._contextViewService,
 			this.contextKey,
 			this.findInputFocusContextKey,
