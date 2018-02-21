@@ -1044,17 +1044,16 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		if (position === Position.ONE) {
 
 			// Center Layout stuff
+			const registerSashListeners = (sash: Sash) => {
+				this.toUnbind.push(sash.onDidStart(() => this.onCenterSashDragStart()));
+				this.toUnbind.push(sash.onDidChange((e: ISashEvent) => this.onCenterSashDrag(sash, e)));
+				this.toUnbind.push(sash.onDidEnd(() => this.storeCenteredLayoutData()));
+				this.toUnbind.push(sash.onDidReset(() => this.resetCenteredEditor()));
+			};
 			this.centeredEditorSashLeft = new Sash(container.getHTMLElement(), this, { baseSize: 5, orientation: Orientation.VERTICAL });
-			this.toUnbind.push(this.centeredEditorSashLeft.onDidStart(() => this.onCenterSashLeftDragStart()));
-			this.toUnbind.push(this.centeredEditorSashLeft.onDidChange((e: ISashEvent) => this.onCenterSashLeftDrag(e)));
-			this.toUnbind.push(this.centeredEditorSashLeft.onDidEnd(() => this.storeCenteredLayoutData()));
-			this.toUnbind.push(this.centeredEditorSashLeft.onDidReset(() => this.resetCenteredEditor()));
-
 			this.centeredEditorSashRight = new Sash(container.getHTMLElement(), this, { baseSize: 5, orientation: Orientation.VERTICAL });
-			this.toUnbind.push(this.centeredEditorSashRight.onDidStart(() => this.onCenterSashRightDragStart()));
-			this.toUnbind.push(this.centeredEditorSashRight.onDidChange((e: ISashEvent) => this.onCenterSashRightDrag(e)));
-			this.toUnbind.push(this.centeredEditorSashRight.onDidEnd(() => this.storeCenteredLayoutData()));
-			this.toUnbind.push(this.centeredEditorSashRight.onDidReset(() => this.resetCenteredEditor()));
+			registerSashListeners(this.centeredEditorSashLeft);
+			registerSashListeners(this.centeredEditorSashRight);
 
 			this.centeredEditorActive = false;
 			this.centeredEditorLeftMarginRatio = 0.5;
@@ -1934,48 +1933,29 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		return EditorGroupsControl.CENTERED_EDITOR_MIN_MARGIN + this.centeredEditorLeftMarginRatio * (this.centeredEditorAvailableSize - this.centeredEditorSize);
 	}
 
-	private get centeredEditorEndPosition(): number {
-		return this.centeredEditorPosition + this.centeredEditorSize;
-	}
-
-	private setCenteredEditorPositionAndSize(pos: number, size: number): void {
-		this.centeredEditorPreferedSize = Math.max(this.minSize, size);
-		pos -= EditorGroupsControl.CENTERED_EDITOR_MIN_MARGIN;
-		pos = Math.min(pos, this.centeredEditorAvailableSize - this.centeredEditorSize);
-		pos = Math.max(0, pos);
-		this.centeredEditorLeftMarginRatio = pos / (this.centeredEditorAvailableSize - this.centeredEditorSize);
-
-		this.layoutContainers();
-	}
-
-	private onCenterSashLeftDragStart(): void {
+	private onCenterSashDragStart(): void {
 		this.centeredEditorDragStartPosition = this.centeredEditorPosition;
 		this.centeredEditorDragStartSize = this.centeredEditorSize;
 	}
 
-	private onCenterSashLeftDrag(e: ISashEvent): void {
-		const minMargin = EditorGroupsControl.CENTERED_EDITOR_MIN_MARGIN;
-		const diffPos = e.currentX - e.startX;
-		const diffSize = -diffPos;
+	private onCenterSashDrag(sash: Sash, e: ISashEvent): void {
+		const sashesCoupled = !e.altKey;
+		const delta = sash === this.centeredEditorSashLeft ? e.startX - e.currentX : e.currentX - e.startX;
+		const size = this.centeredEditorDragStartSize + (sashesCoupled ? 2 * delta : delta);
+		let position = this.centeredEditorDragStartPosition;
+		if (sash === this.centeredEditorSashLeft || sashesCoupled) {
+			position -= delta;
+		}
 
-		const pos = this.centeredEditorDragStartPosition + diffPos;
-		const size = this.centeredEditorDragStartSize + diffSize;
-		this.setCenteredEditorPositionAndSize(pos, pos <= minMargin ? size + pos - minMargin : size);
-	}
+		if (size > 3 * this.minSize) {
+			this.centeredEditorPreferedSize = size;
+			position -= EditorGroupsControl.CENTERED_EDITOR_MIN_MARGIN;
+			position = Math.min(position, this.centeredEditorAvailableSize - this.centeredEditorSize);
+			position = Math.max(0, position);
+			this.centeredEditorLeftMarginRatio = position / (this.centeredEditorAvailableSize - this.centeredEditorSize);
 
-	private onCenterSashRightDragStart(): void {
-		this.centeredEditorDragStartPosition = this.centeredEditorPosition;
-		this.centeredEditorDragStartSize = this.centeredEditorSize;
-	}
-
-	private onCenterSashRightDrag(e: ISashEvent): void {
-		const diffPos = e.currentX - e.startX;
-		const diffSize = diffPos;
-
-		const pos = this.centeredEditorDragStartPosition;
-		const maxSize = this.centeredEditorAvailableSize - this.centeredEditorDragStartPosition;
-		const size = Math.min(maxSize, this.centeredEditorDragStartSize + diffSize);
-		this.setCenteredEditorPositionAndSize(size < this.minSize ? pos + (size - this.minSize) : pos, size);
+			this.layoutContainers();
+		}
 	}
 
 	private storeCenteredLayoutData(): void {
@@ -1999,7 +1979,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			case this.centeredEditorSashLeft:
 				return this.centeredEditorPosition;
 			case this.centeredEditorSashRight:
-				return this.centeredEditorEndPosition;
+				return this.centeredEditorPosition + this.centeredEditorSize;
 			default:
 				return 0;
 		}
