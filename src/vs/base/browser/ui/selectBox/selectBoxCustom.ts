@@ -520,6 +520,9 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 				index: this.selectElement.selectedIndex,
 				selected: this.selectElement.title
 			});
+
+			// Reset Selection Handler
+			this._currentSelection = -1;
 			this.hideSelectDropDown(true);
 		}
 		dom.EventHelper.stop(e);
@@ -527,6 +530,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 	// List Exit - passive - hide drop-down, fire onDidSelect
 	private onListBlur(): void {
+
+		if (this._currentSelection >= 0) {
+			this.select(this._currentSelection);
+		}
 
 		this._onDidSelect.fire({
 			index: this.selectElement.selectedIndex,
@@ -553,6 +560,9 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	// List exit - active - hide ContextView dropdown, return focus to parent select, fire onDidSelect
 	private onEnter(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
+
+		// Reset current selection
+		this._currentSelection = -1;
 
 		this.hideSelectDropDown(true);
 		this._onDidSelect.fire({
