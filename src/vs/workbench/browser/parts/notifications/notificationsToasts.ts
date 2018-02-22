@@ -8,7 +8,7 @@
 import 'vs/css!./media/notificationsToasts';
 import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemLabelKind } from 'vs/workbench/common/notifications';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { addClass, removeClass, isAncestor } from 'vs/base/browser/dom';
+import { addClass, removeClass, isAncestor, addDisposableListener } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { Dimension } from 'vs/base/browser/builder';
@@ -170,11 +170,11 @@ export class NotificationsToasts extends Themable {
 		this.notificationsToastsVisibleContextKey.set(true);
 
 		// Animate In
-		notificationToastContainer.style.left = `${NotificationsToasts.MAX_DIMENSIONS.width}px`;
-		const animationHandle = setTimeout(() => {
-			notificationToastContainer.style.left = '0px';
-		});
-		itemDisposeables.push(toDisposable(() => clearTimeout(animationHandle)));
+		addClass(notificationToastContainer, 'notification-fade-in');
+		itemDisposeables.push(addDisposableListener(notificationToastContainer, 'transitionend', () => {
+			removeClass(notificationToastContainer, 'notification-fade-in');
+			addClass(notificationToastContainer, 'notification-fade-in-done');
+		}));
 	}
 
 	private removeToast(item: INotificationViewItem): void {

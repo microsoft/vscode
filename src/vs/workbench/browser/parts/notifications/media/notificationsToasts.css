@@ -23,12 +23,18 @@
 
 .monaco-workbench > .notifications-toasts .notification-toast {
 	margin: 5px; /* enables separation and drop shadows around toasts */
-	position: relative;
 
-	-webkit-transition:	left 300ms ease-in;
-	-ms-transition:		left 300ms ease-in;
-	-moz-transition:	left 300ms ease-in;
-	-khtml-transition:	left 300ms ease-in;
-	-o-transition:		left 300ms ease-in;
-	transition:			left 300ms ease-in;
+	transform: translateY(100%); /* move the notification 50px to the bottom (to prevent bleed through) */
+	transition:	transform 200ms ease-out;
+	will-change: transform; /* force a separate layer for the toast to speed things up */
+}
+
+.monaco-workbench > .notifications-toasts .notification-toast.notification-fade-in {
+	z-index: -1; /* draw the notification below the current one */
+	transform: none;
+}
+
+.monaco-workbench > .notifications-toasts .notification-toast.notification-fade-in-done {
+	transform: none;
+	transition:	none;
 }
