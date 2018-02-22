@@ -40,7 +40,7 @@ export interface IViewletService {
 	getViewlet(id: string): ViewletDescriptor;
 
 	/**
-	 * Returns all registered viewlets
+	 * Returns all enabled viewlets
 	 */
 	getViewlets(): ViewletDescriptor[];
 

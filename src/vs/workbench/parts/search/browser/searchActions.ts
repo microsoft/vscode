@@ -21,6 +21,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { OS } from 'vs/base/common/platform';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { VIEW_ID } from 'vs/platform/search/common/search';
 
 export function isSearchViewletFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	let searchView = getSearchView(viewletService, panelService);
@@ -38,21 +39,21 @@ export function appendKeyBindingLabel(label: string, keyBinding: number | Resolv
 }
 
 export function openSearchView(viewletService: IViewletService, panelService: IPanelService, focus?: boolean): TPromise<SearchView> {
-	if (viewletService.getViewlets().filter(v => v.id === Constants.VIEW_ID).length) {
-		return viewletService.openViewlet(Constants.VIEW_ID, focus).then(viewlet => <SearchView>viewlet);
+	if (viewletService.getViewlets().filter(v => v.id === VIEW_ID).length) {
+		return viewletService.openViewlet(VIEW_ID, focus).then(viewlet => <SearchView>viewlet);
 	}
 
-	return panelService.openPanel(Constants.VIEW_ID, focus).then(panel => <SearchView>panel);
+	return panelService.openPanel(VIEW_ID, focus).then(panel => <SearchView>panel);
 }
 
 export function getSearchView(viewletService: IViewletService, panelService: IPanelService): SearchView {
 	const activeViewlet = viewletService.getActiveViewlet();
-	if (activeViewlet && activeViewlet.getId() === Constants.VIEW_ID) {
+	if (activeViewlet && activeViewlet.getId() === VIEW_ID) {
 		return <SearchView>activeViewlet;
 	}
 
 	const activePanel = panelService.getActivePanel();
-	if (activePanel && activePanel.getId() === Constants.VIEW_ID) {
+	if (activePanel && activePanel.getId() === VIEW_ID) {
 		return <SearchView>activePanel;
 	}
 

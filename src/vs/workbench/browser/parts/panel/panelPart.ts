@@ -30,6 +30,8 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ISearchConfiguration, VIEW_ID as SEARCH_VIEW_ID } from 'vs/platform/search/common/search';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -54,6 +56,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(
 			notificationService,
@@ -155,7 +158,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private getPanel(panelId: string): IPanelIdentifier {
-		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels().filter(p => p.id === panelId).pop();
+		return this.getPanels().filter(p => p.id === panelId).pop();
 	}
 
 	private showContextMenu(e: MouseEvent): void {
@@ -170,7 +173,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	public getPanels(): IPanelIdentifier[] {
+		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
+		const excludeSearch = searchConfig.search.location !== 'panel';
 		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
+			.filter(p => !(p.id === SEARCH_VIEW_ID && excludeSearch))
 			.sort((v1, v2) => v1.order - v2.order);
 	}
 
