@@ -70,7 +70,7 @@ export class NotificationsStatus {
 
 		// Create new
 		this.statusItem = this.statusbarService.addEntry({
-			text: this.counter === 0 ? '$(megaphone)' : `$(megaphone) ${this.counter}`,
+			text: this.counter === 0 ? '$(bell)' : `$(bell) ${this.counter}`,
 			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER_COMMAND_ID : this.model.notifications.length > 0 ? SHOW_NOTIFICATIONS_CENTER_COMMAND_ID : void 0,
 			tooltip: this.getTooltip(),
 			showBeak: this.isNotificationsCenterVisible
