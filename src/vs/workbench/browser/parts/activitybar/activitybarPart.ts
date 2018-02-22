@@ -96,15 +96,7 @@ export class ActivitybarPart extends Part {
 				if (location === 'sidebar') {
 					this.compositeBar.addComposite(this.viewletService.getViewlet(SEARCH_VIEW_ID));
 				} else {
-					let promise: TPromise<any> = TPromise.as(null);
-					const activeViewlet = this.viewletService.getActiveViewlet();
-					if (activeViewlet && activeViewlet.getId() === SEARCH_VIEW_ID) {
-						promise = this.viewletService.openViewlet(this.viewletService.getDefaultViewletId());
-					}
-
-					promise.then(() => {
-						this.compositeBar.removeComposite(SEARCH_VIEW_ID);
-					});
+					this.compositeBar.removeComposite(SEARCH_VIEW_ID);
 				}
 			}
 		}));

@@ -82,11 +82,21 @@ export class CompositeBar implements ICompositeBar {
 	}
 
 	public addComposite(compositeData: { id: string; name: string }): void {
-		// todo@isidor
+		if (this.options.composites.filter(c => c.id === compositeData.id).length) {
+			return;
+		}
+
+		this.options.composites.push(compositeData);
+		this.pin(compositeData.id);
 	}
 
 	public removeComposite(id: string): void {
-		// todo@isidor
+		if (this.options.composites.filter(c => c.id === id).length === 0) {
+			return;
+		}
+
+		this.options.composites = this.options.composites.filter(c => c.id !== id);
+		this.unpin(id);
 	}
 
 	public activateComposite(id: string): void {

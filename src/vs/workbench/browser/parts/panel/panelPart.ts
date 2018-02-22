@@ -119,15 +119,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				if (location === 'panel') {
 					this.compositeBar.addComposite(this.getPanel(SEARCH_VIEW_ID));
 				} else {
-					let promise: TPromise<any> = TPromise.as(null);
-					const activePanel = this.getActivePanel();
-					if (activePanel && activePanel.getId() === SEARCH_VIEW_ID) {
-						promise = this.openPanel(Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId());
-					}
-
-					promise.then(() => {
-						this.compositeBar.removeComposite(SEARCH_VIEW_ID);
-					});
+					this.compositeBar.removeComposite(SEARCH_VIEW_ID);
 				}
 			}
 		}));
