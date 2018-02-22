@@ -84,7 +84,7 @@ import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { OpenRecentAction, ToggleDevToolsAction, ReloadWindowAction, ShowPreviousWindowTab, MoveWindowTabToNewWindow, MergeAllWindowTabs, ShowNextWindowTab, ToggleWindowTabsBar } from 'vs/workbench/electron-browser/actions';
+import { OpenRecentAction, ToggleDevToolsAction, ReloadWindowAction, ShowPreviousWindowTab, MoveWindowTabToNewWindow, MergeAllWindowTabs, ShowNextWindowTab, ToggleWindowTabsBar, ReloadWindowWithExtensionsDisabledAction } from 'vs/workbench/electron-browser/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/workspaceEditingService';
@@ -102,7 +102,7 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
 import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/notificationsAlerts';
 import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
-import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationCommands';
+import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -117,6 +117,7 @@ interface WorkbenchParams {
 
 interface IZenModeSettings {
 	fullScreen: boolean;
+	centerLayout: boolean;
 	hideTabs: boolean;
 	hideActivityBar: boolean;
 	hideStatusBar: boolean;
@@ -159,6 +160,7 @@ export class Workbench implements IPartService {
 	private static readonly sidebarRestoreStorageKey = 'workbench.sidebar.restore';
 	private static readonly panelHiddenStorageKey = 'workbench.panel.hidden';
 	private static readonly zenModeActiveStorageKey = 'workbench.zenmode.active';
+	private static readonly centeredEditorLayoutActiveStorageKey = 'workbench.centered.editorlayout.active';
 	private static readonly panelPositionStorageKey = 'workbench.panel.location';
 	private static readonly defaultPanelPositionStorageKey = 'workbench.panel.defaultLocation';
 
@@ -205,16 +207,18 @@ export class Workbench implements IPartService {
 	private sideBarPosition: Position;
 	private panelPosition: Position;
 	private panelHidden: boolean;
-	private editorBackgroundDelayer: Delayer<void>;
+	private editorBackgroundDelayer: Delayer<any>;
 	private closeEmptyWindowScheduler: RunOnceScheduler;
 	private editorsVisibleContext: IContextKey<boolean>;
 	private inZenMode: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
 	private hasFilesToCreateOpenOrDiff: boolean;
 	private fontAliasing: FontAliasingOption;
+	private centeredEditorLayoutActive: boolean;
 	private zenMode: {
 		active: boolean;
 		transitionedToFullScreen: boolean;
+		transitionedToCenteredEditorLayout: boolean;
 		wasSideBarVisible: boolean;
 		wasPanelVisible: boolean;
 	};
@@ -383,6 +387,11 @@ export class Workbench implements IPartService {
 			this.toggleZenMode(true);
 		}
 
+		// Restore Forced Editor Center Mode
+		if (this.storageService.getBoolean(Workbench.centeredEditorLayoutActiveStorageKey, StorageScope.GLOBAL, false)) {
+			this.centeredEditorLayoutActive = true;
+		}
+
 		const onRestored = (error?: Error): IWorkbenchStartedInfo => {
 			this.workbenchCreated = true;
 
@@ -409,7 +418,7 @@ export class Workbench implements IPartService {
 		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyCode.KEY_R } : void 0), 'Reload Window');
 		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I } } : void 0), 'Developer: Toggle Developer Tools', localize('developer', "Developer"));
 		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL, { primary: isDeveloping ? null : KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent...', localize('file', "File"));
-
+		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowWithExtensionsDisabledAction, ReloadWindowWithExtensionsDisabledAction.ID, ReloadWindowWithExtensionsDisabledAction.LABEL), 'Reload Window Without Extensions');
 		// Actions for macOS native tabs management (only when enabled)
 		const windowConfig = this.configurationService.getValue<IWindowConfiguration>();
 		if (windowConfig && windowConfig.window && windowConfig.window.nativeTabs) {
@@ -661,9 +670,13 @@ export class Workbench implements IPartService {
 		this.zenMode = {
 			active: false,
 			transitionedToFullScreen: false,
+			transitionedToCenteredEditorLayout: false,
 			wasSideBarVisible: false,
 			wasPanelVisible: false
 		};
+
+		// Centered Editor Layout
+		this.centeredEditorLayoutActive = false;
 	}
 
 	private setPanelPositionFromStorageOrConfig() {
@@ -1305,10 +1318,14 @@ export class Workbench implements IPartService {
 
 		// Check if zen mode transitioned to full screen and if now we are out of zen mode -> we need to go out of full screen
 		let toggleFullScreen = false;
+		// Same goes for the centered editor layout
+		let toggleCenteredEditorLayout = false;
 		if (this.zenMode.active) {
 			const config = this.configurationService.getValue<IZenModeSettings>('zenMode');
 			toggleFullScreen = !browser.isFullscreen() && config.fullScreen;
 			this.zenMode.transitionedToFullScreen = toggleFullScreen;
+			toggleCenteredEditorLayout = !this.isEditorLayoutCentered() && config.centerLayout;
+			this.zenMode.transitionedToCenteredEditorLayout = toggleCenteredEditorLayout;
 			this.zenMode.wasSideBarVisible = this.isVisible(Parts.SIDEBAR_PART);
 			this.zenMode.wasPanelVisible = this.isVisible(Parts.PANEL_PART);
 			this.setPanelHidden(true, true).done(void 0, errors.onUnexpectedError);
@@ -1343,9 +1360,14 @@ export class Workbench implements IPartService {
 			}
 
 			toggleFullScreen = this.zenMode.transitionedToFullScreen && browser.isFullscreen();
+			toggleCenteredEditorLayout = this.zenMode.transitionedToCenteredEditorLayout && this.isEditorLayoutCentered();
 		}
 
 		this.inZenMode.set(this.zenMode.active);
+
+		if (toggleCenteredEditorLayout) {
+			this.toggleCenteredEditorLayout(true);
+		}
 
 		if (!skipLayout) {
 			this.layout();
@@ -1353,6 +1375,19 @@ export class Workbench implements IPartService {
 
 		if (toggleFullScreen) {
 			this.windowService.toggleFullScreen().done(void 0, errors.onUnexpectedError);
+		}
+	}
+
+	public isEditorLayoutCentered(): boolean {
+		return this.centeredEditorLayoutActive;
+	}
+
+	public toggleCenteredEditorLayout(skipLayout?: boolean): void {
+		this.centeredEditorLayoutActive = !this.centeredEditorLayoutActive;
+		this.storageService.store(Workbench.centeredEditorLayoutActiveStorageKey, this.centeredEditorLayoutActive, StorageScope.GLOBAL);
+
+		if (!skipLayout) {
+			this.layout();
 		}
 	}
 

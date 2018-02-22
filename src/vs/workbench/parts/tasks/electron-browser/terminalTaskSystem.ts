@@ -435,7 +435,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
 					}
-				} else if (basename === 'bash.exe') {
+				} else if (basename === 'bash.exe' || basename === 'zsh.exe') {
 					windowsShellArgs = false;
 					if (!shellSpecified) {
 						toAdd.push('-c');

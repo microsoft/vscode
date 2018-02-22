@@ -5,10 +5,11 @@
 'use strict';
 
 import { ContextMenuHandler } from './contextMenuHandler';
-import { IContextViewService, IContextMenuService, IContextMenuDelegate } from './contextView';
+import { IContextViewService, IContextMenuService } from './contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import Event, { Emitter } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 
 
 export class ContextMenuService implements IContextMenuService {

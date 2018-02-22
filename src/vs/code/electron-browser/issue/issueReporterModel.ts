@@ -61,14 +61,9 @@ export class IssueReporterModel {
 
 	serialize(): string {
 		return `
-### Issue Type
-${this.getIssueTypeTitle()}
-
-### Description
+Issue Type: ${this.getIssueTypeTitle()}
 
 ${this._data.issueDescription}
-
-### VS Code Info
 
 VS Code version: ${this._data.versionInfo && this._data.versionInfo.vscodeVersion}
 OS version: ${this._data.versionInfo && this._data.versionInfo.os}

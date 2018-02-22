@@ -27,7 +27,7 @@ import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-brows
 import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
+import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -1111,6 +1111,13 @@ export class TerminalInstance implements ITerminalInstance {
 
 			this._xterm.resize(this._cols, this._rows);
 			this._xterm.element.style.width = terminalWidth + 'px';
+			if (this._isVisible) {
+				// Force the renderer to unpause by simulating an IntersectionObserver event. This
+				// is to fix an issue where dragging the window to the top of the screen to maximize
+				// on Winodws/Linux would fire an event saying that the terminal was not visible.
+				// This should only force a refresh if one is needed.
+				(<any>this._xterm).renderer.onIntersectionChange({ intersectionRatio: 1 });
+			}
 		}
 
 		this._processReady.then(() => {
@@ -1199,6 +1206,14 @@ export class TerminalInstance implements ITerminalInstance {
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	// Border
+	const border = theme.getColor(activeContrastBorder);
+	if (border) {
+		collector.addRule(`
+			.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus::before,
+			.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus::before { border-color: ${border}; }`
+		);
+	}
 
 	// Scrollbar
 	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);

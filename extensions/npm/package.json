@@ -1,12 +1,13 @@
 {
   "name": "npm",
   "publisher": "vscode",
-  "description": "Extension to add task support for npm scripts.",
-  "displayName": "Npm support for VSCode",
+  "displayName": "%displayName%",
+	"description": "%description%",
   "version": "0.0.1",
   "engines": {
     "vscode": "0.10.x"
   },
+  "icon": "images/npm_icon.png",
   "categories": [
     "Other"
   ],

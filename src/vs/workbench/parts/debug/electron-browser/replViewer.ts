@@ -9,7 +9,7 @@ import { IAction } from 'vs/base/common/actions';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as errors from 'vs/base/common/errors';
 import { isFullWidthCharacter, removeAnsiEscapeCodes, endsWith } from 'vs/base/common/strings';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as dom from 'vs/base/browser/dom';
 import severity from 'vs/base/common/severity';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -23,6 +23,7 @@ import { CopyAction, CopyAllAction } from 'vs/workbench/parts/debug/electron-bro
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
+import { CollapseAction } from 'vs/workbench/browser/viewlet';
 
 const $ = dom.$;
 
@@ -437,6 +438,8 @@ export class ReplExpressionsActionProvider implements IActionProvider {
 		const actions: IAction[] = [];
 		actions.push(new CopyAction(CopyAction.ID, CopyAction.LABEL));
 		actions.push(new CopyAllAction(CopyAllAction.ID, CopyAllAction.LABEL, tree));
+		actions.push(new CollapseAction(tree, true, 'explore-action collapse-all'));
+		actions.push(new Separator());
 		actions.push(this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL));
 
 		return TPromise.as(actions);

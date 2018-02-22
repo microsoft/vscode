@@ -5,10 +5,10 @@
 
 'use strict';
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, ConfigurationChangeEvent } from 'vscode';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, IDisposable, isDescendant, find, firstIndex } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, firstIndex } from './util';
 import { Git, GitErrorCodes } from './git';
 import * as path from 'path';
 import * as fs from 'fs';

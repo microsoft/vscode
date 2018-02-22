@@ -146,11 +146,11 @@ class SplitPaneContainer {
 		this._width = width;
 		this._height = height;
 		if (this.orientation === Orientation.HORIZONTAL) {
-			this._splitView.layout(width);
 			this._children.forEach(c => c.orthogonalLayout(height));
+			this._splitView.layout(width);
 		} else {
-			this._splitView.layout(height);
 			this._children.forEach(c => c.orthogonalLayout(width));
+			this._splitView.layout(height);
 		}
 	}
 

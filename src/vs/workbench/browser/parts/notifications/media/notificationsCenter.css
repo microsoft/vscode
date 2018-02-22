@@ -7,14 +7,13 @@
 	position: absolute;
 	z-index: 1000;
 	right: 8px;
-	bottom: 30px; /* above status bar */
+	bottom: 31px;
 	display: none;
 	overflow: hidden;
 }
 
 .monaco-workbench.nostatusbar > .notifications-center {
-	right: 12px;
-	bottom: 12px;
+	bottom: 8px;
 }
 
 .monaco-workbench > .notifications-center.visible {

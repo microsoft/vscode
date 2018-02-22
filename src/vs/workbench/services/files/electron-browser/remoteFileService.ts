@@ -31,6 +31,7 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 	const [resource, stat] = tuple;
 	const fileStat: IFileStat = {
 		isDirectory: false,
+		isSymbolicLink: stat.type === FileType.Symlink,
 		resource: resource,
 		name: basename(resource.path),
 		mtime: stat.mtime,

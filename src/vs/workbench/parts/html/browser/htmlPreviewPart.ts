@@ -26,7 +26,6 @@ import { Webview, WebviewOptions } from './webview';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { WebviewEditor } from './webviewEditor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 
 /**
@@ -55,8 +54,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IPartService private readonly partService: IPartService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService, themeService, storageService, contextKeyService);
 	}
@@ -91,13 +89,15 @@ export class HtmlPreviewPart extends WebviewEditor {
 			this._webview = new Webview(
 				this.content,
 				this.partService.getContainer(Parts.EDITOR_PART),
+				this.themeService,
 				this._environmentService,
-				this._contextService,
 				this._contextViewService,
 				this.contextKey,
 				this.findInputFocusContextKey,
-				webviewOptions,
-				true);
+				{
+					...webviewOptions,
+					useSameOriginForRoot: true
+				});
 
 			if (this.input && this.input instanceof HtmlInput) {
 				const state = this.loadViewState(this.input.getResource());
@@ -107,7 +107,6 @@ export class HtmlPreviewPart extends WebviewEditor {
 				const resourceUri = this.input.getResource();
 				this.webview.baseUrl = resourceUri.toString(true);
 			}
-			this.onThemeChange(this.themeService.getTheme());
 			this._webviewDisposables = [
 				this._webview,
 				this._webview.onDidClickLink(uri => this.openerService.open(uri)),
@@ -157,13 +156,8 @@ export class HtmlPreviewPart extends WebviewEditor {
 		const { width, height } = dimension;
 		this.content.style.width = `${width}px`;
 		this.content.style.height = `${height}px`;
-		if (this._webview) {
-			this._webview.layout();
-		}
-	}
 
-	public focus(): void {
-		this.webview.focus();
+		super.layout(dimension);
 	}
 
 	public clearInput(): void {

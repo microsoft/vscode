@@ -18,10 +18,11 @@ import { Themable } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { NotificationsToastsVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationCommands';
+import { NotificationsToastsVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
 import { Severity } from 'vs/platform/notification/common/notification';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 interface INotificationToast {
 	list: NotificationsList;
@@ -106,18 +107,26 @@ export class NotificationsToasts extends Themable {
 		itemDisposeables.push(toDisposable(() => this.notificationsToastsContainer.removeChild(notificationToastContainer)));
 
 		// Create toast with item and show
-		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToastContainer, { ariaLabel: localize('notificationsToast', "Notification Toast") });
+		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToastContainer, {
+			ariaLabel: localize('notificationsToast', "Notification Toast"),
+			verticalScrollMode: ScrollbarVisibility.Hidden
+		});
 		itemDisposeables.push(notificationList);
 		this.mapNotificationToToast.set(item, { list: notificationList, container: notificationToastContainer, disposeables: itemDisposeables });
 
 		// Make visible
 		notificationList.show();
 
-		// Layout
-		this.layout(this.workbenchDimensions);
+		// Layout lists
+		const maxDimensions = this.computeMaxDimensions();
+		this.layoutLists(maxDimensions.width);
 
 		// Show notification
 		notificationList.updateNotificationsList(0, 0, [item]);
+
+		// Layout container: only after we show the notification to ensure that
+		// the height computation takes the content of it into account!
+		this.layoutContainer(maxDimensions.height);
 
 		// Update when item height changes due to expansion
 		itemDisposeables.push(item.onDidExpansionChange(() => {
@@ -294,7 +303,7 @@ export class NotificationsToasts extends Themable {
 	protected updateStyles(): void {
 		this.mapNotificationToToast.forEach(toast => {
 			const widgetShadowColor = this.getColor(widgetShadow);
-			toast.container.style.boxShadow = widgetShadowColor ? `0 2px 8px ${widgetShadowColor}` : null;
+			toast.container.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : null;
 		});
 	}
 
@@ -309,6 +318,16 @@ export class NotificationsToasts extends Themable {
 	public layout(dimension: Dimension): void {
 		this.workbenchDimensions = dimension;
 
+		const maxDimensions = this.computeMaxDimensions();
+
+		// Layout all lists of toasts
+		this.layoutLists(maxDimensions.width);
+
+		// Hide toasts that exceed height
+		this.layoutContainer(maxDimensions.height);
+	}
+
+	private computeMaxDimensions(): Dimension {
 		let maxWidth = NotificationsToasts.MAX_DIMENSIONS.width;
 		let maxHeight = NotificationsToasts.MAX_DIMENSIONS.height;
 
@@ -334,11 +353,14 @@ export class NotificationsToasts extends Themable {
 			availableHeight -= (2 * 12); // adjust for paddings top and bottom
 		}
 
-		// Apply width to all toasts
-		this.mapNotificationToToast.forEach(toast => toast.list.layout(Math.min(maxWidth, availableWidth)));
+		return new Dimension(Math.min(maxWidth, availableWidth), Math.min(maxHeight, availableHeight));
+	}
 
-		// Hide toasts that exceed height
-		let heightToGive = Math.min(maxHeight, availableHeight);
+	private layoutLists(width: number): void {
+		this.mapNotificationToToast.forEach(toast => toast.list.layout(width));
+	}
+
+	private layoutContainer(heightToGive: number): void {
 		this.getVisibleToasts().forEach(toast => {
 
 			// In order to measure the client height, the element cannot have display: none

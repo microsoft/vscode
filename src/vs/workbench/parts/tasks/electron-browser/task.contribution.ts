@@ -1833,9 +1833,12 @@ class TaskService implements ITaskService {
 			severity: Severity.Info,
 			message: nls.localize('TaskService.ignoredFolder', 'The following workspace folders are ignored since they use task version 0.1.0: {0}', this.ignoredWorkspaceFolders.map(f => f.name).join(', ')),
 			actions: {
-				secondary: [new Action('dontShowAgain', nls.localize('TaskService.notAgain', 'Don\'t Show Again'), null, true, () => {
+				secondary: [new Action('dontShowAgain', nls.localize('TaskService.notAgain', 'Don\'t Show Again'), null, true, (notification: IDisposable) => {
 					this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
 					this.__showIgnoreMessage = false;
+
+					// Hide notification
+					notification.dispose();
 
 					return TPromise.as(true);
 				})]

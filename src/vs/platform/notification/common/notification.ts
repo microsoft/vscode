@@ -19,30 +19,108 @@ export const INotificationService = createDecorator<INotificationService>('notif
 export type NotificationMessage = string | IMarkdownString | Error;
 
 export interface INotification {
+
+	/**
+	 * The severity of the notification. Either `Info`, `Warning` or `Error`.
+	 */
 	severity: Severity;
+
+	/**
+	 * The message of the notification. This can either be a `string`, `Error`
+	 * or `IMarkdownString`.
+	 *
+	 * **Note:** Currently only links are supported in notifications. Links to commands can
+	 * be embedded provided that the `IMarkdownString` is trusted.
+	 */
 	message: NotificationMessage;
+
+	/**
+	 * The source of the notification appears as additional information.
+	 */
 	source?: string;
+
+	/**
+	 * Actions to show as part of the notification. Primary actions show up as
+	 * buttons as part of the message and will close the notification once clicked.
+	 *
+	 * Secondary actions are meant to provide additional configuration or context
+	 * for the notification and will show up less prominent. A notification does not
+	 * close automatically when invoking a secondary action.
+	 *
+	 * **Note:** If your intent is to show a message with actions to the user, consider
+	 * the `IChoiceService` and `IConfirmationService` instead which are optimized for
+	 * this usecase and much easier to use!
+	 */
 	actions?: INotificationActions;
 }
 
 export interface INotificationActions {
+
+	/**
+	 * Primary actions show up as buttons as part of the message and will close
+	 * the notification once clicked.
+	 */
 	primary?: IAction[];
+
+	/**
+	 * Secondary actions are meant to provide additional configuration or context
+	 * for the notification and will show up less prominent. A notification does not
+	 * close automatically when invoking a secondary action.
+	 */
 	secondary?: IAction[];
 }
 
 export interface INotificationProgress {
+
+	/**
+	 * Causes the progress bar to spin infinitley.
+	 */
 	infinite(): void;
+
+	/**
+	 * Indicate the total amount of work.
+	 */
 	total(value: number): void;
+
+	/**
+	 * Indicate that a specific chunk of work is done.
+	 */
 	worked(value: number): void;
+
+	/**
+	 * Indicate that the long running operation is done.
+	 */
 	done(): void;
 }
 
 export interface INotificationHandle extends IDisposable {
-	readonly onDidHide: Event<void>;
+
+	/**
+	 * Will be fired once the notification is disposed.
+	 */
+	readonly onDidDispose: Event<void>;
+
+	/**
+	 * Allows to indicate progress on the notification even after the
+	 * notification is already visible.
+	 */
 	readonly progress: INotificationProgress;
 
+	/**
+	 * Allows to update the severity of the notification.
+	 */
 	updateSeverity(severity: Severity): void;
+
+	/**
+	 * Allows to update the message of the notification even after the
+	 * notification is already visible.
+	 */
 	updateMessage(message: NotificationMessage): void;
+
+	/**
+	 * Allows to update the actions of the notification even after the
+	 * notification is already visible.
+	 */
 	updateActions(actions?: INotificationActions): void;
 }
 
@@ -50,20 +128,42 @@ export interface INotificationService {
 
 	_serviceBrand: any;
 
+	/**
+	 * Show the provided notification to the user. The returned `INotificationHandle`
+	 * can be used to control the notification afterwards.
+	 *
+	 * **Note:** If your intent is to show a message with actions to the user, consider
+	 * the `IChoiceService` and `IConfirmationService` instead which are optimized for
+	 * this usecase and much easier to use!
+	 */
 	notify(notification: INotification): INotificationHandle;
 
+	/**
+	 * A convinient way of reporting infos. Use the `INotificationService.notify`
+	 * method if you need more control over the notification.
+	 */
 	info(message: NotificationMessage | NotificationMessage[]): void;
+
+	/**
+	 * A convinient way of reporting warnings. Use the `INotificationService.notify`
+	 * method if you need more control over the notification.
+	 */
 	warn(message: NotificationMessage | NotificationMessage[]): void;
+
+	/**
+	 * A convinient way of reporting errors. Use the `INotificationService.notify`
+	 * method if you need more control over the notification.
+	 */
 	error(message: NotificationMessage | NotificationMessage[]): void;
 }
 
 export class NoOpNotification implements INotificationHandle {
 	readonly progress = new NoOpProgress();
 
-	private _onDidHide: Emitter<void> = new Emitter();
+	private _onDidDispose: Emitter<void> = new Emitter();
 
-	public get onDidHide(): Event<void> {
-		return this._onDidHide.event;
+	public get onDidDispose(): Event<void> {
+		return this._onDidDispose.event;
 	}
 
 	updateSeverity(severity: Severity): void { }
@@ -71,7 +171,7 @@ export class NoOpNotification implements INotificationHandle {
 	updateActions(actions?: INotificationActions): void { }
 
 	dispose(): void {
-		this._onDidHide.dispose();
+		this._onDidDispose.dispose();
 	}
 }
 

@@ -152,7 +152,6 @@ interface Strings {
 			"${WelcomePageInstalled-2}",
 			"${WelcomePageInstalled-3}",
 			"${WelcomePageInstalled-4}",
-			"${WelcomePageInstalled-5}",
 			"${WelcomePageInstalled-6}"
 		]
 	}
@@ -189,7 +188,6 @@ const extensionPackStrings: Strings = {
 			"${WelcomePageInstalled-2}",
 			"${WelcomePageInstalled-3}",
 			"${WelcomePageInstalled-4}",
-			"${WelcomePageInstalled-5}",
 			"${WelcomePageInstalled-6}"
 		]
 	}
@@ -486,7 +484,7 @@ class WelcomePage {
 										"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 										"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 										"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-										"error": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+										"error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
 									}
 								*/
 								this.telemetryService.publicLog(strings.installedEvent, {
@@ -521,7 +519,7 @@ class WelcomePage {
 					"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"error": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+					"error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
 				}
 			*/
 			this.telemetryService.publicLog(strings.installedEvent, {

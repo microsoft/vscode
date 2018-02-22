@@ -401,7 +401,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				const options: Choice[] = [
 					localize('install', 'Install'),
 					recommendationsAction.label,
-					{ label: choiceNever, isSecondary: true }
+					{ label: choiceNever }
 				];
 
 				this.choiceService.choose(Severity.Info, message, options).done(choice => {
@@ -483,7 +483,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 					const options: Choice[] = [
 						localize('searchMarketplace', "Search Marketplace"),
-						{ label: choiceNever, isSecondary: true }
+						{ label: choiceNever }
 					];
 
 					this.choiceService.choose(Severity.Info, message, options).done(choice => {
@@ -552,7 +552,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				const options: Choice[] = [
 					installAllAction.label,
 					showAction.label,
-					{ label: choiceNever, isSecondary: true }
+					{ label: choiceNever }
 				];
 
 				return this.choiceService.choose(Severity.Info, message, options).done(choice => {

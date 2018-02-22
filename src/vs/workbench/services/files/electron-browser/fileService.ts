@@ -109,7 +109,7 @@ export class FileService implements IFileService {
 
 		// Detect if we run < .NET Framework 4.5 (TODO@ben remove with new watcher impl)
 		if (msg.indexOf(FileService.NET_VERSION_ERROR) >= 0 && !this.storageService.getBoolean(FileService.NET_VERSION_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
-			const choices: Choice[] = [nls.localize('installNet', "Download .NET Framework 4.5"), { label: nls.localize('neverShowAgain', "Don't Show Again"), isSecondary: true }];
+			const choices: Choice[] = [nls.localize('installNet', "Download .NET Framework 4.5"), { label: nls.localize('neverShowAgain', "Don't Show Again") }];
 			this.choiceService.choose(Severity.Warning, nls.localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."), choices).then(choice => {
 				switch (choice) {
 					case 0 /* Read More */:
@@ -124,7 +124,7 @@ export class FileService implements IFileService {
 
 		// Detect if we run into ENOSPC issues (TODO@ben remove with new watcher impl)
 		if (msg.indexOf(FileService.ENOSPC_ERROR) >= 0 && !this.storageService.getBoolean(FileService.ENOSPC_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
-			const choices: Choice[] = [nls.localize('learnMore', "Instructions"), { label: nls.localize('neverShowAgain', "Don't Show Again"), isSecondary: true }];
+			const choices: Choice[] = [nls.localize('learnMore', "Instructions"), { label: nls.localize('neverShowAgain', "Don't Show Again") }];
 			this.choiceService.choose(Severity.Warning, nls.localize('enospcError', "{0} is running out of file handles. Please follow the instructions link to resolve this issue.", product.nameLong), choices).then(choice => {
 				switch (choice) {
 					case 0 /* Read More */:

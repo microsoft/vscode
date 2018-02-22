@@ -17,7 +17,10 @@ export const VS_LIGHT_THEME = 'vs';
 export const VS_DARK_THEME = 'vs-dark';
 export const VS_HC_THEME = 'hc-black';
 
+export const HC_THEME_ID = 'Default High Contrast';
+
 export const COLOR_THEME_SETTING = 'workbench.colorTheme';
+export const DETECT_HC_SETTING = 'window.autoDetectHighContrast';
 export const ICON_THEME_SETTING = 'workbench.iconTheme';
 export const CUSTOM_WORKBENCH_COLORS_SETTING = 'workbench.colorCustomizations';
 export const CUSTOM_EDITOR_COLORS_SETTING = 'editor.tokenColorCustomizations';

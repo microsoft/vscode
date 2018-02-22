@@ -120,6 +120,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.scrollableElement.onScroll(this.onScroll, this, this.disposables);
 		domEvent(this.rowsContainer, TouchEventType.Change)(this.onTouchChange, this, this.disposables);
 
+		// Prevent the monaco-scrollable-element from scrolling
+		// https://github.com/Microsoft/vscode/issues/44181
+		domEvent(this.scrollableElement.getDomNode(), 'scroll')
+			(e => (e.target as HTMLElement).scrollTop = 0, null, this.disposables);
+
 		const onDragOver = mapEvent(domEvent(this.rowsContainer, 'dragover'), e => new DragMouseEvent(e));
 		onDragOver(this.onDragOver, this, this.disposables);
 
@@ -294,12 +299,14 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		item.row.domNode.style.top = `${this.elementTop(index)}px`;
 		item.row.domNode.style.height = `${item.size}px`;
 		item.row.domNode.setAttribute('data-index', `${index}`);
+		item.row.domNode.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
 		renderer.renderElement(item.element, index, item.row.templateData);
 	}
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {
 		item.row.domNode.style.top = `${this.elementTop(index)}px`;
 		item.row.domNode.setAttribute('data-index', `${index}`);
+		item.row.domNode.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
 	}
 
 	private removeItemFromDOM(item: IItem<T>): void {

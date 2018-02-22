@@ -12,9 +12,10 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IActionRunner, ActionRunner, IAction, IRunEvent } from 'vs/base/common/actions';
 import { Menu } from 'vs/base/browser/ui/menu/menu';
 
-import { IContextViewService, IContextMenuDelegate } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 
 export class ContextMenuHandler {
 

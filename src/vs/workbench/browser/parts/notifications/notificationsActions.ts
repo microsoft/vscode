@@ -12,7 +12,7 @@ import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION } from 'vs/workbench/browser/parts/notifications/notificationCommands';
+import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class ClearNotificationAction extends Action {
@@ -102,9 +102,8 @@ export class NotificationActionRunner extends ActionRunner {
 		super();
 	}
 
-	protected runAction(action: IAction, context?: any): TPromise<any> {
+	protected runAction(action: IAction, context: INotificationViewItem): TPromise<any> {
 
-		// Telemetry
 		/* __GDPR__
 			"workbenchActionExecuted" : {
 				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },

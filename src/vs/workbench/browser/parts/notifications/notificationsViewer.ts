@@ -6,7 +6,7 @@
 'use strict';
 
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
-import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
+import { renderMarkdown, IContentActionHandler } from 'vs/base/browser/htmlContentRenderer';
 import { clearNode, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import URI from 'vs/base/common/uri';
@@ -132,7 +132,7 @@ class NotificationMessageMarkdownRenderer {
 		'tablerow'
 	];
 
-	public static render(markdown: IMarkdownString, actionCallback?: (content: string) => void): HTMLElement {
+	public static render(markdown: IMarkdownString, actionHandler?: IContentActionHandler): HTMLElement {
 		return renderMarkdown(markdown, {
 			inline: true,
 			joinRendererConfiguration: renderer => {
@@ -145,7 +145,7 @@ class NotificationMessageMarkdownRenderer {
 					smartypants: false // disable some text transformations
 				} as MarkedOptions;
 			},
-			actionCallback
+			actionHandler
 		});
 	}
 }
@@ -195,14 +195,15 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 				ariaLabel: localize('notificationActions', "Notification Actions"),
 				actionItemProvider: action => {
 					if (action instanceof ConfigureNotificationAction) {
-						const item = new DropdownMenuActionItem(action, action.configurationActions, this.contextMenuService, null, null, null, action.class);
+						const item = new DropdownMenuActionItem(action, action.configurationActions, this.contextMenuService, null, this.actionRunner, null, action.class);
 						data.toDispose.push(item);
 
 						return item;
 					}
 
 					return null;
-				}
+				},
+				actionRunner: this.actionRunner
 			}
 		);
 		data.toDispose.push(data.toolbar);
@@ -331,7 +332,10 @@ export class NotificationTemplateRenderer {
 
 	private renderMessage(notification: INotificationViewItem): boolean {
 		clearNode(this.template.message);
-		this.template.message.appendChild(NotificationMessageMarkdownRenderer.render(notification.message, (content: string) => this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError)));
+		this.template.message.appendChild(NotificationMessageMarkdownRenderer.render(notification.message, {
+			callback: (content: string) => this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError),
+			disposeables: this.inputDisposeables
+		}));
 
 		const messageOverflows = notification.canCollapse && !notification.expanded && this.template.message.scrollWidth > this.template.message.clientWidth;
 		if (messageOverflows) {
@@ -453,7 +457,7 @@ export class NotificationTemplateRenderer {
 		this.inputDisposeables.push(button.onDidClick(() => {
 
 			// Run action
-			this.actionRunner.run(action);
+			this.actionRunner.run(action, notification);
 
 			// Hide notification
 			notification.dispose();

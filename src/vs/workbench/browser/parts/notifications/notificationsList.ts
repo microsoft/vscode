@@ -16,11 +16,7 @@ import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
 import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
-import { NotificationFocusedContext } from 'vs/workbench/browser/parts/notifications/notificationCommands';
-
-export interface INotificationsListOptions {
-	ariaLabel: string;
-}
+import { NotificationFocusedContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 
 export class NotificationsList extends Themable {
 	private listContainer: HTMLElement;
@@ -30,7 +26,7 @@ export class NotificationsList extends Themable {
 
 	constructor(
 		private container: HTMLElement,
-		private options: INotificationsListOptions,
+		private options: IListOptions<INotificationViewItem>,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -77,9 +73,7 @@ export class NotificationsList extends Themable {
 			this.listContainer,
 			new NotificationsListDelegate(this.listContainer),
 			[renderer],
-			{
-				ariaLabel: this.options.ariaLabel
-			} as IListOptions<INotificationViewItem>
+			this.options
 		);
 		this.toUnbind.push(this.list);
 
