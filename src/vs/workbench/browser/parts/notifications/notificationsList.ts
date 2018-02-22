@@ -18,10 +18,6 @@ import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/br
 import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { NotificationFocusedContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 
-export interface INotificationsListOptions {
-	ariaLabel: string;
-}
-
 export class NotificationsList extends Themable {
 	private listContainer: HTMLElement;
 	private list: WorkbenchList<INotificationViewItem>;
@@ -30,7 +26,7 @@ export class NotificationsList extends Themable {
 
 	constructor(
 		private container: HTMLElement,
-		private options: INotificationsListOptions,
+		private options: IListOptions<INotificationViewItem>,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -77,9 +73,7 @@ export class NotificationsList extends Themable {
 			this.listContainer,
 			new NotificationsListDelegate(this.listContainer),
 			[renderer],
-			{
-				ariaLabel: this.options.ariaLabel
-			} as IListOptions<INotificationViewItem>
+			this.options
 		);
 		this.toUnbind.push(this.list);
 

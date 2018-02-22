@@ -22,6 +22,7 @@ import { NotificationsToastsVisibleContext } from 'vs/workbench/browser/parts/no
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
 import { Severity } from 'vs/platform/notification/common/notification';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 interface INotificationToast {
 	list: NotificationsList;
@@ -106,7 +107,10 @@ export class NotificationsToasts extends Themable {
 		itemDisposeables.push(toDisposable(() => this.notificationsToastsContainer.removeChild(notificationToastContainer)));
 
 		// Create toast with item and show
-		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToastContainer, { ariaLabel: localize('notificationsToast', "Notification Toast") });
+		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToastContainer, {
+			ariaLabel: localize('notificationsToast', "Notification Toast"),
+			verticalScrollMode: ScrollbarVisibility.Hidden
+		});
 		itemDisposeables.push(notificationList);
 		this.mapNotificationToToast.set(item, { list: notificationList, container: notificationToastContainer, disposeables: itemDisposeables });
 
