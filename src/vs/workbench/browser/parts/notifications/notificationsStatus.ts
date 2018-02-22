@@ -82,12 +82,12 @@ export class NotificationsStatus {
 			return localize('hideNotifications', "Hide Notifications");
 		}
 
-		if (this.counter === 0) {
-			return localize('noNotifications', "No New Notifications");
-		}
-
 		if (this.model.notifications.length === 0) {
 			return localize('zeroNotifications', "No Notifications");
+		}
+
+		if (this.counter === 0) {
+			return localize('noNotifications', "No New Notifications");
 		}
 
 		if (this.counter === 1) {
