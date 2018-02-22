@@ -499,7 +499,6 @@
 		"sideBar.background": "#F2F2F2",
 		"sideBarSectionHeader.background": "#ede8ef",
 		"editorLineNumber.foreground": "#9DA39A",
-		"editorActiveLineNumber.foreground": "#9769dc",
 		"editorCursor.foreground": "#54494B",
 		"inputOption.activeBorder": "#adafb7",
 		"dropdown.background": "#F5F5F5",

@@ -361,7 +361,6 @@
 		// "editorHoverWidget.border": "",
 		// "editorLineNumber.foreground": "",
 		// "editorMarkerNavigation.background": "",
-		"editorActiveLineNumber.foreground": "#949494",
 		"editorMarkerNavigationError.background": "#AB395B",
 		"editorMarkerNavigationWarning.background": "#5B7E7A",
 		// "editorLink.activeForeground": "",

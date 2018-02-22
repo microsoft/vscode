@@ -29,7 +29,6 @@
 		"activityBar.foreground": "#d3af86",
 		"sideBar.background": "#362712",
 		"editor.lineHighlightBackground": "#5e452b",
-		"editorActiveLineNumber.foreground": "#adadad",
 		"editorCursor.foreground": "#d3af86",
 		"editorWhitespace.foreground": "#a57a4c",
 		"peekViewTitle.background": "#362712",
