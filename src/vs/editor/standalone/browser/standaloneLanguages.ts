@@ -390,6 +390,14 @@ export function registerColorProvider(languageId: string, provider: modes.Docume
 }
 
 /**
+ * Register a folding provider
+ */
+/*export function registerFoldingProvider(languageId: string, provider: modes.FoldingProvider): IDisposable {
+	return modes.FoldingProviderRegistry.register(languageId, provider);
+}*/
+
+
+/**
  * Contains additional diagnostic information about the context in which
  * a [code action](#CodeActionProvider.provideCodeActions) is run.
  */

@@ -7,6 +7,63 @@
 
 declare module 'vscode' {
 
+	export class FoldingRangeList {
+
+		/**
+		 * The folding ranges.
+		 */
+		ranges: FoldingRange[];
+
+		/**
+		 * Creates mew folding range list.
+		 *
+		 * @param ranges The folding ranges
+		 */
+		constructor(ranges: FoldingRange[]);
+	}
+
+
+	export class FoldingRange {
+
+		/**
+		 * The start line number (0-based)
+		 */
+		startLine: number;
+
+		/**
+		 * The end line number (0-based)
+		 */
+		endLine: number;
+
+		/**
+		 * The actual color value for this color range.
+		 */
+		type?: FoldingRangeType | string;
+
+		/**
+		 * Creates a new folding range.
+		 *
+		 * @param startLineNumber The first line of the fold
+		 * @param type The last line of the fold
+		 */
+		constructor(startLineNumber: number, endLineNumber: number, type?: FoldingRangeType);
+	}
+
+	export enum FoldingRangeType {
+		/**
+		 * Folding range for a comment
+		 */
+		Comment = 'comment',
+		/**
+		 * Folding range for a imports or includes
+		 */
+		Imports = 'imports',
+		/**
+		 * Folding range for a region (e.g. `#region`)
+		 */
+		Region = 'region'
+	}
+
 	// export enum FileErrorCodes {
 	// 	/**
 	// 	 * Not owner.
@@ -340,9 +397,26 @@ declare module 'vscode' {
 	}
 
 	export namespace languages {
+
+		/**
+		 * Register a folding provider.
+		 *
+		 * Multiple folding can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A folding provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerFoldingProvider(selector: DocumentSelector, provider: FoldingProvider): Disposable;
+
 		export interface RenameProvider2 extends RenameProvider {
 			resolveInitialRenameValue?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameInitialValue>;
 		}
+	}
+	export interface FoldingProvider {
+		provideFoldingRanges(document: TextDocument, token: CancellationToken): ProviderResult<FoldingRangeList>;
 	}
 
 	/**
