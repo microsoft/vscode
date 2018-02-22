@@ -16,7 +16,7 @@ import strings = require('vs/base/common/strings');
 import extfs = require('vs/base/node/extfs');
 import { onError } from 'vs/base/test/common/utils';
 import { Readable } from 'stream';
-import { isLinux } from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 
 const ignore = () => { };
 
@@ -75,6 +75,11 @@ suite('Extfs', () => {
 	});
 
 	test('stat link', function (done: () => void) {
+		if (isWindows) {
+			// Symlinks are not the same on win, and we can not create them programitically without admin privileges
+			return done();
+		}
+
 		const id1 = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id1);
 		const directory = path.join(parentDir, 'extfs', id1);
