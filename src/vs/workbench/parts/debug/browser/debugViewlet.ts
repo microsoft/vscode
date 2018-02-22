@@ -26,6 +26,7 @@ import { ViewLocation } from 'vs/workbench/common/views';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 export class DebugViewlet extends PersistentViewsViewlet {
 
@@ -35,6 +36,7 @@ export class DebugViewlet extends PersistentViewsViewlet {
 	private panelListeners = new Map<string, IDisposable>();
 
 	constructor(
+		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProgressService private progressService: IProgressService,
 		@IDebugService private debugService: IDebugService,
@@ -46,7 +48,7 @@ export class DebugViewlet extends PersistentViewsViewlet {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.Debug, `${VIEWLET_ID}.state`, false, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
+		super(VIEWLET_ID, ViewLocation.Debug, `${VIEWLET_ID}.state`, false, partService, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 
 		this.progressRunner = null;
 
