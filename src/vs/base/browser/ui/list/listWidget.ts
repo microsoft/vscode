@@ -1085,7 +1085,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		if (focus.length > 0) {
 			this.view.domNode.setAttribute('aria-activedescendant', this.getElementDomId(focus[0]));
-			console.log(this.getRelativeTop(focus[0]));
 		} else {
 			this.view.domNode.removeAttribute('aria-activedescendant');
 		}
