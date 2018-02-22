@@ -21,7 +21,11 @@
 	flex-direction: column-reverse;
 }
 
-.monaco-workbench > .notifications-toasts .notification-toast {
+.monaco-workbench > .notifications-toasts .notification-toast-container {
+	overflow: hidden; /* this ensures that the notification toast does not shine through */
+}
+
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast {
 	margin: 5px; /* enables separation and drop shadows around toasts */
 
 	transform: translateY(100%); /* move the notification 50px to the bottom (to prevent bleed through) */
@@ -30,14 +34,13 @@
 	will-change: transform, opacity; /* force a separate layer for the toast to speed things up */
 }
 
-.monaco-workbench > .notifications-toasts .notification-toast.notification-fade-in {
-	z-index: -1; /* draw the notification below the current one */
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast.notification-fade-in {
 	opacity: 1;
 	transform: none;
 }
 
-.monaco-workbench > .notifications-toasts .notification-toast.notification-fade-in-done {
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast.notification-fade-in-done {
+	opacity: 1;
 	transform: none;
 	transition:	none;
-	opacity: 1;
 }

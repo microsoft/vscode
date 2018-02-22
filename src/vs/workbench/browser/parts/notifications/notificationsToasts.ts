@@ -104,12 +104,17 @@ export class NotificationsToasts extends Themable {
 
 		// Container
 		const notificationToastContainer = document.createElement('div');
-		addClass(notificationToastContainer, 'notification-toast');
+		addClass(notificationToastContainer, 'notification-toast-container');
 		this.notificationsToastsContainer.appendChild(notificationToastContainer);
 		itemDisposeables.push(toDisposable(() => this.notificationsToastsContainer.removeChild(notificationToastContainer)));
 
+		// Toast
+		const notificationToast = document.createElement('div');
+		addClass(notificationToast, 'notification-toast');
+		notificationToastContainer.appendChild(notificationToast);
+
 		// Create toast with item and show
-		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToastContainer, {
+		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToast, {
 			ariaLabel: localize('notificationsToast', "Notification Toast"),
 			verticalScrollMode: ScrollbarVisibility.Hidden
 		});
@@ -173,13 +178,13 @@ export class NotificationsToasts extends Themable {
 
 		// Animate In if we are in a running session (otherwise just show directly)
 		if (this.lifecycleService.phase >= LifecyclePhase.Running) {
-			addClass(notificationToastContainer, 'notification-fade-in');
-			itemDisposeables.push(addDisposableListener(notificationToastContainer, 'transitionend', () => {
-				removeClass(notificationToastContainer, 'notification-fade-in');
-				addClass(notificationToastContainer, 'notification-fade-in-done');
+			addClass(notificationToast, 'notification-fade-in');
+			itemDisposeables.push(addDisposableListener(notificationToast, 'transitionend', () => {
+				removeClass(notificationToast, 'notification-fade-in');
+				addClass(notificationToast, 'notification-fade-in-done');
 			}));
 		} else {
-			addClass(notificationToastContainer, 'notification-fade-in-done');
+			addClass(notificationToast, 'notification-fade-in-done');
 		}
 	}
 
