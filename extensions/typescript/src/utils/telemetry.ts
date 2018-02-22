@@ -8,9 +8,9 @@ import VsCodeTelemetryReporter from 'vscode-extension-telemetry';
 import { memoize } from './memoize';
 
 interface IPackageInfo {
-	name: string;
-	version: string;
-	aiKey: string;
+	readonly name: string;
+	readonly version: string;
+	readonly aiKey: string;
 }
 
 export default class TelemetryReporter {
