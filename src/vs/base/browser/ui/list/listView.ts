@@ -295,11 +295,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			this.rowsContainer.appendChild(item.row.domNode);
 		}
 
-		const renderer = this.renderers.get(item.templateId);
-		item.row.domNode.style.top = `${this.elementTop(index)}px`;
 		item.row.domNode.style.height = `${item.size}px`;
-		item.row.domNode.setAttribute('data-index', `${index}`);
-		item.row.domNode.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
+		this.updateItemInDOM(item, index);
+
+		const renderer = this.renderers.get(item.templateId);
 		renderer.renderElement(item.element, index, item.row.templateData);
 	}
 
@@ -307,6 +306,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		item.row.domNode.style.top = `${this.elementTop(index)}px`;
 		item.row.domNode.setAttribute('data-index', `${index}`);
 		item.row.domNode.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
+		item.row.domNode.setAttribute('aria-setsize', `${this.length}`);
+		item.row.domNode.setAttribute('aria-posinset', `${index + 1}`);
 	}
 
 	private removeItemFromDOM(item: IItem<T>): void {
