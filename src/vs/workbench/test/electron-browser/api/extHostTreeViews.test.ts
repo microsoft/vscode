@@ -163,6 +163,7 @@ suite('ExtHostTreeView', function () {
 				assert.deepEqual(removeUnsetKeys(actuals['0/0:b']), {
 					handle: '0/0:b',
 					label: 'b',
+					collapsibleState: TreeItemCollapsibleState.Collapsed
 				});
 				c(null);
 			});
@@ -176,7 +177,8 @@ suite('ExtHostTreeView', function () {
 			assert.deepEqual(removeUnsetKeys(actuals['0/0:b/0:bb']), {
 				handle: '0/0:b/0:bb',
 				parentHandle: '0/0:b',
-				label: 'bb'
+				label: 'bb',
+				collapsibleState: TreeItemCollapsibleState.None
 			});
 			done();
 		});
@@ -189,11 +191,13 @@ suite('ExtHostTreeView', function () {
 			assert.deepEqual(removeUnsetKeys(actuals['0/0:b']), {
 				handle: '0/0:b',
 				label: 'b',
+				collapsibleState: TreeItemCollapsibleState.Collapsed
 			});
 			assert.deepEqual(removeUnsetKeys(actuals['0/0:a/0:aa']), {
 				handle: '0/0:a/0:aa',
 				parentHandle: '0/0:a',
 				label: 'aa',
+				collapsibleState: TreeItemCollapsibleState.None
 			});
 			done();
 		});
@@ -208,11 +212,13 @@ suite('ExtHostTreeView', function () {
 			assert.deepEqual(removeUnsetKeys(actuals['0/0:b']), {
 				handle: '0/0:b',
 				label: 'b',
+				collapsibleState: TreeItemCollapsibleState.Collapsed
 			});
 			assert.deepEqual(removeUnsetKeys(actuals['0/0:a/0:aa']), {
 				handle: '0/0:a/0:aa',
 				parentHandle: '0/0:a',
 				label: 'aa',
+				collapsibleState: TreeItemCollapsibleState.None
 			});
 			done();
 		});
@@ -228,6 +234,7 @@ suite('ExtHostTreeView', function () {
 			assert.deepEqual(removeUnsetKeys(actuals['0/0:a']), {
 				handle: '0/0:aa',
 				label: 'aa',
+				collapsibleState: TreeItemCollapsibleState.Collapsed
 			});
 			done();
 		});
@@ -403,12 +410,7 @@ suite('ExtHostTreeView', function () {
 		}
 		let treeElement = getTreeElement(key);
 		if (treeElement) {
-			const children = Object.keys(treeElement);
-			const collapsibleStateIndex = children.indexOf('collapsibleState');
-			if (collapsibleStateIndex !== -1) {
-				children.splice(collapsibleStateIndex, 1);
-			}
-			return children;
+			return Object.keys(treeElement);
 		}
 		return [];
 	}
@@ -417,7 +419,7 @@ suite('ExtHostTreeView', function () {
 		const treeElement = getTreeElement(key);
 		return {
 			label: labels[key] || key,
-			collapsibleState: treeElement ? treeElement['collapsibleState'] : TreeItemCollapsibleState.Collapsed
+			collapsibleState: treeElement && Object.keys(treeElement).length ? TreeItemCollapsibleState.Collapsed : TreeItemCollapsibleState.None
 		};
 	}
 

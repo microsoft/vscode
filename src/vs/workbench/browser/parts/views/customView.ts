@@ -404,7 +404,7 @@ class TreeRenderer implements IRenderer {
 
 	public renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
-		const name = node.label ? node.label : resource ? basename(resource.path) : '';
+		const label = node.label ? node.label : resource ? basename(resource.path) : '';
 		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
 
 		// reset
@@ -415,11 +415,12 @@ class TreeRenderer implements IRenderer {
 		DOM.removeClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 
 		if (resource && !icon) {
-			templateData.resourceLabel.setLabel({ name, resource }, { fileKind: node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE });
+			templateData.resourceLabel.setLabel({ name: label, resource }, { fileKind: node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE, title: node.tooltip });
 			DOM.addClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 		} else {
-			templateData.label.textContent = name;
+			templateData.label.textContent = label;
 			DOM.addClass(templateData.label, 'custom-view-tree-node-item-label');
+			templateData.label.title = typeof node.tooltip === 'string' ? node.tooltip : label;
 		}
 
 		templateData.icon.treeItem = node;
