@@ -28,6 +28,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 interface INotificationToast {
 	list: NotificationsList;
 	container: HTMLElement;
+	toast: HTMLElement;
 	disposeables: IDisposable[];
 }
 
@@ -119,7 +120,7 @@ export class NotificationsToasts extends Themable {
 			verticalScrollMode: ScrollbarVisibility.Hidden
 		});
 		itemDisposeables.push(notificationList);
-		this.mapNotificationToToast.set(item, { list: notificationList, container: notificationToastContainer, disposeables: itemDisposeables });
+		this.mapNotificationToToast.set(item, { list: notificationList, container: notificationToastContainer, toast: notificationToast, disposeables: itemDisposeables });
 
 		// Make visible
 		notificationList.show();
@@ -312,9 +313,9 @@ export class NotificationsToasts extends Themable {
 	}
 
 	protected updateStyles(): void {
-		this.mapNotificationToToast.forEach(toast => {
+		this.mapNotificationToToast.forEach(t => {
 			const widgetShadowColor = this.getColor(widgetShadow);
-			toast.container.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : null;
+			t.toast.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : null;
 		});
 	}
 
