@@ -27,6 +27,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': product.quality === 'insider',
 			'description': nls.localize('enableWindowsBackgroundUpdates', "Enables Windows background updates.")
+		},
+		'update.showReleaseNotes': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('showReleaseNotes', "Show Release Notes on update")
 		}
 	}
 });
