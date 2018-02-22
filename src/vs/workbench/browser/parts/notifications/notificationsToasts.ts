@@ -26,6 +26,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 interface INotificationToast {
+	item: INotificationViewItem;
 	list: NotificationsList;
 	container: HTMLElement;
 	toast: HTMLElement;
@@ -34,7 +35,8 @@ interface INotificationToast {
 
 export class NotificationsToasts extends Themable {
 
-	private static MAX_DIMENSIONS = new Dimension(450, 300);
+	private static MAX_WIDTH = 450;
+	private static MAX_NOTIFICATIONS = 4;
 
 	private static PURGE_TIMEOUT: { [severity: number]: number } = (() => {
 		const intervals = Object.create(null);
@@ -120,7 +122,7 @@ export class NotificationsToasts extends Themable {
 			verticalScrollMode: ScrollbarVisibility.Hidden
 		});
 		itemDisposeables.push(notificationList);
-		this.mapNotificationToToast.set(item, { list: notificationList, container: notificationToastContainer, toast: notificationToast, disposeables: itemDisposeables });
+		this.mapNotificationToToast.set(item, { item, list: notificationList, container: notificationToastContainer, toast: notificationToast, disposeables: itemDisposeables });
 
 		// Make visible
 		notificationList.show();
@@ -186,6 +188,12 @@ export class NotificationsToasts extends Themable {
 			}));
 		} else {
 			addClass(notificationToast, 'notification-fade-in-done');
+		}
+
+		// Ensure maximum number
+		const toasts = this.getVisibleToasts();
+		while (toasts.length > NotificationsToasts.MAX_NOTIFICATIONS) {
+			this.removeToast(toasts.pop().item);
 		}
 	}
 
@@ -336,15 +344,16 @@ export class NotificationsToasts extends Themable {
 		this.layoutLists(maxDimensions.width);
 
 		// Hide toasts that exceed height
-		this.layoutContainer(maxDimensions.height);
+		if (maxDimensions.height) {
+			this.layoutContainer(maxDimensions.height);
+		}
 	}
 
 	private computeMaxDimensions(): Dimension {
-		let maxWidth = NotificationsToasts.MAX_DIMENSIONS.width;
-		let maxHeight = NotificationsToasts.MAX_DIMENSIONS.height;
+		let maxWidth = NotificationsToasts.MAX_WIDTH;
 
 		let availableWidth = maxWidth;
-		let availableHeight = maxHeight;
+		let availableHeight: number;
 
 		if (this.workbenchDimensions) {
 
@@ -365,7 +374,7 @@ export class NotificationsToasts extends Themable {
 			availableHeight -= (2 * 12); // adjust for paddings top and bottom
 		}
 
-		return new Dimension(Math.min(maxWidth, availableWidth), Math.min(maxHeight, availableHeight));
+		return new Dimension(Math.min(maxWidth, availableWidth), availableHeight);
 	}
 
 	private layoutLists(width: number): void {
@@ -379,7 +388,7 @@ export class NotificationsToasts extends Themable {
 			toast.container.style.opacity = '0';
 			toast.container.style.display = 'block';
 
-			heightToGive -= toast.container.clientHeight;
+			heightToGive -= toast.container.offsetHeight;
 
 			// Hide or show toast based on available height
 			toast.container.style.display = heightToGive >= 0 ? 'block' : 'none';
