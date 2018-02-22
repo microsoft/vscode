@@ -41,6 +41,10 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 			return this.issueService.openReporter(issueReporterData);
 		});
 	}
+
+	openTaskManager(): TPromise<void> {
+		return this.issueService.openTaskManager();
+	}
 }
 
 export function getIssueReporterStyles(theme: ITheme): IssueReporterStyles {

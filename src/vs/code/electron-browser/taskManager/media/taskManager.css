@@ -22,3 +22,39 @@ body {
 .process-item {
 	line-height: 22px;
 }
+
+table {
+	border-collapse: collapse;
+}
+th {
+	vertical-align: bottom;
+	border-bottom: 1px solid #cccccc;
+	padding: .5rem;
+	border-top: 1px solid #cccccc;
+	text-align: center;
+}
+td {
+	padding: .25rem;
+	vertical-align: top;
+}
+
+.centered {
+	text-align: center;
+}
+
+.data {
+	white-space: pre;
+}
+
+.highest {
+	color: yellow;
+}
+
+tr:hover {
+	background-color: #2A2D2E;
+	cursor: pointer;
+}
+
+tr.selected {
+	background-color: #094771;
+}

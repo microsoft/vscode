@@ -871,6 +871,24 @@ export class OpenIssueReporterAction extends Action {
 	}
 }
 
+export class OpenTaskManager extends Action {
+	public static readonly ID = 'workbench.action.openTaskManager';
+	public static readonly LABEL = nls.localize('openTaskManager', "Open Task Manager");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchIssueService private issueService: IWorkbenchIssueService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+		return this.issueService.openTaskManager()
+			.then(() => true);
+	}
+}
+
 export class ReportPerformanceIssueUsingReporterAction extends Action {
 	public static readonly ID = 'workbench.action.reportPerformanceIssueUsingReporter';
 	public static readonly LABEL = nls.localize('reportPerformanceIssue', "Report Performance Issue");

@@ -22,7 +22,8 @@ const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 export class IssueService implements IIssueService {
 	_serviceBrand: any;
 	_issueWindow: BrowserWindow;
-	_parentWindow: BrowserWindow;
+	_issueParentWindow: BrowserWindow;
+	_taskManagerWindow: BrowserWindow;
 
 	constructor(
 		private machineId: string,
@@ -46,11 +47,11 @@ export class IssueService implements IIssueService {
 		});
 
 		ipcMain.on('workbenchCommand', (event, arg) => {
-			this._parentWindow.webContents.send('vscode:runAction', { id: arg, from: 'issueReporter' });
+			this._issueParentWindow.webContents.send('vscode:runAction', { id: arg, from: 'issueReporter' });
 		});
 
-		this._parentWindow = BrowserWindow.getFocusedWindow();
-		const position = this.getWindowPosition();
+		this._issueParentWindow = BrowserWindow.getFocusedWindow();
+		const position = this.getWindowPosition(this._issueParentWindow, 800, 900);
 		this._issueWindow = new BrowserWindow({
 			width: position.width,
 			height: position.height,
@@ -73,7 +74,51 @@ export class IssueService implements IIssueService {
 		return TPromise.as(null);
 	}
 
-	private getWindowPosition() {
+	openTaskManager(): TPromise<void> {
+		// Create as singleton
+		if (!this._taskManagerWindow) {
+			const position = this.getWindowPosition(BrowserWindow.getFocusedWindow(), 800, 400);
+			this._taskManagerWindow = new BrowserWindow({
+				alwaysOnTop: true,
+				skipTaskbar: true,
+				resizable: true,
+				width: position.width,
+				height: position.height,
+				x: position.x,
+				y: position.y,
+				backgroundColor: isMacintosh ? '#171717' : '#1E1E1E',
+				title: localize('taskManager', "Task Manager")
+			});
+
+			this._taskManagerWindow.setMenuBarVisibility(false);
+
+			const windowConfiguration = {
+				appRoot: this.environmentService.appRoot,
+				nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
+				windowId: this._taskManagerWindow.id,
+				machineId: this.machineId
+			};
+
+			const environment = parseArgs(process.argv);
+			const config = objects.assign(environment, windowConfiguration);
+			for (let key in config) {
+				if (config[key] === void 0 || config[key] === null || config[key] === '') {
+					delete config[key]; // only send over properties that have a true value
+				}
+			}
+
+			this._taskManagerWindow.loadURL(`${require.toUrl('vs/code/electron-browser/taskManager/taskManager.html')}?config=${encodeURIComponent(JSON.stringify(config))}`);
+
+			this._taskManagerWindow.on('close', () => this._taskManagerWindow = void 0);
+		}
+
+		// Focus
+		this._taskManagerWindow.focus();
+
+		return TPromise.as(null);
+	}
+
+	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number) {
 		// We want the new window to open on the same display that the parent is in
 		let displayToUse: Electron.Display;
 		const displays = screen.getAllDisplays();
@@ -93,8 +138,8 @@ export class IssueService implements IIssueService {
 			}
 
 			// if we have a last active window, use that display for the new window
-			if (!displayToUse && this._parentWindow) {
-				displayToUse = screen.getDisplayMatching(this._parentWindow.getBounds());
+			if (!displayToUse && parentWindow) {
+				displayToUse = screen.getDisplayMatching(parentWindow.getBounds());
 			}
 
 			// fallback to primary display or first display
@@ -104,8 +149,8 @@ export class IssueService implements IIssueService {
 		}
 
 		let state = {
-			width: 800,
-			height: 900,
+			width: defaultWidth,
+			height: defaultHeight,
 			x: undefined,
 			y: undefined
 		};

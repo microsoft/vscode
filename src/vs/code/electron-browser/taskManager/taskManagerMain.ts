@@ -6,93 +6,112 @@
 'use strict';
 
 import 'vs/css!./media/taskManager';
-
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { localize } from 'vs/nls';
-import { IDataSource, IRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { listProcesses, ProcessItem } from 'vs/base/node/ps';
 import { remote } from 'electron';
-import * as dom from 'vs/base/browser/dom';
-import { pad } from 'vs/base/common/strings';
+import { repeat } from 'vs/base/common/strings';
 import { totalmem } from 'os';
+import product from 'vs/platform/node/product';
+import { localize } from 'vs/nls';
 
-const $ = dom.$;
+let selectedProcess: number;
+let processList: any[];
 
-class TaskManagerDataSource implements IDataSource {
+function getProcessList(rootProcess: ProcessItem) {
+	const processes: any[] = [];
 
-	public getId(tree: ITree, element: ProcessItem): string {
-		return element.pid.toString();
+	if (rootProcess) {
+		getProcessItem(processes, rootProcess, 0);
 	}
 
-	public hasChildren(tree: ITree, element: ProcessItem): boolean {
-		return element.children && element.children.length > 0;
-	}
+	return processes;
+}
 
-	public getChildren(tree: ITree, element: ProcessItem): TPromise<any> {
-		return TPromise.as(element.children || []);
-	}
+function getProcessItem(processes: any[], item: ProcessItem, indent: number): void {
+	const isRoot = (indent === 0);
 
-	public getParent(tree: ITree, element: ProcessItem): TPromise<any> {
-		return TPromise.as(null);
-	}
+	const MB = 1024 * 1024;
 
-	public shouldAutoexpand?(tree: ITree, element: ProcessItem): boolean {
-		return true;
+	// Format name with indent
+	const name = isRoot ? `${product.applicationName} main` : item.name;
+	const formattedName = isRoot ? name : `${repeat('    ', indent)} ${name}`;
+	const memory = process.platform === 'win32' ? item.mem : (totalmem() * (item.mem / 100));
+	processes.push({
+		cpu: Number(item.load.toFixed(0)),
+		memory: Number((memory / MB).toFixed(0)),
+		pid: Number((item.pid).toFixed(0)),
+		name,
+		formattedName,
+		cmd: item.cmd
+	});
+
+	// Recurse into children if any
+	if (Array.isArray(item.children)) {
+		item.children.forEach(child => getProcessItem(processes, child, indent + 1));
 	}
 }
 
-interface IProcessItemTemplateData {
-	label: HTMLElement;
+function getProcessIdWithHighestProperty(processList, propertyName: string) {
+	let max = 0;
+	let maxProcessId;
+	processList.forEach(process => {
+		if (process[propertyName] > max) {
+			max = process[propertyName];
+			maxProcessId = process.pid;
+		}
+	});
+
+	return maxProcessId;
 }
 
-class TaskManagerRenderer implements IRenderer {
+function updateProcessInfo(processList): void {
+	const target = document.getElementById('process-list');
+	const highestCPUProcess = getProcessIdWithHighestProperty(processList, 'cpu');
+	const highestMemoryProcess = getProcessIdWithHighestProperty(processList, 'memory');
 
-	static readonly PROCESS_ITEM_TEMPLATE = 'processItem.template';
+	let tableHtml = `
+		<tr>
+			<th>${localize('cpu', "CPU %")}</th>
+			<th>${localize('memory', "Memory (MB)")}</th>
+			<th>${localize('pid', "pid")}</th>
+			<th>${localize('name', "Name")}</th>
+		</tr>`;
 
-	public getHeight(tree: ITree, element: ProcessItem): number {
-		return 22;
-	}
+	processList.forEach(p => {
+		const classList = selectedProcess === p.pid ? 'selected' : '';
+		const cpuClass = p.pid === highestCPUProcess ? 'highest' : '';
+		const memoryClass = p.pid === highestMemoryProcess ? 'highest' : '';
 
-	public getTemplateId(tree: ITree, element: ProcessItem): string {
-		return TaskManagerRenderer.PROCESS_ITEM_TEMPLATE;
-	}
+		tableHtml += `
+			<tr class="${classList}">
+				<td class="centered ${cpuClass}">${p.cpu}</td>
+				<td class="centered ${memoryClass}">${p.memory}</td>
+				<td class="centered">${p.pid}</td>
+				<td title="${p.name}" class="data">${p.formattedName}</td>
+			</tr>`;
+	});
 
-	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement) {
-		const data: IProcessItemTemplateData = Object.create(null);
-		data.label = dom.append(container, $('.process-item'));
-
-		return data;
-	}
-
-	public renderElement(tree: ITree, item: ProcessItem, templateId: string, templateData: IProcessItemTemplateData): void {
-		const MB = 1024 * 1024;
-
-		const memory = process.platform === 'win32' ? item.mem : (totalmem() * (item.mem / 100));
-		templateData.label.textContent = `${item.name}\t${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number((memory / MB).toFixed(0)), 6, ' ')}\t${pad(Number((item.pid).toFixed(0)), 6, ' ')}`;
-	}
-
-	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
-		// No-op
-	}
+	target.innerHTML = `<table>${tableHtml}</table>`;
 }
 
 export function startup() {
-	const tree = new Tree(window.document.body, {
-		dataSource: new TaskManagerDataSource(),
-		renderer: new TaskManagerRenderer()
-	}, {
-			alwaysFocused: true,
-			ariaLabel: localize('taskManager', "Task Manager"),
-			twistiePixels: 20
-		});
 
 	setInterval(() => listProcesses(remote.process.pid).then(processes => {
-		const focus = tree.getFocus();
-		const selection = tree.getSelection();
-		tree.setInput(processes).then(() => {
-			tree.setFocus(focus);
-			tree.setSelection(selection);
-		});
+		processList = getProcessList(processes);
+		updateProcessInfo(processList);
+
+		const tableRows = document.getElementsByTagName('tr');
+		for (let i = 0; i < tableRows.length; i++) {
+			const tableRow = tableRows[i];
+			tableRow.addEventListener('click', () => {
+				const selected = document.getElementsByClassName('selected');
+				if (selected.length) {
+					selected[0].classList.remove('selected');
+				}
+
+				const pid = parseInt(tableRow.children[2].textContent);
+				selectedProcess = pid;
+				tableRow.classList.add('selected');
+			});
+		}
 	}), 1000);
 }
