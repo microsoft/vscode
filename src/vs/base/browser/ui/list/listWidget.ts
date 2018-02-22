@@ -21,6 +21,7 @@ import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
+import { clamp } from 'vs/base/common/numbers';
 
 export interface IIdentityProvider<T> {
 	(element: T): string;
@@ -952,12 +953,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const elementHeight = this.view.elementHeight(index);
 
 		if (isNumber(relativeTop)) {
-			relativeTop = relativeTop < 0 ? 0 : relativeTop;
-			relativeTop = relativeTop > 1 ? 1 : relativeTop;
-
 			// y = mx + b
 			const m = elementHeight - this.view.renderHeight;
-			this.view.setScrollTop(m * relativeTop + elementTop);
+			this.view.setScrollTop(m * clamp(relativeTop, 0, 1) + elementTop);
 		} else {
 			const viewItemBottom = elementTop + elementHeight;
 			const wrapperBottom = scrollTop + this.view.renderHeight;
@@ -968,6 +966,24 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 				this.view.setScrollTop(viewItemBottom - this.view.renderHeight);
 			}
 		}
+	}
+
+	/**
+	 * Returns the relative position of an element rendered in the list.
+	 * Returns `null` if the element isn't *entirely* in the visible viewport.
+	 */
+	getRelativeTop(index: number): number | null {
+		const scrollTop = this.view.getScrollTop();
+		const elementTop = this.view.elementTop(index);
+		const elementHeight = this.view.elementHeight(index);
+
+		if (elementTop < scrollTop || elementTop + elementHeight > scrollTop + this.view.renderHeight) {
+			return null;
+		}
+
+		// y = mx + b
+		const m = elementHeight - this.view.renderHeight;
+		return Math.abs((scrollTop - elementTop) / m);
 	}
 
 	private getElementDomId(index: number): string {
@@ -1069,6 +1085,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		if (focus.length > 0) {
 			this.view.domNode.setAttribute('aria-activedescendant', this.getElementDomId(focus[0]));
+			console.log(this.getRelativeTop(focus[0]));
 		} else {
 			this.view.domNode.removeAttribute('aria-activedescendant');
 		}
