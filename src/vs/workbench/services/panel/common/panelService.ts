@@ -34,7 +34,7 @@ export interface IPanelService {
 	getActivePanel(): IPanel;
 
 	/**
-	 * Returns all registered panels
+	 * Returns all enabled panels
 	 */
 	getPanels(): IPanelIdentifier[];
 }

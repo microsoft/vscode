@@ -32,6 +32,7 @@ import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findMode
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ISearchConfigurationProperties } from '../../../../platform/search/common/search';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -405,7 +406,7 @@ export function registerContributions() {
 		when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.ReplaceActiveKey, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
 		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.Enter,
 		handler: accessor => {
-			if (isSearchViewletFocused(accessor.get(IViewletService))) {
+			if (isSearchViewletFocused(accessor.get(IViewletService), accessor.get(IPanelService))) {
 				ReplaceAllAction.INSTANCE.run();
 			}
 		}
