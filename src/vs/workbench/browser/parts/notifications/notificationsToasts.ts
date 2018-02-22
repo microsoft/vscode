@@ -23,6 +23,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { localize } from 'vs/nls';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 interface INotificationToast {
 	list: NotificationsList;
@@ -56,7 +57,8 @@ export class NotificationsToasts extends Themable {
 		@IPartService private partService: IPartService,
 		@IThemeService themeService: IThemeService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
 		super(themeService);
 
@@ -169,12 +171,16 @@ export class NotificationsToasts extends Themable {
 		// Context Key
 		this.notificationsToastsVisibleContextKey.set(true);
 
-		// Animate In
-		addClass(notificationToastContainer, 'notification-fade-in');
-		itemDisposeables.push(addDisposableListener(notificationToastContainer, 'transitionend', () => {
-			removeClass(notificationToastContainer, 'notification-fade-in');
+		// Animate In if we are in a running session (otherwise just show directly)
+		if (this.lifecycleService.phase >= LifecyclePhase.Running) {
+			addClass(notificationToastContainer, 'notification-fade-in');
+			itemDisposeables.push(addDisposableListener(notificationToastContainer, 'transitionend', () => {
+				removeClass(notificationToastContainer, 'notification-fade-in');
+				addClass(notificationToastContainer, 'notification-fade-in-done');
+			}));
+		} else {
 			addClass(notificationToastContainer, 'notification-fade-in-done');
-		}));
+		}
 	}
 
 	private removeToast(item: INotificationViewItem): void {

@@ -25,16 +25,19 @@
 	margin: 5px; /* enables separation and drop shadows around toasts */
 
 	transform: translateY(100%); /* move the notification 50px to the bottom (to prevent bleed through) */
-	transition:	transform 200ms ease-out;
-	will-change: transform; /* force a separate layer for the toast to speed things up */
+	opacity: 0; /*  fade the toast in */
+	transition:	transform 300ms ease-out, opacity 300ms ease-out;
+	will-change: transform, opacity; /* force a separate layer for the toast to speed things up */
 }
 
 .monaco-workbench > .notifications-toasts .notification-toast.notification-fade-in {
 	z-index: -1; /* draw the notification below the current one */
+	opacity: 1;
 	transform: none;
 }
 
 .monaco-workbench > .notifications-toasts .notification-toast.notification-fade-in-done {
 	transform: none;
 	transition:	none;
+	opacity: 1;
 }
