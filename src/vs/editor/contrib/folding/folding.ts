@@ -19,16 +19,23 @@ import { registerEditorAction, registerEditorContribution, ServicesAccessor, Edi
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines } from 'vs/editor/contrib/folding/foldingModel';
 import { FoldingDecorationProvider } from './foldingDecorations';
+import { FoldingRegions } from './foldingRanges';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { IMarginData, IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
 import { IRange } from 'vs/editor/common/core/range';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { computeRanges as computeIndentRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
+import { IndentRangeProvider } from 'vs/editor/contrib/folding/indentRangeProvider';
 import { IPosition } from 'vs/editor/common/core/position';
+import { FoldingProviderRegistry } from 'vs/editor/common/modes';
+import { SyntaxRangeProvider } from './syntaxRangeProvider';
 
 export const ID = 'editor.contrib.folding';
+
+export interface RangeProvider {
+	compute(editorModel: ITextModel): TPromise<FoldingRegions>;
+}
 
 export class FoldingController implements IEditorContribution {
 
@@ -47,6 +54,8 @@ export class FoldingController implements IEditorContribution {
 
 	private foldingModel: FoldingModel;
 	private hiddenRangeModel: HiddenRangeModel;
+
+	private rangeProvider: RangeProvider;
 
 	private foldingModelPromise: TPromise<FoldingModel>;
 	private updateScheduler: Delayer<FoldingModel>;
@@ -69,6 +78,7 @@ export class FoldingController implements IEditorContribution {
 		this.foldingDecorationProvider.autoHideFoldingControls = this._autoHideFoldingControls;
 
 		this.globalToDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
+		this.globalToDispose.push(FoldingProviderRegistry.onDidChange(() => this.onModelChanged()));
 
 		this.globalToDispose.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.contribInfo) {
@@ -167,17 +177,22 @@ export class FoldingController implements IEditorContribution {
 				this.foldingModelPromise = null;
 				this.hiddenRangeModel = null;
 				this.cursorChangedScheduler = null;
+				this.rangeProvider = null;
 			}
 		});
 		this.onModelContentChanged();
 	}
 
-	private computeRanges(editorModel: ITextModel) {
-		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editorModel.getLanguageIdentifier().id);
-		let offSide = foldingRules && foldingRules.offSide;
-		let markers = foldingRules && foldingRules.markers;
-		let ranges = computeIndentRanges(editorModel, offSide, markers);
-		return ranges;
+	private getRangeProvider(): RangeProvider {
+		if (!this.rangeProvider) {
+			let foldingProviders = FoldingProviderRegistry.ordered(this.foldingModel.textModel);
+			if (foldingProviders.length) {
+				this.rangeProvider = new SyntaxRangeProvider(foldingProviders);
+			} else {
+				this.rangeProvider = new IndentRangeProvider();
+			}
+		}
+		return this.rangeProvider;
 	}
 
 	public getFoldingModel() {
@@ -191,9 +206,12 @@ export class FoldingController implements IEditorContribution {
 					// some cursors might have moved into hidden regions, make sure they are in expanded regions
 					let selections = this.editor.getSelections();
 					let selectionLineNumbers = selections ? selections.map(s => s.startLineNumber) : [];
-					this.foldingModel.update(this.computeRanges(this.foldingModel.textModel), selectionLineNumbers);
+					return this.getRangeProvider().compute(this.foldingModel.textModel).then(foldingRanges => {
+						this.foldingModel.update(foldingRanges, selectionLineNumbers);
+						return this.foldingModel;
+					});
 				}
-				return this.foldingModel;
+				return null;
 			});
 		}
 	}

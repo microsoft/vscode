@@ -61,6 +61,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IPanel } from 'vs/workbench/common/panel';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 export class SearchView extends Viewlet implements IViewlet, IPanel {
 
@@ -105,6 +106,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private searchWithoutFolderMessageBuilder: Builder;
 
 	constructor(
+		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService private fileService: IFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -124,7 +126,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IThemeService protected themeService: IThemeService
 	) {
-		super(VIEW_ID, telemetryService, themeService);
+		super(VIEW_ID, partService, telemetryService, themeService);
 
 		this.viewletVisible = Constants.SearchViewletVisibleKey.bindTo(contextKeyService);
 		this.inputBoxFocused = Constants.InputBoxFocusedKey.bindTo(this.contextKeyService);

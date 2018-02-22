@@ -282,6 +282,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): void;
 	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): void;
 	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): void;
+	$registerFoldingProvider(handle: number, selector: vscode.DocumentSelector): void;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ISerializedLanguageConfiguration): void;
 }
 
@@ -692,6 +693,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink>;
 	$provideDocumentColors(handle: number, resource: UriComponents): TPromise<IRawColorInfo[]>;
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]>;
+	$provideFoldingRanges(handle: number, resource: UriComponents): TPromise<modes.IFoldingRangeList>;
 }
 
 export interface ExtHostQuickOpenShape {

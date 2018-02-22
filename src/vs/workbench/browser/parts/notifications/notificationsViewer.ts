@@ -42,11 +42,7 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 
 	private createOffsetHelper(container: HTMLElement): HTMLElement {
 		const offsetHelper = document.createElement('div');
-		offsetHelper.style.opacity = '0';
-		offsetHelper.style.position = 'absolute'; // do not mess with the visual layout
-		offsetHelper.style.width = '100%'; // ensure to fill contauner to measure true width
-		offsetHelper.style.overflow = 'hidden'; // do not overflow
-		offsetHelper.style.whiteSpace = 'nowrap'; // do not wrap to measure true width
+		addClass(offsetHelper, 'notification-offset-helper');
 
 		container.appendChild(offsetHelper);
 
@@ -63,7 +59,7 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 		}
 
 		// Dynamic height: if message overflows
-		const preferredMessageHeight = this.computePreferredRows(notification) * NotificationsListDelegate.LINE_HEIGHT;
+		const preferredMessageHeight = this.computePreferredHeight(notification);
 		const messageOverflows = NotificationsListDelegate.LINE_HEIGHT < preferredMessageHeight;
 		if (messageOverflows) {
 			const overflow = preferredMessageHeight - NotificationsListDelegate.LINE_HEIGHT;
@@ -75,26 +71,28 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 			expandedHeight += NotificationsListDelegate.ROW_HEIGHT;
 		}
 
+		// If the expanded height is same as collapsed, unset the expanded state
+		// but skip events because there is no change that has visual impact
+		if (expandedHeight === NotificationsListDelegate.ROW_HEIGHT) {
+			notification.collapse(true /* skip events, no change in height */);
+		}
+
 		return expandedHeight;
 	}
 
-	private computePreferredRows(notification: INotificationViewItem): number {
+	private computePreferredHeight(notification: INotificationViewItem): number {
 
 		// Render message markdown into offset helper
 		const renderedMessage = NotificationMessageMarkdownRenderer.render(notification.message);
 		this.offsetHelper.appendChild(renderedMessage);
 
-		// Compute message width taking overflow into account
-		const messageWidth = Math.max(renderedMessage.scrollWidth, renderedMessage.offsetWidth);
-
-		// One row per exceeding the total width of the container
-		const availableWidth = this.offsetHelper.offsetWidth - (20 /* paddings */ + 22 /* severity */ + (24 * 3) /* toolbar */);
-		const preferredRows = Math.ceil(messageWidth / availableWidth);
+		// Compute height
+		const preferredHeight = Math.max(this.offsetHelper.offsetHeight, this.offsetHelper.scrollHeight);
 
 		// Always clear offset helper after use
 		clearNode(this.offsetHelper);
 
-		return preferredRows;
+		return preferredHeight;
 	}
 
 	public getTemplateId(element: INotificationViewItem): string {
