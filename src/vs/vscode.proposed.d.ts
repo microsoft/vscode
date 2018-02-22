@@ -7,6 +7,63 @@
 
 declare module 'vscode' {
 
+	export class FoldingRangeList {
+
+		/**
+		 * The folding ranges.
+		 */
+		ranges: FoldingRange[];
+
+		/**
+		 * Creates mew folding range list.
+		 *
+		 * @param ranges The folding ranges
+		 */
+		constructor(ranges: FoldingRange[]);
+	}
+
+
+	export class FoldingRange {
+
+		/**
+		 * The start line number (0-based)
+		 */
+		startLine: number;
+
+		/**
+		 * The end line number (0-based)
+		 */
+		endLine: number;
+
+		/**
+		 * The actual color value for this color range.
+		 */
+		type?: FoldingRangeType | string;
+
+		/**
+		 * Creates a new folding range.
+		 *
+		 * @param startLineNumber The first line of the fold
+		 * @param type The last line of the fold
+		 */
+		constructor(startLineNumber: number, endLineNumber: number, type?: FoldingRangeType);
+	}
+
+	export enum FoldingRangeType {
+		/**
+		 * Folding range for a comment
+		 */
+		Comment = 'comment',
+		/**
+		 * Folding range for a imports or includes
+		 */
+		Imports = 'imports',
+		/**
+		 * Folding range for a region (e.g. `#region`)
+		 */
+		Region = 'region'
+	}
+
 	// export enum FileErrorCodes {
 	// 	/**
 	// 	 * Not owner.
@@ -265,103 +322,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	export namespace debug {
-
-		/**
-		 * List of breakpoints.
-		 *
-		 * @readonly
-		 */
-		export let breakpoints: Breakpoint[];
-
-		/**
-		 * An event that is emitted when a breakpoint is added, removed, or changed.
-		 */
-		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
-
-		/**
-		 * Add breakpoints.
-		 * @param breakpoints The breakpoints to add.
-		*/
-		export function addBreakpoints(breakpoints: Breakpoint[]): void;
-
-		/**
-		 * Remove breakpoints.
-		 * @param breakpoints The breakpoints to remove.
-		 */
-		export function removeBreakpoints(breakpoints: Breakpoint[]): void;
-	}
-
-	/**
-	 * An event describing a change to the set of [breakpoints](#debug.Breakpoint).
-	 */
-	export interface BreakpointsChangeEvent {
-		/**
-		 * Added breakpoints.
-		 */
-		readonly added: Breakpoint[];
-
-		/**
-		 * Removed breakpoints.
-		 */
-		readonly removed: Breakpoint[];
-
-		/**
-		 * Changed breakpoints.
-		 */
-		readonly changed: Breakpoint[];
-	}
-
-	/**
-	 * The base class of all breakpoint types.
-	 */
-	export class Breakpoint {
-		/**
-		 * Is breakpoint enabled.
-		 */
-		readonly enabled: boolean;
-		/**
-		 * An optional expression for conditional breakpoints.
-		 */
-		readonly condition?: string;
-		/**
-		 * An optional expression that controls how many hits of the breakpoint are ignored.
-		 */
-		readonly hitCondition?: string;
-
-		protected constructor(enabled?: boolean, condition?: string, hitCondition?: string);
-	}
-
-	/**
-	 * A breakpoint specified by a source location.
-	 */
-	export class SourceBreakpoint extends Breakpoint {
-		/**
-		 * The source and line position of this breakpoint.
-		 */
-		readonly location: Location;
-
-		/**
-		 * Create a new breakpoint for a source location.
-		 */
-		constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string);
-	}
-
-	/**
-	 * A breakpoint specified by a function name.
-	 */
-	export class FunctionBreakpoint extends Breakpoint {
-		/**
-		 * The name of the function to which this breakpoint is attached.
-		 */
-		readonly functionName: string;
-
-		/**
-		 * Create a new function breakpoint.
-		 */
-		constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string);
-	}
-
 	/**
 	 * Represents a debug adapter executable and optional arguments passed to it.
 	 */
@@ -437,9 +397,26 @@ declare module 'vscode' {
 	}
 
 	export namespace languages {
+
+		/**
+		 * Register a folding provider.
+		 *
+		 * Multiple folding can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A folding provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerFoldingProvider(selector: DocumentSelector, provider: FoldingProvider): Disposable;
+
 		export interface RenameProvider2 extends RenameProvider {
 			resolveInitialRenameValue?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameInitialValue>;
 		}
+	}
+	export interface FoldingProvider {
+		provideFoldingRanges(document: TextDocument, token: CancellationToken): ProviderResult<FoldingRangeList>;
 	}
 
 	/**
@@ -493,7 +470,7 @@ declare module 'vscode' {
 	 */
 	export interface WebviewOptions {
 		/**
-		 * Should scripts be enabled in the webview contetn?
+		 * Should scripts be enabled in the webview content?
 		 *
 		 * Defaults to false (scripts-disabled).
 		 */
@@ -520,6 +497,15 @@ declare module 'vscode' {
 		 * webview content cannot be quickly saved and restored.
 		 */
 		readonly keepAlive?: boolean;
+
+		/**
+		 * Root paths from which the webview can load local (filesystem) resources using the `vscode-workspace-resource:` scheme.
+		 *
+		 * Default to the root folders of the current workspace.
+		 *
+		 * Pass in an empty array to disallow access to any local resources.
+		 */
+		readonly localResourceRoots?: Uri[];
 	}
 
 	/**

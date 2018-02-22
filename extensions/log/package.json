@@ -1,5 +1,7 @@
 {
 	"name": "log",
+	"displayName": "%displayName%",
+	"description": "%description%",
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": {
@@ -22,11 +24,6 @@
 			}
 		],
 		"grammars": [
-			{
-				"language": "Log",
-				"scopeName": "text.log",
-				"path": "./syntaxes/log.tmLanguage.json"
-			},
 			{
 				"language": "log",
 				"scopeName": "text.log",

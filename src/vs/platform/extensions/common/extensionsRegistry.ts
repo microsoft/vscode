@@ -148,7 +148,7 @@ const schema: IJSONSchema = {
 			uniqueItems: true,
 			items: {
 				type: 'string',
-				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs', 'SCM Providers', 'Azure']
+				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs', 'SCM Providers', 'Azure', 'Language Packs']
 			}
 		},
 		galleryBanner: {
@@ -263,6 +263,10 @@ const schema: IJSONSchema = {
 			properties: {
 				'vscode:prepublish': {
 					description: nls.localize('vscode.extension.scripts.prepublish', 'Script executed before the package is published as a VS Code extension.'),
+					type: 'string'
+				},
+				'vscode:uninstall': {
+					description: nls.localize('vscode.extension.scripts.uninstall', 'Script executed after the extension is uninstalled from VS Code. Only Node script is supported.'),
 					type: 'string'
 				}
 			}

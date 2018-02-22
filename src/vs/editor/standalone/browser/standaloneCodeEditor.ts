@@ -27,9 +27,9 @@ import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/acti
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IMessageService } from 'vs/platform/message/common/message';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 /**
  * Description of an action contribution
@@ -360,14 +360,14 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
-		@IMessageService messageService: IMessageService
+		@INotificationService notificationService: INotificationService
 	) {
 		options = options || {};
 		if (typeof options.theme === 'string') {
 			options.theme = themeService.setTheme(options.theme);
 		}
 
-		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, messageService);
+		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService);
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
 

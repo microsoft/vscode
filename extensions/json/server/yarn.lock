@@ -88,7 +88,7 @@ vscode-languageserver-types@^3.6.0-next.1:
   version "3.6.0-next.1"
   resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.6.0-next.1.tgz#98e488d3f87b666b4ee1a3d89f0023e246d358f3"
 
-vscode-languageserver@^4.0.0-next.3:
+vscode-languageserver@4.0.0-next.3:
   version "4.0.0-next.3"
   resolved "https://registry.yarnpkg.com/vscode-languageserver/-/vscode-languageserver-4.0.0-next.3.tgz#89a9ce5078e3a86a78e3551c3766194ce4295611"
   dependencies:

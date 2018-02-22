@@ -30,7 +30,3 @@
 .dropdown > .dropdown-action, .dropdown > .dropdown-action > .action-label {
 	display: inline-block;
 }
-
-.dropdown > .dropdown-label:not(:empty) {
-	padding: 0 .5em;
-}

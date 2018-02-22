@@ -15,6 +15,8 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { ISearchConfiguration, VIEW_ID as SEARCH_VIEW_ID } from 'vs/platform/search/common/search';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const ActiveViewletContextId = 'activeViewlet';
 export const ActiveViewletContext = new RawContextKey<string>(ActiveViewletContextId, '');
@@ -38,7 +40,8 @@ export class ViewletService implements IViewletService {
 	constructor(
 		sidebarPart: SidebarPart,
 		@IExtensionService private extensionService: IExtensionService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.sidebarPart = sidebarPart;
 		this.viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
@@ -108,8 +111,11 @@ export class ViewletService implements IViewletService {
 
 	public getViewlets(): ViewletDescriptor[] {
 		const builtInViewlets = this.getBuiltInViewlets();
+		const viewlets = builtInViewlets.concat(this.extensionViewlets);
+		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
+		const excludeSearch = searchConfig.search.location !== 'sidebar';
 
-		return builtInViewlets.concat(this.extensionViewlets);
+		return viewlets.filter(v => !(v.id === SEARCH_VIEW_ID && excludeSearch));
 	}
 
 	private getBuiltInViewlets(): ViewletDescriptor[] {

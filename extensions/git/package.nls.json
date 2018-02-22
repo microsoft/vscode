@@ -1,4 +1,6 @@
 {
+	"displayName": "Git",
+	"description": "Git SCM Integration",
 	"command.clone": "Clone",
 	"command.init": "Initialize Repository",
 	"command.close": "Close Repository",

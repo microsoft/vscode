@@ -30,9 +30,6 @@ export class MarkdownRenderer {
 		@optional(IOpenerService) private readonly _openerService: IOpenerService = NullOpenerService,
 	) {
 		this._options = {
-			actionCallback: (content) => {
-				this._openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
-			},
 			codeBlockRenderer: (languageAlias, value): TPromise<string> => {
 				// In markdown,
 				// it is possible that we stumble upon language aliases (e.g.js instead of javascript)
@@ -47,18 +44,21 @@ export class MarkdownRenderer {
 					return `<span style="font-family: ${editor.getConfiguration().fontInfo.fontFamily}">${code}</span>`;
 				});
 			},
-			codeBlockRenderCallback: () => this._onDidRenderCodeBlock.fire()
+			codeBlockRenderCallback: () => this._onDidRenderCodeBlock.fire(),
+			actionHandler: {
+				callback: (content) => {
+					this._openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
+				},
+				disposeables: [] // TODO
+			}
 		};
 	}
 
-	render(markdown: IMarkdownString, options?: RenderOptions): HTMLElement {
+	render(markdown: IMarkdownString): HTMLElement {
 		if (!markdown) {
 			return document.createElement('span');
 		}
-		if (options) {
-			return renderMarkdown(markdown, { ...options, ...this._options });
-		} else {
-			return renderMarkdown(markdown, this._options);
-		}
+
+		return renderMarkdown(markdown, this._options);
 	}
 }

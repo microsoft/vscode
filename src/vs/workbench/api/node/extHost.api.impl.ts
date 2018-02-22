@@ -292,6 +292,9 @@ export function createApiFactory(
 			registerColorProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerColorProvider(selector, provider);
 			},
+			registerFoldingProvider: proposedApiFunction(extension, (selector: vscode.DocumentSelector, provider: vscode.FoldingProvider): vscode.Disposable => {
+				return extHostLanguageFeatures.registerFoldingProvider(selector, provider);
+			}),
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration): vscode.Disposable => {
 				return extHostLanguageFeatures.setLanguageConfiguration(language, configuration);
 			}
@@ -538,21 +541,21 @@ export function createApiFactory(
 			onDidReceiveDebugSessionCustomEvent(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidReceiveDebugSessionCustomEvent(listener, thisArg, disposables);
 			},
-			onDidChangeBreakpoints: proposedApiFunction(extension, (listener, thisArgs?, disposables?) => {
+			onDidChangeBreakpoints(listener, thisArgs?, disposables?) {
 				return extHostDebugService.onDidChangeBreakpoints(listener, thisArgs, disposables);
-			}),
-			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
-				return extHostDebugService.startDebugging(folder, nameOrConfig);
 			},
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider) {
 				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider);
 			},
-			addBreakpoints: proposedApiFunction(extension, (breakpoints: vscode.Breakpoint[]) => {
+			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
+				return extHostDebugService.startDebugging(folder, nameOrConfig);
+			},
+			addBreakpoints(breakpoints: vscode.Breakpoint[]) {
 				return extHostDebugService.addBreakpoints(breakpoints);
-			}),
-			removeBreakpoints: proposedApiFunction(extension, (breakpoints: vscode.Breakpoint[]) => {
+			},
+			removeBreakpoints(breakpoints: vscode.Breakpoint[]) {
 				return extHostDebugService.removeBreakpoints(breakpoints);
-			})
+			}
 		};
 
 
@@ -634,7 +637,10 @@ export function createApiFactory(
 			RelativePattern: extHostTypes.RelativePattern,
 
 			FileChangeType: extHostTypes.FileChangeType,
-			FileType: extHostTypes.FileType
+			FileType: extHostTypes.FileType,
+			FoldingRangeList: extHostTypes.FoldingRangeList,
+			FoldingRange: extHostTypes.FoldingRange,
+			FoldingRangeType: extHostTypes.FoldingRangeType
 		};
 	};
 }

@@ -14,7 +14,7 @@ import { CommandCenter } from './commands';
 import { GitContentProvider } from './contentProvider';
 import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
-import { toDisposable, filterEvent, mapEvent, eventToPromise } from './util';
+import { toDisposable, filterEvent, eventToPromise } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { API, createApi } from './api';
 

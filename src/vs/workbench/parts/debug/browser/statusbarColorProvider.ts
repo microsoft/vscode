@@ -11,7 +11,7 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_BACKGROUND, Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_BORDER } from 'vs/workbench/common/theme';
-import { addClass, removeClass } from 'vs/base/browser/dom';
+import { addClass, removeClass, createStyleSheet } from 'vs/base/browser/dom';
 
 // colors for theming
 
@@ -34,6 +34,7 @@ export const STATUS_BAR_DEBUGGING_BORDER = registerColor('statusBar.debuggingBor
 }, localize('statusBarDebuggingBorder', "Status bar border color separating to the sidebar and editor when a program is being debugged. The status bar is shown in the bottom of the window"));
 
 export class StatusBarColorProvider extends Themable implements IWorkbenchContribution {
+	private styleElement: HTMLStyleElement;
 
 	constructor(
 		@IThemeService themeService: IThemeService,
@@ -61,13 +62,23 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 			removeClass(container, 'debugging');
 		}
 
-		container.style.backgroundColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_DEBUGGING_BACKGROUND, STATUS_BAR_BACKGROUND));
+		// Container Colors
+		const backgroundColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_DEBUGGING_BACKGROUND, STATUS_BAR_BACKGROUND));
+		container.style.backgroundColor = backgroundColor;
 		container.style.color = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_DEBUGGING_FOREGROUND, STATUS_BAR_FOREGROUND));
 
+		// Border Color
 		const borderColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_DEBUGGING_BORDER, STATUS_BAR_BORDER)) || this.getColor(contrastBorder);
 		container.style.borderTopWidth = borderColor ? '1px' : null;
 		container.style.borderTopStyle = borderColor ? 'solid' : null;
 		container.style.borderTopColor = borderColor;
+
+		// Notification Beak
+		if (!this.styleElement) {
+			this.styleElement = createStyleSheet(container);
+		}
+
+		this.styleElement.innerHTML = `.monaco-workbench > .part.statusbar > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor} !important; }`;
 	}
 
 	private getColorKey(noFolderColor: string, debuggingColor: string, normalColor: string): string {

@@ -21,12 +21,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IWorkbenchSettingsConfiguration, IExtensionSetting, IScoredResults } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { SettingsGroupTitleWidget, EditPreferenceWidget, SettingsHeaderWidget, DefaultSettingsHeaderWidget, FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
-import { Severity, IMessageService } from 'vs/platform/message/common/message';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -41,6 +40,8 @@ import { IssueType, ISettingsSearchIssueReporterData, ISettingSearchResult } fro
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -604,7 +605,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
@@ -630,7 +631,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 
 	private getFeedback(): void {
 		if (!this.telemetryService.isOptedIn && this.environmentService.appQuality) {
-			this.messageService.show(Severity.Error, 'Can\'t send feedback, user is opted out of telemetry');
+			this.notificationService.error('Can\'t send feedback, user is opted out of telemetry');
 			return;
 		}
 
@@ -669,9 +670,9 @@ export class FeedbackWidgetRenderer extends Disposable {
 			this._register(sendFeedbackWidget.onClick(() => {
 				this.sendFeedback(feedbackEditor.getControl() as ICodeEditor, result, actualResults).then(() => {
 					sendFeedbackWidget.dispose();
-					this.messageService.show(Severity.Info, 'Feedback sent successfully');
+					this.notificationService.info('Feedback sent successfully');
 				}, err => {
-					this.messageService.show(Severity.Error, 'Error sending feedback: ' + err.message);
+					this.notificationService.error('Error sending feedback: ' + err.message);
 				});
 			}));
 		});

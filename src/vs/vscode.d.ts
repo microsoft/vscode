@@ -6326,21 +6326,79 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Namespace for dealing with debug sessions.
+	 * An event describing the changes to the set of [breakpoints](#debug.Breakpoint).
 	 */
-	export namespace debug {
+	export interface BreakpointsChangeEvent {
+		/**
+		 * Added breakpoints.
+		 */
+		readonly added: Breakpoint[];
 
 		/**
-		 * Start debugging by using either a named launch or named compound configuration,
-		 * or by directly passing a [DebugConfiguration](#DebugConfiguration).
-		 * The named configurations are looked up in '.vscode/launch.json' found in the given folder.
-		 * Before debugging starts, all unsaved files are saved and the launch configurations are brought up-to-date.
-		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
-		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
-		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
-		 * @return A thenable that resolves when debugging could be successfully started.
+		 * Removed breakpoints.
 		 */
-		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration): Thenable<boolean>;
+		readonly removed: Breakpoint[];
+
+		/**
+		 * Changed breakpoints.
+		 */
+		readonly changed: Breakpoint[];
+	}
+
+	/**
+	 * The base class of all breakpoint types.
+	 */
+	export class Breakpoint {
+		/**
+		 * Is breakpoint enabled.
+		 */
+		readonly enabled: boolean;
+		/**
+		 * An optional expression for conditional breakpoints.
+		 */
+		readonly condition?: string;
+		/**
+		 * An optional expression that controls how many hits of the breakpoint are ignored.
+		 */
+		readonly hitCondition?: string;
+
+		protected constructor(enabled?: boolean, condition?: string, hitCondition?: string);
+	}
+
+	/**
+	 * A breakpoint specified by a source location.
+	 */
+	export class SourceBreakpoint extends Breakpoint {
+		/**
+		 * The source and line position of this breakpoint.
+		 */
+		readonly location: Location;
+
+		/**
+		 * Create a new breakpoint for a source location.
+		 */
+		constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string);
+	}
+
+	/**
+	 * A breakpoint specified by a function name.
+	 */
+	export class FunctionBreakpoint extends Breakpoint {
+		/**
+		 * The name of the function to which this breakpoint is attached.
+		 */
+		readonly functionName: string;
+
+		/**
+		 * Create a new function breakpoint.
+		 */
+		constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string);
+	}
+
+	/**
+	 * Namespace for debug functionality.
+	 */
+	export namespace debug {
 
 		/**
 		 * The currently active [debug session](#DebugSession) or `undefined`. The active debug session is the one
@@ -6353,6 +6411,12 @@ declare module 'vscode' {
 		 * The currently active [debug console](#DebugConsole).
 		 */
 		export let activeDebugConsole: DebugConsole;
+
+		/**
+		 * List of breakpoints.
+		 */
+		export let breakpoints: Breakpoint[];
+
 
 		/**
 		 * An [event](#Event) which fires when the [active debug session](#debug.activeDebugSession)
@@ -6377,6 +6441,12 @@ declare module 'vscode' {
 		export const onDidTerminateDebugSession: Event<DebugSession>;
 
 		/**
+		 * An [event](#Event) that is emitted when the set of breakpoints is added, removed, or changed.
+		 */
+		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
+
+
+		/**
 		 * Register a [debug configuration provider](#DebugConfigurationProvider) for a specifc debug type.
 		 * More than one provider can be registered for the same type.
 		 *
@@ -6385,6 +6455,30 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerDebugConfigurationProvider(debugType: string, provider: DebugConfigurationProvider): Disposable;
+
+		/**
+		 * Start debugging by using either a named launch or named compound configuration,
+		 * or by directly passing a [DebugConfiguration](#DebugConfiguration).
+		 * The named configurations are looked up in '.vscode/launch.json' found in the given folder.
+		 * Before debugging starts, all unsaved files are saved and the launch configurations are brought up-to-date.
+		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
+		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
+		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
+		 * @return A thenable that resolves when debugging could be successfully started.
+		 */
+		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration): Thenable<boolean>;
+
+		/**
+		 * Add breakpoints.
+		 * @param breakpoints The breakpoints to add.
+		*/
+		export function addBreakpoints(breakpoints: Breakpoint[]): void;
+
+		/**
+		 * Remove breakpoints.
+		 * @param breakpoints The breakpoints to remove.
+		 */
+		export function removeBreakpoints(breakpoints: Breakpoint[]): void;
 	}
 
 	/**

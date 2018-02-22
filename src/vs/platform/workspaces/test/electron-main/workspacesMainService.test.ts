@@ -18,6 +18,8 @@ import { WORKSPACE_EXTENSION, IWorkspaceSavedEvent, IWorkspaceIdentifier, IRawFi
 import { ConsoleLogMainService } from 'vs/platform/log/common/log';
 import URI from 'vs/base/common/uri';
 import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
+import { isWindows } from 'vs/base/common/platform';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
 
 suite('WorkspacesMainService', () => {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'workspacesservice');
@@ -67,6 +69,15 @@ suite('WorkspacesMainService', () => {
 		extfs.del(workspacesHome, os.tmpdir(), done);
 	});
 
+	function assertPathEquals(p1: string, p2): void {
+		if (isWindows) {
+			p1 = normalizeDriveLetter(p1);
+			p2 = normalizeDriveLetter(p2);
+		}
+
+		assert.equal(p1, p2);
+	}
+
 	test('createWorkspace (folders)', done => {
 		return createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
 			assert.ok(workspace);
@@ -75,8 +86,8 @@ suite('WorkspacesMainService', () => {
 
 			const ws = JSON.parse(fs.readFileSync(workspace.configPath).toString()) as IStoredWorkspace;
 			assert.equal(ws.folders.length, 2); //
-			assert.equal((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd());
-			assert.equal((<IRawFileWorkspaceFolder>ws.folders[1]).path, os.tmpdir());
+			assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd());
+			assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, os.tmpdir());
 
 			assert.ok(!(<IRawFileWorkspaceFolder>ws.folders[0]).name);
 			assert.ok(!(<IRawFileWorkspaceFolder>ws.folders[1]).name);
@@ -93,8 +104,8 @@ suite('WorkspacesMainService', () => {
 
 			const ws = JSON.parse(fs.readFileSync(workspace.configPath).toString()) as IStoredWorkspace;
 			assert.equal(ws.folders.length, 2); //
-			assert.equal((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd());
-			assert.equal((<IRawFileWorkspaceFolder>ws.folders[1]).path, os.tmpdir());
+			assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd());
+			assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, os.tmpdir());
 
 			assert.equal((<IRawFileWorkspaceFolder>ws.folders[0]).name, 'currentworkingdirectory');
 			assert.equal((<IRawFileWorkspaceFolder>ws.folders[1]).name, 'tempdir');
@@ -127,8 +138,8 @@ suite('WorkspacesMainService', () => {
 
 		const ws = JSON.parse(fs.readFileSync(workspace.configPath).toString()) as IStoredWorkspace;
 		assert.equal(ws.folders.length, 2);
-		assert.equal((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd());
-		assert.equal((<IRawFileWorkspaceFolder>ws.folders[1]).path, os.tmpdir());
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd());
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, os.tmpdir());
 
 		assert.ok(!(<IRawFileWorkspaceFolder>ws.folders[0]).name);
 		assert.ok(!(<IRawFileWorkspaceFolder>ws.folders[1]).name);
@@ -142,8 +153,8 @@ suite('WorkspacesMainService', () => {
 
 		const ws = JSON.parse(fs.readFileSync(workspace.configPath).toString()) as IStoredWorkspace;
 		assert.equal(ws.folders.length, 2);
-		assert.equal((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd());
-		assert.equal((<IRawFileWorkspaceFolder>ws.folders[1]).path, os.tmpdir());
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd());
+		assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, os.tmpdir());
 
 		assert.equal((<IRawFileWorkspaceFolder>ws.folders[0]).name, 'currentworkingdirectory');
 		assert.equal((<IRawFileWorkspaceFolder>ws.folders[1]).name, 'tempdir');
@@ -253,12 +264,12 @@ suite('WorkspacesMainService', () => {
 
 				const ws = JSON.parse(fs.readFileSync(savedWorkspace.configPath).toString()) as IStoredWorkspace;
 				assert.equal(ws.folders.length, 3);
-				assert.equal((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd()); // absolute
-				assert.equal((<IRawFileWorkspaceFolder>ws.folders[1]).path, '.'); // relative
-				assert.equal((<IRawFileWorkspaceFolder>ws.folders[2]).path, path.relative(path.dirname(workspaceConfigPath), path.join(os.tmpdir(), 'somefolder'))); // relative
+				assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd()); // absolute
+				assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, '.'); // relative
+				assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, path.relative(path.dirname(workspaceConfigPath), path.join(os.tmpdir(), 'somefolder'))); // relative
 
 				assert.equal(savedWorkspace, savedEvent.workspace);
-				assert.equal(workspace.configPath, savedEvent.oldConfigPath);
+				assertPathEquals(workspace.configPath, savedEvent.oldConfigPath);
 
 				assert.deepEqual(deletedEvent, workspace);
 
@@ -281,13 +292,13 @@ suite('WorkspacesMainService', () => {
 				return service.saveWorkspace(savedWorkspace, newWorkspaceConfigPath).then(newSavedWorkspace => {
 					assert.ok(newSavedWorkspace.id);
 					assert.notEqual(newSavedWorkspace.id, workspace.id);
-					assert.equal(newSavedWorkspace.configPath, newWorkspaceConfigPath);
+					assertPathEquals(newSavedWorkspace.configPath, newWorkspaceConfigPath);
 
 					const ws = JSON.parse(fs.readFileSync(newSavedWorkspace.configPath).toString()) as IStoredWorkspace;
 					assert.equal(ws.folders.length, 3);
-					assert.equal((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd()); // absolute path because outside of tmpdir
-					assert.equal((<IRawFileWorkspaceFolder>ws.folders[1]).path, '.'); // relative path because inside of tmpdir
-					assert.equal((<IRawFileWorkspaceFolder>ws.folders[2]).path, path.relative(path.dirname(workspaceConfigPath), path.join(os.tmpdir(), 'somefolder'))); // relative
+					assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[0]).path, process.cwd()); // absolute path because outside of tmpdir
+					assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[1]).path, '.'); // relative path because inside of tmpdir
+					assertPathEquals((<IRawFileWorkspaceFolder>ws.folders[2]).path, path.relative(path.dirname(workspaceConfigPath), path.join(os.tmpdir(), 'somefolder'))); // relative
 
 					extfs.delSync(workspaceConfigPath);
 					extfs.delSync(newWorkspaceConfigPath);
@@ -310,7 +321,7 @@ suite('WorkspacesMainService', () => {
 				return service.saveWorkspace(savedWorkspace, newWorkspaceConfigPath).then(newSavedWorkspace => {
 					assert.ok(newSavedWorkspace.id);
 					assert.notEqual(newSavedWorkspace.id, workspace.id);
-					assert.equal(newSavedWorkspace.configPath, newWorkspaceConfigPath);
+					assertPathEquals(newSavedWorkspace.configPath, newWorkspaceConfigPath);
 
 					const savedContents = fs.readFileSync(newSavedWorkspace.configPath).toString();
 					assert.equal(0, savedContents.indexOf('// this is a comment'));
@@ -336,7 +347,7 @@ suite('WorkspacesMainService', () => {
 				return service.saveWorkspace(savedWorkspace, newWorkspaceConfigPath).then(newSavedWorkspace => {
 					assert.ok(newSavedWorkspace.id);
 					assert.notEqual(newSavedWorkspace.id, workspace.id);
-					assert.equal(newSavedWorkspace.configPath, newWorkspaceConfigPath);
+					assertPathEquals(newSavedWorkspace.configPath, newWorkspaceConfigPath);
 
 					const ws = JSON.parse(fs.readFileSync(newSavedWorkspace.configPath).toString()) as IStoredWorkspace;
 					assert.ok(ws.folders.every(f => (<IRawFileWorkspaceFolder>f).path.indexOf('\\') < 0));

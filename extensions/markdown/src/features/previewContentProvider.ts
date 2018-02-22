@@ -354,7 +354,10 @@ export class MarkdownPreviewWebviewManager {
 		const view = vscode.window.createWebview(
 			localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath)),
 			viewColumn,
-			{ enableScripts: true });
+			{
+				enableScripts: true,
+				localResourceRoots: this.getLocalResourceRoots(resource)
+			});
 
 		this.contentProvider.provideTextDocumentContent(resource, this.previewConfigurations).then(x => view.html = x);
 
@@ -372,5 +375,20 @@ export class MarkdownPreviewWebviewManager {
 
 		this.webviews.set(resource.fsPath, view);
 		return view;
+	}
+
+	private getLocalResourceRoots(
+		resource: vscode.Uri
+	): vscode.Uri[] {
+		const folder = vscode.workspace.getWorkspaceFolder(resource);
+		if (folder) {
+			return [folder.uri];
+		}
+
+		if (!resource.scheme || resource.scheme === 'file') {
+			return [vscode.Uri.parse(path.dirname(resource.fsPath))];
+		}
+
+		return [];
 	}
 }

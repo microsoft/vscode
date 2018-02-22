@@ -398,7 +398,7 @@ class ProgressManager {
 
 	private disposable: IDisposable = EmptyDisposable;
 
-	constructor(private repository: Repository) {
+	constructor(repository: Repository) {
 		const start = onceEvent(filterEvent(repository.onDidChangeOperations, () => repository.operations.shouldShowProgress()));
 		const end = onceEvent(filterEvent(debounceEvent(repository.onDidChangeOperations, 300), () => !repository.operations.shouldShowProgress()));
 
@@ -790,8 +790,8 @@ export class Repository implements Disposable {
 	async buffer(ref: string, filePath: string): Promise<Buffer> {
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
-			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
-			const encoding = configFiles.get<string>('encoding');
+			// const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
+			// const encoding = configFiles.get<string>('encoding');
 
 			// TODO@joao: REsource config api
 			return await this.repository.buffer(`${ref}:${relativePath}`);
@@ -1009,10 +1009,8 @@ export class Repository implements Disposable {
 				case 'UU': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.BOTH_MODIFIED, useIcons));
 			}
 
-			let isModifiedInIndex = false;
-
 			switch (raw.x) {
-				case 'M': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons)); isModifiedInIndex = true; break;
+				case 'M': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons)); break;
 				case 'A': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_ADDED, useIcons)); break;
 				case 'D': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_DELETED, useIcons)); break;
 				case 'R': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_RENAMED, useIcons, renameUri)); break;

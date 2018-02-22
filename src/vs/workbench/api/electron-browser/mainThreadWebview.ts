@@ -151,14 +151,8 @@ class WebviewEditor extends BaseWebviewEditor {
 	public layout(dimension: Dimension): void {
 		if (this._webview) {
 			this.doUpdateContainer();
-			this._webview.layout();
 		}
-	}
-
-	public focus() {
-		if (this._webview) {
-			this._webview.focus();
-		}
+		super.layout(dimension);
 	}
 
 	public dispose(): void {
@@ -207,10 +201,11 @@ class WebviewEditor extends BaseWebviewEditor {
 
 		this.webview.options = {
 			allowScripts: input.options.enableScripts,
-			enableWrappedPostMessage: true
+			enableWrappedPostMessage: true,
+			useSameOriginForRoot: false,
+			localResourceRoots: (input && input.options.localResourceRoots) || this._contextService.getWorkspace().folders.map(x => x.uri)
 		};
 		this.webview.contents = input.html;
-		this.webview.style(this.themeService.getTheme());
 	}
 
 	private get webview(): Webview {
@@ -220,25 +215,17 @@ class WebviewEditor extends BaseWebviewEditor {
 			this._webview = new Webview(
 				this.webviewContent,
 				this._partService.getContainer(Parts.EDITOR_PART),
+				this.themeService,
 				this._environmentService,
-				this._contextService,
 				this._contextViewService,
 				this.contextKey,
 				this.findInputFocusContextKey,
 				{
-					enableWrappedPostMessage: true
-				},
-				false);
-			this.webview.style(this.themeService.getTheme());
+					enableWrappedPostMessage: true,
+					useSameOriginForRoot: false
+				});
 
 			this._webview.onDidClickLink(this.onDidClickLink, this, this._contentDisposables);
-
-
-			this.themeService.onThemeChange(theme => {
-				if (this._webview) {
-					this._webview.style(theme);
-				}
-			}, null, this._contentDisposables);
 
 			this._webview.onMessage(message => {
 				if (this.input) {
@@ -346,7 +333,7 @@ export class MainThreadWebview implements MainThreadWebviewShape {
 	private onEditorsChanged() {
 		const activeEditor = this._editorService.getActiveEditor();
 		let newActiveWebview: WebviewInput | undefined = undefined;
-		if (activeEditor.input instanceof WebviewInput) {
+		if (activeEditor && activeEditor.input instanceof WebviewInput) {
 			for (const handle of map.keys(this._webviews)) {
 				const input = this._webviews.get(handle);
 				if (input.matches(activeEditor.input)) {

@@ -7,7 +7,7 @@
 import {
 	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentIdentifier
 } from 'vscode-languageserver';
 
 import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
@@ -20,6 +20,7 @@ import Strings = require('./utils/strings');
 import { formatError, runSafe, runSafeAsync } from './utils/errors';
 import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
+import { createScanner, SyntaxKind } from 'jsonc-parser';
 
 interface ISchemaAssociations {
 	[pattern: string]: string[];
@@ -35,6 +36,57 @@ namespace VSCodeContentRequest {
 
 namespace SchemaContentChangeNotification {
 	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
+}
+
+interface FoldingRangeList {
+	/**
+	 * The folding ranges.
+	 */
+	ranges: FoldingRange[];
+}
+
+export enum FoldingRangeType {
+	/**
+	 * Folding range for a comment
+	 */
+	Comment = 'comment',
+	/**
+	 * Folding range for a imports or includes
+	 */
+	Imports = 'imports',
+	/**
+	 * Folding range for a region (e.g. `#region`)
+	 */
+	Region = 'region'
+}
+
+interface FoldingRange {
+
+	/**
+	 * The start line number
+	 */
+	startLine: number;
+
+	/**
+	 * The end line number
+	 */
+	endLine: number;
+
+	/**
+	 * The actual color value for this color range.
+	 */
+	type?: FoldingRangeType | string;
+}
+
+interface FoldingRangeRequest {
+	/**
+	 * The text document.
+	 */
+	textDocument: TextDocumentIdentifier;
+}
+
+namespace FoldingRangesRequest {
+	export const type: RequestType<FoldingRangeRequest, FoldingRangeList | null, any, any> = new RequestType('textDocument/foldingRanges');
 }
 
 // Create a connection for the server
@@ -347,7 +399,83 @@ connection.onRequest(ColorPresentationRequest.type, params => {
 			return languageService.getColorPresentations(document, jsonDocument, params.color, params.range);
 		}
 		return [];
-	}, [], `Error while computing color presentationsd for ${params.textDocument.uri}`);
+	}, [], `Error while computing color presentations for ${params.textDocument.uri}`);
+});
+
+connection.onRequest(FoldingRangesRequest.type, params => {
+	return runSafe(() => {
+		let document = documents.get(params.textDocument.uri);
+		if (document) {
+			let ranges: FoldingRange[] = [];
+			let stack: FoldingRange[] = [];
+			let prevStart = -1;
+			let scanner = createScanner(document.getText(), false);
+			let token = scanner.scan();
+			while (token !== SyntaxKind.EOF) {
+				switch (token) {
+					case SyntaxKind.OpenBraceToken:
+					case SyntaxKind.OpenBracketToken: {
+						let startLine = document.positionAt(scanner.getTokenOffset()).line;
+						let range = { startLine, endLine: startLine, type: token === SyntaxKind.OpenBraceToken ? 'object' : 'array' };
+						stack.push(range);
+					}
+						break;
+					case SyntaxKind.CloseBraceToken:
+					case SyntaxKind.CloseBracketToken: {
+						let type = token === SyntaxKind.CloseBraceToken ? 'object' : 'array';
+						if (stack.length > 0 && stack[stack.length - 1].type === type) {
+							let range = stack.pop();
+							let line = document.positionAt(scanner.getTokenOffset()).line;
+							if (range && line > range.startLine + 1 && prevStart !== range.startLine) {
+								range.endLine = line - 1;
+								ranges.push(range);
+								prevStart = range.startLine;
+							}
+						}
+					}
+						break;
+					case SyntaxKind.BlockCommentTrivia: {
+						let startLine = document.positionAt(scanner.getTokenOffset()).line;
+						let endLine = document.positionAt(scanner.getTokenOffset() + scanner.getTokenLength()).line;
+						if (startLine < endLine) {
+							ranges.push({ startLine, endLine, type: FoldingRangeType.Comment });
+							prevStart = startLine;
+						}
+					}
+						break;
+					case SyntaxKind.LineCommentTrivia: {
+						let text = document.getText().substr(scanner.getTokenOffset(), scanner.getTokenLength());
+						let m = text.match(/^\/\/\s*#(region\b)|(endregion\b)/);
+						if (m) {
+							let line = document.positionAt(scanner.getTokenOffset()).line;
+							if (m[1]) { // start pattern match
+								let range = { startLine: line, endLine: line, type: FoldingRangeType.Region };
+								stack.push(range);
+							} else {
+								let i = stack.length - 1;
+								while (i >= 0 && stack[i].type !== FoldingRangeType.Region) {
+									i--;
+								}
+								if (i >= 0) {
+									let range = stack[i];
+									stack.length = i;
+									if (line > range.startLine && prevStart !== range.startLine) {
+										range.endLine = line;
+										ranges.push(range);
+										prevStart = range.startLine;
+									}
+								}
+							}
+						}
+					}
+						break;
+				}
+				token = scanner.scan();
+			}
+			return <FoldingRangeList>{ ranges };
+		}
+		return null;
+	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`);
 });
 
 // Listen on the connection

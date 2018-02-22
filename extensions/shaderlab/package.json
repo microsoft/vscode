@@ -1,5 +1,7 @@
 {
 	"name": "shaderlab",
+	"displayName": "%displayName%",
+	"description": "%description%",
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": {

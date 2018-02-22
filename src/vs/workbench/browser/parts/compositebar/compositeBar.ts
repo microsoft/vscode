@@ -81,6 +81,24 @@ export class CompositeBar implements ICompositeBar {
 		return this._onDidContextMenu.event;
 	}
 
+	public addComposite(compositeData: { id: string; name: string }): void {
+		if (this.options.composites.filter(c => c.id === compositeData.id).length) {
+			return;
+		}
+
+		this.options.composites.push(compositeData);
+		this.pin(compositeData.id);
+	}
+
+	public removeComposite(id: string): void {
+		if (this.options.composites.filter(c => c.id === id).length === 0) {
+			return;
+		}
+
+		this.options.composites = this.options.composites.filter(c => c.id !== id);
+		this.unpin(id);
+	}
+
 	public activateComposite(id: string): void {
 		if (this.compositeIdToActions[id]) {
 			if (this.compositeIdToActions[this.activeCompositeId]) {
