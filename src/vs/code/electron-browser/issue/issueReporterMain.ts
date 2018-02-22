@@ -356,8 +356,7 @@ export class IssueReporter extends Disposable {
 
 		const disableExtensions = document.getElementById('disableExtensions');
 		disableExtensions.addEventListener('click', () => {
-			ipcRenderer.send('workbenchCommand', 'workbench.extensions.action.disableAll');
-			ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindow');
+			ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindowWithExtensionsDisabled');
 		});
 
 		disableExtensions.addEventListener('keydown', (e) => {

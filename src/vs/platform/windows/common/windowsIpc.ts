@@ -13,6 +13,7 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolde
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import URI from 'vs/base/common/uri';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 export interface IWindowsChannel extends IChannel {
 	call(command: 'event:onWindowOpen'): TPromise<number>;
@@ -25,7 +26,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'showMessageBox', arg: [number, MessageBoxOptions]): TPromise<IMessageBoxResult>;
 	call(command: 'showSaveDialog', arg: [number, SaveDialogOptions]): TPromise<string>;
 	call(command: 'showOpenDialog', arg: [number, OpenDialogOptions]): TPromise<string[]>;
-	call(command: 'reloadWindow', arg: number): TPromise<void>;
+	call(command: 'reloadWindow', arg: [number, ParsedArgs]): TPromise<void>;
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
 	call(command: 'closeWorkspace', arg: number): TPromise<void>;
 	call(command: 'createAndEnterWorkspace', arg: [number, IWorkspaceFolderCreationData[], string]): TPromise<IEnterWorkspaceResult>;
@@ -91,7 +92,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'showMessageBox': return this.service.showMessageBox(arg[0], arg[1]);
 			case 'showSaveDialog': return this.service.showSaveDialog(arg[0], arg[1]);
 			case 'showOpenDialog': return this.service.showOpenDialog(arg[0], arg[1]);
-			case 'reloadWindow': return this.service.reloadWindow(arg);
+			case 'reloadWindow': return this.service.reloadWindow(arg[0], arg[1]);
 			case 'openDevTools': return this.service.openDevTools(arg);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
 			case 'closeWorkspace': return this.service.closeWorkspace(arg);
@@ -192,8 +193,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('showOpenDialog', [windowId, options]);
 	}
 
-	reloadWindow(windowId: number): TPromise<void> {
-		return this.channel.call('reloadWindow', windowId);
+	reloadWindow(windowId: number, args?: ParsedArgs): TPromise<void> {
+		return this.channel.call('reloadWindow', [windowId, args]);
 	}
 
 	openDevTools(windowId: number): TPromise<void> {
