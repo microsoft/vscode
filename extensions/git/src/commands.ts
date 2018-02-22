@@ -7,10 +7,10 @@
 
 import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, CancellationTokenSource, StatusBarAlignment } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
-import { Repository, Resource, Status, CommitOptions, ResourceGroupType, RepositoryState } from './repository';
+import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
-import { grep, eventToPromise, isDescendant } from './util';
+import { grep, isDescendant } from './util';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange, getModifiedRange } from './staging';
 import * as path from 'path';
 import { lstat, Stats } from 'fs';
@@ -237,7 +237,7 @@ export class CommandCenter {
 			}
 
 			const { size, object } = await repository.lstree(gitRef, uri.fsPath);
-			const { mimetype, encoding } = await repository.detectObjectType(object);
+			const { mimetype } = await repository.detectObjectType(object);
 
 			if (mimetype === 'text/plain') {
 				return toGitUri(uri, ref);
@@ -1050,13 +1050,6 @@ export class CommandCenter {
 			if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
 				value = (await repository.getCommit(repository.HEAD.commit)).message;
 			}
-
-			const getPreviousCommitMessage = async () => {
-				//Only return the previous commit message if it's an amend commit and the repo already has a commit
-				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
-					return (await repository.getCommit('HEAD')).message;
-				}
-			};
 
 			return await window.showInputBox({
 				value,
