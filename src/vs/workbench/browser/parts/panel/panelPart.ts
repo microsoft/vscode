@@ -109,10 +109,28 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			// Need to relayout composite bar since different panels have different action bar width
 			this.layoutCompositeBar();
 		}));
+		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
 
 		// Deactivate panel action on close
 		this.toUnbind.push(this.onDidPanelClose(panel => this.compositeBar.deactivateComposite(panel.getId())));
-		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('search.location')) {
+				const location = this.configurationService.getValue<ISearchConfiguration>().search.location;
+				if (location === 'panel') {
+					this.compositeBar.addComposite(this.getPanel(SEARCH_VIEW_ID));
+				} else {
+					let promise: TPromise<any> = TPromise.as(null);
+					const activePanel = this.getActivePanel();
+					if (activePanel && activePanel.getId() === SEARCH_VIEW_ID) {
+						promise = this.openPanel(Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId());
+					}
+
+					promise.then(() => {
+						this.compositeBar.removeComposite(SEARCH_VIEW_ID);
+					});
+				}
+			}
+		}));
 	}
 
 	public get onDidPanelOpen(): Event<IPanel> {
