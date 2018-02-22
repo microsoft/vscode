@@ -37,6 +37,14 @@ export function appendKeyBindingLabel(label: string, keyBinding: number | Resolv
 	}
 }
 
+export function openSearchView(viewletService: IViewletService, panelService: IPanelService, focus?: boolean): TPromise<SearchView> {
+	if (viewletService.getViewlets().filter(v => v.id === Constants.VIEW_ID).length) {
+		return viewletService.openViewlet(Constants.VIEW_ID, focus).then(viewlet => <SearchView>viewlet);
+	}
+
+	return panelService.openPanel(Constants.VIEW_ID, focus).then(panel => <SearchView>panel);
+}
+
 export function getSearchView(viewletService: IViewletService, panelService: IPanelService): SearchView {
 	const activeViewlet = viewletService.getActiveViewlet();
 	if (activeViewlet && activeViewlet.getId() === Constants.VIEW_ID) {
@@ -256,9 +264,9 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 
 	public run(): TPromise<any> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
-		return this.viewletService.openViewlet(Constants.VIEW_ID, true).then((viewlet) => {
+		return openSearchView(this.viewletService, this.panelService, true).then(openedView => {
 			if (!searchView || this.expandSearchReplaceWidget) {
-				const searchAndReplaceWidget = (<SearchView>viewlet).searchAndReplaceWidget;
+				const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
 				searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
 				// Focus replace only when there is text in the searchInput box
 				const focusReplace = this.focusReplace && searchAndReplaceWidget.searchInput.getValue();
@@ -434,13 +442,16 @@ export class FocusNextSearchResultAction extends Action {
 	public static readonly ID = 'search.action.focusNextSearchResult';
 	public static readonly LABEL = nls.localize('FocusNextSearchResult.label', "Focus Next Search Result");
 
-	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+	constructor(id: string, label: string,
+		@IViewletService private viewletService: IViewletService,
+		@IPanelService private panelService: IPanelService
+	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(Constants.VIEW_ID).then(searchViewlet => {
-			(searchViewlet as SearchView).selectNextMatch();
+		return openSearchView(this.viewletService, this.panelService).then(searchView => {
+			searchView.selectNextMatch();
 		});
 	}
 }
@@ -449,13 +460,16 @@ export class FocusPreviousSearchResultAction extends Action {
 	public static readonly ID = 'search.action.focusPreviousSearchResult';
 	public static readonly LABEL = nls.localize('FocusPreviousSearchResult.label', "Focus Previous Search Result");
 
-	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
+	constructor(id: string, label: string,
+		@IViewletService private viewletService: IViewletService,
+		@IPanelService private panelService: IPanelService
+	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(Constants.VIEW_ID).then(searchViewlet => {
-			(searchViewlet as SearchView).selectPreviousMatch();
+		return openSearchView(this.viewletService, this.panelService).then(searchView => {
+			searchView.selectPreviousMatch();
 		});
 	}
 }
