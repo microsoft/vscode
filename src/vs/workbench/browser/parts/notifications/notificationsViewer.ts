@@ -71,6 +71,12 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 			expandedHeight += NotificationsListDelegate.ROW_HEIGHT;
 		}
 
+		// If the expanded height is same as collapsed, unset the expanded state
+		// but skip events because there is no change that has visual impact
+		if (expandedHeight === NotificationsListDelegate.ROW_HEIGHT) {
+			notification.collapse(true /* skip events, no change in height */);
+		}
+
 		return expandedHeight;
 	}
 

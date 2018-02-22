@@ -197,7 +197,7 @@ export interface INotificationViewItem {
 	readonly onDidLabelChange: Event<INotificationViewItemLabelChangeEvent>;
 
 	expand(): void;
-	collapse(): void;
+	collapse(skipEvents?: boolean): void;
 	toggle(): void;
 
 	hasProgress(): boolean;
@@ -494,13 +494,16 @@ export class NotificationViewItem implements INotificationViewItem {
 		this._onDidExpansionChange.fire();
 	}
 
-	public collapse(): void {
+	public collapse(skipEvents?: boolean): void {
 		if (!this._expanded || !this.canCollapse) {
 			return;
 		}
 
 		this._expanded = false;
-		this._onDidExpansionChange.fire();
+
+		if (!skipEvents) {
+			this._onDidExpansionChange.fire();
+		}
 	}
 
 	public toggle(): void {
