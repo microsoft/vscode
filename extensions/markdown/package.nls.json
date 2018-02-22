@@ -1,4 +1,6 @@
 {
+	"displayName": "Markdown Language Features",
+	"description": "Provides rich language support for Markdown.",
 	"markdown.preview.breaks.desc": "Sets how line-breaks are rendered in the markdown preview. Setting it to 'true' creates a <br> for every newline.",
 	"markdown.preview.linkify": "Enable or disable conversion of URL-like text to links in the markdown preview.",
 	"markdown.preview.doubleClickToSwitchToEditor.desc": "Double click in the markdown preview to switch to the editor.",
