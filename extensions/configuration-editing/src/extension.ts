@@ -69,7 +69,6 @@ function autoFixSettingsJSON(willSaveEvent: vscode.TextDocumentWillSaveEvent): v
 
 		onError(error: ParseErrorCode, offset: number, length: number): void {
 			if (error === ParseErrorCode.CommaExpected && lastEndOfSomething > -1) {
-
 				const fixPosition = document.positionAt(lastEndOfSomething);
 				edit.insert(document.uri, fixPosition, ',');
 			}
@@ -103,31 +102,6 @@ function registerSettingsCompletions(): vscode.Disposable {
 		}
 	});
 }
-
-// tslint:disable-next-line:no-unused-variable
-function provideContributedLocalesProposals(range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
-	const contributedLocales: string[] = [];
-	for (const extension of vscode.extensions.all) {
-		if (extension.packageJSON && extension.packageJSON['contributes'] && extension.packageJSON['contributes']['localizations'] && extension.packageJSON['contributes']['localizations'].length) {
-			const localizations: { languageId: string }[] = extension.packageJSON['contributes']['localizations'];
-			for (const localization of localizations) {
-				if (contributedLocales.indexOf(localization.languageId) === -1) {
-					contributedLocales.push(localization.languageId);
-				}
-			}
-		}
-	}
-	return contributedLocales.map(locale => {
-		const text = `"${locale}"`;
-		const item = new vscode.CompletionItem(text);
-		item.kind = vscode.CompletionItemKind.Value;
-		item.insertText = text;
-		item.range = range;
-		item.filterText = text;
-		return item;
-	});
-}
-
 
 interface IExtensionsContent {
 	recommendations: string[];

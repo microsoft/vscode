@@ -1051,14 +1051,6 @@ export class CommandCenter {
 				value = (await repository.getCommit(repository.HEAD.commit)).message;
 			}
 
-			// tslint:disable-next-line:no-unused-variable
-			const getPreviousCommitMessage = async () => {
-				//Only return the previous commit message if it's an amend commit and the repo already has a commit
-				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
-					return (await repository.getCommit('HEAD')).message;
-				}
-			};
-
 			return await window.showInputBox({
 				value,
 				placeHolder: localize('commit message', "Commit message"),

@@ -72,7 +72,8 @@ export class NotificationsStatus {
 		this.statusItem = this.statusbarService.addEntry({
 			text: this.counter === 0 ? '$(megaphone)' : `$(megaphone) ${this.counter}`,
 			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER_COMMAND_ID : this.model.notifications.length > 0 ? SHOW_NOTIFICATIONS_CENTER_COMMAND_ID : void 0,
-			tooltip: this.getTooltip()
+			tooltip: this.getTooltip(),
+			showBeak: this.isNotificationsCenterVisible
 		}, StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);
 	}
 
@@ -81,12 +82,12 @@ export class NotificationsStatus {
 			return localize('hideNotifications', "Hide Notifications");
 		}
 
-		if (this.counter === 0) {
-			return localize('noNotifications', "No New Notifications");
-		}
-
 		if (this.model.notifications.length === 0) {
 			return localize('zeroNotifications', "No Notifications");
+		}
+
+		if (this.counter === 0) {
+			return localize('noNotifications', "No New Notifications");
 		}
 
 		if (this.counter === 1) {

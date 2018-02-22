@@ -555,6 +555,10 @@ export class CodeWindow implements ICodeWindow {
 			configuration['extensions-dir'] = cli['extensions-dir'];
 		}
 
+		if (cli) {
+			configuration['disable-extensions'] = cli['disable-extensions'];
+		}
+
 		configuration.isInitialStartup = false; // since this is a reload
 
 		// Load config

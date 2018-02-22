@@ -59,6 +59,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { SimpleFileResourceDragAndDrop } from 'vs/workbench/browser/dnd';
 import { IConfirmation, IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 export class SearchViewlet extends Viewlet {
 
@@ -103,6 +104,7 @@ export class SearchViewlet extends Viewlet {
 	private searchWithoutFolderMessageBuilder: Builder;
 
 	constructor(
+		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService private fileService: IFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -122,7 +124,7 @@ export class SearchViewlet extends Viewlet {
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IThemeService protected themeService: IThemeService
 	) {
-		super(Constants.VIEWLET_ID, telemetryService, themeService);
+		super(Constants.VIEWLET_ID, partService, telemetryService, themeService);
 
 		this.viewletVisible = Constants.SearchViewletVisibleKey.bindTo(contextKeyService);
 		this.inputBoxFocused = Constants.InputBoxFocusedKey.bindTo(this.contextKeyService);

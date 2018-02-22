@@ -15,7 +15,7 @@ export const MAX_LINE_NUMBER = 0xFFFFFF;
 
 const MASK_INDENT = 0xFF000000;
 
-export class FoldingRanges {
+export class FoldingRegions {
 	private _startIndexes: Uint32Array;
 	private _endIndexes: Uint32Array;
 	private _collapseStates: Uint32Array;
@@ -138,7 +138,7 @@ export class FoldingRanges {
 
 export class FoldingRegion {
 
-	constructor(private ranges: FoldingRanges, private index: number) {
+	constructor(private ranges: FoldingRegions, private index: number) {
 	}
 
 	public get startLineNumber() {

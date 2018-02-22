@@ -15,7 +15,7 @@ suite('Workbench Viewlet', () => {
 	class TestViewlet extends Viewlet {
 
 		constructor() {
-			super('id', null, null);
+			super('id', null, null, null);
 		}
 
 		public layout(dimension: any): void {

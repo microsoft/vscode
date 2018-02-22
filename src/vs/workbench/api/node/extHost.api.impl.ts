@@ -292,6 +292,9 @@ export function createApiFactory(
 			registerColorProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerColorProvider(selector, provider);
 			},
+			registerFoldingProvider: proposedApiFunction(extension, (selector: vscode.DocumentSelector, provider: vscode.FoldingProvider): vscode.Disposable => {
+				return extHostLanguageFeatures.registerFoldingProvider(selector, provider);
+			}),
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration): vscode.Disposable => {
 				return extHostLanguageFeatures.setLanguageConfiguration(language, configuration);
 			}
@@ -634,7 +637,10 @@ export function createApiFactory(
 			RelativePattern: extHostTypes.RelativePattern,
 
 			FileChangeType: extHostTypes.FileChangeType,
-			FileType: extHostTypes.FileType
+			FileType: extHostTypes.FileType,
+			FoldingRangeList: extHostTypes.FoldingRangeList,
+			FoldingRange: extHostTypes.FoldingRange,
+			FoldingRangeType: extHostTypes.FoldingRangeType
 		};
 	};
 }

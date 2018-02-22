@@ -362,8 +362,6 @@ function getGitErrorCode(stderr: string): string | undefined {
 export class Git {
 
 	private gitPath: string;
-	// tslint:disable-next-line:no-unused-variable
-	private version: string;
 	private env: any;
 
 	private _onOutput = new EventEmitter();
@@ -371,7 +369,6 @@ export class Git {
 
 	constructor(options: IGitOptions) {
 		this.gitPath = options.gitPath;
-		this.version = options.version;
 		this.env = options.env || {};
 	}
 
