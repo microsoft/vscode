@@ -25,11 +25,6 @@
 		],
 		"grammars": [
 			{
-				"language": "Log",
-				"scopeName": "text.log",
-				"path": "./syntaxes/log.tmLanguage.json"
-			},
-			{
 				"language": "log",
 				"scopeName": "text.log",
 				"path": "./syntaxes/log.tmLanguage.json"
