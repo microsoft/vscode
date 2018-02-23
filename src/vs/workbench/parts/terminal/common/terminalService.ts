@@ -6,11 +6,14 @@
 import * as errors from 'vs/base/common/errors';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage';
+
+const TERMINAL_STATE_STORAGE_KEY = 'terminal.state';
 
 export abstract class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
@@ -44,9 +47,10 @@ export abstract class TerminalService implements ITerminalService {
 
 	constructor(
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IPanelService protected _panelService: IPanelService,
+		@IPanelService protected readonly _panelService: IPanelService,
 		@IPartService private readonly _partService: IPartService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IStorageService protected readonly _storageService: IStorageService
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
@@ -63,6 +67,8 @@ export abstract class TerminalService implements ITerminalService {
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		this.onTabDisposed(tab => this._removeTab(tab));
+
+		lifecycleService.when(LifecyclePhase.Restoring).then(() => this._restoreTabs());
 	}
 
 	protected abstract _showTerminalCloseConfirmation(): TPromise<boolean>;
@@ -70,6 +76,30 @@ export abstract class TerminalService implements ITerminalService {
 	public abstract getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract selectDefaultWindowsShell(): TPromise<string>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
+
+	private _restoreTabs(): void {
+		if (!this.configHelper.config.experimentalRestore) {
+			return;
+		}
+
+		const tabConfigsJson = this._storageService.get(TERMINAL_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
+		if (!tabConfigsJson) {
+			return;
+		}
+
+		const tabConfigs = <{ instances: IShellLaunchConfig[] }[]>JSON.parse(tabConfigsJson);
+		if (!Array.isArray(tabConfigs)) {
+			return;
+		}
+
+		tabConfigs.forEach(tabConfig => {
+			const instance = this.createInstance(tabConfig.instances[0]);
+			const tab = this._getTabForInstance(instance);
+			for (let i = 1; i < tabConfig.instances.length; i++) {
+				tab.split(this._terminalFocusContextKey, this.configHelper, tabConfig.instances[i]);
+			}
+		});
+	}
 
 	private _onWillShutdown(): boolean | TPromise<boolean> {
 		if (this.terminalInstances.length === 0) {
@@ -93,6 +123,17 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	private _onShutdown(): void {
+		// Store terminal tab layout
+		if (this.configHelper.config.experimentalRestore) {
+			const configs = this.terminalTabs.map(tab => {
+				return {
+					instances: tab.terminalInstances.map(instance => instance.shellLaunchConfig)
+				};
+			});
+			this._storageService.store(TERMINAL_STATE_STORAGE_KEY, JSON.stringify(configs), StorageScope.WORKSPACE);
+		}
+
+		// Dispose of all instances
 		this.terminalInstances.forEach(instance => instance.dispose());
 	}
 

@@ -112,6 +112,7 @@ export class TerminalInstance implements ITerminalInstance {
 	public get title(): string { return this._title; }
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 	public get isTitleSetByProcess(): boolean { return !!this._messageTitleListener; }
+	public get shellLaunchConfig(): IShellLaunchConfig { return Object.freeze(this._shellLaunchConfig); }
 
 	public constructor(
 		private _terminalFocusContextKey: IContextKey<boolean>,
