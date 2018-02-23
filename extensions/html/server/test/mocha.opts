@@ -1,3 +1,4 @@
 --ui tdd
 --useColors true
 ./out/test
+./out/test/pathCompletion

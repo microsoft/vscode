@@ -280,7 +280,7 @@ connection.onCompletion(async textDocumentPosition => {
 
 		if (mode.setCompletionParticipants) {
 			const emmetCompletionParticipant = getEmmetCompletionParticipants(document, textDocumentPosition.position, mode.getId(), emmetSettings, emmetCompletionList);
-			const pathCompletionParticipant = getPathCompletionParticipant(document, textDocumentPosition.position, pathCompletionList, workspaceFolders);
+			const pathCompletionParticipant = getPathCompletionParticipant(document, workspaceFolders, pathCompletionList);
 
 			mode.setCompletionParticipants([emmetCompletionParticipant, pathCompletionParticipant]);
 		}
