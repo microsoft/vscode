@@ -222,8 +222,18 @@ export class Model {
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
 		const originalResourceChangeListener = repository.onDidChangeOriginalResource(uri => this._onDidChangeOriginalResource.fire({ repository, uri }));
 
-		const statusListener = repository.onDidRunGitStatus(() => this.scanSubmodules(repository));
-		this.scanSubmodules(repository);
+		const checkForSubmodules = () => {
+			if (repository.submodules.length > 10) {
+				window.showWarningMessage(localize('too many submodules', "The '{0}' repository has {1} submodules which won't be opened automatically. You can still open each one individually by opening a file within.", path.basename(repository.root), repository.submodules.length));
+				statusListener.dispose();
+				return;
+			}
+
+			this.scanSubmodules(repository);
+		};
+
+		const statusListener = repository.onDidRunGitStatus(checkForSubmodules);
+		checkForSubmodules();
 
 		const dispose = () => {
 			disappearListener.dispose();
