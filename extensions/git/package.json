@@ -506,7 +506,7 @@
         },
         {
           "command": "git.showOutput",
-          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.ignore",
