@@ -152,6 +152,11 @@
           "default": true,
           "description": "%json.colorDecorators.enable.desc%",
           "deprecationMessage": "%json.colorDecorators.enable.deprecationMessage%"
+        },
+        "json.experimental.syntaxFolding": {
+          "type": "boolean",
+          "default": false,
+          "description": "%json.experimental.syntaxFolding%"
         }
       }
     },
