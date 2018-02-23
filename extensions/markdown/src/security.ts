@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as vscode from 'vscode';
 
-import { getMarkdownUri, MDDocumentContentProvider } from './features/previewContentProvider';
+import { getMarkdownUri, MarkdownPreviewWebviewManager } from './features/previewContentProvider';
 
 import * as nls from 'vscode-nls';
 
@@ -91,7 +90,7 @@ export class PreviewSecuritySelector {
 
 	public constructor(
 		private cspArbiter: ContentSecurityPolicyArbiter,
-		private contentProvider: MDDocumentContentProvider
+		private webviewManager: MarkdownPreviewWebviewManager
 	) { }
 
 	public async showSecutitySelectorForResource(resource: vscode.Uri): Promise<void> {
@@ -147,19 +146,12 @@ export class PreviewSecuritySelector {
 		const sourceUri = getMarkdownUri(resource);
 		if (selection.type === 'toggle') {
 			this.cspArbiter.setShouldDisableSecurityWarning(!this.cspArbiter.shouldDisableSecurityWarnings());
-			this.contentProvider.update(sourceUri);
+			this.webviewManager.update(sourceUri);
 			return;
 		}
 
 		await this.cspArbiter.setSecurityLevelForResource(resource, selection.type);
 
-		await vscode.commands.executeCommand('_workbench.htmlPreview.updateOptions',
-			sourceUri,
-			{
-				allowScripts: true,
-				allowSvgs: this.cspArbiter.shouldAllowSvgsForResource(resource)
-			});
-
-		this.contentProvider.update(sourceUri);
+		this.webviewManager.update(sourceUri);
 	}
 }

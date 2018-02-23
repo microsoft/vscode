@@ -1,4 +1,6 @@
 {
+	"displayName": "TypeScript and JavaScript Language Features",
+	"description": "Provides rich language support for JavaScript and TypeScript.",
 	"typescript.reloadProjects.title": "Reload Project",
 	"javascript.reloadProjects.title": "Reload Project",
 	"configuration.typescript": "TypeScript",

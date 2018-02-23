@@ -26,17 +26,15 @@ import { Scope } from 'vs/workbench/common/memento';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
-import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService, FolderMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration, IPatternInfo } from 'vs/platform/search/common/search';
+import { ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration, IPatternInfo, VIEW_ID } from 'vs/platform/search/common/search';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -45,22 +43,27 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { PatternInputWidget, ExcludePatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
 import { SearchRenderer, SearchDataSource, SearchSorter, SearchAccessibilityProvider, SearchFilter } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { SearchWidget, ISearchWidgetOptions } from 'vs/workbench/parts/search/browser/searchWidget';
-import { RefreshAction, CollapseDeepestExpandedLevelAction, ClearSearchResultsAction, SearchAction, CancelSearchAction } from 'vs/workbench/parts/search/browser/searchActions';
+import { RefreshAction, CollapseDeepestExpandedLevelAction, ClearSearchResultsAction, CancelSearchAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
-import Severity from 'vs/base/common/severity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorFindMatchHighlight, diffInserted, diffRemoved, diffInsertedOutline, diffRemovedOutline, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorFindMatchHighlight, diffInserted, diffRemoved, diffInsertedOutline, diffRemovedOutline, editorFindMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
-import { SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
 import { isDiffEditor, isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { SimpleFileResourceDragAndDrop } from 'vs/workbench/browser/dnd';
+import { IConfirmation, IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IPanel } from 'vs/workbench/common/panel';
+import { IViewlet } from 'vs/workbench/common/viewlet';
+import { Viewlet } from 'vs/workbench/browser/viewlet';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
-export class SearchViewlet extends Viewlet {
+export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private static readonly MAX_TEXT_RESULTS = 10000;
 	private static readonly SHOW_REPLACE_STORAGE_KEY = 'vs.search.show.replace';
@@ -82,7 +85,7 @@ export class SearchViewlet extends Viewlet {
 	private searchSubmitted: boolean;
 	private searching: boolean;
 
-	private actions: SearchAction[] = [];
+	private actions: (RefreshAction | CollapseDeepestExpandedLevelAction | ClearSearchResultsAction | CancelSearchAction)[] = [];
 	private tree: WorkbenchTree;
 	private viewletSettings: any;
 	private messages: Builder;
@@ -103,12 +106,14 @@ export class SearchViewlet extends Viewlet {
 	private searchWithoutFolderMessageBuilder: Builder;
 
 	constructor(
+		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService private fileService: IFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IProgressService private progressService: IProgressService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
+		@IConfirmationService private confirmationService: IConfirmationService,
 		@IStorageService private storageService: IStorageService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -121,7 +126,7 @@ export class SearchViewlet extends Viewlet {
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IThemeService protected themeService: IThemeService
 	) {
-		super(Constants.VIEWLET_ID, telemetryService, themeService);
+		super(VIEW_ID, partService, telemetryService, themeService);
 
 		this.viewletVisible = Constants.SearchViewletVisibleKey.bindTo(contextKeyService);
 		this.inputBoxFocused = Constants.InputBoxFocusedKey.bindTo(this.contextKeyService);
@@ -159,7 +164,7 @@ export class SearchViewlet extends Viewlet {
 		this.viewModel = this.searchWorkbenchService.searchModel;
 		let builder: Builder;
 		parent.div({
-			'class': 'search-viewlet'
+			'class': 'search-view'
 		}, (div) => {
 			builder = div;
 		});
@@ -294,7 +299,7 @@ export class SearchViewlet extends Viewlet {
 			history: searchHistory
 		});
 
-		if (this.storageService.getBoolean(SearchViewlet.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE, true)) {
+		if (this.storageService.getBoolean(SearchView.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE, true)) {
 			this.searchWidget.toggleReplace(true);
 		}
 
@@ -342,9 +347,9 @@ export class SearchViewlet extends Viewlet {
 
 		const isReplaceShown = this.searchAndReplaceWidget.isReplaceShown();
 		if (!isReplaceShown) {
-			this.storageService.store(SearchViewlet.SHOW_REPLACE_STORAGE_KEY, false, StorageScope.WORKSPACE);
+			this.storageService.store(SearchView.SHOW_REPLACE_STORAGE_KEY, false, StorageScope.WORKSPACE);
 		} else {
-			this.storageService.remove(SearchViewlet.SHOW_REPLACE_STORAGE_KEY);
+			this.storageService.remove(SearchView.SHOW_REPLACE_STORAGE_KEY);
 		}
 	}
 
@@ -395,7 +400,7 @@ export class SearchViewlet extends Viewlet {
 			type: 'question'
 		};
 
-		this.messageService.confirm(confirmation).then(confirmed => {
+		this.confirmationService.confirm(confirmation).then(confirmed => {
 			if (confirmed) {
 				this.searchWidget.setReplaceAllActionState(false);
 				this.viewModel.searchResult.replaceAll(progressRunner).then(() => {
@@ -405,7 +410,7 @@ export class SearchViewlet extends Viewlet {
 				}, (error) => {
 					progressRunner.done();
 					errors.isPromiseCanceledError(error);
-					this.messageService.show(Severity.Error, error);
+					this.notificationService.error(error);
 				});
 			}
 		});
@@ -494,7 +499,7 @@ export class SearchViewlet extends Viewlet {
 			let renderer = this.instantiationService.createInstance(SearchRenderer, this.getActionRunner(), this);
 			this.toUnbind.push(renderer);
 
-			let dnd = new SimpleFileResourceDragAndDrop(obj => obj instanceof FileMatch ? obj.resource() : void 0);
+			let dnd = this.instantiationService.createInstance(SimpleFileResourceDragAndDrop, (obj: any) => obj instanceof FileMatch ? obj.resource() : void 0);
 
 			this.tree = this.instantiationService.createInstance(WorkbenchTree, div.getHTMLElement(), {
 				dataSource: dataSource,
@@ -525,16 +530,24 @@ export class SearchViewlet extends Viewlet {
 				}
 			}));
 
+			let treeHasFocus = false;
+			this.tree.onDidFocus(() => {
+				treeHasFocus = true;
+			});
+
 			this.toUnbind.push(this.tree.onDidChangeFocus((e: IFocusEvent) => {
-				const focus = e.focus;
-				this.firstMatchFocused.set(this.tree.getNavigator().first() === focus);
-				this.fileMatchOrMatchFocused.set(true);
-				this.fileMatchFocused.set(focus instanceof FileMatch);
-				this.folderMatchFocused.set(focus instanceof FolderMatch);
-				this.matchFocused.set(focus instanceof Match);
+				if (treeHasFocus) {
+					const focus = e.focus;
+					this.firstMatchFocused.set(this.tree.getNavigator().first() === focus);
+					this.fileMatchOrMatchFocused.set(true);
+					this.fileMatchFocused.set(focus instanceof FileMatch);
+					this.folderMatchFocused.set(focus instanceof FolderMatch);
+					this.matchFocused.set(focus instanceof Match);
+				}
 			}));
 
 			this.toUnbind.push(this.tree.onDidBlur(e => {
+				treeHasFocus = false;
 				this.firstMatchFocused.reset();
 				this.fileMatchOrMatchFocused.reset();
 				this.fileMatchFocused.reset();
@@ -911,7 +924,7 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public searchInFolders(resources: URI[], pathToRelative: (from: string, to: string) => string): void {
-		const folderPaths = [];
+		const folderPaths: string[] = [];
 		const workspace = this.contextService.getWorkspace();
 
 		if (resources) {
@@ -1004,7 +1017,7 @@ export class SearchViewlet extends Viewlet {
 
 		const options: IQueryOptions = {
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
-			maxResults: SearchViewlet.MAX_TEXT_RESULTS,
+			maxResults: SearchView.MAX_TEXT_RESULTS,
 			disregardIgnoreFiles: !useExcludesAndIgnoreFiles,
 			disregardExcludeSettings: !useExcludesAndIgnoreFiles,
 			excludePattern,
@@ -1436,7 +1449,7 @@ export class SearchViewlet extends Viewlet {
 		return this.actions;
 	}
 
-	private changeActionAtPosition(index: number, newAction: SearchAction): void {
+	private changeActionAtPosition(index: number, newAction: ClearSearchResultsAction | CancelSearchAction | RefreshAction | CollapseDeepestExpandedLevelAction): void {
 		this.actions.splice(index, 1, newAction);
 		this.updateTitleArea();
 	}
@@ -1488,33 +1501,31 @@ export class SearchViewlet extends Viewlet {
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const matchHighlightColor = theme.getColor(editorFindMatchHighlight);
 	if (matchHighlightColor) {
-		collector.addRule(`.monaco-workbench .search-viewlet .findInFileMatch { background-color: ${matchHighlightColor}; }`);
+		collector.addRule(`.monaco-workbench .search-view .findInFileMatch { background-color: ${matchHighlightColor}; }`);
 	}
 
 	const diffInsertedColor = theme.getColor(diffInserted);
 	if (diffInsertedColor) {
-		collector.addRule(`.monaco-workbench .search-viewlet .replaceMatch { background-color: ${diffInsertedColor}; }`);
+		collector.addRule(`.monaco-workbench .search-view .replaceMatch { background-color: ${diffInsertedColor}; }`);
 	}
 
 	const diffRemovedColor = theme.getColor(diffRemoved);
 	if (diffRemovedColor) {
-		collector.addRule(`.monaco-workbench .search-viewlet .replace.findInFileMatch { background-color: ${diffRemovedColor}; }`);
+		collector.addRule(`.monaco-workbench .search-view .replace.findInFileMatch { background-color: ${diffRemovedColor}; }`);
 	}
 
 	const diffInsertedOutlineColor = theme.getColor(diffInsertedOutline);
 	if (diffInsertedOutlineColor) {
-		collector.addRule(`.monaco-workbench .search-viewlet .replaceMatch:not(:empty) { border: 1px dashed ${diffInsertedOutlineColor}; }`);
+		collector.addRule(`.monaco-workbench .search-view .replaceMatch:not(:empty) { border: 1px dashed ${diffInsertedOutlineColor}; }`);
 	}
 
 	const diffRemovedOutlineColor = theme.getColor(diffRemovedOutline);
 	if (diffRemovedOutlineColor) {
-		collector.addRule(`.monaco-workbench .search-viewlet .replace.findInFileMatch { border: 1px dashed ${diffRemovedOutlineColor}; }`);
+		collector.addRule(`.monaco-workbench .search-view .replace.findInFileMatch { border: 1px dashed ${diffRemovedOutlineColor}; }`);
 	}
 
-	const activeContrastBorderColor = theme.getColor(activeContrastBorder);
-	if (activeContrastBorderColor) {
-		collector.addRule(`
-			.monaco-workbench .search-viewlet .findInFileMatch { border: 1px dashed ${activeContrastBorderColor}; }
-		`);
+	const findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);
+	if (findMatchHighlightBorder) {
+		collector.addRule(`.monaco-workbench .search-view .findInFileMatch { border: 1px dashed ${findMatchHighlightBorder}; }`);
 	}
 });

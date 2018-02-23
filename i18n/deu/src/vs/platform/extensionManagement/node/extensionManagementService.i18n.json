@@ -13,6 +13,7 @@
 	"cancel": "Abbrechen",
 	"errorInstallingDependencies": "Fehler während Installation der Abhängigkeiten. {0}",
 	"notFoundCompatible": "'{0}' kann nicht installiert werden: Es gibt keine mit VS Code '{1}' kompatible Version.",
+	"malicious extension": "Die Erweiterung kann nicht installiert werden, da sie als problematisch gemeldet wurde.",
 	"notFoundCompatibleDependency": "Kann nicht installiert werden, da die abhängige Erweiterung '{0}', die mit der aktuellen VS Code Version '{1}' kompatibel ist, nicht gefunden werden kann. ",
 	"quitCode": "Fehler bei der Installation der Erweiterung. Beenden und starten Sie VS Code vor der erneuten Installation neu.",
 	"exitCode": "Fehler bei der Installation der Erweiterung. Beenden und starten Sie VS Code vor der erneuten Installation neu.",

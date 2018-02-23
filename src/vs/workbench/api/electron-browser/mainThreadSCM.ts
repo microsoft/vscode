@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -212,7 +212,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 						this.handle,
 						groupHandle,
 						handle,
-						URI.parse(sourceUri),
+						URI.revive(sourceUri),
 						group,
 						decorations
 					);
@@ -241,8 +241,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 			return TPromise.as(null);
 		}
 
-		return this.proxy.$provideOriginalResource(this.handle, uri.toString())
-			.then(result => result && URI.parse(result));
+		return this.proxy.$provideOriginalResource(this.handle, uri)
+			.then(result => result && URI.revive(result));
 	}
 
 	toJSON(): any {
@@ -284,8 +284,8 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._disposables = dispose(this._disposables);
 	}
 
-	$registerSourceControl(handle: number, id: string, label: string, rootUri: string | undefined): void {
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri && URI.parse(rootUri), this.scmService);
+	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined): void {
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri && URI.revive(rootUri), this.scmService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories[handle] = repository;
 

@@ -23,8 +23,8 @@ export class MainThreadTask implements MainThreadTaskShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ITaskService private _taskService: ITaskService,
-		@IWorkspaceContextService private _workspaceContextServer: IWorkspaceContextService
+		@ITaskService private readonly _taskService: ITaskService,
+		@IWorkspaceContextService private readonly _workspaceContextServer: IWorkspaceContextService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTask);
 		this._activeHandles = Object.create(null);

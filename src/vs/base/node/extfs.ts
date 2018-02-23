@@ -43,6 +43,26 @@ export function readdir(path: string, callback: (error: Error, files: string[]) 
 	return fs.readdir(path, callback);
 }
 
+export function statLink(path: string, callback: (error: Error, statAndIsLink: { stat: fs.Stats, isSymbolicLink: boolean }) => void): void {
+	fs.lstat(path, (error, stat) => {
+		if (error) {
+			return callback(error, null);
+		}
+
+		if (stat.isSymbolicLink()) {
+			fs.stat(path, (error, stat) => {
+				if (error) {
+					return callback(error, null);
+				}
+
+				callback(null, { stat, isSymbolicLink: true });
+			});
+		} else {
+			callback(null, { stat, isSymbolicLink: false });
+		}
+	});
+}
+
 export function copy(source: string, target: string, callback: (error: Error) => void, copiedSources?: { [path: string]: boolean }): void {
 	if (!copiedSources) {
 		copiedSources = Object.create(null);
@@ -598,21 +618,34 @@ function normalizePath(path: string): string {
 	return strings.rtrim(paths.normalize(path), paths.sep);
 }
 
-export function watch(path: string, onChange: (type: string, path: string) => void): fs.FSWatcher {
-	const watcher = fs.watch(path);
-	watcher.on('change', (type, raw) => {
-		let file: string = null;
-		if (raw) { // https://github.com/Microsoft/vscode/issues/38191
-			file = raw.toString();
-			if (platform.isMacintosh) {
-				// Mac: uses NFD unicode form on disk, but we want NFC
-				// See also https://github.com/nodejs/node/issues/2165
-				file = strings.normalizeNFC(file);
+export function watch(path: string, onChange: (type: string, path: string) => void, onError: (error: string) => void): fs.FSWatcher {
+	try {
+		const watcher = fs.watch(path);
+
+		watcher.on('change', (type, raw) => {
+			let file: string = null;
+			if (raw) { // https://github.com/Microsoft/vscode/issues/38191
+				file = raw.toString();
+				if (platform.isMacintosh) {
+					// Mac: uses NFD unicode form on disk, but we want NFC
+					// See also https://github.com/nodejs/node/issues/2165
+					file = strings.normalizeNFC(file);
+				}
 			}
-		}
 
-		onChange(type, file);
-	});
+			onChange(type, file);
+		});
 
-	return watcher;
+		watcher.on('error', (code: number, signal: string) => onError(`Failed to watch ${path} for changes (${code}, ${signal})`));
+
+		return watcher;
+	} catch (error) {
+		fs.exists(path, exists => {
+			if (exists) {
+				onError(`Failed to watch ${path} for changes (${error.toString()})`);
+			}
+		});
+	}
+
+	return void 0;
 }

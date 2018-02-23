@@ -20,7 +20,7 @@ import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IProcess, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IModel, IReplElementSource,
-	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint, IExceptionInfo, IReplElement, ProcessState, IBreakpointsChangeEvent
+	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IReplElement, ProcessState, IBreakpointsChangeEvent, IBreakpointUpdateData
 } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -864,7 +864,7 @@ export class Model implements IModel {
 		this._onDidChangeBreakpoints.fire();
 	}
 
-	public addBreakpoints(uri: uri, rawData: IRawBreakpoint[], fireEvent = true): Breakpoint[] {
+	public addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): Breakpoint[] {
 		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, undefined, rawBp.id));
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
@@ -882,7 +882,7 @@ export class Model implements IModel {
 		this._onDidChangeBreakpoints.fire({ removed: toRemove });
 	}
 
-	public updateBreakpoints(data: { [id: string]: DebugProtocol.Breakpoint }): void {
+	public updateBreakpoints(data: { [id: string]: IBreakpointUpdateData }): void {
 		const updated: IBreakpoint[] = [];
 		this.breakpoints.forEach(bp => {
 			const bpData = data[bp.getId()];
@@ -895,6 +895,8 @@ export class Model implements IModel {
 				bp.idFromAdapter = bpData.id;
 				bp.message = bpData.message;
 				bp.adapterData = bpData.source ? bpData.source.adapterData : bp.adapterData;
+				bp.condition = bpData.condition || bp.condition;
+				bp.hitCondition = bpData.hitCondition || bp.hitCondition;
 				updated.push(bp);
 			}
 		});
@@ -1046,10 +1048,12 @@ export class Model implements IModel {
 		return this.watchExpressions;
 	}
 
-	public addWatchExpression(process: IProcess, stackFrame: IStackFrame, name: string): void {
+	public addWatchExpression(process: IProcess, stackFrame: IStackFrame, name: string): IExpression {
 		const we = new Expression(name);
 		this.watchExpressions.push(we);
 		this._onDidChangeWatchExpressions.fire(we);
+
+		return we;
 	}
 
 	public renameWatchExpression(process: IProcess, stackFrame: IStackFrame, id: string, newName: string): void {

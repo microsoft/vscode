@@ -3052,7 +3052,7 @@ declare module monaco.editor {
 		readonly acceptSuggestionOnCommitCharacter: boolean;
 		readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		readonly wordBasedSuggestions: boolean;
-		readonly suggestSelection: 'first' | 'byRecency' | 'byPrefix';
+		readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 		readonly suggestFontSize: number;
 		readonly suggestLineHeight: number;
 		readonly selectionHighlight: boolean;
@@ -4047,6 +4047,9 @@ declare module monaco.languages {
 	 */
 	export function registerColorProvider(languageId: string, provider: DocumentColorProvider): IDisposable;
 
+	/**
+	 * Register a folding provider
+	 */
 	/**
 	 * Contains additional diagnostic information about the context in which
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.

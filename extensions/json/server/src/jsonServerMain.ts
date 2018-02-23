@@ -7,7 +7,7 @@
 import {
 	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentIdentifier
 } from 'vscode-languageserver';
 
 import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
@@ -17,9 +17,10 @@ import fs = require('fs');
 import URI from 'vscode-uri';
 import * as URL from 'url';
 import Strings = require('./utils/strings');
-import { formatError, runSafe } from './utils/errors';
-import { JSONDocument, JSONSchema, LanguageSettings, getLanguageService, DocumentLanguageSettings } from 'vscode-json-languageservice';
+import { formatError, runSafe, runSafeAsync } from './utils/errors';
+import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
+import { createScanner, SyntaxKind } from 'jsonc-parser';
 
 interface ISchemaAssociations {
 	[pattern: string]: string[];
@@ -37,10 +38,61 @@ namespace SchemaContentChangeNotification {
 	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
 }
 
+interface FoldingRangeList {
+	/**
+	 * The folding ranges.
+	 */
+	ranges: FoldingRange[];
+}
+
+export enum FoldingRangeType {
+	/**
+	 * Folding range for a comment
+	 */
+	Comment = 'comment',
+	/**
+	 * Folding range for a imports or includes
+	 */
+	Imports = 'imports',
+	/**
+	 * Folding range for a region (e.g. `#region`)
+	 */
+	Region = 'region'
+}
+
+interface FoldingRange {
+
+	/**
+	 * The start line number
+	 */
+	startLine: number;
+
+	/**
+	 * The end line number
+	 */
+	endLine: number;
+
+	/**
+	 * The actual color value for this color range.
+	 */
+	type?: FoldingRangeType | string;
+}
+
+interface FoldingRangeRequest {
+	/**
+	 * The text document.
+	 */
+	textDocument: TextDocumentIdentifier;
+}
+
+namespace FoldingRangesRequest {
+	export const type: RequestType<FoldingRangeRequest, FoldingRangeList | null, any, any> = new RequestType('textDocument/foldingRanges');
+}
+
 // Create a connection for the server
 let connection: IConnection = createConnection();
 
-process.on('unhandledRejection', e => {
+process.on('unhandledRejection', (e: any) => {
 	connection.console.error(formatError(`Unhandled exception`, e));
 });
 
@@ -62,7 +114,7 @@ let clientDynamicRegisterSupport = false;
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 
 	function hasClientCapability(...keys: string[]) {
-		let c = params.capabilities;
+		let c = params.capabilities as any;
 		for (let i = 0; c && i < keys.length; i++) {
 			c = c[keys[i]];
 		}
@@ -74,7 +126,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	let capabilities: ServerCapabilities & CPServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
-		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : null,
+		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : void 0,
 		hoverProvider: true,
 		documentSymbolProvider: true,
 		documentRangeFormattingProvider: false,
@@ -146,9 +198,9 @@ interface JSONSchemaSettings {
 	schema?: JSONSchema;
 }
 
-let jsonConfigurationSettings: JSONSchemaSettings[] = void 0;
-let schemaAssociations: ISchemaAssociations = void 0;
-let formatterRegistration: Thenable<Disposable> = null;
+let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = void 0;
+let schemaAssociations: ISchemaAssociations | undefined = void 0;
+let formatterRegistration: Thenable<Disposable> | null = null;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
@@ -184,10 +236,10 @@ connection.onNotification(SchemaContentChangeNotification.type, uri => {
 });
 
 function updateConfiguration() {
-	let languageSettings: LanguageSettings = {
+	let languageSettings = {
 		validate: true,
 		allowComments: true,
-		schemas: []
+		schemas: new Array<SchemaConfiguration>()
 	};
 	if (schemaAssociations) {
 		for (var pattern in schemaAssociations) {
@@ -292,7 +344,7 @@ function getJSONDocument(document: TextDocument): JSONDocument {
 }
 
 connection.onCompletion(textDocumentPosition => {
-	return runSafe(() => {
+	return runSafeAsync(() => {
 		let document = documents.get(textDocumentPosition.textDocument.uri);
 		let jsonDocument = getJSONDocument(document);
 		return languageService.doComplete(document, textDocumentPosition.position, jsonDocument);
@@ -300,13 +352,13 @@ connection.onCompletion(textDocumentPosition => {
 });
 
 connection.onCompletionResolve(completionItem => {
-	return runSafe(() => {
+	return runSafeAsync(() => {
 		return languageService.doResolve(completionItem);
-	}, null, `Error while resolving completion proposal`);
+	}, completionItem, `Error while resolving completion proposal`);
 });
 
 connection.onHover(textDocumentPositionParams => {
-	return runSafe(() => {
+	return runSafeAsync(() => {
 		let document = documents.get(textDocumentPositionParams.textDocument.uri);
 		let jsonDocument = getJSONDocument(document);
 		return languageService.doHover(document, textDocumentPositionParams.position, jsonDocument);
@@ -329,13 +381,13 @@ connection.onDocumentRangeFormatting(formatParams => {
 });
 
 connection.onRequest(DocumentColorRequest.type, params => {
-	return runSafe(() => {
+	return runSafeAsync(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
 			let jsonDocument = getJSONDocument(document);
 			return languageService.findDocumentColors(document, jsonDocument);
 		}
-		return [];
+		return Promise.resolve([]);
 	}, [], `Error while computing document colors for ${params.textDocument.uri}`);
 });
 
@@ -347,7 +399,83 @@ connection.onRequest(ColorPresentationRequest.type, params => {
 			return languageService.getColorPresentations(document, jsonDocument, params.color, params.range);
 		}
 		return [];
-	}, [], `Error while computing color presentationsd for ${params.textDocument.uri}`);
+	}, [], `Error while computing color presentations for ${params.textDocument.uri}`);
+});
+
+connection.onRequest(FoldingRangesRequest.type, params => {
+	return runSafe(() => {
+		let document = documents.get(params.textDocument.uri);
+		if (document) {
+			let ranges: FoldingRange[] = [];
+			let stack: FoldingRange[] = [];
+			let prevStart = -1;
+			let scanner = createScanner(document.getText(), false);
+			let token = scanner.scan();
+			while (token !== SyntaxKind.EOF) {
+				switch (token) {
+					case SyntaxKind.OpenBraceToken:
+					case SyntaxKind.OpenBracketToken: {
+						let startLine = document.positionAt(scanner.getTokenOffset()).line;
+						let range = { startLine, endLine: startLine, type: token === SyntaxKind.OpenBraceToken ? 'object' : 'array' };
+						stack.push(range);
+					}
+						break;
+					case SyntaxKind.CloseBraceToken:
+					case SyntaxKind.CloseBracketToken: {
+						let type = token === SyntaxKind.CloseBraceToken ? 'object' : 'array';
+						if (stack.length > 0 && stack[stack.length - 1].type === type) {
+							let range = stack.pop();
+							let line = document.positionAt(scanner.getTokenOffset()).line;
+							if (range && line > range.startLine + 1 && prevStart !== range.startLine) {
+								range.endLine = line - 1;
+								ranges.push(range);
+								prevStart = range.startLine;
+							}
+						}
+					}
+						break;
+					case SyntaxKind.BlockCommentTrivia: {
+						let startLine = document.positionAt(scanner.getTokenOffset()).line;
+						let endLine = document.positionAt(scanner.getTokenOffset() + scanner.getTokenLength()).line;
+						if (startLine < endLine) {
+							ranges.push({ startLine, endLine, type: FoldingRangeType.Comment });
+							prevStart = startLine;
+						}
+					}
+						break;
+					case SyntaxKind.LineCommentTrivia: {
+						let text = document.getText().substr(scanner.getTokenOffset(), scanner.getTokenLength());
+						let m = text.match(/^\/\/\s*#(region\b)|(endregion\b)/);
+						if (m) {
+							let line = document.positionAt(scanner.getTokenOffset()).line;
+							if (m[1]) { // start pattern match
+								let range = { startLine: line, endLine: line, type: FoldingRangeType.Region };
+								stack.push(range);
+							} else {
+								let i = stack.length - 1;
+								while (i >= 0 && stack[i].type !== FoldingRangeType.Region) {
+									i--;
+								}
+								if (i >= 0) {
+									let range = stack[i];
+									stack.length = i;
+									if (line > range.startLine && prevStart !== range.startLine) {
+										range.endLine = line;
+										ranges.push(range);
+										prevStart = range.startLine;
+									}
+								}
+							}
+						}
+					}
+						break;
+				}
+				token = scanner.scan();
+			}
+			return <FoldingRangeList>{ ranges };
+		}
+		return null;
+	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`);
 });
 
 // Listen on the connection

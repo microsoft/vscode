@@ -12,7 +12,7 @@ import * as TypeConverters from './extHostTypeConverters';
 import { TextEditorDecorationType, ExtHostTextEditor } from './extHostTextEditor';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
-import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IResolvedTextEditorConfiguration, ISelectionChangeEvent, IMainContext, WorkspaceEditDto } from './extHost.protocol';
+import { MainContext, MainThreadTextEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IResolvedTextEditorConfiguration, ISelectionChangeEvent, IMainContext, WorkspaceEditDto } from './extHost.protocol';
 import * as vscode from 'vscode';
 
 export class ExtHostEditors implements ExtHostEditorsShape {
@@ -30,14 +30,14 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	readonly onDidChangeVisibleTextEditors: Event<vscode.TextEditor[]> = this._onDidChangeVisibleTextEditors.event;
 
 
-	private _proxy: MainThreadEditorsShape;
+	private _proxy: MainThreadTextEditorsShape;
 	private _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors;
 
 	constructor(
 		mainContext: IMainContext,
 		extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadEditors);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadTextEditors);
 		this._extHostDocumentsAndEditors = extHostDocumentsAndEditors;
 
 		this._extHostDocumentsAndEditors.onDidChangeVisibleTextEditors(e => this._onDidChangeVisibleTextEditors.fire(e));

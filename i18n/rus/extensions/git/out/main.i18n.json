@@ -8,6 +8,7 @@
 	],
 	"looking": "Поиск Git в: {0}",
 	"using git": "Использование GIT {0} из {1}",
+	"downloadgit": "Скачать Git",
 	"neverShowAgain": "Больше не показывать",
 	"notfound": "Git не найден. Установите Git или укажите путь к нему в параметре 'git.path'.",
 	"updateGit": "Обновить Git",

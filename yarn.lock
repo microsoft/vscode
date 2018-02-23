@@ -5966,9 +5966,9 @@ vscode-chokidar@1.6.2:
   optionalDependencies:
     vscode-fsevents "0.3.8"
 
-vscode-debugprotocol@1.25.0:
-  version "1.25.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.25.0.tgz#7a7e38df4cad8839e37ebcd06ed903902d97a7e3"
+vscode-debugprotocol@1.26.0:
+  version "1.26.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.26.0.tgz#8ab4588ae6a67b2c1cce0d866677a74f96a31c7b"
 
 vscode-fsevents@0.3.8:
   version "0.3.8"
@@ -5992,9 +5992,9 @@ vscode-nls-dev@3.0.7:
     xml2js "^0.4.19"
     yargs "^10.1.1"
 
-vscode-ripgrep@^0.7.1-patch.0:
-  version "0.7.1-patch.0"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-0.7.1-patch.0.tgz#738be8b6da5cb9a8807b528595a884b0dfcb60a5"
+vscode-ripgrep@^0.7.1-patch.1.5:
+  version "0.7.1-patch.1.5"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-0.7.1-patch.1.5.tgz#a1f1b037709de087533b003b13cb526bb39be876"
 
 vscode-textmate@^3.2.0:
   version "3.2.0"
@@ -6003,9 +6003,9 @@ vscode-textmate@^3.2.0:
     fast-plist "^0.1.2"
     oniguruma "^6.0.1"
 
-vscode-xterm@3.1.0-beta15:
-  version "3.1.0-beta15"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.1.0-beta15.tgz#d0b5353fb1fd574ccd023c67c71957b9b0f158c5"
+vscode-xterm@3.2.0-beta4:
+  version "3.2.0-beta4"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.2.0-beta4.tgz#fdcabafe1b6f89e5490cc816dcf29f0383147d48"
 
 vso-node-api@^6.1.2-preview:
   version "6.1.2-preview"

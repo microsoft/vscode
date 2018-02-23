@@ -23,6 +23,7 @@
 	"tryDisablingExtensions": "Eklentiler devre dışı bırakıldığında sorun yeniden oluşturulabiliyor",
 	"disableExtensions": "tüm eklentileri devre dışı bırakıp pencereyi yeniden yükleyin",
 	"showRunningExtensions": "tüm çalışan eklentileri görün",
+	"githubMarkdown": "GitHub-tarzı Markdown'ı destekliyoruz. GitHub'da önizleme yaptığımızda sorununuzu düzenleyebilecek ve ekran görüntüleri ekleyebileceksiniz.",
 	"issueDescriptionRequired": "Lütfen bir açıklama girin.",
 	"loadingData": "Veri yükleniyor..."
 }

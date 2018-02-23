@@ -11,6 +11,7 @@
 	"workspaceRecommendation": "Esta extensão é recomendada pelos usuários da área de trabalho atual.",
 	"fileBasedRecommendation": "Esta extensão é recomendada baseada nos arquivos que você abriu recentemente.",
 	"exeBasedRecommendation": "Esta extensão é recomendada porque você tem {0} instalado.",
+	"dynamicWorkspaceRecommendation": "Esta extensão pode lhe interessar porque muitos outros usuários da área de trabalho atual o usam.",
 	"reallyRecommended2": "A extensão {0} é recomendada para este tipo de arquivo.",
 	"reallyRecommendedExtensionPack": "O pacote de extensão '{0}' é recomendado para este tipo de arquivo.",
 	"showRecommendations": "Mostrar Recomendações",

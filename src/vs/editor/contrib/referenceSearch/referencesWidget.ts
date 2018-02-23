@@ -43,6 +43,7 @@ import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Location } from 'vs/editor/common/modes';
+import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 
 class DecorationsManager implements IDisposable {
 
@@ -163,7 +164,7 @@ class DecorationsManager implements IDisposable {
 class DataSource implements tree.IDataSource {
 
 	constructor(
-		@ITextModelService private _textModelResolverService: ITextModelService
+		@ITextModelService private readonly _textModelResolverService: ITextModelService
 	) {
 		//
 	}
@@ -245,7 +246,7 @@ class Controller extends WorkbenchTreeController {
 		var isDoubleClick = event.detail === 2;
 		if (event.leftButton) {
 			if (element instanceof FileReferences) {
-				if (this.openOnSingleClick || isDoubleClick) {
+				if (this.openOnSingleClick || isDoubleClick || this.isClickOnTwistie(event)) {
 					event.preventDefault();
 					event.stopPropagation();
 					return this._expandCollapse(tree, element);
@@ -304,7 +305,7 @@ class FileReferencesTemplate {
 
 	constructor(
 		container: HTMLElement,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@optional(IEnvironmentService) private _environmentService: IEnvironmentService,
 		@IThemeService themeService: IThemeService,
 	) {
@@ -371,8 +372,8 @@ class Renderer implements tree.IRenderer {
 	};
 
 	constructor(
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
-		@IThemeService private _themeService: IThemeService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
+		@IThemeService private readonly _themeService: IThemeService,
 		@optional(IEnvironmentService) private _environmentService: IEnvironmentService,
 	) {
 		//
@@ -634,7 +635,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// tree
 		container.div({ 'class': 'ref-tree inline' }, (div: Builder) => {
-			var controller = this._instantiationService.createInstance(Controller, {});
+			var controller = this._instantiationService.createInstance(Controller, { clickBehavior: ClickBehavior.ON_MOUSE_UP /* our controller already deals with this */ });
 			this._callOnDispose.push(controller);
 
 			var config = <tree.ITreeConfiguration>{

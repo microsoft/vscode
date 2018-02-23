@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType } from 'vscode';
+import { commands, Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType } from 'vscode';
 import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError, Submodule, DiffOptions } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent } from './util';
 import { memoize, throttle, debounce } from './decorators';
@@ -398,7 +398,7 @@ class ProgressManager {
 
 	private disposable: IDisposable = EmptyDisposable;
 
-	constructor(private repository: Repository) {
+	constructor(repository: Repository) {
 		const start = onceEvent(filterEvent(repository.onDidChangeOperations, () => repository.operations.shouldShowProgress()));
 		const end = onceEvent(filterEvent(debounceEvent(repository.onDidChangeOperations, 300), () => !repository.operations.shouldShowProgress()));
 
@@ -790,15 +790,15 @@ export class Repository implements Disposable {
 	async buffer(ref: string, filePath: string): Promise<Buffer> {
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
-			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
-			const encoding = configFiles.get<string>('encoding');
+			// const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
+			// const encoding = configFiles.get<string>('encoding');
 
 			// TODO@joao: REsource config api
 			return await this.repository.buffer(`${ref}:${relativePath}`);
 		});
 	}
 
-	lstree(ref: string, filePath: string): Promise<{ mode: number, object: string, size: number }> {
+	lstree(ref: string, filePath: string): Promise<{ mode: string, object: string, size: number }> {
 		return this.run(Operation.LSTree, () => this.repository.lstree(ref, filePath));
 	}
 
@@ -1009,10 +1009,8 @@ export class Repository implements Disposable {
 				case 'UU': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.BOTH_MODIFIED, useIcons));
 			}
 
-			let isModifiedInIndex = false;
-
 			switch (raw.x) {
-				case 'M': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons)); isModifiedInIndex = true; break;
+				case 'M': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons)); break;
 				case 'A': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_ADDED, useIcons)); break;
 				case 'D': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_DELETED, useIcons)); break;
 				case 'R': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_RENAMED, useIcons, renameUri)); break;
@@ -1041,13 +1039,9 @@ export class Repository implements Disposable {
 
 		this._sourceControl.count = count;
 
-		// set context key
-		let stateContextKey = '';
-
-		switch (this.state) {
-			case RepositoryState.Idle: stateContextKey = 'idle'; break;
-			case RepositoryState.Disposed: stateContextKey = 'norepo'; break;
-		}
+		// Disable `Discard All Changes` for "fresh" repositories
+		// https://github.com/Microsoft/vscode/issues/43066
+		commands.executeCommand('setContext', 'gitFreshRepository', !this._HEAD || !this._HEAD.commit);
 
 		this._onDidChangeStatus.fire();
 	}

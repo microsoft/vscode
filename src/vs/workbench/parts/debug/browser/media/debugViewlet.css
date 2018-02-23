@@ -348,7 +348,11 @@
 
 /* Breakpoints */
 
-.debug-viewlet .debug-breakpoints .monaco-list-row {
+.debug-viewlet .debug-breakpoints .monaco-list-row .breakpoint {
+	padding-left: 2px;
+}
+
+.debug-viewlet .debug-breakpoints .breakpoint.exception {
 	padding-left: 20px;
 }
 
@@ -361,6 +365,11 @@
 
 .debug-viewlet .debug-breakpoints .breakpoint input {
 	flex-shrink: 0;
+}
+
+.debug-viewlet .debug-breakpoints .breakpoint > .icon {
+	width: 18px;
+	height: 18px;
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {

@@ -124,7 +124,7 @@ function zipLogs(
 	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-log-upload'));
 	const outZip = path.join(tempDir, 'logs.zip');
 	return new TPromise<string>((resolve, reject) => {
-		doZip(logsPath, outZip, (err, stdout, stderr) => {
+		doZip(logsPath, outZip, tempDir, (err, stdout, stderr) => {
 			if (err) {
 				console.error(localize('zipError', 'Error zipping logs: {0}', err));
 				reject(err);
@@ -138,12 +138,17 @@ function zipLogs(
 function doZip(
 	logsPath: string,
 	outZip: string,
+	tempDir: string,
 	callback: (error: Error, stdout: string, stderr: string) => void
 ) {
 	switch (os.platform()) {
 		case 'win32':
-			return cp.execFile('powershell', ['-Command', `Compress-Archive -Path "${logsPath}" -DestinationPath ${outZip}`], { cwd: logsPath }, callback);
-
+			// Copy directory first to avoid file locking issues
+			const sub = path.join(tempDir, 'sub');
+			return cp.execFile('powershell', ['-Command',
+				`[System.IO.Directory]::CreateDirectory("${sub}"); Copy-Item -recurse "${logsPath}" "${sub}"; Compress-Archive -Path "${sub}" -DestinationPath "${outZip}"`],
+				{ cwd: logsPath },
+				callback);
 		default:
 			return cp.execFile('zip', ['-r', outZip, '.'], { cwd: logsPath }, callback);
 	}

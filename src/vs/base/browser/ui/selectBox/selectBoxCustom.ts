@@ -88,6 +88,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	private selectList: List<ISelectOptionItem>;
 	private selectDropDownListContainer: HTMLElement;
 	private widthControlElement: HTMLElement;
+	private _currentSelection: number;
 
 	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles) {
 
@@ -306,8 +307,11 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	public applyStyles(): void {
 
 		// Style parent select
+
+		let background = null;
+
 		if (this.selectElement) {
-			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : null;
+			background = this.styles.selectBackground ? this.styles.selectBackground.toString() : null;
 			const foreground = this.styles.selectForeground ? this.styles.selectForeground.toString() : null;
 			const border = this.styles.selectBorder ? this.styles.selectBorder.toString() : null;
 
@@ -321,8 +325,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		if (this.selectList) {
 			this.selectList.style({});
 
-			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : null;
-			this.selectDropDownListContainer.style.backgroundColor = background;
+			let listBackground = this.styles.selectListBackground ? this.styles.selectListBackground.toString() : background;
+			this.selectDropDownListContainer.style.backgroundColor = listBackground;
 			const optionsBorder = this.styles.focusBorder ? this.styles.focusBorder.toString() : null;
 			this.selectDropDownContainer.style.outlineColor = optionsBorder;
 			this.selectDropDownContainer.style.outlineOffset = '-1px';
@@ -350,13 +354,14 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		this.cloneElementFont(this.selectElement, this.selectDropDownContainer);
 		this.contextViewProvider.showContextView({
 			getAnchor: () => this.selectElement,
-			render: (container: HTMLElement) => { return this.renderSelectDropDown(container); },
+			render: (container: HTMLElement) => this.renderSelectDropDown(container),
 			layout: () => this.layoutSelectDropDown(),
 			onHide: () => {
 				dom.toggleClass(this.selectDropDownContainer, 'visible', false);
 				dom.toggleClass(this.selectElement, 'synthetic-focus', false);
 			}
 		});
+		this._currentSelection = this.selected;
 	}
 
 	private hideSelectDropDown(focusSelect: boolean) {
@@ -372,7 +377,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		this.contextViewProvider.hideContextView();
 	}
 
-	private renderSelectDropDown(container: HTMLElement) {
+	private renderSelectDropDown(container: HTMLElement): IDisposable {
 		dom.append(container, this.selectDropDownContainer);
 		this.layoutSelectDropDown();
 		return null;
@@ -518,6 +523,9 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 				index: this.selectElement.selectedIndex,
 				selected: this.selectElement.title
 			});
+
+			// Reset Selection Handler
+			this._currentSelection = -1;
 			this.hideSelectDropDown(true);
 		}
 		dom.EventHelper.stop(e);
@@ -525,6 +533,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 	// List Exit - passive - hide drop-down, fire onDidSelect
 	private onListBlur(): void {
+
+		if (this._currentSelection >= 0) {
+			this.select(this._currentSelection);
+		}
 
 		this._onDidSelect.fire({
 			index: this.selectElement.selectedIndex,
@@ -538,6 +550,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	// List exit - active - hide ContextView dropdown, return focus to parent select, fire onDidSelect
 	private onEscape(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
+		this.select(this._currentSelection);
 
 		this.hideSelectDropDown(true);
 
@@ -550,6 +563,9 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	// List exit - active - hide ContextView dropdown, return focus to parent select, fire onDidSelect
 	private onEnter(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
+
+		// Reset current selection
+		this._currentSelection = -1;
 
 		this.hideSelectDropDown(true);
 		this._onDidSelect.fire({

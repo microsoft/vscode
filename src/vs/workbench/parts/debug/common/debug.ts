@@ -40,6 +40,7 @@ export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('bre
 export const CONTEXT_BREAKPOINTS_FOCUSED = new RawContextKey<boolean>('breakpointsFocused', true);
 export const CONTEXT_WATCH_EXPRESSIONS_FOCUSED = new RawContextKey<boolean>('watchExpressionsFocused', true);
 export const CONTEXT_VARIABLES_FOCUSED = new RawContextKey<boolean>('variablesFocused', true);
+export const CONTEXT_EXPRESSION_SELECTED = new RawContextKey<boolean>('expressionSelected', false);
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const DEBUG_SCHEME = 'debug';
@@ -222,11 +223,16 @@ export interface IEnablement extends ITreeElement {
 	enabled: boolean;
 }
 
-export interface IRawBreakpoint {
+export interface IBreakpointData {
 	id?: string;
 	lineNumber: number;
 	column?: number;
 	enabled?: boolean;
+	condition?: string;
+	hitCondition?: string;
+}
+
+export interface IBreakpointUpdateData extends DebugProtocol.Breakpoint {
 	condition?: string;
 	hitCondition?: string;
 }
@@ -329,12 +335,12 @@ export enum State {
 
 export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
-	openDebug: string;
+	openDebug: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean;
 	hideActionBar: boolean;
-	showInStatusBar: string;
-	internalConsoleOptions: string;
+	showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
+	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 }
 
 export interface IGlobalConfig {
@@ -347,7 +353,7 @@ export interface IEnvConfig {
 	name?: string;
 	type: string;
 	request: string;
-	internalConsoleOptions?: string;
+	internalConsoleOptions?: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	preLaunchTask?: string;
 	__restart?: any;
 	__sessionId?: string;
@@ -412,15 +418,18 @@ export interface IConfigurationManager {
 	canSetBreakpointsIn(model: EditorIModel): boolean;
 
 	/**
-	 * Returns null for no folder workspace. Otherwise returns a launch object corresponding to the selected debug configuration.
+	 * Returns an object containing the selected launch configuration and the selected configuration name. Both these fields can be null (no folder workspace).
 	 */
-	selectedLaunch: ILaunch;
-
-	selectedName: string;
+	selectedConfiguration: {
+		launch: ILaunch;
+		name: string;
+	};
 
 	selectConfiguration(launch: ILaunch, name?: string, debugStarted?: boolean): void;
 
 	getLaunches(): ILaunch[];
+
+	getLaunch(workspaceUri: uri): ILaunch | undefined;
 
 	/**
 	 * Allows to register on change of selected debug configuration.
@@ -535,12 +544,12 @@ export interface IDebugService {
 	/**
 	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.
 	 */
-	addBreakpoints(uri: uri, rawBreakpoints: IRawBreakpoint[]): TPromise<void>;
+	addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[]): TPromise<void>;
 
 	/**
 	 * Updates the breakpoints.
 	 */
-	updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }): void;
+	updateBreakpoints(uri: uri, data: { [id: string]: IBreakpointUpdateData }, sendOnResourceSaved: boolean): void;
 
 	/**
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.
@@ -617,7 +626,7 @@ export interface IDebugService {
 	 * Also saves all files, manages if compounds are present in the configuration
 	 * and resolveds configurations via DebugConfigurationProviders.
 	 */
-	startDebugging(root: IWorkspaceFolder, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
+	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
 
 	/**
 	 * Restarts a process or creates a new one if there is no active session.

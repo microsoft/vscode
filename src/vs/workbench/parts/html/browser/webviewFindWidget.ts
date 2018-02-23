@@ -5,24 +5,20 @@
 
 import { SimpleFindWidget } from 'vs/editor/contrib/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import Webview from './webview';
+import { Webview } from './webview';
 
 export class WebviewFindWidget extends SimpleFindWidget {
 
 	constructor(
-		@IContextViewService _contextViewService: IContextViewService,
-		private webview: Webview
+		@IContextViewService contextViewService: IContextViewService,
+		private readonly webview: Webview
 	) {
-		super(_contextViewService);
-
-		this.find = this.find.bind(this);
-		this.hide = this.hide.bind(this);
-		this.onInputChanged = this.onInputChanged.bind(this);
+		super(contextViewService);
 	}
 
 	public find(previous: boolean) {
-		let val = this.inputValue;
-		if (this.webview !== null && val) {
+		const val = this.inputValue;
+		if (val) {
 			this.webview.find(val, { findNext: true, forward: !previous });
 		}
 	}
@@ -34,11 +30,7 @@ export class WebviewFindWidget extends SimpleFindWidget {
 	}
 
 	public onInputChanged() {
-		if (!this.webview) {
-			return;
-		}
-
-		let val = this.inputValue;
+		const val = this.inputValue;
 		if (val) {
 			this.webview.startFind(val);
 		} else {

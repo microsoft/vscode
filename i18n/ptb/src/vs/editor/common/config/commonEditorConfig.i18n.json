@@ -68,6 +68,8 @@
 	"wordBasedSuggestions": "Controla se o auto-completar deve ser calculado baseado nas palavras no documento.",
 	"suggestSelection.first": "Escolha sempre a primeira sugestão.",
 	"suggestSelection.recentlyUsed": "Selecionar sugestões recentes, a menos que digitações adicionais selecionem um, por exemplo, 'console.| -> console. log ' porque 'log' foi concluída recentemente.",
+	"suggestSelection.recentlyUsedByPrefix": "Selecionar sugestões baseadas em prefixos anteriores que completaram essas sugestões, por exemplo, 'co-> console' e 'con-> const'.",
+	"suggestSelection": "Controla como as sugestões são pré-selecionados quando estiver mostrando a lista de sugestões.",
 	"suggestFontSize": "Tamanho da fonte para a ferramenta de sugestão",
 	"suggestLineHeight": "Altura de linha para a ferramenta de sugestão",
 	"selectionHighlight": "Controla se o editor deve realçar correspondências semelhantes à seleção",

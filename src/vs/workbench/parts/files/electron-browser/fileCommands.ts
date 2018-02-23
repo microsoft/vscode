@@ -7,7 +7,6 @@
 
 import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
-import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as labels from 'vs/base/common/labels';
 import URI from 'vs/base/common/uri';
@@ -21,7 +20,6 @@ import { ExplorerFocusCondition, FileOnDiskContentProvider, VIEWLET_ID } from 'v
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { basename } from 'vs/base/common/paths';
@@ -42,6 +40,8 @@ import { sequence } from 'vs/base/common/async';
 import { getResourceForCommand, getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { Schemas } from 'vs/base/common/network';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 // Commands
 
@@ -85,14 +85,14 @@ export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], f
 function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorService, fileService: IFileService, untitledEditorService: IUntitledEditorService,
 	textFileService: ITextFileService, editorGroupService: IEditorGroupService): TPromise<any> {
 
-	if (resource && (fileService.canHandleResource(resource) || resource.scheme === 'untitled')) {
+	if (resource && (fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 
 		// Save As (or Save untitled with associated path)
-		if (isSaveAs || resource.scheme === 'untitled') {
+		if (isSaveAs || resource.scheme === Schemas.untitled) {
 			let encodingOfSource: string;
-			if (resource.scheme === 'untitled') {
+			if (resource.scheme === Schemas.untitled) {
 				encodingOfSource = untitledEditorService.getEncoding(resource);
-			} else if (resource.scheme === 'file') {
+			} else if (fileService.canHandleResource(resource)) {
 				const textModel = textFileService.models.get(resource);
 				encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
 			}
@@ -102,14 +102,14 @@ function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorS
 			const editor = getCodeEditor(activeEditor);
 			if (editor) {
 				const activeResource = toResource(activeEditor.input, { supportSideBySide: true });
-				if (activeResource && (fileService.canHandleResource(activeResource) || resource.scheme === 'untitled') && activeResource.toString() === resource.toString()) {
+				if (activeResource && (fileService.canHandleResource(activeResource) || resource.scheme === Schemas.untitled) && activeResource.toString() === resource.toString()) {
 					viewStateOfSource = editor.saveViewState();
 				}
 			}
 
 			// Special case: an untitled file with associated path gets saved directly unless "saveAs" is true
 			let savePromise: TPromise<URI>;
-			if (!isSaveAs && resource.scheme === 'untitled' && untitledEditorService.hasAssociatedFilePath(resource)) {
+			if (!isSaveAs && resource.scheme === Schemas.untitled && untitledEditorService.hasAssociatedFilePath(resource)) {
 				savePromise = textFileService.save(resource).then((result) => {
 					if (result) {
 						return URI.file(resource.fsPath);
@@ -200,7 +200,7 @@ function saveAll(saveAllArguments: any, editorService: IWorkbenchEditorService, 
 		const untitledToReopen: { input: IResourceInput, position: Position }[] = [];
 
 		results.results.forEach(result => {
-			if (!result.success || result.source.scheme !== 'untitled') {
+			if (!result.success || result.source.scheme !== Schemas.untitled) {
 				return;
 			}
 
@@ -244,12 +244,13 @@ CommandsRegistry.registerCommand({
 	handler: (accessor, resource: URI) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const textFileService = accessor.get(ITextFileService);
-		const messageService = accessor.get(IMessageService);
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
+		const notificationService = accessor.get(INotificationService);
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService)
+			.filter(resource => resource.scheme !== Schemas.untitled);
 
-		if (resource && resource.scheme !== 'untitled') {
+		if (resources.length) {
 			return textFileService.revertAll(resources, { force: true }).then(null, error => {
-				messageService.show(Severity.Error, nls.localize('genericRevertError', "Failed to revert '{0}': {1}", basename(resource.fsPath), toErrorMessage(error, false)));
+				notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", resources.map(r => basename(r.fsPath)).join(', '), toErrorMessage(error, false)));
 			});
 		}
 
@@ -319,7 +320,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const editorService = accessor.get(IWorkbenchEditorService);
 		resource = getResourceForCommand(resource, accessor.get(IListService), editorService);
 
-		if (resource && resource.scheme === 'file') {
+		if (resource && resource.scheme === Schemas.file /* only files on disk supported for now */) {
 			const name = paths.basename(resource.fsPath);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
 
@@ -386,66 +387,81 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-const revealInOSHandler = (accessor: ServicesAccessor, resource: URI) => {
-	// Without resource, try to look at the active editor
-	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
-
+function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, notificationService: INotificationService): void {
 	if (resources.length) {
-		const windowsService = accessor.get(IWindowsService);
 		sequence(resources.map(r => () => windowsService.showItemInFolder(paths.normalize(r.fsPath, true))));
 	} else {
-		const messageService = accessor.get(IMessageService);
-		messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
+		notificationService.info(nls.localize('openFileToReveal', "Open a file first to reveal"));
 	}
-};
+}
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REVEAL_IN_OS_COMMAND_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: undefined,
-	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_R),
-	secondary: [KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R],
+	when: ExplorerFocusCondition,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R,
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
 	},
-	handler: revealInOSHandler
+	handler: (accessor: ServicesAccessor, resource: URI) => {
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
+		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(INotificationService));
+	}
 });
-// TODO@isidor deprecated remove in february
-CommandsRegistry.registerCommand({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: undefined,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_R),
 	id: 'workbench.action.files.revealActiveFileInWindows',
-	handler: revealInOSHandler
+	handler: (accessor: ServicesAccessor, resource: URI) => {
+		const editorService = accessor.get(IWorkbenchEditorService);
+		const activeInput = editorService.getActiveEditorInput();
+		const resources = activeInput && activeInput.getResource() ? [activeInput.getResource()] : [];
+		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(INotificationService));
+	}
 });
 
-const copyPathBase = (accessor, resource: URI) => {
-	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
+// const copyPathBase = (accessor, resource: URI) => {
+// 	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
+// 	if (resources.length) {
+// 		const lineDelimiter = isWindows ? '\r\n' : '\n';
+// 		const text = resources.map(r => r.scheme === 'file' ? labels.getPathLabel(r) : r.toString()).join(lineDelimiter);
+// 		return text;
+// 	} else {
+// 		const messageService = accessor.get(IMessageService);
+// 		messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
+// 		return null;
+// 	}
+// };
+
+// const copyPathHandler = (accessor, resource: URI) => {
+// 	const clipboardService = accessor.get(IClipboardService);
+// 	const text = copyPathBase(accessor, resource);
+// 	if (text) {
+// 		clipboardService.writeText(text);
+// 	}
+// };
+
+// const copyRelativePathHandler = (accessor, resource: URI) => {
+// 	const clipboardService = accessor.get(IClipboardService);
+// 	const contextService = accessor.get(IWorkspaceContextService);
+// 	const workspaceFolder = contextService.getWorkspaceFolder(resource);
+// 	let text = copyPathBase(accessor, resource);
+// 	if (text) {
+// 		text = text.replace(workspaceFolder.uri.fsPath + '/', '');
+// 		clipboardService.writeText(text);
+// 	}
+// };
+
+function resourcesToClipboard(resources: URI[], clipboardService: IClipboardService, notificationService: INotificationService): void {
 	if (resources.length) {
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
-		const text = resources.map(r => r.scheme === 'file' ? labels.getPathLabel(r) : r.toString()).join(lineDelimiter);
-		return text;
+		const text = resources.map(r => r.scheme === Schemas.file ? labels.getPathLabel(r) : r.toString()).join(lineDelimiter);
+		clipboardService.writeText(text);
 	} else {
-		const messageService = accessor.get(IMessageService);
-		messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
-		return null;
+		notificationService.info(nls.localize('openFileToCopy', "Open a file first to copy its path"));
 	}
-};
+}
 
-const copyPathHandler = (accessor, resource: URI) => {
-	const clipboardService = accessor.get(IClipboardService);
-	const text = copyPathBase(accessor, resource);
-	if (text) {
-		clipboardService.writeText(text);
-	}
-};
-
-const copyRelativePathHandler = (accessor, resource: URI) => {
-	const clipboardService = accessor.get(IClipboardService);
-	const contextService = accessor.get(IWorkspaceContextService);
-	const workspaceFolder = contextService.getWorkspaceFolder(resource);
-	let text = copyPathBase(accessor, resource);
-	if (text) {
-		text = text.replace(workspaceFolder.uri.fsPath + '/', '');
-		clipboardService.writeText(text);
-	}
-};
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
@@ -455,7 +471,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
 	},
 	id: COPY_PATH_COMMAND_ID,
-	handler: copyPathHandler
+	handler: (accessor, resource: URI) => {
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
+		resourcesToClipboard(resources, accessor.get(IClipboardService), accessor.get(INotificationService));
+	}
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -466,13 +485,23 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyMod.WinCtrl | KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
 	},
 	id: COPY_REL_PATH_COMMAND_ID,
-	handler: copyRelativePathHandler
+	handler: (accessor, resource: URI) => {
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
+		resourcesToClipboard(resources, accessor.get(IClipboardService), accessor.get(INotificationService));
+	}
 });
 
 // TODO@isidor deprecated remove in february
 CommandsRegistry.registerCommand({
+	when: undefined,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_P),
 	id: 'workbench.action.files.copyPathOfActiveFile',
-	handler: copyPathHandler
+	handler: (accessor, resource: URI) => {
+		const editorService = accessor.get(IWorkbenchEditorService);
+		const activeInput = editorService.getActiveEditorInput();
+		const resources = activeInput && activeInput.getResource() ? [activeInput.getResource()] : [];
+		resourcesToClipboard(resources, accessor.get(IClipboardService), accessor.get(INotificationService));
+	}
 });
 
 CommandsRegistry.registerCommand({
@@ -551,7 +580,7 @@ CommandsRegistry.registerCommand({
 				const editorGroup = editorGroupService.getStacksModel().getGroup(context.groupId);
 				editorGroup.getEditors().forEach(editor => {
 					const resource = toResource(editor, { supportSideBySide: true });
-					if (resource && (resource.scheme === 'untitled' || fileService.canHandleResource(resource))) {
+					if (resource && (resource.scheme === Schemas.untitled || fileService.canHandleResource(resource))) {
 						saveAllArg.push(resource);
 					}
 				});

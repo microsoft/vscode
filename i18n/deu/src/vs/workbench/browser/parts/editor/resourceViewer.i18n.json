@@ -11,7 +11,9 @@
 	"sizeMB": "{0} MB",
 	"sizeGB": "{0} GB",
 	"sizeTB": "{0} TB",
+	"largeImageError": "Die Dateigröße des Bilds ist zu groß (über 1 MB), um im Editor angezeigt zu werden.",
 	"resourceOpenExternalButton": "Bild mit externem Programm öffnen?",
 	"nativeBinaryError": "Die Datei wird nicht im Editor angezeigt, weil sie binär oder sehr groß ist oder eine nicht unterstützte Textcodierung verwendet.",
+	"zoom.action.fit.label": "Ganzes Bild",
 	"imgMeta": "{0}x{1} {2}"
 }

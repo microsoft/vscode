@@ -18,6 +18,7 @@
 	"RefreshAction.label": "Обновить",
 	"CollapseDeepestExpandedLevelAction.label": "Свернуть все",
 	"ClearSearchResultsAction.label": "Очистить",
+	"CancelSearchAction.label": "Отменить поиск",
 	"FocusNextSearchResult.label": "Перейти к следующему результату поиска.",
 	"FocusPreviousSearchResult.label": "Перейти к предыдущему результату поиска.",
 	"RemoveAction.label": "Отклонить",

@@ -93,9 +93,9 @@ export default class PHPValidationProvider {
 	private trigger: RunTrigger;
 	private pauseValidation: boolean;
 
-	private documentListener: vscode.Disposable | null;
-	private diagnosticCollection: vscode.DiagnosticCollection;
-	private delayers: { [key: string]: ThrottledDelayer<void> };
+	private documentListener: vscode.Disposable | null = null;
+	private diagnosticCollection?: vscode.DiagnosticCollection;
+	private delayers?: { [key: string]: ThrottledDelayer<void> };
 
 	constructor(private workspaceStore: vscode.Memento) {
 		this.executable = undefined;
@@ -112,15 +112,17 @@ export default class PHPValidationProvider {
 
 		vscode.workspace.onDidOpenTextDocument(this.triggerValidate, this, subscriptions);
 		vscode.workspace.onDidCloseTextDocument((textDocument) => {
-			this.diagnosticCollection.delete(textDocument.uri);
-			delete this.delayers[textDocument.uri.toString()];
+			this.diagnosticCollection!.delete(textDocument.uri);
+			delete this.delayers![textDocument.uri.toString()];
 		}, null, subscriptions);
 		subscriptions.push(vscode.commands.registerCommand('php.untrustValidationExecutable', this.untrustValidationExecutable, this));
 	}
 
 	public dispose(): void {
-		this.diagnosticCollection.clear();
-		this.diagnosticCollection.dispose();
+		if (this.diagnosticCollection) {
+			this.diagnosticCollection.clear();
+			this.diagnosticCollection.dispose();
+		}
 		if (this.documentListener) {
 			this.documentListener.dispose();
 			this.documentListener = null;
@@ -156,7 +158,7 @@ export default class PHPValidationProvider {
 			this.documentListener.dispose();
 			this.documentListener = null;
 		}
-		this.diagnosticCollection.clear();
+		this.diagnosticCollection!.clear();
 		if (this.validationEnabled) {
 			if (this.trigger === RunTrigger.onType) {
 				this.documentListener = vscode.workspace.onDidChangeTextDocument((e) => {
@@ -186,10 +188,10 @@ export default class PHPValidationProvider {
 
 		let trigger = () => {
 			let key = textDocument.uri.toString();
-			let delayer = this.delayers[key];
+			let delayer = this.delayers![key];
 			if (!delayer) {
 				delayer = new ThrottledDelayer<void>(this.trigger === RunTrigger.onType ? 250 : 0);
-				this.delayers[key] = delayer;
+				this.delayers![key] = delayer;
 			}
 			delayer.trigger(() => this.doValidate(textDocument));
 		};
@@ -273,7 +275,7 @@ export default class PHPValidationProvider {
 						if (line) {
 							processLine(line);
 						}
-						this.diagnosticCollection.set(textDocument.uri, diagnostics);
+						this.diagnosticCollection!.set(textDocument.uri, diagnostics);
 						resolve();
 					});
 				} else {

@@ -24,5 +24,6 @@
 	"useIgnoreFiles": "ファイルを検索するときに、.gitignore ファイルを使用するか .ignore ファイルを使用するかを制御します。",
 	"search.quickOpen.includeSymbols": "グローバル シンボル検索の結果を、Quick Open の結果ファイルに含めるように構成します。",
 	"search.followSymlinks": "検索中にシンボリック リンクをたどるかどうかを制御します。",
-	"search.smartCase": "すべて小文字のパターンの場合、大文字と小文字を区別しないで検索し、そうでない場合は大文字と小文字を区別して検索する"
+	"search.smartCase": "すべて小文字のパターンの場合、大文字と小文字を区別しないで検索し、そうでない場合は大文字と小文字を区別して検索する",
+	"search.globalFindClipboard": "macOS で検索ビューレットが共有の検索クリップボードを読み取りまたは変更するかどうかを制御します"
 }

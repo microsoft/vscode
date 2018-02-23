@@ -18,16 +18,14 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IScoredResults, IWorkbenchSettingsConfiguration, IExtensionSetting } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IWorkbenchSettingsConfiguration, IExtensionSetting, IScoredResults } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { SettingsGroupTitleWidget, EditPreferenceWidget, SettingsHeaderWidget, DefaultSettingsHeaderWidget, FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -38,6 +36,12 @@ import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/ed
 import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
+import { IssueType, ISettingsSearchIssueReporterData, ISettingSearchResult } from 'vs/platform/issue/common/issue';
+import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -247,6 +251,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private filteredMatchesRenderer: FilteredMatchesRenderer;
 	private hiddenAreasRenderer: HiddenAreasRenderer;
 	private editSettingActionRenderer: EditSettingRenderer;
+	private issueWidgetRenderer: IssueWidgetRenderer;
 	private feedbackWidgetRenderer: FeedbackWidgetRenderer;
 	private bracesHidingRenderer: BracesHidingRenderer;
 	private extensionCodelensRenderer: ExtensionCodelensRenderer;
@@ -263,7 +268,8 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 
 	constructor(protected editor: ICodeEditor, public readonly preferencesModel: DefaultSettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
-		@IInstantiationService protected instantiationService: IInstantiationService
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
@@ -271,6 +277,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.settingsGroupTitleRenderer = this._register(instantiationService.createInstance(SettingsGroupTitleRenderer, editor));
 		this.filteredMatchesRenderer = this._register(instantiationService.createInstance(FilteredMatchesRenderer, editor));
 		this.editSettingActionRenderer = this._register(instantiationService.createInstance(EditSettingRenderer, editor, preferencesModel, this.settingHighlighter));
+		this.issueWidgetRenderer = this._register(instantiationService.createInstance(IssueWidgetRenderer, editor));
 		this.feedbackWidgetRenderer = this._register(instantiationService.createInstance(FeedbackWidgetRenderer, editor));
 		this.bracesHidingRenderer = this._register(instantiationService.createInstance(BracesHidingRenderer, editor, preferencesModel));
 		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, this.bracesHidingRenderer]));
@@ -293,6 +300,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	public render() {
 		this.settingsGroupTitleRenderer.render(this.preferencesModel.settingsGroups);
 		this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
+		this.issueWidgetRenderer.render(null);
 		this.feedbackWidgetRenderer.render(null);
 		this.settingHighlighter.clear(true);
 		this.bracesHidingRenderer.render(null, this.preferencesModel.settingsGroups);
@@ -306,7 +314,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		if (filterResult) {
 			this.filteredMatchesRenderer.render(filterResult, this.preferencesModel.settingsGroups);
 			this.settingsGroupTitleRenderer.render(null);
-			this.feedbackWidgetRenderer.render(filterResult);
+			this.renderIssueWidget(filterResult);
 			this.settingsHeaderRenderer.render(filterResult);
 			this.settingHighlighter.clear(true);
 			this.bracesHidingRenderer.render(filterResult, this.preferencesModel.settingsGroups);
@@ -315,7 +323,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		} else {
 			this.settingHighlighter.clear(true);
 			this.filteredMatchesRenderer.render(null, this.preferencesModel.settingsGroups);
-			this.feedbackWidgetRenderer.render(null);
+			this.renderIssueWidget(null);
 			this.settingsHeaderRenderer.render(null);
 			this.settingsGroupTitleRenderer.render(this.preferencesModel.settingsGroups);
 			this.settingsGroupTitleRenderer.showGroup(0);
@@ -325,6 +333,17 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		}
 
 		this.hiddenAreasRenderer.render();
+	}
+
+	private renderIssueWidget(filterResult: IFilterResult): void {
+		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
+		if (workbenchSettings.enableNaturalLanguageSearchFeedback) {
+			this.issueWidgetRenderer.render(null);
+			this.feedbackWidgetRenderer.render(filterResult);
+		} else {
+			this.feedbackWidgetRenderer.render(null);
+			this.issueWidgetRenderer.render(filterResult);
+		}
 	}
 
 	public focusPreference(s: ISetting): void {
@@ -586,7 +605,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
@@ -594,9 +613,8 @@ export class FeedbackWidgetRenderer extends Disposable {
 	}
 
 	public render(result: IFilterResult): void {
-		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		this._currentResult = result;
-		if (result && result.metadata && workbenchSettings.enableNaturalLanguageSearchFeedback) {
+		if (result && result.metadata) {
 			this.showWidget();
 		} else if (this._feedbackWidget) {
 			this.disposeWidget();
@@ -613,7 +631,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 
 	private getFeedback(): void {
 		if (!this.telemetryService.isOptedIn && this.environmentService.appQuality) {
-			this.messageService.show(Severity.Error, 'Can\'t send feedback, user is opted out of telemetry');
+			this.notificationService.error('Can\'t send feedback, user is opted out of telemetry');
 			return;
 		}
 
@@ -652,9 +670,9 @@ export class FeedbackWidgetRenderer extends Disposable {
 			this._register(sendFeedbackWidget.onClick(() => {
 				this.sendFeedback(feedbackEditor.getControl() as ICodeEditor, result, actualResults).then(() => {
 					sendFeedbackWidget.dispose();
-					this.messageService.show(Severity.Info, 'Feedback sent successfully');
+					this.notificationService.info('Feedback sent successfully');
 				}, err => {
-					this.messageService.show(Severity.Error, 'Error sending feedback: ' + err.message);
+					this.notificationService.error('Error sending feedback: ' + err.message);
 				});
 			}));
 		});
@@ -762,7 +780,88 @@ export class FeedbackWidgetRenderer extends Disposable {
 
 	public dispose() {
 		this.disposeWidget();
+		super.dispose();
+	}
+}
 
+export class IssueWidgetRenderer extends Disposable {
+	private _issueWidget: FloatingClickWidget;
+	private _currentResult: IFilterResult;
+
+	constructor(private editor: ICodeEditor,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IWorkbenchIssueService private issueService: IWorkbenchIssueService,
+		@IEnvironmentService private environmentService: IEnvironmentService
+	) {
+		super();
+	}
+
+	public render(result: IFilterResult): void {
+		this._currentResult = result;
+		if (result && result.metadata && this.environmentService.appQuality !== 'stable') {
+			this.showWidget();
+		} else if (this._issueWidget) {
+			this.disposeWidget();
+		}
+	}
+
+	private showWidget(): void {
+		if (!this._issueWidget) {
+			this._issueWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('reportSettingsSearchIssue', "Report Issue"), null));
+			this._register(this._issueWidget.onClick(() => this.showIssueReporter()));
+			this._issueWidget.render();
+		}
+	}
+
+	private showIssueReporter(): TPromise<void> {
+		const nlpMetadata = this._currentResult.metadata['nlpResult'];
+		const results = nlpMetadata.scoredResults;
+
+		const enabledExtensions = nlpMetadata.extensions;
+		const issueResults = Object.keys(results)
+			.map(key => (<ISettingSearchResult>{
+				key: key.split('##')[1],
+				extensionId: results[key].packageId === 'core' ?
+					'core' :
+					this.getExtensionIdByGuid(enabledExtensions, results[key].packageId),
+				score: results[key].score
+			}))
+			.slice(0, 20);
+
+		const issueReporterData: Partial<ISettingsSearchIssueReporterData> = {
+			enabledExtensions,
+			issueType: IssueType.SettingsSearchIssue,
+			actualSearchResults: issueResults,
+			filterResultCount: this.getFilterResultCount(),
+			query: this._currentResult.query
+		};
+
+		return this.issueService.openReporter(issueReporterData);
+	}
+
+	private getFilterResultCount(): number {
+		const filterResultGroup = arrays.first(this._currentResult.filteredGroups, group => group.id === 'filterResult');
+		return filterResultGroup ?
+			filterResultGroup.sections[0].settings.length :
+			0;
+	}
+
+	private getExtensionIdByGuid(extensions: ILocalExtension[], guid: string): string {
+		const match = arrays.first(extensions, ext => ext.identifier.uuid === guid);
+
+		// identifier.id includes the version, not needed here
+		return match && `${match.manifest.publisher}.${match.manifest.name}`;
+	}
+
+	private disposeWidget(): void {
+		if (this._issueWidget) {
+			this._issueWidget.dispose();
+			this._issueWidget = null;
+		}
+	}
+
+	public dispose() {
+		this.disposeWidget();
 		super.dispose();
 	}
 }
@@ -842,11 +941,11 @@ export class HighlightMatchesRenderer extends Disposable {
 	public render(matches: IRange[]): void {
 		const model = this.editor.getModel();
 		this.editor.changeDecorations(changeAccessor => {
-			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
+			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []) || [];
 		});
 		if (matches.length) {
 			this.editor.changeDecorations(changeAccessor => {
-				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, matches.map(match => this.createDecoration(match, model)));
+				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, matches.map(match => this.createDecoration(match, model))) || [];
 			});
 		}
 	}
@@ -867,7 +966,7 @@ export class HighlightMatchesRenderer extends Disposable {
 		if (this.decorationIds) {
 			this.decorationIds = this.editor.changeDecorations(changeAccessor => {
 				return changeAccessor.deltaDecorations(this.decorationIds, []);
-			});
+			}) || [];
 		}
 		super.dispose();
 	}

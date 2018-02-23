@@ -9,6 +9,7 @@
 	"previewOnGitHub": "GitHub'da Önizle",
 	"similarIssues": "Benzer sorunlar",
 	"noResults": "Sonuç bulunamadı",
+	"rateLimited": "API limiti aşıldı",
 	"stepsToReproduce": "Yeniden oluşturma adımları",
 	"bugDescription": "Bu sorunla nasıl karşılaştınız? Sorunu güvenilir bir şekilde oluşturmak için gerçekleştirmeniz gereken adımlar nelerdir? Ne olmasını bekliyordunuz ve karşılığında ne oldu?",
 	"performanceIssueDesciption": "Bu performans sorunu ne zaman oluştu? Örneğin, başlangıçtan sonra mı yoksa belirli eylemlerden sonra mı oluşuyor? Belirteceğiniz her detay araştırmamıza yardımcı olacaktır.",

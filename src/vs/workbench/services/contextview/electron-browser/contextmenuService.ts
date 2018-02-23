@@ -6,18 +6,18 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import severity from 'vs/base/common/severity';
 import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import dom = require('vs/base/browser/dom');
-import { IContextMenuService, IContextMenuDelegate, ContextSubMenu, IEvent } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 import { remote, webFrame } from 'electron';
 import { unmnemonicLabel } from 'vs/base/common/labels';
 import Event, { Emitter } from 'vs/base/common/event';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IContextMenuDelegate, ContextSubMenu, IEvent } from 'vs/base/browser/contextmenu';
 
 export class ContextMenuService implements IContextMenuService {
 
@@ -25,7 +25,7 @@ export class ContextMenuService implements IContextMenuService {
 	private _onDidContextMenu = new Emitter<void>();
 
 	constructor(
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
@@ -129,6 +129,6 @@ export class ContextMenuService implements IContextMenuService {
 		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : event;
 		const res = actionRunner.run(actionToRun, context) || TPromise.as(null);
 
-		res.done(null, e => this.messageService.show(severity.Error, e));
+		res.done(null, e => this.notificationService.error(e));
 	}
 }

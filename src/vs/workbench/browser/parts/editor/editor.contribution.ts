@@ -41,6 +41,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isMacintosh } from 'vs/base/common/platform';
 import { GroupOnePicker, GroupTwoPicker, GroupThreePicker, AllEditorsPicker } from 'vs/workbench/browser/parts/editor/editorPicker';
+import { Schemas } from 'vs/base/common/network';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -131,7 +132,7 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 		return instantiationService.invokeFunction<UntitledEditorInput>(accessor => {
 			const deserialized: ISerializedUntitledEditorInput = JSON.parse(serializedEditorInput);
 			const resource = !!deserialized.resourceJSON ? URI.revive(deserialized.resourceJSON) : URI.parse(deserialized.resource);
-			const filePath = resource.scheme === 'file' ? resource.fsPath : void 0;
+			const filePath = resource.scheme === Schemas.file ? resource.fsPath : void 0;
 			const language = deserialized.modeId;
 			const encoding = deserialized.encoding;
 
@@ -208,7 +209,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 
 // Register Editor Status
 const statusBar = Registry.as<IStatusbarRegistry>(StatusExtensions.Statusbar);
-statusBar.registerStatusbarItem(new StatusbarItemDescriptor(EditorStatus, StatusbarAlignment.RIGHT, 100 /* High Priority */));
+statusBar.registerStatusbarItem(new StatusbarItemDescriptor(EditorStatus, StatusbarAlignment.RIGHT, 100 /* towards the left of the right hand side */));
 
 // Register Status Actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);

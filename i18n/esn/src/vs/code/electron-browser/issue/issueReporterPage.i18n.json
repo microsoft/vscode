@@ -20,6 +20,7 @@
 	"processes": "Procesos actualmente en ejecución",
 	"workspaceStats": "Estadísticas de mi área de trabajo",
 	"extensions": "Mis extensiones",
+	"tryDisablingExtensions": "El problema es reproducible cuando se deshabilitan las extensiones",
 	"disableExtensions": "Deshabilitar todas las extensiones y volver a cargar la ventana",
 	"showRunningExtensions": "Ver todas las extensiones en ejecución",
 	"githubMarkdown": "Apoyamos Markdown tipo GitHub. Podrá editar su problema y añadir capturas de pantallas para cuando lo previsualicemos en GitHub.",

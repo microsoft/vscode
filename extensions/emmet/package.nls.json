@@ -48,8 +48,8 @@
 	"emmetPreferencesFormatNoIndentTags": "An array of tag names that should not get inner indentation",
 	"emmetPreferencesFormatForceIndentTags": "An array of tag names that should always get inner indentation",
 	"emmetPreferencesAllowCompactBoolean": "If true, compact notation of boolean attributes are produced",
-	"emmetPreferencesCssWebkitProperties": "Comma separated css properties that get webkit vendor prefix when used in emmet abbreviation that starts with `-`. Set to empty string to avoid webkit prefix always.",
-	"emmetPreferencesCssMozProperties": "Comma separated css properties that get moz vendor prefix when used in emmet abbreviation that starts with `-`. Set to empty string to avoid moz prefix always.",
-	"emmetPreferencesCssOProperties": "Comma separated css properties that get o vendor prefix when used in emmet abbreviation that starts with `-`. Set to empty string to avoid o prefix always.",
-	"emmetPreferencesCssMsProperties": "Comma separated css properties that get ms vendor prefix when used in emmet abbreviation that starts with `-`. Set to empty string to avoid ms prefix always."
+	"emmetPreferencesCssWebkitProperties": "Comma separated CSS properties that get the 'webkit' vendor prefix when used in Emmet abbreviation that starts with `-`. Set to empty string to always avoid the 'webkit' prefix.",
+	"emmetPreferencesCssMozProperties": "Comma separated CSS properties that get the 'moz' vendor prefix when used in Emmet abbreviation that starts with `-`. Set to empty string to always avoid the 'moz' prefix.",
+	"emmetPreferencesCssOProperties": "Comma separated CSS properties that get the 'o' vendor prefix when used in Emmet abbreviation that starts with `-`. Set to empty string to always avoid the 'o' prefix.",
+	"emmetPreferencesCssMsProperties": "Comma separated CSS properties that get the 'ms' vendor prefix when used in Emmet abbreviation that starts with `-`. Set to empty string to always avoid the 'ms' prefix."
 }

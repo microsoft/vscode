@@ -50,5 +50,8 @@
 	"moveEditorLeft": "왼쪽으로 편집기 이동",
 	"moveEditorRight": "오른쪽으로 편집기 이동",
 	"moveEditorToPreviousGroup": "편집기를 이전 그룹으로 이동",
-	"moveEditorToNextGroup": "편집기를 다음 그룹으로 이동"
+	"moveEditorToNextGroup": "편집기를 다음 그룹으로 이동",
+	"moveEditorToFirstGroup": "편집기를 첫 번째 그룹으로 이동",
+	"moveEditorToSecondGroup": "편집기를 두 번째 그룹으로 이동",
+	"moveEditorToThirdGroup": "편집기를 세 번째 그룹으로 이동"
 }

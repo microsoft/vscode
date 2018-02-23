@@ -34,19 +34,19 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { listHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 let $ = DOM.$;
 
 export class KeybindingsEditorInput extends EditorInput {
 
-	public static ID: string = 'workbench.input.keybindings';
+	public static readonly ID: string = 'workbench.input.keybindings';
 	public readonly keybindingsModel: KeybindingsEditorModel;
 
 	constructor( @IInstantiationService instantiationService: IInstantiationService) {
@@ -73,7 +73,7 @@ export class KeybindingsEditorInput extends EditorInput {
 
 export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor {
 
-	public static ID: string = 'workbench.editor.keybindings';
+	public static readonly ID: string = 'workbench.editor.keybindings';
 
 	private keybindingsEditorModel: KeybindingsEditorModel;
 
@@ -105,7 +105,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IKeybindingEditingService private keybindingEditingService: IKeybindingEditingService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
@@ -333,7 +333,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.keybindingsListContainer = DOM.append(parent, $('.keybindings-list-container'));
 
 		this.keybindingsList = this._register(this.instantiationService.createInstance(WorkbenchList, this.keybindingsListContainer, new Delegate(), [new KeybindingHeaderRenderer(), new KeybindingItemRenderer(this, this.keybindingsService)],
-			{ identityProvider: e => e.id, mouseSupport: true, ariaLabel: localize('keybindingsLabel', "Keybindings") }));
+			{ identityProvider: e => e.id, mouseSupport: true, ariaLabel: localize('keybindingsLabel', "Keybindings") })) as WorkbenchList<IListEntry>;
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.keybindingsList.onFocusChange(e => this.onFocusChange(e)));
 		this._register(this.keybindingsList.onDidFocus(() => {
@@ -574,7 +574,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	private onKeybindingEditingError(error: any): void {
-		this.messageService.show(Severity.Error, typeof error === 'string' ? error : localize('error', "Error '{0}' while editing keybinding. Please open 'keybindings.json' file and check.", `${error}`));
+		this.notificationService.error(typeof error === 'string' ? error : localize('error', "Error '{0}' while editing the keybinding. Please open 'keybindings.json' file and check for errors.", `${error}`));
 	}
 }
 

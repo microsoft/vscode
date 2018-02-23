@@ -9,7 +9,6 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { IDataSource, ITree, IRenderer } from 'vs/base/parts/tree/browser/tree';
-import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Action } from 'vs/base/common/actions';
 import { IExtensionDependencies, IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { once } from 'vs/base/common/event';
@@ -164,7 +163,7 @@ export class Controller extends WorkbenchTreeController {
 		@IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false }, configurationService);
+		super({}, configurationService);
 
 		// TODO@Sandeep this should be a command
 		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, (tree: ITree, event: any) => this.openExtension(tree, true));

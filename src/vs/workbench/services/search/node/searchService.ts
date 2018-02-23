@@ -22,6 +22,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
+import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class SearchService implements ISearchService {
@@ -158,7 +159,7 @@ export class SearchService implements ISearchService {
 				}
 
 				// Support untitled files
-				if (resource.scheme === 'untitled') {
+				if (resource.scheme === Schemas.untitled) {
 					if (!this.untitledEditorService.exists(resource)) {
 						return;
 					}
@@ -168,7 +169,7 @@ export class SearchService implements ISearchService {
 				// todo@remote
 				// why is that? we should search for resources from other
 				// schemes
-				else if (resource.scheme !== 'file') {
+				else if (resource.scheme !== Schemas.file) {
 					return;
 				}
 
@@ -197,7 +198,7 @@ export class SearchService implements ISearchService {
 	private matches(resource: uri, query: ISearchQuery): boolean {
 		// file pattern
 		if (query.filePattern) {
-			if (resource.scheme !== 'file') {
+			if (resource.scheme !== Schemas.file) {
 				return false; // if we match on file pattern, we have to ignore non file resources
 			}
 
@@ -208,7 +209,7 @@ export class SearchService implements ISearchService {
 
 		// includes
 		if (query.includePattern) {
-			if (resource.scheme !== 'file') {
+			if (resource.scheme !== Schemas.file) {
 				return false; // if we match on file patterns, we have to ignore non file resources
 			}
 		}
@@ -267,7 +268,7 @@ export class DiskSearch implements ISearchResultProvider {
 		this.raw = new SearchChannelClient(channel);
 	}
 
-	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
+	public async search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
 		let request: PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
 
 		let rawSearch: IRawSearch = {
@@ -287,7 +288,7 @@ export class DiskSearch implements ISearchResultProvider {
 
 		if (query.folderQueries) {
 			for (const q of query.folderQueries) {
-				if (q.folder.scheme === Schemas.file) {
+				if (q.folder.scheme === Schemas.file && await pfs.exists(q.folder.fsPath)) {
 					rawSearch.folderQueries.push({
 						excludePattern: q.excludePattern,
 						includePattern: q.includePattern,

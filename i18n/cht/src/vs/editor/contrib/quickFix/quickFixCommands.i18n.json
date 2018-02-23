@@ -8,5 +8,6 @@
 	],
 	"quickFixWithKb": "顯示修正 ({0})",
 	"quickFix": "顯示修正",
-	"quickfix.trigger.label": "Quick Fix"
+	"quickfix.trigger.label": "Quick Fix",
+	"refactor.label": "重構"
 }

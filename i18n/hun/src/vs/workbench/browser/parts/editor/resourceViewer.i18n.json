@@ -11,7 +11,9 @@
 	"sizeMB": "{0} MB",
 	"sizeGB": "{0} GB",
 	"sizeTB": "{0} TB",
+	"largeImageError": "A képfájl mérete túl nagy (>1 MB) a szerkesztőben való megjelenítéshez.",
 	"resourceOpenExternalButton": "Kép megnyitása külső program használatával?",
 	"nativeBinaryError": "A fájl nem jeleníthető meg a szerkesztőben, mert bináris adatokat tartalmaz, túl nagy vagy nem támogatott szövegkódolást használ.",
+	"zoom.action.fit.label": "Teljes kép",
 	"imgMeta": "{0}x{1} {2}"
 }

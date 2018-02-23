@@ -67,10 +67,6 @@ class MockExtensionService implements IExtensionService {
 	public stopExtensionHost(): void {
 		throw new Error('Method not implemented.');
 	}
-
-	public getExtensionHostInformation(): any {
-		throw new Error('Method not implemented.');
-	}
 }
 
 const extensionService = new MockExtensionService();

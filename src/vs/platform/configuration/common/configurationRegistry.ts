@@ -336,7 +336,13 @@ export function validateProperty(property: string): string {
 	return null;
 }
 
-export function getScopes(keys: string[]): ConfigurationScope[] {
+export function getScopes(): { [key: string]: ConfigurationScope } {
+	const scopes = {};
 	const configurationProperties = configurationRegistry.getConfigurationProperties();
-	return keys.map(key => configurationProperties[key].scope);
+	for (const key of Object.keys(configurationProperties)) {
+		scopes[key] = configurationProperties[key].scope;
+	}
+	scopes['launch'] = ConfigurationScope.RESOURCE;
+	scopes['task'] = ConfigurationScope.RESOURCE;
+	return scopes;
 }

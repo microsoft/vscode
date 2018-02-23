@@ -464,7 +464,8 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		let hasAddedParameters = false;
 
 		const snippet = new SnippetString();
-		snippet.appendText(item.label || item.insertText as string);
+		const methodName = detail.displayParts.find(part => part.kind === 'methodName');
+		snippet.appendText((methodName && methodName.text) || item.label || item.insertText as string);
 		snippet.appendText('(');
 
 		let parenCount = 0;

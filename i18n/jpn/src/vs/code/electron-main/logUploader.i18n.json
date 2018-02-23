@@ -14,5 +14,8 @@
 	"logUploadPromptBody": "次の場所でログ ファイルを確認してください: '{0}'",
 	"logUploadPromptBodyDetails": "ログには完全なパスやファイルの内容などの個人情報を含んでいる可能性があります。",
 	"logUploadPromptKey": "ログを確認しました ('y' を入力してアップロードを確認)",
-	"postError": "ログを提出中のエラー: {0}"
+	"postError": "ログを提出中のエラー: {0}",
+	"responseError": "ログの投稿でエラーが発生しました。{0} を取得しました — {1}",
+	"parseError": "レスポンスを解析中にエラー",
+	"zipError": "ログを zip に圧縮中にエラー : {0}"
 }

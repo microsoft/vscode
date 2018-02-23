@@ -21,6 +21,7 @@
 	"workspaceConfig.name.description": "Ein optionaler Name für den Ordner.",
 	"workspaceConfig.uri.description": "URI des Ordners",
 	"workspaceConfig.settings.description": "Arbeitsbereichseinstellungen",
+	"workspaceConfig.launch.description": "Arbeitsbereichs-Startkonfigurationen",
 	"workspaceConfig.extensions.description": "Arbeitsbereichserweiterungen",
 	"unknownWorkspaceProperty": "Unbekannte Arbeitsbereichs-Konfigurationseigenschaft"
 }

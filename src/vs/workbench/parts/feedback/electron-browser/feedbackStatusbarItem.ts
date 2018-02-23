@@ -11,8 +11,8 @@ import { FeedbackDropdown, IFeedback, IFeedbackService, FEEDBACK_VISIBLE_CONFIG 
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import product from 'vs/platform/node/product';
-import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -163,3 +163,10 @@ class HideAction extends Action {
 		return this.configurationService.updateValue(FEEDBACK_VISIBLE_CONFIG, false);
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
+	if (statusBarItemHoverBackground) {
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item .dropdown.send-feedback:hover { background-color: ${statusBarItemHoverBackground}; }`);
+	}
+});

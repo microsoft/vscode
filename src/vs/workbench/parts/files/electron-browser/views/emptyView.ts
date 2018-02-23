@@ -21,10 +21,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class EmptyView extends ViewsViewletPanel {
 
-	public static ID: string = 'workbench.explorer.emptyView';
+	public static readonly ID: string = 'workbench.explorer.emptyView';
 	public static readonly NAME = nls.localize('noWorkspace', "No Folder Opened");
 
 	private button: Button;
@@ -37,9 +38,10 @@ export class EmptyView extends ViewsViewletPanel {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 		this.contextService.onDidChangeWorkbenchState(() => this.setLabels());
 	}
 
@@ -100,7 +102,7 @@ export class EmptyView extends ViewsViewletPanel {
 
 	public focusBody(): void {
 		if (this.button) {
-			this.button.getElement().focus();
+			this.button.element.focus();
 		}
 	}
 

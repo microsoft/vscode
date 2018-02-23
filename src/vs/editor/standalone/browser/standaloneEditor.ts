@@ -36,8 +36,8 @@ import { Token } from 'vs/editor/common/core/token';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { ITextModel, OverviewRulerLane, EndOfLinePreference, DefaultEndOfLine, EndOfLineSequence, TrackedRangeStickiness, TextModelResolvedOptions, FindMatch } from 'vs/editor/common/model';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
 	let services = new DynamicStandaloneServices(domElement, override);
@@ -123,7 +123,7 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			services.get(IEditorWorkerService),
 			services.get(ICodeEditorService),
 			services.get(IStandaloneThemeService),
-			services.get(IMessageService)
+			services.get(INotificationService)
 		);
 	});
 }

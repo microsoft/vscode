@@ -16,9 +16,9 @@ import { compare } from 'vs/base/common/strings';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { basenameOrAuthority, isEqual } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
-import { Severity } from 'vs/platform/message/common/message';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { localize } from 'vs/nls';
+import { Severity } from 'vs/platform/notification/common/notification';
 
 function isFolderEqual(folderA: URI, folderB: URI): boolean {
 	return isEqual(folderA, folderB, !isLinux);
@@ -192,7 +192,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 		// Simulate the updateWorkspaceFolders method on our data to do more validation
 		const newWorkspaceFolders = currentWorkspaceFolders.slice(0);
-		newWorkspaceFolders.splice(index, deleteCount, ...validatedDistinctWorkspaceFoldersToAdd.map(f => ({ uri: f.uri, name: f.name || basenameOrAuthority(f.uri) })));
+		newWorkspaceFolders.splice(index, deleteCount, ...validatedDistinctWorkspaceFoldersToAdd.map(f => ({ uri: f.uri, name: f.name || basenameOrAuthority(f.uri), index: undefined })));
 
 		for (let i = 0; i < newWorkspaceFolders.length; i++) {
 			const folder = newWorkspaceFolders[i];

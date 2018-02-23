@@ -8,5 +8,6 @@
 	],
 	"quickFixWithKb": "Показать исправления ({0})",
 	"quickFix": "Показать исправления",
-	"quickfix.trigger.label": "Быстрое исправление"
+	"quickfix.trigger.label": "Быстрое исправление",
+	"refactor.label": "Рефакторинг"
 }

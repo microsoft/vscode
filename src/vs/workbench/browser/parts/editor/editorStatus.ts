@@ -50,15 +50,17 @@ import { IConfigurationChangedEvent, IEditorOptions } from 'vs/editor/common/con
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { attachStylerCallback, attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { widgetShadow, editorWidgetBackground } from 'vs/platform/theme/common/colorRegistry';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { deepClone } from 'vs/base/common/objects';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Button } from 'vs/base/browser/ui/button/button';
+import { Schemas } from 'vs/base/common/network';
 
 // TODO@Sandeep layer breaker
 // tslint:disable-next-line:import-patterns
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { deepClone } from 'vs/base/common/objects';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
 	if (input instanceof SideBySideEditorInput) {
@@ -814,7 +816,7 @@ export class ChangeModeAction extends Action {
 		const resource = toResource(activeEditor.input, { supportSideBySide: true });
 
 		let hasLanguageSupport = !!resource;
-		if (resource.scheme === 'untitled' && !this.untitledEditorService.hasAssociatedFilePath(resource)) {
+		if (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource)) {
 			hasLanguageSupport = false; // no configuration for untitled resources (e.g. "Untitled-1")
 		}
 
@@ -1275,19 +1277,24 @@ class ScreenReaderDetectedExplanation {
 		const question = $('p.question', {}, nls.localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code?"));
 		domNode.appendChild(question);
 
-		const yesBtn = $('div.button', {}, nls.localize('screenReaderDetectedExplanation.answerYes', "Yes"));
-		this._toDispose.push(addDisposableListener(yesBtn, 'click', () => {
+		const buttonContainer = $('div.buttons');
+		domNode.appendChild(buttonContainer);
+
+		const yesBtn = new Button(buttonContainer);
+		yesBtn.label = nls.localize('screenReaderDetectedExplanation.answerYes', "Yes");
+		this._toDispose.push(attachButtonStyler(yesBtn, this.themeService));
+		this._toDispose.push(yesBtn.onDidClick(e => {
 			this.configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
 			this.contextViewService.hideContextView();
 		}));
-		domNode.appendChild(yesBtn);
 
-		const noBtn = $('div.button', {}, nls.localize('screenReaderDetectedExplanation.answerNo', "No"));
-		this._toDispose.push(addDisposableListener(noBtn, 'click', () => {
+		const noBtn = new Button(buttonContainer);
+		noBtn.label = nls.localize('screenReaderDetectedExplanation.answerNo', "No");
+		this._toDispose.push(attachButtonStyler(noBtn, this.themeService));
+		this._toDispose.push(noBtn.onDidClick(e => {
 			this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
 			this.contextViewService.hideContextView();
 		}));
-		domNode.appendChild(noBtn);
 
 		const clear = $('div');
 		clear.style.clear = 'both';
@@ -1310,7 +1317,7 @@ class ScreenReaderDetectedExplanation {
 		this._toDispose.push(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground }, colors => {
 			domNode.style.backgroundColor = colors.editorWidgetBackground;
 			if (colors.widgetShadow) {
-				domNode.style.boxShadow = `0 2px 8px ${colors.widgetShadow}`;
+				domNode.style.boxShadow = `0 5px 8px ${colors.widgetShadow}`;
 			}
 		}));
 

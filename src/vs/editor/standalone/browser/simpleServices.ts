@@ -17,7 +17,6 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfirmation, IMessageService, IConfirmationResult } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -39,6 +38,8 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { OS } from 'vs/base/common/platform';
 import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
+import { INotificationService, INotification, INotificationHandle, NoOpNotification } from 'vs/platform/notification/common/notification';
+import { IConfirmation, IConfirmationResult, IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
 
 export class SimpleEditor implements IEditor {
 
@@ -234,32 +235,9 @@ export class SimpleProgressService implements IProgressService {
 	}
 }
 
-export class SimpleMessageService implements IMessageService {
+export class SimpleConfirmationService implements IConfirmationService {
 
 	public _serviceBrand: any;
-
-	private static readonly Empty = function () { /* nothing */ };
-
-	public show(sev: Severity, message: any): () => void {
-
-		switch (sev) {
-			case Severity.Error:
-				console.error(message);
-				break;
-			case Severity.Warning:
-				console.warn(message);
-				break;
-			default:
-				console.log(message);
-				break;
-		}
-
-		return SimpleMessageService.Empty;
-	}
-
-	public hideAll(): void {
-		// No-op
-	}
 
 	public confirm(confirmation: IConfirmation): TPromise<boolean> {
 		let messageText = confirmation.message;
@@ -277,6 +255,41 @@ export class SimpleMessageService implements IMessageService {
 				checkboxChecked: false // unsupported
 			} as IConfirmationResult;
 		});
+	}
+}
+
+export class SimpleNotificationService implements INotificationService {
+
+	public _serviceBrand: any;
+
+	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
+
+	public info(message: string): INotificationHandle {
+		return this.notify({ severity: Severity.Info, message });
+	}
+
+	public warn(message: string): INotificationHandle {
+		return this.notify({ severity: Severity.Warning, message });
+	}
+
+	public error(error: string | Error): INotificationHandle {
+		return this.notify({ severity: Severity.Error, message: error });
+	}
+
+	public notify(notification: INotification): INotificationHandle {
+		switch (notification.severity) {
+			case Severity.Error:
+				console.error(notification.message);
+				break;
+			case Severity.Warning:
+				console.warn(notification.message);
+				break;
+			default:
+				console.log(notification.message);
+				break;
+		}
+
+		return SimpleNotificationService.NO_OP;
 	}
 }
 
@@ -328,10 +341,10 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		contextKeyService: IContextKeyService,
 		commandService: ICommandService,
 		telemetryService: ITelemetryService,
-		messageService: IMessageService,
+		notificationService: INotificationService,
 		domNode: HTMLElement
 	) {
-		super(contextKeyService, commandService, telemetryService, messageService);
+		super(contextKeyService, commandService, telemetryService, notificationService);
 
 		this._cachedResolver = null;
 		this._dynamicKeybindings = [];

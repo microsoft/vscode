@@ -47,6 +47,7 @@ import './mainThreadTelemetry';
 import './mainThreadTerminalService';
 import './mainThreadTreeViews';
 import './mainThreadLogService';
+import './mainThreadWebview';
 import './mainThreadWindow';
 import './mainThreadWorkspace';
 

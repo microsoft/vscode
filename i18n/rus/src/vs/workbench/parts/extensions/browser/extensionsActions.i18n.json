@@ -52,6 +52,8 @@
 	"configureWorkspaceRecommendedExtensions": "Настроить рекомендуемые расширения (рабочая область)",
 	"configureWorkspaceFolderRecommendedExtensions": "Настроить рекомендуемые расширения (папка рабочей области)",
 	"builtin": "Встроенное",
+	"malicious tooltip": "Это расширение помечено как проблемное.",
+	"malicious": "Вредоносный",
 	"disableAll": "Отключить все установленные расширения",
 	"disableAllWorkspace": "Отключить все установленные расширения для этой рабочей области",
 	"enableAll": "Включить все установленные расширения",

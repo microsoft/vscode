@@ -21,7 +21,6 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -38,6 +37,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
 import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Dimension } from 'vs/base/browser/builder';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -59,8 +59,6 @@ export interface ITitleAreaControl {
 }
 
 export abstract class TitleControl extends Themable implements ITitleAreaControl {
-
-	private static draggedEditor: IEditorIdentifier;
 
 	protected stacks: IEditorStacksModel;
 	protected context: IEditorGroup;
@@ -93,7 +91,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		@IContextKeyService protected contextKeyService: IContextKeyService,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
-		@IMessageService protected messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IMenuService protected menuService: IMenuService,
 		@IQuickOpenService protected quickOpenService: IQuickOpenService,
 		@IThemeService protected themeService: IThemeService
@@ -115,20 +113,8 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		this.registerListeners();
 	}
 
-	public static getDraggedEditor(): IEditorIdentifier {
-		return TitleControl.draggedEditor;
-	}
-
 	public setDragged(dragged: boolean): void {
 		this.dragged = dragged;
-	}
-
-	protected onEditorDragStart(editor: IEditorIdentifier): void {
-		TitleControl.draggedEditor = editor;
-	}
-
-	protected onEditorDragEnd(): void {
-		TitleControl.draggedEditor = void 0;
 	}
 
 	private registerListeners(): void {
@@ -238,7 +224,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 
 			// Check for Error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
-				this.messageService.show(Severity.Error, e.error);
+				this.notificationService.error(e.error);
 			}
 
 			// Log in telemetry
@@ -272,7 +258,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 
 		// Check extensions
 		if (!actionItem) {
-			actionItem = createActionItem(action, this.keybindingService, this.messageService, this.contextMenuService);
+			actionItem = createActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 		}
 
 		return actionItem;

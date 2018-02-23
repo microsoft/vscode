@@ -9,7 +9,6 @@
 	height: 22px;
 	font-size: 12px;
 	padding: 0 10px;
-	overflow: hidden;
 }
 
 .monaco-workbench > .part.statusbar > .statusbar-item {
@@ -17,6 +16,21 @@
 	line-height: 22px;
 	height: 100%;
 	vertical-align: top;
+}
+
+.monaco-workbench > .part.statusbar > .statusbar-item.has-beak {
+	position: relative;
+}
+
+.monaco-workbench > .part.statusbar > .statusbar-item.has-beak:before {
+	content: '';
+	position: absolute;
+	left: 11px;
+	top: -5px;
+	border-bottom-width: 5px;
+	border-bottom-style: solid;
+	border-left: 5px solid transparent;
+	border-right: 5px solid transparent;
 }
 
 .monaco-workbench > .part.statusbar > .statusbar-item.left > :first-child {

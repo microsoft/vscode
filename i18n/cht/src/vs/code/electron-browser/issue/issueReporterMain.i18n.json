@@ -9,6 +9,10 @@
 	"previewOnGitHub": "在 GitHub 預覽",
 	"similarIssues": "相似的問題",
 	"noResults": "找不到結果",
+	"rateLimited": "已超過 API 率限制",
 	"stepsToReproduce": "重現的步驟",
-	"description": "描述"
+	"bugDescription": "您是如何碰到此問題的? 您需要執行哪些步驟確實重現該問題? 您預期發生與實際發生的情形為何?",
+	"performanceIssueDesciption": "此效能問題何時發生? 舉例來說，該問題是否於啟動時或在特定一系列動作後發生? 您所能提供的任何詳細資料皆可協助我們調查。",
+	"description": "描述",
+	"disabledExtensions": "延伸模組已停用"
 }

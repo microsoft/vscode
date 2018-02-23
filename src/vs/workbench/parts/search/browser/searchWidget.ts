@@ -32,6 +32,7 @@ import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findMode
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ISearchConfigurationProperties } from '../../../../platform/search/common/search';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -44,7 +45,7 @@ export interface ISearchWidgetOptions {
 class ReplaceAllAction extends Action {
 
 	private static fgInstance: ReplaceAllAction = null;
-	public static ID: string = 'search.action.replaceAll';
+	public static readonly ID: string = 'search.action.replaceAll';
 
 	static get INSTANCE(): ReplaceAllAction {
 		if (ReplaceAllAction.fgInstance === null) {
@@ -224,7 +225,7 @@ export class SearchWidget extends Widget {
 		this.toggleReplaceButton.icon = 'toggle-replace-button collapse';
 		// TODO@joh need to dispose this listener eventually
 		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
-		this.toggleReplaceButton.getElement().title = nls.localize('search.replace.toggle.button.title', "Toggle Replace");
+		this.toggleReplaceButton.element.title = nls.localize('search.replace.toggle.button.title', "Toggle Replace");
 	}
 
 	private renderSearchInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
@@ -300,8 +301,8 @@ export class SearchWidget extends Widget {
 
 	private onToggleReplaceButton(): void {
 		dom.toggleClass(this.replaceContainer, 'disabled');
-		dom.toggleClass(this.toggleReplaceButton.getElement(), 'collapse');
-		dom.toggleClass(this.toggleReplaceButton.getElement(), 'expand');
+		dom.toggleClass(this.toggleReplaceButton.element, 'collapse');
+		dom.toggleClass(this.toggleReplaceButton.element, 'expand');
 		this.updateReplaceActiveState();
 		this._onReplaceToggled.fire();
 	}
@@ -405,7 +406,7 @@ export function registerContributions() {
 		when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.ReplaceActiveKey, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
 		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.Enter,
 		handler: accessor => {
-			if (isSearchViewletFocused(accessor.get(IViewletService))) {
+			if (isSearchViewletFocused(accessor.get(IViewletService), accessor.get(IPanelService))) {
 				ReplaceAllAction.INSTANCE.run();
 			}
 		}

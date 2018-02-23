@@ -11,6 +11,7 @@ import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorksp
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 export class WindowService implements IWindowService {
 
@@ -60,8 +61,8 @@ export class WindowService implements IWindowService {
 		return this.windowsService.pickWorkspaceAndOpen(options);
 	}
 
-	reloadWindow(): TPromise<void> {
-		return this.windowsService.reloadWindow(this.windowId);
+	reloadWindow(args?: ParsedArgs): TPromise<void> {
+		return this.windowsService.reloadWindow(this.windowId, args);
 	}
 
 	openDevTools(): TPromise<void> {

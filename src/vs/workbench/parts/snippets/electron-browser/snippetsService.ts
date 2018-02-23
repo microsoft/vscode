@@ -235,11 +235,13 @@ class SnippetsService implements ISnippetsService {
 						this._files.delete(filepath);
 					}
 				});
-			});
+			}, (error: string) => this._logService.error(error));
 			this._disposables.push({
 				dispose: () => {
-					watcher.removeAllListeners();
-					watcher.close();
+					if (watcher) {
+						watcher.removeAllListeners();
+						watcher.close();
+					}
 				}
 			});
 
@@ -296,8 +298,8 @@ export class SnippetSuggestion implements ISuggestion {
 export class SnippetSuggestProvider implements ISuggestSupport {
 
 	constructor(
-		@IModeService private _modeService: IModeService,
-		@ISnippetsService private _snippets: ISnippetsService
+		@IModeService private readonly _modeService: IModeService,
+		@ISnippetsService private readonly _snippets: ISnippetsService
 	) {
 		//
 	}

@@ -19,5 +19,6 @@
 	"suggestProxyError": "A Loja retornou 'ECONNREFUSED'. Por favor, verifique a configuração de 'http.proxy'.",
 	"extensions": "Extensões",
 	"outdatedExtensions": "{0} Extensões Desatualizadas",
+	"malicious warning": "Nós desinstalamos '{0}' qual foi reportado ser problemático.",
 	"reloadNow": "Recarregar Agora"
 }
