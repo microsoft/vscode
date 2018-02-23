@@ -141,8 +141,7 @@ export class NotificationsCenter extends Themable {
 
 		// Notifications List
 		this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {
-			ariaLabel: localize('notificationsList', "Notifications List"),
-			useShadows: false
+			ariaLabel: localize('notificationsList', "Notifications List")
 		});
 
 		this.container.appendChild(this.notificationsCenterContainer);

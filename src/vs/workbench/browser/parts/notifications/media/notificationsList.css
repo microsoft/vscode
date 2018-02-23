@@ -16,12 +16,10 @@
 
 .monaco-workbench .notifications-list-container .notification-offset-helper {
 	opacity: 0;
-	margin-top: 10px;
-	margin-bottom: 10px;
-	margin-left: 35px; /* 5px padding and 30px severity icon */
-	margin-right: 77px; /* 5px padding and (3 * 24px) toolbar */
 	position: absolute;
 	line-height: 22px;
+	height: calc(100% - 20px); /* 10px top and bottom */
+	word-wrap: break-word; /* never overflow long words, but break to next line */
 }
 
 /** Notification: Main Row */
@@ -85,6 +83,7 @@
 
 .monaco-workbench .notifications-list-container .notification-list-item.expanded .notification-list-item-message {
 	white-space: normal;
+	word-wrap: break-word; /* never overflow long words, but break to next line */
 }
 
 /** Notification: Toolbar Container */
