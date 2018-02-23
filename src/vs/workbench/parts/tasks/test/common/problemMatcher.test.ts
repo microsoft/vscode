@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as matchers from 'vs/platform/markers/common/problemMatcher';
+import * as matchers from 'vs/workbench/parts/tasks/common/problemMatcher';
 
 import assert = require('assert');
 import { ValidationState, IProblemReporter, ValidationStatus } from 'vs/base/common/parsers';

@@ -16,7 +16,7 @@ import 'vs/workbench/services/configuration/common/configurationExtensionPoint';
 import 'vs/editor/editor.all';
 
 // Menus/Actions
-import 'vs/platform/actions/electron-browser/menusExtensionPoint';
+import 'vs/workbench/services/actions/electron-browser/menusExtensionPoint';
 
 // Views
 import 'vs/workbench/api/browser/viewsExtensionPoint';

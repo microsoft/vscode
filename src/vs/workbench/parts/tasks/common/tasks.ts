@@ -10,7 +10,7 @@ import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import * as Objects from 'vs/base/common/objects';
 
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
+import { ProblemMatcher } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export interface ShellConfiguration {
