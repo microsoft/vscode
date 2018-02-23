@@ -93,11 +93,16 @@ export class Model {
 	private async scanWorkspaceFolders(): Promise<void> {
 		for (const folder of workspace.workspaceFolders || []) {
 			const root = folder.uri.fsPath;
-			const children = await new Promise<string[]>((c, e) => fs.readdir(root, (err, r) => err ? e(err) : c(r)));
 
-			children
-				.filter(child => child !== '.git')
-				.forEach(child => this.tryOpenRepository(path.join(root, child)));
+			try {
+				const children = await new Promise<string[]>((c, e) => fs.readdir(root, (err, r) => err ? e(err) : c(r)));
+
+				children
+					.filter(child => child !== '.git')
+					.forEach(child => this.tryOpenRepository(path.join(root, child)));
+			} catch (err) {
+				// noop
+			}
 		}
 	}
 
