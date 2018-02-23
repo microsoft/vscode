@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/notificationsCenter';
 import 'vs/css!./media/notificationsActions';
-import { Themable, NOTIFICATIONS_BORDER, NOTIFICATIONS_CENTER_HEADER_FOREGROUND, NOTIFICATIONS_CENTER_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
+import { Themable, NOTIFICATIONS_BORDER, NOTIFICATIONS_CENTER_HEADER_FOREGROUND, NOTIFICATIONS_CENTER_HEADER_BACKGROUND, NOTIFICATIONS_CENTER_BORDER } from 'vs/workbench/common/theme';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType } from 'vs/workbench/common/notifications';
 import { Dimension } from 'vs/base/browser/builder';
@@ -220,6 +220,9 @@ export class NotificationsCenter extends Themable {
 		if (this.notificationsCenterContainer) {
 			const widgetShadowColor = this.getColor(widgetShadow);
 			this.notificationsCenterContainer.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : null;
+
+			const borderColor = this.getColor(NOTIFICATIONS_CENTER_BORDER);
+			this.notificationsCenterContainer.style.border = borderColor ? `1px solid ${borderColor}` : null;
 
 			const headerForeground = this.getColor(NOTIFICATIONS_CENTER_HEADER_FOREGROUND);
 			this.notificationsCenterHeader.style.color = headerForeground ? headerForeground.toString() : null;

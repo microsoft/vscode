@@ -78,6 +78,11 @@
 	flex: 1; /* let the message always grow */
 }
 
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a:focus {
+	outline-width: 1px;
+	outline-style: solid;
+}
+
 .monaco-workbench .notifications-list-container .notification-list-item.expanded .notification-list-item-message {
 	white-space: normal;
 }

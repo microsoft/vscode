@@ -14,7 +14,7 @@ import { NotificationsList } from 'vs/workbench/browser/parts/notifications/noti
 import { Dimension } from 'vs/base/browser/builder';
 import { once } from 'vs/base/common/event';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import { Themable } from 'vs/workbench/common/theme';
+import { Themable, NOTIFICATIONS_TOAST_BORDER } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -324,6 +324,9 @@ export class NotificationsToasts extends Themable {
 		this.mapNotificationToToast.forEach(t => {
 			const widgetShadowColor = this.getColor(widgetShadow);
 			t.toast.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : null;
+
+			const borderColor = this.getColor(NOTIFICATIONS_TOAST_BORDER);
+			t.toast.style.border = borderColor ? `1px solid ${borderColor}` : null;
 		});
 	}
 

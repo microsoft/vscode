@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { Themable, NOTIFICATIONS_LINKS, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
 import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
@@ -223,5 +223,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const linkColor = theme.getColor(NOTIFICATIONS_LINKS);
 	if (linkColor) {
 		collector.addRule(`.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a { color: ${linkColor}; }`);
+	}
+
+	const focusOutline = theme.getColor(focusBorder);
+	if (focusOutline) {
+		collector.addRule(`
+		.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a:focus {
+			outline-color: ${focusOutline};
+		}`);
 	}
 });
