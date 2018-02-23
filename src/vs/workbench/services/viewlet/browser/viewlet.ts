@@ -18,7 +18,7 @@ export interface IViewletService {
 
 	onDidViewletOpen: Event<IViewlet>;
 	onDidViewletClose: Event<IViewlet>;
-	onDidViewletEnable: Event<{ id: string, enabled: boolean }>;
+	onDidViewletEnablementChange: Event<{ id: string, enabled: boolean }>;
 
 	/**
 	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.
@@ -49,7 +49,7 @@ export interface IViewletService {
 	 * Enables or disables a viewlet. Disabled viewlets are completly hidden from UI.
 	 * By default all viewlets are enabled.
 	 */
-	enableViewlet(id: string, enabled: boolean): void;
+	setViewletEnablement(id: string, enabled: boolean): void;
 
 	/**
 	 *

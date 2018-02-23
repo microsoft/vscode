@@ -35,7 +35,7 @@ export class ViewletService implements IViewletService {
 
 	public get onDidViewletOpen(): Event<IViewlet> { return this.sidebarPart.onDidViewletOpen; }
 	public get onDidViewletClose(): Event<IViewlet> { return this.sidebarPart.onDidViewletClose; }
-	public get onDidViewletEnable(): Event<{ id: string, enabled: boolean }> { return this._onDidViewletEnable.event; }
+	public get onDidViewletEnablementChange(): Event<{ id: string, enabled: boolean }> { return this._onDidViewletEnable.event; }
 
 	constructor(
 		sidebarPart: SidebarPart,
@@ -84,7 +84,7 @@ export class ViewletService implements IViewletService {
 		});
 	}
 
-	public enableViewlet(id: string, enabled: boolean): void {
+	public setViewletEnablement(id: string, enabled: boolean): void {
 		const descriptor = this.getBuiltInViewlets().filter(desc => desc.id === id).pop();
 		if (descriptor && descriptor.enabled !== enabled) {
 			descriptor.enabled = enabled;

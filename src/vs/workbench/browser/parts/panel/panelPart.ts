@@ -175,7 +175,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			.sort((v1, v2) => v1.order - v2.order);
 	}
 
-	public enablePanel(id: string, enabled: boolean): void {
+	public setPanelEnablement(id: string, enabled: boolean): void {
 		const descriptor = Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels().filter(p => p.id === id).pop();
 		if (descriptor && descriptor.enabled !== enabled) {
 			descriptor.enabled = enabled;

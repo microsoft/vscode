@@ -109,12 +109,12 @@ export class ReplaceService implements IReplaceService {
 		const updateSearchViewLocation = () => {
 			const config = configurationService.getValue<ISearchConfiguration>();
 			if (config.search.location === 'panel') {
-				viewletService.enableViewlet(VIEW_ID, false);
-				panelService.enablePanel(VIEW_ID, true);
+				viewletService.setViewletEnablement(VIEW_ID, false);
+				panelService.setPanelEnablement(VIEW_ID, true);
 			}
 			if (config.search.location === 'sidebar') {
-				panelService.enablePanel(VIEW_ID, false);
-				viewletService.enableViewlet(VIEW_ID, true);
+				panelService.setPanelEnablement(VIEW_ID, false);
+				viewletService.setViewletEnablement(VIEW_ID, true);
 			}
 		};
 		configurationService.onDidChangeConfiguration(e => {

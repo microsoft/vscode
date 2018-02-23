@@ -28,7 +28,7 @@ class TestViewletService implements IViewletService {
 
 	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
-	onDidViewletEnable = this.onDidViewletEnableEmitter.event;
+	onDidViewletEnablementChange = this.onDidViewletEnableEmitter.event;
 
 	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
 		return TPromise.as(null);
@@ -41,7 +41,7 @@ class TestViewletService implements IViewletService {
 	public getActiveViewlet(): IViewlet {
 		return activeViewlet;
 	}
-	public enableViewlet(id: string, enabled: boolean): void { }
+	public setViewletEnablement(id: string, enabled: boolean): void { }
 
 	public dispose() {
 	}
@@ -77,7 +77,7 @@ class TestPanelService implements IPanelService {
 		return activeViewlet;
 	}
 
-	public enablePanel(id: string, enabled: boolean): void { }
+	public setPanelEnablement(id: string, enabled: boolean): void { }
 
 	public dispose() {
 	}
