@@ -18,6 +18,11 @@ interface ExpandAbbreviationInput {
 	filter?: string;
 }
 
+interface RangeAndContent {
+	range: vscode.Range;
+	content: string;
+}
+
 export function wrapWithAbbreviation(args: any) {
 	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
@@ -31,42 +36,155 @@ export function wrapWithAbbreviation(args: any) {
 		return;
 	}
 
-	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation' });
-	const helper = getEmmetHelper();
+	let previewMade = false;
 
-	return abbreviationPromise.then(inputAbbreviation => {
-		if (!inputAbbreviation || !inputAbbreviation.trim() || !helper.isAbbreviationValid(syntax, inputAbbreviation)) { return false; }
+	// Fetch general information for the succesive expansions. i.e. the ranges to replace and its contents
+	let expandAbbrList: ExpandAbbreviationInput[] = [];
+	let rangesToReplace: RangeAndContent[] = [];
+	let rangesObtained: vscode.Range[] = [];
 
-		let extractedResults = helper.extractAbbreviationFromText(inputAbbreviation);
-		if (!extractedResults) {
-			return false;
-		}
-		let { abbreviation, filter } = extractedResults;
-
-		let expandAbbrList: ExpandAbbreviationInput[] = [];
-
-		editor.selections.forEach(selection => {
-			let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
-			if (rangeToReplace.isEmpty) {
-				let { active } = selection;
-				let currentNode = getNode(rootNode, active, true);
-				if (currentNode && (currentNode.start.line === active.line || currentNode.end.line === active.line)) {
-					rangeToReplace = new vscode.Range(currentNode.start, currentNode.end);
-				} else {
-					rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.start.line, editor.document.lineAt(rangeToReplace.start.line).text.length);
-				}
+	editor.selections.forEach(selection => {
+		let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
+		if (rangeToReplace.isEmpty) {
+			let { active } = selection;
+			let currentNode = getNode(rootNode, active, true);
+			if (currentNode && (currentNode.start.line === active.line || currentNode.end.line === active.line)) {
+				rangeToReplace = new vscode.Range(currentNode.start, currentNode.end);
+			} else {
+				rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.start.line, editor.document.lineAt(rangeToReplace.start.line).text.length);
 			}
-
+		}
+		// If we are wrapping multiline text, remove the preceeding whitespace on the first line.
+		if (!rangeToReplace.isSingleLine) {
 			const firstLineOfSelection = editor.document.lineAt(rangeToReplace.start).text.substr(rangeToReplace.start.character);
 			const matches = firstLineOfSelection.match(/^(\s*)/);
 			const preceedingWhiteSpace = matches ? matches[1].length : 0;
 
 			rangeToReplace = new vscode.Range(rangeToReplace.start.line, rangeToReplace.start.character + preceedingWhiteSpace, rangeToReplace.end.line, rangeToReplace.end.character);
-			expandAbbrList.push({ syntax, abbreviation, rangeToReplace, textToWrap: ['\n\t$TM_SELECTED_TEXT\n'], filter });
+		}
+		let textToReplace = editor.document.getText(rangeToReplace);
+		rangesToReplace.push({ range: rangeToReplace, content: textToReplace });
+	});
+
+	let abbreviationPromise;
+	let currentValue = '';
+
+	function validateInput(value: string): string {
+		if (value !== currentValue && editor.selections.length === 1) {
+			currentValue = value;
+			makeChanges(value, previewMade, false).then(() => {
+				previewMade = true;
+			});
+		}
+		return '';
+	}
+
+	abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation', validateInput });
+	const helper = getEmmetHelper();
+
+	function makeChanges(inputAbbreviation: string | undefined, previewMade?: boolean, definitive?: boolean): Thenable<any> {
+		if (!inputAbbreviation || !inputAbbreviation.trim() || !helper.isAbbreviationValid(syntax, inputAbbreviation)) {
+			let returnPromise: Thenable<any> = Promise.resolve();
+			if (previewMade) {
+				returnPromise = revertPreview(editor, rangesToReplace, rangesObtained);
+			}
+			return returnPromise;
+		}
+
+		let extractedResults = helper.extractAbbreviationFromText(inputAbbreviation);
+		if (!extractedResults) {
+			return Promise.resolve();
+		}
+		let { abbreviation, filter } = extractedResults;
+
+		expandAbbrList = [];
+		rangesToReplace.forEach(rangeAndContent => {
+			let rangeToReplace = rangeAndContent.range;
+			if (definitive) {
+				expandAbbrList.push({ syntax: syntax || '', abbreviation, rangeToReplace, textToWrap: ['\n\t$TM_SELECTED_TEXT\n'], filter });
+			} else {
+				expandAbbrList.push({ syntax: syntax || '', abbreviation, rangeToReplace, textToWrap: ['\n\t' + rangeAndContent.content.replace(/\n/g, '\n\t') + '\n'], filter });
+			}
 		});
 
-		return expandAbbreviationInRange(editor, expandAbbrList, true);
+		// we need to apply the previewchanges and get the new ranges
+		let revertPromise: Thenable<any> = Promise.resolve();
+		if (previewMade) {
+			revertPromise = revertPreview(editor, rangesToReplace, rangesObtained);
+		}
+		return revertPromise.then(() => {
+			if (definitive) {
+				return expandAbbreviationInRange(editor, expandAbbrList, true, previewMade).then(() => { return Promise.resolve(); });
+			} else {
+				return applyPreview(editor, expandAbbrList, rangesToReplace).then(range => {
+					rangesObtained = range;
+					previewMade = true;
+				});
+			}
+		});
+
+	}
+
+	// On inputBox closing
+	return abbreviationPromise.then(inputAbbreviation => {
+		if (typeof inputAbbreviation === 'string') {
+			// If succeeded (user pressed enter), remove the previews and add the final snippet
+			makeChanges(inputAbbreviation, previewMade, true);
+		} else {
+			// If not (user pressed esc or changed focus), remove the previews.
+			Promise.resolve().then(() => {
+				let revertPromise: Thenable<any> = Promise.resolve();
+				if (previewMade) {
+					revertPromise = revertPreview(editor, rangesToReplace, rangesObtained);
+				}
+				return revertPromise;
+			});
+		}
 	});
+}
+
+function revertPreview(editor: vscode.TextEditor, rangesToReplace: RangeAndContent[], rangesObtained: vscode.Range[]): Thenable<any> {
+	return editor.edit(builder => {
+		for (let i = 0; i < rangesObtained.length; i++) {
+			builder.replace(rangesObtained[i], rangesToReplace[i].content);
+		}
+	}, { undoStopBefore: false, undoStopAfter: false });
+}
+
+function applyPreview(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], rangesToReplace: RangeAndContent[]): Thenable<vscode.Range[]> {
+	const anyExpandAbbrInput = expandAbbrList[0];
+	let expandedText = expandAbbr(anyExpandAbbrInput);
+	let rangesObtained: vscode.Range[] = [];
+	let linesInserted = 0;
+
+	if (expandedText) {
+		return editor.edit(builder => {
+			for (let i = 0; i < rangesToReplace.length; i++) {
+				let thisRange = rangesToReplace[i].range;
+				let indentPrefix = '';
+				let preceedingText = editor.document.getText(new vscode.Range(new vscode.Position(thisRange.start.line, 0), thisRange.start));
+				// If there is only whitespace before the text to wrap, take that as prefix. If not, take as much whitespace as there is before text appears.
+				if (!preceedingText.match(/[^\s]/)) {
+					indentPrefix = preceedingText;
+				} else {
+					indentPrefix = (preceedingText.match(/(^[\s]*)/) || ['', ''])[1];
+				}
+
+				expandedText = expandedText || '';
+				let newText = expandedText.replace('$TM_SELECTED_TEXT', rangesToReplace[i].content);
+				// TODO: replace tabstops with '|' 
+				newText = newText.replace(/\n/g, '\n' + indentPrefix);
+				let newTextLines = (newText.match(/\n/g) || []).length;
+				let rangeToReplace = new vscode.Range(new vscode.Position(thisRange.start.line + linesInserted, thisRange.start.character), new vscode.Position(thisRange.end.line + linesInserted, thisRange.end.character));
+
+				builder.replace(rangeToReplace, newText);
+				rangesObtained.push(new vscode.Range(rangeToReplace.start, new vscode.Position(rangeToReplace.start.line + newTextLines, 100)));	// TODO: fix 100! Count characters in the resulting text?
+			}
+		}, { undoStopBefore: false, undoStopAfter: false }).then(() => {
+			return rangesObtained;
+		});
+	}
+	return Promise.resolve([]);
 }
 
 export function wrapIndividualLinesWithAbbreviation(args: any) {
@@ -374,7 +492,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
  * @param insertSameSnippet
  * @returns false if no snippet can be inserted.
  */
-function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], insertSameSnippet: boolean): Thenable<boolean> {
+function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], insertSameSnippet: boolean, undoFirst?): Thenable<boolean> {
 	if (!expandAbbrList || expandAbbrList.length === 0) {
 		return Promise.resolve(false);
 	}
@@ -405,7 +523,22 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 		return new vscode.Range(value.rangeToReplace.start.line, value.rangeToReplace.start.character, value.rangeToReplace.end.line, value.rangeToReplace.end.character);
 	});
 	if (expandedText) {
-		return editor.insertSnippet(new vscode.SnippetString(expandedText), allRanges);
+		let returnPromise;
+		if (undoFirst) {
+			returnPromise = editor.insertSnippet(new vscode.SnippetString(''), new vscode.Position(0, 0))
+				.then(() => {
+					return vscode.commands.executeCommand('undo');
+				})
+				.then(() => {
+					return vscode.commands.executeCommand('undo');
+				})
+				.then(() => {
+					return editor.insertSnippet(new vscode.SnippetString(expandedText), allRanges);
+				});
+		} else {
+			returnPromise = editor.insertSnippet(new vscode.SnippetString(expandedText), allRanges);
+		}
+		return returnPromise;
 	}
 	return Promise.resolve(false);
 }
