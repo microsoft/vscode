@@ -107,9 +107,14 @@ export class NotificationsList extends Themable {
 	public updateNotificationsList(start: number, deleteCount: number, items: INotificationViewItem[] = []) {
 		const listHasDOMFocus = isAncestor(document.activeElement, this.listContainer);
 
-		// Remember focus
+		// Remember focus and relative top of that item
 		const focusedIndex = this.list.getFocus()[0];
 		const focusedItem = this.viewModel[focusedIndex];
+
+		let focusRelativeTop: number;
+		if (typeof focusedIndex === 'number') {
+			focusRelativeTop = this.list.getRelativeTop(focusedIndex);
+		}
 
 		// Update view model
 		this.viewModel.splice(start, deleteCount, ...items);
@@ -138,6 +143,10 @@ export class NotificationsList extends Themable {
 			}
 
 			this.list.setFocus([indexToFocus]);
+
+			if (typeof focusRelativeTop === 'number') {
+				this.list.reveal(indexToFocus, focusRelativeTop);
+			}
 		}
 
 		// Restore DOM focus if we had focus before
