@@ -1743,9 +1743,9 @@ vinyl@~2.0.1:
     remove-trailing-separator "^1.0.1"
     replace-ext "^1.0.0"
 
-vscode-extension-telemetry@^0.0.13:
-  version "0.0.13"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.13.tgz#8a4438cbb0a9f9f8ad65479e4ec08683aa4de0f7"
+vscode-extension-telemetry@^0.0.14:
+  version "0.0.14"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.14.tgz#17454705b6bb8757351b955d812923f02ee895bf"
   dependencies:
     applicationinsights "1.0.1"
 
