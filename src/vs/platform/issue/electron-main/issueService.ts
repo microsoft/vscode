@@ -23,7 +23,7 @@ export class IssueService implements IIssueService {
 	_serviceBrand: any;
 	_issueWindow: BrowserWindow;
 	_issueParentWindow: BrowserWindow;
-	_taskManagerWindow: BrowserWindow;
+	_processExplorerWindow: BrowserWindow;
 
 	constructor(
 		private machineId: string,
@@ -74,11 +74,11 @@ export class IssueService implements IIssueService {
 		return TPromise.as(null);
 	}
 
-	openTaskManager(): TPromise<void> {
+	openProcessExplorer(): TPromise<void> {
 		// Create as singleton
-		if (!this._taskManagerWindow) {
+		if (!this._processExplorerWindow) {
 			const position = this.getWindowPosition(BrowserWindow.getFocusedWindow(), 800, 400);
-			this._taskManagerWindow = new BrowserWindow({
+			this._processExplorerWindow = new BrowserWindow({
 				alwaysOnTop: true,
 				skipTaskbar: true,
 				resizable: true,
@@ -87,15 +87,15 @@ export class IssueService implements IIssueService {
 				x: position.x,
 				y: position.y,
 				backgroundColor: isMacintosh ? '#171717' : '#1E1E1E',
-				title: localize('taskManager', "Task Manager")
+				title: localize('processExplorer', "Process Explorer")
 			});
 
-			this._taskManagerWindow.setMenuBarVisibility(false);
+			this._processExplorerWindow.setMenuBarVisibility(false);
 
 			const windowConfiguration = {
 				appRoot: this.environmentService.appRoot,
 				nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
-				windowId: this._taskManagerWindow.id,
+				windowId: this._processExplorerWindow.id,
 				machineId: this.machineId
 			};
 
@@ -107,13 +107,13 @@ export class IssueService implements IIssueService {
 				}
 			}
 
-			this._taskManagerWindow.loadURL(`${require.toUrl('vs/code/electron-browser/taskManager/taskManager.html')}?config=${encodeURIComponent(JSON.stringify(config))}`);
+			this._processExplorerWindow.loadURL(`${require.toUrl('vs/code/electron-browser/processExplorer/processExplorer.html')}?config=${encodeURIComponent(JSON.stringify(config))}`);
 
-			this._taskManagerWindow.on('close', () => this._taskManagerWindow = void 0);
+			this._processExplorerWindow.on('close', () => this._processExplorerWindow = void 0);
 		}
 
 		// Focus
-		this._taskManagerWindow.focus();
+		this._processExplorerWindow.focus();
 
 		return TPromise.as(null);
 	}

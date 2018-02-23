@@ -871,9 +871,9 @@ export class OpenIssueReporterAction extends Action {
 	}
 }
 
-export class OpenTaskManager extends Action {
-	public static readonly ID = 'workbench.action.openTaskManager';
-	public static readonly LABEL = nls.localize('openTaskManager', "Open Task Manager");
+export class OpenProcessExplorer extends Action {
+	public static readonly ID = 'workbench.action.openProcessExplorer';
+	public static readonly LABEL = nls.localize('openProcessExplorer', "Open Process Explorer");
 
 	constructor(
 		id: string,
@@ -884,7 +884,7 @@ export class OpenTaskManager extends Action {
 	}
 
 	public run(): TPromise<boolean> {
-		return this.issueService.openTaskManager()
+		return this.issueService.openProcessExplorer()
 			.then(() => true);
 	}
 }

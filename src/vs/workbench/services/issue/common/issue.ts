@@ -14,5 +14,5 @@ export const IWorkbenchIssueService = createDecorator<IWorkbenchIssueService>('w
 export interface IWorkbenchIssueService {
 	_serviceBrand: any;
 	openReporter(dataOverrides?: Partial<IssueReporterData>): TPromise<void>;
-	openTaskManager(): TPromise<void>;
+	openProcessExplorer(): TPromise<void>;
 }

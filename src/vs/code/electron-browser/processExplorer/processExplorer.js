@@ -105,9 +105,9 @@ function main() {
 		}
 
 		require([
-			'vs/code/electron-browser/taskManager/taskManagerMain'
-		], function (taskManager) {
-			taskManager.startup();
+			'vs/code/electron-browser/processExplorer/processExplorerMain'
+		], function (processExplorer) {
+			processExplorer.startup();
 		});
 	});
 }

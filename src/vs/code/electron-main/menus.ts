@@ -23,7 +23,6 @@ import { KeybindingsResolver } from 'vs/code/electron-main/keyboard';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { assign } from 'vs/base/common/objects';
 
 interface IExtensionViewlet {
 	id: string;
@@ -64,8 +63,6 @@ export class CodeMenu {
 	private closeWorkspace: Electron.MenuItem;
 
 	private nativeTabMenuItems: Electron.MenuItem[];
-
-	private taskManagerWindow: BrowserWindow;
 
 	constructor(
 		@IUpdateService private updateService: IUpdateService,
@@ -945,13 +942,7 @@ export class CodeMenu {
 			}
 		}, false));
 
-		const openTaskManager = new MenuItem(this.likeAction('openTaskManager', {
-			label: this.mnemonicLabel(nls.localize({ key: 'miOpenTaskManager', comment: ['&& denotes a mnemonic'] }, "Open &&Task Manager")),
-			accelerator: null,
-			click: () => {
-				this.openTaskManager();
-			}
-		}, false));
+		const openProcessExplorer = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miOpenProcessExplorerer', comment: ['&& denotes a mnemonic'] }, "Open &&Process Explorer")), click: () => this.runActionInRenderer('workbench.action.openProcessExplorer') });
 
 		let reportIssuesItem: Electron.MenuItem = null;
 		if (product.reportIssueUrl) {
@@ -1001,7 +992,7 @@ export class CodeMenu {
 			}) : null,
 			(product.licenseUrl || product.privacyStatementUrl) ? __separator__() : null,
 			toggleDevToolsItem,
-			openTaskManager,
+			openProcessExplorer,
 			isWindows && product.quality !== 'stable' ? showAccessibilityOptions : null,
 		]).forEach(item => helpMenu.append(item));
 
@@ -1054,37 +1045,6 @@ export class CodeMenu {
 		win.setMenuBarVisibility(false);
 
 		win.loadURL('chrome://accessibility');
-	}
-
-	private openTaskManager(): void {
-
-		// Create as singleton
-		if (!this.taskManagerWindow) {
-			this.taskManagerWindow = new BrowserWindow({
-				alwaysOnTop: true,
-				skipTaskbar: true,
-				resizable: true,
-				width: 800,
-				height: 600,
-				show: true,
-				backgroundColor: isMacintosh ? '#171717' : '#1E1E1E',
-				title: nls.localize('taskManager', "Task Manager")
-			});
-
-			this.taskManagerWindow.setMenuBarVisibility(false);
-
-			const config = assign({
-				appRoot: this.environmentService.appRoot,
-				nodeCachedDataDir: this.environmentService.nodeCachedDataDir
-			});
-
-			this.taskManagerWindow.loadURL(`${require.toUrl('vs/code/electron-browser/taskManager/taskManager.html')}?config=${encodeURIComponent(JSON.stringify(config))}`);
-
-			this.taskManagerWindow.on('close', () => this.taskManagerWindow = void 0);
-		}
-
-		// Focus
-		this.taskManagerWindow.focus();
 	}
 
 	private getUpdateMenuItems(): Electron.MenuItem[] {

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./media/taskManager';
+import 'vs/css!./media/processExplorer';
 import { listProcesses, ProcessItem } from 'vs/base/node/ps';
 import { remote } from 'electron';
 import { repeat } from 'vs/base/common/strings';

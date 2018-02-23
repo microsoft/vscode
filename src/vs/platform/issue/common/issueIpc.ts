@@ -23,8 +23,8 @@ export class IssueChannel implements IIssueChannel {
 		switch (command) {
 			case 'openIssueReporter':
 				return this.service.openReporter(arg);
-			case 'openTaskManager':
-				return this.service.openTaskManager();
+			case 'openProcessExplorer':
+				return this.service.openProcessExplorer();
 		}
 		return undefined;
 	}
@@ -40,7 +40,7 @@ export class IssueChannelClient implements IIssueService {
 		return this.channel.call('openIssueReporter', data);
 	}
 
-	openTaskManager(): TPromise<void> {
-		return this.channel.call('openTaskManager');
+	openProcessExplorer(): TPromise<void> {
+		return this.channel.call('openProcessExplorer');
 	}
 }

@@ -42,8 +42,8 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 		});
 	}
 
-	openTaskManager(): TPromise<void> {
-		return this.issueService.openTaskManager();
+	openProcessExplorer(): TPromise<void> {
+		return this.issueService.openProcessExplorer();
 	}
 }
 
