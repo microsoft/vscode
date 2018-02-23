@@ -421,7 +421,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SplitTerminalAct
 	secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5],
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
-		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5]
+		secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
 	}
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Split', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousPaneTerminalAction, FocusPreviousPaneTerminalAction.ID, FocusPreviousPaneTerminalAction.LABEL, {
