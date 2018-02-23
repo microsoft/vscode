@@ -90,7 +90,7 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 		if (notification.actions.secondary.length > 0) {
 			actions++; // secondary actions
 		}
-		this.offsetHelper.style.width = `calc(100% - ${10 /* padding */ + 30 /* severity icon */ + (actions * 24) /* 24px per action */}px)`;
+		this.offsetHelper.style.width = `calc(100% - ${10 /* padding */ + 24 /* severity icon */ + (actions * 24) /* 24px per action */}px)`;
 
 		// Render message markdown into offset helper
 		const renderedMessage = NotificationMessageMarkdownRenderer.render(notification.message);
@@ -397,8 +397,10 @@ export class NotificationTemplateRenderer {
 	private renderSource(notification): void {
 		if (notification.expanded && notification.source) {
 			this.template.source.innerText = localize('notificationSource', "Source: {0}", notification.source);
+			this.template.source.title = notification.source;
 		} else {
 			this.template.source.innerText = '';
+			this.template.source.removeAttribute('title');
 		}
 	}
 
