@@ -5966,9 +5966,9 @@ vscode-chokidar@1.6.2:
   optionalDependencies:
     vscode-fsevents "0.3.8"
 
-vscode-debugprotocol@1.25.0:
-  version "1.25.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.25.0.tgz#7a7e38df4cad8839e37ebcd06ed903902d97a7e3"
+vscode-debugprotocol@1.26.0:
+  version "1.26.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.26.0.tgz#8ab4588ae6a67b2c1cce0d866677a74f96a31c7b"
 
 vscode-fsevents@0.3.8:
   version "0.3.8"
@@ -5992,9 +5992,9 @@ vscode-nls-dev@3.0.7:
     xml2js "^0.4.19"
     yargs "^10.1.1"
 
-vscode-ripgrep@^0.7.1-patch.1.5:
-  version "0.7.1-patch.1.5"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-0.7.1-patch.1.5.tgz#a1f1b037709de087533b003b13cb526bb39be876"
+vscode-ripgrep@0.7.1-patch.0.1:
+  version "0.7.1-patch.0.1"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-0.7.1-patch.0.1.tgz#f05d2f093fd7f6a9d10fb935171e72620feaf999"
 
 vscode-textmate@^3.2.0:
   version "3.2.0"

@@ -8,7 +8,7 @@
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType } from 'vs/workbench/common/notifications';
 import { IStatusbarService, StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { HIDE_NOTIFICATIONS_CENTER_COMMAND_ID, SHOW_NOTIFICATIONS_CENTER_COMMAND_ID } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { localize } from 'vs/nls';
 
 export class NotificationsStatus {
@@ -71,7 +71,7 @@ export class NotificationsStatus {
 		// Create new
 		this.statusItem = this.statusbarService.addEntry({
 			text: this.counter === 0 ? '$(bell)' : `$(bell) ${this.counter}`,
-			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER_COMMAND_ID : this.model.notifications.length > 0 ? SHOW_NOTIFICATIONS_CENTER_COMMAND_ID : void 0,
+			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER : this.model.notifications.length > 0 ? SHOW_NOTIFICATIONS_CENTER : void 0,
 			tooltip: this.getTooltip(),
 			showBeak: this.isNotificationsCenterVisible
 		}, StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);

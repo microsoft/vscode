@@ -12,13 +12,13 @@ import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class ClearNotificationAction extends Action {
 
 	public static readonly ID = CLEAR_NOTIFICATION;
-	public static readonly LABEL = localize('closeNotification', "Close Notification");
+	public static readonly LABEL = localize('clearNotification', "Clear Notification");
 
 	constructor(
 		id: string,
@@ -30,6 +30,46 @@ export class ClearNotificationAction extends Action {
 
 	public run(notification: INotificationViewItem): TPromise<any> {
 		this.commandService.executeCommand(CLEAR_NOTIFICATION, notification);
+
+		return TPromise.as(void 0);
+	}
+}
+
+export class ClearAllNotificationsAction extends Action {
+
+	public static readonly ID = CLEAR_ALL_NOTIFICATIONS;
+	public static readonly LABEL = localize('clearNotifications', "Clear All Notifications");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService private commandService: ICommandService
+	) {
+		super(id, label, 'clear-all-notifications-action');
+	}
+
+	public run(notification: INotificationViewItem): TPromise<any> {
+		this.commandService.executeCommand(CLEAR_ALL_NOTIFICATIONS);
+
+		return TPromise.as(void 0);
+	}
+}
+
+export class HideNotificationsCenterAction extends Action {
+
+	public static readonly ID = HIDE_NOTIFICATIONS_CENTER;
+	public static readonly LABEL = localize('hideNotificationsCenter', "Hide Notifications");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService private commandService: ICommandService
+	) {
+		super(id, label, 'hide-all-notifications-action');
+	}
+
+	public run(notification: INotificationViewItem): TPromise<any> {
+		this.commandService.executeCommand(HIDE_NOTIFICATIONS_CENTER);
 
 		return TPromise.as(void 0);
 	}

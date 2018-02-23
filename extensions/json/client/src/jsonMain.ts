@@ -8,9 +8,11 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfiguration, TextDocument, FoldingRangeList as VSFoldingRangeList, FoldingRange as VSFoldingRange } from 'vscode';
-import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, TextDocumentIdentifier } from 'vscode-languageclient';
+import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfiguration, TextDocument, FoldingRangeList, FoldingRange, Disposable } from 'vscode';
+import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
+
+import { FoldingRangesRequest } from './protocol/foldingProvider.proposed';
 
 import { hash } from './utils/hash';
 
@@ -28,57 +30,6 @@ export interface ISchemaAssociations {
 
 namespace SchemaAssociationNotification {
 	export const type: NotificationType<ISchemaAssociations, any> = new NotificationType('json/schemaAssociations');
-}
-
-interface FoldingRangeList {
-	/**
-	 * The folding ranges.
-	 */
-	ranges: FoldingRange[];
-}
-
-export enum FoldingRangeType {
-	/**
-	 * Folding range for a comment
-	 */
-	Comment = 'comment',
-	/**
-	 * Folding range for a imports or includes
-	 */
-	Imports = 'imports',
-	/**
-	 * Folding range for a region (e.g. `#region`)
-	 */
-	Region = 'region'
-}
-
-interface FoldingRange {
-
-	/**
-	 * The start line number
-	 */
-	startLine: number;
-
-	/**
-	 * The end line number
-	 */
-	endLine: number;
-
-	/**
-	 * The actual color value for this color range.
-	 */
-	type?: FoldingRangeType;
-}
-
-interface FoldingRangeRequest {
-	/**
-	 * The text document.
-	 */
-	textDocument: TextDocumentIdentifier;
-}
-
-namespace FoldingRangesRequest {
-	export const type: RequestType<FoldingRangeRequest, FoldingRangeList | null, any, any> = new RequestType('textDocument/foldingRanges');
 }
 
 interface IPackageInfo {
@@ -105,6 +56,9 @@ interface JSONSchemaSettings {
 }
 
 let telemetryReporter: TelemetryReporter | undefined;
+
+let foldingProviderRegistration: Disposable | undefined = void 0;
+const foldingSetting = 'json.experimental.syntaxFolding';
 
 export function activate(context: ExtensionContext) {
 
@@ -150,7 +104,7 @@ export function activate(context: ExtensionContext) {
 	let disposable = client.start();
 	toDispose.push(disposable);
 	client.onReady().then(() => {
-		client.onTelemetry(e => {
+		disposable = client.onTelemetry(e => {
 			if (telemetryReporter) {
 				telemetryReporter.sendTelemetryEvent(e.key, e.data);
 			}
@@ -176,16 +130,13 @@ export function activate(context: ExtensionContext) {
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 
-		languages.registerFoldingProvider(documentSelector, {
-			provideFoldingRanges(document: TextDocument) {
-				return client.sendRequest(FoldingRangesRequest.type, { textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document) }).then(res => {
-					if (res && Array.isArray(res.ranges)) {
-						return new VSFoldingRangeList(res.ranges.map(r => new VSFoldingRange(r.startLine, r.endLine, r.type)));
-					}
-					return null;
-				});
+		initFoldingProvider();
+		toDispose.push(workspace.onDidChangeConfiguration(c => {
+			if (c.affectsConfiguration(foldingSetting)) {
+				initFoldingProvider();
 			}
-		});
+		}));
+		toDispose.push({ dispose: () => foldingProviderRegistration && foldingProviderRegistration.dispose() });
 	});
 
 	let languageConfiguration: LanguageConfiguration = {
@@ -197,6 +148,29 @@ export function activate(context: ExtensionContext) {
 	};
 	languages.setLanguageConfiguration('json', languageConfiguration);
 	languages.setLanguageConfiguration('jsonc', languageConfiguration);
+
+	function initFoldingProvider() {
+		let enable = workspace.getConfiguration().get(foldingSetting);
+		if (enable) {
+			if (!foldingProviderRegistration) {
+				foldingProviderRegistration = languages.registerFoldingProvider(documentSelector, {
+					provideFoldingRanges(document: TextDocument) {
+						return client.sendRequest(FoldingRangesRequest.type, { textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document) }).then(res => {
+							if (res && Array.isArray(res.ranges)) {
+								return new FoldingRangeList(res.ranges.map(r => new FoldingRange(r.startLine, r.endLine, r.type)));
+							}
+							return null;
+						});
+					}
+				});
+			}
+		} else {
+			if (foldingProviderRegistration) {
+				foldingProviderRegistration.dispose();
+				foldingProviderRegistration = void 0;
+			}
+		}
+	}
 }
 
 export function deactivate(): Promise<any> {

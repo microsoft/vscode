@@ -82,6 +82,16 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 
 	private computePreferredHeight(notification: INotificationViewItem): number {
 
+		// Prepare offset helper depending on toolbar actions count
+		let actions = 1; // close
+		if (notification.canCollapse) {
+			actions++; // expand/collapse
+		}
+		if (notification.actions.secondary.length > 0) {
+			actions++; // secondary actions
+		}
+		this.offsetHelper.style.width = `calc(100% - ${10 /* padding */ + 30 /* severity icon */ + (actions * 24) /* 24px per action */}px)`;
+
 		// Render message markdown into offset helper
 		const renderedMessage = NotificationMessageMarkdownRenderer.render(notification.message);
 		this.offsetHelper.appendChild(renderedMessage);
