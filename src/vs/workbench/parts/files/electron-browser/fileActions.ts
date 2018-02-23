@@ -1326,6 +1326,24 @@ export class CopyPathAction extends Action {
 	}
 }
 
+export class CopyRelativePathAction extends Action {
+
+	public static readonly LABEL = nls.localize('copy Relative  Path', "Copy Relative Path");
+
+	constructor(
+		private resource: URI,
+		@ICommandService private commandService: ICommandService
+	) {
+		super('copyFilePath', CopyPathAction.LABEL);
+
+		this.order = 140;
+	}
+
+	public run(): TPromise<any> {
+		return this.commandService.executeCommand(COPY_REL_PATH_COMMAND_ID, this.resource);
+	}
+}
+
 
 export function validateFileName(parent: IFileStat, name: string, allowOverwriting: boolean = false): string {
 

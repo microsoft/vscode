@@ -420,48 +420,32 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-// const copyPathBase = (accessor, resource: URI) => {
-// 	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
-// 	if (resources.length) {
-// 		const lineDelimiter = isWindows ? '\r\n' : '\n';
-// 		const text = resources.map(r => r.scheme === 'file' ? labels.getPathLabel(r) : r.toString()).join(lineDelimiter);
-// 		return text;
-// 	} else {
-// 		const messageService = accessor.get(IMessageService);
-// 		messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
-// 		return null;
-// 	}
-// };
-
-// const copyPathHandler = (accessor, resource: URI) => {
-// 	const clipboardService = accessor.get(IClipboardService);
-// 	const text = copyPathBase(accessor, resource);
-// 	if (text) {
-// 		clipboardService.writeText(text);
-// 	}
-// };
-
-// const copyRelativePathHandler = (accessor, resource: URI) => {
-// 	const clipboardService = accessor.get(IClipboardService);
-// 	const contextService = accessor.get(IWorkspaceContextService);
-// 	const workspaceFolder = contextService.getWorkspaceFolder(resource);
-// 	let text = copyPathBase(accessor, resource);
-// 	if (text) {
-// 		text = text.replace(workspaceFolder.uri.fsPath + '/', '');
-// 		clipboardService.writeText(text);
-// 	}
-// };
-
-function resourcesToClipboard(resources: URI[], clipboardService: IClipboardService, notificationService: INotificationService): void {
+function resourcesToClipboardBase(resources: URI[], clipboardService: IClipboardService, notificationService: INotificationService): string {
 	if (resources.length) {
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
-		const text = resources.map(r => r.scheme === Schemas.file ? labels.getPathLabel(r) : r.toString()).join(lineDelimiter);
-		clipboardService.writeText(text);
+		return resources.map(r => r.scheme === Schemas.file ? labels.getPathLabel(r) : r.toString()).join(lineDelimiter);
 	} else {
 		notificationService.info(nls.localize('openFileToCopy', "Open a file first to copy its path"));
+		return null;
 	}
 }
 
+function resourcesToClipboard(resources: URI[], clipboardService: IClipboardService, notificationService: INotificationService): void {
+	const text = resourcesToClipboardBase(resources, clipboardService, notificationService);
+	if (text) {
+		clipboardService.writeText(text);
+	}
+}
+
+function relativeResourcesToClipboard(resources: URI[], clipboardService: IClipboardService, notificationService: INotificationService, contextService: IWorkspaceContextService): void {
+	const workspaceFolder = contextService.getWorkspaceFolder(resources[0]);
+	const regex = new RegExp(workspaceFolder.uri.fsPath + '/', 'g');
+	let text = resourcesToClipboardBase(resources, clipboardService, notificationService);
+	if (text) {
+		text = text.replace(regex, '');
+		clipboardService.writeText(text);
+	}
+}
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
@@ -487,12 +471,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: COPY_REL_PATH_COMMAND_ID,
 	handler: (accessor, resource: URI) => {
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
-		resourcesToClipboard(resources, accessor.get(IClipboardService), accessor.get(INotificationService));
+		relativeResourcesToClipboard(resources, accessor.get(IClipboardService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
 	}
 });
 
-// TODO@isidor deprecated remove in february
-CommandsRegistry.registerCommand({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: undefined,
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_P),
 	id: 'workbench.action.files.copyPathOfActiveFile',
