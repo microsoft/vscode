@@ -225,7 +225,7 @@ export class SearchWidget extends Widget {
 		this.toggleReplaceButton.icon = 'toggle-replace-button collapse';
 		// TODO@joh need to dispose this listener eventually
 		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
-		this.toggleReplaceButton.getElement().title = nls.localize('search.replace.toggle.button.title', "Toggle Replace");
+		this.toggleReplaceButton.element.title = nls.localize('search.replace.toggle.button.title', "Toggle Replace");
 	}
 
 	private renderSearchInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
@@ -301,8 +301,8 @@ export class SearchWidget extends Widget {
 
 	private onToggleReplaceButton(): void {
 		dom.toggleClass(this.replaceContainer, 'disabled');
-		dom.toggleClass(this.toggleReplaceButton.getElement(), 'collapse');
-		dom.toggleClass(this.toggleReplaceButton.getElement(), 'expand');
+		dom.toggleClass(this.toggleReplaceButton.element, 'collapse');
+		dom.toggleClass(this.toggleReplaceButton.element, 'expand');
 		this.updateReplaceActiveState();
 		this._onReplaceToggled.fire();
 	}

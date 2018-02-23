@@ -12,7 +12,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import URI from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { localize } from 'vs/nls';
-import { Button } from 'vs/base/browser/ui/button/button';
+import { ButtonGroup } from 'vs/base/browser/ui/button/button';
 import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -396,7 +396,24 @@ export class NotificationTemplateRenderer {
 		clearNode(this.template.buttonsContainer);
 
 		if (notification.expanded) {
-			notification.actions.primary.forEach(action => this.createButton(notification, action));
+			const buttonGroup = new ButtonGroup(this.template.buttonsContainer, notification.actions.primary.length);
+			buttonGroup.buttons.forEach((button, index) => {
+				const action = notification.actions.primary[index];
+				button.label = action.label;
+
+				this.inputDisposeables.push(button.onDidClick(() => {
+
+					// Run action
+					this.actionRunner.run(action, notification);
+
+					// Hide notification
+					notification.dispose();
+				}));
+
+				this.inputDisposeables.push(attachButtonStyler(button, this.themeService));
+			});
+
+			this.inputDisposeables.push(buttonGroup);
 		}
 	}
 
@@ -447,24 +464,6 @@ export class NotificationTemplateRenderer {
 		const keybinding = this.keybindingService.lookupKeybinding(action.id);
 
 		return keybinding ? keybinding.getLabel() : void 0;
-	}
-
-	private createButton(notification: INotificationViewItem, action: IAction): Button {
-		const button = new Button(this.template.buttonsContainer);
-		button.label = action.label;
-		this.inputDisposeables.push(button.onDidClick(() => {
-
-			// Run action
-			this.actionRunner.run(action, notification);
-
-			// Hide notification
-			notification.dispose();
-		}));
-
-		this.inputDisposeables.push(attachButtonStyler(button, this.themeService));
-		this.inputDisposeables.push(button);
-
-		return button;
 	}
 
 	public dispose(): void {
