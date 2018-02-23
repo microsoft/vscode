@@ -210,7 +210,13 @@ class TriggerRenameFileAction extends BaseFileAction {
 			const unbind = this.tree.onDidChangeHighlight((e: IHighlightEvent) => {
 				if (!e.highlight) {
 					viewletState.clearEditable(stat);
-					this.tree.refresh(stat).done(null, errors.onUnexpectedError);
+					this.tree.refresh(stat).done(() => {
+						if (this.tree.isExpanded(this.element)) {
+							setTimeout(() => {
+								this.tree.expand(this.element);
+							}, 25);
+						}
+					}, errors.onUnexpectedError);
 					unbind.dispose();
 				}
 			});
