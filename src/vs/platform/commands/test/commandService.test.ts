@@ -17,8 +17,8 @@ import { NullLogService } from 'vs/platform/log/common/log';
 
 class SimpleExtensionService implements IExtensionService {
 	_serviceBrand: any;
-	private _onDidRegisterExtensions = new Emitter<IExtensionDescription[]>();
-	get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
+	private _onDidRegisterExtensions = new Emitter<void>();
+	get onDidRegisterExtensions(): Event<void> {
 		return this._onDidRegisterExtensions.event;
 	}
 	onDidChangeExtensionsStatus = null;

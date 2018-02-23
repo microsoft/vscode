@@ -113,7 +113,7 @@ const NO_OP_VOID_PROMISE = TPromise.wrap<void>(void 0);
 export class ExtensionService extends Disposable implements IExtensionService {
 	public _serviceBrand: any;
 
-	private _onDidRegisterExtensions: Emitter<IExtensionDescription[]>;
+	private _onDidRegisterExtensions: Emitter<void>;
 
 	private _registry: ExtensionDescriptionRegistry;
 	private readonly _installedExtensionsReady: Barrier;
@@ -158,7 +158,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._extensionsMessages = {};
 		this._allRequestedActivateEvents = Object.create(null);
 
-		this._onDidRegisterExtensions = new Emitter<IExtensionDescription[]>();
+		this._onDidRegisterExtensions = new Emitter<void>();
 
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
 		this._extensionHostProcessActivationTimes = Object.create(null);
@@ -204,7 +204,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		super.dispose();
 	}
 
-	public get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
+	public get onDidRegisterExtensions(): Event<void> {
 		return this._onDidRegisterExtensions.event;
 	}
 
@@ -443,7 +443,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 				mark('extensionHostReady');
 				this._installedExtensionsReady.open();
-				this._onDidRegisterExtensions.fire(availableExtensions);
+				this._onDidRegisterExtensions.fire(void 0);
 				this._onDidChangeExtensionsStatus.fire(availableExtensions.map(e => e.id));
 			});
 	}

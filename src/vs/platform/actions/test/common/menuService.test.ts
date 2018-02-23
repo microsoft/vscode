@@ -21,8 +21,8 @@ class MockExtensionService implements IExtensionService {
 
 	public _serviceBrand: any;
 
-	private _onDidRegisterExtensions = new Emitter<IExtensionDescription[]>();
-	public get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
+	private _onDidRegisterExtensions = new Emitter<void>();
+	public get onDidRegisterExtensions(): Event<void> {
 		return this._onDidRegisterExtensions.event;
 	}
 

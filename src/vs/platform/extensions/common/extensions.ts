@@ -129,7 +129,7 @@ export interface IExtensionService {
 	 *
 	 * @returns the extensions that got registered
 	 */
-	onDidRegisterExtensions: Event<IExtensionDescription[]>;
+	onDidRegisterExtensions: Event<void>;
 
 	/**
 	 * @event
