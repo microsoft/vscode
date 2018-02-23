@@ -1,0 +1,38 @@
+{
+  "name": "package-json",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "0.1.0",
+  "publisher": "vscode",
+  "engines": {
+    "vscode": "0.10.x"
+  },
+  "activationEvents": [
+    "onLanguage:json"
+  ],
+  "main": "./out/javascriptMain",
+  "dependencies": {
+    "jsonc-parser": "^1.0.0",
+    "request-light": "^0.2.2",
+    "vscode-nls": "^3.2.1"
+  },
+  "scripts": {
+    "compile": "gulp compile-extension:package-json",
+    "watch": "gulp watch-extension:package-json"
+  },
+  "contributes": {
+    "jsonValidation": [
+      {
+        "fileMatch": "package.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/package.json"
+      },
+      {
+        "fileMatch": "bower.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/bower.json"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "8.0.33"
+  }
+}

@@ -1,25 +1,11 @@
 {
   "name": "javascript",
-  "displayName": "%displayname%",
+  "displayName": "%displayName%",
   "description": "%description%",
   "version": "0.1.0",
   "publisher": "vscode",
   "engines": {
     "vscode": "0.10.x"
-  },
-  "activationEvents": [
-    "onLanguage:javascript",
-    "onLanguage:json"
-  ],
-  "main": "./out/javascriptMain",
-  "dependencies": {
-    "jsonc-parser": "^1.0.0",
-    "request-light": "^0.2.2",
-    "vscode-nls": "^3.2.1"
-  },
-  "scripts": {
-    "compile": "gulp compile-extension:javascript",
-    "watch": "gulp watch-extension:javascript"
   },
   "contributes": {
     "languages": [
@@ -102,14 +88,6 @@
     ],
     "jsonValidation": [
       {
-        "fileMatch": "package.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/package.json"
-      },
-      {
-        "fileMatch": "bower.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/bower.json"
-      },
-      {
         "fileMatch": ".bowerrc",
         "url": "https://schemastore.azurewebsites.net/schemas/json/bowerrc.json"
       },
@@ -138,8 +116,5 @@
         "url": "./schemas/jsconfig.schema.json"
       }
     ]
-  },
-  "devDependencies": {
-    "@types/node": "8.0.33"
   }
 }
