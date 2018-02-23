@@ -44,7 +44,7 @@
     "v8-inspect-profiler": "^0.0.7",
     "vscode-chokidar": "1.6.2",
     "vscode-debugprotocol": "1.26.0",
-    "vscode-ripgrep": "0.7.1-patch.1.1",
+    "vscode-ripgrep": "^0.7.1-patch.0",
     "vscode-textmate": "^3.2.0",
     "vscode-xterm": "3.2.0-beta4",
     "yauzl": "2.8.0"
