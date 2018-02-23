@@ -135,17 +135,25 @@ suite('ExtHostTreeView', function () {
 			});
 	});
 
-	test('error is thrown if id is not unique', () => {
+	test('error is thrown if id is not unique', (done) => {
 		tree['a'] = {
-			'a': {}
+			'aa': {},
 		};
-		return testObject.$getChildren('testNodeWithIdTreeProvider')
-			.then(elements => {
-				const actuals = elements.map(e => e.handle);
-				assert.deepEqual(actuals, ['1/a', '1/b']);
-				return testObject.$getChildren('testNodeWithIdTreeProvider', '1/a')
-					.then(children => assert.fail('Should fail with duplicate id'), () => null);
-			});
+		tree['b'] = {
+			'aa': {},
+			'ba': {}
+		};
+		target.onRefresh.event(() => {
+			testObject.$getChildren('testNodeWithIdTreeProvider')
+				.then(elements => {
+					const actuals = elements.map(e => e.handle);
+					assert.deepEqual(actuals, ['1/a', '1/b']);
+					return testObject.$getChildren('testNodeWithIdTreeProvider', '1/a')
+						.then(() => testObject.$getChildren('testNodeWithIdTreeProvider', '1/b'))
+						.then(() => { assert.fail('Should fail with duplicate id'); done(); }, () => done());
+				});
+		});
+		onDidChangeTreeNode.fire();
 	});
 
 	test('refresh root', function (done) {
@@ -300,20 +308,22 @@ suite('ExtHostTreeView', function () {
 		onDidChangeTreeNode.fire(getNode('a'));
 	});
 
-	test('generate unique handles from labels by escaping them', () => {
+	test('generate unique handles from labels by escaping them', (done) => {
 		tree = {
 			'a/0:b': {}
 		};
 
 		onDidChangeTreeNode.fire();
-
-		return testObject.$getChildren('testNodeTreeProvider')
-			.then(elements => {
-				assert.deepEqual(elements.map(e => e.handle), ['0/0:a//0:b']);
-			});
+		target.onRefresh.event(() => {
+			testObject.$getChildren('testNodeTreeProvider')
+				.then(elements => {
+					assert.deepEqual(elements.map(e => e.handle), ['0/0:a//0:b']);
+					done();
+				});
+		});
 	});
 
-	test('tree with duplicate labels', () => {
+	test('tree with duplicate labels', (done) => {
 
 		const dupItems = {
 			'adup1': 'c',
@@ -345,15 +355,46 @@ suite('ExtHostTreeView', function () {
 		tree['f'] = {};
 		tree[dupItems['adup2']] = {};
 
+		onDidChangeTreeNode.fire();
+
+		target.onRefresh.event(() => {
+			testObject.$getChildren('testNodeTreeProvider')
+				.then(elements => {
+					const actuals = elements.map(e => e.handle);
+					assert.deepEqual(actuals, ['0/0:a', '0/0:b', '0/1:a', '0/0:d', '0/1:b', '0/0:f', '0/2:a']);
+					return testObject.$getChildren('testNodeTreeProvider', '0/1:b')
+						.then(elements => {
+							const actuals = elements.map(e => e.handle);
+							assert.deepEqual(actuals, ['0/1:b/0:h', '0/1:b/1:h', '0/1:b/0:j', '0/1:b/1:j', '0/1:b/2:h']);
+							done();
+						});
+				});
+		});
+	});
+
+	test('getChildren is not returned from cache if refreshed', (done) => {
+		tree = {
+			'c': {}
+		};
+
+		onDidChangeTreeNode.fire();
+		target.onRefresh.event(() => {
+			testObject.$getChildren('testNodeTreeProvider')
+				.then(elements => {
+					assert.deepEqual(elements.map(e => e.handle), ['0/0:c']);
+					done();
+				});
+		});
+	});
+
+	test('getChildren is returned from cache if not refreshed', () => {
+		tree = {
+			'c': {}
+		};
+
 		return testObject.$getChildren('testNodeTreeProvider')
 			.then(elements => {
-				const actuals = elements.map(e => e.handle);
-				assert.deepEqual(actuals, ['0/0:a', '0/0:b', '0/1:a', '0/0:d', '0/1:b', '0/0:f', '0/2:a']);
-				return testObject.$getChildren('testNodeTreeProvider', '0/1:b')
-					.then(elements => {
-						const actuals = elements.map(e => e.handle);
-						assert.deepEqual(actuals, ['0/1:b/0:h', '0/1:b/1:h', '0/1:b/0:j', '0/1:b/1:j', '0/1:b/2:h']);
-					});
+				assert.deepEqual(elements.map(e => e.handle), ['0/0:a', '0/0:b']);
 			});
 	});
 
@@ -425,9 +466,13 @@ suite('ExtHostTreeView', function () {
 
 	function getNode(key: string): { key: string } {
 		if (!nodes[key]) {
-			nodes[key] = { key };
+			nodes[key] = new Key(key);
 		}
 		return nodes[key];
+	}
+
+	class Key {
+		constructor(readonly key: string) { }
 	}
 
 });
