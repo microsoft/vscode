@@ -55,6 +55,7 @@ import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IAction, Action } from 'vs/base/common/actions';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -83,6 +84,7 @@ export class DebugService implements debug.IDebugService {
 	private launchJsonChanged: boolean;
 	private firstSessionStart: boolean;
 	private previousState: debug.State;
+	private fetchThreadsSchedulers: Map<string, RunOnceScheduler>;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -115,6 +117,7 @@ export class DebugService implements debug.IDebugService {
 		this._onDidCustomEvent = new Emitter<debug.DebugEvent>();
 		this.sessionStates = new Map<string, debug.State>();
 		this.allProcesses = new Map<string, debug.IProcess>();
+		this.fetchThreadsSchedulers = new Map<string, RunOnceScheduler>();
 
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
 		this.toDispose.push(this.configurationManager);
@@ -302,7 +305,18 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidThread(event => {
 			if (event.body.reason === 'started') {
-				this.fetchThreads(session).done(undefined, errors.onUnexpectedError);
+				// debounce to reduce threadsRequest frequency and improve performance
+				let scheduler = this.fetchThreadsSchedulers.get(session.getId());
+				if (!scheduler) {
+					scheduler = new RunOnceScheduler(() => {
+						this.fetchThreads(session).done(undefined, errors.onUnexpectedError);
+					}, 100);
+					this.fetchThreadsSchedulers.set(session.getId(), scheduler);
+					this.toDisposeOnSessionEnd.get(session.getId()).push(scheduler);
+				}
+				if (!scheduler.isScheduled()) {
+					scheduler.schedule();
+				}
 			} else if (event.body.reason === 'exited') {
 				this.model.clearThreads(session.getId(), true, event.body.threadId);
 			}
