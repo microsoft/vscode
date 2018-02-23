@@ -26,10 +26,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IFileService } from 'vs/platform/files/common/files';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ISearchConfiguration, VIEW_ID } from 'vs/platform/search/common/search';
 
 const REPLACE_PREVIEW = 'replacePreview';
 
@@ -100,31 +96,8 @@ export class ReplaceService implements IReplaceService {
 	constructor(
 		@IFileService private fileService: IFileService,
 		@IEditorService private editorService: IWorkbenchEditorService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IViewletService viewletService: IViewletService,
-		@IPanelService panelService: IPanelService,
-		@IConfigurationService configurationService: IConfigurationService
-	) {
-
-		const updateSearchViewLocation = () => {
-			const config = configurationService.getValue<ISearchConfiguration>();
-			if (config.search.location === 'panel') {
-				viewletService.setViewletEnablement(VIEW_ID, false);
-				panelService.setPanelEnablement(VIEW_ID, true);
-			}
-			if (config.search.location === 'sidebar') {
-				panelService.setPanelEnablement(VIEW_ID, false);
-				viewletService.setViewletEnablement(VIEW_ID, true);
-			}
-		};
-		configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('search.location')) {
-				updateSearchViewLocation();
-
-			}
-		});
-		updateSearchViewLocation();
-	}
+		@ITextModelService private textModelResolverService: ITextModelService
+	) { }
 
 	public replace(match: Match): TPromise<any>;
 	public replace(files: FileMatch[], progress?: IProgressRunner): TPromise<any>;
