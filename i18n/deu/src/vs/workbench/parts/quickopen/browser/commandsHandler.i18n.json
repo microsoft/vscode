@@ -11,7 +11,6 @@
 	"showCommands.label": "Befehlspalette...",
 	"entryAriaLabelWithKey": "{0}, {1}, Befehle",
 	"entryAriaLabel": "{0}, Befehle",
-	"canNotRun": "Der Befehl '{0}' kann nicht an dieser Stelle ausgeführt werden.",
 	"actionNotEnabled": "Der Befehl \"{0}\" ist im aktuellen Kontext nicht aktiviert.",
 	"recentlyUsed": "zuletzt verwendet",
 	"morecCommands": "andere Befehle",

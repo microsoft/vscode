@@ -20,7 +20,6 @@
 	"showSameKeybindings": "Aynı Tuş Bağlarını Göster",
 	"copyLabel": "Kopyala",
 	"copyCommandLabel": "Komutu Kopyala",
-	"error": "Tuş bağını düzenlerken '{0}' hatası. Lütfen 'keybindings.json' dosyasını açın ve kontrol edin.",
 	"command": "Command",
 	"keybinding": "Tuş bağı",
 	"source": "Kaynak",

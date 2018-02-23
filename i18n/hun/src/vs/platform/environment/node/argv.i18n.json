@@ -33,6 +33,7 @@
 	"inspect-brk-extensions": "Hibakeresés és profilozás engedélyezése a kiegészítőkben, úgy, hogy a kiegészítő gazdafolyamata szüneteltetve lesz az indítás után. Ellenőrizze a fejlesztői eszközöket a csatlakozási URI-hoz. ",
 	"disableGPU": "Hardveres gyorsítás letiltása.",
 	"uploadLogs": "Az aktuális munkamenet naplóinak feltöltése egy biztonságos végpontra.",
+	"maxMemory": "Egy ablak maximális memóriamérete (megabájtban).",
 	"usage": "Használat",
 	"options": "beállítások",
 	"paths": "elérési utak",

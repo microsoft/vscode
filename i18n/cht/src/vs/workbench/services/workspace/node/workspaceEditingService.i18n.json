@@ -8,6 +8,5 @@
 	],
 	"errorInvalidTaskConfiguration": "無法寫入工作區組態檔。請開啟檔案更正其中的錯誤/警告，然後再試一次。 ",
 	"errorWorkspaceConfigurationFileDirty": "因為檔案已變更，所以無法寫入工作區組態檔。請將其儲存，然後再試一次。",
-	"openWorkspaceConfigurationFile": "開啟工作區組態檔",
-	"close": "關閉"
+	"openWorkspaceConfigurationFile": "開啟工作區組態設定"
 }

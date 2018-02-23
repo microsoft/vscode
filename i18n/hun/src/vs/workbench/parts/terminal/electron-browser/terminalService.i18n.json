@@ -8,8 +8,7 @@
 	],
 	"terminal.integrated.chooseWindowsShellInfo": "Megváltoztathatja az alapértelmezett terminált a testreszabás gomb választásával.",
 	"customize": "Testreszabás",
-	"cancel": "Mégse",
-	"never again": "Rendben, ne jelenjen meg újra",
+	"never again": "Ne jelenítse meg újra",
 	"terminal.integrated.chooseWindowsShell": "Válassza ki a preferált terminál shellt! Ez később módosítható a beállításokban.",
 	"terminalService.terminalCloseConfirmationSingular": "Van egy aktív terminálmunkamenet. Szeretné megszakítani?",
 	"terminalService.terminalCloseConfirmationPlural": "{0} aktív terminálmunkamenet van. Szeretné megszakítani?"

@@ -187,8 +187,5 @@
 	"miDownloadingUpdate": "Téléchargement de la mise à jour...",
 	"miInstallUpdate": "Installer la mise à jour...",
 	"miInstallingUpdate": "Installation de la mise à jour...",
-	"miRestartToUpdate": "Redémarrer pour mettre à jour...",
-	"aboutDetail": "Version {0}\nCommit {1}\nDate {2}\nShell {3}\nRenderer {4}\nNode {5}\nArchitecture {6}",
-	"okButton": "OK",
-	"copy": "&&Copier"
+	"miRestartToUpdate": "Redémarrer pour mettre à jour..."
 }

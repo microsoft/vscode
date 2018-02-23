@@ -10,5 +10,5 @@
 	"read more": "Ler Mais",
 	"no": "Não",
 	"not now": "Pergunte-me depois",
-	"suggest auto fetch": "Você gostaria que o Code executasse periodicamente `git fetch`?"
+	"suggest auto fetch": "Você gostaria que o Code executasse periodicamente o 'git fetch'?"
 }

@@ -26,7 +26,6 @@
 	"workbench.action.terminal.runSelectedText": "Exécuter le texte sélectionné dans le terminal actif",
 	"workbench.action.terminal.runActiveFile": "Exécuter le fichier actif dans le terminal actif",
 	"workbench.action.terminal.runActiveFile.noFile": "Seuls les fichiers sur disque peuvent être exécutés dans le terminal",
-	"workbench.action.terminal.switchTerminalInstance": "Changer d'instance de terminal",
 	"workbench.action.terminal.scrollDown": "Faire défiler vers le bas (ligne)",
 	"workbench.action.terminal.scrollDownPage": "Faire défiler vers le bas (page)",
 	"workbench.action.terminal.scrollToBottom": "Faire défiler jusqu'en bas",

@@ -30,7 +30,6 @@
 	"remove": "Quitar de abiertos recientemente",
 	"openRecent": "Abrir Reciente...",
 	"quickOpenRecent": "Abrir Reciente Rapidamente...",
-	"closeMessages": "Cerrar mensajes de notificación",
 	"reportIssueInEnglish": "Notificar problema",
 	"reportPerformanceIssue": "Notificar problema de rendimiento",
 	"keybindingsReference": "Referencia de métodos abreviados de teclado",
@@ -49,9 +48,5 @@
 	"moveWindowTabToNewWindow": "Mover pestaña de ventana a una nueva ventana",
 	"mergeAllWindowTabs": "Fusionar todas las ventanas",
 	"toggleWindowTabsBar": "Alternar barra de pestañas de ventana",
-	"configureLocale": "Configurar idioma",
-	"displayLanguage": "Define el lenguaje para mostrar de VSCode.",
-	"doc": "Consulte {0} para obtener una lista de idiomas compatibles.",
-	"restart": "Al cambiar el valor se requiere reiniciar VSCode.",
-	"fail.createSettings": "No se puede crear '{0}' ({1})."
+	"about": "Acerca de {0}"
 }

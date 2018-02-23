@@ -9,6 +9,7 @@
 	"name": "Erweiterungsname",
 	"extension id": "Erweiterungsbezeichner",
 	"preview": "Vorschau",
+	"builtin": "Integriert",
 	"publisher": "Name des Herausgebers",
 	"install count": "Installationsanzahl",
 	"rating": "Bewertung",

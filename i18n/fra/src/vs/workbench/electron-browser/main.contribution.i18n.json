@@ -78,6 +78,5 @@
 	"zenMode.hideTabs": "Contrôle si l'activation du mode Zen masque également les onglets du banc d'essai.",
 	"zenMode.hideStatusBar": "Contrôle si l'activation du mode Zen masque également la barre d'état au bas du banc d'essai.",
 	"zenMode.hideActivityBar": "Contrôle si l'activation du mode Zen masque également la barre d'activités à gauche du banc d'essai.",
-	"zenMode.restore": "Contrôle si une fenêtre doit être restaurée en mode zen, si elle a été fermée en mode zen.",
-	"JsonSchema.locale": "Langue d'interface utilisateur (IU) à utiliser."
+	"zenMode.restore": "Contrôle si une fenêtre doit être restaurée en mode zen, si elle a été fermée en mode zen."
 }

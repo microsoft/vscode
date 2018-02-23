@@ -30,7 +30,6 @@
 	"remove": "從最近開啟的檔案中移除",
 	"openRecent": "開啟最近使用的檔案...",
 	"quickOpenRecent": "快速開啟最近使用的檔案...",
-	"closeMessages": "關閉通知訊息",
 	"reportIssueInEnglish": "回報問題",
 	"reportPerformanceIssue": "回報效能問題",
 	"keybindingsReference": "鍵盤快速鍵參考",
@@ -49,9 +48,6 @@
 	"moveWindowTabToNewWindow": "將視窗索引標籤移至新的視窗",
 	"mergeAllWindowTabs": "合併所有視窗",
 	"toggleWindowTabsBar": "切換視窗索引標籤列",
-	"configureLocale": "設定語言",
-	"displayLanguage": "定義 VSCode 的顯示語言。",
-	"doc": "如需支援的語言清單，請參閱 {0}。",
-	"restart": "改變設定值後需要重新啟動 VSCode.",
-	"fail.createSettings": "無法建立 '{0}' ({1})。"
+	"about": "關於 {0}",
+	"inspect context keys": "檢查功能表內容"
 }

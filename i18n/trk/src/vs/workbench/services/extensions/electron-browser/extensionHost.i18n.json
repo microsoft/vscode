@@ -8,5 +8,6 @@
 	],
 	"extensionHostProcess.startupFailDebug": "Eklenti sunucusu 10 saniye içinde başlamadı, ilk satırda durdurulmuş olabilir ve devam etmesi için bir hata ayıklayıcıya ihtiyacı olabilir.",
 	"extensionHostProcess.startupFail": "Eklenti sunucusu 10 saniye içinde başlamadı, bu bir sorun olabilir.",
+	"reloadWindow": "Pencereyi Yeniden Yükle",
 	"extensionHostProcess.error": "Eklenti sunucusundan hata: {0}"
 }

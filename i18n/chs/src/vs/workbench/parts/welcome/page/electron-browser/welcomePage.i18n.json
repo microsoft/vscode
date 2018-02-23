@@ -34,7 +34,6 @@
 	"welcomePage.installedExtensionPack": "已安装 {0} 支持",
 	"ok": "确定",
 	"details": "详细信息",
-	"cancel": "取消",
 	"welcomePage.buttonBackground": "欢迎页按钮的背景色。",
 	"welcomePage.buttonHoverBackground": "欢迎页按钮被悬停时的背景色。"
 }

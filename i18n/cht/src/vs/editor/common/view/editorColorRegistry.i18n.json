@@ -9,6 +9,7 @@
 	"lineHighlight": "目前游標位置行的反白顯示背景色彩。",
 	"lineHighlightBorderBox": "目前游標位置行之周圍框線的背景色彩。",
 	"rangeHighlight": "突顯顯示範圍的背景顏色，例如快速開啟和尋找功能。不能使用非透明的顏色來隱藏底層的樣式。",
+	"rangeHighlightBorder": "反白顯示範圍周圍邊框的背景顏色。",
 	"caret": "編輯器游標的色彩。",
 	"editorCursorBackground": "編輯器游標的背景色彩。允許自訂區塊游標重疊的字元色彩。",
 	"editorWhitespaces": "編輯器中空白字元的色彩。",
