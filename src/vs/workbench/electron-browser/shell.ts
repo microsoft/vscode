@@ -55,7 +55,7 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ISearchService } from 'vs/platform/search/common/search';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CommandService } from 'vs/platform/commands/common/commandService';
+import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/workbenchModeService';

@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { CommandService } from 'vs/platform/commands/common/commandService';
+import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { IExtensionService, ExtensionPointContribution, IExtensionDescription, ProfileSession } from 'vs/platform/extensions/common/extensions';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
