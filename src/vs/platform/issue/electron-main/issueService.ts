@@ -9,7 +9,7 @@ import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import { IIssueService, IssueReporterData, IssueReporterFeatures } from 'vs/platform/issue/common/issue';
+import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain, screen } from 'electron';
 import { ILaunchService } from 'vs/code/electron-main/launch';
 import { getPerformanceInfo, PerformanceInfo, getSystemInfo, SystemInfo } from 'vs/code/electron-main/diagnostics';
@@ -74,7 +74,7 @@ export class IssueService implements IIssueService {
 		return TPromise.as(null);
 	}
 
-	openProcessExplorer(): TPromise<void> {
+	openProcessExplorer(data: ProcessExplorerData): TPromise<void> {
 		// Create as singleton
 		if (!this._processExplorerWindow) {
 			const position = this.getWindowPosition(BrowserWindow.getFocusedWindow(), 800, 400);
@@ -86,7 +86,7 @@ export class IssueService implements IIssueService {
 				height: position.height,
 				x: position.x,
 				y: position.y,
-				backgroundColor: isMacintosh ? '#171717' : '#1E1E1E',
+				backgroundColor: data.styles.backgroundColor,
 				title: localize('processExplorer', "Process Explorer")
 			});
 
@@ -96,7 +96,8 @@ export class IssueService implements IIssueService {
 				appRoot: this.environmentService.appRoot,
 				nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
 				windowId: this._processExplorerWindow.id,
-				machineId: this.machineId
+				machineId: this.machineId,
+				data
 			};
 
 			const environment = parseArgs(process.argv);

@@ -7,11 +7,13 @@
 
 import 'vs/css!./media/processExplorer';
 import { listProcesses, ProcessItem } from 'vs/base/node/ps';
-import { remote } from 'electron';
+import { remote, webFrame } from 'electron';
 import { repeat } from 'vs/base/common/strings';
 import { totalmem } from 'os';
 import product from 'vs/platform/node/product';
 import { localize } from 'vs/nls';
+import { ProcessExplorerData, ProcessExplorerStyles } from '../../../platform/issue/common/issue';
+import * as browser from 'vs/base/browser/browser';
 
 let selectedProcess: number;
 let processList: any[];
@@ -93,9 +95,49 @@ function updateProcessInfo(processList): void {
 	target.innerHTML = `<table>${tableHtml}</table>`;
 }
 
-export function startup() {
+function applyStyles(styles: ProcessExplorerStyles): void {
+	const styleTag = document.createElement('style');
+	const content: string[] = [];
 
-	setInterval(() => listProcesses(remote.process.pid).then(processes => {
+	if (styles.hoverBackground) {
+		content.push(`tr:hover  { background-color: ${styles.hoverBackground}; }`);
+	}
+
+	if (styles.hoverForeground) {
+		content.push(`tr:hover{ color: ${styles.hoverForeground}; }`);
+	}
+
+	if (styles.selectionBackground) {
+		content.push(`tr.selected { background.color: ${styles.selectionBackground}; }`);
+	}
+
+	if (styles.selectionForeground) {
+		content.push(`tr.selected { color: ${styles.selectionForeground}; }`);
+	}
+
+	if (styles.highlightForeground) {
+		content.push(`.highest { color: ${styles.highlightForeground}; }`);
+	}
+
+	styleTag.innerHTML = content.join('\n');
+	document.head.appendChild(styleTag);
+	document.body.style.color = styles.color;
+}
+
+function applyZoom(zoomLevel: number): void {
+	webFrame.setZoomLevel(zoomLevel);
+	browser.setZoomFactor(webFrame.getZoomFactor());
+	// See https://github.com/Microsoft/vscode/issues/26151
+	// Cannot be trusted because the webFrame might take some time
+	// until it really applies the new zoom level
+	browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
+}
+
+export function startup(data: ProcessExplorerData): void {
+	applyStyles(data.styles);
+	applyZoom(data.zoomLevel);
+
+	listProcesses(remote.process.pid).then(processes => {
 		processList = getProcessList(processes);
 		updateProcessInfo(processList);
 
@@ -113,5 +155,5 @@ export function startup() {
 				tableRow.classList.add('selected');
 			});
 		}
-	}), 1000);
+	});
 }

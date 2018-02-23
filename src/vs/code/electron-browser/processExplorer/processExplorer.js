@@ -107,7 +107,7 @@ function main() {
 		require([
 			'vs/code/electron-browser/processExplorer/processExplorerMain'
 		], function (processExplorer) {
-			processExplorer.startup();
+			processExplorer.startup(configuration.data);
 		});
 	});
 }
