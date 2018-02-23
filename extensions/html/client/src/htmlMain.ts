@@ -8,11 +8,13 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, FoldingRangeList, FoldingRange, workspace } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, Disposable } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
+
+import { FoldingRangesRequest } from './protocol/foldingProvider.proposed';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
@@ -25,6 +27,9 @@ interface IPackageInfo {
 }
 
 let telemetryReporter: TelemetryReporter | null;
+
+let foldingProviderRegistration: Disposable | undefined = void 0;
+const foldingSetting = 'html.experimental.syntaxFolding';
 
 export function activate(context: ExtensionContext) {
 	let toDispose = context.subscriptions;
@@ -78,6 +83,14 @@ export function activate(context: ExtensionContext) {
 			}
 		});
 		toDispose.push(disposable);
+
+		initFoldingProvider();
+		toDispose.push(workspace.onDidChangeConfiguration(c => {
+			if (c.affectsConfiguration(foldingSetting)) {
+				initFoldingProvider();
+			}
+		}));
+		toDispose.push({ dispose: () => foldingProviderRegistration && foldingProviderRegistration.dispose() });
 	});
 
 	languages.setLanguageConfiguration('html', {
@@ -153,6 +166,29 @@ export function activate(context: ExtensionContext) {
 			return null;
 		}
 	});
+
+	function initFoldingProvider() {
+		let enable = workspace.getConfiguration().get(foldingSetting);
+		if (enable) {
+			if (!foldingProviderRegistration) {
+				foldingProviderRegistration = languages.registerFoldingProvider(documentSelector, {
+					provideFoldingRanges(document: TextDocument) {
+						return client.sendRequest(FoldingRangesRequest.type, { textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document) }).then(res => {
+							if (res && Array.isArray(res.ranges)) {
+								return new FoldingRangeList(res.ranges.map(r => new FoldingRange(r.startLine, r.endLine, r.type)));
+							}
+							return null;
+						});
+					}
+				});
+			}
+		} else {
+			if (foldingProviderRegistration) {
+				foldingProviderRegistration.dispose();
+				foldingProviderRegistration = void 0;
+			}
+		}
+	}
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo | null {
