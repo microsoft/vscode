@@ -294,22 +294,26 @@ export class WorkbenchShell {
 		}
 
 		perf.mark('willReadLocalStorage');
-		const readyToSend = this.storageService.getBoolean('localStorageMetricsReadyToSend');
+		const readyToSend = this.storageService.getBoolean('localStorageMetricsReadyToSend2');
 		perf.mark('didReadLocalStorage');
 
 		if (!readyToSend) {
-			this.storageService.store('localStorageMetricsReadyToSend', true);
+			this.storageService.store('localStorageMetricsReadyToSend2', true);
 			return; // avoid logging localStorage metrics directly after the update, we prefer cold startup numbers
 		}
 
-		if (!this.storageService.getBoolean('localStorageMetricsSent')) {
+		if (!this.storageService.getBoolean('localStorageMetricsSent2')) {
 			perf.mark('willWriteLocalStorage');
-			this.storageService.store('localStorageMetricsSent', true);
+			this.storageService.store('localStorageMetricsSent2', true);
 			perf.mark('didWriteLocalStorage');
 
+			perf.mark('willStatLocalStorage');
 			stat(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage'), (error, stat) => {
+				perf.mark('didStatLocalStorage');
+
 				/* __GDPR__
 					"localStorageTimers" : {
+						"statTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"accessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"firstReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"subsequentReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -318,7 +322,8 @@ export class WorkbenchShell {
 						"size": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
-				this.telemetryService.publicLog('localStorageTimers', {
+				this.telemetryService.publicLog('localStorageTimers2', {
+					'statTime': perf.getDuration('willStatLocalStorage', 'didStatLocalStorage'),
 					'accessTime': perf.getDuration('willAccessLocalStorage', 'didAccessLocalStorage'),
 					'firstReadTime': perf.getDuration('willReadWorkspaceIdentifier', 'didReadWorkspaceIdentifier'),
 					'subsequentReadTime': perf.getDuration('willReadLocalStorage', 'didReadLocalStorage'),
