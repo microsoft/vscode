@@ -75,14 +75,8 @@ export class TerminalLinkHandler {
 		const baseLocalLinkClause = _platform === platform.Platform.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
 		this._localLinkPattern = new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
-
-		this._xterm.setHypertextLinkHandler(this._wrapLinkHandler(uri => {
-			this._handleHypertextLink(uri);
-		}));
-
-		this._xterm.setHypertextValidationCallback((uri: string, callback: (isValid: boolean) => void) => {
-			this._validateWebLink(uri, callback);
-		});
+		this.registerWebLinkHandler();
+		this.registerLocalLinkHandler();
 	}
 
 	public setWidgetManager(widgetManager: TerminalWidgetManager): void {
@@ -100,12 +94,23 @@ export class TerminalLinkHandler {
 		});
 	}
 
-	public registerLocalLinkHandler(): number {
+	public registerWebLinkHandler(): void {
+		const wrappedHandler = this._wrapLinkHandler(uri => {
+			this._handleHypertextLink(uri);
+		});
+		this._xterm.webLinksInit(wrappedHandler, {
+			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(uri, callback),
+			tooltipCallback: (e: MouseEvent) => this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString()),
+			leaveCallback: () => this._widgetManager.closeMessage(),
+			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e)
+		});
+	}
+
+	public registerLocalLinkHandler(): void {
 		const wrappedHandler = this._wrapLinkHandler(url => {
 			this._handleLocalLink(url);
 		});
-
-		return this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
+		this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
 			tooltipCallback: (e: MouseEvent) => this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString()),
 			leaveCallback: () => this._widgetManager.closeMessage(),

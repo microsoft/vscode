@@ -267,9 +267,9 @@ export class TerminalInstance implements ITerminalInstance {
 	protected async _createXterm(): TPromise<void> {
 		if (!Terminal) {
 			Terminal = (await import('vscode-xterm')).Terminal;
-			// Enable search functionality in xterm.js instance
+			// Enable xterm.js addons
 			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/search/search'));
-			// Enable the winpty compatibility addon which will simulate wraparound mode
+			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/webLinks/webLinks'));
 			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/winptyCompat/winptyCompat'));
 			// Localize strings
 			Terminal.strings.blankLine = nls.localize('terminal.integrated.a11yBlankLine', 'Blank line');
@@ -312,7 +312,6 @@ export class TerminalInstance implements ITerminalInstance {
 			return false;
 		});
 		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._initialCwd);
-		this._linkHandler.registerLocalLinkHandler();
 		this._instanceDisposables.push(this._themeService.onThemeChange(theme => this._updateTheme(theme)));
 	}
 
