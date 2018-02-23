@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./media/searchviewlet';
+import 'vs/css!./media/searchview';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
@@ -128,7 +128,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	) {
 		super(VIEW_ID, partService, telemetryService, themeService);
 
-		this.viewletVisible = Constants.SearchViewletVisibleKey.bindTo(contextKeyService);
+		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(contextKeyService);
 		this.inputBoxFocused = Constants.InputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.inputPatternIncludesFocused = Constants.PatternIncludesFocusedKey.bindTo(this.contextKeyService);
 		this.inputPatternExclusionsFocused = Constants.PatternExcludesFocusedKey.bindTo(this.contextKeyService);
