@@ -21,7 +21,7 @@ import { ValidationStatus, ValidationState, IProblemReporter, Parser } from 'vs/
 import { IStringDictionary } from 'vs/base/common/collections';
 
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 export enum FileLocationKind {
 	Auto,

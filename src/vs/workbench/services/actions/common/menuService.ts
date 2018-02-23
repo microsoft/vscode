@@ -8,7 +8,7 @@
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { Menu } from 'vs/platform/actions/common/menu';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class MenuService implements IMenuService {

@@ -11,7 +11,7 @@ import Event from 'vs/base/common/event';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';

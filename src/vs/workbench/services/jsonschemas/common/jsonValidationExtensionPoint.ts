@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
