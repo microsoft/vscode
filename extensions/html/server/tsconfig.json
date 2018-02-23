@@ -6,7 +6,7 @@
 		"noUnusedLocals": true,
 		"sourceMap": true,
 		"lib": [
-			"es5", "es2015.promise", "dom"
+			"es5", "es2015.promise"
 		]
 	}
 }

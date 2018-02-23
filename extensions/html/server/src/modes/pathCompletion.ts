@@ -64,11 +64,16 @@ export function providePathSuggestions(value: string, activeDocFsPath: string, r
 		return [];
 	}
 
-	const valueAfterLastSlash = value.slice(value.lastIndexOf('/') + 1);
-	const valueBeforeLastSlash = value.slice(0, value.lastIndexOf('/') + 1);
+	const lastIndexOfSlash = value.lastIndexOf('/');
+	const valueAfterLastSlash = value.slice(lastIndexOfSlash + 1);
+	const valueBeforeLastSlash = value.slice(0, lastIndexOfSlash + 1);
 	const parentDir = startsWith(value, '/')
 		? path.resolve(root, '.' + valueBeforeLastSlash)
 		: path.resolve(activeDocFsPath, '..', valueBeforeLastSlash);
+
+	if (!fs.existsSync(parentDir)) {
+		return [];
+	}
 
 	return fs.readdirSync(parentDir).map(f => {
 		return {
