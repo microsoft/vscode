@@ -461,7 +461,7 @@ export class Git {
 		});
 
 		if (options.log !== false) {
-			this.log(`git ${args.join(' ')}\n`);
+			this.log(`> git ${args.join(' ')}\n`);
 		}
 
 		return cp.spawn(this.gitPath, args, options);

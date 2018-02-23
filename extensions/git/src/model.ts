@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento } from 'vscode';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent, isDescendant, firstIndex } from './util';
@@ -66,7 +66,7 @@ export class Model {
 
 	private disposables: Disposable[] = [];
 
-	constructor(private git: Git, private globalState: Memento) {
+	constructor(private git: Git, private globalState: Memento, private outputChannel: OutputChannel) {
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] });
 
@@ -215,6 +215,8 @@ export class Model {
 	}
 
 	private open(repository: Repository): void {
+		this.outputChannel.appendLine(`Open repository: ${repository.root}`);
+
 		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === RepositoryState.Disposed);
 		const disappearListener = onDidDisappearRepository(() => dispose());
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
@@ -260,6 +262,7 @@ export class Model {
 			return;
 		}
 
+		this.outputChannel.appendLine(`Close repository: ${repository.root}`);
 		openRepository.dispose();
 	}
 
