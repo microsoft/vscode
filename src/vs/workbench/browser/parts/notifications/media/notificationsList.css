@@ -94,17 +94,6 @@
 	display: block;
 }
 
-.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .action-label {
-	flex: 0 0 16px;
-	display: block;
-	width: 16px;
-	height: 22px;
-	margin-right: 4px;
-	margin-left: 4px;
-	background-position: center;
-	background-repeat: no-repeat;
-}
-
 /** Notification: Details Row */
 
 .monaco-workbench .notifications-list-container .notification-list-item > .notification-list-item-details-row {
