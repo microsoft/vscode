@@ -52,6 +52,7 @@ export class RangesCollector {
 	private _endIndexes: number[];
 	private _nestingLevels: number[];
 	private _nestingLevelCounts: number[];
+	private _types: string[];
 	private _length: number;
 	private _foldingRangesLimit: number;
 
@@ -60,11 +61,12 @@ export class RangesCollector {
 		this._endIndexes = [];
 		this._nestingLevels = [];
 		this._nestingLevelCounts = [];
+		this._types = [];
 		this._length = 0;
 		this._foldingRangesLimit = foldingRangesLimit;
 	}
 
-	public add(startLineNumber: number, endLineNumber: number, nestingLevel: number) {
+	public add(startLineNumber: number, endLineNumber: number, type: string, nestingLevel: number) {
 		if (startLineNumber > MAX_LINE_NUMBER || endLineNumber > MAX_LINE_NUMBER) {
 			return;
 		}
@@ -72,6 +74,7 @@ export class RangesCollector {
 		this._startIndexes[index] = startLineNumber;
 		this._endIndexes[index] = endLineNumber;
 		this._nestingLevels[index] = nestingLevel;
+		this._types[index] = type;
 		this._length++;
 		if (nestingLevel < 30) {
 			this._nestingLevelCounts[nestingLevel] = (this._nestingLevelCounts[nestingLevel] || 0) + 1;
@@ -86,7 +89,7 @@ export class RangesCollector {
 				startIndexes[i] = this._startIndexes[i];
 				endIndexes[i] = this._endIndexes[i];
 			}
-			return new FoldingRegions(startIndexes, endIndexes);
+			return new FoldingRegions(startIndexes, endIndexes, this._types);
 		} else {
 			let entries = 0;
 			let maxLevel = this._nestingLevelCounts.length;
@@ -102,15 +105,17 @@ export class RangesCollector {
 			}
 			let startIndexes = new Uint32Array(entries);
 			let endIndexes = new Uint32Array(entries);
+			let types = [];
 			for (let i = 0, k = 0; i < this._length; i++) {
 				let level = this._nestingLevels[i];
 				if (level < maxLevel) {
 					startIndexes[k] = this._startIndexes[i];
 					endIndexes[k] = this._endIndexes[i];
+					types[k] = this._types[i];
 					k++;
 				}
 			}
-			return new FoldingRegions(startIndexes, endIndexes);
+			return new FoldingRegions(startIndexes, endIndexes, types);
 		}
 
 	}
@@ -132,20 +137,20 @@ export function sanitizeRanges(rangeData: IFoldingRangeData[]): FoldingRegions {
 	for (let entry of sorted) {
 		if (!top) {
 			top = entry;
-			collector.add(entry.startLineNumber, entry.endLineNumber, previous.length);
+			collector.add(entry.startLineNumber, entry.endLineNumber, entry.type, previous.length);
 		} else {
 			if (entry.startLineNumber > top.startLineNumber) {
 				if (entry.endLineNumber <= top.endLineNumber) {
 					previous.push(top);
 					top = entry;
-					collector.add(entry.startLineNumber, entry.endLineNumber, previous.length);
+					collector.add(entry.startLineNumber, entry.endLineNumber, entry.type, previous.length);
 				} else if (entry.startLineNumber > top.endLineNumber) {
 					do {
 						top = previous.pop();
 					} while (top && entry.startLineNumber > top.endLineNumber);
 					previous.push(top);
 					top = entry;
-					collector.add(entry.startLineNumber, entry.endLineNumber, previous.length);
+					collector.add(entry.startLineNumber, entry.endLineNumber, entry.type, previous.length);
 				}
 			}
 		}

@@ -1677,9 +1677,9 @@ export class FoldingRange {
 
 	endLine: number;
 
-	type?: FoldingRangeType;
+	type?: FoldingRangeType | string;
 
-	constructor(startLine: number, endLine: number, type?: FoldingRangeType) {
+	constructor(startLine: number, endLine: number, type?: FoldingRangeType | string) {
 		this.startLine = startLine;
 		this.endLine = endLine;
 		this.type = type;

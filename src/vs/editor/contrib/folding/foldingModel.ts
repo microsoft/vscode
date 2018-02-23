@@ -308,3 +308,18 @@ export function setCollapseStateForMatchingLines(foldingModel: FoldingModel, reg
 	}
 	foldingModel.toggleCollapseState(toToggle);
 }
+
+/**
+ * Folds all regions of the given type
+ * @param foldingModel the folding model
+ */
+export function setCollapseStateForType(foldingModel: FoldingModel, type: string, doCollapse: boolean): void {
+	let regions = foldingModel.regions;
+	let toToggle = [];
+	for (let i = regions.length - 1; i >= 0; i--) {
+		if (doCollapse !== regions.isCollapsed(i) && type === regions.getType(i)) {
+			toToggle.push(regions.toRegion(i));
+		}
+	}
+	foldingModel.toggleCollapseState(toToggle);
+}

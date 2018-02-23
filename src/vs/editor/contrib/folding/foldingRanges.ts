@@ -20,14 +20,16 @@ export class FoldingRegions {
 	private _endIndexes: Uint32Array;
 	private _collapseStates: Uint32Array;
 	private _parentsComputed: boolean;
+	private _types: string[] | undefined;
 
-	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array) {
+	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array, types?: string[]) {
 		if (startIndexes.length !== endIndexes.length || startIndexes.length > MAX_FOLDING_REGIONS) {
 			throw new Error('invalid startIndexes or endIndexes size');
 		}
 		this._startIndexes = startIndexes;
 		this._endIndexes = endIndexes;
 		this._collapseStates = new Uint32Array(Math.ceil(startIndexes.length / 32));
+		this._types = types;
 	}
 
 	private ensureParentIndices() {
@@ -65,6 +67,14 @@ export class FoldingRegions {
 
 	public getEndLineNumber(index: number): number {
 		return this._endIndexes[index] & MAX_LINE_NUMBER;
+	}
+
+	public getType(index: number): string | undefined {
+		return this._types ? this._types[index] : void 0;
+	}
+
+	public hasTypes() {
+		return !!this._types;
 	}
 
 	public isCollapsed(index: number): boolean {
