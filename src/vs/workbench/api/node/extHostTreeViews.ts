@@ -16,7 +16,7 @@ import { ITreeItem, TreeViewItemHandleArg, IThemeIconCategory } from 'vs/workben
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { coalesce } from 'vs/base/common/arrays';
-import { TreeItemCollapsibleState, ThemeIconCategory as ExtHostThemeIconCategory } from 'vs/workbench/api/node/extHostTypes';
+import { TreeItemCollapsibleState, ThemeIconCategory } from 'vs/workbench/api/node/extHostTypes';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 
 type TreeItemHandle = string;
@@ -218,7 +218,7 @@ class ExtHostTreeView<T> extends Disposable {
 		if (extensionTreeItem.iconPath) {
 			if (typeof extensionTreeItem.iconPath === 'string'
 				|| extensionTreeItem.iconPath instanceof URI
-				|| extensionTreeItem.iconPath instanceof ExtHostThemeIconCategory) {
+				|| extensionTreeItem.iconPath instanceof ThemeIconCategory) {
 				return this.getIconPath(extensionTreeItem.iconPath);
 			}
 			return this.getIconPath(extensionTreeItem.iconPath['light']);
@@ -233,11 +233,11 @@ class ExtHostTreeView<T> extends Disposable {
 		return void 0;
 	}
 
-	private getIconPath(iconPath: string | URI | ExtHostThemeIconCategory): string | IThemeIconCategory {
+	private getIconPath(iconPath: string | URI | ThemeIconCategory): string | IThemeIconCategory {
 		if (iconPath instanceof URI) {
 			return iconPath.toString();
 		}
-		if (iconPath instanceof ExtHostThemeIconCategory) {
+		if (iconPath instanceof ThemeIconCategory) {
 			return { id: iconPath.id };
 		}
 		return URI.file(iconPath).toString();
