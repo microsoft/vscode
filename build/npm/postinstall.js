@@ -32,7 +32,6 @@ const extensions = [
 	'typescript',
 	'php',
 	'javascript',
-	'package-json',
 	'css',
 	'html',
 	'git',
