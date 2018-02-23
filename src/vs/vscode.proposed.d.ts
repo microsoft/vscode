@@ -46,7 +46,7 @@ declare module 'vscode' {
 		 * @param startLineNumber The first line of the fold
 		 * @param type The last line of the fold
 		 */
-		constructor(startLineNumber: number, endLineNumber: number, type?: FoldingRangeType);
+		constructor(startLineNumber: number, endLineNumber: number, type?: FoldingRangeType | string);
 	}
 
 	export enum FoldingRangeType {
