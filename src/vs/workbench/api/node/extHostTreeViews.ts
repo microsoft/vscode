@@ -12,11 +12,11 @@ import { debounceEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
-import { ITreeItem, TreeViewItemHandleArg, IThemeIconCategory } from 'vs/workbench/common/views';
+import { ITreeItem, TreeViewItemHandleArg, IThemeIcon } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { coalesce } from 'vs/base/common/arrays';
-import { TreeItemCollapsibleState, ThemeIconCategory } from 'vs/workbench/api/node/extHostTypes';
+import { TreeItemCollapsibleState, ThemeIcon } from 'vs/workbench/api/node/extHostTypes';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 
 type TreeItemHandle = string;
@@ -214,11 +214,11 @@ class ExtHostTreeView<T> extends Disposable {
 		throw new Error('This should not be reached');
 	}
 
-	private getLightIconPath(extensionTreeItem: vscode.TreeItem): string | IThemeIconCategory {
+	private getLightIconPath(extensionTreeItem: vscode.TreeItem): string | IThemeIcon {
 		if (extensionTreeItem.iconPath) {
 			if (typeof extensionTreeItem.iconPath === 'string'
 				|| extensionTreeItem.iconPath instanceof URI
-				|| extensionTreeItem.iconPath instanceof ThemeIconCategory) {
+				|| extensionTreeItem.iconPath instanceof ThemeIcon) {
 				return this.getIconPath(extensionTreeItem.iconPath);
 			}
 			return this.getIconPath(extensionTreeItem.iconPath['light']);
@@ -226,18 +226,18 @@ class ExtHostTreeView<T> extends Disposable {
 		return void 0;
 	}
 
-	private getDarkIconPath(extensionTreeItem: vscode.TreeItem): string | IThemeIconCategory {
+	private getDarkIconPath(extensionTreeItem: vscode.TreeItem): string | IThemeIcon {
 		if (extensionTreeItem.iconPath && extensionTreeItem.iconPath['dark']) {
 			return this.getIconPath(extensionTreeItem.iconPath['dark']);
 		}
 		return void 0;
 	}
 
-	private getIconPath(iconPath: string | URI | ThemeIconCategory): string | IThemeIconCategory {
+	private getIconPath(iconPath: string | URI | ThemeIcon): string | IThemeIcon {
 		if (iconPath instanceof URI) {
 			return iconPath.toString();
 		}
-		if (iconPath instanceof ThemeIconCategory) {
+		if (iconPath instanceof ThemeIcon) {
 			return { id: iconPath.id };
 		}
 		return URI.file(iconPath).toString();

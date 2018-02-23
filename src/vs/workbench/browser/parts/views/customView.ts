@@ -13,7 +13,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { $ } from 'vs/base/browser/builder';
 import { LIGHT } from 'vs/platform/theme/common/themeService';
 import { ITree, IDataSource, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
-import { TreeItemCollapsibleState, ITreeItem, ITreeViewer, ICustomViewsService, ITreeViewDataProvider, ViewsRegistry, IViewDescriptor, TreeViewItemHandleArg, ICustomViewDescriptor, FileThemeIconCategoryId, FolderThemeIconCategoryId } from 'vs/workbench/common/views';
+import { TreeItemCollapsibleState, ITreeItem, ITreeViewer, ICustomViewsService, ITreeViewDataProvider, ViewsRegistry, IViewDescriptor, TreeViewItemHandleArg, ICustomViewDescriptor, FileThemeIconId, FolderThemeIconId } from 'vs/workbench/common/views';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -418,10 +418,10 @@ class TreeRenderer implements IRenderer {
 			let fileKind = node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE;
 			if (icon && icon.id) {
 				switch (icon.id) {
-					case FileThemeIconCategoryId:
+					case FileThemeIconId:
 						fileKind = FileKind.FILE;
 						break;
-					case FolderThemeIconCategoryId:
+					case FolderThemeIconId:
 						fileKind = FileKind.FOLDER;
 						break;
 				}
