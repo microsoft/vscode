@@ -305,6 +305,7 @@ export class SplitTerminalAction extends Action {
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
+		this.class = 'terminal-action split';
 	}
 
 	public run(event?: any): TPromise<any> {
