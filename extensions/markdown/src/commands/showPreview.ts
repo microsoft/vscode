@@ -53,8 +53,9 @@ function showPreview(
 		return;
 	}
 
-	const view = webviewManager.create(
+	const view = webviewManager.preview(
 		resource,
+		(vscode.window.activeTextEditor && vscode.window.activeTextEditor.viewColumn) || vscode.ViewColumn.One,
 		getViewColumn(sideBySide) || vscode.ViewColumn.Active);
 
 	telemetryReporter.sendTelemetryEvent('openPreview', {

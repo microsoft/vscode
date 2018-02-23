@@ -513,7 +513,17 @@ declare module 'vscode' {
 	 */
 	export interface Webview {
 		/**
-		 * Title of the webview.
+		 * Type identifying the editor as a webview editor.
+		 */
+		readonly editorType: 'webview';
+
+		/**
+		 * Unique internal identifer of the webview.
+		 */
+		readonly id: string;
+
+		/**
+		 * Title of the webview shown in UI.
 		 */
 		title: string;
 
@@ -538,16 +548,6 @@ declare module 'vscode' {
 		readonly onMessage: Event<any>;
 
 		/**
-		 * Fired when the webview becomes the active editor.
-		 */
-		readonly onBecameActive: Event<void>;
-
-		/**
-		 * Fired when the webview stops being the active editor
-		 */
-		readonly onBecameInactive: Event<void>;
-
-		/**
 		 * Post a message to the webview content.
 		 *
 		 * Messages are only develivered if the webview is visible.
@@ -566,11 +566,20 @@ declare module 'vscode' {
 		/**
 		 * Create and show a new webview.
 		 *
-		 * @param title Title of the webview.
+		 * @param id Unique identifier for the webview.
 		 * @param column Editor column to show the new webview in.
-		 * @param options Webview content options.
 		 */
-		export function createWebview(title: string, column: ViewColumn, options: WebviewOptions): Webview;
+		export function getOrCreateWebview(id: string, column: ViewColumn): Webview;
+
+		/**
+		 * Event fired when the active editor changes.
+		 */
+		export const onDidChangeActiveEditor: Event<TextEditor | Webview | undefined>;
+
+		/**
+		 * Event fired when a webview is closed.
+		 */
+		export const onDidCloseWebview: Event<Webview>;
 	}
 
 	export namespace window {
