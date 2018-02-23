@@ -142,11 +142,11 @@ export class NotificationsList extends Themable {
 				}
 			}
 
-			this.list.setFocus([indexToFocus]);
-
 			if (typeof focusRelativeTop === 'number') {
 				this.list.reveal(indexToFocus, focusRelativeTop);
 			}
+
+			this.list.setFocus([indexToFocus]);
 		}
 
 		// Restore DOM focus if we had focus before
