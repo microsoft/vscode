@@ -12,7 +12,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import URI from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { localize } from 'vs/nls';
-import { Button } from 'vs/base/browser/ui/button/button';
+import { ButtonGroup } from 'vs/base/browser/ui/button/button';
 import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -42,11 +42,7 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 
 	private createOffsetHelper(container: HTMLElement): HTMLElement {
 		const offsetHelper = document.createElement('div');
-		offsetHelper.style.opacity = '0';
-		offsetHelper.style.position = 'absolute'; // do not mess with the visual layout
-		offsetHelper.style.width = '100%'; // ensure to fill contauner to measure true width
-		offsetHelper.style.overflow = 'hidden'; // do not overflow
-		offsetHelper.style.whiteSpace = 'nowrap'; // do not wrap to measure true width
+		addClass(offsetHelper, 'notification-offset-helper');
 
 		container.appendChild(offsetHelper);
 
@@ -63,7 +59,7 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 		}
 
 		// Dynamic height: if message overflows
-		const preferredMessageHeight = this.computePreferredRows(notification) * NotificationsListDelegate.LINE_HEIGHT;
+		const preferredMessageHeight = this.computePreferredHeight(notification);
 		const messageOverflows = NotificationsListDelegate.LINE_HEIGHT < preferredMessageHeight;
 		if (messageOverflows) {
 			const overflow = preferredMessageHeight - NotificationsListDelegate.LINE_HEIGHT;
@@ -75,26 +71,38 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 			expandedHeight += NotificationsListDelegate.ROW_HEIGHT;
 		}
 
+		// If the expanded height is same as collapsed, unset the expanded state
+		// but skip events because there is no change that has visual impact
+		if (expandedHeight === NotificationsListDelegate.ROW_HEIGHT) {
+			notification.collapse(true /* skip events, no change in height */);
+		}
+
 		return expandedHeight;
 	}
 
-	private computePreferredRows(notification: INotificationViewItem): number {
+	private computePreferredHeight(notification: INotificationViewItem): number {
+
+		// Prepare offset helper depending on toolbar actions count
+		let actions = 1; // close
+		if (notification.canCollapse) {
+			actions++; // expand/collapse
+		}
+		if (notification.actions.secondary.length > 0) {
+			actions++; // secondary actions
+		}
+		this.offsetHelper.style.width = `calc(100% - ${10 /* padding */ + 24 /* severity icon */ + (actions * 24) /* 24px per action */}px)`;
 
 		// Render message markdown into offset helper
 		const renderedMessage = NotificationMessageMarkdownRenderer.render(notification.message);
 		this.offsetHelper.appendChild(renderedMessage);
 
-		// Compute message width taking overflow into account
-		const messageWidth = Math.max(renderedMessage.scrollWidth, renderedMessage.offsetWidth);
-
-		// One row per exceeding the total width of the container
-		const availableWidth = this.offsetHelper.offsetWidth - (20 /* paddings */ + 22 /* severity */ + (24 * 3) /* toolbar */);
-		const preferredRows = Math.ceil(messageWidth / availableWidth);
+		// Compute height
+		const preferredHeight = Math.max(this.offsetHelper.offsetHeight, this.offsetHelper.scrollHeight);
 
 		// Always clear offset helper after use
 		clearNode(this.offsetHelper);
 
-		return preferredRows;
+		return preferredHeight;
 	}
 
 	public getTemplateId(element: INotificationViewItem): string {
@@ -389,8 +397,10 @@ export class NotificationTemplateRenderer {
 	private renderSource(notification): void {
 		if (notification.expanded && notification.source) {
 			this.template.source.innerText = localize('notificationSource', "Source: {0}", notification.source);
+			this.template.source.title = notification.source;
 		} else {
 			this.template.source.innerText = '';
+			this.template.source.removeAttribute('title');
 		}
 	}
 
@@ -398,7 +408,24 @@ export class NotificationTemplateRenderer {
 		clearNode(this.template.buttonsContainer);
 
 		if (notification.expanded) {
-			notification.actions.primary.forEach(action => this.createButton(notification, action));
+			const buttonGroup = new ButtonGroup(this.template.buttonsContainer, notification.actions.primary.length);
+			buttonGroup.buttons.forEach((button, index) => {
+				const action = notification.actions.primary[index];
+				button.label = action.label;
+
+				this.inputDisposeables.push(button.onDidClick(() => {
+
+					// Run action
+					this.actionRunner.run(action, notification);
+
+					// Hide notification
+					notification.dispose();
+				}));
+
+				this.inputDisposeables.push(attachButtonStyler(button, this.themeService));
+			});
+
+			this.inputDisposeables.push(buttonGroup);
 		}
 	}
 
@@ -449,24 +476,6 @@ export class NotificationTemplateRenderer {
 		const keybinding = this.keybindingService.lookupKeybinding(action.id);
 
 		return keybinding ? keybinding.getLabel() : void 0;
-	}
-
-	private createButton(notification: INotificationViewItem, action: IAction): Button {
-		const button = new Button(this.template.buttonsContainer);
-		button.label = action.label;
-		this.inputDisposeables.push(button.onDidClick(() => {
-
-			// Run action
-			this.actionRunner.run(action, notification);
-
-			// Hide notification
-			notification.dispose();
-		}));
-
-		this.inputDisposeables.push(attachButtonStyler(button, this.themeService));
-		this.inputDisposeables.push(button);
-
-		return button;
 	}
 
 	public dispose(): void {

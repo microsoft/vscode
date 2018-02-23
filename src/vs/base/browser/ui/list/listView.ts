@@ -120,6 +120,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.scrollableElement.onScroll(this.onScroll, this, this.disposables);
 		domEvent(this.rowsContainer, TouchEventType.Change)(this.onTouchChange, this, this.disposables);
 
+		// Prevent the monaco-scrollable-element from scrolling
+		// https://github.com/Microsoft/vscode/issues/44181
+		domEvent(this.scrollableElement.getDomNode(), 'scroll')
+			(e => (e.target as HTMLElement).scrollTop = 0, null, this.disposables);
+
 		const onDragOver = mapEvent(domEvent(this.rowsContainer, 'dragover'), e => new DragMouseEvent(e));
 		onDragOver(this.onDragOver, this, this.disposables);
 
@@ -150,7 +155,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const removeRange = intersect(previousRenderRange, deleteRange);
 
 		for (let i = removeRange.start; i < removeRange.end; i++) {
-			this.removeItemFromDOM(this.items[i]);
+			this.removeItemFromDOM(i);
 		}
 
 		const previousRestRange: IRange = { start: start + deleteCount, end: this.items.length };
@@ -183,19 +188,20 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			const removeRange = removeRanges[r];
 
 			for (let i = removeRange.start; i < removeRange.end; i++) {
-				this.removeItemFromDOM(this.items[i]);
+				this.removeItemFromDOM(i);
 			}
 		}
 
 		const unrenderedRestRanges = previousUnrenderedRestRanges.map(r => shift(r, delta));
 		const elementsRange = { start, end: start + elements.length };
 		const insertRanges = [elementsRange, ...unrenderedRestRanges].map(r => intersect(renderRange, r));
+		const beforeElement = this.getNextToLastElement(insertRanges);
 
 		for (let r = 0; r < insertRanges.length; r++) {
 			const insertRange = insertRanges[r];
 
 			for (let i = insertRange.start; i < insertRange.end; i++) {
-				this.insertItemInDOM(this.items[i], i);
+				this.insertItemInDOM(i, beforeElement);
 			}
 		}
 
@@ -254,16 +260,17 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const rangesToInsert = relativeComplement(renderRange, previousRenderRange);
 		const rangesToRemove = relativeComplement(previousRenderRange, renderRange);
+		const beforeElement = this.getNextToLastElement(rangesToInsert);
 
 		for (const range of rangesToInsert) {
 			for (let i = range.start; i < range.end; i++) {
-				this.insertItemInDOM(this.items[i], i);
+				this.insertItemInDOM(i, beforeElement);
 			}
 		}
 
 		for (const range of rangesToRemove) {
 			for (let i = range.start; i < range.end; i++) {
-				this.removeItemFromDOM(this.items[i], );
+				this.removeItemFromDOM(i);
 			}
 		}
 
@@ -281,20 +288,25 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	// DOM operations
 
-	private insertItemInDOM(item: IItem<T>, index: number): void {
+	private insertItemInDOM(index: number, beforeElement: HTMLElement | null): void {
+		const item = this.items[index];
+
 		if (!item.row) {
 			item.row = this.cache.alloc(item.templateId);
 		}
 
 		if (!item.row.domNode.parentElement) {
-			this.rowsContainer.appendChild(item.row.domNode);
+			if (beforeElement) {
+				this.rowsContainer.insertBefore(item.row.domNode, beforeElement);
+			} else {
+				this.rowsContainer.appendChild(item.row.domNode);
+			}
 		}
 
-		const renderer = this.renderers.get(item.templateId);
-		item.row.domNode.style.top = `${this.elementTop(index)}px`;
 		item.row.domNode.style.height = `${item.size}px`;
-		item.row.domNode.setAttribute('data-index', `${index}`);
-		item.row.domNode.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
+		this.updateItemInDOM(item, index);
+
+		const renderer = this.renderers.get(item.templateId);
 		renderer.renderElement(item.element, index, item.row.templateData);
 	}
 
@@ -302,9 +314,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		item.row.domNode.style.top = `${this.elementTop(index)}px`;
 		item.row.domNode.setAttribute('data-index', `${index}`);
 		item.row.domNode.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
+		item.row.domNode.setAttribute('aria-setsize', `${this.length}`);
+		item.row.domNode.setAttribute('aria-posinset', `${index + 1}`);
 	}
 
-	private removeItemFromDOM(item: IItem<T>): void {
+	private removeItemFromDOM(index: number): void {
+		const item = this.items[index];
 		this.cache.release(item.row);
 		item.row = null;
 	}
@@ -450,6 +465,26 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			start: this.rangeMap.indexAt(renderTop),
 			end: this.rangeMap.indexAfter(renderTop + renderHeight - 1)
 		};
+	}
+
+	private getNextToLastElement(ranges: IRange[]): HTMLElement | null {
+		const lastRange = ranges[ranges.length - 1];
+
+		if (!lastRange) {
+			return null;
+		}
+
+		const nextToLastItem = this.items[lastRange.end];
+
+		if (!nextToLastItem) {
+			return null;
+		}
+
+		if (!nextToLastItem.row) {
+			return null;
+		}
+
+		return nextToLastItem.row.domNode;
 	}
 
 	// Dispose

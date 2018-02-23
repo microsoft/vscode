@@ -12,15 +12,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { Themable, NOTIFICATIONS_LINKS, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
 import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { NotificationFocusedContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-
-export interface INotificationsListOptions {
-	ariaLabel: string;
-}
 
 export class NotificationsList extends Themable {
 	private listContainer: HTMLElement;
@@ -30,7 +26,7 @@ export class NotificationsList extends Themable {
 
 	constructor(
 		private container: HTMLElement,
-		private options: INotificationsListOptions,
+		private options: IListOptions<INotificationViewItem>,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -77,9 +73,7 @@ export class NotificationsList extends Themable {
 			this.listContainer,
 			new NotificationsListDelegate(this.listContainer),
 			[renderer],
-			{
-				ariaLabel: this.options.ariaLabel
-			} as IListOptions<INotificationViewItem>
+			this.options
 		);
 		this.toUnbind.push(this.list);
 
@@ -113,9 +107,14 @@ export class NotificationsList extends Themable {
 	public updateNotificationsList(start: number, deleteCount: number, items: INotificationViewItem[] = []) {
 		const listHasDOMFocus = isAncestor(document.activeElement, this.listContainer);
 
-		// Remember focus
+		// Remember focus and relative top of that item
 		const focusedIndex = this.list.getFocus()[0];
 		const focusedItem = this.viewModel[focusedIndex];
+
+		let focusRelativeTop: number;
+		if (typeof focusedIndex === 'number') {
+			focusRelativeTop = this.list.getRelativeTop(focusedIndex);
+		}
 
 		// Update view model
 		this.viewModel.splice(start, deleteCount, ...items);
@@ -141,6 +140,10 @@ export class NotificationsList extends Themable {
 				if (indexToFocusCandidate < this.viewModel.length && indexToFocusCandidate >= 0) {
 					indexToFocus = indexToFocusCandidate;
 				}
+			}
+
+			if (typeof focusRelativeTop === 'number') {
+				this.list.reveal(indexToFocus, focusRelativeTop);
 			}
 
 			this.list.setFocus([indexToFocus]);
@@ -220,5 +223,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const linkColor = theme.getColor(NOTIFICATIONS_LINKS);
 	if (linkColor) {
 		collector.addRule(`.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a { color: ${linkColor}; }`);
+	}
+
+	const focusOutline = theme.getColor(focusBorder);
+	if (focusOutline) {
+		collector.addRule(`
+		.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a:focus {
+			outline-color: ${focusOutline};
+		}`);
 	}
 });

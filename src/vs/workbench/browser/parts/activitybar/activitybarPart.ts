@@ -86,6 +86,13 @@ export class ActivitybarPart extends Part {
 		// Deactivate viewlet action on close
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.compositeBar.deactivateComposite(viewlet.getId())));
 		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
+		this.toUnbind.push(this.viewletService.onDidViewletEnablementChange(({ id, enabled }) => {
+			if (enabled) {
+				this.compositeBar.addComposite(this.viewletService.getViewlet(id));
+			} else {
+				this.compositeBar.removeComposite(id);
+			}
+		}));
 	}
 
 	public showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {

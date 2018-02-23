@@ -97,8 +97,7 @@ export class ReplaceService implements IReplaceService {
 		@IFileService private fileService: IFileService,
 		@IEditorService private editorService: IWorkbenchEditorService,
 		@ITextModelService private textModelResolverService: ITextModelService
-	) {
-	}
+	) { }
 
 	public replace(match: Match): TPromise<any>;
 	public replace(files: FileMatch[], progress?: IProgressRunner): TPromise<any>;

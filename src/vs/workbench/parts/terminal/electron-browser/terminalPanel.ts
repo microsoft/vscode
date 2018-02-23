@@ -109,6 +109,13 @@ export class TerminalPanel extends Panel {
 						// for the first time. If there is not wait here the initial
 						// dimensions of the pty could be wrong.
 						setTimeout(() => {
+							// Check if instances were already restored as part of workbench restore
+							if (this._terminalService.terminalInstances.length > 0) {
+								this._updateFont();
+								this._updateTheme();
+								return;
+							}
+
 							const instance = this._terminalService.createInstance();
 							if (instance) {
 								this._updateFont();
@@ -128,7 +135,8 @@ export class TerminalPanel extends Panel {
 			this._actions = [
 				this._instantiationService.createInstance(SwitchTerminalAction, SwitchTerminalAction.ID, SwitchTerminalAction.LABEL),
 				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.PANEL_LABEL),
-				this._instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL)
+				this._instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL),
+				this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL)
 			];
 			this._actions.forEach(a => {
 				this._register(a);

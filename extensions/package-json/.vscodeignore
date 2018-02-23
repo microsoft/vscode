@@ -1,0 +1,3 @@
+test/**
+src/**/*.ts
+tsconfig.json

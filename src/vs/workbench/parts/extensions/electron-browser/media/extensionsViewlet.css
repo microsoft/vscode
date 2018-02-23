@@ -27,10 +27,6 @@
 	height: calc(100% - 38px);
 }
 
-.extensions-viewlet > .extensions .extensions-list > .monaco-list {
-	height: auto;
-}
-
 .extensions-viewlet > .extensions .list-actionbar-container .monaco-action-bar .action-item > .octicon {
 	font-size: 12px;
 	line-height: 1;

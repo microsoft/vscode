@@ -1,11 +1,11 @@
 {
   "name": "typescript",
-  "description": "Extension to add Typescript capabilities to VSCode.",
-  "displayName": "TypeScript support for VSCode",
+  "description": "%description%",
+  "displayName": "%displayName%",
   "version": "0.10.1",
-  "author": "Microsoft Corporation",
-  "license": "MIT",
+  "author": "vscode",
   "publisher": "vscode",
+  "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "enableProposedApi": true,
   "engines": {

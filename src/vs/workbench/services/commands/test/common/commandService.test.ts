@@ -8,17 +8,17 @@ import * as assert from 'assert';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { CommandService } from 'vs/platform/commands/common/commandService';
-import { IExtensionService, ExtensionPointContribution, IExtensionDescription, ProfileSession } from 'vs/platform/extensions/common/extensions';
+import { CommandService } from 'vs/workbench/services/commands/common/commandService';
+import { IExtensionService, ExtensionPointContribution, IExtensionDescription, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import Event, { Emitter } from 'vs/base/common/event';
 import { NullLogService } from 'vs/platform/log/common/log';
 
 class SimpleExtensionService implements IExtensionService {
 	_serviceBrand: any;
-	private _onDidRegisterExtensions = new Emitter<IExtensionDescription[]>();
-	get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
+	private _onDidRegisterExtensions = new Emitter<void>();
+	get onDidRegisterExtensions(): Event<void> {
 		return this._onDidRegisterExtensions.event;
 	}
 	onDidChangeExtensionsStatus = null;

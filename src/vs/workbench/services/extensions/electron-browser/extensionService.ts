@@ -15,10 +15,11 @@ import * as pfs from 'vs/base/node/pfs';
 import URI from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
-import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution, ActivationTimes, ProfileSession, USER_MANIFEST_CACHE_FILE, BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER } from 'vs/platform/extensions/common/extensions';
+import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution, ActivationTimes, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
+import { USER_MANIFEST_CACHE_FILE, BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER } from 'vs/platform/extensions/common/extensions';
 import { IExtensionEnablementService, IExtensionIdentifier, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, BetterMergeId, BetterMergeDisabledNowKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionScanner, ILog, ExtensionScannerInput, IExtensionResolver, IExtensionReference, Translations } from 'vs/workbench/services/extensions/node/extensionPoints';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
@@ -113,7 +114,7 @@ const NO_OP_VOID_PROMISE = TPromise.wrap<void>(void 0);
 export class ExtensionService extends Disposable implements IExtensionService {
 	public _serviceBrand: any;
 
-	private _onDidRegisterExtensions: Emitter<IExtensionDescription[]>;
+	private _onDidRegisterExtensions: Emitter<void>;
 
 	private _registry: ExtensionDescriptionRegistry;
 	private readonly _installedExtensionsReady: Barrier;
@@ -158,7 +159,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._extensionsMessages = {};
 		this._allRequestedActivateEvents = Object.create(null);
 
-		this._onDidRegisterExtensions = new Emitter<IExtensionDescription[]>();
+		this._onDidRegisterExtensions = new Emitter<void>();
 
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
 		this._extensionHostProcessActivationTimes = Object.create(null);
@@ -204,7 +205,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		super.dispose();
 	}
 
-	public get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
+	public get onDidRegisterExtensions(): Event<void> {
 		return this._onDidRegisterExtensions.event;
 	}
 
@@ -443,7 +444,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 				mark('extensionHostReady');
 				this._installedExtensionsReady.open();
-				this._onDidRegisterExtensions.fire(availableExtensions);
+				this._onDidRegisterExtensions.fire(void 0);
 				this._onDidChangeExtensionsStatus.fire(availableExtensions.map(e => e.id));
 			});
 	}

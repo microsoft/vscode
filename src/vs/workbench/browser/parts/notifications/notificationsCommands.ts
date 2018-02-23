@@ -15,9 +15,9 @@ import { localize } from 'vs/nls';
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
 
 // Center
-export const SHOW_NOTIFICATIONS_CENTER_COMMAND_ID = 'notifications.showList';
-export const HIDE_NOTIFICATIONS_CENTER_COMMAND_ID = 'notifications.hideList';
-export const TOGGLE_NOTIFICATIONS_CENTER_COMMAND_ID = 'notifications.toggleList';
+export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
+export const HIDE_NOTIFICATIONS_CENTER = 'notifications.hideList';
+export const TOGGLE_NOTIFICATIONS_CENTER = 'notifications.toggleList';
 
 // Toasts
 export const HIDE_NOTIFICATION_TOAST = 'notification.hideToasts';
@@ -77,11 +77,11 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	}
 
 	// Show Notifications Cneter
-	CommandsRegistry.registerCommand(SHOW_NOTIFICATIONS_CENTER_COMMAND_ID, () => center.show());
+	CommandsRegistry.registerCommand(SHOW_NOTIFICATIONS_CENTER, () => center.show());
 
 	// Hide Notifications Center
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: HIDE_NOTIFICATIONS_CENTER_COMMAND_ID,
+		id: HIDE_NOTIFICATIONS_CENTER,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
 		when: NotificationsCenterVisibleContext,
 		primary: KeyCode.Escape,
@@ -89,7 +89,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	});
 
 	// Toggle Notifications Center
-	CommandsRegistry.registerCommand(TOGGLE_NOTIFICATIONS_CENTER_COMMAND_ID, accessor => center.isVisible ? center.hide() : center.show());
+	CommandsRegistry.registerCommand(TOGGLE_NOTIFICATIONS_CENTER, accessor => center.isVisible ? center.hide() : center.show());
 
 	// Clear Notification
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -189,7 +189,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 
 	// Commands for Command Palette
 	const category = localize('notifications', "Notifications");
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: SHOW_NOTIFICATIONS_CENTER_COMMAND_ID, title: localize('showNotifications', "Show Notifications"), category }, when: NotificationsCenterVisibleContext.toNegated() });
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: HIDE_NOTIFICATIONS_CENTER_COMMAND_ID, title: localize('hideNotifications', "Hide Notifications"), category }, when: NotificationsCenterVisibleContext });
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: SHOW_NOTIFICATIONS_CENTER, title: localize('showNotifications', "Show Notifications"), category }, when: NotificationsCenterVisibleContext.toNegated() });
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: HIDE_NOTIFICATIONS_CENTER, title: localize('hideNotifications', "Hide Notifications"), category }, when: NotificationsCenterVisibleContext });
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLEAR_ALL_NOTIFICATIONS, title: localize('clearAllNotifications', "Clear All Notifications"), category } });
 }

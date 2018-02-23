@@ -21,7 +21,7 @@ import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionsConfiguration, ConfigurationKey, ShowRecommendationsOnlyOnDemandKey } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsConfiguration, ConfigurationKey, ShowRecommendationsOnlyOnDemandKey, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as pfs from 'vs/base/node/pfs';
@@ -29,13 +29,14 @@ import * as os from 'os';
 import { flatten, distinct, shuffle } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { guessMimeTypes, MIME_UNKNOWN } from 'vs/base/common/mime';
-import { ShowLanguageExtensionsAction } from 'vs/workbench/browser/parts/editor/editorStatus';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { getHashedRemotesFromUri } from 'vs/workbench/parts/stats/node/workspaceStats';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asJson } from 'vs/base/node/request';
 import { isNumber } from 'vs/base/common/types';
 import { IChoiceService, Choice } from 'vs/platform/dialogs/common/dialogs';
+import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 interface IExtensionsContent {
 	recommendations: string[];
@@ -44,6 +45,7 @@ interface IExtensionsContent {
 const empty: { [key: string]: any; } = Object.create(null);
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
+const searchMarketplace = localize('searchMarketplace', "Search Marketplace");
 
 interface IDynamicWorkspaceRecommendations {
 	remoteSet: string[];
@@ -77,7 +79,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IExtensionService private extensionService: IExtensionService,
-		@IRequestService private requestService: IRequestService
+		@IRequestService private requestService: IRequestService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		super();
 
@@ -89,6 +92,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			this._extensionsRecommendationsUrl = product.extensionsGallery.recommendationsUrl;
 		}
 
+		this.getLanguageExtensionRecommendations();
 		this.getCachedDynamicWorkspaceRecommendations();
 		this._suggestFileBasedRecommendations();
 		this.promptWorkspaceRecommendationsPromise = this._suggestWorkspaceRecommendations();
@@ -126,6 +130,86 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private isEnabled(): boolean {
 		return this._galleryService.isEnabled() && !this.environmentService.extensionDevelopmentPath;
 	}
+
+	private getLanguageExtensionRecommendations() {
+		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
+		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get
+			('extensionsAssistant/languagePackSuggestionIgnore', StorageScope.GLOBAL, '[]'));
+
+		if (!language
+			|| language === LANGUAGE_DEFAULT
+			|| config.ignoreRecommendations
+			|| config.showRecommendationsOnlyOnDemand
+			|| languagePackSuggestionIgnoreList.indexOf(language) > -1) {
+			return;
+		}
+
+		this.extensionsService.getInstalled(LocalExtensionType.User).then(locals => {
+			for (var i = 0; i < locals.length; i++) {
+				if (locals[i].manifest
+					&& locals[i].manifest.contributes
+					&& Array.isArray(locals[i].manifest.contributes.localizations)
+					&& locals[i].manifest.contributes.localizations.some(x => x.languageId === language)) {
+					return;
+				}
+			}
+
+			this._galleryService.query({ text: `tag:lp-${language}` }).then(pager => {
+				if (!pager || !pager.firstPage || !pager.firstPage.length) {
+					return;
+				}
+				const message = localize('showLanguagePackExtensions', "The Marketplace has extensions that can help localizing VS Code to '{0}' locale", language);
+				const options: Choice[] = [
+					searchMarketplace,
+					{ label: choiceNever }
+				];
+
+				this.choiceService.choose(Severity.Info, message, options).done(choice => {
+					switch (choice) {
+						case 0 /* Search Marketplace */:
+							/* __GDPR__
+								"languagePackSuggestion:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+									"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+								}
+							*/
+							this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction: 'ok', language });
+							this.viewletService.openViewlet('workbench.view.extensions', true)
+								.then(viewlet => viewlet as IExtensionsViewlet)
+								.then(viewlet => {
+									viewlet.search(`tag:lp-${language}`);
+									viewlet.focus();
+								});
+							break;
+						case 1 /* Never show again */:
+							languagePackSuggestionIgnoreList.push(language);
+							this.storageService.store(
+								'extensionsAssistant/languagePackSuggestionIgnore',
+								JSON.stringify(languagePackSuggestionIgnoreList),
+								StorageScope.GLOBAL
+							);
+							/* __GDPR__
+								"languagePackSuggestion:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+									"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+								}
+							*/
+							this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction: 'neverShowAgain', language });
+							break;
+					}
+				}, () => {
+					/* __GDPR__
+						"languagePackSuggestion:popup" : {
+							"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"language": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+						}
+					*/
+					this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction: 'cancelled', language });
+				});
+			});
+		});
+	}
+
 
 	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } {
 		let output: { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } = Object.create(null);
@@ -478,11 +562,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					}
 
 					const message = localize('showLanguageExtensions', "The Marketplace has extensions that can help with '.{0}' files", fileExtension);
-
-					const searchMarketplaceAction = this.instantiationService.createInstance(ShowLanguageExtensionsAction, fileExtension);
-
 					const options: Choice[] = [
-						localize('searchMarketplace', "Search Marketplace"),
+						searchMarketplace,
 						{ label: choiceNever }
 					];
 
@@ -496,7 +577,12 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 									}
 								*/
 								this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'ok', fileExtension: fileExtension });
-								searchMarketplaceAction.run();
+								this.viewletService.openViewlet('workbench.view.extensions', true)
+									.then(viewlet => viewlet as IExtensionsViewlet)
+									.then(viewlet => {
+										viewlet.search(`ext:${fileExtension}`);
+										viewlet.focus();
+									});
 								break;
 							case 1 /* Never show again */:
 								fileExtensionSuggestionIgnoreList.push(fileExtension);

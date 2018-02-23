@@ -8,7 +8,7 @@
 import * as nls from 'vs/nls';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionHostProfile, ProfileSession, IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionHostProfile, ProfileSession, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { append, $, addDisposableListener } from 'vs/base/browser/dom';

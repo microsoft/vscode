@@ -152,6 +152,11 @@
           "default": true,
           "description": "%json.colorDecorators.enable.desc%",
           "deprecationMessage": "%json.colorDecorators.enable.deprecationMessage%"
+        },
+        "json.experimental.syntaxFolding": {
+          "type": "boolean",
+          "default": false,
+          "description": "%json.experimental.syntaxFolding%"
         }
       }
     },
@@ -165,7 +170,7 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.0.13",
-    "vscode-languageclient": "^4.0.0-next.9",
+    "vscode-languageclient": "4.0.0-next.9",
     "vscode-nls": "^3.2.1"
   },
   "devDependencies": {

@@ -8,7 +8,7 @@
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType } from 'vs/workbench/common/notifications';
 import { IStatusbarService, StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { HIDE_NOTIFICATIONS_CENTER_COMMAND_ID, SHOW_NOTIFICATIONS_CENTER_COMMAND_ID } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { localize } from 'vs/nls';
 
 export class NotificationsStatus {
@@ -70,8 +70,8 @@ export class NotificationsStatus {
 
 		// Create new
 		this.statusItem = this.statusbarService.addEntry({
-			text: this.counter === 0 ? '$(megaphone)' : `$(megaphone) ${this.counter}`,
-			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER_COMMAND_ID : this.model.notifications.length > 0 ? SHOW_NOTIFICATIONS_CENTER_COMMAND_ID : void 0,
+			text: this.counter === 0 ? '$(bell)' : `$(bell) ${this.counter}`,
+			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER : this.model.notifications.length > 0 ? SHOW_NOTIFICATIONS_CENTER : void 0,
 			tooltip: this.getTooltip(),
 			showBeak: this.isNotificationsCenterVisible
 		}, StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);
@@ -82,12 +82,12 @@ export class NotificationsStatus {
 			return localize('hideNotifications', "Hide Notifications");
 		}
 
-		if (this.counter === 0) {
-			return localize('noNotifications', "No New Notifications");
-		}
-
 		if (this.model.notifications.length === 0) {
 			return localize('zeroNotifications', "No Notifications");
+		}
+
+		if (this.counter === 0) {
+			return localize('noNotifications', "No New Notifications");
 		}
 
 		if (this.counter === 1) {

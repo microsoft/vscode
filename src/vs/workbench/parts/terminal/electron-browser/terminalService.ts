@@ -34,18 +34,18 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 	}
 
 	constructor(
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IPanelService _panelService: IPanelService,
-		@IPartService _partService: IPartService,
-		@ILifecycleService _lifecycleService: ILifecycleService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IPanelService panelService: IPanelService,
+		@IPartService partService: IPartService,
+		@IStorageService storageService: IStorageService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
 		@IChoiceService private readonly _choiceService: IChoiceService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@IConfirmationService private readonly _confirmationService: IConfirmationService
 	) {
-		super(_contextKeyService, _panelService, _partService, _lifecycleService);
+		super(contextKeyService, panelService, partService, lifecycleService, storageService);
 
 		this._terminalTabs = [];
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);

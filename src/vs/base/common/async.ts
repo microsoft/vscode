@@ -180,7 +180,7 @@ export class Delayer<T> {
 	private timeout: number;
 	private completionPromise: Promise;
 	private onSuccess: ValueCallback;
-	private task: ITask<T>;
+	private task: ITask<T | TPromise<T>>;
 
 	constructor(public defaultDelay: number) {
 		this.timeout = null;
@@ -189,7 +189,7 @@ export class Delayer<T> {
 		this.task = null;
 	}
 
-	trigger(task: ITask<T>, delay: number = this.defaultDelay): TPromise<T> {
+	trigger(task: ITask<T | TPromise<T>>, delay: number = this.defaultDelay): TPromise<T> {
 		this.task = task;
 		this.cancelTimeout();
 

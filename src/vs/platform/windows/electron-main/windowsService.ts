@@ -12,7 +12,7 @@ import { assign } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import product from 'vs/platform/node/product';
 import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { shell, crashReporter, app, Menu, clipboard } from 'electron';
 import Event, { chain, fromNodeEventEmitter } from 'vs/base/common/event';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -107,12 +107,12 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return this.windowsMainService.showOpenDialog(options, codeWindow);
 	}
 
-	reloadWindow(windowId: number): TPromise<void> {
+	reloadWindow(windowId: number, args: ParsedArgs): TPromise<void> {
 		this.logService.trace('windowsService#reloadWindow', windowId);
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (codeWindow) {
-			this.windowsMainService.reload(codeWindow);
+			this.windowsMainService.reload(codeWindow, args);
 		}
 
 		return TPromise.as(null);

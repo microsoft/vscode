@@ -20,7 +20,7 @@ import { EmptyView } from 'vs/workbench/parts/files/electron-browser/views/empty
 import { OpenEditorsView } from 'vs/workbench/parts/files/electron-browser/views/openEditorsView';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -34,6 +34,7 @@ import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/commo
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
@@ -150,6 +151,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 	private viewletVisibleContextKey: IContextKey<boolean>;
 
 	constructor(
+		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IStorageService protected storageService: IStorageService,
@@ -162,7 +164,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.Explorer, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
+		super(VIEWLET_ID, ViewLocation.Explorer, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, partService, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 
 		this.viewletState = new FileViewletState();
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);

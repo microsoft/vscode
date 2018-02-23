@@ -159,29 +159,18 @@ async function goToProjectConfig(
 
 	const selected = await vscode.window.showInformationMessage<ProjectConfigMessageItem>(
 		(isTypeScriptProject
-			? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project')
-			: localize('typescript.noJavaScriptProjectConfig', 'File is not part of a JavaScript project')
+			? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project. Click [here]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=841896')
+			: localize('typescript.noJavaScriptProjectConfig', 'File is not part of a JavaScript project Click [here]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=759670')
 		), {
 			title: isTypeScriptProject
 				? localize('typescript.configureTsconfigQuickPick', 'Configure tsconfig.json')
 				: localize('typescript.configureJsconfigQuickPick', 'Configure jsconfig.json'),
 			id: ProjectConfigAction.CreateConfig
-		}, {
-			title: localize('typescript.projectConfigLearnMore', 'Learn More'),
-			id: ProjectConfigAction.LearnMore
 		});
 
 	switch (selected && selected.id) {
 		case ProjectConfigAction.CreateConfig:
 			openOrCreateConfigFile(isTypeScriptProject, rootPath, client.configuration);
-			return;
-
-		case ProjectConfigAction.LearnMore:
-			if (isTypeScriptProject) {
-				vscode.commands.executeCommand('vscode.open', vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=841896'));
-			} else {
-				vscode.commands.executeCommand('vscode.open', vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=759670'));
-			}
 			return;
 	}
 }

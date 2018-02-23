@@ -19,3 +19,22 @@
 .monaco-workbench > .notifications-center.visible {
 	display: block;
 }
+
+/* Header */
+
+.monaco-workbench > .notifications-center > .notifications-center-header {
+	display: flex;
+	align-items: center;
+	padding-left: 8px;
+	padding-right: 5px;
+	height: 35px;
+}
+
+.monaco-workbench > .notifications-center > .notifications-center-header > .notifications-center-header-title {
+	text-transform: uppercase;
+	font-size: 11px;
+}
+
+.monaco-workbench > .notifications-center > .notifications-center-header > .notifications-center-header-toolbar {
+	flex: 1;
+}
