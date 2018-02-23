@@ -38,9 +38,12 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		});
 	}
 
-	registerTreeDataProvider<T>(id: string, dataProvider: vscode.TreeDataProvider<T>): vscode.Disposable {
+	registerTreeDataProvider<T>(id: string, dataProvider: vscode.TreeDataProvider<T>, proposedApiFunction: <U>(fn: U) => U): vscode.TreeView<T> {
 		const treeView = this.createExtHostTreeViewer(id, dataProvider);
 		return {
+			reveal: proposedApiFunction((element: T, options?: { donotSelect?: boolean }): Thenable<void> => {
+				return treeView.reveal(element, options);
+			}),
 			dispose: () => {
 				this.treeViews.delete(id);
 				treeView.dispose();
@@ -105,6 +108,54 @@ class ExtHostTreeView<T> extends Disposable {
 
 	getExtensionElement(treeItemHandle: TreeItemHandle): T {
 		return this.elements.get(treeItemHandle);
+	}
+
+	reveal(element: T, options?: { donotSelect?: boolean }): TPromise<void> {
+		if (typeof this.dataProvider.getParent !== 'function') {
+			return TPromise.wrapError(new Error(`Required registered TreeDataProvider to implement 'getParent' method to access 'reveal' mehtod`));
+		}
+		return this.resolveUnknownParentChain(element)
+			.then(parentChain => this.resolveTreeItem(element, parentChain[parentChain.length - 1])
+				.then(treeNode => this.proxy.$reveal(this.viewId, treeNode.item, parentChain.map(p => p.item), options)));
+	}
+
+	private resolveUnknownParentChain(element: T): TPromise<TreeNode[]> {
+		return this.resolveParent(element)
+			.then((parent) => {
+				if (!parent) {
+					return TPromise.as([]);
+				}
+				return this.resolveUnknownParentChain(parent)
+					.then(result => this.resolveTreeItem(parent, result[result.length - 1])
+						.then(parentNode => {
+							result.push(parentNode);
+							return result;
+						}));
+			});
+	}
+
+	private resolveParent(element: T): TPromise<T> {
+		const node = this.nodes.get(element);
+		if (node) {
+			return TPromise.as(node.parent ? this.elements.get(node.parent.item.handle) : null);
+		}
+		return asWinJsPromise(() => this.dataProvider.getParent(element));
+	}
+
+	private resolveTreeItem(element: T, parent?: TreeNode): TPromise<TreeNode> {
+		return asWinJsPromise(() => this.dataProvider.getTreeItem(element))
+			.then(extTreeItem => this.createHandle(element, extTreeItem, parent))
+			.then(handle => this.getChildren(parent ? parent.item.handle : null)
+				.then(() => {
+					const cachedElement = this.getExtensionElement(handle);
+					if (cachedElement) {
+						const node = this.nodes.get(cachedElement);
+						if (node) {
+							return TPromise.as(node);
+						}
+					}
+					throw new Error(`Cannot resolve tree item for element ${handle}`);
+				}));
 	}
 
 	private getChildrenNodes(parentNodeOrHandle?: TreeNode | TreeItemHandle): TreeNode[] {

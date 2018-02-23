@@ -392,8 +392,8 @@ export function createApiFactory(
 				}
 				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
 			},
-			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
-				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider);
+			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.TreeView<any> {
+				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider, (fn) => proposedApiFunction(extension, fn));
 			},
 			// proposed API
 			sampleFunction: proposedApiFunction(extension, () => {

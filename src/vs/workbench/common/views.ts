@@ -16,9 +16,9 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class ViewLocation {
 
-	static readonly Explorer = new ViewLocation('explorer');
-	static readonly Debug = new ViewLocation('debug');
-	static readonly Extensions = new ViewLocation('extensions');
+	static readonly Explorer = new ViewLocation('workbench.view.explorer');
+	static readonly Debug = new ViewLocation('workbench.view.debug');
+	static readonly Extensions = new ViewLocation('workbench.view.extensions');
 
 	constructor(private _id: string) {
 	}
@@ -29,8 +29,8 @@ export class ViewLocation {
 
 	static getContributedViewLocation(value: string): ViewLocation {
 		switch (value) {
-			case ViewLocation.Explorer.id: return ViewLocation.Explorer;
-			case ViewLocation.Debug.id: return ViewLocation.Debug;
+			case 'explorer': return ViewLocation.Explorer;
+			case 'debug': return ViewLocation.Debug;
 		}
 		return void 0;
 	}
@@ -150,7 +150,7 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 
 export interface IViewsViewlet extends IViewlet {
 
-	openView(id: string): void;
+	openView(id: string, focus?: boolean): TPromise<void>;
 
 }
 
@@ -171,6 +171,8 @@ export interface ITreeViewer extends IDisposable {
 	show(container: HTMLElement);
 
 	getOptimalWidth(): number;
+
+	reveal(item: ITreeItem, parentChain: ITreeItem[], options: { donotSelect?: boolean }): TPromise<void>;
 }
 
 export interface ICustomViewDescriptor extends IViewDescriptor {
@@ -185,6 +187,8 @@ export interface ICustomViewsService {
 	_serviceBrand: any;
 
 	getTreeViewer(id: string): ITreeViewer;
+
+	openView(id: string, focus?: boolean): TPromise<void>;
 }
 
 export type TreeViewItemHandleArg = {
