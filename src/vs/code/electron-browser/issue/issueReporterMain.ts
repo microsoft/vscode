@@ -41,7 +41,7 @@ import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
-const MAX_URL_LENGTH = 5400;
+const MAX_URL_LENGTH = platform.isWindows ? 2081 : 5400;
 
 interface SearchResult {
 	html_url: string;
