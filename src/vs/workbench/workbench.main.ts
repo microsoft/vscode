@@ -51,7 +51,7 @@ import 'vs/workbench/parts/stats/node/stats.contribution';
 import 'vs/workbench/parts/cache/node/cache.contribution';
 
 import 'vs/workbench/parts/search/electron-browser/search.contribution';
-import 'vs/workbench/parts/search/browser/searchViewlet'; // can be packaged separately
+import 'vs/workbench/parts/search/browser/searchView'; // can be packaged separately
 import 'vs/workbench/parts/search/browser/openAnythingHandler'; // can be packaged separately
 
 import 'vs/workbench/parts/scm/electron-browser/scm.contribution';
