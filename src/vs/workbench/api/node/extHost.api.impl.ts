@@ -403,7 +403,7 @@ export function createApiFactory(
 				return extHostDecorations.registerDecorationProvider(provider, extension.id);
 			}),
 			createWebview: proposedApiFunction(extension, (uri: vscode.Uri, column: vscode.ViewColumn, options: vscode.WebviewOptions) => {
-				return extHostWebviews.getOrCreateWebview(uri, column, options);
+				return extHostWebviews.createWebview(uri, column, options);
 			}),
 			onDidChangeActiveEditor: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
 				return extHostDocumentsAndEditors.onDidChangeActiveEditor(listener, thisArg, disposables);

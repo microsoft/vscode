@@ -42,19 +42,27 @@ export class ExtHostWebview implements vscode.Webview {
 		if (this._isDisposed) {
 			return;
 		}
+
 		this._isDisposed = true;
 		this._proxy.$disposeWebview(this._handle);
+
+		this.onDisposeEmitter.dispose();
+		this.onMessageEmitter.dispose();
+		this.onDidChangeViewColumnEmitter.dispose();
 	}
 
 	get uri(): vscode.Uri {
+		this.assertNotDisposed();
 		return this._uri;
 	}
 
 	get title(): string {
+		this.assertNotDisposed();
 		return this._title;
 	}
 
 	set title(value: string) {
+		this.assertNotDisposed();
 		if (this._title !== value) {
 			this._title = value;
 			this._proxy.$setTitle(this._handle, value);
@@ -62,10 +70,12 @@ export class ExtHostWebview implements vscode.Webview {
 	}
 
 	get html(): string {
+		this.assertNotDisposed();
 		return this._html;
 	}
 
 	set html(value: string) {
+		this.assertNotDisposed();
 		if (this._html !== value) {
 			this._html = value;
 			this._proxy.$setHtml(this._handle, value);
@@ -73,19 +83,28 @@ export class ExtHostWebview implements vscode.Webview {
 	}
 
 	get options(): vscode.WebviewOptions {
+		this.assertNotDisposed();
 		return this._options;
 	}
 
 	get viewColumn(): vscode.ViewColumn {
+		this.assertNotDisposed();
 		return this._viewColumn;
 	}
 
 	set viewColumn(value: vscode.ViewColumn) {
+		this.assertNotDisposed();
 		this._viewColumn = value;
 	}
 
 	public postMessage(message: any): Thenable<any> {
 		return this._proxy.$sendMessage(this._handle, message);
+	}
+
+	private assertNotDisposed() {
+		if (this._isDisposed) {
+			throw new Error('Webview is disposed');
+		}
 	}
 }
 
@@ -102,7 +121,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadWebviews);
 	}
 
-	getOrCreateWebview(
+	createWebview(
 		uri: vscode.Uri,
 		viewColumn: vscode.ViewColumn,
 		options: vscode.WebviewOptions
@@ -121,6 +140,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 
 	$onMessage(handle: WebviewHandle, message: any): void {
 		const webview = this._webviews.get(handle);
+
 		webview.onMessageEmitter.fire(message);
 	}
 
