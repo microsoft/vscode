@@ -268,7 +268,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 				...vsPositionToTsFileLocation(file, position),
 				includeExternalModuleExports: config.autoImportSuggestions,
 				includeInsertTextCompletions: true
-			} as Proto.CompletionsRequestArgs;
+			};
 			const msg = await this.client.execute('completions', args, token);
 			// This info has to come from the tsserver. See https://github.com/Microsoft/TypeScript/issues/2831
 			// let isMemberCompletion = false;
