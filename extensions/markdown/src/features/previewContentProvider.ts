@@ -222,11 +222,6 @@ export class MarkdownContentProvider {
 		previewConfigurations: PreviewConfigManager,
 		initialLine: number | undefined = undefined
 	): Promise<string> {
-		const editor = vscode.window.activeTextEditor;
-		if (editor && editor.document.uri.toString() === sourceUri.toString()) {
-			initialLine = editor.selection.active.line;
-		}
-
 		const document = await vscode.workspace.openTextDocument(sourceUri);
 		const config = previewConfigurations.loadAndCacheConfiguration(sourceUri);
 
@@ -281,10 +276,50 @@ export class MarkdownContentProvider {
 	}
 }
 
-interface MarkdownPreview {
-	resource: vscode.Uri;
-	webview: vscode.Webview;
-	ofColumn: vscode.ViewColumn;
+class MarkdownPreview {
+	private throttleTimer: any;
+	private initialLine: number | undefined = undefined;
+
+	constructor(
+		public resource: vscode.Uri,
+		public webview: vscode.Webview,
+		public ofColumn: vscode.ViewColumn,
+		private readonly contentProvider: MarkdownContentProvider,
+		private readonly previewConfigurations: PreviewConfigManager
+	) { }
+
+	public update(resource: vscode.Uri) {
+		this.resource = resource;
+
+		const editor = vscode.window.activeTextEditor;
+		if (editor && editor.document.uri.fsPath === resource.fsPath) {
+			this.initialLine = editor.selection.active.line;
+		} else {
+			this.initialLine = undefined;
+		}
+
+		// Schedule update
+		if (!this.throttleTimer) {
+			this.throttleTimer = setTimeout(() => this.doUpdate(), 300);
+		}
+	}
+
+	private getPreviewTitle(resource: vscode.Uri): string {
+		return localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath));
+	}
+
+	private doUpdate() {
+		const resource = this.resource;
+		this.throttleTimer = undefined;
+
+		this.contentProvider.provideTextDocumentContent(resource, this.previewConfigurations, this.initialLine)
+			.then(content => {
+				if (this.resource === resource) {
+					this.webview.title = this.getPreviewTitle(this.resource);
+					this.webview.html = content;
+				}
+			});
+	}
 }
 
 export class MarkdownPreviewManager {
@@ -309,8 +344,7 @@ export class MarkdownPreviewManager {
 			if (editor && editor.editorType === 'texteditor') {
 				if (isMarkdownFile(editor.document)) {
 					for (const preview of this.previews.filter(preview => preview.ofColumn === editor.viewColumn)) {
-						preview.resource = editor.document.uri;
-						this.updatePreview(preview);
+						preview.update(editor.document.uri);
 					}
 				}
 			}
@@ -344,14 +378,14 @@ export class MarkdownPreviewManager {
 
 	public refresh() {
 		for (const preview of this.previews) {
-			this.updatePreview(preview);
+			preview.update(preview.resource);
 		}
 	}
 
 	public updateConfiguration() {
 		for (const preview of this.previews) {
 			if (this.previewConfigurations.shouldUpdateConfiguration(preview.resource)) {
-				this.updatePreview(preview);
+				preview.update(preview.resource);
 			}
 		}
 	}
@@ -363,19 +397,9 @@ export class MarkdownPreviewManager {
 
 		for (const preview of this.previews) {
 			if (preview.resource.fsPath === document.uri.fsPath || viewColumn && preview.ofColumn === viewColumn) {
-				preview.webview.title = this.getPreviewTitle(document.uri);
-				preview.resource = document.uri;
-				this.updatePreview(preview);
+				preview.update(document.uri);
 			}
 		}
-	}
-
-	private updatePreview(preview: MarkdownPreview) {
-		this.contentProvider.provideTextDocumentContent(preview.resource, this.previewConfigurations)
-			.then(content => {
-				preview.webview.title = this.getPreviewTitle(preview.resource);
-				preview.webview.html = content;
-			});
 	}
 
 	public preview(
@@ -407,11 +431,11 @@ export class MarkdownPreviewManager {
 				vscode.commands.executeCommand(e.command, ...e.args);
 			});
 
-			preview = { webview, resource, ofColumn: resourceColumn };
+			preview = new MarkdownPreview(resource, webview, resourceColumn, this.contentProvider, this.previewConfigurations);
 			this.previews.push(preview);
 		}
 
-		this.updatePreview(preview);
+		preview.update(preview.resource);
 		return preview.webview;
 	}
 
@@ -426,9 +450,5 @@ export class MarkdownPreviewManager {
 		}
 
 		return [];
-	}
-
-	private getPreviewTitle(resource: vscode.Uri): string {
-		return localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath));
 	}
 }
