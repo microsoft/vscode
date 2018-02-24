@@ -285,11 +285,6 @@
 
 					// Bubble out link clicks
 					contentDocument.body.addEventListener('click', handleInnerClick);
-
-					// Forward messages
-					if (enableWrappedPostMessage) {
-						contentWindow.onmessage = onMessage;
-					}
 				}
 
 				const newFrame = getPendingFrame();
