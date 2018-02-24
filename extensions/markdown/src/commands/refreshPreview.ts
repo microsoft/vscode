@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Command } from '../commandManager';
-import { MarkdownPreviewWebviewManager } from '../features/previewContentProvider';
+import { MarkdownPreviewManager } from '../features/previewContentProvider';
 
 export class RefreshPreviewCommand implements Command {
 	public readonly id = 'markdown.refreshPreview';
 
 	public constructor(
-		private readonly webviewManager: MarkdownPreviewWebviewManager
+		private readonly webviewManager: MarkdownPreviewManager
 	) { }
 
 	public execute() {

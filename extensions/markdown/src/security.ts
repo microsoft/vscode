@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 
-import { MarkdownPreviewWebviewManager } from './features/previewContentProvider';
+import { MarkdownPreviewManager } from './features/previewContentProvider';
 
 import * as nls from 'vscode-nls';
 
@@ -90,7 +90,7 @@ export class PreviewSecuritySelector {
 
 	public constructor(
 		private cspArbiter: ContentSecurityPolicyArbiter,
-		private webviewManager: MarkdownPreviewWebviewManager
+		private webviewManager: MarkdownPreviewManager
 	) { }
 
 	public async showSecutitySelectorForResource(resource: vscode.Uri): Promise<void> {

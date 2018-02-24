@@ -14,7 +14,7 @@ import { loadDefaultTelemetryReporter } from './telemetryReporter';
 import { loadMarkdownExtensions } from './markdownExtensions';
 import LinkProvider from './features/documentLinkProvider';
 import MDDocumentSymbolProvider from './features/documentSymbolProvider';
-import { MarkdownContentProvider, MarkdownPreviewWebviewManager } from './features/previewContentProvider';
+import { MarkdownContentProvider, MarkdownPreviewManager } from './features/previewContentProvider';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -30,20 +30,20 @@ export function activate(context: vscode.ExtensionContext) {
 	const contentProvider = new MarkdownContentProvider(engine, context, cspArbiter, logger);
 	loadMarkdownExtensions(contentProvider, engine);
 
-	const webviewManager = new MarkdownPreviewWebviewManager(contentProvider);
-	context.subscriptions.push(webviewManager);
+	const previewManager = new MarkdownPreviewManager(contentProvider);
+	context.subscriptions.push(previewManager);
 
 	context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(selector, new MDDocumentSymbolProvider(engine)));
 	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider()));
 
-	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, webviewManager);
+	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, previewManager);
 
 	const commandManager = new CommandManager();
 	context.subscriptions.push(commandManager);
-	commandManager.register(new commands.ShowPreviewCommand(webviewManager, telemetryReporter));
-	commandManager.register(new commands.ShowPreviewToSideCommand(webviewManager, telemetryReporter));
+	commandManager.register(new commands.ShowPreviewCommand(previewManager, telemetryReporter));
+	commandManager.register(new commands.ShowPreviewToSideCommand(previewManager, telemetryReporter));
 	commandManager.register(new commands.ShowSourceCommand());
-	commandManager.register(new commands.RefreshPreviewCommand(webviewManager));
+	commandManager.register(new commands.RefreshPreviewCommand(previewManager));
 	commandManager.register(new commands.RevealLineCommand(logger));
 	commandManager.register(new commands.MoveCursorToPositionCommand());
 	commandManager.register(new commands.ShowPreviewSecuritySelectorCommand(previewSecuritySelector));
@@ -53,6 +53,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
 		logger.updateConfiguration();
-		webviewManager.updateConfiguration();
+		previewManager.updateConfiguration();
 	}));
 }
