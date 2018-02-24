@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, Range, SnippetString, workspace, CompletionContext, Uri, MarkdownString, window, QuickPickItem } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, Range, SnippetString, workspace, CompletionContext, Uri, MarkdownString, window, QuickPickItem, TextLine } from 'vscode';
 
 import { ITypeScriptServiceClient } from '../typescriptService';
 import TypingsStatus from '../utils/typingsStatus';
@@ -227,7 +227,7 @@ namespace Configuration {
 
 export default class TypeScriptCompletionItemProvider implements CompletionItemProvider {
 	constructor(
-		private client: ITypeScriptServiceClient,
+		private readonly client: ITypeScriptServiceClient,
 		private readonly typingsStatus: TypingsStatus,
 		commandManager: CommandManager
 	) {
@@ -259,36 +259,8 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		const line = document.lineAt(position.line);
 		const config = this.getConfiguration(document.uri);
 
-		if (context.triggerCharacter === '"' || context.triggerCharacter === '\'') {
-			if (!config.quickSuggestionsForPaths) {
-				return [];
-			}
-
-			// make sure we are in something that looks like the start of an import
-			const pre = line.text.slice(0, position.character);
-			if (!pre.match(/\b(from|import)\s*["']$/) && !pre.match(/\b(import|require)\(['"]$/)) {
-				return [];
-			}
-		}
-
-		if (context.triggerCharacter === '/') {
-			if (!config.quickSuggestionsForPaths) {
-				return [];
-			}
-
-			// make sure we are in something that looks like an import path
-			const pre = line.text.slice(0, position.character);
-			if (!pre.match(/\b(from|import)\s*["'][^'"]*$/) && !pre.match(/\b(import|require)\(['"][^'"]*$/)) {
-				return [];
-			}
-		}
-
-		if (context.triggerCharacter === '@') {
-			// make sure we are in something that looks like the start of a jsdoc comment
-			const pre = line.text.slice(0, position.character);
-			if (!pre.match(/^\s*\*[ ]?@/) && !pre.match(/\/\*\*+[ ]?@/)) {
-				return [];
-			}
+		if (!this.shouldTrigger(context, config, line, position)) {
+			return [];
 		}
 
 		try {
@@ -346,6 +318,42 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		} catch {
 			return [];
 		}
+	}
+
+	private shouldTrigger(context: CompletionContext, config: Configuration, line: TextLine, position: Position) {
+		if (context.triggerCharacter === '"' || context.triggerCharacter === '\'') {
+			if (!config.quickSuggestionsForPaths) {
+				return false;
+			}
+
+			// make sure we are in something that looks like the start of an import
+			const pre = line.text.slice(0, position.character);
+			if (!pre.match(/\b(from|import)\s*["']$/) && !pre.match(/\b(import|require)\(['"]$/)) {
+				return false;
+			}
+		}
+
+		if (context.triggerCharacter === '/') {
+			if (!config.quickSuggestionsForPaths) {
+				return false;
+			}
+
+			// make sure we are in something that looks like an import path
+			const pre = line.text.slice(0, position.character);
+			if (!pre.match(/\b(from|import)\s*["'][^'"]*$/) && !pre.match(/\b(import|require)\(['"][^'"]*$/)) {
+				return false;
+			}
+		}
+
+		if (context.triggerCharacter === '@') {
+			// make sure we are in something that looks like the start of a jsdoc comment
+			const pre = line.text.slice(0, position.character);
+			if (!pre.match(/^\s*\*[ ]?@/) && !pre.match(/\/\*\*+[ ]?@/)) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	public async resolveCompletionItem(
