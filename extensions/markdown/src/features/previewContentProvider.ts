@@ -288,8 +288,6 @@ class MarkdownPreview {
 	) { }
 
 	public update(resource: vscode.Uri) {
-		this.resource = resource;
-
 		const editor = vscode.window.activeTextEditor;
 		if (editor && editor.document.uri.fsPath === resource.fsPath) {
 			this.initialLine = editor.selection.active.line;
@@ -299,8 +297,10 @@ class MarkdownPreview {
 
 		// Schedule update
 		if (!this.throttleTimer) {
-			this.throttleTimer = setTimeout(() => this.doUpdate(), 300);
+			this.throttleTimer = setTimeout(() => this.doUpdate(), resource.fsPath === this.resource.fsPath ? 300 : 0);
 		}
+
+		this.resource = resource;
 	}
 
 	public updateForSelection(resource: vscode.Uri, line: number) {
@@ -309,7 +309,7 @@ class MarkdownPreview {
 		}
 
 		this.initialLine = line;
-		this.webview.postMessage({ line });
+		this.webview.postMessage({ line, source: resource.toString() });
 	}
 
 	private getPreviewTitle(resource: vscode.Uri): string {

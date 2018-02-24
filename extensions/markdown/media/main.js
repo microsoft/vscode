@@ -220,6 +220,10 @@
 			scrollToRevealSourceLine(line);
 		}, 50);
 		return event => {
+			if (event.data.source !== settings.source) {
+				return;
+			}
+
 			const line = +event.data.line;
 			if (!isNaN(line)) {
 				settings.line = line;
