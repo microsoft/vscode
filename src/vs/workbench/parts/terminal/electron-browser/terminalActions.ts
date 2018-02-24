@@ -581,7 +581,12 @@ export class RunActiveFileInTerminalAction extends Action {
 			this.notificationService.warn(nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
 			return TPromise.as(void 0);
 		}
-		instance.sendText(uri.fsPath, true);
+		if (true) {
+			let filePath = uri.path.replace(/([A-Za-z]):/, (m, g) => `mnt/${g.toLocaleLowerCase()}`);
+			instance.sendText(`"${filePath}"`, true);
+		} else {
+			instance.sendText(uri.fsPath, true);
+		}
 		return this.terminalService.showPanel();
 	}
 }
