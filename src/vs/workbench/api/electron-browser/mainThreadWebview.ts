@@ -207,8 +207,7 @@ class WebviewEditor extends BaseWebviewEditor {
 
 	public static readonly ID = 'WebviewEditor';
 
-	private frame: HTMLElement;
-	private container: HTMLElement;
+	private editorFrame: HTMLElement;
 	private webviewContent: HTMLElement;
 	private _onDidFocusWebview: Emitter<void>;
 	private _webviewFocusTracker?: DOM.IFocusTracker;
@@ -230,8 +229,7 @@ class WebviewEditor extends BaseWebviewEditor {
 	}
 
 	protected createEditor(parent: Builder): void {
-		this.frame = parent.getHTMLElement();
-		this.container = this._partService.getContainer(Parts.EDITOR_PART);
+		this.editorFrame = parent.getHTMLElement();
 
 		this.content = document.createElement('div');
 
@@ -242,8 +240,8 @@ class WebviewEditor extends BaseWebviewEditor {
 	private doUpdateContainer() {
 		const webviewContainer = this.input && (this.input as WebviewInput).container;
 		if (webviewContainer) {
-			const frameRect = this.frame.getBoundingClientRect();
-			const containerRect = this.container.getBoundingClientRect();
+			const frameRect = this.editorFrame.getBoundingClientRect();
+			const containerRect = webviewContainer.parentElement.getBoundingClientRect();
 
 			webviewContainer.style.position = 'absolute';
 			webviewContainer.style.top = `${frameRect.top - containerRect.top}px`;
