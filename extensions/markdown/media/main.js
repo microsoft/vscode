@@ -193,13 +193,13 @@
 
 	function onLoad() {
 		if (settings.scrollPreviewWithEditorSelection) {
-			const initialLine = +settings.line;
-			if (!isNaN(initialLine)) {
-				setTimeout(() => {
+			setTimeout(() => {
+				const initialLine = +settings.line;
+				if (!isNaN(initialLine)) {
 					scrollDisabled = true;
 					scrollToRevealSourceLine(initialLine);
-				}, 0);
-			}
+				}
+			}, 0);
 		}
 	}
 
@@ -222,6 +222,7 @@
 		return event => {
 			const line = +event.data.line;
 			if (!isNaN(line)) {
+				settings.line = line;
 				doScroll(line);
 			}
 		};

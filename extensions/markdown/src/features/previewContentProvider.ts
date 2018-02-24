@@ -303,6 +303,15 @@ class MarkdownPreview {
 		}
 	}
 
+	public updateForSelection(resource: vscode.Uri, line: number) {
+		if (this.resource.fsPath !== resource.fsPath) {
+			return;
+		}
+
+		this.initialLine = line;
+		this.webview.postMessage({ line });
+	}
+
 	private getPreviewTitle(resource: vscode.Uri): string {
 		return localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath));
 	}
@@ -357,10 +366,7 @@ export class MarkdownPreviewManager {
 			const resource = event.textEditor.document.uri;
 			for (const previewForResource of this.previews.filter(preview => preview.resource.fsPath === resource.fsPath)) {
 				this.logger.log('updatePreviewForSelection', { markdownFile: resource });
-
-				previewForResource.webview.postMessage({
-					line: event.selections[0].active.line
-				});
+				previewForResource.updateForSelection(resource, event.selections[0].active.line);
 			}
 		}, null, this.disposables);
 	}
