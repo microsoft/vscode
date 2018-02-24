@@ -146,7 +146,7 @@
 			} else {
 				scrollTo = previous.element.getBoundingClientRect().top;
 			}
-			window.scroll(0, window.scrollY + scrollTo + getSourceRevealAddedOffset());
+			window.scroll(0, Math.max(1, window.scrollY + scrollTo + getSourceRevealAddedOffset()));
 		}
 	}
 
