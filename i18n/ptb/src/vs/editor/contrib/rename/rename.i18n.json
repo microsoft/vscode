@@ -8,6 +8,6 @@
 	],
 	"no result": "Nenhum resultado.",
 	"aria": "Renomeado '{0}' para '{1}'com sucesso. Resumo: {2}",
-	"rename.failed": "Desculpe, falha na execução de renomear.",
+	"rename.failed": "Falha ao renomear",
 	"rename.label": "Renomear Símbolo"
 }

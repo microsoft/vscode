@@ -9,6 +9,5 @@
 	"yes": "Evet",
 	"read more": "Devamını oku",
 	"no": "Hayır",
-	"not now": "Daha sonra hatırlat",
-	"suggest auto fetch": "Code'un düzenli olarak `git fetch` komutunu çalıştırmasını ister misiniz?"
+	"not now": "Daha sonra hatırlat"
 }

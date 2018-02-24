@@ -26,7 +26,6 @@
 	"workbench.action.terminal.runSelectedText": "Esegui testo selezionato nel terminale attivo",
 	"workbench.action.terminal.runActiveFile": "Esegui file attivo nel terminale attivo",
 	"workbench.action.terminal.runActiveFile.noFile": "Nel terminale è possibile eseguire solo file su disco",
-	"workbench.action.terminal.switchTerminalInstance": "Cambia istanza del terminale",
 	"workbench.action.terminal.scrollDown": "Scorri giù (riga)",
 	"workbench.action.terminal.scrollDownPage": "Scorri giù (pagina)",
 	"workbench.action.terminal.scrollToBottom": "Scorri alla fine",

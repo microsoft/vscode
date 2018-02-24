@@ -26,7 +26,9 @@ export class SyntaxRangeProvider implements RangeProvider {
 
 	compute(model: ITextModel): TPromise<FoldingRegions> {
 		return collectSyntaxRanges(this.providers, model).then(ranges => {
-			return sanitizeRanges(ranges);
+			let res = sanitizeRanges(ranges);
+			//console.log(res.toString());
+			return res;
 		});
 	}
 
@@ -36,8 +38,11 @@ function collectSyntaxRanges(providers: FoldingProvider[], model: ITextModel): T
 	const rangeData: IFoldingRangeData[] = [];
 	let promises = providers.map((provider, rank) => asWinJsPromise(token => provider.provideFoldingRanges(model, token)).then(list => {
 		if (list && Array.isArray(list.ranges)) {
+			let nLines = model.getLineCount();
 			for (let r of list.ranges) {
-				rangeData.push({ startLineNumber: r.startLineNumber, endLineNumber: r.endLineNumber, rank, type: r.type });
+				if (r.startLineNumber > 0 && r.endLineNumber > r.startLineNumber && r.endLineNumber <= nLines) {
+					rangeData.push({ startLineNumber: r.startLineNumber, endLineNumber: r.endLineNumber, rank, type: r.type });
+				}
 			}
 		}
 	}, onUnexpectedExternalError));
@@ -119,6 +124,7 @@ export class RangesCollector {
 		}
 
 	}
+
 }
 
 export function sanitizeRanges(rangeData: IFoldingRangeData[]): FoldingRegions {

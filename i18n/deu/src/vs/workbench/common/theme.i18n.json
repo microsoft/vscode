@@ -58,16 +58,5 @@
 	"titleBarInactiveForeground": "Vordergrund der Titelleiste, wenn das Fenster inaktiv ist. Diese Farbe wird derzeit nur von MacOS unterstützt.",
 	"titleBarActiveBackground": "Hintergrund der Titelleiste, wenn das Fenster aktiv ist. Diese Farbe wird derzeit nur von MacOS unterstützt.",
 	"titleBarInactiveBackground": "Hintergrund der Titelleiste, wenn das Fenster inaktiv ist. Diese Farbe wird derzeit nur von MacOS unterstützt.",
-	"titleBarBorder": "Rahmenfarbe der Titelleiste. Diese Farbe wird derzeit nur unter MacOS unterstützt.",
-	"notificationsForeground": "Vordergrundfarbe für Benachrichtigungen. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsBackground": "Hintergrundfarbe für Benachrichtigungen. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsButtonBackground": "Hintergrundfarbe der Benachrichtigungsschaltfläche. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsButtonHoverBackground": "Hintergrundfarbe der Benachrichtigungsschaltfläche, wenn darauf gezeigt wird. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsButtonForeground": "Vordergrundfarbe der Benachrichtigungsschaltfläche. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsInfoBackground": "Hintergrundfarbe von Benachrichtigungsinformationen. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsInfoForeground": "Vordergrundfarbe von Benachrichtigungsinformationen. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsWarningBackground": "Hintergrundfarbe von Benachrichtigungswarnungen. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsWarningForeground": "Vordergrundfarbe von Benachrichtigungswarnungen. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsErrorBackground": "Hintergrundfarbe von Benachrichtigungsfehlern. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsErrorForeground": "Vordergrundfarbe von Benachrichtigungsfehlern. Benachrichtigungen werden oben im Fenster eingeblendet."
+	"titleBarBorder": "Rahmenfarbe der Titelleiste. Diese Farbe wird derzeit nur unter MacOS unterstützt."
 }

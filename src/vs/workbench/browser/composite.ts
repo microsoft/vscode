@@ -203,6 +203,7 @@ export abstract class CompositeDescriptor<T extends Composite> {
 	public cssClass: string;
 	public order: number;
 	public keybindingId: string;
+	public enabled: boolean;
 
 	private ctor: IConstructorSignature0<T>;
 
@@ -212,6 +213,7 @@ export abstract class CompositeDescriptor<T extends Composite> {
 		this.name = name;
 		this.cssClass = cssClass;
 		this.order = order;
+		this.enabled = true;
 		this.keybindingId = keybindingId;
 	}
 

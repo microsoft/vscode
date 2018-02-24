@@ -9,8 +9,6 @@
 	"schema.token.settings": "Farben und Stile für das Token.",
 	"schema.token.foreground": "Vordergrundfarbe für das Token.",
 	"schema.token.background.warning": "Token Hintergrundfarben werden derzeit nicht unterstützt.",
-	"schema.token.fontStyle": "Schriftschnitt der Regel: kursiv, fett und unterstrichen (einzeln oder in Kombination)",
-	"schema.fontStyle.error": "Der Schriftschnitt muss eine Kombination aus \"kursiv\", \"fett\" und \"unterstrichen\" sein.",
 	"schema.properties.name": "Beschreibung der Regel.",
 	"schema.properties.scope": "Bereichsauswahl, mit der diese Regel einen Abgleich ausführt.",
 	"schema.tokenColors.path": "Pfad zu einer tmTheme-Designdatei (relativ zur aktuellen Datei).",

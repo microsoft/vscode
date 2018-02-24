@@ -54,9 +54,5 @@
 	"emmetPreferencesFilterCommentTrigger": "Un elenco delimitato da virgole di nomi di attributi che dovrebbero esistere come abbreviazione per il filtro commenti da applicare",
 	"emmetPreferencesFormatNoIndentTags": "Una matrice di nomi di tag che non dovrebbe ottenere il rientro interno",
 	"emmetPreferencesFormatForceIndentTags": "Una matrice di nomi di tag che dovrebbe sempre ottenere il rientro interno",
-	"emmetPreferencesAllowCompactBoolean": "Se true, viene prodotta una notazione compatta degli attributi booleani",
-	"emmetPreferencesCssWebkitProperties": "Proprietà CSS delimitate da virgole che ottengono il prefisso del fornitore webkit quando vengono usate in un'abbreviazione Emmet che inizia con `-`. Impostare su una stringa vuota per evitare sempre il prefisso webkit.",
-	"emmetPreferencesCssMozProperties": "Proprietà CSS delimitate da virgole che ottengono il prefisso del fornitore moz quando vengono usate in un'abbreviazione Emmet che inizia con `-`. Impostare su una stringa vuota per evitare sempre il prefisso moz.",
-	"emmetPreferencesCssOProperties": "Proprietà CSS delimitate da virgole che ottengono il prefisso del fornitore o quando vengono usate in un'abbreviazione Emmet che inizia con `-`. Impostare su una stringa vuota per evitare sempre il prefisso o.",
-	"emmetPreferencesCssMsProperties": "Proprietà CSS delimitate da virgole che ottengono il prefisso del fornitore ms quando vengono usate in un'abbreviazione Emmet che inizia con `-`. Impostare su una stringa vuota per evitare sempre il prefisso ms."
+	"emmetPreferencesAllowCompactBoolean": "Se true, viene prodotta una notazione compatta degli attributi booleani"
 }

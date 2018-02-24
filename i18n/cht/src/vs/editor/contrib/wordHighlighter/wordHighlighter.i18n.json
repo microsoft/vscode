@@ -8,6 +8,8 @@
 	],
 	"wordHighlight": "讀取存取符號時的背景顏色，如讀取變數。不能使用非透明的顏色來隱藏底層的樣式。",
 	"wordHighlightStrong": "寫入存取符號時的背景顏色，如寫入變數。不能使用非透明的顏色來隱藏底層的樣式。",
+	"wordHighlightBorder": "讀取存取期間 (例如讀取變數時) 符號的邊框顏色。",
+	"wordHighlightStrongBorder": "寫入存取期間 (例如寫入變數時) 符號的邊框顏色。 ",
 	"overviewRulerWordHighlightForeground": "符號醒目提示的概觀尺規標記色彩。",
 	"overviewRulerWordHighlightStrongForeground": "寫入權限符號醒目提示的概觀尺規標記色彩。",
 	"wordHighlight.next.label": "移至下一個反白符號",

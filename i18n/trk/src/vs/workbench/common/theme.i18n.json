@@ -58,16 +58,5 @@
 	"titleBarInactiveForeground": "Pencere pasifken başlık çubuğu ön planı. Bu rengin sadece macOS'da destekleneceğini unutmayın.",
 	"titleBarActiveBackground": "Pencere aktifken başlık çubuğu arka planı. Bu rengin sadece macOS'da destekleneceğini unutmayın.",
 	"titleBarInactiveBackground": "Pencere pasifken başlık çubuğu arka planı. Bu rengin sadece macOS'da destekleneceğini unutmayın.",
-	"titleBarBorder": "Başlık çubuğu kenarlık rengi. Bu rengin sadece macOS'da destekleneceğini unutmayın.",
-	"notificationsForeground": "Bildirim ön plan rengi. Bildirimler pencerenin üst kısmından içeri girer.",
-	"notificationsBackground": "Bildirim arka plan rengi. Bildirimler pencerenin üst kısmından içeri girer.",
-	"notificationsButtonBackground": "Bildirim butonu arka plan rengi. Bildirimler pencerenin üst kısmından içeri girer.",
-	"notificationsButtonHoverBackground": "Fareyle üzerine gelindiğinde bildirim butonu arka plan rengi. Bildirimler pencerenin üst kısmından içeri girer.",
-	"notificationsButtonForeground": "Bildirim butonu ön plan rengi. Bildirimler pencerenin üst kısmından içeri girer.",
-	"notificationsInfoBackground": "Bildirimlerdeki bilgi arka plan rengi. Bildirimler pencerenin üst kısmından içeri girer.",
-	"notificationsInfoForeground": "Bildirimlerdeki bilgi ön plan rengi. Bildirimler pencerenin üst kısmından içeri girer.",
-	"notificationsWarningBackground": "Bildirim uyarı arka plan rengi. Bildirimler pencerenin üst kısmından içeri girer.",
-	"notificationsWarningForeground": "Bildirim uyarı ön plan rengi. Bildirimler pencerenin üst kısmından içeri girer.",
-	"notificationsErrorBackground": "Bildirim hata arka plan rengi. Bildirimler pencerenin üst kısmından içeri girer.",
-	"notificationsErrorForeground": "Bildirim hata ön plan rengi. Bildirimler pencerenin üst kısmından içeri girer."
+	"titleBarBorder": "Başlık çubuğu kenarlık rengi. Bu rengin sadece macOS'da destekleneceğini unutmayın."
 }

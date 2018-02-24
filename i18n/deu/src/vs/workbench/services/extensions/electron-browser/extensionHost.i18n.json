@@ -8,5 +8,6 @@
 	],
 	"extensionHostProcess.startupFailDebug": "Der Erweiterungshost wurde nicht innerhalb von 10 Sekunden gestartet. Möglicherweise wurde er in der ersten Zeile beendet und benötigt einen Debugger, um die Ausführung fortzusetzen.",
 	"extensionHostProcess.startupFail": "Der Erweiterungshost wurde nicht innerhalb von 10 Sekunden gestartet. Dies stellt ggf. ein Problem dar.",
+	"reloadWindow": "Fenster erneut laden",
 	"extensionHostProcess.error": "Fehler vom Erweiterungshost: {0}"
 }

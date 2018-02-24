@@ -15,7 +15,6 @@
 	"mainProcess": "Temel",
 	"selectProcess": "İşlem için Günlük Seçin",
 	"openLogFile": "Günlük Dosyasını Aç...",
-	"setLogLevel": "Günlük Düzeyini Ayarla",
 	"trace": "İzle",
 	"debug": "Hata Ayıklama",
 	"info": "Bilgi",

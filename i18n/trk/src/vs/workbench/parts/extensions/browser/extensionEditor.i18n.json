@@ -9,6 +9,7 @@
 	"name": "Eklenti adı",
 	"extension id": "Eklenti tanımlayıcısı",
 	"preview": "Önizleme",
+	"builtin": "Yerleşik",
 	"publisher": "Yayıncı adı",
 	"install count": "Yüklenme sayısı",
 	"rating": "Derecelendirme",

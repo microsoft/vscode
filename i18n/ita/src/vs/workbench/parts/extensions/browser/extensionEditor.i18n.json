@@ -9,6 +9,7 @@
 	"name": "Nome dell'estensione",
 	"extension id": "Identificatore dell'estensione",
 	"preview": "Anteprima",
+	"builtin": "Predefinita",
 	"publisher": "Nome dell'editore",
 	"install count": "Conteggio delle installazioni",
 	"rating": "Valutazione",

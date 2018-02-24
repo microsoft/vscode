@@ -144,6 +144,14 @@ export class FoldingRegions {
 		}
 		return -1;
 	}
+
+	public toString() {
+		let res = [];
+		for (let i = 0; i < this.length; i++) {
+			res[i] = `[${this.isCollapsed(i) ? '+' : '-'}] ${this.getStartLineNumber(i)}/${this.getEndLineNumber(i)}`;
+		}
+		return res.join(', ');
+	}
 }
 
 export class FoldingRegion {

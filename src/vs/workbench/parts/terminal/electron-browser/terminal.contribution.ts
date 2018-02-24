@@ -302,6 +302,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': true
 		},
+		'terminal.integrated.experimentalRestore': {
+			'description': nls.localize('terminal.integrated.experimentalRestore', "Whether to restore terminal sessions for the workspace automatically when launching VS Code. This is an experimental setting; it may be buggy and could change in the future."),
+			'type': 'boolean',
+			'default': false
+		},
 	}
 });
 

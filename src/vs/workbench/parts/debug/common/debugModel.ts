@@ -562,6 +562,10 @@ export class Process implements IProcess {
 		if (this.sources.has(source.uri.toString())) {
 			source = this.sources.get(source.uri.toString());
 			source.raw = mixin(source.raw, raw);
+			if (source.raw && raw) {
+				// Always take the latest presentation hint from adapter #42139
+				source.raw.presentationHint = raw.presentationHint;
+			}
 		} else {
 			this.sources.set(source.uri.toString(), source);
 		}

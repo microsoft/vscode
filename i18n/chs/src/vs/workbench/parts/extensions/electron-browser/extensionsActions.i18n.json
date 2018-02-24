@@ -10,6 +10,6 @@
 	"installVSIX": "从 VSIX 安装...",
 	"installFromVSIX": "从 VSIX 文件安装",
 	"installButton": "安装(&&I)",
-	"InstallVSIXAction.success": "已成功安装扩展。重启以启用它。",
+	"InstallVSIXAction.success": "已成功安装扩展。重载即可启用。",
 	"InstallVSIXAction.reloadNow": "立即重新加载"
 }

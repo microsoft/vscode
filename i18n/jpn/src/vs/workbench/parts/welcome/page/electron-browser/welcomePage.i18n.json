@@ -34,7 +34,6 @@
 	"welcomePage.installedExtensionPack": "{0} のサポートは既にインストールされています",
 	"ok": "OK",
 	"details": "詳細",
-	"cancel": "キャンセル",
 	"welcomePage.buttonBackground": "ウェルカム ページのボタンの背景色。",
 	"welcomePage.buttonHoverBackground": "ウェルカム ページのボタンのホバー背景色。"
 }

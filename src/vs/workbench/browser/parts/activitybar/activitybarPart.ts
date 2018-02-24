@@ -29,8 +29,6 @@ import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, 
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ISearchConfiguration, VIEW_ID as SEARCH_VIEW_ID } from 'vs/platform/search/common/search';
 
 export class ActivitybarPart extends Part {
 
@@ -58,8 +56,7 @@ export class ActivitybarPart extends Part {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IThemeService themeService: IThemeService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -89,15 +86,11 @@ export class ActivitybarPart extends Part {
 		// Deactivate viewlet action on close
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.compositeBar.deactivateComposite(viewlet.getId())));
 		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
-
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('search.location')) {
-				const location = this.configurationService.getValue<ISearchConfiguration>().search.location;
-				if (location === 'sidebar') {
-					this.compositeBar.addComposite(this.viewletService.getViewlet(SEARCH_VIEW_ID));
-				} else {
-					this.compositeBar.removeComposite(SEARCH_VIEW_ID);
-				}
+		this.toUnbind.push(this.viewletService.onDidViewletEnablementChange(({ id, enabled }) => {
+			if (enabled) {
+				this.compositeBar.addComposite(this.viewletService.getViewlet(id));
+			} else {
+				this.compositeBar.removeComposite(id);
 			}
 		}));
 	}

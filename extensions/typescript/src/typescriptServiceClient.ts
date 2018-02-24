@@ -545,8 +545,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 						localize('serverDiedAfterStart', 'The TypeScript language service died 5 times right after it got started. The service will not be restarted.'),
 						{
 							title: localize('serverDiedReportIssue', 'Report Issue'),
-							id: MessageAction.reportIssue,
-							isCloseAffordance: true
+							id: MessageAction.reportIssue
 						});
 					/* __GDPR__
 						"serviceExited" : {}
@@ -559,8 +558,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 						localize('serverDied', 'The TypeScript language service died unexpectedly 5 times in the last 5 Minutes.'),
 						{
 							title: localize('serverDiedReportIssue', 'Report Issue'),
-							id: MessageAction.reportIssue,
-							isCloseAffordance: true
+							id: MessageAction.reportIssue
 						});
 				}
 				if (prompt) {

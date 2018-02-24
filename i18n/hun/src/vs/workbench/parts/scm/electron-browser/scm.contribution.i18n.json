@@ -12,5 +12,6 @@
 	"view": "Nézet",
 	"scmConfigurationTitle": "VKR (SCM)",
 	"alwaysShowProviders": "Mindig megjelenjen-e a verziókezelő rendszerek szakasz.",
-	"diffDecorations": "Vezérli a szerkesztőablakban megjelenő, változásokat jelölő dekorátorokat."
+	"diffDecorations": "Vezérli a szerkesztőablakban megjelenő, változásokat jelölő dekorátorokat.",
+	"diffGutterWidth": "Vezérli a szerkesztőablak margóján megjelenő, változásokat jelölő dekorátorok szélességét (pixelben)."
 }

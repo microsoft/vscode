@@ -20,7 +20,6 @@
 	"showSameKeybindings": "Die gleichen Tastenzuordnung anzeigen",
 	"copyLabel": "Kopieren",
 	"copyCommandLabel": "Befehl kopieren",
-	"error": "Fehler '{0}' beim Bearbeiten der Tastenzuordnung. Überprüfen Sie die Datei 'keybindings.json'.",
 	"command": "Befehlstaste",
 	"keybinding": "Tastenzuordnung",
 	"source": "Quelle",

@@ -15,7 +15,7 @@
 	"mainProcess": "主进程",
 	"selectProcess": "选择进程日志",
 	"openLogFile": "打开日志文件...",
-	"setLogLevel": "设置日志级别",
+	"setLogLevel": "设置日志级别...",
 	"trace": "跟踪",
 	"debug": "调试",
 	"info": "信息",

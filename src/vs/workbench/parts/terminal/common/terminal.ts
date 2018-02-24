@@ -81,6 +81,7 @@ export interface ITerminalConfiguration {
 		windows: { [key: string]: string };
 	};
 	showExitAlert: boolean;
+	experimentalRestore: boolean;
 }
 
 export interface ITerminalConfigHelper {
@@ -253,6 +254,11 @@ export interface ITerminalInstance {
 	 * do not override the title when the process title changes in the terminal.
 	 */
 	isTitleSetByProcess: boolean;
+
+	/**
+	 * The shell launch config used to launch the shell.
+	 */
+	shellLaunchConfig: IShellLaunchConfig;
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.

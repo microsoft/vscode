@@ -2,7 +2,7 @@
   "name": "npm",
   "publisher": "vscode",
   "displayName": "%displayName%",
-	"description": "%description%",
+  "description": "%description%",
   "version": "0.0.1",
   "engines": {
     "vscode": "0.10.x"
@@ -16,6 +16,8 @@
     "watch": "gulp watch-extension:npm"
   },
   "dependencies": {
+    "jsonc-parser": "^1.0.0",
+    "request-light": "^0.2.2",
     "vscode-nls": "^3.2.1"
   },
   "devDependencies": {
@@ -23,7 +25,8 @@
   },
   "main": "./out/main",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask"
+    "onCommand:workbench.action.tasks.runTask",
+    "onLanguage:json"
   ],
   "contributes": {
     "configuration": {
@@ -59,6 +62,16 @@
         }
       }
     },
+    "jsonValidation": [
+      {
+        "fileMatch": "package.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/package.json"
+      },
+      {
+        "fileMatch": "bower.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/bower.json"
+      }
+    ],
     "taskDefinitions": [
       {
         "type": "npm",
