@@ -265,8 +265,11 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	private resolveWorkspaceFolderRecommendations(workspaceFolder: IWorkspaceFolder): TPromise<string[]> {
-		return this.fileService.resolveContent(workspaceFolder.toResource(paths.join('.vscode', 'extensions.json')))
-			.then(content => this.processWorkspaceRecommendations(json.parse(content.value, [])), err => []);
+		const extensionsJsonUri = workspaceFolder.toResource(paths.join('.vscode', 'extensions.json'));
+		return this.fileService.resolveFile(extensionsJsonUri).then(() => {
+			return this.fileService.resolveContent(extensionsJsonUri)
+				.then(content => this.processWorkspaceRecommendations(json.parse(content.value, [])), err => []);
+		}, err => []);
 	}
 
 	private processWorkspaceRecommendations(extensionsContent: IExtensionsContent): TPromise<string[]> {
