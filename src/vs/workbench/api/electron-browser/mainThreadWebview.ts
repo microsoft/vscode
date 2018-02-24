@@ -39,6 +39,7 @@ interface WebviewEvents {
 	onMessage(message: any): void;
 	onDidChangePosition(newPosition: Position): void;
 	onDispose(): void;
+	onDidClickLink(link: URI, options: vscode.WebviewOptions): void;
 }
 
 class WebviewInput extends EditorInput {
@@ -51,6 +52,7 @@ class WebviewInput extends EditorInput {
 	private _container: HTMLElement;
 	private _webview: Webview | undefined;
 	private _webviewOwner: any;
+	private _webviewDisposables: IDisposable[] = [];
 
 	public static create(
 		name: string,
@@ -139,10 +141,6 @@ class WebviewInput extends EditorInput {
 		this._options = value;
 	}
 
-	public get events(): WebviewEvents | undefined {
-		return this._events;
-	}
-
 	public resolve(refresh?: boolean): TPromise<IEditorModel, any> {
 		return TPromise.as(new EditorModel());
 	}
@@ -160,7 +158,21 @@ class WebviewInput extends EditorInput {
 	}
 
 	public set webview(value: Webview) {
+		this._webviewDisposables = dispose(this._webviewDisposables);
+
 		this._webview = value;
+
+		this._webview.onDidClickLink(link => {
+			if (this._events) {
+				this._events.onDidClickLink(link, this._options);
+			}
+		}, null, this._webviewDisposables);
+
+		this._webview.onMessage(message => {
+			if (this._events) {
+				this._events.onMessage(message);
+			}
+		}, null, this._webviewDisposables);
 	}
 
 	public claimWebview(owner: any) {
@@ -183,7 +195,15 @@ class WebviewInput extends EditorInput {
 			this._webview = undefined;
 		}
 
+		this._webviewDisposables = dispose(this._webviewDisposables);
+
 		this._webviewOwner = undefined;
+	}
+
+	public onDidChangePosition(position: Position) {
+		if (this._events) {
+			this._events.onDidChangePosition(position);
+		}
 	}
 }
 
@@ -191,16 +211,12 @@ class WebviewEditor extends BaseWebviewEditor {
 
 	public static readonly ID = 'WebviewEditor';
 
-	private static readonly standardSupportedLinkSchemes = ['http', 'https', 'mailto'];
-
 	private frame: HTMLElement;
 	private container: HTMLElement;
 	private webviewContent: HTMLElement;
 	private _onDidFocusWebview: Emitter<void>;
 	private _webviewFocusTracker?: DOM.IFocusTracker;
 	private _webviewFocusListenerDisposable?: IDisposable;
-
-	private _contentDisposables: IDisposable[] = [];
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -210,8 +226,7 @@ class WebviewEditor extends BaseWebviewEditor {
 		@IPartService private readonly _partService: IPartService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@IOpenerService private readonly _openerService: IOpenerService
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService, _contextKeyService);
 
@@ -250,8 +265,6 @@ class WebviewEditor extends BaseWebviewEditor {
 	}
 
 	public dispose(): void {
-		this._contentDisposables = dispose(this._contentDisposables);
-
 		// Let the editor input dispose of the webview.
 		this._webview = undefined;
 		this.webviewContent = undefined;
@@ -314,9 +327,7 @@ class WebviewEditor extends BaseWebviewEditor {
 
 	public changePosition(position: Position): void {
 		if (this.input && this.input instanceof WebviewInput) {
-			if (this.input.events) {
-				this.input.events.onDidChangePosition(position);
-			}
+			this.input.onDidChangePosition(position);
 		}
 		super.changePosition(position);
 	}
@@ -367,8 +378,6 @@ class WebviewEditor extends BaseWebviewEditor {
 		this.findInputFocusContextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
 		this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 
-		this._contentDisposables = dispose(this._contentDisposables);
-
 		this._webview = new Webview(
 			this.webviewContent,
 			this._partService.getContainer(Parts.EDITOR_PART),
@@ -385,33 +394,16 @@ class WebviewEditor extends BaseWebviewEditor {
 
 		this.content.setAttribute('aria-flowto', this.webviewContent.id);
 
-		this._webview.onDidClickLink(this.onDidClickLink, this, this._contentDisposables);
-
-		this._webview.onMessage(message => {
-			if (this.input) {
-				(this.input as WebviewInput).events.onMessage(message);
-			}
-		}, null, this._contentDisposables);
-
 		this.doUpdateContainer();
 		return this._webview;
-	}
-
-	private onDidClickLink(link: URI): void {
-		if (!link) {
-			return;
-		}
-
-		const enableCommandUris = (this.input as WebviewInput).options.enableCommandUris;
-		if (WebviewEditor.standardSupportedLinkSchemes.indexOf(link.scheme) >= 0 || enableCommandUris && link.scheme === 'command') {
-			this._openerService.open(link);
-		}
 	}
 }
 
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape {
+	private static readonly standardSupportedLinkSchemes = ['http', 'https', 'mailto'];
+
 	private _toDispose: Disposable[] = [];
 
 	private readonly _proxy: ExtHostWebviewsShape;
@@ -424,7 +416,8 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 		@IEditorGroupService _editorGroupService: IEditorGroupService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
 		@IPartService private readonly _partService: IPartService,
-		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
 		_editorGroupService.onEditorsChanged(this.onEditorsChanged, this, this._toDispose);
@@ -438,7 +431,8 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 		const webviewInput = WebviewInput.create('', options, '', {
 			onMessage: message => this._proxy.$onMessage(handle, message),
 			onDidChangePosition: position => this._proxy.$onDidChangePosition(handle, position),
-			onDispose: () => this._proxy.$onDidDisposeWeview(handle)
+			onDispose: () => this._proxy.$onDidDisposeWeview(handle),
+			onDidClickLink: (link, options) => this.onDidClickLink(link, options)
 		}, this._partService);
 
 		this._webviews.set(handle, webviewInput);
@@ -446,7 +440,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 
 	$disposeWebview(handle: WebviewHandle): void {
 		const webview = this.getWebview(handle);
-		this._editorService.closeEditor(Position.ONE, webview);
+		this._editorService.closeEditors({ positionOne: [webview], positionTwo: [webview], positionThree: [webview] });
 	}
 
 	$setTitle(handle: WebviewHandle, value: string): void {
@@ -522,6 +516,17 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 				this._proxy.$onDidChangeActiveWeview(undefined);
 				this._activeWebview = undefined;
 			}
+		}
+	}
+
+	private onDidClickLink(link: URI, options: vscode.WebviewOptions): void {
+		if (!link) {
+			return;
+		}
+
+		const enableCommandUris = options.enableCommandUris;
+		if (MainThreadWebviews.standardSupportedLinkSchemes.indexOf(link.scheme) >= 0 || enableCommandUris && link.scheme === 'command') {
+			this._openerService.open(link);
 		}
 	}
 }
