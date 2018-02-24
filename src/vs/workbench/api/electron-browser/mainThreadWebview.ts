@@ -121,16 +121,12 @@ class WebviewInput extends EditorInput {
 		return this._html;
 	}
 
-	public setHtml(value: string): WebviewInput {
-		// Transfer ownership of webview elements
-		const newInput = new WebviewInput(this._name, this._options, value, this._events, this._container, this._webview);
-		newInput._webviewOwner = this._webviewOwner;
+	public setHtml(value: string): void {
+		this._html = value;
 
-		this._container = undefined;
-		this._webview = undefined;
-		this._webviewOwner = undefined;
-		this._events = undefined;
-		return newInput;
+		if (this._webview) {
+			this._webview.contents = value;
+		}
 	}
 
 	public get options(): vscode.WebviewOptions {
@@ -449,9 +445,8 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 	}
 
 	$setHtml(handle: WebviewHandle, value: string): void {
-		this.updateInput(handle, existingInput => {
-			return existingInput.setHtml(value);
-		});
+		const webview = this.getWebview(handle);
+		webview.setHtml(value);
 	}
 
 	$show(handle: WebviewHandle, column: Position): void {
@@ -479,18 +474,6 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 			throw new Error('Unknown webview handle:' + handle);
 		}
 		return webviewInput;
-	}
-
-	private updateInput(handle: WebviewHandle, f: (existingInput: WebviewInput) => WebviewInput) {
-		const existingInput = this._webviews.get(handle);
-		const newInput = f(existingInput);
-		this._webviews.set(handle, newInput);
-
-		this._editorService.replaceEditors([{
-			toReplace: existingInput,
-			replaceWith: newInput,
-			options: { preserveFocus: true }
-		}]);
 	}
 
 	private onEditorsChanged() {
