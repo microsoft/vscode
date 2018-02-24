@@ -357,7 +357,6 @@ class WebviewEditor extends BaseWebviewEditor {
 			return existing;
 		}
 
-
 		this._webviewFocusTracker = DOM.trackFocus(this.webviewContent);
 		this._webviewFocusListenerDisposable = this._webviewFocusTracker.onDidFocus(() => {
 			this._onDidFocusWebview.fire();
@@ -413,7 +412,7 @@ class WebviewEditor extends BaseWebviewEditor {
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape {
-	private readonly _toDispose: Disposable[] = [];
+	private _toDispose: Disposable[] = [];
 
 	private readonly _proxy: ExtHostWebviewsShape;
 	private readonly _webviews = new Map<WebviewHandle, WebviewInput>();
@@ -432,7 +431,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 	}
 
 	dispose(): void {
-		dispose(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 	}
 
 	$createWebview(handle: WebviewHandle, uri: URI, options: vscode.WebviewOptions): void {
@@ -446,12 +445,12 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 	}
 
 	$disposeWebview(handle: WebviewHandle): void {
-		const webview = this._webviews.get(handle);
+		const webview = this.getWebview(handle);
 		this._editorService.closeEditor(Position.ONE, webview);
 	}
 
 	$setTitle(handle: WebviewHandle, value: string): void {
-		const webview = this._webviews.get(handle);
+		const webview = this.getWebview(handle);
 		webview.setName(value);
 	}
 
@@ -462,12 +461,12 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 	}
 
 	$show(handle: WebviewHandle, column: Position): void {
-		const webviewInput = this._webviews.get(handle);
+		const webviewInput = this.getWebview(handle);
 		this._editorService.openEditor(webviewInput, { pinned: true }, column);
 	}
 
 	async $sendMessage(handle: WebviewHandle, message: any): Promise<boolean> {
-		const webviewInput = this._webviews.get(handle);
+		const webviewInput = this.getWebview(handle);
 		const editors = this._editorService.getVisibleEditors()
 			.filter(e => e instanceof WebviewInput)
 			.map(e => e as WebviewEditor)
@@ -478,6 +477,14 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 		}
 
 		return (editors.length > 0);
+	}
+
+	private getWebview(handle: number): WebviewInput {
+		const webviewInput = this._webviews.get(handle);
+		if (!webviewInput) {
+			throw new Error('Unknown webview handle:' + handle);
+		}
+		return webviewInput;
 	}
 
 	private updateInput(handle: WebviewHandle, f: (existingInput: WebviewInput) => WebviewInput) {
