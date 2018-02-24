@@ -452,7 +452,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 	async $sendMessage(handle: WebviewHandle, message: any): Promise<boolean> {
 		const webviewInput = this.getWebview(handle);
 		const editors = this._editorService.getVisibleEditors()
-			.filter(e => e instanceof WebviewInput)
+			.filter(e => e instanceof WebviewEditor)
 			.map(e => e as WebviewEditor)
 			.filter(e => e.input.matches(webviewInput));
 

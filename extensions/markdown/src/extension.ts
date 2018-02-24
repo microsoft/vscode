@@ -30,7 +30,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const contentProvider = new MarkdownContentProvider(engine, context, cspArbiter, logger);
 	loadMarkdownExtensions(contentProvider, engine);
 
-	const previewManager = new MarkdownPreviewManager(contentProvider);
+	const previewManager = new MarkdownPreviewManager(contentProvider, logger);
 	context.subscriptions.push(previewManager);
 
 	context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(selector, new MDDocumentSymbolProvider(engine)));

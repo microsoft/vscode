@@ -219,9 +219,9 @@ export class MarkdownContentProvider {
 
 	public async provideTextDocumentContent(
 		sourceUri: vscode.Uri,
-		previewConfigurations: PreviewConfigManager
+		previewConfigurations: PreviewConfigManager,
+		initialLine: number | undefined = undefined
 	): Promise<string> {
-		let initialLine: number | undefined = undefined;
 		const editor = vscode.window.activeTextEditor;
 		if (editor && editor.document.uri.toString() === sourceUri.toString()) {
 			initialLine = editor.selection.active.line;
@@ -296,7 +296,8 @@ export class MarkdownPreviewManager {
 	private readonly disposables: vscode.Disposable[] = [];
 
 	public constructor(
-		private readonly contentProvider: MarkdownContentProvider
+		private readonly contentProvider: MarkdownContentProvider,
+		private readonly logger: Logger
 	) {
 		vscode.workspace.onDidChangeTextDocument(event => {
 			this.update(event.document, undefined);
@@ -312,6 +313,21 @@ export class MarkdownPreviewManager {
 						this.updatePreview(preview);
 					}
 				}
+			}
+		}, null, this.disposables);
+
+		vscode.window.onDidChangeTextEditorSelection(event => {
+			if (!isMarkdownFile(event.textEditor.document)) {
+				return;
+			}
+
+			const resource = event.textEditor.document.uri;
+			for (const previewForResource of this.previews.filter(preview => preview.resource.fsPath === resource.fsPath)) {
+				this.logger.log('updatePreviewForSelection', { markdownFile: resource });
+
+				previewForResource.webview.postMessage({
+					line: event.selections[0].active.line
+				});
 			}
 		}, null, this.disposables);
 	}
