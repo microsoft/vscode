@@ -27,7 +27,7 @@
 		if (!unloadedStyles.length) {
 			return;
 		}
-		window.parent.postMessage({
+		window.postMessage({
 			command: '_markdown.onPreviewStyleLoadError',
 			args: [unloadedStyles]
 		}, '*');

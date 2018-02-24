@@ -34,7 +34,7 @@
 	 * @param {any[]} args
 	 */
 	function postMessage(command, args) {
-		window.parent.postMessage({
+		window.postMessage({
 			command,
 			args
 		}, '*');

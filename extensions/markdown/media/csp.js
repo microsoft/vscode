@@ -25,7 +25,7 @@
 		notification.setAttribute('role', 'button');
 		notification.setAttribute('aria-label',  strings.cspAlertMessageLabel);
 		notification.onclick = () => {
-			window.parent.postMessage({
+			window.postMessage({
 				command: 'markdown.showPreviewSecuritySelector',
 				args: [settings.source]
 			}, '*');

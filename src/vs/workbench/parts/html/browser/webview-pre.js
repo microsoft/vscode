@@ -70,6 +70,16 @@
 		}
 	}
 
+	function onMessage(message) {
+		if (enableWrappedPostMessage) {
+			// Modern webview. Forward wrapped message
+			ipcRenderer.sendToHost('onmessage', message.data);
+		} else {
+			// Old school webview. Forward exact message
+			ipcRenderer.sendToHost(message.data.command, message.data.data);
+		}
+	}
+
 	var isHandlingScroll = false;
 	function handleInnerScroll(event) {
 		if (isHandlingScroll) {
@@ -275,6 +285,11 @@
 
 					// Bubble out link clicks
 					contentDocument.body.addEventListener('click', handleInnerClick);
+
+					// Forward messages
+					if (enableWrappedPostMessage) {
+						contentWindow.onmessage = onMessage;
+					}
 				}
 
 				const newFrame = getPendingFrame();
@@ -337,15 +352,7 @@
 		});
 
 		// Forward messages from the embedded iframe
-		window.onmessage = function (message) {
-			if (enableWrappedPostMessage) {
-				// Modern webview. Forward wrapped message
-				ipcRenderer.sendToHost('onmessage', message.data);
-			} else {
-				// Old school webview. Forward exact message
-				ipcRenderer.sendToHost(message.data.command, message.data.data);
-			}
-		};
+		window.onmessage = onMessage;
 
 		// signal ready
 		ipcRenderer.sendToHost('webview-ready', process.pid);
