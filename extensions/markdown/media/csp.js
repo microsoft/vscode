@@ -27,7 +27,7 @@
 		notification.onclick = () => {
 			window.parent.postMessage({
 				command: 'markdown.showPreviewSecuritySelector',
-				args: [settings.previewUri]
+				args: [settings.source]
 			}, '*');
 		};
 		document.body.appendChild(notification);

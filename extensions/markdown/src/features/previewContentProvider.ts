@@ -226,7 +226,6 @@ export class MarkdownContentProvider {
 		const config = previewConfigurations.loadAndCacheConfiguration(sourceUri);
 
 		const initialData = {
-			previewUri: sourceUri.toString(), // TODO
 			source: sourceUri.toString(),
 			line: initialLine,
 			scrollPreviewWithEditorSelection: config.scrollPreviewWithEditorSelection,
