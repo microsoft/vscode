@@ -569,7 +569,11 @@ declare module 'vscode' {
 		postMessage(message: any): Thenable<boolean>;
 
 		/**
-		 * Dispose the webview.
+		 * Dispose of the the webview.
+		 *
+		 * This closes the webview if it showing and disposes of the resources owned by the webview.
+		 * Webview are also disposed when the user closes the webview editor. Both cases fire `onDispose`
+		 * event. Trying to use the webview after it has been disposed throws an exception.
 		 */
 		dispose(): any;
 	}
@@ -587,7 +591,7 @@ declare module 'vscode' {
 		 *
 		 * @param uri Unique identifier for the webview.
 		 * @param column Editor column to show the new webview in.
-		 * @param options Content settings for the webview
+		 * @param options Content settings for the webview.
 		 */
 		export function createWebview(uri: Uri, column: ViewColumn, options: WebviewOptions): Webview;
 
