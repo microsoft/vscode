@@ -230,11 +230,8 @@ class WebviewEditor extends BaseWebviewEditor {
 
 	protected createEditor(parent: Builder): void {
 		this.editorFrame = parent.getHTMLElement();
-
 		this.content = document.createElement('div');
-
 		parent.append(this.content);
-		this.doUpdateContainer();
 	}
 
 	private doUpdateContainer() {
