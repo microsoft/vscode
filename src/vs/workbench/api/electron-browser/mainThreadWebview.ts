@@ -194,6 +194,7 @@ class WebviewInput extends EditorInput {
 		this._webviewDisposables = dispose(this._webviewDisposables);
 
 		this._webviewOwner = undefined;
+		this.container.style.visibility = 'hidden';
 	}
 
 	public onDidChangePosition(position: Position) {
