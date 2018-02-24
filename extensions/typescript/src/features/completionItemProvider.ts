@@ -211,18 +211,31 @@ class ApplyCompletionCodeActionCommand implements Command {
 	}
 }
 
-interface Configuration {
-	useCodeSnippetsOnMethodSuggest: boolean;
-	nameSuggestions: boolean;
-	quickSuggestionsForPaths: boolean;
-	autoImportSuggestions: boolean;
+interface CompletionConfiguration {
+	readonly useCodeSnippetsOnMethodSuggest: boolean;
+	readonly nameSuggestions: boolean;
+	readonly quickSuggestionsForPaths: boolean;
+	readonly autoImportSuggestions: boolean;
 }
 
-namespace Configuration {
+namespace CompletionConfiguration {
 	export const useCodeSnippetsOnMethodSuggest = 'useCodeSnippetsOnMethodSuggest';
 	export const nameSuggestions = 'nameSuggestions';
 	export const quickSuggestionsForPaths = 'quickSuggestionsForPaths';
 	export const autoImportSuggestions = 'autoImportSuggestions.enabled';
+
+	export function getConfigurationForResource(
+		resource: vscode.Uri
+	): CompletionConfiguration {
+		// TS settings are shared by both JS and TS.
+		const typeScriptConfig = vscode.workspace.getConfiguration('typescript', resource);
+		return {
+			useCodeSnippetsOnMethodSuggest: typeScriptConfig.get<boolean>(CompletionConfiguration.useCodeSnippetsOnMethodSuggest, false),
+			quickSuggestionsForPaths: typeScriptConfig.get<boolean>(CompletionConfiguration.quickSuggestionsForPaths, true),
+			autoImportSuggestions: typeScriptConfig.get<boolean>(CompletionConfiguration.autoImportSuggestions, true),
+			nameSuggestions: vscode.workspace.getConfiguration('javascript', resource).get(CompletionConfiguration.nameSuggestions, true)
+		};
+	}
 }
 
 export default class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider {
@@ -257,15 +270,15 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		}
 
 		const line = document.lineAt(position.line);
-		const config = this.getConfiguration(document.uri);
+		const completionConfiguration = CompletionConfiguration.getConfigurationForResource(document.uri);
 
-		if (!this.shouldTrigger(context, config, line, position)) {
+		if (!this.shouldTrigger(context, completionConfiguration, line, position)) {
 			return [];
 		}
 
 		const args: Proto.CompletionsRequestArgs = {
 			...vsPositionToTsFileLocation(file, position),
-			includeExternalModuleExports: config.autoImportSuggestions,
+			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
 			includeInsertTextCompletions: true
 		};
 
@@ -280,68 +293,21 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 			return [];
 		}
 
-		// Only enable dot completions in TS files for now
-		let enableDotCompletions = document && (document.languageId === languageModeIds.typescript || document.languageId === languageModeIds.typescriptreact);
-
-		// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/13456
-		// Only enable dot completions when previous character is an identifier.
-		// Prevents incorrectly completing while typing spread operators.
-		if (position.character > 1) {
-			const preText = document.getText(new vscode.Range(
-				position.line, 0,
-				position.line, position.character - 1));
-			enableDotCompletions = preText.match(/[a-z_$\)\]\}]\s*$/ig) !== null;
-		}
+		const enableDotCompletions = this.shouldEnableDotCompletions(document, position);
 
 		const completionItems: vscode.CompletionItem[] = [];
 		for (const element of msg) {
-			if (element.kind === PConst.Kind.warning && !config.nameSuggestions) {
+			if (element.kind === PConst.Kind.warning && !completionConfiguration.nameSuggestions) {
 				continue;
 			}
-			if (!config.autoImportSuggestions && element.hasAction) {
+			if (!completionConfiguration.autoImportSuggestions && element.hasAction) {
 				continue;
 			}
-			const item = new MyCompletionItem(position, document, line.text, element, enableDotCompletions, config.useCodeSnippetsOnMethodSuggest);
+			const item = new MyCompletionItem(position, document, line.text, element, enableDotCompletions, completionConfiguration.useCodeSnippetsOnMethodSuggest);
 			completionItems.push(item);
 		}
 
 		return completionItems;
-	}
-
-	private shouldTrigger(context: vscode.CompletionContext, config: Configuration, line: vscode.TextLine, position: vscode.Position) {
-		if (context.triggerCharacter === '"' || context.triggerCharacter === '\'') {
-			if (!config.quickSuggestionsForPaths) {
-				return false;
-			}
-
-			// make sure we are in something that looks like the start of an import
-			const pre = line.text.slice(0, position.character);
-			if (!pre.match(/\b(from|import)\s*["']$/) && !pre.match(/\b(import|require)\(['"]$/)) {
-				return false;
-			}
-		}
-
-		if (context.triggerCharacter === '/') {
-			if (!config.quickSuggestionsForPaths) {
-				return false;
-			}
-
-			// make sure we are in something that looks like an import path
-			const pre = line.text.slice(0, position.character);
-			if (!pre.match(/\b(from|import)\s*["'][^'"]*$/) && !pre.match(/\b(import|require)\(['"][^'"]*$/)) {
-				return false;
-			}
-		}
-
-		if (context.triggerCharacter === '@') {
-			// make sure we are in something that looks like the start of a jsdoc comment
-			const pre = line.text.slice(0, position.character);
-			if (!pre.match(/^\s*\*[ ]?@/) && !pre.match(/\/\*\*+[ ]?@/)) {
-				return false;
-			}
-		}
-
-		return true;
 	}
 
 	public async resolveCompletionItem(
@@ -400,6 +366,69 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		return item;
 	}
 
+	private shouldEnableDotCompletions(
+		document: vscode.TextDocument,
+		position: vscode.Position
+	): boolean {
+		// Only enable dot completions in TS files for now
+		if (document.languageId !== languageModeIds.typescript && document.languageId === languageModeIds.typescriptreact) {
+			return false;
+		}
+
+		// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/13456
+		// Only enable dot completions when previous character is an identifier.
+		// Prevents incorrectly completing while typing spread operators.
+		if (position.character > 1) {
+			const preText = document.getText(new vscode.Range(
+				position.line, 0,
+				position.line, position.character - 1));
+			return preText.match(/[a-z_$\)\]\}]\s*$/ig) !== null;
+		}
+
+		return true;
+	}
+
+	private shouldTrigger(
+		context: vscode.CompletionContext,
+		config: CompletionConfiguration,
+		line: vscode.TextLine,
+		position: vscode.Position
+	): boolean {
+		if (context.triggerCharacter === '"' || context.triggerCharacter === '\'') {
+			if (!config.quickSuggestionsForPaths) {
+				return false;
+			}
+
+			// make sure we are in something that looks like the start of an import
+			const pre = line.text.slice(0, position.character);
+			if (!pre.match(/\b(from|import)\s*["']$/) && !pre.match(/\b(import|require)\(['"]$/)) {
+				return false;
+			}
+		}
+
+		if (context.triggerCharacter === '/') {
+			if (!config.quickSuggestionsForPaths) {
+				return false;
+			}
+
+			// make sure we are in something that looks like an import path
+			const pre = line.text.slice(0, position.character);
+			if (!pre.match(/\b(from|import)\s*["'][^'"]*$/) && !pre.match(/\b(import|require)\(['"][^'"]*$/)) {
+				return false;
+			}
+		}
+
+		if (context.triggerCharacter === '@') {
+			// make sure we are in something that looks like the start of a jsdoc comment
+			const pre = line.text.slice(0, position.character);
+			if (!pre.match(/^\s*\*[ ]?@/) && !pre.match(/\/\*\*+[ ]?@/)) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	private getDocumentation(
 		detail: Proto.CompletionEntryDetails,
 		item: MyCompletionItem
@@ -415,7 +444,10 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		return documentation.value.length ? documentation : undefined;
 	}
 
-	private async isValidFunctionCompletionContext(filepath: string, position: vscode.Position): Promise<boolean> {
+	private async isValidFunctionCompletionContext(
+		filepath: string,
+		position: vscode.Position
+	): Promise<boolean> {
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
 		// Don't complete function calls inside of destructive assigments or imports
 		try {
@@ -482,16 +514,5 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		snippet.appendText(')');
 		snippet.appendTabstop(0);
 		return snippet;
-	}
-
-	private getConfiguration(resource: vscode.Uri): Configuration {
-		// Use shared setting for js and ts
-		const typeScriptConfig = vscode.workspace.getConfiguration('typescript', resource);
-		return {
-			useCodeSnippetsOnMethodSuggest: typeScriptConfig.get<boolean>(Configuration.useCodeSnippetsOnMethodSuggest, false),
-			quickSuggestionsForPaths: typeScriptConfig.get<boolean>(Configuration.quickSuggestionsForPaths, true),
-			autoImportSuggestions: typeScriptConfig.get<boolean>(Configuration.autoImportSuggestions, true),
-			nameSuggestions: vscode.workspace.getConfiguration('javascript', resource).get(Configuration.nameSuggestions, true)
-		};
 	}
 }
