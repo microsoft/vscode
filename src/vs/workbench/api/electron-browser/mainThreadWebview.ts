@@ -38,6 +38,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 interface WebviewEvents {
 	onMessage(message: any): void;
 	onDidChangePosition(newPosition: Position): void;
+	onDispose(): void;
 }
 
 class WebviewInput extends EditorInput {
@@ -46,7 +47,7 @@ class WebviewInput extends EditorInput {
 	private _name: string;
 	private _options: vscode.WebviewOptions;
 	private _html: string;
-	private readonly _events: WebviewEvents;
+	private _events: WebviewEvents | undefined;
 	private _container: HTMLElement;
 	private _webview: Webview | undefined;
 	private _webviewOwner: any;
@@ -59,13 +60,10 @@ class WebviewInput extends EditorInput {
 		partService: IPartService
 	): WebviewInput {
 		const id = WebviewInput.handlePool++;
-
-		const container = partService.getContainer(Parts.EDITOR_PART);
-
 		const webviewContainer = document.createElement('div');
 		webviewContainer.id = `webview-${id}`;
 
-		container.appendChild(webviewContainer);
+		partService.getContainer(Parts.EDITOR_PART).appendChild(webviewContainer);
 
 		return new WebviewInput(name, options, html, events, webviewContainer, undefined);
 	}
@@ -97,6 +95,12 @@ class WebviewInput extends EditorInput {
 
 		if (this._container) {
 			this._container.remove();
+			this._container = undefined;
+		}
+
+		if (this._events) {
+			this._events.onDispose();
+			this._events = undefined;
 		}
 
 		super.dispose();
@@ -123,6 +127,7 @@ class WebviewInput extends EditorInput {
 		this._container = undefined;
 		this._webview = undefined;
 		this._webviewOwner = undefined;
+		this._events = undefined;
 		return newInput;
 	}
 
@@ -134,7 +139,7 @@ class WebviewInput extends EditorInput {
 		this._options = value;
 	}
 
-	public get events() {
+	public get events(): WebviewEvents | undefined {
 		return this._events;
 	}
 
@@ -308,8 +313,10 @@ class WebviewEditor extends BaseWebviewEditor {
 	}
 
 	public changePosition(position: Position): void {
-		if (this.input) {
-			(this.input as WebviewInput).events.onDidChangePosition(position);
+		if (this.input && this.input instanceof WebviewInput) {
+			if (this.input.events) {
+				this.input.events.onDidChangePosition(position);
+			}
 		}
 		super.changePosition(position);
 	}
@@ -410,7 +417,6 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 
 	private readonly _proxy: ExtHostWebviewsShape;
 	private readonly _webviews = new Map<WebviewHandle, WebviewInput>();
-	private readonly _disposeSubscriptions = new Map<WebviewHandle, IDisposable>();
 
 	private _activeWebview: WebviewInput | undefined = undefined;
 
@@ -427,22 +433,14 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 
 	dispose(): void {
 		dispose(this._toDispose);
-
-		for (const sub of map.values(this._disposeSubscriptions)) {
-			sub.dispose();
-		}
-		this._disposeSubscriptions.clear();
 	}
 
 	$createWebview(handle: WebviewHandle, uri: URI, options: vscode.WebviewOptions): void {
 		const webviewInput = WebviewInput.create('', options, '', {
 			onMessage: message => this._proxy.$onMessage(handle, message),
-			onDidChangePosition: position => this._proxy.$onDidChangePosition(handle, position)
+			onDidChangePosition: position => this._proxy.$onDidChangePosition(handle, position),
+			onDispose: () => this._proxy.$onDidDisposeWeview(handle)
 		}, this._partService);
-
-		this._disposeSubscriptions.set(handle, webviewInput.onDispose(() => {
-			this._proxy.$onDidDisposeWeview(handle);
-		}));
 
 		this._webviews.set(handle, webviewInput);
 	}
@@ -486,15 +484,6 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 		const existingInput = this._webviews.get(handle);
 		const newInput = f(existingInput);
 		this._webviews.set(handle, newInput);
-
-		const existing = this._disposeSubscriptions.get(handle);
-		this._disposeSubscriptions.set(handle, newInput.onDispose(() => {
-			this._proxy.$onDidDisposeWeview(handle);
-		}));
-
-		if (existing) {
-			existing.dispose();
-		}
 
 		this._editorService.replaceEditors([{
 			toReplace: existingInput,
