@@ -263,61 +263,49 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 			return [];
 		}
 
+		const args: Proto.CompletionsRequestArgs = {
+			...vsPositionToTsFileLocation(file, position),
+			includeExternalModuleExports: config.autoImportSuggestions,
+			includeInsertTextCompletions: true
+		};
+
+		let msg: Proto.CompletionEntry[] | undefined = undefined;
 		try {
-			const args: Proto.CompletionsRequestArgs = {
-				...vsPositionToTsFileLocation(file, position),
-				includeExternalModuleExports: config.autoImportSuggestions,
-				includeInsertTextCompletions: true
-			};
-			const msg = await this.client.execute('completions', args, token);
-			// This info has to come from the tsserver. See https://github.com/Microsoft/TypeScript/issues/2831
-			// let isMemberCompletion = false;
-			// let requestColumn = position.character;
-			// if (wordAtPosition) {
-			// 	requestColumn = wordAtPosition.startColumn;
-			// }
-			// if (requestColumn > 0) {
-			// 	let value = model.getValueInRange({
-			// 		startLineNumber: position.line,
-			// 		startColumn: requestColumn - 1,
-			// 		endLineNumber: position.line,
-			// 		endColumn: requestColumn
-			// 	});
-			// 	isMemberCompletion = value === '.';
-			// }
-
-			const completionItems: vscode.CompletionItem[] = [];
-			const body = msg.body;
-			if (body) {
-				// Only enable dot completions in TS files for now
-				let enableDotCompletions = document && (document.languageId === languageModeIds.typescript || document.languageId === languageModeIds.typescriptreact);
-
-				// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/13456
-				// Only enable dot completions when previous character is an identifier.
-				// Prevents incorrectly completing while typing spread operators.
-				if (position.character > 1) {
-					const preText = document.getText(new vscode.Range(
-						position.line, 0,
-						position.line, position.character - 1));
-					enableDotCompletions = preText.match(/[a-z_$\)\]\}]\s*$/ig) !== null;
-				}
-
-				for (const element of body) {
-					if (element.kind === PConst.Kind.warning && !config.nameSuggestions) {
-						continue;
-					}
-					if (!config.autoImportSuggestions && element.hasAction) {
-						continue;
-					}
-					const item = new MyCompletionItem(position, document, line.text, element, enableDotCompletions, config.useCodeSnippetsOnMethodSuggest);
-					completionItems.push(item);
-				}
+			const response = await this.client.execute('completions', args, token);
+			msg = response.body;
+			if (!msg) {
+				return [];
 			}
-
-			return completionItems;
 		} catch {
 			return [];
 		}
+
+		// Only enable dot completions in TS files for now
+		let enableDotCompletions = document && (document.languageId === languageModeIds.typescript || document.languageId === languageModeIds.typescriptreact);
+
+		// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/13456
+		// Only enable dot completions when previous character is an identifier.
+		// Prevents incorrectly completing while typing spread operators.
+		if (position.character > 1) {
+			const preText = document.getText(new vscode.Range(
+				position.line, 0,
+				position.line, position.character - 1));
+			enableDotCompletions = preText.match(/[a-z_$\)\]\}]\s*$/ig) !== null;
+		}
+
+		const completionItems: vscode.CompletionItem[] = [];
+		for (const element of msg) {
+			if (element.kind === PConst.Kind.warning && !config.nameSuggestions) {
+				continue;
+			}
+			if (!config.autoImportSuggestions && element.hasAction) {
+				continue;
+			}
+			const item = new MyCompletionItem(position, document, line.text, element, enableDotCompletions, config.useCodeSnippetsOnMethodSuggest);
+			completionItems.push(item);
+		}
+
+		return completionItems;
 	}
 
 	private shouldTrigger(context: vscode.CompletionContext, config: Configuration, line: vscode.TextLine, position: vscode.Position) {
