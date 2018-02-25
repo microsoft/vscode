@@ -231,6 +231,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	elementHeight(index: number): number {
+		if (index === null || index === undefined) {
+			return 0;
+		}
 		return this.items[index].size;
 	}
 
