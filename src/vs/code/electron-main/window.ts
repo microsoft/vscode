@@ -932,11 +932,6 @@ export class CodeWindow implements ICodeWindow {
 			this.touchBarGroups.push(groupTouchBar);
 		}
 
-		// Ugly workaround for native crash on macOS 10.12.1. We are not
-		// leveraging the API for changing the ESC touch bar item.
-		// See https://github.com/electron/electron/issues/10442
-		(<any>this._win)._setEscapeTouchBarItem = () => { };
-
 		this._win.setTouchBar(new TouchBar({ items: this.touchBarGroups }));
 	}
 
