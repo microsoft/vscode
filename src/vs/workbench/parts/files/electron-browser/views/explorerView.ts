@@ -525,7 +525,6 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				modelElements.forEach(modelElement => {
 					//Check if element is expanded
 					isExpanded = this.explorerViewer.isExpanded(modelElement);
-
 					// Rename File (Model)
 					modelElement.rename(newElement);
 
@@ -537,7 +536,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 							this.explorerViewer.setFocus(modelElement);
 						}
 						//Expand the element again
-						if(isExpanded){
+						if (isExpanded) {
 							this.explorerViewer.expand(modelElement);
 						}
 					}, errors.onUnexpectedError);
