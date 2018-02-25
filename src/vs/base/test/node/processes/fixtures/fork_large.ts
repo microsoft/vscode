@@ -7,7 +7,7 @@
 
 import processes = require('vs/base/node/processes');
 
-const sender = processes.createQueuedSender(process);
+const sender = processes.createQueuedSender(<any>process);
 
 process.on('message', msg => {
 	sender.send(msg);

@@ -24,7 +24,7 @@ var cols = process.env.PTYCOLS;
 var rows = process.env.PTYROWS;
 var currentTitle = '';
 
-setupPlanB(process.env.PTYPID);
+setupPlanB(Number(process.env.PTYPID));
 cleanEnv();
 
 interface IOptions {
@@ -91,9 +91,9 @@ process.on('message', function (message) {
 sendProcessId();
 setupTitlePolling();
 
-function getArgs() {
+function getArgs(): string[] {
 	if (process.env['PTYSHELLCMDLINE']) {
-		return process.env['PTYSHELLCMDLINE'];
+		return [process.env['PTYSHELLCMDLINE']];
 	}
 	var args = [];
 	var i = 0;

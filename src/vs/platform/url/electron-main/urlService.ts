@@ -23,7 +23,7 @@ export class URLService implements IURLService {
 		@ILogService private logService: ILogService,
 		initial: string | string[] = []
 	) {
-		const globalBuffer = (global.getOpenUrls() || []) as string[];
+		const globalBuffer = ((<any>global).getOpenUrls() || []) as string[];
 		const initialBuffer = [
 			...(typeof initial === 'string' ? [initial] : initial),
 			...globalBuffer
