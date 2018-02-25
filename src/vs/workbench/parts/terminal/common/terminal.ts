@@ -181,6 +181,8 @@ export interface ITerminalService {
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	selectDefaultWindowsShell(): TPromise<string>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
+
+	isWslBashDefaultTerminal(): boolean;
 }
 
 export const enum Direction {
