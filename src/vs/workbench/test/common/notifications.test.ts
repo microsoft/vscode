@@ -18,7 +18,6 @@ suite('Notifications', () => {
 		// Invalid
 		assert.ok(!NotificationViewItem.create({ severity: Severity.Error, message: '' }));
 		assert.ok(!NotificationViewItem.create({ severity: Severity.Error, message: null }));
-		assert.ok(!NotificationViewItem.create({ severity: Severity.Error, message: { value: '', isTrusted: true } }));
 
 		// Duplicates
 		let item1 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' });
@@ -107,6 +106,21 @@ suite('Notifications', () => {
 		// Error with Action
 		let item6 = NotificationViewItem.create({ severity: Severity.Error, message: create('Hello Error', { actions: [new Action('id', 'label')] }) });
 		assert.equal(item6.actions.primary.length, 1);
+
+		// Links
+		let item7 = NotificationViewItem.create({ severity: Severity.Info, message: 'Unable to [Link 1](http://link1.com) open [Link 2](https://link2.com) and [Invalid Link3](ftp://link3.com)' });
+
+		const links = item7.message.links;
+		assert.equal(links.length, 2);
+		assert.equal(links[0].name, 'Link 1');
+		assert.equal(links[0].href, 'http://link1.com');
+		assert.equal(links[0].length, '[Link 1](http://link1.com)'.length);
+		assert.equal(links[0].offset, 'Unable to '.length);
+
+		assert.equal(links[1].name, 'Link 2');
+		assert.equal(links[1].href, 'https://link2.com');
+		assert.equal(links[1].length, '[Link 2](https://link2.com)'.length);
+		assert.equal(links[1].offset, 'Unable to [Link 1](http://link1.com) open '.length);
 	});
 
 	test('Model', () => {

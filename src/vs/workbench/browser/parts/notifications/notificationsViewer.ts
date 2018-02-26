@@ -6,8 +6,7 @@
 'use strict';
 
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
-import { renderMarkdown, IContentActionHandler } from 'vs/base/browser/htmlContentRenderer';
-import { clearNode, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
+import { clearNode, addClass, removeClass, toggleClass, addDisposableListener } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import URI from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -15,17 +14,15 @@ import { localize } from 'vs/nls';
 import { ButtonGroup } from 'vs/base/browser/ui/button/button';
 import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
-import { INotificationViewItem, NotificationViewItem, NotificationViewItemLabelKind } from 'vs/workbench/common/notifications';
+import { INotificationViewItem, NotificationViewItem, NotificationViewItemLabelKind, INotificationMessage } from 'vs/workbench/common/notifications';
 import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MarkedOptions } from 'vs/base/common/marked/marked';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Severity } from 'vs/platform/notification/common/notification';
 
@@ -92,8 +89,8 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 		}
 		this.offsetHelper.style.width = `calc(100% - ${10 /* padding */ + 24 /* severity icon */ + (actions * 24) /* 24px per action */}px)`;
 
-		// Render message markdown into offset helper
-		const renderedMessage = NotificationMessageMarkdownRenderer.render(notification.message);
+		// Render message into offset helper
+		const renderedMessage = NotificationMessageRenderer.render(notification.message);
 		this.offsetHelper.appendChild(renderedMessage);
 
 		// Compute height
@@ -131,30 +128,49 @@ export interface INotificationTemplateData {
 	renderer: NotificationTemplateRenderer;
 }
 
-class NotificationMessageMarkdownRenderer {
+interface IMessageActionHandler {
+	callback: (href: string) => void;
+	disposeables: IDisposable[];
+}
 
-	private static readonly MARKED_NOOP = (text?: string) => text || '';
-	private static readonly MARKED_NOOP_TARGETS = [
-		'blockquote', 'br', 'code', 'codespan', 'del', 'em', 'heading', 'hr', 'html',
-		'image', 'list', 'listitem', 'paragraph', 'strong', 'table', 'tablecell',
-		'tablerow'
-	];
+class NotificationMessageRenderer {
 
-	public static render(markdown: IMarkdownString, actionHandler?: IContentActionHandler): HTMLElement {
-		return renderMarkdown(markdown, {
-			inline: true,
-			joinRendererConfiguration: renderer => {
+	public static render(message: INotificationMessage, actionHandler?: IMessageActionHandler): HTMLElement {
+		const messageContainer = document.createElement('span');
 
-				// Overwrite markdown render functions as no-ops
-				NotificationMessageMarkdownRenderer.MARKED_NOOP_TARGETS.forEach(fn => renderer[fn] = NotificationMessageMarkdownRenderer.MARKED_NOOP);
+		// Message has no links
+		if (message.links.length === 0) {
+			messageContainer.textContent = message.value;
+		}
 
-				return {
-					gfm: false, // disable GitHub style markdown,
-					smartypants: false // disable some text transformations
-				} as MarkedOptions;
-			},
-			actionHandler
-		});
+		// Message has links
+		else {
+			let index = 0;
+			let textBefore: string;
+			for (let i = 0; i < message.links.length; i++) {
+				const link = message.links[i];
+
+				textBefore = message.value.substring(index, link.offset);
+				if (textBefore) {
+					messageContainer.appendChild(document.createTextNode(textBefore));
+				}
+
+				const anchor = document.createElement('a');
+				anchor.textContent = link.name;
+				anchor.title = link.href;
+				anchor.href = link.href;
+
+				if (actionHandler) {
+					actionHandler.disposeables.push(addDisposableListener(anchor, 'click', () => actionHandler.callback(link.href)));
+				}
+
+				messageContainer.appendChild(anchor);
+
+				index = link.offset + link.length;
+			}
+		}
+
+		return messageContainer;
 	}
 }
 
@@ -340,8 +356,8 @@ export class NotificationTemplateRenderer {
 
 	private renderMessage(notification: INotificationViewItem): boolean {
 		clearNode(this.template.message);
-		this.template.message.appendChild(NotificationMessageMarkdownRenderer.render(notification.message, {
-			callback: (content: string) => this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError),
+		this.template.message.appendChild(NotificationMessageRenderer.render(notification.message, {
+			callback: link => this.openerService.open(URI.parse(link)).then(void 0, onUnexpectedError),
 			disposeables: this.inputDisposeables
 		}));
 
