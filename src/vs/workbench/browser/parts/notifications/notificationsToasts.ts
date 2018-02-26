@@ -108,7 +108,14 @@ export class NotificationsToasts extends Themable {
 		// Container
 		const notificationToastContainer = document.createElement('div');
 		addClass(notificationToastContainer, 'notification-toast-container');
-		this.notificationsToastsContainer.appendChild(notificationToastContainer);
+
+		const firstToast = this.notificationsToastsContainer.firstChild;
+		if (firstToast) {
+			this.notificationsToastsContainer.insertBefore(notificationToastContainer, firstToast); // always first
+		} else {
+			this.notificationsToastsContainer.appendChild(notificationToastContainer);
+		}
+
 		itemDisposeables.push(toDisposable(() => this.notificationsToastsContainer.removeChild(notificationToastContainer)));
 
 		// Toast

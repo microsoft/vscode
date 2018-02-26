@@ -18,7 +18,7 @@
 
 .monaco-workbench > .notifications-toasts.visible {
 	display: flex;
-	flex-direction: column-reverse;
+	flex-direction: column;
 }
 
 .monaco-workbench > .notifications-toasts .notification-toast-container {
