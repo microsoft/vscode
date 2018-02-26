@@ -769,6 +769,28 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A reference to one of the theem icon types. Currently [File](#ThemeIcon.File) and [Folder](#ThemeIcon.Folder) are supported.
+	 */
+	export class ThemeIcon {
+		/**
+		 * File theme icon
+		 */
+		static readonly File: ThemeIcon;
+
+		/**
+		 * Folder theme icon
+		 */
+		static readonly Folder: ThemeIcon;
+
+		/**
+		 * id of the theme icon
+		 */
+		readonly id: string;
+
+		private constructor(id: string);
+	}
+
+	/**
 	 * Represents theme specific rendering styles for a [text editor decoration](#TextEditorDecorationType).
 	 */
 	export interface ThemableDecorationRenderOptions {
@@ -5063,25 +5085,6 @@ declare module 'vscode' {
 		getChildren(element?: T): ProviderResult<T[]>;
 	}
 
-	/**
-	 * A category in a File Icon Theme, either [file](#ThemeIcon.file) or [folder](#ThemeIcon.folder)
-	 */
-	export class ThemeIcon {
-		/**
-		 * Use the File Icon Theme for files
-		 */
-		static readonly File: ThemeIcon;
-
-		/**
-		 * Use the File Icon Theme for files
-		 */
-		static readonly Folder: ThemeIcon;
-
-		readonly id: string;
-
-		private constructor(id: string);
-	}
-
 	export class TreeItem {
 		/**
 		 * A human-readable string describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
@@ -5096,11 +5099,11 @@ declare module 'vscode' {
 		id?: string;
 
 		/**
-		 * The icon path for the tree item.
-		 * When `falsy` it is derived from [resourceUri](#TreeItem.resourceUri) and the current theme (As a file if the node isn't collapsible or for folders otherwise)
-		 * When a [ThemeIcon](#ThemeIcon) is specified it is derived from [resourceUri](#TreeItem.resourceUri) and the current theme for the specified category.
+		 * The icon path or [ThemeIcon](#ThemeIcon) for the tree item.
+		 * When `falsy`, (Folder Theme Icon)[#ThemeIcon.Folder] is assigned, if item is collapsible otherwise (File Theme Icon)[#ThemeIcon.File].
+		 * When a [ThemeIcon](#ThemeIcon) is specified, icon is derived using [resourceUri](#TreeItem.resourceUri) from the current theme for the specified theme icon.
 		 */
-		iconPath?: string | Uri | { light: string | Uri | ThemeIcon; dark: string | Uri | ThemeIcon } | ThemeIcon;
+		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
 
 		/**
 		 * The [uri](#Uri) of the resource representing this item.
