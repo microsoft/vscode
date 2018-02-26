@@ -462,7 +462,7 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
                 contents.push(index < modules.length - 1 ? '\t],' : '\t]');
             });
             contents.push('});');
-            emitter.queue(new File({ path: bundle + '.nls.' + language.id + '.js', contents: new Buffer(contents.join('\n'), 'utf-8') }));
+            emitter.queue(new File({ path: bundle + '.nls.' + language.id + '.js', contents: Buffer.from(contents.join('\n'), 'utf-8') }));
         });
     });
     Object.keys(statistics).forEach(function (key) {
@@ -559,7 +559,7 @@ function createXlfFilesForCoreBundle() {
                     var filePath = xlf.project + "/" + resource.replace(/\//g, '_') + ".xlf";
                     var xlfFile = new File({
                         path: filePath,
-                        contents: new Buffer(xlf.toString(), 'utf8')
+                        contents: Buffer.from(xlf.toString(), 'utf8')
                     });
                     this.queue(xlfFile);
                 }
@@ -636,7 +636,7 @@ function createXlfFilesForExtensions() {
             if (_xlf) {
                 var xlfFile = new File({
                     path: path.join(extensionsProject, extensionName + '.xlf'),
-                    contents: new Buffer(_xlf.toString(), 'utf8')
+                    contents: Buffer.from(_xlf.toString(), 'utf8')
                 });
                 folderStream.queue(xlfFile);
             }
@@ -703,7 +703,7 @@ function createXlfFilesForIsl() {
         xlf.addFile(originalPath, keys, messages);
         // Emit only upon all ISL files combined into single XLF instance
         var newFilePath = path.join(projectName, resourceFile);
-        var xlfFile = new File({ path: newFilePath, contents: new Buffer(xlf.toString(), 'utf-8') });
+        var xlfFile = new File({ path: newFilePath, contents: Buffer.from(xlf.toString(), 'utf-8') });
         this.queue(xlfFile);
     });
 }
@@ -1049,7 +1049,7 @@ function createI18nFile(originalFilePath, messages) {
     var content = JSON.stringify(result, null, '\t').replace(/\r\n/g, '\n');
     return new File({
         path: path.join(originalFilePath + '.i18n.json'),
-        contents: new Buffer(content, 'utf8')
+        contents: Buffer.from(content, 'utf8')
     });
 }
 var i18nPackVersion = "1.0.0";
@@ -1189,7 +1189,7 @@ function createIslFile(originalFilePath, messages, language, innoSetup) {
     var filePath = basename + "." + language.id + ".isl";
     return new File({
         path: filePath,
-        contents: iconv.encode(new Buffer(content.join('\r\n'), 'utf8'), innoSetup.codePage)
+        contents: iconv.encode(Buffer.from(content.join('\r\n'), 'utf8'), innoSetup.codePage)
     });
 }
 function encodeEntities(value) {
