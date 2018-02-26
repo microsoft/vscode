@@ -79,11 +79,8 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	private _onTextEditorAdd(textEditor: MainThreadTextEditor): void {
 		let id = textEditor.getId();
 		let toDispose: IDisposable[] = [];
-		toDispose.push(textEditor.onConfigurationChanged((opts) => {
-			this._proxy.$acceptOptionsChanged(id, opts);
-		}));
-		toDispose.push(textEditor.onSelectionChanged((event) => {
-			this._proxy.$acceptSelectionsChanged(id, event);
+		toDispose.push(textEditor.onPropertiesChanged((data) => {
+			this._proxy.$acceptEditorPropertiesChanged(id, data);
 		}));
 
 		this._textEditorsListenersMap[id] = toDispose;

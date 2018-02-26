@@ -12,7 +12,7 @@ import * as TypeConverters from './extHostTypeConverters';
 import { TextEditorDecorationType, ExtHostTextEditor } from './extHostTextEditor';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
-import { MainContext, MainThreadTextEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IResolvedTextEditorConfiguration, ISelectionChangeEvent, IMainContext, WorkspaceEditDto } from './extHost.protocol';
+import { MainContext, MainThreadTextEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IMainContext, WorkspaceEditDto, IEditorPropertiesChangeData } from './extHost.protocol';
 import * as vscode from 'vscode';
 
 export class ExtHostEditors implements ExtHostEditorsShape {
@@ -113,25 +113,34 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 
 	// --- called from main thread
 
-	$acceptOptionsChanged(id: string, opts: IResolvedTextEditorConfiguration): void {
-		let editor = this._extHostDocumentsAndEditors.getEditor(id);
-		editor._acceptOptions(opts);
-		this._onDidChangeTextEditorOptions.fire({
-			textEditor: editor,
-			options: opts
-		});
-	}
-
-	$acceptSelectionsChanged(id: string, event: ISelectionChangeEvent): void {
-		const kind = TextEditorSelectionChangeKind.fromValue(event.source);
-		const selections = event.selections.map(TypeConverters.toSelection);
+	$acceptEditorPropertiesChanged(id: string, data: IEditorPropertiesChangeData): void {
 		const textEditor = this._extHostDocumentsAndEditors.getEditor(id);
-		textEditor._acceptSelections(selections);
-		this._onDidChangeTextEditorSelection.fire({
-			textEditor,
-			selections,
-			kind
-		});
+
+		// (1) set all properties
+		if (data.options) {
+			textEditor._acceptOptions(data.options);
+		}
+		if (data.selections) {
+			const selections = data.selections.selections.map(TypeConverters.toSelection);
+			textEditor._acceptSelections(selections);
+		}
+
+		// (2) fire change events
+		if (data.options) {
+			this._onDidChangeTextEditorOptions.fire({
+				textEditor: textEditor,
+				options: data.options
+			});
+		}
+		if (data.selections) {
+			const kind = TextEditorSelectionChangeKind.fromValue(data.selections.source);
+			const selections = data.selections.selections.map(TypeConverters.toSelection);
+			this._onDidChangeTextEditorSelection.fire({
+				textEditor,
+				selections,
+				kind
+			});
+		}
 	}
 
 	$acceptEditorPositionData(data: ITextEditorPositionData): void {

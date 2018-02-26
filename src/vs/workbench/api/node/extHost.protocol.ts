@@ -154,11 +154,6 @@ export interface MainThreadDocumentsShape extends IDisposable {
 	$trySaveDocument(uri: UriComponents): TPromise<boolean>;
 }
 
-export interface ISelectionChangeEvent {
-	selections: Selection[];
-	source?: string;
-}
-
 export interface ITextEditorConfigurationUpdate {
 	tabSize?: number | 'auto';
 	insertSpaces?: boolean | 'auto';
@@ -516,9 +511,17 @@ export interface ITextEditorAddData {
 export interface ITextEditorPositionData {
 	[id: string]: EditorPosition;
 }
+export interface IEditorPropertiesChangeData {
+	options: IResolvedTextEditorConfiguration | null;
+	selections: ISelectionChangeEvent | null;
+}
+export interface ISelectionChangeEvent {
+	selections: Selection[];
+	source?: string;
+}
+
 export interface ExtHostEditorsShape {
-	$acceptOptionsChanged(id: string, opts: IResolvedTextEditorConfiguration): void;
-	$acceptSelectionsChanged(id: string, event: ISelectionChangeEvent): void;
+	$acceptEditorPropertiesChanged(id: string, props: IEditorPropertiesChangeData): void;
 	$acceptEditorPositionData(data: ITextEditorPositionData): void;
 }
 
