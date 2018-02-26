@@ -569,6 +569,14 @@ declare module 'vscode' {
 		postMessage(message: any): Thenable<boolean>;
 
 		/**
+		 * Shows the webview in a given column.
+		 *
+		 * A webview may only show in a single column at a time. If it is already showing, this
+		 * command moves it to a new column.
+		 */
+		show(viewColumn: ViewColumn): void;
+
+		/**
 		 * Dispose of the the webview.
 		 *
 		 * This closes the webview if it showing and disposes of the resources owned by the webview.

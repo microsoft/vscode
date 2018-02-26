@@ -218,13 +218,12 @@ export class MarkdownContentProvider {
 	}
 
 	public async provideTextDocumentContent(
-		sourceUri: vscode.Uri,
+		markdownDocument: vscode.TextDocument,
 		previewConfigurations: PreviewConfigManager,
 		initialLine: number | undefined = undefined
 	): Promise<string> {
-		const document = await vscode.workspace.openTextDocument(sourceUri);
+		const sourceUri = markdownDocument.uri;
 		const config = previewConfigurations.loadAndCacheConfiguration(sourceUri);
-
 		const initialData = {
 			source: sourceUri.toString(),
 			line: initialLine,
@@ -240,7 +239,7 @@ export class MarkdownContentProvider {
 		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 		const csp = this.getCspForResource(sourceUri, nonce);
 
-		const body = await this.engine.render(sourceUri, config.previewFrontMatter === 'hide', document.getText());
+		const body = await this.engine.render(sourceUri, config.previewFrontMatter === 'hide', markdownDocument.getText());
 		return `<!DOCTYPE html>
 			<html>
 			<head>
@@ -250,11 +249,11 @@ export class MarkdownContentProvider {
 				<script src="${this.getMediaPath('csp.js')}" nonce="${nonce}"></script>
 				<script src="${this.getMediaPath('loading.js')}" nonce="${nonce}"></script>
 				${this.getStyles(sourceUri, nonce, config)}
-				<base href="${document.uri.with({ scheme: 'vscode-workspace-resource' }).toString(true)}">
+				<base href="${markdownDocument.uri.with({ scheme: 'vscode-workspace-resource' }).toString(true)}">
 			</head>
 			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
 				${body}
-				<div class="code-line" data-line="${document.lineCount}"></div>
+				<div class="code-line" data-line="${markdownDocument.lineCount}"></div>
 				${this.getScripts(nonce)}
 			</body>
 			</html>`;
@@ -284,6 +283,8 @@ class MarkdownPreview {
 	private throttleTimer: any;
 	private initialLine: number | undefined = undefined;
 	private readonly disposables: vscode.Disposable[] = [];
+
+	private currentVersion?: { resource: vscode.Uri, version: number };
 
 	constructor(
 		private resource: vscode.Uri,
@@ -358,16 +359,6 @@ class MarkdownPreview {
 		this.update(this.resource);
 	}
 
-	public updateForSelection(resource: vscode.Uri, line: number) {
-		if (!this.isPreviewOf(resource)) {
-			return;
-		}
-
-		this.logger.log('updatePreviewForSelection', { markdownFile: resource });
-		this.initialLine = line;
-		this.webview.postMessage({ line, source: resource.toString() });
-	}
-
 	public updateConfiguration() {
 		if (this.previewConfigurations.shouldUpdateConfiguration(this.resource)) {
 			this.refresh();
@@ -382,17 +373,40 @@ class MarkdownPreview {
 		return this.resource.fsPath === resource.fsPath;
 	}
 
+	public show(viewColumn: vscode.ViewColumn) {
+		this.webview.show(viewColumn);
+	}
+
 	private getPreviewTitle(resource: vscode.Uri): string {
 		return this.pinned
 			? localize('pinnedPreviewTitle', '[Preview] {0}', path.basename(resource.fsPath))
 			: localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath));
 	}
 
-	private doUpdate() {
+	private updateForSelection(resource: vscode.Uri, line: number) {
+		if (!this.isPreviewOf(resource)) {
+			return;
+		}
+
+		this.logger.log('updatePreviewForSelection', { markdownFile: resource });
+		this.initialLine = line;
+		this.webview.postMessage({ line, source: resource.toString() });
+	}
+
+	private async doUpdate(): Promise<void> {
 		const resource = this.resource;
 		this.throttleTimer = undefined;
 
-		this.contentProvider.provideTextDocumentContent(resource, this.previewConfigurations, this.initialLine)
+		const document = await vscode.workspace.openTextDocument(resource);
+		if (this.currentVersion && this.currentVersion.resource.fsPath === resource.fsPath && this.currentVersion.version === document.version) {
+			if (this.initialLine) {
+				this.updateForSelection(resource, this.initialLine);
+			}
+			return;
+		}
+
+		this.currentVersion = { resource, version: document.version };
+		this.contentProvider.provideTextDocumentContent(document, this.previewConfigurations, this.initialLine)
 			.then(content => {
 				if (this.resource === resource) {
 					this.webview.title = this.getPreviewTitle(this.resource);
@@ -414,7 +428,6 @@ class MarkdownPreview {
 		return [];
 	}
 }
-
 
 export interface PreviewSettings {
 	readonly resourceColumn: vscode.ViewColumn;
@@ -481,6 +494,7 @@ export class MarkdownPreviewManager {
 		let preview = this.getExistingPreview(resource, previewSettings);
 		if (preview) {
 			preview.resourceColumn = previewSettings.resourceColumn;
+			preview.show(previewSettings.previewColumn);
 		} else {
 			preview = new MarkdownPreview(resource, previewSettings.resourceColumn, previewSettings.previewColumn, previewSettings.pinned, this.contentProvider, this.previewConfigurations, this.logger);
 			preview.onDispose(() => {
