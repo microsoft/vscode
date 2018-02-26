@@ -883,7 +883,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				outline-style: solid;
 				border-bottom: none;
 				padding-bottom: 0;
-				outline-offset: 3px;
+				outline-offset: 2px;
 			}
 
 			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):hover {
