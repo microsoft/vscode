@@ -27,7 +27,7 @@ suite('IssueReporter', () => {
 		const issueReporterModel = new IssueReporterModel();
 		assert.equal(issueReporterModel.serialize(),
 			`
-Issue Type: Feature Request
+Issue Type: <b>Feature Request</b>
 
 undefined
 
