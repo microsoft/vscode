@@ -186,7 +186,7 @@ class WebviewInput extends EditorInput {
 	public releaseWebview(owner: any) {
 		if (this._webviewOwner === owner) {
 			this._webviewOwner = undefined;
-			if (!this._options.keepAlive) {
+			if (!this._options.retainContextWhenHidden) {
 				this.disposeWebview();
 			}
 		}

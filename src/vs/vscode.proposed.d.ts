@@ -484,19 +484,19 @@ declare module 'vscode' {
 		readonly enableCommandUris?: boolean;
 
 		/**
-		 * Should the webview content be kept arount even when the webview is no longer visible?
+		 * Should the webview's context be kept around even when the webview is no longer visible?
 		 *
-		 * Normally a webview content is created when the webview becomes visible
+		 * Normally a webview's context is created when the webview becomes visible
 		 * and destroyed when the webview is hidden. Apps that have complex state
-		 * or UI can set the `keepAlive` property to make VS Code keep the webview
-		 * content around, even when the webview itself is no longer visible. When
-		 * the webview becomes visible again, the content is automatically restored
-		 * in the exact same state it was in originally
+		 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
+		 * context around, even when the webview moves to a background tab. When
+		 * the webview becomes visible again, the context is automatically restored
+		 * in the exact same state it was in originally.
 		 *
-		 * `keepAlive` has a high memory overhead and should only be used if your
-		 * webview content cannot be quickly saved and restored.
+		 * `retainContextWhenHidden` has a high memory overhead and should only be used if
+		 * your webview content cannot be quickly saved and restored.
 		 */
-		readonly keepAlive?: boolean;
+		readonly retainContextWhenHidden?: boolean;
 
 		/**
 		 * Root paths from which the webview can load local (filesystem) resources using the `vscode-workspace-resource:` scheme.
