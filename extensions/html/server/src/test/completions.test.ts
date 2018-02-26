@@ -10,7 +10,6 @@ import * as path from 'path';
 import { TextDocument, CompletionList, CompletionItemKind, } from 'vscode-languageserver-types';
 import { getLanguageModes } from '../modes/languageModes';
 import { applyEdits } from '../utils/edits';
-import Uri from 'vscode-uri';
 import { getPathCompletionParticipant } from '../modes/pathCompletion';
 import { Proposed } from 'vscode-languageserver-protocol';
 
@@ -111,17 +110,17 @@ suite('Completions', () => {
 			items: [
 				{ label: 'about.html', resultText: `<div><a href='about/about.html'>` }
 			]
-		}, testUri);					
+		}, testUri);
 		assertCompletions('<div><a href="about/about|.xml">', {
 			items: [
 				{ label: 'about.html', resultText: '<div><a href="about/about.html">' }
 			]
-		}, testUri);		
+		}, testUri);
 		assertCompletions('<div><a href="about/a|">', {
 			items: [
 				{ label: 'about.html', resultText: '<div><a href="about/about.html">' }
 			]
-		}, testUri);		
+		}, testUri);
 		assertCompletions('<div><a href="|">', {
 			items: [
 				{ label: 'index.html', resultText: '<div><a href="index.html">' },
