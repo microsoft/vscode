@@ -38,11 +38,14 @@ export class TMScopeRegistry {
 
 	public register(scopeName: string, filePath: string, embeddedLanguages?: IEmbeddedLanguagesMap): void {
 		if (this._scopeNameToLanguageRegistration[scopeName]) {
-			console.warn(
-				`Overwriting grammar scope name to file mapping for scope ${scopeName}.\n` +
-				`Old grammar file: ${this._scopeNameToLanguageRegistration[scopeName].grammarFilePath}.\n` +
-				`New grammar file: ${filePath}`
-			);
+			const existingRegistration = this._scopeNameToLanguageRegistration[scopeName];
+			if (existingRegistration.grammarFilePath !== filePath) {
+				console.warn(
+					`Overwriting grammar scope name to file mapping for scope ${scopeName}.\n` +
+					`Old grammar file: ${existingRegistration.grammarFilePath}.\n` +
+					`New grammar file: ${filePath}`
+				);
+			}
 		}
 		this._scopeNameToLanguageRegistration[scopeName] = new TMLanguageRegistration(scopeName, filePath, embeddedLanguages);
 	}
