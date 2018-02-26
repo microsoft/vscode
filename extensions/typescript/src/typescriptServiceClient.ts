@@ -581,7 +581,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			if (resource.scheme === fileSchemes.walkThroughSnippet || resource.scheme === fileSchemes.untitled) {
 				const dirName = path.dirname(resource.path);
 				const fileName = this.inMemoryResourcePrefix + path.basename(resource.path);
-				return resource.with({ path: path.join(dirName, fileName) }).toString(true);
+				return resource.with({ path: path.posix.join(dirName, fileName) }).toString(true);
 			}
 		}
 
@@ -611,7 +611,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 					const dirName = path.dirname(resource.path);
 					const fileName = path.basename(resource.path);
 					if (fileName.startsWith(this.inMemoryResourcePrefix)) {
-						resource = resource.with({ path: path.join(dirName, fileName.slice(this.inMemoryResourcePrefix.length)) });
+						resource = resource.with({ path: path.posix.join(dirName, fileName.slice(this.inMemoryResourcePrefix.length)) });
 					}
 				}
 				return resource;
