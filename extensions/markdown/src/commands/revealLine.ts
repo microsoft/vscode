@@ -12,7 +12,7 @@ export class RevealLineCommand implements Command {
 	public readonly id = '_markdown.revealLine';
 
 	public constructor(
-		private logger: Logger
+		private readonly logger: Logger
 	) { }
 
 	public execute(uri: string, line: number) {
@@ -20,7 +20,7 @@ export class RevealLineCommand implements Command {
 		this.logger.log('revealLine', { uri, sourceUri: sourceUri.toString(), line });
 
 		vscode.window.visibleTextEditors
-			.filter(editor => isMarkdownFile(editor.document) && editor.document.uri.toString() === sourceUri.toString())
+			.filter(editor => isMarkdownFile(editor.document) && editor.document.uri.fsPath === sourceUri.fsPath)
 			.forEach(editor => {
 				const sourceLine = Math.floor(line);
 				const fraction = line - sourceLine;
