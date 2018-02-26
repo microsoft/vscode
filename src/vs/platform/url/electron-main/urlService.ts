@@ -20,8 +20,8 @@ export class URLService implements IURLService {
 	onOpenURL: Event<URI>;
 
 	constructor(
-		@ILogService private logService: ILogService,
-		initial: string | string[] = []
+		initial: string | string[],
+		@ILogService private logService: ILogService
 	) {
 		const globalBuffer = (global.getOpenUrls() || []) as string[];
 		const initialBuffer = [
