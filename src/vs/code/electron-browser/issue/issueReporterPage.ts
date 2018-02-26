@@ -131,8 +131,8 @@ export default (): string => `
 			<div class="instructions">${escape(localize('disableExtensionsLabel', "Try to reproduce the problem after {0}."))
 		.replace('{0}', `<span tabIndex=0 role="button" id="disableExtensions" class="workbenchCommand">${escape(localize('disableExtensions', "disabling all extensions and reloading the window"))}</span>`)}
 			</div>
-			<div class="instructions">${escape(localize('showRunningExtensionsLabel', "If you suspect it's an extension issue, {0}."))
-		.replace('{0}', `<span tabIndex=0 role="button"id="showRunning" class="workbenchCommand">${escape(localize('showRunningExtensions', "see all running extensions"))}</span>`)}
+			<div class="instructions">${escape(localize('showRunningExtensionsLabel', "If you suspect it's an extension issue, {0} to report the issue on the extension."))
+		.replace('{0}', `<span tabIndex=0 role="button"id="showRunning" class="workbenchCommand">${escape(localize('showRunningExtensions', "view all running extensions"))}</span>`)}
 			</div>
 		</div>
 	</div>
