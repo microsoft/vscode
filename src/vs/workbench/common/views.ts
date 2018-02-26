@@ -202,6 +202,13 @@ export enum TreeItemCollapsibleState {
 	Expanded = 2
 }
 
+export const FileThemeIconId = 'file';
+export const FolderThemeIconId = 'folder';
+
+export interface IThemeIcon {
+	readonly id: string;
+}
+
 export interface ITreeItem {
 
 	handle: string;
@@ -212,9 +219,9 @@ export interface ITreeItem {
 
 	label?: string;
 
-	icon?: string;
+	icon?: string | IThemeIcon;
 
-	iconDark?: string;
+	iconDark?: string | IThemeIcon;
 
 	resourceUri?: UriComponents;
 

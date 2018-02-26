@@ -5063,6 +5063,25 @@ declare module 'vscode' {
 		getChildren(element?: T): ProviderResult<T[]>;
 	}
 
+	/**
+	 * A category in a File Icon Theme, either [file](#ThemeIcon.file) or [folder](#ThemeIcon.folder)
+	 */
+	export class ThemeIcon {
+		/**
+		 * Use the File Icon Theme for files
+		 */
+		static readonly File: ThemeIcon;
+
+		/**
+		 * Use the File Icon Theme for files
+		 */
+		static readonly Folder: ThemeIcon;
+
+		readonly id: string;
+
+		private constructor(id: string);
+	}
+
 	export class TreeItem {
 		/**
 		 * A human-readable string describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
@@ -5077,15 +5096,17 @@ declare module 'vscode' {
 		id?: string;
 
 		/**
-		 * The icon path for the tree item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
+		 * The icon path for the tree item.
+		 * When `falsy` it is derived from [resourceUri](#TreeItem.resourceUri) and the current theme (As a file if the node isn't collapsible or for folders otherwise)
+		 * When a [ThemeIcon](#ThemeIcon) is specified it is derived from [resourceUri](#TreeItem.resourceUri) and the current theme for the specified category.
 		 */
-		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri };
+		iconPath?: string | Uri | { light: string | Uri | ThemeIcon; dark: string | Uri | ThemeIcon } | ThemeIcon;
 
 		/**
 		 * The [uri](#Uri) of the resource representing this item.
 		 *
 		 * Will be used to derive the [label](#TreeItem.label), when it is not provided.
-		 * Will be used to derive the icon from current file icon theme, when [iconPath](#TreeItem.iconPath) is not provided.
+		 * Will be used to derive the icon from current icon theme, when [iconPath](#TreeItem.iconPath) is not provided or is a [ThemeIcon](#ThemeIcon).
 		 */
 		resourceUri?: Uri;
 
