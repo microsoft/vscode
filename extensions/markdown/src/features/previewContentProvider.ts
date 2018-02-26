@@ -307,6 +307,12 @@ class MarkdownPreview {
 		this.webview.onMessage(e => {
 			vscode.commands.executeCommand(e.command, ...e.args);
 		}, null, this.disposables);
+
+		vscode.workspace.onDidChangeTextDocument(event => {
+			if (isMarkdownFile(event.document) && this.isPreviewOf(event.document.uri)) {
+				this.refresh();
+			}
+		}, null, this.disposables);
 	}
 
 	private readonly _onDisposeEmitter = new vscode.EventEmitter<void>();
@@ -418,10 +424,6 @@ export class MarkdownPreviewManager {
 		private readonly contentProvider: MarkdownContentProvider,
 		private readonly logger: Logger
 	) {
-		vscode.workspace.onDidChangeTextDocument(event => {
-			this.update(event.document, undefined);
-		}, null, this.disposables);
-
 		vscode.window.onDidChangeActiveEditor(editor => {
 			vscode.commands.executeCommand('setContext', 'markdownPreview',
 				editor && editor.editorType === 'webview' && editor.uri.scheme === MarkdownPreview.previewScheme);
@@ -472,18 +474,6 @@ export class MarkdownPreviewManager {
 	public updateConfiguration() {
 		for (const preview of this.previews) {
 			preview.updateConfiguration();
-		}
-	}
-
-	private update(document: vscode.TextDocument, viewColumn: vscode.ViewColumn | undefined) {
-		if (!isMarkdownFile(document)) {
-			return;
-		}
-
-		for (const preview of this.previews) {
-			if (preview.isPreviewOf(document.uri) || viewColumn && preview.resourceColumn === viewColumn) {
-				preview.update(document.uri);
-			}
 		}
 	}
 
