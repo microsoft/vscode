@@ -13,6 +13,7 @@ import { localize } from 'vs/nls';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export class ViewLocation {
 
@@ -202,13 +203,6 @@ export enum TreeItemCollapsibleState {
 	Expanded = 2
 }
 
-export const FileThemeIconId = 'file';
-export const FolderThemeIconId = 'folder';
-
-export interface IThemeIcon {
-	readonly id: string;
-}
-
 export interface ITreeItem {
 
 	handle: string;
@@ -219,9 +213,11 @@ export interface ITreeItem {
 
 	label?: string;
 
-	icon?: string | IThemeIcon;
+	icon?: string;
 
-	iconDark?: string | IThemeIcon;
+	iconDark?: string;
+
+	themeIcon?: ThemeIcon;
 
 	resourceUri?: UriComponents;
 

@@ -11,9 +11,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { $ } from 'vs/base/browser/builder';
-import { LIGHT } from 'vs/platform/theme/common/themeService';
+import { LIGHT, FileThemeIcon, FolderThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITree, IDataSource, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
-import { TreeItemCollapsibleState, ITreeItem, ITreeViewer, ICustomViewsService, ITreeViewDataProvider, ViewsRegistry, IViewDescriptor, TreeViewItemHandleArg, ICustomViewDescriptor, IViewsViewlet, FileThemeIconId, FolderThemeIconId } from 'vs/workbench/common/views';
+import { TreeItemCollapsibleState, ITreeItem, ITreeViewer, ICustomViewsService, ITreeViewDataProvider, ViewsRegistry, IViewDescriptor, TreeViewItemHandleArg, ICustomViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -447,19 +447,8 @@ class TreeRenderer implements IRenderer {
 		DOM.removeClass(templateData.label, 'custom-view-tree-node-item-label');
 		DOM.removeClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 
-		if (resource && (typeof icon !== 'string')) {
-			let fileKind = node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE;
-			if (icon && icon.id) {
-				switch (icon.id) {
-					case FileThemeIconId:
-						fileKind = FileKind.FILE;
-						break;
-					case FolderThemeIconId:
-						fileKind = FileKind.FOLDER;
-						break;
-				}
-			}
-			templateData.resourceLabel.setLabel({ name: label, resource }, { fileKind, title: node.tooltip });
+		if (resource && !icon) {
+			templateData.resourceLabel.setLabel({ name: label, resource }, { fileKind: this.getFileKind(node), title: node.tooltip });
 			DOM.addClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 		} else {
 			templateData.label.textContent = label;
@@ -470,6 +459,18 @@ class TreeRenderer implements IRenderer {
 		templateData.icon.treeItem = node;
 		templateData.actionBar.context = (<TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle });
 		templateData.actionBar.push(this.menus.getResourceActions(node), { icon: true, label: false });
+	}
+
+	private getFileKind(node: ITreeItem): FileKind {
+		if (node.themeIcon) {
+			switch (node.themeIcon.id) {
+				case FileThemeIcon.id:
+					return FileKind.FILE;
+				case FolderThemeIcon.id:
+					return FileKind.FOLDER;
+			}
+		}
+		return node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE;
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: ITreeExplorerTemplateData): void {
@@ -505,7 +506,7 @@ class TreeItemIcon extends Disposable {
 			const fileIconTheme = this.themeService.getFileIconTheme();
 			const contributedIcon = this.themeService.getTheme().type === LIGHT ? this._treeItem.icon : this._treeItem.iconDark;
 
-			const hasContributedIcon = typeof contributedIcon === 'string';
+			const hasContributedIcon = !!contributedIcon;
 			const hasChildren = this._treeItem.collapsibleState !== TreeItemCollapsibleState.None;
 			const hasResource = !!this._treeItem.resourceUri;
 			const isFolder = hasResource && hasChildren;

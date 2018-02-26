@@ -12,7 +12,7 @@ import { debounceEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
-import { ITreeItem, TreeViewItemHandleArg, IThemeIcon } from 'vs/workbench/common/views';
+import { ITreeItem, TreeViewItemHandleArg } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { TreeItemCollapsibleState, ThemeIcon } from 'vs/workbench/api/node/extHostTypes';
@@ -288,6 +288,7 @@ class ExtHostTreeView<T> extends Disposable {
 			contextValue: extensionTreeItem.contextValue,
 			icon,
 			iconDark: this.getDarkIconPath(extensionTreeItem) || icon,
+			themeIcon: extensionTreeItem.iconPath instanceof ThemeIcon ? { id: extensionTreeItem.iconPath.id } : void 0,
 			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState
 		};
 
@@ -315,11 +316,10 @@ class ExtHostTreeView<T> extends Disposable {
 		throw new Error('This should not be reached');
 	}
 
-	private getLightIconPath(extensionTreeItem: vscode.TreeItem): string | IThemeIcon {
-		if (extensionTreeItem.iconPath) {
+	private getLightIconPath(extensionTreeItem: vscode.TreeItem): string {
+		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon)) {
 			if (typeof extensionTreeItem.iconPath === 'string'
-				|| extensionTreeItem.iconPath instanceof URI
-				|| extensionTreeItem.iconPath instanceof ThemeIcon) {
+				|| extensionTreeItem.iconPath instanceof URI) {
 				return this.getIconPath(extensionTreeItem.iconPath);
 			}
 			return this.getIconPath(extensionTreeItem.iconPath['light']);
@@ -327,19 +327,16 @@ class ExtHostTreeView<T> extends Disposable {
 		return void 0;
 	}
 
-	private getDarkIconPath(extensionTreeItem: vscode.TreeItem): string | IThemeIcon {
-		if (extensionTreeItem.iconPath && extensionTreeItem.iconPath['dark']) {
+	private getDarkIconPath(extensionTreeItem: vscode.TreeItem): string {
+		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon) && extensionTreeItem.iconPath['dark']) {
 			return this.getIconPath(extensionTreeItem.iconPath['dark']);
 		}
 		return void 0;
 	}
 
-	private getIconPath(iconPath: string | URI | ThemeIcon): string | IThemeIcon {
+	private getIconPath(iconPath: string | URI): string {
 		if (iconPath instanceof URI) {
 			return iconPath.toString();
-		}
-		if (iconPath instanceof ThemeIcon) {
-			return { id: iconPath.id };
 		}
 		return URI.file(iconPath).toString();
 	}
