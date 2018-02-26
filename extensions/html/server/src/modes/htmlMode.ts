@@ -5,7 +5,7 @@
 'use strict';
 
 import { getLanguageModelCache } from '../languageModelCache';
-import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration, TokenType } from 'vscode-html-languageservice';
+import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration } from 'vscode-html-languageservice';
 import { TextDocument, Position, Range } from 'vscode-languageserver-types';
 import { LanguageMode, Settings } from './languageModes';
 
@@ -30,17 +30,8 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageM
 			}
 
 			const htmlDocument = htmlDocuments.get(document);
-			const offset = document.offsetAt(position);
-			const node = htmlDocument.findNodeBefore(offset);
-			const scanner = htmlLanguageService.createScanner(document.getText(), node.start);
-			let token = scanner.scan();
-			while (token !== TokenType.EOS && scanner.getTokenOffset() <= offset) {
-				if (token === TokenType.Content && offset <= scanner.getTokenEnd()) {
-					completionParticipants.forEach(participant => { if (participant.onHtmlContent) { participant.onHtmlContent(); } });
-					break;
-				}
-				token = scanner.scan();
-			}
+			htmlLanguageService.setCompletionParticipants(completionParticipants);
+
 			return htmlLanguageService.doComplete(document, position, htmlDocument, options);
 		},
 		setCompletionParticipants(registeredCompletionParticipants: any[]) {

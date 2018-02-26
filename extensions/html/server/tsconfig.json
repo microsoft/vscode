@@ -4,6 +4,7 @@
 		"module": "commonjs",
 		"outDir": "./out",
 		"noUnusedLocals": true,
+		"sourceMap": true,
 		"lib": [
 			"es5", "es2015.promise"
 		]
