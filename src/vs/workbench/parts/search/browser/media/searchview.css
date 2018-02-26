@@ -323,21 +323,21 @@
 	background: url('stop-inverse.svg') center center no-repeat;
 }
 
-.vs .monaco-workbench .search-view .query-details .file-types .controls > .custom-checkbox.pattern {
+.vs .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.pattern {
 	background: url('pattern.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .search-view .query-details .file-types .controls > .custom-checkbox.pattern,
-.hc-black .monaco-workbench .search-view .query-details .file-types .controls > .custom-checkbox.pattern {
+.vs-dark .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.pattern,
+.hc-black .monaco-workbench .search-view .query-details .file-types .controls > .monaco-custom-checkbox.pattern {
 	background: url('pattern-dark.svg') center center no-repeat;
 }
 
-.vs .monaco-workbench .search-view .query-details .file-types .controls>.custom-checkbox.useExcludesAndIgnoreFiles {
+.vs .monaco-workbench .search-view .query-details .file-types .controls>.monaco-custom-checkbox.useExcludesAndIgnoreFiles {
 	background: url('excludeSettings.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .search-view .query-details .file-types .controls>.custom-checkbox.useExcludesAndIgnoreFiles,
-.hc-black .monaco-workbench .search-view .query-details .file-types .controls>.custom-checkbox.useExcludesAndIgnoreFiles {
+.vs-dark .monaco-workbench .search-view .query-details .file-types .controls>.monaco-custom-checkbox.useExcludesAndIgnoreFiles,
+.hc-black .monaco-workbench .search-view .query-details .file-types .controls>.monaco-custom-checkbox.useExcludesAndIgnoreFiles {
 	background: url('excludeSettings-dark.svg') center center no-repeat;
 }
 
