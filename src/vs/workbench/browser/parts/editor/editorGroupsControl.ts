@@ -29,7 +29,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -1128,6 +1128,15 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			return options;
 		}
 
+		const isCopyDrag = (draggedEditor: IEditorIdentifier, e: DragEvent) => {
+			if (draggedEditor && draggedEditor.editor instanceof EditorInput) {
+				if (!draggedEditor.editor.supportsSplitEditor()) {
+					return false;
+				}
+			}
+			return (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
+		};
+
 		function onDrop(e: DragEvent, position: Position, splitTo?: Position): void {
 			$this.updateFromDragAndDrop(node, false);
 			cleanUp();
@@ -1141,7 +1150,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			// Check for transfer from title control
 			if ($this.transfer.hasData(DraggedEditorIdentifier.prototype)) {
 				const draggedEditor = $this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
-				const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
+				const isCopy = isCopyDrag(draggedEditor, e);
 
 				// Copy editor to new location
 				if (isCopy) {
@@ -1193,8 +1202,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		function positionOverlay(e: DragEvent, groups: number, position: Position): void {
 			const target = <HTMLElement>e.target;
 			const overlayIsSplit = typeof overlay.getProperty(splitToPropertyKey) === 'number';
-			const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 			const draggedEditor = $this.transfer.hasData(DraggedEditorIdentifier.prototype) ? $this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
+			const isCopy = isCopyDrag(draggedEditor, e);
 
 			const overlaySize = $this.layoutVertically ? target.clientWidth : target.clientHeight;
 			const splitThreshold = overlayIsSplit ? overlaySize / 5 : overlaySize / 10;
