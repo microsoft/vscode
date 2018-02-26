@@ -75,12 +75,13 @@
 	 * @returns {{ previous: CodeLineElement, next?: CodeLineElement }}
 	 */
 	function getElementsForSourceLine(targetLine) {
+		const lineNumber = Math.floor(targetLine)
 		const lines = getCodeLineElements();
 		let previous = lines[0] || null;
 		for (const entry of lines) {
-			if (entry.line === targetLine) {
+			if (entry.line === lineNumber) {
 				return { previous: entry, next: null };
-			} else if (entry.line > targetLine) {
+			} else if (entry.line > lineNumber) {
 				return { previous, next: entry };
 			}
 			previous = entry;
@@ -124,10 +125,6 @@
 		return { previous };
 	}
 
-	function getSourceRevealAddedOffset() {
-		return -(window.innerHeight * 1 / 5);
-	}
-
 	/**
 	 * Attempt to reveal the element for a source line in the editor.
 	 *
@@ -136,17 +133,21 @@
 	function scrollToRevealSourceLine(line) {
 		const { previous, next } = getElementsForSourceLine(line);
 		marker.update(previous && previous.element);
-		if (previous && settings.scrollPreviewWithEditorSelection) {
+		if (previous && settings.scrollPreviewWithEditor) {
 			let scrollTo = 0;
-			if (next) {
+			const rect = previous.element.getBoundingClientRect();
+			const previousTop = rect.top;
+
+			if (next && next.line !== previous.line) {
 				// Between two elements. Go to percentage offset between them.
 				const betweenProgress = (line - previous.line) / (next.line - previous.line);
-				const elementOffset = next.element.getBoundingClientRect().top - previous.element.getBoundingClientRect().top;
-				scrollTo = previous.element.getBoundingClientRect().top + betweenProgress * elementOffset;
+				const elementOffset = next.element.getBoundingClientRect().top - previousTop;
+				scrollTo = previousTop + betweenProgress * elementOffset;
 			} else {
-				scrollTo = previous.element.getBoundingClientRect().top;
+				scrollTo = previousTop;
 			}
-			window.scroll(0, Math.max(1, window.scrollY + scrollTo + getSourceRevealAddedOffset()));
+
+			window.scroll(0, Math.max(1, window.scrollY + scrollTo));
 		}
 	}
 
@@ -192,7 +193,7 @@
 	const settings = JSON.parse(document.getElementById('vscode-markdown-preview-data').getAttribute('data-settings'));
 
 	function onLoad() {
-		if (settings.scrollPreviewWithEditorSelection) {
+		if (settings.scrollPreviewWithEditor) {
 			setTimeout(() => {
 				const initialLine = +settings.line;
 				if (!isNaN(initialLine)) {

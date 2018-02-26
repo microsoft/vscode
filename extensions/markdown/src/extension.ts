@@ -45,11 +45,10 @@ export function activate(context: vscode.ExtensionContext) {
 	commandManager.register(new commands.ShowPinnedPreviewToSideCommand(previewManager, telemetryReporter));
 	commandManager.register(new commands.ShowSourceCommand());
 	commandManager.register(new commands.RefreshPreviewCommand(previewManager));
-	commandManager.register(new commands.RevealLineCommand(logger));
+	commandManager.register(new commands.RevealLineCommand(logger, previewManager));
 	commandManager.register(new commands.MoveCursorToPositionCommand());
 	commandManager.register(new commands.ShowPreviewSecuritySelectorCommand(previewSecuritySelector));
 	commandManager.register(new commands.OnPreviewStyleLoadErrorCommand());
-	commandManager.register(new commands.DidClickCommand());
 	commandManager.register(new commands.OpenDocumentLinkCommand(engine));
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {

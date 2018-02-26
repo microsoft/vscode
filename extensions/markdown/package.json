@@ -272,10 +272,10 @@
 					"description": "%markdown.preview.lineHeight.desc%",
 					"scope": "resource"
 				},
-				"markdown.preview.scrollPreviewWithEditorSelection": {
+				"markdown.preview.scrollPreviewWithEditor": {
 					"type": "boolean",
 					"default": true,
-					"description": "%markdown.preview.scrollPreviewWithEditorSelection.desc%",
+					"description": "%markdown.preview.scrollPreviewWithEditor.desc%",
 					"scope": "resource"
 				},
 				"markdown.preview.markEditorSelection": {

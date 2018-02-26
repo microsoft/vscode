@@ -10,5 +10,4 @@ export { ShowSourceCommand } from './showSource';
 export { RefreshPreviewCommand } from './refreshPreview';
 export { ShowPreviewSecuritySelectorCommand } from './showPreviewSecuritySelector';
 export { RevealLineCommand } from './revealLine';
-export { DidClickCommand } from './didClick';
 export { MoveCursorToPositionCommand } from './moveCursorToPosition';
