@@ -39,6 +39,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ILogService } from 'vs/platform/log/common/log';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -129,7 +130,8 @@ export class TerminalInstance implements ITerminalInstance {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILogService private _logService: ILogService
 	) {
 		this._instanceDisposables = [];
 		this._processDisposables = [];
@@ -144,6 +146,8 @@ export class TerminalInstance implements ITerminalInstance {
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
 		this._preLaunchInputQueue = '';
 
+		this._logService.trace(`terminalInstance#ctor (id: ${this.id})`, this._shellLaunchConfig);
+
 		this._onDisposed = new Emitter<TerminalInstance>();
 		this._onFocused = new Emitter<TerminalInstance>();
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
@@ -151,7 +155,10 @@ export class TerminalInstance implements ITerminalInstance {
 
 		// Create a promise that resolves when the pty is ready
 		this._processReady = new TPromise<void>(c => {
-			this.onProcessIdReady(() => c(void 0));
+			this.onProcessIdReady(() => {
+				this._logService.debug(`Terminal process ready (id: ${this.id}, processId: ${this.processId})`);
+				c(void 0);
+			});
 		});
 
 		this._initDimensions();
@@ -505,6 +512,8 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public dispose(): void {
+		this._logService.trace(`terminalInstance#dispose (id: ${this.id})`);
+
 		if (this._windowsShellHelper) {
 			this._windowsShellHelper.dispose();
 		}
