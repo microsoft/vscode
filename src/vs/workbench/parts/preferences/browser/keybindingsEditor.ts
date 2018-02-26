@@ -180,14 +180,16 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.selectEntry(keybindingEntry);
 		this.showOverlayContainer();
 		return this.defineKeybindingWidget.define().then(key => {
-			this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_DEFINE, keybindingEntry.keybindingItem.command, key);
 			if (key) {
-				return this.keybindingEditingService.editKeybinding(key, keybindingEntry.keybindingItem.keybindingItem)
-					.then(() => {
-						if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
-							this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
-						}
-					});
+				if (key !== keybindingEntry.keybindingItem.keybinding.getUserSettingsLabel()) {
+					this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_DEFINE, keybindingEntry.keybindingItem.command, key);
+					return this.keybindingEditingService.editKeybinding(key, keybindingEntry.keybindingItem.keybindingItem)
+						.then(() => {
+							if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
+								this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
+							}
+						});
+				}
 			}
 			return null;
 		}).then(() => {
