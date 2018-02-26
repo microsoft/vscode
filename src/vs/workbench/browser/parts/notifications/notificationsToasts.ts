@@ -316,6 +316,28 @@ export class NotificationsToasts extends Themable {
 		return false;
 	}
 
+	public focusFirst(): boolean {
+		const toast = this.getVisibleToasts()[0];
+		if (toast) {
+			toast.list.focusFirst();
+
+			return true;
+		}
+
+		return false;
+	}
+
+	public focusLast(): boolean {
+		const toasts = this.getVisibleToasts();
+		if (toasts.length > 0) {
+			toasts[toasts.length - 1].list.focusFirst();
+
+			return true;
+		}
+
+		return false;
+	}
+
 	public update(isCenterVisible: boolean): void {
 		if (this.isNotificationsCenterVisible !== isCenterVisible) {
 			this.isNotificationsCenterVisible = isCenterVisible;

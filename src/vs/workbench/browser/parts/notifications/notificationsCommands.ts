@@ -20,10 +20,12 @@ export const HIDE_NOTIFICATIONS_CENTER = 'notifications.hideList';
 export const TOGGLE_NOTIFICATIONS_CENTER = 'notifications.toggleList';
 
 // Toasts
-export const HIDE_NOTIFICATION_TOAST = 'notification.hideToasts';
-export const FOCUS_NOTIFICATION_TOAST = 'notification.focusToasts';
-export const NEXT_NOTIFICATION_TOAST = 'notification.focusNextToast';
-export const PREVIOUS_NOTIFICATION_TOAST = 'notification.focusPreviousToast';
+export const HIDE_NOTIFICATION_TOAST = 'notifications.hideToasts';
+export const FOCUS_NOTIFICATION_TOAST = 'notifications.focusToasts';
+export const FOCUS_NEXT_NOTIFICATION_TOAST = 'notifications.focusNextToast';
+export const FOCUS_PREVIOUS_NOTIFICATION_TOAST = 'notifications.focusPreviousToast';
+export const FOCUS_FIRST_NOTIFICATION_TOAST = 'notifications.focusFirstToast';
+export const FOCUS_LAST_NOTIFICATION_TOAST = 'notifications.focusLastToast';
 
 // Notification
 export const COLLAPSE_NOTIFICATION = 'notification.collapse';
@@ -54,6 +56,8 @@ export interface INotificationsToastController {
 	focus(): void;
 	focusNext(): void;
 	focusPrevious(): void;
+	focusFirst(): void;
+	focusLast(): void;
 
 	hide(): void;
 }
@@ -162,9 +166,9 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	// Focus Toasts
 	CommandsRegistry.registerCommand(FOCUS_NOTIFICATION_TOAST, () => toasts.focus());
 
-	// Next Toast
+	// Focus Next Toast
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: NEXT_NOTIFICATION_TOAST,
+		id: FOCUS_NEXT_NOTIFICATION_TOAST,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: ContextKeyExpr.and(NotificationFocusedContext, NotificationsToastsVisibleContext),
 		primary: KeyCode.DownArrow,
@@ -173,14 +177,38 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		}
 	});
 
-	// Previous Toast
+	// Focus Previous Toast
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: PREVIOUS_NOTIFICATION_TOAST,
+		id: FOCUS_PREVIOUS_NOTIFICATION_TOAST,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: ContextKeyExpr.and(NotificationFocusedContext, NotificationsToastsVisibleContext),
 		primary: KeyCode.UpArrow,
 		handler: (accessor) => {
 			toasts.focusPrevious();
+		}
+	});
+
+	// Focus First Toast
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: FOCUS_FIRST_NOTIFICATION_TOAST,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: ContextKeyExpr.and(NotificationFocusedContext, NotificationsToastsVisibleContext),
+		primary: KeyCode.PageUp,
+		secondary: [KeyCode.Home],
+		handler: (accessor) => {
+			toasts.focusFirst();
+		}
+	});
+
+	// Focus Last Toast
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: FOCUS_LAST_NOTIFICATION_TOAST,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: ContextKeyExpr.and(NotificationFocusedContext, NotificationsToastsVisibleContext),
+		primary: KeyCode.PageDown,
+		secondary: [KeyCode.End],
+		handler: (accessor) => {
+			toasts.focusLast();
 		}
 	});
 
