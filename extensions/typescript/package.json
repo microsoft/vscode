@@ -459,8 +459,7 @@
           "value": "%typescript.restartTsServer%"
         },
         "category": "TypeScript"
-      },
-
+      }
     ],
     "menus": {
       "commandPalette": [
