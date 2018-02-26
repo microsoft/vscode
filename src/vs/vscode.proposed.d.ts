@@ -494,7 +494,7 @@ declare module 'vscode' {
 		 * in the exact same state it was in originally.
 		 *
 		 * `retainContextWhenHidden` has a high memory overhead and should only be used if
-		 * your webview content cannot be quickly saved and restored.
+		 * your webview's context cannot be quickly saved and restored.
 		 */
 		readonly retainContextWhenHidden?: boolean;
 
@@ -547,12 +547,12 @@ declare module 'vscode' {
 		/**
 		 * Fired when the webview content posts a message.
 		 */
-		readonly onMessage: Event<any>;
+		readonly onDidReceiveMessage: Event<any>;
 
 		/**
 		 * Fired when the webview is disposed.
 		 */
-		readonly onDispose: Event<void>;
+		readonly onDidDispose: Event<void>;
 
 		/**
 		 * Fired when the webview's view column changes.

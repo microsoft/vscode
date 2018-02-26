@@ -302,11 +302,11 @@ class MarkdownPreview {
 				localResourceRoots: this.getLocalResourceRoots(resource)
 			});
 
-		this.webview.onDispose(() => {
+		this.webview.onDidDispose(() => {
 			this._onDisposeEmitter.fire();
 		}, null, this.disposables);
 
-		this.webview.onMessage(e => {
+		this.webview.onDidReceiveMessage(e => {
 			vscode.commands.executeCommand(e.command, ...e.args);
 		}, null, this.disposables);
 
