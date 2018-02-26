@@ -286,7 +286,7 @@ class MarkdownPreview {
 	private readonly disposables: vscode.Disposable[] = [];
 
 	constructor(
-		public resource: vscode.Uri,
+		private resource: vscode.Uri,
 		public resourceColumn: vscode.ViewColumn,
 		previewColumn: vscode.ViewColumn,
 		public readonly pinned: boolean,
@@ -340,6 +340,10 @@ class MarkdownPreview {
 		this.resource = resource;
 	}
 
+	public refresh() {
+		this.update(this.resource);
+	}
+
 	public updateForSelection(resource: vscode.Uri, line: number) {
 		if (this.resource.fsPath !== resource.fsPath) {
 			return;
@@ -349,8 +353,18 @@ class MarkdownPreview {
 		this.webview.postMessage({ line, source: resource.toString() });
 	}
 
+	public updateConfiguration() {
+		if (this.previewConfigurations.shouldUpdateConfiguration(this.resource)) {
+			this.refresh();
+		}
+	}
+
 	public get viewColumn(): vscode.ViewColumn | undefined {
 		return this.webview.viewColumn;
+	}
+
+	public isPreviewOf(resource: vscode.Uri): boolean {
+		return this.resource.fsPath === resource.fsPath;
 	}
 
 	private getPreviewTitle(resource: vscode.Uri): string {
@@ -427,7 +441,7 @@ export class MarkdownPreviewManager {
 			}
 
 			const resource = event.textEditor.document.uri;
-			for (const previewForResource of this.previews.filter(preview => preview.resource.fsPath === resource.fsPath)) {
+			for (const previewForResource of this.previews.filter(preview => preview.isPreviewOf(resource))) {
 				this.logger.log('updatePreviewForSelection', { markdownFile: resource });
 				previewForResource.updateForSelection(resource, event.selections[0].active.line);
 			}
@@ -451,15 +465,13 @@ export class MarkdownPreviewManager {
 
 	public refresh() {
 		for (const preview of this.previews) {
-			preview.update(preview.resource);
+			preview.refresh();
 		}
 	}
 
 	public updateConfiguration() {
 		for (const preview of this.previews) {
-			if (this.previewConfigurations.shouldUpdateConfiguration(preview.resource)) {
-				preview.update(preview.resource);
-			}
+			preview.updateConfiguration();
 		}
 	}
 
@@ -469,7 +481,7 @@ export class MarkdownPreviewManager {
 		}
 
 		for (const preview of this.previews) {
-			if (preview.resource.fsPath === document.uri.fsPath || viewColumn && preview.resourceColumn === viewColumn) {
+			if (preview.isPreviewOf(document.uri) || viewColumn && preview.resourceColumn === viewColumn) {
 				preview.update(document.uri);
 			}
 		}
@@ -481,7 +493,6 @@ export class MarkdownPreviewManager {
 	): void {
 		let preview = this.getExistingPreview(resource, previewSettings);
 		if (preview) {
-			preview.resource = resource;
 			preview.resourceColumn = previewSettings.resourceColumn;
 		} else {
 			preview = new MarkdownPreview(resource, previewSettings.resourceColumn, previewSettings.previewColumn, previewSettings.pinned, this.contentProvider, this.previewConfigurations);
@@ -494,7 +505,7 @@ export class MarkdownPreviewManager {
 			this.previews.push(preview);
 		}
 
-		preview.update(preview.resource);
+		preview.update(resource);
 	}
 
 	private getExistingPreview(
@@ -508,6 +519,6 @@ export class MarkdownPreviewManager {
 		}
 
 		return this.previews.find(preview =>
-			preview.pinned && preview.viewColumn === previewSettings.previewColumn && preview.resource.fsPath === resource.fsPath);
+			preview.pinned && preview.viewColumn === previewSettings.previewColumn && preview.isPreviewOf(resource));
 	}
 }
