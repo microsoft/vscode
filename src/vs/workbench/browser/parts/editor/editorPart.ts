@@ -75,7 +75,7 @@ interface IEditorReplacement extends EditorIdentifier {
 	options?: EditorOptions;
 }
 
-export type ICloseEditorsFilter = { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean };
+export type ICloseEditorsFilter = { except?: EditorInput, direction?: Direction, savedOnly?: boolean };
 export type ICloseEditorsByFilterArgs = { positionOne?: ICloseEditorsFilter, positionTwo?: ICloseEditorsFilter, positionThree?: ICloseEditorsFilter };
 export type ICloseEditorsArgs = { positionOne?: EditorInput[], positionTwo?: EditorInput[], positionThree?: EditorInput[] };
 
@@ -828,8 +828,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			editorsToClose = group.getEditors(true /* in MRU order */);
 			filter = filterOrEditors || Object.create(null);
 
-			// Filter: unmodified only
-			if (filter.unmodifiedOnly) {
+			// Filter: saved only
+			if (filter.savedOnly) {
 				editorsToClose = editorsToClose.filter(e => !e.isDirty());
 			}
 
@@ -874,14 +874,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 	}
 
-	private doCloseEditorsWithFilter(group: EditorGroup, filter: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean }): void {
+	private doCloseEditorsWithFilter(group: EditorGroup, filter: { except?: EditorInput, direction?: Direction, savedOnly?: boolean }): void {
 
 		// Close all editors if there is no editor to except and
-		// we either are not only closing unmodified editors or
+		// we either are not only closing saved editors or
 		// there are no dirty editors.
 		let closeAllEditors = false;
 		if (!filter.except) {
-			if (!filter.unmodifiedOnly) {
+			if (!filter.savedOnly) {
 				closeAllEditors = true;
 			} else {
 				closeAllEditors = !group.getEditors().some(e => e.isDirty());
@@ -893,10 +893,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			this.doCloseAllEditorsInGroup(group);
 		}
 
-		// Close unmodified editors in group
-		else if (filter.unmodifiedOnly) {
+		// Close saved editors in group
+		else if (filter.savedOnly) {
 
-			// We can just close all unmodified editors around the currently active dirty one
+			// We can just close all saved editors around the currently active dirty one
 			if (group.activeEditor.isDirty()) {
 				group.getEditors().filter(editor => !editor.isDirty() && !editor.matches(filter.except)).forEach(editor => this.doCloseInactiveEditor(group, editor));
 			}

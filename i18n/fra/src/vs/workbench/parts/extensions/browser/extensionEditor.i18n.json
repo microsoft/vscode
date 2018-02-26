@@ -9,6 +9,7 @@
 	"name": "Nom de l'extension",
 	"extension id": "Identificateur d'extension",
 	"preview": "Aperçu",
+	"builtin": "Intégrée",
 	"publisher": "Nom de l'éditeur",
 	"install count": "Nombre d'installations",
 	"rating": "Évaluation",

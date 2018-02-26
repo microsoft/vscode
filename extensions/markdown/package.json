@@ -1,11 +1,11 @@
 {
 	"name": "vscode-markdown",
-	"displayName": "VS Code Markdown",
-	"description": "Markdown for VS Code",
-	"enableProposedApi": true,
+	"displayName": "%displayName%",
+	"description": "%description%",
 	"version": "0.2.0",
-	"publisher": "Microsoft",
+	"publisher": "vscode",
 	"aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+	"enableProposedApi": true,
 	"engines": {
 		"vscode": "^1.20.0"
 	},
@@ -314,7 +314,7 @@
 		"highlight.js": "9.5.0",
 		"markdown-it": "^8.4.0",
 		"markdown-it-named-headers": "0.0.4",
-		"vscode-extension-telemetry": "^0.0.13",
+		"vscode-extension-telemetry": "^0.0.14",
 		"vscode-nls": "^3.2.1"
 	},
 	"devDependencies": {

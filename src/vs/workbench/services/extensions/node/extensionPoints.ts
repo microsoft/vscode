@@ -7,12 +7,12 @@
 
 import * as nls from 'vs/nls';
 import * as pfs from 'vs/base/node/pfs';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { join, normalize, extname } from 'path';
 import * as json from 'vs/base/common/json';
 import * as types from 'vs/base/common/types';
-import { isValidExtensionDescription } from 'vs/platform/extensions/node/extensionValidator';
+import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';
 import * as semver from 'semver';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
@@ -316,7 +316,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		extensionDescription.isBuiltin = this._isBuiltin;
 
 		let notices: string[] = [];
-		if (!isValidExtensionDescription(this._ourVersion, this._absoluteFolderPath, extensionDescription, notices)) {
+		if (!ExtensionManifestValidator.isValidExtensionDescription(this._ourVersion, this._absoluteFolderPath, extensionDescription, notices)) {
 			notices.forEach((error) => {
 				this._log.error(this._absoluteFolderPath, error);
 			});
@@ -339,6 +339,93 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		extensionDescription.extensionFolderPath = this._absoluteFolderPath;
 
 		return extensionDescription;
+	}
+
+	private static isValidExtensionDescription(version: string, extensionFolderPath: string, extensionDescription: IExtensionDescription, notices: string[]): boolean {
+
+		if (!ExtensionManifestValidator.baseIsValidExtensionDescription(extensionFolderPath, extensionDescription, notices)) {
+			return false;
+		}
+
+		if (!semver.valid(extensionDescription.version)) {
+			notices.push(nls.localize('notSemver', "Extension version is not semver compatible."));
+			return false;
+		}
+
+		return isValidExtensionVersion(version, extensionDescription, notices);
+	}
+
+	private static baseIsValidExtensionDescription(extensionFolderPath: string, extensionDescription: IExtensionDescription, notices: string[]): boolean {
+		if (!extensionDescription) {
+			notices.push(nls.localize('extensionDescription.empty', "Got empty extension description"));
+			return false;
+		}
+		if (typeof extensionDescription.publisher !== 'string') {
+			notices.push(nls.localize('extensionDescription.publisher', "property `{0}` is mandatory and must be of type `string`", 'publisher'));
+			return false;
+		}
+		if (typeof extensionDescription.name !== 'string') {
+			notices.push(nls.localize('extensionDescription.name', "property `{0}` is mandatory and must be of type `string`", 'name'));
+			return false;
+		}
+		if (typeof extensionDescription.version !== 'string') {
+			notices.push(nls.localize('extensionDescription.version', "property `{0}` is mandatory and must be of type `string`", 'version'));
+			return false;
+		}
+		if (!extensionDescription.engines) {
+			notices.push(nls.localize('extensionDescription.engines', "property `{0}` is mandatory and must be of type `object`", 'engines'));
+			return false;
+		}
+		if (typeof extensionDescription.engines.vscode !== 'string') {
+			notices.push(nls.localize('extensionDescription.engines.vscode', "property `{0}` is mandatory and must be of type `string`", 'engines.vscode'));
+			return false;
+		}
+		if (typeof extensionDescription.extensionDependencies !== 'undefined') {
+			if (!ExtensionManifestValidator._isStringArray(extensionDescription.extensionDependencies)) {
+				notices.push(nls.localize('extensionDescription.extensionDependencies', "property `{0}` can be omitted or must be of type `string[]`", 'extensionDependencies'));
+				return false;
+			}
+		}
+		if (typeof extensionDescription.activationEvents !== 'undefined') {
+			if (!ExtensionManifestValidator._isStringArray(extensionDescription.activationEvents)) {
+				notices.push(nls.localize('extensionDescription.activationEvents1', "property `{0}` can be omitted or must be of type `string[]`", 'activationEvents'));
+				return false;
+			}
+			if (typeof extensionDescription.main === 'undefined') {
+				notices.push(nls.localize('extensionDescription.activationEvents2', "properties `{0}` and `{1}` must both be specified or must both be omitted", 'activationEvents', 'main'));
+				return false;
+			}
+		}
+		if (typeof extensionDescription.main !== 'undefined') {
+			if (typeof extensionDescription.main !== 'string') {
+				notices.push(nls.localize('extensionDescription.main1', "property `{0}` can be omitted or must be of type `string`", 'main'));
+				return false;
+			} else {
+				let normalizedAbsolutePath = join(extensionFolderPath, extensionDescription.main);
+
+				if (normalizedAbsolutePath.indexOf(extensionFolderPath)) {
+					notices.push(nls.localize('extensionDescription.main2', "Expected `main` ({0}) to be included inside extension's folder ({1}). This might make the extension non-portable.", normalizedAbsolutePath, extensionFolderPath));
+					// not a failure case
+				}
+			}
+			if (typeof extensionDescription.activationEvents === 'undefined') {
+				notices.push(nls.localize('extensionDescription.main3', "properties `{0}` and `{1}` must both be specified or must both be omitted", 'activationEvents', 'main'));
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private static _isStringArray(arr: string[]): boolean {
+		if (!Array.isArray(arr)) {
+			return false;
+		}
+		for (let i = 0, len = arr.length; i < len; i++) {
+			if (typeof arr[i] !== 'string') {
+				return false;
+			}
+		}
+		return true;
 	}
 }
 

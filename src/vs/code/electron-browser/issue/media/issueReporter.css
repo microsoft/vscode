@@ -262,6 +262,7 @@ input:disabled {
 .workbenchCommand {
 	cursor: pointer;
 }
+
 .workbenchCommand:disabled {
 	color: #868e96;
 	cursor: default

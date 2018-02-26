@@ -8,7 +8,6 @@
 import Severity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IAction } from 'vs/base/common/actions';
 import Event, { Emitter } from 'vs/base/common/event';
 
@@ -16,7 +15,7 @@ export import Severity = Severity;
 
 export const INotificationService = createDecorator<INotificationService>('notificationService');
 
-export type NotificationMessage = string | IMarkdownString | Error;
+export type NotificationMessage = string | Error;
 
 export interface INotification {
 
@@ -26,11 +25,8 @@ export interface INotification {
 	severity: Severity;
 
 	/**
-	 * The message of the notification. This can either be a `string`, `Error`
-	 * or `IMarkdownString`.
-	 *
-	 * **Note:** Currently only links are supported in notifications. Links to commands can
-	 * be embedded provided that the `IMarkdownString` is trusted.
+	 * The message of the notification. This can either be a `string` or `Error`. Messages
+	 * can optionally include links in the format: `[text](link)`
 	 */
 	message: NotificationMessage;
 

@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
-import { isLinux } from 'vs/base/common/platform';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -18,6 +18,21 @@ import { INotificationService, INotificationHandle, INotificationActions } from 
 import { once } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
+
+interface IMassagedMessageBoxOptions {
+
+	/**
+	 * OS massaged message box options.
+	 */
+	options: Electron.MessageBoxOptions;
+
+	/**
+	 * Since the massaged result of the message box options potentially
+	 * changes the order of buttons, we have to keep a map of these
+	 * changes so that we can still return the correct index to the caller.
+	 */
+	buttonIndexMap: number[];
+}
 
 export class DialogService implements IChoiceService, IConfirmationService {
 
@@ -30,22 +45,20 @@ export class DialogService implements IChoiceService, IConfirmationService {
 	}
 
 	public confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult> {
-		const opts = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
+		const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
 
-		return this.windowService.showMessageBox(opts).then(result => {
-			const button = isLinux ? opts.buttons.length - result.button - 1 : result.button;
-
+		return this.windowService.showMessageBox(options).then(result => {
 			return {
-				confirmed: button === 0 ? true : false,
+				confirmed: buttonIndexMap[result.button] === 0 ? true : false,
 				checkboxChecked: result.checkboxChecked
 			} as IConfirmationResult;
 		});
 	}
 
 	public confirm(confirmation: IConfirmation): TPromise<boolean> {
-		const opts = this.getConfirmOptions(confirmation);
+		const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
 
-		return this.doShowMessageBox(opts).then(result => result === 0 ? true : false);
+		return this.windowService.showMessageBox(options).then(result => buttonIndexMap[result.button] === 0 ? true : false);
 	}
 
 	private getConfirmOptions(confirmation: IConfirmation): Electron.MessageBoxOptions {
@@ -97,16 +110,18 @@ export class DialogService implements IChoiceService, IConfirmationService {
 	private doChooseWithDialog(severity: Severity, message: string, choices: Choice[], cancelId?: number): TPromise<number> {
 		const type: 'none' | 'info' | 'error' | 'question' | 'warning' = severity === Severity.Info ? 'question' : severity === Severity.Error ? 'error' : severity === Severity.Warning ? 'warning' : 'none';
 
-		const options: string[] = [];
+		const stringChoices: string[] = [];
 		choices.forEach(choice => {
 			if (typeof choice === 'string') {
-				options.push(choice);
+				stringChoices.push(choice);
 			} else {
-				options.push(choice.label);
+				stringChoices.push(choice.label);
 			}
 		});
 
-		return this.doShowMessageBox({ message, buttons: options, type, cancelId });
+		const { options, buttonIndexMap } = this.massageMessageBoxOptions({ message, buttons: stringChoices, type, cancelId });
+
+		return this.windowService.showMessageBox(options).then(result => buttonIndexMap[result.button]);
 	}
 
 	private doChooseWithNotification(severity: Severity, message: string, choices: Choice[]): TPromise<number> {
@@ -163,30 +178,47 @@ export class DialogService implements IChoiceService, IConfirmationService {
 		return promise;
 	}
 
-	private doShowMessageBox(opts: Electron.MessageBoxOptions): TPromise<number> {
-		opts = this.massageMessageBoxOptions(opts);
+	private massageMessageBoxOptions(options: Electron.MessageBoxOptions): IMassagedMessageBoxOptions {
+		let buttonIndexMap = options.buttons.map((button, index) => index);
 
-		return this.windowService.showMessageBox(opts).then(result => isLinux ? opts.buttons.length - result.button - 1 : result.button);
-	}
+		options.buttons = options.buttons.map(button => mnemonicButtonLabel(button));
 
-	private massageMessageBoxOptions(opts: Electron.MessageBoxOptions): Electron.MessageBoxOptions {
-		opts.buttons = opts.buttons.map(button => mnemonicButtonLabel(button));
-		opts.buttons = isLinux ? opts.buttons.reverse() : opts.buttons;
+		// Linux: order of buttons is reverse
+		// macOS: also reverse, but the OS handles this for us!
+		if (isLinux) {
+			options.buttons = options.buttons.reverse();
+			buttonIndexMap = buttonIndexMap.reverse();
+		}
 
-		if (opts.defaultId !== void 0) {
-			opts.defaultId = isLinux ? opts.buttons.length - opts.defaultId - 1 : opts.defaultId;
+		// Default Button
+		if (options.defaultId !== void 0) {
+			options.defaultId = buttonIndexMap[options.defaultId];
 		} else if (isLinux) {
-			opts.defaultId = opts.buttons.length - 1; // since we reversed the buttons
+			options.defaultId = buttonIndexMap[0];
 		}
 
-		if (opts.cancelId !== void 0) {
-			opts.cancelId = isLinux ? opts.buttons.length - opts.cancelId - 1 : opts.cancelId;
+		// Cancel Button
+		if (options.cancelId !== void 0) {
+
+			// macOS: the cancel button should always be to the left of the primary action
+			// if we see more than 2 buttons, move the cancel one to the left of the primary
+			if (isMacintosh && options.buttons.length > 2 && options.cancelId !== 1) {
+				const cancelButton = options.buttons[options.cancelId];
+				options.buttons.splice(options.cancelId, 1);
+				options.buttons.splice(1, 0, cancelButton);
+
+				const cancelButtonIndex = buttonIndexMap[options.cancelId];
+				buttonIndexMap.splice(cancelButtonIndex, 1);
+				buttonIndexMap.splice(1, 0, cancelButtonIndex);
+			}
+
+			options.cancelId = buttonIndexMap[options.cancelId];
 		}
 
-		opts.noLink = true;
-		opts.title = opts.title || product.nameLong;
+		options.noLink = true;
+		options.title = options.title || product.nameLong;
 
-		return opts;
+		return { options, buttonIndexMap };
 	}
 }
 

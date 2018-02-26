@@ -35,6 +35,7 @@
 	"panelDefaultLocation": "控制此面板的默认位置。可显示在工作台的底部或右侧。",
 	"statusBarVisibility": "控制工作台底部状态栏的可见性。",
 	"activityBarVisibility": "控制工作台中活动栏的可见性。",
+	"viewVisibility": "控制是否显示视图头部的操作项。视图头部操作项可以一直，或是仅当聚焦到和悬停在视图上时显示。",
 	"fontAliasing": "控制工作台中字体的渲染方式\n- default: 次像素平滑字体。将在大多数非 retina 显示器上显示最清晰的文字\n- antialiased: 进行像素而不是次像素级别的字体平滑。可能会导致字体整体显示得更细\n- none: 禁用字体平滑。将显示边缘粗糙、有锯齿的文字\n- auto: 根据显示器 DPI 自动应用 \"default\" 或 \"antialiased\" 选项。",
 	"workbench.fontAliasing.default": "次像素平滑字体。将在大多数非 retina 显示器上显示最清晰的文字。",
 	"workbench.fontAliasing.antialiased": "进行像素而不是次像素级别的字体平滑。可能会导致字体整体显示得更细。",
@@ -75,9 +76,9 @@
 	"window.nativeTabs": "\n启用macOS Sierra窗口选项卡。请注意，更改需要完全重新启动程序才能生效。如果配置此选项，本机选项卡将禁用自定义标题栏样式。",
 	"zenModeConfigurationTitle": "Zen 模式",
 	"zenMode.fullScreen": "控制打开 Zen Mode 是否也会将工作台置于全屏模式。",
+	"zenMode.centerLayout": "控制是否在 Zen 模式中启用居中布局",
 	"zenMode.hideTabs": "控制打开 Zen 模式是否也会隐藏工作台选项卡。",
 	"zenMode.hideStatusBar": "控制打开 Zen 模式是否也会隐藏工作台底部的状态栏。",
 	"zenMode.hideActivityBar": "控制打开 Zen 模式是否也会隐藏工作台左侧的活动栏。",
-	"zenMode.restore": "控制如果某窗口已退出 zen 模式，是否应还原到 zen 模式。",
-	"JsonSchema.locale": "要使用的 UI 语言。"
+	"zenMode.restore": "控制如果某窗口已退出 zen 模式，是否应还原到 zen 模式。"
 }

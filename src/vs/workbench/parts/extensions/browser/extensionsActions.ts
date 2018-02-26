@@ -27,7 +27,7 @@ import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 import { IFileService, IContent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IExtensionService, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import URI from 'vs/base/common/uri';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -1601,7 +1601,7 @@ export class DisableAllAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		return TPromise.join(this.extensionsWorkbenchService.local.map(e => this.extensionsWorkbenchService.setEnablement(e, EnablementState.Disabled)));
+		return TPromise.join(this.extensionsWorkbenchService.local.filter(e => e.type === LocalExtensionType.User).map(e => this.extensionsWorkbenchService.setEnablement(e, EnablementState.Disabled)));
 	}
 
 	dispose(): void {
@@ -1633,7 +1633,7 @@ export class DisableAllWorkpsaceAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		return TPromise.join(this.extensionsWorkbenchService.local.map(e => this.extensionsWorkbenchService.setEnablement(e, EnablementState.WorkspaceDisabled)));
+		return TPromise.join(this.extensionsWorkbenchService.local.filter(e => e.type === LocalExtensionType.User).map(e => this.extensionsWorkbenchService.setEnablement(e, EnablementState.WorkspaceDisabled)));
 	}
 
 	dispose(): void {
@@ -1645,7 +1645,7 @@ export class DisableAllWorkpsaceAction extends Action {
 export class EnableAllAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.enableAll';
-	static LABEL = localize('enableAll', "Enable All Installed Extensions");
+	static LABEL = localize('enableAll', "Enable All Extensions");
 
 	private disposables: IDisposable[] = [];
 
@@ -1676,7 +1676,7 @@ export class EnableAllAction extends Action {
 export class EnableAllWorkpsaceAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.enableAllWorkspace';
-	static LABEL = localize('enableAllWorkspace', "Enable All Installed Extensions for this Workspace");
+	static LABEL = localize('enableAllWorkspace', "Enable All Extensions for this Workspace");
 
 	private disposables: IDisposable[] = [];
 

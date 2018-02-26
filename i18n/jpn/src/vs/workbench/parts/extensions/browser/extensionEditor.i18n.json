@@ -9,6 +9,7 @@
 	"name": "拡張機能名",
 	"extension id": "拡張機能の識別子",
 	"preview": "プレビュー",
+	"builtin": "ビルトイン",
 	"publisher": "発行者名",
 	"install count": "インストール数",
 	"rating": "評価",

@@ -20,7 +20,6 @@
 	"showSameKeybindings": "Mostrar mismo KeyBindings ",
 	"copyLabel": "Copiar",
 	"copyCommandLabel": "Comando Copiar",
-	"error": "Error \"{0}\" al editar el enlace de teclado. Abra el archivo \"keybindings.json\" y compruébelo.",
 	"command": "Comando",
 	"keybinding": "Enlace de teclado",
 	"source": "Origen",

@@ -78,6 +78,5 @@
 	"zenMode.hideTabs": "Zen Mode をオンにしたときにワークベンチ タブも非表示にするかどうかを制御します。",
 	"zenMode.hideStatusBar": "Zen Mode をオンにするとワークベンチの下部にあるステータス バーを非表示にするかどうかを制御します。",
 	"zenMode.hideActivityBar": "Zen Mode をオンにするとワークベンチの左側にあるアクティビティ バーを非表示にするかを制御します。",
-	"zenMode.restore": "Zen Mode で終了したウィンドウを Zen Mode に復元するかどうかを制御します。",
-	"JsonSchema.locale": "使用する UI 言語。"
+	"zenMode.restore": "Zen Mode で終了したウィンドウを Zen Mode に復元するかどうかを制御します。"
 }

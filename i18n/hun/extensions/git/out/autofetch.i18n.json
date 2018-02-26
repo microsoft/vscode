@@ -9,6 +9,5 @@
 	"yes": "Igen",
 	"read more": "További információk",
 	"no": "Nem",
-	"not now": "Kérdezzen rá később",
-	"suggest auto fetch": "Szeretné, hogy a Code időszakosan futtasson `git fetch`-t?"
+	"not now": "Kérdezzen rá később"
 }

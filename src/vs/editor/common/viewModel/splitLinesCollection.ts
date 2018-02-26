@@ -177,7 +177,8 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	private _ensureValidState(): void {
 		let modelVersion = this.model.getVersionId();
 		if (modelVersion !== this._validModelVersionId) {
-			throw new Error('SplitLinesCollection: attempt to access a \'newer\' model');
+			// This is pretty bad, it means we lost track of the model...
+			this._constructLines(false);
 		}
 	}
 

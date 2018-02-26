@@ -33,6 +33,7 @@
 	"inspect-brk-extensions": "Autorise le débogage et le profilage des extensions avec l'hôte d'extensions en pause après le démarrage. Vérifier les outils de développement pour l'uri de connexion.",
 	"disableGPU": "Désactivez l'accélération matérielle du GPU.",
 	"uploadLogs": "Upload les logs depuis la session actuelle vers le endpoint sécurisé.",
+	"maxMemory": "Taille mémoire maximale pour une fenêtre (En Megaoctêts)",
 	"usage": "Utilisation",
 	"options": "options",
 	"paths": "chemins",

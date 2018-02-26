@@ -9,7 +9,7 @@ const es = require('event-stream');
 function handleDeletions() {
 	return es.mapSync(f => {
 		if (/\.ts$/.test(f.relative) && !f.contents) {
-			f.contents = new Buffer('');
+			f.contents = Buffer.from('');
 			f.stat = { mtime: new Date() };
 		}
 

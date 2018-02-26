@@ -255,7 +255,7 @@ class WelcomePage {
 	}
 
 	public openEditor() {
-		return this.editorService.openEditor(this.editorInput, { pinned: true }, Position.ONE);
+		return this.editorService.openEditor(this.editorInput, { pinned: false }, Position.ONE);
 	}
 
 	private onReady(container: HTMLElement, recentlyOpened: TPromise<{ files: string[]; workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]; }>, installedExtensions: TPromise<IExtensionStatus[]>): void {

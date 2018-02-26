@@ -10,6 +10,5 @@
 	"yes": "是",
 	"no": "否",
 	"betterMergeDisabled": "目前已內建 Better Merge 延伸模組，安裝的延伸模組已停用並且可以移除。",
-	"uninstall": "解除安裝",
-	"later": "稍後"
+	"uninstall": "解除安裝"
 }

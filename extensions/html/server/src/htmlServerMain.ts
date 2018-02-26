@@ -20,6 +20,8 @@ import { formatError, runSafe } from './utils/errors';
 import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath, getEmmetCompletionParticipants } from 'vscode-emmet-helper';
 import { getPathCompletionParticipant } from './modes/pathCompletion';
 
+import { FoldingRangesRequest, FoldingProviderServerCapabilities } from './protocol/foldingProvider.proposed';
+
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
 }
@@ -31,6 +33,9 @@ console.log = connection.console.log.bind(connection.console);
 console.error = connection.console.error.bind(connection.console);
 
 process.on('unhandledRejection', (e: any) => {
+	connection.console.error(formatError(`Unhandled exception`, e));
+});
+process.on('uncaughtException', (e) => {
 	connection.console.error(formatError(`Unhandled exception`, e));
 });
 
@@ -108,7 +113,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
 	scopedSettingsSupport = hasClientCapability('workspace', 'configuration');
 	workspaceFoldersSupport = hasClientCapability('workspace', 'workspaceFolders');
-	let capabilities: ServerCapabilities & CPServerCapabilities = {
+	let capabilities: ServerCapabilities & CPServerCapabilities & FoldingProviderServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
 		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: [...emmetTriggerCharacters, '.', ':', '<', '"', '=', '/'] } : undefined,
@@ -120,7 +125,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		definitionProvider: true,
 		signatureHelpProvider: { triggerCharacters: ['('] },
 		referencesProvider: true,
-		colorProvider: true
+		colorProvider: true,
+		foldingProvider: true
 	};
 	return { capabilities };
 });
@@ -454,6 +460,20 @@ connection.onRequest(TagCloseRequest.type, params => {
 		}
 		return null;
 	}, null, `Error while computing tag close actions for ${params.textDocument.uri}`);
+});
+
+connection.onRequest(FoldingRangesRequest.type, params => {
+	return runSafe(() => {
+		let document = documents.get(params.textDocument.uri);
+		if (document) {
+			let mode = languageModes.getMode('html');
+			if (mode && mode.getFoldingRanges) {
+				return mode.getFoldingRanges(document);
+			}
+			return null;
+		}
+		return null;
+	}, null, `Error while computing folding regions for ${params.textDocument.uri}`);
 });
 
 

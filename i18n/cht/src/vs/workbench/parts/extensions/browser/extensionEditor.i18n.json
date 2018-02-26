@@ -9,6 +9,7 @@
 	"name": "延伸模組名稱",
 	"extension id": "延伸模組識別碼",
 	"preview": "預覽",
+	"builtin": "內建",
 	"publisher": "發行者名稱",
 	"install count": "安裝計數",
 	"rating": "評等",

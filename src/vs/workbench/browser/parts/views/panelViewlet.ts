@@ -11,7 +11,7 @@ import { ColorIdentifier, contrastBorder } from 'vs/platform/theme/common/colorR
 import { attachStyler, IColorMapping, IThemable } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
 import { Dimension, Builder } from 'vs/base/browser/builder';
-import { append, $, trackFocus, toggleClass } from 'vs/base/browser/dom';
+import { append, $, trackFocus, toggleClass, EventType, isAncestor } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
@@ -26,6 +26,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { PanelView, IPanelViewOptions, IPanelOptions, Panel } from 'vs/base/browser/ui/splitview/panelview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -165,10 +167,12 @@ export class PanelViewlet extends Viewlet {
 	constructor(
 		id: string,
 		private options: IViewsViewletOptions,
+		@IPartService partService: IPartService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService
 	) {
-		super(id, telemetryService, themeService);
+		super(id, partService, telemetryService, themeService);
 	}
 
 	async create(parent: Builder): TPromise<void> {
@@ -176,7 +180,26 @@ export class PanelViewlet extends Viewlet {
 
 		const container = parent.getHTMLElement();
 		this.panelview = this._register(new PanelView(container, this.options));
-		this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel));
+		this._register(this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel)));
+		this._register(parent.on(EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
+	}
+
+	private showContextMenu(event: StandardMouseEvent): void {
+		event.stopPropagation();
+		event.preventDefault();
+
+		for (const panelItem of this.panelItems) {
+			// Do not show context menu if requested from inside panel views
+			if (isAncestor(event.target, panelItem.panel.element)) {
+				return;
+			}
+		}
+
+		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => TPromise.as(this.getContextMenuActions())
+		});
 	}
 
 	getTitle(): string {

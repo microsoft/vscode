@@ -2,19 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-//tslint:disable
 'use strict';
 
 import * as path from 'path';
 import * as fs from 'fs';
+import * as httpRequest from 'request-light';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
+import { addJSONProviders } from './features/jsonContributions';
+
 type AutoDetect = 'on' | 'off';
 let taskProvider: vscode.Disposable | undefined;
 
-export function activate(_context: vscode.ExtensionContext): void {
+export function activate(context: vscode.ExtensionContext): void {
 	if (!vscode.workspace.workspaceFolders) {
 		return;
 	}
@@ -27,6 +29,15 @@ export function activate(_context: vscode.ExtensionContext): void {
 			return undefined;
 		}
 	});
+	configureHttpRequest();
+	vscode.workspace.onDidChangeConfiguration(() => configureHttpRequest());
+
+	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
+}
+
+function configureHttpRequest() {
+	const httpSettings = vscode.workspace.getConfiguration('http');
+	httpRequest.configure(httpSettings.get<string>('proxy', ''), httpSettings.get<boolean>('proxyStrictSSL', true));
 }
 
 export function deactivate(): void {

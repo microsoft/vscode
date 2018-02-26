@@ -7,16 +7,34 @@
 	position: absolute;
 	z-index: 1000;
 	right: 8px;
-	bottom: 30px; /* above status bar */
+	bottom: 31px;
 	display: none;
 	overflow: hidden;
 }
 
 .monaco-workbench.nostatusbar > .notifications-center {
-	right: 12px;
-	bottom: 12px;
+	bottom: 8px;
 }
 
 .monaco-workbench > .notifications-center.visible {
 	display: block;
+}
+
+/* Header */
+
+.monaco-workbench > .notifications-center > .notifications-center-header {
+	display: flex;
+	align-items: center;
+	padding-left: 8px;
+	padding-right: 5px;
+	height: 35px;
+}
+
+.monaco-workbench > .notifications-center > .notifications-center-header > .notifications-center-header-title {
+	text-transform: uppercase;
+	font-size: 11px;
+}
+
+.monaco-workbench > .notifications-center > .notifications-center-header > .notifications-center-header-toolbar {
+	flex: 1;
 }

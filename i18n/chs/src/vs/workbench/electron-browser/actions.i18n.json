@@ -18,6 +18,7 @@
 	"zoomReset": "重置缩放",
 	"appPerf": "启动性能",
 	"reloadWindow": "重新加载窗口",
+	"reloadWindowWithExntesionsDisabled": "禁用扩展后重新加载窗口",
 	"switchWindowPlaceHolder": "选择切换的窗口",
 	"current": "当前窗口",
 	"close": "关闭窗口",
@@ -30,7 +31,6 @@
 	"remove": "从最近打开中删除",
 	"openRecent": "打开最近的文件…",
 	"quickOpenRecent": "快速打开最近的文件…",
-	"closeMessages": "关闭通知消息",
 	"reportIssueInEnglish": "使用英文报告问题",
 	"reportPerformanceIssue": "报告性能问题",
 	"keybindingsReference": "键盘快捷方式参考",
@@ -49,9 +49,6 @@
 	"moveWindowTabToNewWindow": "将窗口选项卡移动到新窗口",
 	"mergeAllWindowTabs": "合并所有窗口",
 	"toggleWindowTabsBar": "切换窗口选项卡栏",
-	"configureLocale": "配置语言",
-	"displayLanguage": "定义 VSCode 的显示语言。",
-	"doc": "请参阅 {0}，了解支持的语言列表。",
-	"restart": "更改此值需要重启 VSCode。",
-	"fail.createSettings": "无法创建“{0}”({1})。"
+	"about": "关于 {0}",
+	"inspect context keys": "检查上下文键值"
 }

@@ -540,17 +540,17 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 	if (!breakpoint.enabled || !debugService.getModel().areBreakpointsActivated()) {
 		return {
 			className: 'debug-breakpoint-disabled-glyph',
-			message: nls.localize('breakpointDisabledHover', "Disabled Breakpoint"),
+			message: nls.localize('breakpointDisabledHover', "Disabled breakpoint"),
 		};
 	}
 
 	const appendMessage = (text: string): string => {
-		return !(breakpoint instanceof FunctionBreakpoint) && breakpoint.message ? text.concat(breakpoint.message) : text;
+		return !(breakpoint instanceof FunctionBreakpoint) && breakpoint.message ? text.concat(', ' + breakpoint.message) : text;
 	};
 	if (debugActive && !breakpoint.verified) {
 		return {
 			className: 'debug-breakpoint-unverified-glyph',
-			message: appendMessage(nls.localize('breakpointUnverifieddHover', "Unverified Breakpoint")),
+			message: appendMessage(nls.localize('breakpointUnverifieddHover', "Unverified breakpoint")),
 		};
 	}
 

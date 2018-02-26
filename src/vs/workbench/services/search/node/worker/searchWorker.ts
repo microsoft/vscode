@@ -169,7 +169,7 @@ export class SearchWorkerEngine {
 					return resolve(null);
 				}
 
-				const buffer = new Buffer(options.bufferLength);
+				const buffer = Buffer.allocUnsafe(options.bufferLength);
 				let line = '';
 				let lineNumber = 0;
 				let lastBufferHadTrailingCR = false;

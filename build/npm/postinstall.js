@@ -30,6 +30,7 @@ const extensions = [
 	'extension-editing',
 	'markdown',
 	'typescript',
+	'typescript-basics',
 	'php',
 	'javascript',
 	'css',

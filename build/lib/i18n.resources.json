@@ -139,6 +139,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/actions",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/configuration",
 			"project": "vscode-workbench"
 		},
@@ -156,6 +160,10 @@
 		},
 		{
 			"name": "vs/workbench/services/extensions",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/jsonschemas",
 			"project": "vscode-workbench"
 		},
 		{

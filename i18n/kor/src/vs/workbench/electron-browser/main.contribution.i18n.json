@@ -78,6 +78,5 @@
 	"zenMode.hideTabs": "Zen 모드를 켜면 워크벤치 탭도 숨길지를 제어합니다.",
 	"zenMode.hideStatusBar": "Zen 모드를 켜면 워크벤치 하단에서 상태 표시줄도 숨길지를 제어합니다.",
 	"zenMode.hideActivityBar": "Zen 모드를 켜면 워크벤치의 왼쪽에 있는 작업 막대도 숨길지\n 여부를 제어합니다.",
-	"zenMode.restore": "창이 Zen 모드에서 종료된 경우 Zen 모드로 복원할지 제어합니다.",
-	"JsonSchema.locale": "사용할 UI 언어입니다."
+	"zenMode.restore": "창이 Zen 모드에서 종료된 경우 Zen 모드로 복원할지 제어합니다."
 }

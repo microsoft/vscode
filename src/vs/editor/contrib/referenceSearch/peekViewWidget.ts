@@ -134,6 +134,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		const actionsContainer = $('.peekview-actions').appendTo(this._headElement);
 		const actionBarOptions = this._getActionBarOptions();
 		this._actionbarWidget = new ActionBar(actionsContainer, actionBarOptions);
+		this._disposables.push(this._actionbarWidget);
 
 		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), 'close-peekview-action', true, () => {
 			this.dispose();

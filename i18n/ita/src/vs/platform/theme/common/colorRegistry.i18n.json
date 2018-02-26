@@ -74,8 +74,6 @@
 	"hoverBackground": "Colore di sfondo dell'area sensibile al passaggio del mouse dell'editor.",
 	"hoverBorder": "Colore del bordo dell'area sensibile al passaggio del mouse dell'editor.",
 	"activeLinkForeground": "Colore dei collegamenti attivi.",
-	"diffEditorInserted": "Colore di sfondo del testo che è stato inserito.",
-	"diffEditorRemoved": "Colore di sfondo del testo che è stato rimosso.",
 	"diffEditorInsertedOutline": "Colore del contorno del testo che è stato inserito.",
 	"diffEditorRemovedOutline": "Colore del contorno del testo che è stato rimosso.",
 	"mergeCurrentHeaderBackground": "Sfondo intestazione corrente in conflitti di merge in linea. Il colore non deve essere opaco per evitare di nascondere le decorazioni sottostanti.",

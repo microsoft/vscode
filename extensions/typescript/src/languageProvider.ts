@@ -125,6 +125,11 @@ export default class LanguageProvider {
 		this.disposables.push(languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/quickFixProvider')).default(client, this.formattingOptionsManager, commandManager, this.diagnosticsManager)));
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/refactorProvider')).default(client, this.formattingOptionsManager, commandManager)));
+
+		if (workspace.getConfiguration('typescript').get('enableExperimentalFolding', false)) {
+			this.disposables.push(languages.registerFoldingProvider(selector, new (await import('./features/folderingProvider')).default(client)));
+		}
+
 		this.registerVersionDependentProviders();
 
 		const cachedResponse = new CachedNavTreeResponse();

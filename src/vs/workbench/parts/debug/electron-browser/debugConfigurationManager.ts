@@ -18,9 +18,9 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import * as extensionsRegistry from 'vs/platform/extensions/common/extensionsRegistry';
+import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -573,6 +573,10 @@ class Launch implements ILaunch {
 		return config.configurations.filter(config => config && config.name === name).shift();
 	}
 
+	protected getWorkspaceForResolving(): IWorkspaceFolder {
+		return this.workspace;
+	}
+
 	public resolveConfiguration(config: IConfig): TPromise<IConfig> {
 		const result = objects.deepClone(config) as IConfig;
 		// Set operating system specific properties #1873
@@ -589,7 +593,7 @@ class Launch implements ILaunch {
 
 		// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
 		Object.keys(result).forEach(key => {
-			result[key] = this.configurationResolverService.resolveAny(this.workspace, result[key]);
+			result[key] = this.configurationResolverService.resolveAny(this.getWorkspaceForResolving(), result[key]);
 		});
 
 		const adapter = this.configurationManager.getAdapter(result.type);
@@ -690,9 +694,18 @@ class UserLaunch extends Launch implements ILaunch {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService);
+	}
+
+	protected getWorkspaceForResolving(): IWorkspaceFolder {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+			return this.contextService.getWorkspace().folders[0];
+		}
+
+		return undefined;
 	}
 
 	get uri(): uri {

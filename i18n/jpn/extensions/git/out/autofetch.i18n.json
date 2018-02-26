@@ -10,5 +10,5 @@
 	"read more": "詳細を参照",
 	"no": "いいえ",
 	"not now": "後で通知する",
-	"suggest auto fetch": "Code が定期的に `git fetch` を実行してもよろしいですか?"
+	"suggest auto fetch": "Code が定期的に 'git fetch' を実行してもよろしいですか?"
 }

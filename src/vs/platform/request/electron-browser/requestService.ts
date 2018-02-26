@@ -43,7 +43,7 @@ export const xhrRequest: IRequestFunction = (options: IRequestOptions): TPromise
 
 					constructor(arraybuffer: ArrayBuffer) {
 						super();
-						this._buffer = new Buffer(new Uint8Array(arraybuffer));
+						this._buffer = Buffer.from(new Uint8Array(arraybuffer));
 						this._offset = 0;
 						this._length = this._buffer.length;
 					}

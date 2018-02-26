@@ -58,16 +58,5 @@
 	"titleBarInactiveForeground": "Color de primer plano de la barra de título cuando la ventana está inactiva. Tenga en cuenta que, actualmente, este color solo se admite en macOS.",
 	"titleBarActiveBackground": "Fondo de la barra de título cuando la ventana está activa. Tenga en cuenta que, actualmente, este color solo se admite en macOS.",
 	"titleBarInactiveBackground": "Color de fondo de la barra de título cuando la ventana está inactiva. Tenga en cuenta que, actualmente, este color solo se admite en macOS.",
-	"titleBarBorder": "Color de borde de la barra de título. Tenga en cuenta que, actualmente, este color se admite solo en macOS.",
-	"notificationsForeground": "Color de primer plano de las notificaciones. Estas se deslizan en la parte superior de la ventana. ",
-	"notificationsBackground": "Color de fondo de las notificaciones. Estas se deslizan en la parte superior de la ventana. ",
-	"notificationsButtonBackground": "Color de fondo del botón de notificaciones. Estas se deslizan en la parte superior de la ventana.",
-	"notificationsButtonHoverBackground": "Color de fondo del botón de notificaciones al desplazar el ratón sobre él. Estas se deslizan en la parte superior de la ventana.",
-	"notificationsButtonForeground": "Color de primer plano del botón de notificaciones. Estas se deslizan en la parte superior de la ventana.",
-	"notificationsInfoBackground": "Color de fondo de la información de notificaciones. Estas se deslizan en la parte superior de la ventana.",
-	"notificationsInfoForeground": "Color de primer plano de la información de notificaciones. Estas se deslizan en la parte superior de la ventana.",
-	"notificationsWarningBackground": "Color de fondo del aviso de notificaciones. Estas se deslizan en la parte superior de la ventana.",
-	"notificationsWarningForeground": "Color de primer plano del aviso de notificaciones. Estas se deslizan en la parte superior de la ventana.",
-	"notificationsErrorBackground": "Color de fondo del error de notificaciones. Estas se deslizan en la parte superior de la ventana.",
-	"notificationsErrorForeground": "Color de primer plano del error de notificaciones. Estas se deslizan en la parte superior de la ventana."
+	"titleBarBorder": "Color de borde de la barra de título. Tenga en cuenta que, actualmente, este color se admite solo en macOS."
 }
