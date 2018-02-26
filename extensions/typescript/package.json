@@ -395,6 +395,11 @@
           "default": null,
           "description": "%typescript.locale%",
           "scope": "window"
+        },
+        "typescript.experimental.syntaxFolding": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.experimental.syntaxFolding%"
         }
       }
     },
