@@ -73,10 +73,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 	}
 
 	public isWslBashTerminal(terminalInstance: ITerminalInstance): boolean {
-		// let shell: IShellLaunchConfig = {};
-		// this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		const expectedLocations = this._getExpectedLocations();
-		// return shell.executable === expectedLocations[this.WSL_BASH][0];
 		return terminalInstance.shellLaunchConfig.executable === expectedLocations[this.WSL_BASH][0];
 	}
 
