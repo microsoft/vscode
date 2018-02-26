@@ -769,23 +769,19 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A reference to one of the theem icon types. Currently [File](#ThemeIcon.File) and [Folder](#ThemeIcon.Folder) are supported.
+	 * A reference to a named icon. Currently only [File](#ThemeIcon.File) and [Folder](#ThemeIcon.Folder) are supported.
+	 * Using a theme icon is preferred over a custom icon as it gives theme authors the possibility to change the icons.
 	 */
 	export class ThemeIcon {
 		/**
-		 * File theme icon
+		 * Reference to a icon representing a file. The icon is taken from the current file icon theme or a placeholder icon.
 		 */
 		static readonly File: ThemeIcon;
 
 		/**
-		 * Folder theme icon
+		 * Reference to a icon representing a folder. The icon is taken from the current file icon theme or a placeholder icon.
 		 */
 		static readonly Folder: ThemeIcon;
-
-		/**
-		 * id of the theme icon
-		 */
-		readonly id: string;
 
 		private constructor(id: string);
 	}
