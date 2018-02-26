@@ -334,7 +334,8 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 		}
 		if (node.resourceUri) {
 			const fileIconTheme = this.themeService.getFileIconTheme();
-			if (node.collapsibleState !== TreeItemCollapsibleState.None) {
+			const isFolder = node.themeIcon ? node.themeIcon.id === FolderThemeIcon.id : node.collapsibleState !== TreeItemCollapsibleState.None;
+			if (isFolder) {
 				return fileIconTheme.hasFileIcons && fileIconTheme.hasFolderIcons;
 			}
 			return fileIconTheme.hasFileIcons;
@@ -509,8 +510,8 @@ class TreeItemIcon extends Disposable {
 			const hasContributedIcon = !!contributedIcon;
 			const hasChildren = this._treeItem.collapsibleState !== TreeItemCollapsibleState.None;
 			const hasResource = !!this._treeItem.resourceUri;
-			const isFolder = hasResource && hasChildren;
-			const isFile = hasResource && !hasChildren;
+			const isFolder = hasResource && this._treeItem.themeIcon ? this._treeItem.themeIcon.id === FolderThemeIcon.id : hasChildren;
+			const isFile = hasResource && this._treeItem.themeIcon ? this._treeItem.themeIcon.id === FileThemeIcon.id : !hasChildren;
 			const hasThemeFolderIcon = isFolder && fileIconTheme.hasFileIcons && fileIconTheme.hasFolderIcons;
 			const hasThemeFileIcon = isFile && fileIconTheme.hasFileIcons;
 			const hasIcon = hasContributedIcon || hasThemeFolderIcon || hasThemeFileIcon;
