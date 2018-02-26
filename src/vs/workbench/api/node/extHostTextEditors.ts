@@ -19,12 +19,14 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 
 	private readonly _onDidChangeTextEditorSelection = new Emitter<vscode.TextEditorSelectionChangeEvent>();
 	private readonly _onDidChangeTextEditorOptions = new Emitter<vscode.TextEditorOptionsChangeEvent>();
+	private readonly _onDidChangeTextEditorVisibleRanges = new Emitter<vscode.TextEditorVisibleRangesChangeEvent>();
 	private readonly _onDidChangeTextEditorViewColumn = new Emitter<vscode.TextEditorViewColumnChangeEvent>();
 	private readonly _onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor | undefined>();
 	private readonly _onDidChangeVisibleTextEditors = new Emitter<vscode.TextEditor[]>();
 
 	readonly onDidChangeTextEditorSelection: Event<vscode.TextEditorSelectionChangeEvent> = this._onDidChangeTextEditorSelection.event;
 	readonly onDidChangeTextEditorOptions: Event<vscode.TextEditorOptionsChangeEvent> = this._onDidChangeTextEditorOptions.event;
+	readonly onDidChangeTextEditorVisibleRanges: Event<vscode.TextEditorVisibleRangesChangeEvent> = this._onDidChangeTextEditorVisibleRanges.event;
 	readonly onDidChangeTextEditorViewColumn: Event<vscode.TextEditorViewColumnChangeEvent> = this._onDidChangeTextEditorViewColumn.event;
 	readonly onDidChangeActiveTextEditor: Event<vscode.TextEditor | undefined> = this._onDidChangeActiveTextEditor.event;
 	readonly onDidChangeVisibleTextEditors: Event<vscode.TextEditor[]> = this._onDidChangeVisibleTextEditors.event;
@@ -124,6 +126,10 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			const selections = data.selections.selections.map(TypeConverters.toSelection);
 			textEditor._acceptSelections(selections);
 		}
+		if (data.visibleRanges) {
+			const visibleRanges = data.visibleRanges.map(TypeConverters.toRange);
+			textEditor._acceptVisibleRanges(visibleRanges);
+		}
 
 		// (2) fire change events
 		if (data.options) {
@@ -139,6 +145,13 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 				textEditor,
 				selections,
 				kind
+			});
+		}
+		if (data.visibleRanges) {
+			const visibleRanges = data.visibleRanges.map(TypeConverters.toRange);
+			this._onDidChangeTextEditorVisibleRanges.fire({
+				textEditor,
+				visibleRanges
 			});
 		}
 	}

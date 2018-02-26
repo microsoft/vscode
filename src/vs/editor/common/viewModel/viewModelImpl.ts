@@ -285,6 +285,51 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		return this.coordinatesConverter.convertViewRangeToModelRange(currentCenteredViewRange);
 	}
 
+	public getVisibleRanges(): Range[] {
+		const visibleViewRange = this.getCompletelyVisibleViewRange();
+		const visibleRange = this.coordinatesConverter.convertViewRangeToModelRange(visibleViewRange);
+		const hiddenAreas = this.lines.getHiddenAreas();
+
+		if (hiddenAreas.length === 0) {
+			return [visibleRange];
+		}
+
+		let result: Range[] = [], resultLen = 0;
+		let startLineNumber = visibleRange.startLineNumber;
+		let startColumn = visibleRange.startColumn;
+		let endLineNumber = visibleRange.endLineNumber;
+		let endColumn = visibleRange.endColumn;
+		for (let i = 0, len = hiddenAreas.length; i < len; i++) {
+			const hiddenStartLineNumber = hiddenAreas[i].startLineNumber;
+			const hiddenEndLineNumber = hiddenAreas[i].endLineNumber;
+
+			if (hiddenEndLineNumber < startLineNumber) {
+				continue;
+			}
+			if (hiddenStartLineNumber > endLineNumber) {
+				continue;
+			}
+
+			if (startLineNumber < hiddenStartLineNumber) {
+				result[resultLen++] = new Range(
+					startLineNumber, startColumn,
+					hiddenStartLineNumber - 1, this.model.getLineMaxColumn(hiddenStartLineNumber - 1)
+				);
+			}
+			startLineNumber = hiddenEndLineNumber + 1;
+			startColumn = 1;
+		}
+
+		if (startLineNumber < endLineNumber || (startLineNumber === endLineNumber && startColumn < endColumn)) {
+			result[resultLen++] = new Range(
+				startLineNumber, startColumn,
+				endLineNumber, endColumn
+			);
+		}
+
+		return result;
+	}
+
 	public getCompletelyVisibleViewRange(): Range {
 		const partialData = this.viewLayout.getLinesViewportData();
 		const startViewLineNumber = partialData.completelyVisibleStartLineNumber;

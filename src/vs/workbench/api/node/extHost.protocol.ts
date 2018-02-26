@@ -508,6 +508,7 @@ export interface ITextEditorAddData {
 	documentUri: UriComponents;
 	options: IResolvedTextEditorConfiguration;
 	selections: ISelection[];
+	visibleRanges: IRange[];
 	editorPosition: EditorPosition;
 }
 export interface ITextEditorPositionData {
@@ -516,6 +517,7 @@ export interface ITextEditorPositionData {
 export interface IEditorPropertiesChangeData {
 	options: IResolvedTextEditorConfiguration | null;
 	selections: ISelectionChangeEvent | null;
+	visibleRanges: IRange[] | null;
 }
 export interface ISelectionChangeEvent {
 	selections: Selection[];

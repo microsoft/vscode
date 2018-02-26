@@ -68,6 +68,7 @@ export interface IViewModelLinesCollection {
 
 	setWrappingSettings(wrappingIndent: WrappingIndent, wrappingColumn: number, columnsForFullWidthChar: number): boolean;
 	setTabSize(newTabSize: number): boolean;
+	getHiddenAreas(): Range[];
 	setHiddenAreas(_ranges: Range[]): boolean;
 
 	onModelFlushed(): void;
@@ -219,10 +220,10 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		this.prefixSumComputer = new PrefixSumComputerWithCache(values);
 	}
 
-	private getHiddenAreas(): Range[] {
+	public getHiddenAreas(): Range[] {
 		return this.hiddenAreasIds.map((decId) => {
 			return this.model.getDecorationRange(decId);
-		}).sort(Range.compareRangesUsingStarts);
+		});
 	}
 
 	private _reduceRanges(_ranges: Range[]): Range[] {
@@ -1138,6 +1139,10 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 
 	public createCoordinatesConverter(): ICoordinatesConverter {
 		return new IdentityCoordinatesConverter(this);
+	}
+
+	public getHiddenAreas(): Range[] {
+		return [];
 	}
 
 	public setHiddenAreas(_ranges: Range[]): boolean {

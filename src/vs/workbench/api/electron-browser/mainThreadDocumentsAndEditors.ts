@@ -415,6 +415,7 @@ export class MainThreadDocumentsAndEditors {
 			documentUri: textEditor.getModel().uri,
 			options: props.options,
 			selections: props.selections,
+			visibleRanges: props.visibleRanges,
 			editorPosition: this._findEditorPosition(textEditor)
 		};
 	}

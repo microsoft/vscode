@@ -28,7 +28,8 @@ export class MainThreadTextEditorProperties {
 	public static readFromEditor(previousProperties: MainThreadTextEditorProperties, model: ITextModel, codeEditor: ICodeEditor): MainThreadTextEditorProperties {
 		const selections = MainThreadTextEditorProperties._readSelectionsFromCodeEditor(previousProperties, codeEditor);
 		const options = MainThreadTextEditorProperties._readOptionsFromCodeEditor(previousProperties, model, codeEditor);
-		return new MainThreadTextEditorProperties(selections, options);
+		const visibleRanges = MainThreadTextEditorProperties._readVisibleRangesFromCodeEditor(previousProperties, codeEditor);
+		return new MainThreadTextEditorProperties(selections, options, visibleRanges);
 	}
 
 	private static _readSelectionsFromCodeEditor(previousProperties: MainThreadTextEditorProperties, codeEditor: ICodeEditor): Selection[] {
@@ -81,16 +82,25 @@ export class MainThreadTextEditorProperties {
 		};
 	}
 
+	private static _readVisibleRangesFromCodeEditor(previousProperties: MainThreadTextEditorProperties, codeEditor: ICodeEditor): Range[] {
+		if (codeEditor) {
+			return codeEditor.getVisibleRanges();
+		}
+		return [];
+	}
+
 	constructor(
 		public readonly selections: Selection[],
-		public readonly options: IResolvedTextEditorConfiguration
+		public readonly options: IResolvedTextEditorConfiguration,
+		public readonly visibleRanges: Range[]
 	) {
 	}
 
 	public generateDelta(oldProps: MainThreadTextEditorProperties, selectionChangeSource: string): IEditorPropertiesChangeData {
-		let delta = {
+		let delta: IEditorPropertiesChangeData = {
 			options: null,
-			selections: null
+			selections: null,
+			visibleRanges: null
 		};
 
 		if (!oldProps || !MainThreadTextEditorProperties._selectionsEqual(oldProps.selections, this.selections)) {
@@ -102,6 +112,10 @@ export class MainThreadTextEditorProperties {
 
 		if (!oldProps || !MainThreadTextEditorProperties._optionsEqual(oldProps.options, this.options)) {
 			delta.options = this.options;
+		}
+
+		if (!oldProps || !MainThreadTextEditorProperties._rangesEqual(oldProps.visibleRanges, this.visibleRanges)) {
+			delta.visibleRanges = this.visibleRanges;
 		}
 
 		if (delta.selections || delta.options) {
@@ -118,6 +132,18 @@ export class MainThreadTextEditorProperties {
 		}
 		for (let i = 0; i < a.length; i++) {
 			if (!a[i].equalsSelection(b[i])) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private static _rangesEqual(a: Range[], b: Range[]): boolean {
+		if (a.length !== b.length) {
+			return false;
+		}
+		for (let i = 0; i < a.length; i++) {
+			if (!a[i].equalsRange(b[i])) {
 				return false;
 			}
 		}
@@ -244,9 +270,19 @@ export class MainThreadTextEditor {
 			}));
 
 			this._codeEditorListeners.push(this._codeEditor.onDidChangeCursorSelection((e) => {
+				// selection
 				this._updatePropertiesNow(e.source);
 			}));
 			this._codeEditorListeners.push(this._codeEditor.onDidChangeConfiguration(() => {
+				// options
+				this._updatePropertiesNow(null);
+			}));
+			this._codeEditorListeners.push(this._codeEditor.onDidLayoutChange(() => {
+				// visibleRanges
+				this._updatePropertiesNow(null);
+			}));
+			this._codeEditorListeners.push(this._codeEditor.onDidScrollChange(() => {
+				// visibleRanges
 				this._updatePropertiesNow(null);
 			}));
 			this._updatePropertiesNow(null);
@@ -273,7 +309,7 @@ export class MainThreadTextEditor {
 
 		const newSelections = selections.map(Selection.liftSelection);
 		this._setProperties(
-			new MainThreadTextEditorProperties(newSelections, this._properties.options),
+			new MainThreadTextEditorProperties(newSelections, this._properties.options, this._properties.visibleRanges),
 			null
 		);
 	}
