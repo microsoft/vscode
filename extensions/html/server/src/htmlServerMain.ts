@@ -277,7 +277,7 @@ connection.onCompletion(async textDocumentPosition => {
 		cachedCompletionList = null;
 		let emmetCompletionList: CompletionList = {
 			isIncomplete: true,
-			items: []
+			items: undefined
 		};
 		let pathCompletionList: CompletionList = {
 			isIncomplete: false,
@@ -293,14 +293,16 @@ connection.onCompletion(async textDocumentPosition => {
 
 		let settings = await getDocumentSettings(document, () => mode.doComplete.length > 2);
 		let result = mode.doComplete(document, textDocumentPosition.position, settings);
+		result.items = [...pathCompletionList.items, ...result.items];
 		if (emmetCompletionList && emmetCompletionList.items) {
 			cachedCompletionList = result;
 			if (emmetCompletionList.items.length && hexColorRegex.test(emmetCompletionList.items[0].label) && result.items.some(x => x.label === emmetCompletionList.items[0].label)) {
 				emmetCompletionList.items.shift();
 			}
-			return { isIncomplete: true, items: [...emmetCompletionList.items, ...pathCompletionList.items, ...result.items] };
+			return { isIncomplete: true, items: [...emmetCompletionList.items, ...result.items] };
 		}
-		return { isIncomplete: false, items: [...pathCompletionList.items, ...result.items] };
+		return result;
+
 	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`);
 });
 
