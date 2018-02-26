@@ -112,7 +112,7 @@
     "source-map": "^0.4.4",
     "tslint": "^5.9.1",
     "typescript": "2.7.2",
-    "typescript-formatter": "4.0.1",
+    "typescript-formatter": "7.1.0",
     "uglify-es": "^3.0.18",
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5",
