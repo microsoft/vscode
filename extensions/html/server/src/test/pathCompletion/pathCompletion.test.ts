@@ -7,16 +7,17 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import { providePathSuggestions } from '../../modes/pathCompletion';
-import { CompletionItemKind } from 'vscode-languageserver/lib/main';
+import { CompletionItemKind, Range, Position } from 'vscode-languageserver-types';
 
 const fixtureRoot = path.resolve(__dirname, '../../../test/pathCompletionFixtures');
 
 suite('Path Completion - Relative Path', () => {
+	const mockRange = Range.create(Position.create(0, 3), Position.create(0, 5));
 
 	test('Current Folder', () => {
 		const value = './';
 		const activeFileFsPath = path.resolve(fixtureRoot, 'index.html');
-		const suggestions = providePathSuggestions(value, activeFileFsPath);
+		const suggestions = providePathSuggestions(value, mockRange, activeFileFsPath);
 
 		assert.equal(suggestions.length, 3);
 		assert.equal(suggestions[0].label, 'about');
@@ -31,7 +32,7 @@ suite('Path Completion - Relative Path', () => {
 	test('Parent Folder', () => {
 		const value = '../';
 		const activeFileFsPath = path.resolve(fixtureRoot, 'about/about.html');
-		const suggestions = providePathSuggestions(value, activeFileFsPath);
+		const suggestions = providePathSuggestions(value, mockRange, activeFileFsPath);
 
 		assert.equal(suggestions.length, 3);
 		assert.equal(suggestions[0].label, 'about');
@@ -46,7 +47,7 @@ suite('Path Completion - Relative Path', () => {
 	test('Adjacent Folder', () => {
 		const value = '../src/';
 		const activeFileFsPath = path.resolve(fixtureRoot, 'about/about.html');
-		const suggestions = providePathSuggestions(value, activeFileFsPath);
+		const suggestions = providePathSuggestions(value, mockRange, activeFileFsPath);
 
 		assert.equal(suggestions.length, 2);
 		assert.equal(suggestions[0].label, 'feature.js');
@@ -60,13 +61,15 @@ suite('Path Completion - Relative Path', () => {
 });
 
 suite('Path Completion - Absolute Path', () => {
+	const mockRange = Range.create(Position.create(0, 3), Position.create(0, 5));
+
 	test('Root', () => {
 		const value = '/';
 		const activeFileFsPath1 = path.resolve(fixtureRoot, 'index.html');
 		const activeFileFsPath2 = path.resolve(fixtureRoot, 'about/index.html');
 
-		const suggestions1 = providePathSuggestions(value, activeFileFsPath1, fixtureRoot); 
-		const suggestions2 = providePathSuggestions(value, activeFileFsPath2, fixtureRoot); 
+		const suggestions1 = providePathSuggestions(value, mockRange, activeFileFsPath1, fixtureRoot); 
+		const suggestions2 = providePathSuggestions(value, mockRange, activeFileFsPath2, fixtureRoot); 
 
 		const verify = (suggestions) => {
 			assert.equal(suggestions[0].label, 'about');
@@ -85,7 +88,7 @@ suite('Path Completion - Absolute Path', () => {
 	test('Sub Folder', () => {
 		const value = '/src/';
 		const activeFileFsPath = path.resolve(fixtureRoot, 'about/about.html');
-		const suggestions = providePathSuggestions(value, activeFileFsPath, fixtureRoot);
+		const suggestions = providePathSuggestions(value, mockRange, activeFileFsPath, fixtureRoot);
 
 		assert.equal(suggestions.length, 2);
 		assert.equal(suggestions[0].label, 'feature.js');
@@ -97,10 +100,12 @@ suite('Path Completion - Absolute Path', () => {
 });
 
 suite('Path Completion - Incomplete Path at End', () => {
+	const mockRange = Range.create(Position.create(0, 3), Position.create(0, 5));
+
 	test('Incomplete Path that starts with slash', () => {
 		const value = '/src/f';
 		const activeFileFsPath = path.resolve(fixtureRoot, 'about/about.html');
-		const suggestions = providePathSuggestions(value, activeFileFsPath, fixtureRoot);
+		const suggestions = providePathSuggestions(value, mockRange, activeFileFsPath, fixtureRoot);
 
 		assert.equal(suggestions.length, 2);
 		assert.equal(suggestions[0].label, 'feature.js');
@@ -113,7 +118,7 @@ suite('Path Completion - Incomplete Path at End', () => {
 	test('Incomplete Path that does not start with slash', () => {
 		const value = '../src/f';
 		const activeFileFsPath = path.resolve(fixtureRoot, 'about/about.html');
-		const suggestions = providePathSuggestions(value, activeFileFsPath, fixtureRoot);
+		const suggestions = providePathSuggestions(value, mockRange, activeFileFsPath, fixtureRoot);
 
 		assert.equal(suggestions.length, 2);
 		assert.equal(suggestions[0].label, 'feature.js');
@@ -123,3 +128,21 @@ suite('Path Completion - Incomplete Path at End', () => {
 		assert.equal(suggestions[1].kind, CompletionItemKind.File);
 	}); 
 });
+
+suite('Path Completion - TextEdit', () => {
+	test('TextEdit has correct replace text and range', () => {
+		const value = './';
+		const activeFileFsPath = path.resolve(fixtureRoot, 'index.html');
+		const range = Range.create(Position.create(0, 3), Position.create(0, 5));
+		const suggestions = providePathSuggestions(value, range, activeFileFsPath); 
+		
+		assert.equal(suggestions[0].textEdit.newText, 'about');
+		assert.equal(suggestions[1].textEdit.newText, 'index.html');
+		assert.equal(suggestions[2].textEdit.newText, 'src');
+
+		assert.equal(suggestions[0].textEdit.range.start.character, 5);
+		assert.equal(suggestions[1].textEdit.range.start.character, 5);
+		assert.equal(suggestions[2].textEdit.range.start.character, 5);
+	});
+});
+

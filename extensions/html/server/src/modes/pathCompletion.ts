@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TextDocument, CompletionList, CompletionItemKind, CompletionItem } from 'vscode-languageserver-types';
+import { TextDocument, CompletionList, CompletionItemKind, CompletionItem, TextEdit, Range, Position } from 'vscode-languageserver-types';
 import { WorkspaceFolder } from 'vscode-languageserver-protocol/lib/protocol.workspaceFolders.proposed';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -32,7 +32,7 @@ export function getPathCompletionParticipant(
 					workspaceRoot = resolveWorkspaceRoot(document, workspaceFolders);
 				}
 
-				const suggestions = providePathSuggestions(value, URI.parse(document.uri).fsPath, workspaceRoot);
+				const suggestions = providePathSuggestions(value, range, URI.parse(document.uri).fsPath, workspaceRoot);
 				result.items = [...suggestions, ...result.items];
 			}
 		}
@@ -55,7 +55,7 @@ function shouldDoPathCompletion(tag: string, attr: string, value: string): boole
 	return false;
 }
 
-export function providePathSuggestions(value: string, activeDocFsPath: string, root?: string): CompletionItem[] {
+export function providePathSuggestions(value: string, range: Range, activeDocFsPath: string, root?: string): CompletionItem[] {
 	if (value.indexOf('/') === -1) {
 		return [];
 	}
@@ -65,8 +65,8 @@ export function providePathSuggestions(value: string, activeDocFsPath: string, r
 	}
 
 	const lastIndexOfSlash = value.lastIndexOf('/');
-	const valueAfterLastSlash = value.slice(lastIndexOfSlash + 1);
 	const valueBeforeLastSlash = value.slice(0, lastIndexOfSlash + 1);
+	const valueAfterLastSlash = value.slice(lastIndexOfSlash + 1);
 	const parentDir = startsWith(value, '/')
 		? path.resolve(root, '.' + valueBeforeLastSlash)
 		: path.resolve(activeDocFsPath, '..', valueBeforeLastSlash);
@@ -75,11 +75,13 @@ export function providePathSuggestions(value: string, activeDocFsPath: string, r
 		return [];
 	}
 
+	const replaceRange = Range.create(Position.create(range.end.line, range.end.character - valueAfterLastSlash.length), range.end);
+
 	return fs.readdirSync(parentDir).map(f => {
 		return {
 			label: f,
 			kind: isDir(path.resolve(parentDir, f)) ? CompletionItemKind.Folder : CompletionItemKind.File,
-			insertText: f.slice(valueAfterLastSlash.length)
+			textEdit: TextEdit.replace(replaceRange, f)
 		};
 	});
 }
