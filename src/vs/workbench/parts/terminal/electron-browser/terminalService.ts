@@ -72,11 +72,12 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		return instance;
 	}
 
-	public isWslBashDefaultTerminal(): boolean {
-		let shell: IShellLaunchConfig = {};
-		this._configHelper.mergeDefaultShellPathAndArgs(shell);
+	public isWslBashTerminal(terminalInstance: ITerminalInstance): boolean {
+		// let shell: IShellLaunchConfig = {};
+		// this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		const expectedLocations = this._getExpectedLocations();
-		return shell.executable === expectedLocations[this.WSL_BASH][0];
+		// return shell.executable === expectedLocations[this.WSL_BASH][0];
+		return terminalInstance.shellLaunchConfig.executable === expectedLocations[this.WSL_BASH][0];
 	}
 
 	public focusFindWidget(): TPromise<void> {

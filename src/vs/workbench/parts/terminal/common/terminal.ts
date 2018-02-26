@@ -182,7 +182,7 @@ export interface ITerminalService {
 	selectDefaultWindowsShell(): TPromise<string>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 
-	isWslBashDefaultTerminal(): boolean;
+	isWslBashTerminal(terminalInstance: ITerminalInstance): boolean;
 }
 
 export const enum Direction {

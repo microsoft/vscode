@@ -582,9 +582,10 @@ export class RunActiveFileInTerminalAction extends Action {
 			return TPromise.as(void 0);
 		}
 
-		let filePath = this.terminalService.isWslBashDefaultTerminal() ? uri.path.replace(/([A-Za-z]):/, (m, g) => `mnt/${g.toLocaleLowerCase()}`) : uri.fsPath;
+		const filePath = this.terminalService.isWslBashTerminal(instance) ?
+			uri.path.replace(/([A-Za-z]):/, (m, g) => `mnt/${g.toLocaleLowerCase()}`) :
+			uri.fsPath;
 		instance.sendText(`"${filePath}"`, true);
-
 		return this.terminalService.showPanel();
 	}
 }
