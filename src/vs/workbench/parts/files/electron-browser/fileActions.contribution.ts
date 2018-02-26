@@ -309,7 +309,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	order: 30,
 	command: {
 		id: CLOSE_UNMODIFIED_EDITORS_COMMAND_ID,
-		title: nls.localize('closeUnmodified', "Close Unmodified")
+		title: nls.localize('closeSaved', "Close Saved")
 	}
 });
 

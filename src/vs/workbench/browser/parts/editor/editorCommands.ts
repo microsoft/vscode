@@ -23,7 +23,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct } from 'vs/base/common/arrays';
 
-export const CLOSE_UNMODIFIED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
+export const CLOSE_UNMODIFIED_EDITORS_COMMAND_ID = 'workbench.action.closeSavedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
 export const CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID = 'workbench.action.closeEditorsToTheRight';
 export const CLOSE_EDITOR_COMMAND_ID = 'workbench.action.closeActiveEditor';
@@ -279,14 +279,14 @@ function registerEditorCommands() {
 				contexts.push({ groupId: model.activeGroup.id });
 			}
 
-			let positionOne: { unmodifiedOnly: boolean } = void 0;
-			let positionTwo: { unmodifiedOnly: boolean } = void 0;
-			let positionThree: { unmodifiedOnly: boolean } = void 0;
+			let positionOne: { savedOnly: boolean } = void 0;
+			let positionTwo: { savedOnly: boolean } = void 0;
+			let positionThree: { savedOnly: boolean } = void 0;
 			contexts.forEach(c => {
 				switch (model.positionOfGroup(model.getGroup(c.groupId))) {
-					case Position.ONE: positionOne = { unmodifiedOnly: true }; break;
-					case Position.TWO: positionTwo = { unmodifiedOnly: true }; break;
-					case Position.THREE: positionThree = { unmodifiedOnly: true }; break;
+					case Position.ONE: positionOne = { savedOnly: true }; break;
+					case Position.TWO: positionTwo = { savedOnly: true }; break;
+					case Position.THREE: positionThree = { savedOnly: true }; break;
 				}
 			});
 
