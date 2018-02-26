@@ -14,6 +14,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export class ClearNotificationAction extends Action {
 
@@ -130,6 +131,26 @@ export class ConfigureNotificationAction extends Action {
 
 	public get configurationActions(): IAction[] {
 		return this._configurationActions;
+	}
+}
+
+export class CopyNotificationMessageAction extends Action {
+
+	public static readonly ID = 'workbench.action.copyNotificationMessage';
+	public static readonly LABEL = localize('copyNotification', "Copy Text");
+
+	constructor(
+		id: string,
+		label: string,
+		@IClipboardService private clipboardService: IClipboardService
+	) {
+		super(id, label);
+	}
+
+	public run(notification: INotificationViewItem): TPromise<any> {
+		this.clipboardService.writeText(notification.message.raw);
+
+		return TPromise.as(void 0);
 	}
 }
 

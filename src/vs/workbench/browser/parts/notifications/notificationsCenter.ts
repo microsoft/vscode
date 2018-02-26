@@ -22,7 +22,7 @@ import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { localize } from 'vs/nls';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ClearAllNotificationsAction, HideNotificationsCenterAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
+import { ClearAllNotificationsAction, HideNotificationsCenterAction, NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IAction } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
@@ -128,7 +128,13 @@ export class NotificationsCenter extends Themable {
 		addClass(toolbarContainer, 'notifications-center-header-toolbar');
 		this.notificationsCenterHeader.appendChild(toolbarContainer);
 
-		const notificationsToolBar = new ActionBar(toolbarContainer, { ariaLabel: localize('notificationsToolbar', "Notification Center Actions") });
+		const actionRunner = this.instantiationService.createInstance(NotificationActionRunner);
+		this.toUnbind.push(actionRunner);
+
+		const notificationsToolBar = new ActionBar(toolbarContainer, {
+			ariaLabel: localize('notificationsToolbar', "Notification Center Actions"),
+			actionRunner
+		});
 		this.toUnbind.push(notificationsToolBar);
 
 		const hideAllAction = this.instantiationService.createInstance(HideNotificationsCenterAction, HideNotificationsCenterAction.ID, HideNotificationsCenterAction.LABEL);

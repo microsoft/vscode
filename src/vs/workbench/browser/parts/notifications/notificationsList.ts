@@ -15,8 +15,10 @@ import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector }
 import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
-import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
+import { NotificationActionRunner, CopyNotificationMessageAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { NotificationFocusedContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export class NotificationsList extends Themable {
 	private listContainer: HTMLElement;
@@ -28,7 +30,8 @@ export class NotificationsList extends Themable {
 		private container: HTMLElement,
 		private options: IListOptions<INotificationViewItem>,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		super(themeService);
 
@@ -64,8 +67,11 @@ export class NotificationsList extends Themable {
 		this.listContainer = document.createElement('div');
 		addClass(this.listContainer, 'notifications-list-container');
 
+		const actionRunner = this.instantiationService.createInstance(NotificationActionRunner);
+		this.toUnbind.push(actionRunner);
+
 		// Notification Renderer
-		const renderer = this.instantiationService.createInstance(NotificationRenderer, this.instantiationService.createInstance(NotificationActionRunner));
+		const renderer = this.instantiationService.createInstance(NotificationRenderer, actionRunner);
 
 		// List
 		this.list = this.instantiationService.createInstance(
@@ -77,13 +83,29 @@ export class NotificationsList extends Themable {
 		);
 		this.toUnbind.push(this.list);
 
+		// Context menu to copy message
+		const copyAction = this.instantiationService.createInstance(CopyNotificationMessageAction, CopyNotificationMessageAction.ID, CopyNotificationMessageAction.LABEL);
+		this.toUnbind.push(copyAction);
+		this.toUnbind.push(this.list.onContextMenu(e => {
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => TPromise.as([copyAction]),
+				getActionsContext: () => e.element,
+				actionRunner
+			});
+		}));
+
 		// Toggle on double click
 		this.toUnbind.push(this.list.onMouseDblClick(event => (event.element as INotificationViewItem).toggle()));
 
 		// Clear focus when DOM focus moves out
+		// Use document.hasFocus() to not clear the focus when the entire window lost focus
+		// This ensures that when the focus comes back, the notifciation is still focused
 		const listFocusTracker = trackFocus(this.list.getHTMLElement());
 		listFocusTracker.onDidBlur(() => {
-			this.list.setFocus([]);
+			if (document.hasFocus()) {
+				this.list.setFocus([]);
+			}
 		});
 		this.toUnbind.push(listFocusTracker);
 
