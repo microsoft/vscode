@@ -25,6 +25,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -242,6 +243,14 @@ export class CreateNewTerminalAction extends Action {
 
 	public run(event?: any): TPromise<any> {
 		const folders = this.workspaceContextService.getWorkspace().folders;
+		const mouseEvent = new StandardMouseEvent(event);
+		if (mouseEvent && (mouseEvent.altKey || mouseEvent.ctrlKey)) {
+			const activeInstance = this.terminalService.getActiveInstance();
+			if (activeInstance) {
+				this.terminalService.splitInstance(activeInstance);
+				return TPromise.as(null);
+			}
+		}
 
 		let instancePromise: TPromise<ITerminalInstance>;
 		if (folders.length <= 1) {
