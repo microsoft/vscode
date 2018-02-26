@@ -33,13 +33,17 @@ export class MainThreadTextEditorProperties {
 	}
 
 	private static _readSelectionsFromCodeEditor(previousProperties: MainThreadTextEditorProperties, codeEditor: ICodeEditor): Selection[] {
+		let result: Selection[] = null;
 		if (codeEditor) {
-			return codeEditor.getSelections();
+			result = codeEditor.getSelections();
 		}
-		if (previousProperties) {
-			return previousProperties.selections;
+		if (!result && previousProperties) {
+			result = previousProperties.selections;
 		}
-		return [new Selection(1, 1, 1, 1)];
+		if (!result) {
+			result = [new Selection(1, 1, 1, 1)];
+		}
+		return result;
 	}
 
 	private static _readOptionsFromCodeEditor(previousProperties: MainThreadTextEditorProperties, model: ITextModel, codeEditor: ICodeEditor): IResolvedTextEditorConfiguration {
