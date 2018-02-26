@@ -687,8 +687,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		const message = localize('ignoreExtensionRecommendations', "Do you want to ignore all extension recommendations?");
 		const options = [
 			localize('ignoreAll', "Yes, Ignore All"),
-			localize('no', "No"),
-			localize('cancel', "Cancel")
+			localize('no', "No")
 		];
 
 		this.choiceService.choose(Severity.Info, message, options).done(choice => {
