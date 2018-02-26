@@ -5569,9 +5569,7 @@ declare module "assert" {
             });
         }
 
-        // ### BEGIN VSCODE MODIFICATION ###
-        export function fail(message?: any): void;
-        // ### END VSCODE MODIFICATION ###
+        export function fail(message: string): void;
         export function fail(actual: any, expected: any, message?: string, operator?: string): void;
         export function ok(value: any, message?: string): void;
         export function equal(actual: any, expected: any, message?: string): void;

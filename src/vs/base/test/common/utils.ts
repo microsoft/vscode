@@ -81,7 +81,7 @@ export class DeferredPPromise<C, P> extends PPromise<C, P> {
 }
 
 export function onError(error: Error, done: () => void): void {
-	assert.fail(error);
+	assert.fail(error.toString());
 	done();
 }
 

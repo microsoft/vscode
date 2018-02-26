@@ -110,7 +110,7 @@ suite('SearchService', () => {
 					assert.deepStrictEqual(value, match);
 					results++;
 				} else {
-					assert.fail(value);
+					assert.fail(JSON.stringify(value));
 				}
 			});
 	});
@@ -132,7 +132,7 @@ suite('SearchService', () => {
 					});
 					results.push(value.length);
 				} else {
-					assert.fail(value);
+					assert.fail(JSON.stringify(value));
 				}
 			});
 	});
@@ -219,7 +219,7 @@ suite('SearchService', () => {
 			if (Array.isArray(value)) {
 				results.push(...value.map(v => v.path));
 			} else {
-				assert.fail(value);
+				assert.fail(JSON.stringify(value));
 			}
 		});
 	});
@@ -246,7 +246,7 @@ suite('SearchService', () => {
 					});
 					results.push(value.length);
 				} else {
-					assert.fail(value);
+					assert.fail(JSON.stringify(value));
 				}
 			});
 	});
@@ -276,7 +276,7 @@ suite('SearchService', () => {
 			if (Array.isArray(value)) {
 				results.push(...value.map(v => v.path));
 			} else {
-				assert.fail(value);
+				assert.fail(JSON.stringify(value));
 			}
 		}).then(() => {
 			const results = [];
@@ -292,7 +292,7 @@ suite('SearchService', () => {
 				if (Array.isArray(value)) {
 					results.push(...value.map(v => v.path));
 				} else {
-					assert.fail(value);
+					assert.fail(JSON.stringify(value));
 				}
 			});
 		}).then(() => {
@@ -317,7 +317,7 @@ suite('SearchService', () => {
 				if (Array.isArray(value)) {
 					results.push(...value.map(v => v.path));
 				} else {
-					assert.fail(value);
+					assert.fail(JSON.stringify(value));
 				}
 			});
 		});
