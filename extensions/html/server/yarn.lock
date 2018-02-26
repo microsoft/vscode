@@ -2,9 +2,9 @@
 # yarn lockfile v1
 
 
-"@emmetio/extract-abbreviation@^0.1.4":
-  version "0.1.4"
-  resolved "https://registry.yarnpkg.com/@emmetio/extract-abbreviation/-/extract-abbreviation-0.1.4.tgz#f5be070db97901ecc37e5204f2ace68242cdcefa"
+"@emmetio/extract-abbreviation@0.1.6":
+  version "0.1.6"
+  resolved "https://registry.yarnpkg.com/@emmetio/extract-abbreviation/-/extract-abbreviation-0.1.6.tgz#e4a9856c1057f0aff7d443b8536477c243abe28c"
 
 "@types/mocha@2.2.33":
   version "2.2.33"
@@ -25,11 +25,11 @@ vscode-css-languageservice@^3.0.6:
     vscode-languageserver-types "^3.6.0-next.1"
     vscode-nls "^2.0.1"
 
-vscode-emmet-helper@^1.1.34:
-  version "1.1.35"
-  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-1.1.35.tgz#1a704811d573df55cb313e232d5b2e6ea6dca96c"
+vscode-emmet-helper@^1.1.37:
+  version "1.1.37"
+  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-1.1.37.tgz#239636ec559d98b23994394028dd1535f49e8a53"
   dependencies:
-    "@emmetio/extract-abbreviation" "^0.1.4"
+    "@emmetio/extract-abbreviation" "0.1.6"
     jsonc-parser "^1.0.0"
     vscode-languageserver-types "^3.6.0-next.1"
 
