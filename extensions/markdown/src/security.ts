@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 
-import { getMarkdownUri, MarkdownPreviewWebviewManager } from './features/previewContentProvider';
+import { MarkdownPreviewManager } from './features/previewContentProvider';
 
 import * as nls from 'vscode-nls';
 
@@ -90,7 +90,7 @@ export class PreviewSecuritySelector {
 
 	public constructor(
 		private cspArbiter: ContentSecurityPolicyArbiter,
-		private webviewManager: MarkdownPreviewWebviewManager
+		private webviewManager: MarkdownPreviewManager
 	) { }
 
 	public async showSecutitySelectorForResource(resource: vscode.Uri): Promise<void> {
@@ -143,15 +143,12 @@ export class PreviewSecuritySelector {
 			return;
 		}
 
-		const sourceUri = getMarkdownUri(resource);
 		if (selection.type === 'toggle') {
 			this.cspArbiter.setShouldDisableSecurityWarning(!this.cspArbiter.shouldDisableSecurityWarnings());
-			this.webviewManager.update(sourceUri);
 			return;
+		} else {
+			await this.cspArbiter.setSecurityLevelForResource(resource, selection.type);
 		}
-
-		await this.cspArbiter.setSecurityLevelForResource(resource, selection.type);
-
-		this.webviewManager.update(sourceUri);
+		this.webviewManager.refresh();
 	}
 }

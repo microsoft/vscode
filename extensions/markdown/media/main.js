@@ -146,7 +146,7 @@
 			} else {
 				scrollTo = previous.element.getBoundingClientRect().top;
 			}
-			window.scroll(0, window.scrollY + scrollTo + getSourceRevealAddedOffset());
+			window.scroll(0, Math.max(1, window.scrollY + scrollTo + getSourceRevealAddedOffset()));
 		}
 	}
 
@@ -193,13 +193,13 @@
 
 	function onLoad() {
 		if (settings.scrollPreviewWithEditorSelection) {
-			const initialLine = +settings.line;
-			if (!isNaN(initialLine)) {
-				setTimeout(() => {
+			setTimeout(() => {
+				const initialLine = +settings.line;
+				if (!isNaN(initialLine)) {
 					scrollDisabled = true;
 					scrollToRevealSourceLine(initialLine);
-				}, 0);
-			}
+				}
+			}, 0);
 		}
 	}
 
@@ -220,8 +220,13 @@
 			scrollToRevealSourceLine(line);
 		}, 50);
 		return event => {
+			if (event.data.source !== settings.source) {
+				return;
+			}
+
 			const line = +event.data.line;
 			if (!isNaN(line)) {
+				settings.line = line;
 				doScroll(line);
 			}
 		};

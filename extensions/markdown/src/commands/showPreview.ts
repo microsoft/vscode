@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 
 import { Command } from '../commandManager';
-import { MarkdownPreviewWebviewManager, } from '../features/previewContentProvider';
+import { MarkdownPreviewManager, } from '../features/previewContentProvider';
 import { TelemetryReporter } from '../telemetryReporter';
 
 
@@ -30,12 +30,12 @@ function getViewColumn(sideBySide: boolean): vscode.ViewColumn | undefined {
 	return active.viewColumn;
 }
 
-function showPreview(
-	webviewManager: MarkdownPreviewWebviewManager,
+async function showPreview(
+	webviewManager: MarkdownPreviewManager,
 	telemetryReporter: TelemetryReporter,
 	uri?: vscode.Uri,
 	sideBySide: boolean = false,
-) {
+): Promise<any> {
 	let resource = uri;
 	if (!(resource instanceof vscode.Uri)) {
 		if (vscode.window.activeTextEditor) {
@@ -53,23 +53,22 @@ function showPreview(
 		return;
 	}
 
-	const view = webviewManager.create(
+	webviewManager.preview(
 		resource,
+		(vscode.window.activeTextEditor && vscode.window.activeTextEditor.viewColumn) || vscode.ViewColumn.One,
 		getViewColumn(sideBySide) || vscode.ViewColumn.Active);
 
 	telemetryReporter.sendTelemetryEvent('openPreview', {
 		where: sideBySide ? 'sideBySide' : 'inPlace',
 		how: (uri instanceof vscode.Uri) ? 'action' : 'pallete'
 	});
-
-	return view;
 }
 
 export class ShowPreviewCommand implements Command {
 	public readonly id = 'markdown.showPreview';
 
 	public constructor(
-		private readonly webviewManager: MarkdownPreviewWebviewManager,
+		private readonly webviewManager: MarkdownPreviewManager,
 		private readonly telemetryReporter: TelemetryReporter
 	) { }
 
@@ -84,7 +83,7 @@ export class ShowPreviewToSideCommand implements Command {
 	public readonly id = 'markdown.showPreviewToSide';
 
 	public constructor(
-		private readonly webviewManager: MarkdownPreviewWebviewManager,
+		private readonly webviewManager: MarkdownPreviewManager,
 		private readonly telemetryReporter: TelemetryReporter
 	) { }
 

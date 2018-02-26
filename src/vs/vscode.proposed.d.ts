@@ -513,19 +513,31 @@ declare module 'vscode' {
 	 */
 	export interface Webview {
 		/**
-		 * Title of the webview.
+		 * Type identifying the editor as a webview editor.
+		 */
+		readonly editorType: 'webview';
+
+		/**
+		 * Unique identifer of the webview.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * Content settings for the webview.
+		 */
+		readonly options: WebviewOptions;
+
+		/**
+		 * Title of the webview shown in UI.
 		 */
 		title: string;
 
 		/**
 		 * Contents of the webview.
+		 *
+		 * Should be a complete html document.
 		 */
 		html: string;
-
-		/**
-		 * Content settings for the webview.
-		 */
-		options: WebviewOptions;
 
 		/**
 		 * The column in which the webview is showing.
@@ -538,14 +550,14 @@ declare module 'vscode' {
 		readonly onMessage: Event<any>;
 
 		/**
-		 * Fired when the webview becomes the active editor.
+		 * Fired when the webview is disposed.
 		 */
-		readonly onBecameActive: Event<void>;
+		readonly onDispose: Event<void>;
 
 		/**
-		 * Fired when the webview stops being the active editor
+		 * Fired when the webview's view column changes.
 		 */
-		readonly onBecameInactive: Event<void>;
+		readonly onDidChangeViewColumn: Event<ViewColumn>;
 
 		/**
 		 * Post a message to the webview content.
@@ -554,23 +566,39 @@ declare module 'vscode' {
 		 *
 		 * @param message Body of the message.
 		 */
-		postMessage(message: any): Thenable<any>;
+		postMessage(message: any): Thenable<boolean>;
 
 		/**
-		 * Dispose the webview.
+		 * Dispose of the the webview.
+		 *
+		 * This closes the webview if it showing and disposes of the resources owned by the webview.
+		 * Webview are also disposed when the user closes the webview editor. Both cases fire `onDispose`
+		 * event. Trying to use the webview after it has been disposed throws an exception.
 		 */
 		dispose(): any;
+	}
+
+	export interface TextEditor {
+		/**
+		 * Type identifying the editor as a text editor.
+		 */
+		readonly editorType: 'texteditor';
 	}
 
 	namespace window {
 		/**
 		 * Create and show a new webview.
 		 *
-		 * @param title Title of the webview.
+		 * @param uri Unique identifier for the webview.
 		 * @param column Editor column to show the new webview in.
-		 * @param options Webview content options.
+		 * @param options Content settings for the webview.
 		 */
-		export function createWebview(title: string, column: ViewColumn, options: WebviewOptions): Webview;
+		export function createWebview(uri: Uri, column: ViewColumn, options: WebviewOptions): Webview;
+
+		/**
+		 * Event fired when the active editor changes.
+		 */
+		export const onDidChangeActiveEditor: Event<TextEditor | Webview | undefined>;
 	}
 
 	export namespace window {

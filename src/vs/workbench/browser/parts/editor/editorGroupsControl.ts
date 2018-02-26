@@ -35,7 +35,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_GROUP_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BORDER } from 'vs/workbench/common/theme';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { ResourcesDropHandler, LocalSelectionTransfer, DraggedEditorIdentifier } from 'vs/workbench/browser/dnd';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -454,13 +454,9 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			this.visibleEditorFocusTrackerDisposable[position].dispose();
 		}
 
-		// Track focus on editor container
-		const focusTracker = DOM.trackFocus(editor.getFocusContainer().getHTMLElement());
-		const listenerDispose = focusTracker.onDidFocus(() => {
+		this.visibleEditorFocusTrackerDisposable[position] = editor.onDidFocus(() => {
 			this.onFocusGained(editor);
 		});
-
-		this.visibleEditorFocusTrackerDisposable[position] = combinedDisposable([focusTracker, listenerDispose]);
 	}
 
 	private onFocusGained(editor: BaseEditor): void {

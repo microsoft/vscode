@@ -6,8 +6,8 @@
 
 import * as map from 'vs/base/common/map';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { MainThreadWebviewShape, MainContext, IExtHostContext, ExtHostContext, ExtHostWebviewsShape } from 'vs/workbench/api/node/extHost.protocol';
-import { IDisposable, dispose, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { MainThreadWebviewsShape, MainContext, IExtHostContext, ExtHostContext, ExtHostWebviewsShape, WebviewHandle } from 'vs/workbench/api/node/extHost.protocol';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { extHostNamedCustomer } from './extHostCustomers';
 import { EditorInput, EditorModel, EditorOptions } from 'vs/workbench/common/editor';
 import { IEditorModel, Position } from 'vs/platform/editor/common/editor';
@@ -28,32 +28,84 @@ import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import * as vscode from 'vscode';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
+import DOM = require('vs/base/browser/dom');
+import Event, { Emitter } from 'vs/base/common/event';
+
 
 interface WebviewEvents {
 	onMessage(message: any): void;
-	onFocus(): void;
-	onBlur(): void;
+	onDidChangePosition(newPosition: Position): void;
+	onDispose(): void;
+	onDidClickLink(link: URI, options: vscode.WebviewOptions): void;
 }
 
 class WebviewInput extends EditorInput {
+	private static handlePool = 0;
+
 	private _name: string;
 	private _options: vscode.WebviewOptions;
 	private _html: string;
+	private _events: WebviewEvents | undefined;
+	private _container: HTMLElement;
+	private _webview: Webview | undefined;
+	private _webviewOwner: any;
+	private _webviewDisposables: IDisposable[] = [];
+
+	public static create(
+		name: string,
+		options: vscode.WebviewOptions,
+		html: string,
+		events: WebviewEvents,
+		partService: IPartService
+	): WebviewInput {
+		const id = WebviewInput.handlePool++;
+		const webviewContainer = document.createElement('div');
+		webviewContainer.id = `webview-${id}`;
+
+		partService.getContainer(Parts.EDITOR_PART).appendChild(webviewContainer);
+
+		return new WebviewInput(name, options, html, events, webviewContainer, undefined);
+	}
 
 	constructor(
 		name: string,
 		options: vscode.WebviewOptions,
 		html: string,
-		public readonly events: WebviewEvents
+		events: WebviewEvents,
+		container: HTMLElement,
+		webview: Webview | undefined
 	) {
 		super();
 		this._name = name;
 		this._options = options;
 		this._html = html;
+		this._events = events;
+
+		this._container = container;
+		this._webview = webview;
+	}
+
+	public getTypeId(): string {
+		return 'webview';
+	}
+
+	public dispose() {
+		this.disposeWebview();
+
+		if (this._container) {
+			this._container.remove();
+			this._container = undefined;
+		}
+
+		if (this._events) {
+			this._events.onDispose();
+			this._events = undefined;
+		}
+
+		super.dispose();
 	}
 
 	public getName(): string {
@@ -69,8 +121,12 @@ class WebviewInput extends EditorInput {
 		return this._html;
 	}
 
-	public set html(value: string) {
+	public setHtml(value: string): void {
 		this._html = value;
+
+		if (this._webview) {
+			this._webview.contents = value;
+		}
 	}
 
 	public get options(): vscode.WebviewOptions {
@@ -81,71 +137,116 @@ class WebviewInput extends EditorInput {
 		this._options = value;
 	}
 
-	public getTypeId(): string {
-		return 'webview';
-	}
-
 	public resolve(refresh?: boolean): TPromise<IEditorModel, any> {
 		return TPromise.as(new EditorModel());
+	}
+
+	public supportsSplitEditor() {
+		return false;
+	}
+
+	public get container(): HTMLElement {
+		return this._container;
+	}
+
+	public get webview(): Webview | undefined {
+		return this._webview;
+	}
+
+	public set webview(value: Webview) {
+		this._webviewDisposables = dispose(this._webviewDisposables);
+
+		this._webview = value;
+
+		this._webview.onDidClickLink(link => {
+			if (this._events) {
+				this._events.onDidClickLink(link, this._options);
+			}
+		}, null, this._webviewDisposables);
+
+		this._webview.onMessage(message => {
+			if (this._events) {
+				this._events.onMessage(message);
+			}
+		}, null, this._webviewDisposables);
+	}
+
+	public claimWebview(owner: any) {
+		this._webviewOwner = owner;
+	}
+
+	public releaseWebview(owner: any) {
+		if (this._webviewOwner === owner) {
+			this._webviewOwner = undefined;
+			if (!this._options.keepAlive) {
+				this.disposeWebview();
+			}
+		}
+	}
+
+	public disposeWebview() {
+		// The input owns the webview and its parent
+		if (this._webview) {
+			this._webview.dispose();
+			this._webview = undefined;
+		}
+
+		this._webviewDisposables = dispose(this._webviewDisposables);
+
+		this._webviewOwner = undefined;
+		this.container.style.visibility = 'hidden';
+	}
+
+	public onDidChangePosition(position: Position) {
+		if (this._events) {
+			this._events.onDidChangePosition(position);
+		}
 	}
 }
 
 class WebviewEditor extends BaseWebviewEditor {
-	private static webviewIndex = 0;
 
 	public static readonly ID = 'WebviewEditor';
 
-	private static readonly standardSupportedLinkSchemes = ['http', 'https', 'mailto'];
-
-	private frame: HTMLElement;
-	private container: HTMLElement;
-	private webviewContent: HTMLDivElement;
-
-	private _contentDisposables: IDisposable[] = [];
+	private editorFrame: HTMLElement;
+	private webviewContent: HTMLElement;
+	private _onDidFocusWebview: Emitter<void>;
+	private _webviewFocusTracker?: DOM.IFocusTracker;
+	private _webviewFocusListenerDisposable?: IDisposable;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IPartService private readonly _partService: IPartService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@IOpenerService private readonly _openerService: IOpenerService
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService, _contextKeyService);
+
+		this._onDidFocusWebview = new Emitter<void>();
 	}
 
 	protected createEditor(parent: Builder): void {
-		this.frame = parent.getHTMLElement();
-		this.container = this._partService.getContainer(Parts.EDITOR_PART);
-
-		this.webviewContent = document.createElement('div');
-		this.webviewContent.id = `webview-${WebviewEditor.webviewIndex++}`;
-		this._contextKeyService = this._contextKeyService.createScoped(this.webviewContent);
-		this.contextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS.bindTo(this._contextKeyService);
-		this.findInputFocusContextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
-		this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
-
-		this.container.appendChild(this.webviewContent);
-
+		this.editorFrame = parent.getHTMLElement();
 		this.content = document.createElement('div');
-		this.content.setAttribute('aria-flowto', this.webviewContent.id);
-
 		parent.append(this.content);
-		this.doUpdateContainer();
 	}
 
 	private doUpdateContainer() {
-		const frameRect = this.frame.getBoundingClientRect();
-		const containerRect = this.container.getBoundingClientRect();
+		const webviewContainer = this.input && (this.input as WebviewInput).container;
+		if (webviewContainer) {
+			const frameRect = this.editorFrame.getBoundingClientRect();
+			const containerRect = webviewContainer.parentElement.getBoundingClientRect();
 
-		this.webviewContent.style.position = 'absolute';
-		this.webviewContent.style.top = `${frameRect.top - containerRect.top}px`;
-		this.webviewContent.style.left = `${frameRect.left - containerRect.left}px`;
-		this.webviewContent.style.width = `${frameRect.width}px`;
-		this.webviewContent.style.height = `${frameRect.height}px`;
+			webviewContainer.style.position = 'absolute';
+			webviewContainer.style.top = `${frameRect.top - containerRect.top}px`;
+			webviewContainer.style.left = `${frameRect.left - containerRect.left}px`;
+			webviewContainer.style.width = `${frameRect.width}px`;
+			webviewContainer.style.height = `${frameRect.height}px`;
+		}
 	}
 
 	public layout(dimension: Dimension): void {
@@ -156,7 +257,20 @@ class WebviewEditor extends BaseWebviewEditor {
 	}
 
 	public dispose(): void {
-		this._contentDisposables = dispose(this._contentDisposables);
+		// Let the editor input dispose of the webview.
+		this._webview = undefined;
+		this.webviewContent = undefined;
+
+		this._onDidFocusWebview.dispose();
+
+		if (this._webviewFocusTracker) {
+			this._webviewFocusTracker.dispose();
+		}
+
+		if (this._webviewFocusListenerDisposable) {
+			this._webviewFocusListenerDisposable.dispose();
+		}
+
 		super.dispose();
 	}
 
@@ -166,30 +280,48 @@ class WebviewEditor extends BaseWebviewEditor {
 		}
 	}
 
-	public getFocusContainer(): Builder {
-		return new Builder(this.webviewContent, false);
+	public get onDidFocus(): Event<any> {
+		return this._onDidFocusWebview.event;
 	}
 
 	protected setEditorVisible(visible: boolean, position?: Position): void {
-		if (visible) {
-			this.webviewContent.style.visibility = 'visible';
-			this.doUpdateContainer();
-		} else {
-			if (this._webview) {
+		if (this.input && this.input instanceof WebviewInput) {
+			if (visible) {
+				this.input.claimWebview(this);
+			} else {
+				this.input.releaseWebview(this);
+			}
+
+			this.updateWebview(this.input as WebviewInput);
+		}
+
+		if (this.webviewContent) {
+			if (visible) {
+				this.webviewContent.style.visibility = 'visible';
+				this.doUpdateContainer();
+			} else {
 				this.webviewContent.style.visibility = 'hidden';
 			}
 		}
 		super.setEditorVisible(visible, position);
 	}
 
-	public clearInput(): void {
+	public clearInput() {
 		if (this.input && this.input instanceof WebviewInput) {
-			if (this.input.options.keepAlive) {
-				// Noop
-				return;
-			}
+			this.input.releaseWebview(this);
 		}
+
+		this._webview = undefined;
+		this.webviewContent = undefined;
+
 		super.clearInput();
+	}
+
+	public changePosition(position: Position): void {
+		if (this.input && this.input instanceof WebviewInput) {
+			this.input.onDidChangePosition(position);
+		}
+		super.changePosition(position);
 	}
 
 	async setInput(input: WebviewInput, options: EditorOptions): TPromise<void> {
@@ -199,120 +331,129 @@ class WebviewEditor extends BaseWebviewEditor {
 
 		await super.setInput(input, options);
 
-		this.webview.options = {
+		this.updateWebview(input);
+	}
+
+	private updateWebview(input: WebviewInput) {
+		const webview = this.getWebview(input);
+		input.claimWebview(this);
+		webview.options = {
 			allowScripts: input.options.enableScripts,
 			enableWrappedPostMessage: true,
 			useSameOriginForRoot: false,
 			localResourceRoots: (input && input.options.localResourceRoots) || this._contextService.getWorkspace().folders.map(x => x.uri)
 		};
-		this.webview.contents = input.html;
+		webview.contents = input.html;
+		this.webviewContent.style.visibility = 'visible';
+		this.doUpdateContainer();
 	}
 
-	private get webview(): Webview {
-		if (!this._webview) {
-			this._contentDisposables = dispose(this._contentDisposables);
-
-			this._webview = new Webview(
-				this.webviewContent,
-				this._partService.getContainer(Parts.EDITOR_PART),
-				this.themeService,
-				this._environmentService,
-				this._contextViewService,
-				this.contextKey,
-				this.findInputFocusContextKey,
-				{
-					enableWrappedPostMessage: true,
-					useSameOriginForRoot: false
-				});
-
-			this._webview.onDidClickLink(this.onDidClickLink, this, this._contentDisposables);
-
-			this._webview.onMessage(message => {
-				if (this.input) {
-					(this.input as WebviewInput).events.onMessage(message);
-				}
-			}, null, this._contentDisposables);
-
-			this._contentDisposables.push(this._webview);
-			this._contentDisposables.push(toDisposable(() => this._webview = null));
+	private getWebview(input: WebviewInput): Webview {
+		if (this._webview) {
+			return this._webview;
 		}
+
+		this.webviewContent = input.container;
+		const existing = input.webview;
+		if (existing) {
+			this._webview = existing;
+			return existing;
+		}
+
+		this._webviewFocusTracker = DOM.trackFocus(this.webviewContent);
+		this._webviewFocusListenerDisposable = this._webviewFocusTracker.onDidFocus(() => {
+			this._onDidFocusWebview.fire();
+		});
+
+		this._contextKeyService = this._contextKeyService.createScoped(this.webviewContent);
+		this.contextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS.bindTo(this._contextKeyService);
+		this.findInputFocusContextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
+		this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
+
+		this._webview = new Webview(
+			this.webviewContent,
+			this._partService.getContainer(Parts.EDITOR_PART),
+			this.themeService,
+			this._environmentService,
+			this._contextViewService,
+			this.contextKey,
+			this.findInputFocusContextKey,
+			{
+				enableWrappedPostMessage: true,
+				useSameOriginForRoot: false
+			});
+		input.webview = this._webview;
+
+		this.content.setAttribute('aria-flowto', this.webviewContent.id);
+
+		this.doUpdateContainer();
 		return this._webview;
-	}
-
-	private onDidClickLink(link: URI): void {
-		if (!link) {
-			return;
-		}
-
-		const enableCommandUris = (this.input as WebviewInput).options.enableCommandUris;
-		if (WebviewEditor.standardSupportedLinkSchemes.indexOf(link.scheme) >= 0 || enableCommandUris && link.scheme === 'command') {
-			this._openerService.open(link);
-		}
 	}
 }
 
 
-@extHostNamedCustomer(MainContext.MainThreadWebview)
-export class MainThreadWebview implements MainThreadWebviewShape {
-	private readonly _toDispose: Disposable[] = [];
+@extHostNamedCustomer(MainContext.MainThreadWebviews)
+export class MainThreadWebviews implements MainThreadWebviewsShape {
+	private static readonly standardSupportedLinkSchemes = ['http', 'https', 'mailto'];
+
+	private _toDispose: Disposable[] = [];
 
 	private readonly _proxy: ExtHostWebviewsShape;
-	private readonly _webviews = new Map<number, WebviewInput>();
+	private readonly _webviews = new Map<WebviewHandle, WebviewInput>();
+
 	private _activeWebview: WebviewInput | undefined = undefined;
 
 	constructor(
 		context: IExtHostContext,
 		@IEditorGroupService _editorGroupService: IEditorGroupService,
+		@IContextKeyService _contextKeyService: IContextKeyService,
+		@IPartService private readonly _partService: IPartService,
 		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
-
 		_editorGroupService.onEditorsChanged(this.onEditorsChanged, this, this._toDispose);
 	}
 
 	dispose(): void {
-		dispose(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 	}
 
-	$createWebview(handle: number): void {
-		const webview = new WebviewInput('', {}, '', {
-			onMessage: (message) => this._proxy.$onMessage(handle, message),
-			onFocus: () => this._proxy.$onBecameActive(handle),
-			onBlur: () => this._proxy.$onBecameInactive(handle)
-		});
-		this._webviews.set(handle, webview);
+	$createWebview(handle: WebviewHandle, uri: URI, options: vscode.WebviewOptions): void {
+		const webviewInput = WebviewInput.create('', options, '', {
+			onMessage: message => this._proxy.$onMessage(handle, message),
+			onDidChangePosition: position => this._proxy.$onDidChangePosition(handle, position),
+			onDispose: () => this._proxy.$onDidDisposeWeview(handle),
+			onDidClickLink: (link, options) => this.onDidClickLink(link, options)
+		}, this._partService);
+
+		this._webviews.set(handle, webviewInput);
 	}
 
-	$disposeWebview(handle: number): void {
-		const webview = this._webviews.get(handle);
-		this._editorService.closeEditor(Position.ONE, webview);
+	$disposeWebview(handle: WebviewHandle): void {
+		const webview = this.getWebview(handle);
+		this._editorService.closeEditors({ positionOne: [webview], positionTwo: [webview], positionThree: [webview] });
 	}
 
-	$setTitle(handle: number, value: string): void {
-		const webview = this._webviews.get(handle);
+	$setTitle(handle: WebviewHandle, value: string): void {
+		const webview = this.getWebview(handle);
 		webview.setName(value);
 	}
 
-	$setHtml(handle: number, value: string): void {
-		this.updateInput(handle, existingInput =>
-			this._instantiationService.createInstance(WebviewInput, existingInput.getName(), existingInput.options, value, existingInput.events));
+	$setHtml(handle: WebviewHandle, value: string): void {
+		const webview = this.getWebview(handle);
+		webview.setHtml(value);
 	}
 
-	$setOptions(handle: number, newOptions: vscode.WebviewOptions): void {
-		this.updateInput(handle, existingInput =>
-			this._instantiationService.createInstance(WebviewInput, existingInput.getName(), newOptions, existingInput.html, existingInput.events));
-	}
-
-	$show(handle: number, column: Position): void {
-		const webviewInput = this._webviews.get(handle);
+	$show(handle: WebviewHandle, column: Position): void {
+		const webviewInput = this.getWebview(handle);
 		this._editorService.openEditor(webviewInput, { pinned: true }, column);
 	}
 
-	async $sendMessage(handle: number, message: any): Promise<boolean> {
-		const webviewInput = this._webviews.get(handle);
+	async $sendMessage(handle: WebviewHandle, message: any): Promise<boolean> {
+		const webviewInput = this.getWebview(handle);
 		const editors = this._editorService.getVisibleEditors()
-			.filter(e => e instanceof WebviewInput)
+			.filter(e => e instanceof WebviewEditor)
 			.map(e => e as WebviewEditor)
 			.filter(e => e.input.matches(webviewInput));
 
@@ -323,39 +464,48 @@ export class MainThreadWebview implements MainThreadWebviewShape {
 		return (editors.length > 0);
 	}
 
-	private updateInput(handle: number, f: (existingInput: WebviewInput) => WebviewInput) {
-		const existingInput = this._webviews.get(handle);
-		const newInput = f(existingInput);
-		this._webviews.set(handle, newInput);
-		this._editorService.replaceEditors([{ toReplace: existingInput, replaceWith: newInput }]);
+	private getWebview(handle: number): WebviewInput {
+		const webviewInput = this._webviews.get(handle);
+		if (!webviewInput) {
+			throw new Error('Unknown webview handle:' + handle);
+		}
+		return webviewInput;
 	}
 
 	private onEditorsChanged() {
 		const activeEditor = this._editorService.getActiveEditor();
-		let newActiveWebview: WebviewInput | undefined = undefined;
-		if (activeEditor && activeEditor.input instanceof WebviewInput) {
+		let newActiveWebview: { input: WebviewInput, handle: WebviewHandle } | undefined = undefined;
+		if (activeEditor.input instanceof WebviewInput) {
 			for (const handle of map.keys(this._webviews)) {
 				const input = this._webviews.get(handle);
 				if (input.matches(activeEditor.input)) {
-					newActiveWebview = input;
+					newActiveWebview = { input, handle };
 					break;
 				}
 			}
 		}
 
 		if (newActiveWebview) {
-			if (!this._activeWebview || !newActiveWebview.matches(this._activeWebview)) {
-				if (this._activeWebview) {
-					this._activeWebview.events.onBlur();
-				}
-				newActiveWebview.events.onFocus();
-				this._activeWebview = newActiveWebview;
+			if (!this._activeWebview || !newActiveWebview.input.matches(this._activeWebview)) {
+				this._proxy.$onDidChangeActiveWeview(newActiveWebview.handle);
+				this._activeWebview = newActiveWebview.input;
 			}
 		} else {
 			if (this._activeWebview) {
-				this._activeWebview.events.onBlur();
+				this._proxy.$onDidChangeActiveWeview(undefined);
 				this._activeWebview = undefined;
 			}
+		}
+	}
+
+	private onDidClickLink(link: URI, options: vscode.WebviewOptions): void {
+		if (!link) {
+			return;
+		}
+
+		const enableCommandUris = options.enableCommandUris;
+		if (MainThreadWebviews.standardSupportedLinkSchemes.indexOf(link.scheme) >= 0 || enableCommandUris && link.scheme === 'command') {
+			this._openerService.open(link);
 		}
 	}
 }

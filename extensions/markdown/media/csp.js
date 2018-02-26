@@ -16,7 +16,6 @@
 			return;
 		}
 		didShow = true;
-		const args = [settings.previewUri];
 
 		const notification = document.createElement('a');
 		notification.innerText = strings.cspAlertMessageText;
@@ -25,8 +24,12 @@
 
 		notification.setAttribute('role', 'button');
 		notification.setAttribute('aria-label',  strings.cspAlertMessageLabel);
-		notification.setAttribute('href', `command:markdown.showPreviewSecuritySelector?${encodeURIComponent(JSON.stringify(args))}`);
-
+		notification.onclick = () => {
+			window.parent.postMessage({
+				command: 'markdown.showPreviewSecuritySelector',
+				args: [settings.source]
+			}, '*');
+		};
 		document.body.appendChild(notification);
 	};
 
