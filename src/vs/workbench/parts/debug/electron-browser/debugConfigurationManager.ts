@@ -516,7 +516,8 @@ class Launch implements ILaunch {
 		@IFileService private fileService: IFileService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService
+		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
 		// noop
 	}
@@ -574,7 +575,15 @@ class Launch implements ILaunch {
 	}
 
 	protected getWorkspaceForResolving(): IWorkspaceFolder {
-		return this.workspace;
+		if (this.workspace) {
+			return this.workspace;
+		}
+
+		if (this.contextService.getWorkspace().folders.length === 1) {
+			return this.contextService.getWorkspace().folders[0];
+		}
+
+		return undefined;
 	}
 
 	public resolveConfiguration(config: IConfig): TPromise<IConfig> {
@@ -664,13 +673,13 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
-		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService);
+		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService, contextService);
 	}
 
 	get uri(): uri {
-		return this.workspaceContextService.getWorkspace().configuration;
+		return this.contextService.getWorkspace().configuration;
 	}
 
 	get name(): string {
@@ -682,7 +691,7 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 	}
 
 	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
-		return this.editorService.openEditor({ resource: this.workspaceContextService.getWorkspace().configuration });
+		return this.editorService.openEditor({ resource: this.contextService.getWorkspace().configuration });
 	}
 }
 
@@ -695,17 +704,9 @@ class UserLaunch extends Launch implements ILaunch {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
-		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService);
-	}
-
-	protected getWorkspaceForResolving(): IWorkspaceFolder {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-			return this.contextService.getWorkspace().folders[0];
-		}
-
-		return undefined;
+		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService, contextService);
 	}
 
 	get uri(): uri {
