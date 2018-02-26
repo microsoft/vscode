@@ -303,7 +303,7 @@ class MarkdownPreview {
 			});
 
 		this.webview.onDidDispose(() => {
-			this._onDisposeEmitter.fire();
+			this.dispose();
 		}, null, this.disposables);
 
 		this.webview.onDidReceiveMessage(e => {
@@ -328,6 +328,8 @@ class MarkdownPreview {
 	public readonly onDispose = this._onDisposeEmitter.event;
 
 	public dispose() {
+		this._onDisposeEmitter.fire();
+
 		this._onDisposeEmitter.dispose();
 		this.webview.dispose();
 
