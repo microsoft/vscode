@@ -3923,7 +3923,7 @@ declare module 'vscode' {
 		/**
 		 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:
 		 *
-		 * `My text $(icon-name) contains icons like $(icon'name) this one.`
+		 * `My text $(icon-name) contains icons like $(icon-name) this one.`
 		 *
 		 * Where the icon-name is taken from the [octicon](https://octicons.github.com) icon set, e.g.
 		 * `light-bulb`, `thumbsup`, `zap` etc.
