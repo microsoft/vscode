@@ -343,13 +343,13 @@ export class NotificationsToasts extends Themable {
 
 		const maxDimensions = this.computeMaxDimensions();
 
-		// Layout all lists of toasts
-		this.layoutLists(maxDimensions.width);
-
 		// Hide toasts that exceed height
 		if (maxDimensions.height) {
 			this.layoutContainer(maxDimensions.height);
 		}
+
+		// Layout all lists of toasts
+		this.layoutLists(maxDimensions.width);
 	}
 
 	private computeMaxDimensions(): Dimension {
