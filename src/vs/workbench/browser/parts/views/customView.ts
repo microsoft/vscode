@@ -332,7 +332,7 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 		if (icon) {
 			return true;
 		}
-		if (node.resourceUri) {
+		if (node.resourceUri || node.themeIcon) {
 			const fileIconTheme = this.themeService.getFileIconTheme();
 			const isFolder = node.themeIcon ? node.themeIcon.id === FolderThemeIcon.id : node.collapsibleState !== TreeItemCollapsibleState.None;
 			if (isFolder) {
@@ -448,8 +448,9 @@ class TreeRenderer implements IRenderer {
 		DOM.removeClass(templateData.label, 'custom-view-tree-node-item-label');
 		DOM.removeClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 
-		if (resource && !icon) {
-			templateData.resourceLabel.setLabel({ name: label, resource }, { fileKind: this.getFileKind(node), title: node.tooltip });
+		if ((resource || node.themeIcon) && !icon) {
+			const title = node.tooltip ? node.tooltip : resource ? void 0 : label;
+			templateData.resourceLabel.setLabel({ name: label, resource: resource ? resource : URI.parse('_icon_resource') }, { fileKind: this.getFileKind(node), title });
 			DOM.addClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 		} else {
 			templateData.label.textContent = label;
@@ -509,9 +510,9 @@ class TreeItemIcon extends Disposable {
 
 			const hasContributedIcon = !!contributedIcon;
 			const hasChildren = this._treeItem.collapsibleState !== TreeItemCollapsibleState.None;
-			const hasResource = !!this._treeItem.resourceUri;
-			const isFolder = hasResource && this._treeItem.themeIcon ? this._treeItem.themeIcon.id === FolderThemeIcon.id : hasChildren;
-			const isFile = hasResource && this._treeItem.themeIcon ? this._treeItem.themeIcon.id === FileThemeIcon.id : !hasChildren;
+			const hasThemeIcon = !!this._treeItem.resourceUri || !!this._treeItem.themeIcon;
+			const isFolder = hasThemeIcon && this._treeItem.themeIcon ? this._treeItem.themeIcon.id === FolderThemeIcon.id : hasChildren;
+			const isFile = hasThemeIcon && this._treeItem.themeIcon ? this._treeItem.themeIcon.id === FileThemeIcon.id : !hasChildren;
 			const hasThemeFolderIcon = isFolder && fileIconTheme.hasFileIcons && fileIconTheme.hasFolderIcons;
 			const hasThemeFileIcon = isFile && fileIconTheme.hasFileIcons;
 			const hasIcon = hasContributedIcon || hasThemeFolderIcon || hasThemeFileIcon;
