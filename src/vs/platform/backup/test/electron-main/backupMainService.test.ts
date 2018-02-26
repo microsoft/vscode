@@ -117,8 +117,8 @@ suite('BackupMainService', () => {
 		service.registerFolderBackupSync(barFile.fsPath);
 		service.loadSync();
 		assert.deepEqual(service.getFolderBackupPaths(), []);
-		assert.ok(!fs.exists(service.toBackupPath(fooFile.fsPath)));
-		assert.ok(!fs.exists(service.toBackupPath(barFile.fsPath)));
+		assert.ok(!fs.existsSync(service.toBackupPath(fooFile.fsPath)));
+		assert.ok(!fs.existsSync(service.toBackupPath(barFile.fsPath)));
 
 		// 3) backup workspace path exists with empty folders within
 		fs.mkdirSync(service.toBackupPath(fooFile.fsPath));
@@ -129,8 +129,8 @@ suite('BackupMainService', () => {
 		service.registerFolderBackupSync(barFile.fsPath);
 		service.loadSync();
 		assert.deepEqual(service.getFolderBackupPaths(), []);
-		assert.ok(!fs.exists(service.toBackupPath(fooFile.fsPath)));
-		assert.ok(!fs.exists(service.toBackupPath(barFile.fsPath)));
+		assert.ok(!fs.existsSync(service.toBackupPath(fooFile.fsPath)));
+		assert.ok(!fs.existsSync(service.toBackupPath(barFile.fsPath)));
 
 		// 4) backup workspace path points to a workspace that no longer exists
 		// so it should convert the backup worspace to an empty workspace backup
@@ -164,8 +164,8 @@ suite('BackupMainService', () => {
 		service.registerWorkspaceBackupSync(toWorkspace(barFile.fsPath));
 		service.loadSync();
 		assert.deepEqual(service.getWorkspaceBackups(), []);
-		assert.ok(!fs.exists(service.toBackupPath(fooFile.fsPath)));
-		assert.ok(!fs.exists(service.toBackupPath(barFile.fsPath)));
+		assert.ok(!fs.existsSync(service.toBackupPath(fooFile.fsPath)));
+		assert.ok(!fs.existsSync(service.toBackupPath(barFile.fsPath)));
 
 		// 3) backup workspace path exists with empty folders within
 		fs.mkdirSync(service.toBackupPath(fooFile.fsPath));
@@ -176,8 +176,8 @@ suite('BackupMainService', () => {
 		service.registerWorkspaceBackupSync(toWorkspace(barFile.fsPath));
 		service.loadSync();
 		assert.deepEqual(service.getWorkspaceBackups(), []);
-		assert.ok(!fs.exists(service.toBackupPath(fooFile.fsPath)));
-		assert.ok(!fs.exists(service.toBackupPath(barFile.fsPath)));
+		assert.ok(!fs.existsSync(service.toBackupPath(fooFile.fsPath)));
+		assert.ok(!fs.existsSync(service.toBackupPath(barFile.fsPath)));
 
 		// 4) backup workspace path points to a workspace that no longer exists
 		// so it should convert the backup worspace to an empty workspace backup

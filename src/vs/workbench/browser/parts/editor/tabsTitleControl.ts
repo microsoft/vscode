@@ -542,7 +542,10 @@ export class TabsTitleControl extends TitleControl {
 		DOM.addClass(tabCloseContainer, 'tab-close');
 		tabContainer.appendChild(tabCloseContainer);
 
-		const bar = new ActionBar(tabCloseContainer, { ariaLabel: nls.localize('araLabelTabActions', "Tab actions"), actionRunner: new TabActionRunner(() => this.context, index) });
+		const actionRunner = new TabActionRunner(() => this.context, index);
+		this.tabDisposeables.push(actionRunner);
+
+		const bar = new ActionBar(tabCloseContainer, { ariaLabel: nls.localize('araLabelTabActions', "Tab actions"), actionRunner });
 		bar.push(this.closeEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeEditorAction) });
 
 		// Eventing
@@ -876,7 +879,10 @@ export class TabsTitleControl extends TitleControl {
 
 class TabActionRunner extends ActionRunner {
 
-	constructor(private group: () => IEditorGroup, private index: number) {
+	constructor(
+		private group: () => IEditorGroup,
+		private index: number
+	) {
 		super();
 	}
 

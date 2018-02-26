@@ -177,6 +177,7 @@ export class ActivitybarPart extends Part {
 			ariaLabel: nls.localize('globalActions', "Global Actions"),
 			animated: false
 		});
+		this.toUnbind.push(this.globalActionBar);
 
 		actions.forEach(a => {
 			this.globalActivityIdToActions[a.id] = a;

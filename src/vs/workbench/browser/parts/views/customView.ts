@@ -463,6 +463,7 @@ class TreeRenderer implements IRenderer {
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		templateData.resourceLabel.dispose();
+		templateData.actionBar.dispose();
 		templateData.icon.dispose();
 	}
 }

@@ -303,10 +303,16 @@ export class SearchRenderer extends Disposable implements IRenderer {
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
 		if (SearchRenderer.FOLDER_MATCH_TEMPLATE_ID === templateId) {
-			(<IFolderMatchTemplate>templateData).label.dispose();
-		}
-		if (SearchRenderer.FILE_MATCH_TEMPLATE_ID === templateId) {
-			(<IFileMatchTemplate>templateData).label.dispose();
+			const template = <IFolderMatchTemplate>templateData;
+			template.label.dispose();
+			template.actions.dispose();
+		} else if (SearchRenderer.FILE_MATCH_TEMPLATE_ID === templateId) {
+			const template = <IFileMatchTemplate>templateData;
+			template.label.dispose();
+			template.actions.dispose();
+		} else if (SearchRenderer.MATCH_TEMPLATE_ID === templateId) {
+			const template = <IMatchTemplate>templateData;
+			template.actions.dispose();
 		}
 	}
 }
