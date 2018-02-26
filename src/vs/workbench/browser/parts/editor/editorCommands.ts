@@ -23,7 +23,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct } from 'vs/base/common/arrays';
 
-export const CLOSE_UNMODIFIED_EDITORS_COMMAND_ID = 'workbench.action.closeSavedEditors';
+export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
 export const CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID = 'workbench.action.closeEditorsToTheRight';
 export const CLOSE_EDITOR_COMMAND_ID = 'workbench.action.closeActiveEditor';
@@ -265,7 +265,7 @@ function registerOpenEditorAtIndexCommands(): void {
 function registerEditorCommands() {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: CLOSE_UNMODIFIED_EDITORS_COMMAND_ID,
+		id: CLOSE_SAVED_EDITORS_COMMAND_ID,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: void 0,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_U),
