@@ -20,7 +20,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 function toResource(self, path) {
-	return URI.file(join('C:\\', new Buffer(self.test.fullTitle()).toString('base64'), path));
+	return URI.file(join('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
 }
 
 class ServiceAccessor {

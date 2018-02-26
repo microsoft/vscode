@@ -102,7 +102,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-ed
 			.pipe(es.through(function (data) {
 				var json = JSON.parse(data.contents.toString());
 				json.private = false;
-				data.contents = new Buffer(JSON.stringify(json, null, '  '));
+				data.contents = Buffer.from(JSON.stringify(json, null, '  '));
 				this.emit('data', data);
 			}))
 			.pipe(gulp.dest('out-monaco-editor-core')),
@@ -142,7 +142,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-ed
 			var newStr = '//# sourceMappingURL=' + relativePathToMap.replace(/\\/g, '/');
 			strContents = strContents.replace(/\/\/\# sourceMappingURL=[^ ]+$/, newStr);
 
-			data.contents = new Buffer(strContents);
+			data.contents = Buffer.from(strContents);
 			this.emit('data', data);
 		})).pipe(gulp.dest('out-monaco-editor-core/min')),
 

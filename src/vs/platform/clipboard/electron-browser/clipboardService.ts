@@ -57,7 +57,7 @@ export class ClipboardService implements IClipboardService {
 	}
 
 	private filesToBuffer(resources: URI[]): Buffer {
-		return new Buffer(resources.map(r => r.fsPath).join('\n'));
+		return Buffer.from(resources.map(r => r.fsPath).join('\n'));
 	}
 
 	private bufferToFiles(buffer: Buffer): URI[] {

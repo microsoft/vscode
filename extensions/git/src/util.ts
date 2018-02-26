@@ -239,7 +239,7 @@ export async function grep(filename: string, pattern: RegExp): Promise<boolean> 
 export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
 	return new Promise<Buffer>((complete, error) => {
 		let done = false;
-		let buffer = new Buffer(bytes);
+		let buffer = Buffer.allocUnsafe(bytes);
 		let bytesRead = 0;
 
 		stream.on('data', (data: Buffer) => {

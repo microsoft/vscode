@@ -148,7 +148,7 @@ const config = {
 		name: product.nameLong,
 		urlSchemes: [product.urlProtocol]
 	}],
-	darwinCredits: darwinCreditsTemplate ? new Buffer(darwinCreditsTemplate({ commit: commit, date: new Date().toISOString() })) : void 0,
+	darwinCredits: darwinCreditsTemplate ? Buffer.from(darwinCreditsTemplate({ commit: commit, date: new Date().toISOString() })) : void 0,
 	linuxExecutableName: product.applicationName,
 	winIcon: 'resources/win32/code.ico',
 	token: process.env['VSCODE_MIXIN_PASSWORD'] || process.env['GITHUB_TOKEN'] || void 0,

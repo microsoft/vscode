@@ -8,28 +8,28 @@ import * as stream from 'stream';
 const DefaultSize: number = 8192;
 const ContentLength: string = 'Content-Length: ';
 const ContentLengthSize: number = Buffer.byteLength(ContentLength, 'utf8');
-const Blank: number = new Buffer(' ', 'utf8')[0];
-const BackslashR: number = new Buffer('\r', 'utf8')[0];
-const BackslashN: number = new Buffer('\n', 'utf8')[0];
+const Blank: number = Buffer.from(' ', 'utf8')[0];
+const BackslashR: number = Buffer.from('\r', 'utf8')[0];
+const BackslashN: number = Buffer.from('\n', 'utf8')[0];
 
 class ProtocolBuffer {
 
 	private index: number = 0;
-	private buffer: Buffer = new Buffer(DefaultSize);
+	private buffer: Buffer = Buffer.allocUnsafe(DefaultSize);
 
 	public append(data: string | Buffer): void {
 		let toAppend: Buffer | null = null;
 		if (Buffer.isBuffer(data)) {
 			toAppend = <Buffer>data;
 		} else {
-			toAppend = new Buffer(<string>data, 'utf8');
+			toAppend = Buffer.from(<string>data, 'utf8');
 		}
 		if (this.buffer.length - this.index >= toAppend.length) {
 			toAppend.copy(this.buffer, this.index, 0, toAppend.length);
 		} else {
 			let newSize = (Math.ceil((this.index + toAppend.length) / DefaultSize) + 1) * DefaultSize;
 			if (this.index === 0) {
-				this.buffer = new Buffer(newSize);
+				this.buffer = Buffer.allocUnsafe(newSize);
 				toAppend.copy(this.buffer, 0, 0, toAppend.length);
 			} else {
 				this.buffer = Buffer.concat([this.buffer.slice(0, this.index), toAppend], newSize);
