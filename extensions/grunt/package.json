@@ -4,6 +4,7 @@
   "description": "Extension to add Grunt capabilities to VSCode.",
   "displayName": "Grunt support for VSCode",
   "version": "0.0.1",
+  "icon": "images/grunt.png",
   "engines": {
     "vscode": "*"
   },
@@ -49,11 +50,11 @@
         "properties": {
           "task": {
             "type": "string",
-            "description": "The Grunt task to customize"
+            "description": "%grunt.taskDefinition.type.description%"
           },
           "file": {
             "type": "string",
-            "description": "The Grunt file that provides the task. Can be omitted."
+            "description": "%grunt.taskDefinition.file.description%"
           }
         }
       }
