@@ -25,7 +25,7 @@
 
 .monaco-workbench .panel.integrated-terminal .terminal-wrapper {
 	display: none;
-	margin: 0 20px;
+	margin: 0 10px;
 }
 .monaco-workbench .panel.integrated-terminal .terminal-wrapper.active {
 	display: block;
@@ -33,11 +33,11 @@
 	bottom: 2px; /* Matches padding-bottom on .terminal-outer-container */
 	top: 0;
 }
-.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:first-of-type) .terminal-wrapper {
-	margin-left: 10px;
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view.first .terminal-wrapper {
+	margin-left: 20px;
 }
-.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:last-of-type) .terminal-wrapper {
-	margin-right: 10px;
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view.last .terminal-wrapper {
+	margin-right: 20px;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm a:not(.xterm-invalid-link) {
@@ -50,10 +50,10 @@
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm-viewport {
-	margin-right: -20px;
-}
-.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-of-type) .xterm-viewport {
 	margin-right: -10px;
+}
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view.last .xterm-viewport {
+	margin-right: -20px;
 }
 
 .monaco-workbench .panel.integrated-terminal canvas {
