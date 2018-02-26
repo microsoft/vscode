@@ -1158,7 +1158,7 @@ export class Repository {
 	}
 
 	async getRefs(): Promise<Ref[]> {
-		const result = await this.run(['for-each-ref', '--format', '%(refname) %(objectname)', '--sort', '-committerdate']);
+		const result = await this.run(['for-each-ref', '--format', '\'%(refname) %(objectname)\'', '--sort', '-committerdate']);
 
 		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;
@@ -1218,7 +1218,7 @@ export class Repository {
 		const commit = result.stdout.trim();
 
 		try {
-			const res2 = await this.run(['rev-parse', '--symbolic-full-name', '--abbrev-ref', name + '@{u}']);
+			const res2 = await this.run(['rev-parse', '--symbolic-full-name', '--abbrev-ref', '\'' + name + '@{u}' + '\'']);
 			const upstream = res2.stdout.trim();
 
 			const res3 = await this.run(['rev-list', '--left-right', name + '...' + upstream]);
