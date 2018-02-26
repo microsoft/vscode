@@ -283,6 +283,7 @@ class MarkdownPreview {
 		public resource: vscode.Uri,
 		public webview: vscode.Webview,
 		public ofColumn: vscode.ViewColumn,
+		public readonly pinned: boolean,
 		private readonly contentProvider: MarkdownContentProvider,
 		private readonly previewConfigurations: PreviewConfigManager
 	) { }
@@ -312,8 +313,14 @@ class MarkdownPreview {
 		this.webview.postMessage({ line, source: resource.toString() });
 	}
 
+	public get viewColumn(): vscode.ViewColumn | undefined {
+		return this.webview.viewColumn;
+	}
+
 	private getPreviewTitle(resource: vscode.Uri): string {
-		return localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath));
+		return this.pinned
+			? localize('pinnedPreviewTitle', '[Preview] {0}', path.basename(resource.fsPath))
+			: localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath));
 	}
 
 	private doUpdate() {
@@ -330,9 +337,17 @@ class MarkdownPreview {
 	}
 }
 
+
+export interface PreviewSettings {
+	readonly resourceColumn: vscode.ViewColumn;
+	readonly previewColumn: vscode.ViewColumn;
+	readonly pinned: boolean;
+}
+
 export class MarkdownPreviewManager {
 	private static previewScheme = 'vscode-markdown-preview';
-	private static webviewId = vscode.Uri.parse(`${MarkdownPreviewManager.previewScheme}://preview`);
+	private static previewCount = 0;
+
 
 	private previews: MarkdownPreview[] = [];
 	private readonly previewConfigurations = new PreviewConfigManager();
@@ -353,7 +368,7 @@ export class MarkdownPreviewManager {
 
 			if (editor && editor.editorType === 'texteditor') {
 				if (isMarkdownFile(editor.document)) {
-					for (const preview of this.previews.filter(preview => preview.ofColumn === editor.viewColumn)) {
+					for (const preview of this.previews.filter(preview => !preview.pinned && preview.ofColumn === editor.viewColumn)) {
 						preview.update(editor.document.uri);
 					}
 				}
@@ -411,18 +426,16 @@ export class MarkdownPreviewManager {
 
 	public preview(
 		resource: vscode.Uri,
-		resourceColumn: vscode.ViewColumn,
-		previewColumn: vscode.ViewColumn
+		previewSettings: PreviewSettings
 	) {
-		// Only allow a single markdown preview per column
-		let preview = this.previews.find(preview => preview.webview.viewColumn === previewColumn);
+		let preview = this.getExistingPreview(resource, previewSettings);
 		if (preview) {
 			preview.resource = resource;
-			preview.ofColumn = resourceColumn;
+			preview.ofColumn = previewSettings.resourceColumn;
 		} else {
 			const webview = vscode.window.createWebview(
-				MarkdownPreviewManager.webviewId,
-				previewColumn, {
+				vscode.Uri.parse(`${MarkdownPreviewManager.previewScheme}:${MarkdownPreviewManager.previewCount++}`),
+				previewSettings.previewColumn, {
 					enableScripts: true,
 					localResourceRoots: this.getLocalResourceRoots(resource)
 				});
@@ -438,13 +451,28 @@ export class MarkdownPreviewManager {
 				vscode.commands.executeCommand(e.command, ...e.args);
 			});
 
-			preview = new MarkdownPreview(resource, webview, resourceColumn, this.contentProvider, this.previewConfigurations);
+			preview = new MarkdownPreview(resource, webview, previewSettings.resourceColumn, previewSettings.pinned, this.contentProvider, this.previewConfigurations);
 			this.previews.push(preview);
 		}
 
 		preview.update(preview.resource);
 		return preview.webview;
 	}
+
+	private getExistingPreview(
+		resource: vscode.Uri,
+		previewSettings: PreviewSettings
+	): MarkdownPreview | undefined {
+		if (!previewSettings.pinned) {
+			// Only allow a single, non-pinned markdown preview per column
+			return this.previews.find(preview =>
+				!preview.pinned && preview.viewColumn === previewSettings.previewColumn);
+		}
+
+		return this.previews.find(preview =>
+			preview.pinned && preview.viewColumn === previewSettings.previewColumn && preview.resource.fsPath === resource.fsPath);
+	}
+
 
 	private getLocalResourceRoots(resource: vscode.Uri): vscode.Uri[] {
 		const folder = vscode.workspace.getWorkspaceFolder(resource);

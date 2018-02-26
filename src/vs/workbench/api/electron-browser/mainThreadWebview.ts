@@ -45,6 +45,7 @@ interface WebviewEvents {
 class WebviewInput extends EditorInput {
 	private static handlePool = 0;
 
+	private readonly _resource: URI;
 	private _name: string;
 	private _options: vscode.WebviewOptions;
 	private _html: string;
@@ -55,6 +56,7 @@ class WebviewInput extends EditorInput {
 	private _webviewDisposables: IDisposable[] = [];
 
 	public static create(
+		resource: URI,
 		name: string,
 		options: vscode.WebviewOptions,
 		html: string,
@@ -67,10 +69,11 @@ class WebviewInput extends EditorInput {
 
 		partService.getContainer(Parts.EDITOR_PART).appendChild(webviewContainer);
 
-		return new WebviewInput(name, options, html, events, webviewContainer, undefined);
+		return new WebviewInput(resource, name, options, html, events, webviewContainer, undefined);
 	}
 
 	constructor(
+		resource: URI,
 		name: string,
 		options: vscode.WebviewOptions,
 		html: string,
@@ -79,6 +82,7 @@ class WebviewInput extends EditorInput {
 		webview: Webview | undefined
 	) {
 		super();
+		this._resource = resource;
 		this._name = name;
 		this._options = options;
 		this._html = html;
@@ -106,6 +110,10 @@ class WebviewInput extends EditorInput {
 		}
 
 		super.dispose();
+	}
+
+	public getResource(): URI {
+		return this._resource;
 	}
 
 	public getName(): string {
@@ -329,6 +337,12 @@ class WebviewEditor extends BaseWebviewEditor {
 			return undefined;
 		}
 
+		if (this.input && this.input.getResource().fsPath !== input.getResource().fsPath) {
+			(this.input as WebviewInput).releaseWebview(this);
+			this._webview = undefined;
+			this.webviewContent = undefined;
+		}
+
 		await super.setInput(input, options);
 
 		this.updateWebview(input);
@@ -420,7 +434,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 	}
 
 	$createWebview(handle: WebviewHandle, uri: URI, options: vscode.WebviewOptions): void {
-		const webviewInput = WebviewInput.create('', options, '', {
+		const webviewInput = WebviewInput.create(URI.revive(uri), '', options, '', {
 			onMessage: message => this._proxy.$onMessage(handle, message),
 			onDidChangePosition: position => this._proxy.$onDidChangePosition(handle, position),
 			onDispose: () => this._proxy.$onDidDisposeWeview(handle),

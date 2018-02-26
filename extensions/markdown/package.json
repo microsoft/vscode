@@ -18,6 +18,7 @@
 		"onCommand:markdown.refreshPreview",
 		"onCommand:markdown.showPreview",
 		"onCommand:markdown.showPreviewToSide",
+		"onCommand:markdown.showPinnedPreviewToSide",
 		"onCommand:markdown.showSource",
 		"onCommand:markdown.showPreviewSecuritySelector"
 	],
@@ -110,6 +111,15 @@
 				}
 			},
 			{
+				"command": "markdown.showPinnedPreviewToSide",
+				"title": "%markdown.showPinnedPreviewToSide.title%",
+				"category": "Markdown",
+				"icon": {
+					"light": "./media/PreviewOnRightPane_16x.svg",
+					"dark": "./media/PreviewOnRightPane_16x_dark.svg"
+				}
+			},
+			{
 				"command": "markdown.showSource",
 				"title": "%markdown.showSource.title%",
 				"category": "Markdown",
@@ -168,6 +178,11 @@
 				},
 				{
 					"command": "markdown.showPreviewToSide",
+					"when": "editorLangId == markdown",
+					"group": "navigation"
+				},
+				{
+					"command": "markdown.showPinnedPreviewToSide",
 					"when": "editorLangId == markdown",
 					"group": "navigation"
 				},
