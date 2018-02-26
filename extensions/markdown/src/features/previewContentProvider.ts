@@ -291,7 +291,8 @@ class MarkdownPreview {
 		previewColumn: vscode.ViewColumn,
 		public readonly pinned: boolean,
 		private readonly contentProvider: MarkdownContentProvider,
-		private readonly previewConfigurations: PreviewConfigManager
+		private readonly previewConfigurations: PreviewConfigManager,
+		private readonly logger: Logger
 	) {
 		this.webview = vscode.window.createWebview(
 			vscode.Uri.parse(`${MarkdownPreview.previewScheme}:${MarkdownPreview.previewCount++}`),
@@ -311,6 +312,13 @@ class MarkdownPreview {
 		vscode.workspace.onDidChangeTextDocument(event => {
 			if (isMarkdownFile(event.document) && this.isPreviewOf(event.document.uri)) {
 				this.refresh();
+			}
+		}, null, this.disposables);
+
+		vscode.window.onDidChangeTextEditorSelection(event => {
+			if (isMarkdownFile(event.textEditor.document) && this.isPreviewOf(event.textEditor.document.uri)) {
+				const resource = event.textEditor.document.uri;
+				this.updateForSelection(resource, event.selections[0].active.line);
 			}
 		}, null, this.disposables);
 	}
@@ -351,10 +359,11 @@ class MarkdownPreview {
 	}
 
 	public updateForSelection(resource: vscode.Uri, line: number) {
-		if (this.resource.fsPath !== resource.fsPath) {
+		if (!this.isPreviewOf(resource)) {
 			return;
 		}
 
+		this.logger.log('updatePreviewForSelection', { markdownFile: resource });
 		this.initialLine = line;
 		this.webview.postMessage({ line, source: resource.toString() });
 	}
@@ -436,18 +445,6 @@ export class MarkdownPreviewManager {
 				}
 			}
 		}, null, this.disposables);
-
-		vscode.window.onDidChangeTextEditorSelection(event => {
-			if (!isMarkdownFile(event.textEditor.document)) {
-				return;
-			}
-
-			const resource = event.textEditor.document.uri;
-			for (const previewForResource of this.previews.filter(preview => preview.isPreviewOf(resource))) {
-				this.logger.log('updatePreviewForSelection', { markdownFile: resource });
-				previewForResource.updateForSelection(resource, event.selections[0].active.line);
-			}
-		}, null, this.disposables);
 	}
 
 	public dispose(): void {
@@ -485,7 +482,7 @@ export class MarkdownPreviewManager {
 		if (preview) {
 			preview.resourceColumn = previewSettings.resourceColumn;
 		} else {
-			preview = new MarkdownPreview(resource, previewSettings.resourceColumn, previewSettings.previewColumn, previewSettings.pinned, this.contentProvider, this.previewConfigurations);
+			preview = new MarkdownPreview(resource, previewSettings.resourceColumn, previewSettings.previewColumn, previewSettings.pinned, this.contentProvider, this.previewConfigurations, this.logger);
 			preview.onDispose(() => {
 				const existing = this.previews.indexOf(preview!);
 				if (existing >= 0) {
