@@ -33,9 +33,9 @@ vscode-emmet-helper@^1.1.34:
     jsonc-parser "^1.0.0"
     vscode-languageserver-types "^3.6.0-next.1"
 
-vscode-html-languageservice@^2.0.16:
-  version "2.0.16"
-  resolved "https://registry.yarnpkg.com/vscode-html-languageservice/-/vscode-html-languageservice-2.0.16.tgz#db5e8307caddedc1acdb5a1fffb919bb9a1184cb"
+vscode-html-languageservice@^2.0.17-next.3:
+  version "2.0.17-next.3"
+  resolved "https://registry.yarnpkg.com/vscode-html-languageservice/-/vscode-html-languageservice-2.0.17-next.3.tgz#dd5e90fac3073ffc2c624bd26daa9f27adfa50eb"
   dependencies:
     vscode-languageserver-types "^3.6.0-next.1"
     vscode-nls "^2.0.2"

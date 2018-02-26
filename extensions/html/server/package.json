@@ -10,7 +10,7 @@
   "dependencies": {
     "vscode-css-languageservice": "^3.0.6",
     "vscode-emmet-helper": "^1.1.34",
-    "vscode-html-languageservice": "^2.0.16",
+    "vscode-html-languageservice": "^2.0.17-next.3",
     "vscode-languageserver": "^4.0.0-next.4",
     "vscode-languageserver-types": "^3.6.0-next.1",
     "vscode-nls": "^3.2.1",
@@ -27,6 +27,6 @@
     "install-service-local": "npm install ../../../../vscode-css-languageservice -f && npm install ../../../../vscode-html-languageservice -f",
     "install-server-next": "yarn add vscode-languageserver@next",
     "install-server-local": "npm install ../../../../vscode-languageserver-node/server -f",
-    "test": "../../../node_modules/.bin/mocha"
+    "test": "npm run compile && ../../../node_modules/.bin/mocha"
   }
 }
