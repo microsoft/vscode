@@ -331,7 +331,8 @@ class MarkdownPreview {
 }
 
 export class MarkdownPreviewManager {
-	private static webviewId = vscode.Uri.parse('vscode-markdown-preview://preview');
+	private static previewScheme = 'vscode-markdown-preview';
+	private static webviewId = vscode.Uri.parse(`${MarkdownPreviewManager.previewScheme}://preview`);
 
 	private previews: MarkdownPreview[] = [];
 	private readonly previewConfigurations = new PreviewConfigManager();
@@ -347,7 +348,8 @@ export class MarkdownPreviewManager {
 		}, null, this.disposables);
 
 		vscode.window.onDidChangeActiveEditor(editor => {
-			vscode.commands.executeCommand('setContext', 'markdownPreview', editor && editor.editorType === 'webview' && editor.uri.fsPath === MarkdownPreviewManager.webviewId.fsPath);
+			vscode.commands.executeCommand('setContext', 'markdownPreview',
+				editor && editor.editorType === 'webview' && editor.uri.scheme === MarkdownPreviewManager.previewScheme);
 
 			if (editor && editor.editorType === 'texteditor') {
 				if (isMarkdownFile(editor.document)) {
