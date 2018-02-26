@@ -5653,9 +5653,9 @@ typescript-formatter@4.0.1:
     editorconfig "^0.13.2"
     glob-expand "^0.2.1"
 
-typescript@2.6.1:
-  version "2.6.1"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.1.tgz#ef39cdea27abac0b500242d6726ab90e0c846631"
+typescript@2.7.1:
+  version "2.7.1"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.7.1.tgz#bb3682c2c791ac90e7c6210b26478a8da085c359"
 
 typescript@^2.6.2:
   version "2.6.2"
