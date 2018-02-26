@@ -301,7 +301,7 @@ class MarkdownPreview {
 			});
 
 		this.webview.onDispose(() => {
-
+			this._onDisposeEmitter.fire();
 		}, null, this.disposables);
 
 		this.webview.onMessage(e => {
