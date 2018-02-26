@@ -1,5 +1,5 @@
 {
-	"displayName": "JSON Language Features",
+	"displayName": "JSON Language Basics",
 	"description": "Provides rich language support for JSON files.",
 	"json.schemas.desc": "Associate schemas to JSON files in the current project",
 	"json.schemas.url.desc": "A URL to a schema or a relative path to a schema in the current directory",

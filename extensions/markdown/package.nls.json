@@ -1,5 +1,5 @@
 {
-	"displayName": "Markdown Language Features",
+	"displayName": "Markdown Language Basics",
 	"description": "Provides rich language support for Markdown.",
 	"markdown.preview.breaks.desc": "Sets how line-breaks are rendered in the markdown preview. Setting it to 'true' creates a <br> for every newline.",
 	"markdown.preview.linkify": "Enable or disable conversion of URL-like text to links in the markdown preview.",
