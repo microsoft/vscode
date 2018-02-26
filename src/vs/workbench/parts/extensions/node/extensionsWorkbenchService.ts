@@ -218,6 +218,14 @@ class Extension implements IExtension {
 			return readFile(uri.fsPath, 'utf8');
 		}
 
+		if (this.type === LocalExtensionType.System) {
+			return TPromise.as(`# ${this.displayName || this.name}
+**Notice** This is a an extension that is bundled with Visual Studio Code.
+
+${this.description}
+`);
+		}
+
 		return TPromise.wrapError<string>(new Error('not available'));
 	}
 
