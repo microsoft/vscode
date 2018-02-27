@@ -252,6 +252,7 @@ function prepareFlatpak(arch) {
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@ICON@@', flatpakManifest.appId))
 			.pipe(rename('share/applications/' + flatpakManifest.appId + '.desktop')));
 
 		all.push(gulp.src('resources/linux/code.appdata.xml', { base: '.' })
