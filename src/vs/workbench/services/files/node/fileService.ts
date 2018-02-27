@@ -1234,6 +1234,10 @@ export class StatResolver {
 
 					function stat(this: any): void {
 						extfs.statLink(fileResource.fsPath, (error: Error, statAndIsLink) => {
+							if (error) {
+								return this(error, null);
+							}
+
 							isSymbolicLink = statAndIsLink.isSymbolicLink;
 							this(null, statAndIsLink.stat);
 						});
