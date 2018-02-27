@@ -129,7 +129,7 @@ export function skipDirectories(): NodeJS.ReadWriteStream {
 	});
 }
 
-export function cleanNodeModule(name: string, excludes: string[], includes: string[]): NodeJS.ReadWriteStream {
+export function cleanNodeModule(name: string, excludes: string[], includes?: string[]): NodeJS.ReadWriteStream {
 	const toGlob = (path: string) => '**/node_modules/' + name + (path ? '/' + path : '');
 	const negate = (str: string) => '!' + str;
 
