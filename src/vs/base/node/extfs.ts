@@ -49,21 +49,17 @@ export interface IStatAndLink {
 }
 
 export function statLink(path: string, callback: (error: Error, statAndIsLink: IStatAndLink) => void): void {
-	fs.lstat(path, (error, stat) => {
-		if (error) {
-			return callback(error, null);
-		}
-
-		if (stat.isSymbolicLink()) {
+	fs.lstat(path, (error, lstat) => {
+		if (error || lstat.isSymbolicLink()) {
 			fs.stat(path, (error, stat) => {
 				if (error) {
 					return callback(error, null);
 				}
 
-				callback(null, { stat, isSymbolicLink: true });
+				callback(null, { stat, isSymbolicLink: lstat && lstat.isSymbolicLink() });
 			});
 		} else {
-			callback(null, { stat, isSymbolicLink: false });
+			callback(null, { stat: lstat, isSymbolicLink: false });
 		}
 	});
 }
