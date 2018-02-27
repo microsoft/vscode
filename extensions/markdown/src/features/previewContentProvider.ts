@@ -292,7 +292,6 @@ class MarkdownPreview {
 
 	constructor(
 		private _resource: vscode.Uri,
-		public resourceColumn: vscode.ViewColumn,
 		previewColumn: vscode.ViewColumn,
 		public readonly pinned: boolean,
 		private readonly contentProvider: MarkdownContentProvider,
@@ -493,7 +492,7 @@ export class MarkdownPreviewManager {
 
 			if (editor && editor.editorType === 'texteditor') {
 				if (isMarkdownFile(editor.document)) {
-					for (const preview of this.previews.filter(preview => !preview.pinned && preview.resourceColumn === editor.viewColumn)) {
+					for (const preview of this.previews.filter(preview => !preview.pinned)) {
 						preview.update(editor.document.uri);
 					}
 				}
@@ -524,10 +523,9 @@ export class MarkdownPreviewManager {
 	): void {
 		let preview = this.getExistingPreview(resource, previewSettings);
 		if (preview) {
-			preview.resourceColumn = previewSettings.resourceColumn;
 			preview.show(previewSettings.previewColumn);
 		} else {
-			preview = new MarkdownPreview(resource, previewSettings.resourceColumn, previewSettings.previewColumn, previewSettings.pinned, this.contentProvider, this.previewConfigurations, this.logger);
+			preview = new MarkdownPreview(resource, previewSettings.previewColumn, previewSettings.pinned, this.contentProvider, this.previewConfigurations, this.logger);
 			preview.onDispose(() => {
 				const existing = this.previews.indexOf(preview!);
 				if (existing >= 0) {
