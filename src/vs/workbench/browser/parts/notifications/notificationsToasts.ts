@@ -251,7 +251,9 @@ export class NotificationsToasts extends Themable {
 	}
 
 	private doHide(): void {
-		removeClass(this.notificationsToastsContainer, 'visible');
+		if (this.notificationsToastsContainer) {
+			removeClass(this.notificationsToastsContainer, 'visible');
+		}
 
 		// Context Key
 		this.notificationsToastsVisibleContextKey.set(false);
