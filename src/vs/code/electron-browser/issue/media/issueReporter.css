@@ -366,13 +366,11 @@ button {
 }
 
 .issues-container > .issue > .issue-state {
-	width: 77px;
 	height: 22px;
 	padding: 3px 6px;
 	margin-right: 5px;
 	color: #CCCCCC;
 	background-color: #3c3c3c;
-	text-align: center;
 	border-radius: .25rem;
 	display: inline-block;
 	vertical-align: top;
