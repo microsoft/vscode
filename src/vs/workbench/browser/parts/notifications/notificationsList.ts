@@ -206,7 +206,7 @@ export class NotificationsList extends Themable {
 			return false; // hidden
 		}
 
-		return this.list.isDOMFocused();
+		return isAncestor(document.activeElement, this.listContainer);
 	}
 
 	protected updateStyles(): void {
