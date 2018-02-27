@@ -364,7 +364,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionActionBar.push([reloadAction, updateAction, enableAction, disableAction, installAction, maliciousStatusAction], { icon: true, label: true });
 		this.transientDisposables.push(enableAction, updateAction, reloadAction, disableAction, installAction, maliciousStatusAction);
 
-		this.content.innerHTML = '';
+		this.content.innerHTML = ''; // Clear content before setting navbar actions.
 
 		this.navbar.clear();
 		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
