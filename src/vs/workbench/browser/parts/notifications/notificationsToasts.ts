@@ -8,7 +8,7 @@
 import 'vs/css!./media/notificationsToasts';
 import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemLabelKind } from 'vs/workbench/common/notifications';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { addClass, removeClass, isAncestor, addDisposableListener } from 'vs/base/browser/dom';
+import { addClass, removeClass, isAncestor, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { Dimension } from 'vs/base/browser/builder';
@@ -164,10 +164,17 @@ export class NotificationsToasts extends Themable {
 
 		// Automatically hide collapsed notifications
 		if (!item.expanded) {
+
+			// Track mouse over item
+			let isMouseOverToast = false;
+			itemDisposeables.push(addDisposableListener(notificationToastContainer, EventType.MOUSE_OVER, () => isMouseOverToast = true));
+			itemDisposeables.push(addDisposableListener(notificationToastContainer, EventType.MOUSE_OUT, () => isMouseOverToast = false));
+
+			// Install Timers
 			let timeoutHandle: number;
 			const hideAfterTimeout = () => {
 				timeoutHandle = setTimeout(() => {
-					if (!notificationList.hasFocus() && !item.expanded) {
+					if (!notificationList.hasFocus() && !item.expanded && !isMouseOverToast) {
 						this.removeToast(item);
 					} else {
 						hideAfterTimeout(); // push out disposal if item has focus or is expanded
