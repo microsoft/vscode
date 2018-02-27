@@ -285,10 +285,7 @@ class MarkdownPreview {
 	private throttleTimer: any;
 	private initialLine: number | undefined = undefined;
 	private readonly disposables: vscode.Disposable[] = [];
-<<<<<<< HEAD
 	private firstUpdate = true;
-=======
->>>>>>> Scroll sync markdown editor with markdown preview
 	private currentVersion?: { resource: vscode.Uri, version: number };
 
 	constructor(
