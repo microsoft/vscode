@@ -185,15 +185,15 @@ export class PanelViewlet extends Viewlet {
 	}
 
 	private showContextMenu(event: StandardMouseEvent): void {
-		event.stopPropagation();
-		event.preventDefault();
-
 		for (const panelItem of this.panelItems) {
-			// Do not show context menu if requested from inside panel views
+			// Do not show context menu if target is coming from inside panel views
 			if (isAncestor(event.target, panelItem.panel.element)) {
 				return;
 			}
 		}
+
+		event.stopPropagation();
+		event.preventDefault();
 
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
