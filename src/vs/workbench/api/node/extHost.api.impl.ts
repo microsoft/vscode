@@ -433,9 +433,9 @@ export function createApiFactory(
 			set name(value) {
 				throw errors.readonly();
 			},
-			updateWorkspaceFolders: proposedApiFunction(extension, (index, deleteCount, ...workspaceFoldersToAdd) => {
-				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount, ...workspaceFoldersToAdd);
-			}),
+			updateWorkspaceFolders: (index, deleteCount, ...workspaceFoldersToAdd) => {
+				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount || 0, ...workspaceFoldersToAdd);
+			},
 			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
 				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);
 			},
