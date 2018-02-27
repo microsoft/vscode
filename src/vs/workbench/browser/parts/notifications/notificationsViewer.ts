@@ -146,11 +146,10 @@ class NotificationMessageRenderer {
 		// Message has links
 		else {
 			let index = 0;
-			let textBefore: string;
 			for (let i = 0; i < message.links.length; i++) {
 				const link = message.links[i];
 
-				textBefore = message.value.substring(index, link.offset);
+				const textBefore = message.value.substring(index, link.offset);
 				if (textBefore) {
 					messageContainer.appendChild(document.createTextNode(textBefore));
 				}
@@ -167,6 +166,12 @@ class NotificationMessageRenderer {
 				messageContainer.appendChild(anchor);
 
 				index = link.offset + link.length;
+			}
+
+			// Add text after links if any
+			const textAfter = message.value.substring(index);
+			if (textAfter) {
+				messageContainer.appendChild(document.createTextNode(textAfter));
 			}
 		}
 
