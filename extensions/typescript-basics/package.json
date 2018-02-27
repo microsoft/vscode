@@ -55,16 +55,16 @@
           "meta.embedded.expression.tsx": "typescriptreact"
         }
       }
+    ],
+    "snippets": [
+      {
+        "language": "typescript",
+        "path": "./snippets/typescript.json"
+      },
+      {
+        "language": "typescriptreact",
+        "path": "./snippets/typescript.json"
+      }
     ]
-  },
-  "snippets": [
-    {
-      "language": "typescript",
-      "path": "./snippets/typescript.json"
-    },
-    {
-      "language": "typescriptreact",
-      "path": "./snippets/typescript.json"
-    }
-  ]
+  }
 }
