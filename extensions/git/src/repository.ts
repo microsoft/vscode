@@ -955,7 +955,7 @@ export class Repository implements Disposable {
 
 		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
 			//check for known large folders that should be in .gitignore
-			let knownHugeFolders = ['node_modules', 'pp']; 	//maybe get from config
+			let knownHugeFolders = ['node_modules']; 	//maybe get from config
 			let knownHugeFolderUris: Uri[] = knownHugeFolders.map(folder => {
 				return Uri.file(`${this.repository.root}${path.sep}${folder}`);
 			});
