@@ -23,6 +23,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 
 class TestTerminalInstance extends TerminalInstance {
 
@@ -161,6 +162,7 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IKeybindingService, keybindingService);
 			instantiationService.stub(IContextKeyService, contextKeyService);
 			instantiationService.stub(IHistoryService, new TestHistoryService());
+			instantiationService.stub(ILogService, new NullLogService());
 			configHelper = {
 				config: {
 					cwd: null
