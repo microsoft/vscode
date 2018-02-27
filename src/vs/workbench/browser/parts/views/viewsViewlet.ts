@@ -236,12 +236,12 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 	getContextMenuActions(): IAction[] {
 		const result: IAction[] = [];
 		const viewToggleActions = this.getViewDescriptorsFromRegistry(true)
-			.filter(viewDescriptor => viewDescriptor.canToggleVisibility && this.contextKeyService.contextMatchesRules(viewDescriptor.when))
+			.filter(viewDescriptor => this.contextKeyService.contextMatchesRules(viewDescriptor.when))
 			.map(viewDescriptor => (<IAction>{
 				id: `${viewDescriptor.id}.toggleVisibility`,
 				label: viewDescriptor.name,
 				checked: this.isCurrentlyVisible(viewDescriptor),
-				enabled: true,
+				enabled: viewDescriptor.canToggleVisibility,
 				run: () => this.toggleViewVisibility(viewDescriptor.id)
 			}));
 		result.push(...viewToggleActions);
