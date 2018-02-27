@@ -549,7 +549,6 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 								this.explorerViewer.expand(item);
 							});
 						}
-
 					}, errors.onUnexpectedError);
 				});
 			}
