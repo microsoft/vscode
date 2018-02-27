@@ -146,6 +146,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: NotificationFocusedContext,
 		primary: KeyCode.Space,
+		secondary: [KeyCode.Enter],
 		handler: accessor => {
 			const notification = getNotificationFromContext(accessor.get(IListService));
 			if (notification) {
