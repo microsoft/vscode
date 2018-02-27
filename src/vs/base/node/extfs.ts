@@ -43,7 +43,12 @@ export function readdir(path: string, callback: (error: Error, files: string[]) 
 	return fs.readdir(path, callback);
 }
 
-export function statLink(path: string, callback: (error: Error, statAndIsLink: { stat: fs.Stats, isSymbolicLink: boolean }) => void): void {
+export interface IStatAndLink {
+	stat: fs.Stats;
+	isSymbolicLink: boolean;
+}
+
+export function statLink(path: string, callback: (error: Error, statAndIsLink: IStatAndLink) => void): void {
 	fs.lstat(path, (error, stat) => {
 		if (error) {
 			return callback(error, null);

@@ -42,7 +42,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 import { getBaseLabel } from 'vs/base/common/labels';
 import { assign } from 'vs/base/common/objects';
 import { Readable } from 'stream';
-import { IWriteFileOptions } from 'vs/base/node/extfs';
+import { IWriteFileOptions, IStatAndLink } from 'vs/base/node/extfs';
 import { Schemas } from 'vs/base/common/network';
 
 export interface IEncodingOverride {
@@ -1233,18 +1233,12 @@ export class StatResolver {
 					},
 
 					function stat(this: any): void {
-						extfs.statLink(fileResource.fsPath, (error: Error, statAndIsLink) => {
-							if (error) {
-								return this(error, null);
-							}
-
-							isSymbolicLink = statAndIsLink.isSymbolicLink;
-							this(null, statAndIsLink.stat);
-						});
+						extfs.statLink(fileResource.fsPath, this);
 					},
 
-					function countChildren(this: any, fsstat: fs.Stats): void {
-						fileStat = fsstat;
+					function countChildren(this: any, statAndLink: IStatAndLink): void {
+						fileStat = statAndLink.stat;
+						isSymbolicLink = statAndLink.isSymbolicLink;
 
 						if (fileStat.isDirectory()) {
 							extfs.readdir(fileResource.fsPath, (error, result) => {
