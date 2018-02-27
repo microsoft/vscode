@@ -6,7 +6,7 @@
 
 import nls = require('vs/nls');
 import Severity from 'vs/base/common/severity';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { MainThreadMessageServiceShape, MainContext, IExtHostContext, MainThreadMessageOptions } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -15,6 +15,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { once } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { localize } from 'vs/nls';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
@@ -23,7 +24,8 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		extHostContext: IExtHostContext,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IChoiceService private readonly _choiceService: IChoiceService
+		@IChoiceService private readonly _choiceService: IChoiceService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService
 	) {
 		//
 	}
@@ -44,7 +46,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 		return new Promise<number>(resolve => {
 
-			let actions: MessageItemAction[] = [];
+			let primaryActions: MessageItemAction[] = [];
 
 			class MessageItemAction extends Action {
 				constructor(id: string, label: string, handle: number) {
@@ -64,7 +66,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			}
 
 			commands.forEach(command => {
-				actions.push(new MessageItemAction('_extension_message_handle_' + command.handle, command.title, command.handle));
+				primaryActions.push(new MessageItemAction('_extension_message_handle_' + command.handle, command.title, command.handle));
 			});
 
 			let source: string;
@@ -76,10 +78,15 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 				source = localize('defaultSource', "Extension");
 			}
 
+			const secondaryActions: IAction[] = [];
+			if (extension && extension.extensionFolderPath !== this._environmentService.extensionDevelopmentPath) {
+				secondaryActions.push(new ManageExtensionAction(extension.id, nls.localize('manageExtension', "Manage Extension"), this._commandService));
+			}
+
 			const messageHandle = this._notificationService.notify({
 				severity,
 				message,
-				actions: { primary: actions, secondary: extension ? [new ManageExtensionAction(extension.id, nls.localize('manageExtension', "Manage Extension"), this._commandService)] : [] },
+				actions: { primary: primaryActions, secondary: secondaryActions },
 				source
 			});
 
