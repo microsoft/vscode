@@ -14,6 +14,7 @@ import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLau
 import Severity from 'vs/base/common/severity';
 import { isFedora } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { Terminal as XTermTerminal } from 'vscode-xterm';
 
 const DEFAULT_LINE_HEIGHT = 1.0;
 
@@ -50,20 +51,12 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
-		// Return cached font if no config changed
-		if (this._lastFontMeasurement &&
-			this._lastFontMeasurement.fontFamily === fontFamily &&
-			this._lastFontMeasurement.fontSize === fontSize &&
-			this._lastFontMeasurement.lineHeight === lineHeight) {
-			return this._lastFontMeasurement;
-		}
-
 		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
 		if (!this._charMeasureElement || !this._charMeasureElement.parentElement) {
 			this._charMeasureElement = document.createElement('div');
 			this.panelContainer.appendChild(this._charMeasureElement);
 		}
-		// TODO: This should leverage CharMeasure
+
 		const style = this._charMeasureElement.style;
 		style.display = 'block';
 		style.fontFamily = fontFamily;
@@ -92,7 +85,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	 * Gets the font information based on the terminal.integrated.fontFamily
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
-	public getFont(excludeDimensions?: boolean): ITerminalFont {
+	public getFont(xterm?: XTermTerminal, excludeDimensions?: boolean): ITerminalFont {
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
 		let fontFamily = this.config.fontFamily || editorConfig.fontFamily;
@@ -115,6 +108,20 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			};
 		}
 
+		// Get the character dimensions from xterm if it's available
+		if (xterm) {
+			if (xterm.charMeasure && xterm.charMeasure.width && xterm.charMeasure.height) {
+				return {
+					fontFamily,
+					fontSize,
+					lineHeight,
+					charHeight: xterm.charMeasure.height,
+					charWidth: xterm.charMeasure.width
+				};
+			}
+		}
+
+		// Fall back to measuring the font ourselves
 		return this._measureFont(fontFamily, fontSize, lineHeight);
 	}
 

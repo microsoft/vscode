@@ -606,5 +606,6 @@ declare module 'vscode-xterm' {
 
 		webLinksInit(handler?: (event: MouseEvent, uri: string) => void, options?: ILinkMatcherOptions): void;
 		winptyCompatInit(): void;
+		charMeasure?: { height: number, width: number }
 	}
 }

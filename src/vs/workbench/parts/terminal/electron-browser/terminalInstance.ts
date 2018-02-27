@@ -223,7 +223,7 @@ export class TerminalInstance implements ITerminalInstance {
 			return null;
 		}
 
-		const font = this._configHelper.getFont();
+		const font = this._configHelper.getFont(this._xterm);
 
 		// Because xterm.js converts from CSS pixels to actual pixels through
 		// the use of canvas, window.devicePixelRatio needs to be used here in
@@ -243,7 +243,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _getDimension(width: number, height: number): Dimension {
 		// The font needs to have been initialized
-		const font = this._configHelper.getFont();
+		const font = this._configHelper.getFont(this._xterm);
 		if (!font || !font.charWidth || !font.charHeight) {
 			return null;
 		}
@@ -285,7 +285,7 @@ export class TerminalInstance implements ITerminalInstance {
 			Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce, navigate to rows manually to read');
 		}
 		const accessibilitySupport = this._configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
-		const font = this._configHelper.getFont(true);
+		const font = this._configHelper.getFont(undefined, true);
 		this._xterm = new Terminal({
 			scrollback: this._configHelper.config.scrollback,
 			theme: this._getXtermTheme(),
@@ -1096,7 +1096,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		if (this._xterm) {
-			const font = this._configHelper.getFont();
+			const font = this._configHelper.getFont(this._xterm);
 
 			// Only apply these settings when the terminal is visible so that
 			// the characters are measured correctly.
