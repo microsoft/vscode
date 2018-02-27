@@ -164,8 +164,10 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		const webview = this._webviews.get(handle);
 		if (webview) {
 			const newViewColumn = typeConverters.toViewColumn(newPosition);
-			webview.viewColumn = newViewColumn;
-			webview.onDidChangeViewColumnEmitter.fire(newViewColumn);
+			if (webview.viewColumn !== newViewColumn) {
+				webview.viewColumn = newViewColumn;
+				webview.onDidChangeViewColumnEmitter.fire(newViewColumn);
+			}
 		}
 	}
 

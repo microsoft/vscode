@@ -283,7 +283,7 @@ class MarkdownPreview {
 	private throttleTimer: any;
 	private initialLine: number | undefined = undefined;
 	private readonly disposables: vscode.Disposable[] = [];
-
+	private firstUpdate = true;
 	private currentVersion?: { resource: vscode.Uri, version: number };
 
 	constructor(
@@ -304,6 +304,10 @@ class MarkdownPreview {
 
 		this.webview.onDidDispose(() => {
 			this.dispose();
+		}, null, this.disposables);
+
+		this.webview.onDidChangeViewColumn(() => {
+			this._onDidChangeViewColumnEmitter.fire();
 		}, null, this.disposables);
 
 		this.webview.onDidReceiveMessage(e => {
@@ -327,18 +331,17 @@ class MarkdownPreview {
 	private readonly _onDisposeEmitter = new vscode.EventEmitter<void>();
 	public readonly onDispose = this._onDisposeEmitter.event;
 
+	private readonly _onDidChangeViewColumnEmitter = new vscode.EventEmitter<vscode.ViewColumn>();
+	public readonly onDidChangeViewColumn = this._onDidChangeViewColumnEmitter.event;
+
 	public dispose() {
 		this._onDisposeEmitter.fire();
 
 		this._onDisposeEmitter.dispose();
+		this._onDidChangeViewColumnEmitter.dispose();
 		this.webview.dispose();
 
-		while (this.disposables.length) {
-			const item = this.disposables.pop();
-			if (item) {
-				item.dispose();
-			}
-		}
+		disposeAll(this.disposables);
 	}
 
 	public update(resource: vscode.Uri) {
@@ -351,9 +354,10 @@ class MarkdownPreview {
 
 		// Schedule update
 		if (!this.throttleTimer) {
-			this.throttleTimer = setTimeout(() => this.doUpdate(), resource.fsPath === this.resource.fsPath ? 300 : 0);
+			this.throttleTimer = setTimeout(() => this.doUpdate(), resource.fsPath === this.resource.fsPath && !this.firstUpdate ? 300 : 0);
 		}
 
+		this.firstUpdate = false;
 		this.resource = resource;
 	}
 
@@ -373,6 +377,26 @@ class MarkdownPreview {
 
 	public isPreviewOf(resource: vscode.Uri): boolean {
 		return this.resource.fsPath === resource.fsPath;
+	}
+
+	public matchesResource(
+		otherResource: vscode.Uri,
+		otherViewColumn: vscode.ViewColumn | undefined,
+		otherPinned: boolean
+	): boolean {
+		if (this.viewColumn !== otherViewColumn) {
+			return false;
+		}
+
+		if (this.pinned) {
+			return otherPinned && this.isPreviewOf(otherResource);
+		} else {
+			return !otherPinned;
+		}
+	}
+
+	public matches(otherPreview: MarkdownPreview): boolean {
+		return this.matchesResource(otherPreview.resource, otherPreview.viewColumn, otherPreview.pinned);
 	}
 
 	public show(viewColumn: vscode.ViewColumn) {
@@ -463,18 +487,8 @@ export class MarkdownPreviewManager {
 	}
 
 	public dispose(): void {
-		while (this.disposables.length) {
-			const item = this.disposables.pop();
-			if (item) {
-				item.dispose();
-			}
-		}
-		while (this.previews.length) {
-			const item = this.previews.pop();
-			if (item) {
-				item.dispose();
-			}
-		}
+		disposeAll(this.disposables);
+		disposeAll(this.previews);
 	}
 
 	public refresh() {
@@ -505,6 +519,9 @@ export class MarkdownPreviewManager {
 					this.previews.splice(existing, 1);
 				}
 			});
+			preview.onDidChangeViewColumn(() => {
+				disposeAll(this.previews.filter(otherPreview => preview !== otherPreview && preview!.matches(otherPreview)));
+			});
 			this.previews.push(preview);
 		}
 
@@ -515,13 +532,17 @@ export class MarkdownPreviewManager {
 		resource: vscode.Uri,
 		previewSettings: PreviewSettings
 	): MarkdownPreview | undefined {
-		if (!previewSettings.pinned) {
-			// Only allow a single, non-pinned markdown preview per column
-			return this.previews.find(preview =>
-				!preview.pinned && preview.viewColumn === previewSettings.previewColumn);
-		}
-
 		return this.previews.find(preview =>
-			preview.pinned && preview.viewColumn === previewSettings.previewColumn && preview.isPreviewOf(resource));
+			preview.matchesResource(resource, previewSettings.previewColumn, previewSettings.pinned));
+	}
+}
+
+
+function disposeAll(disposables: vscode.Disposable[]) {
+	while (disposables.length) {
+		const item = disposables.pop();
+		if (item) {
+			item.dispose();
+		}
 	}
 }

@@ -325,13 +325,6 @@ class WebviewEditor extends BaseWebviewEditor {
 		super.clearInput();
 	}
 
-	public changePosition(position: Position): void {
-		if (this.input && this.input instanceof WebviewInput) {
-			this.input.onDidChangePosition(position);
-		}
-		super.changePosition(position);
-	}
-
 	async setInput(input: WebviewInput, options: EditorOptions): TPromise<void> {
 		if (this.input && this.input.matches(input)) {
 			return undefined;
@@ -345,6 +338,7 @@ class WebviewEditor extends BaseWebviewEditor {
 
 		await super.setInput(input, options);
 
+		input.onDidChangePosition(this.position);
 		this.updateWebview(input);
 	}
 
