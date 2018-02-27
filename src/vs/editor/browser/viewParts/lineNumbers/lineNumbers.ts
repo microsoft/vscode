@@ -177,6 +177,6 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const activeLineNumber = theme.getColor(editorActiveLineNumber);
 	if (activeLineNumber) {
-		collector.addRule(`.monaco-editor .current-line-margin ~ .line-numbers { color: ${activeLineNumber}; }`);
+		collector.addRule(`.monaco-editor .current-line ~ .line-numbers { color: ${activeLineNumber}; }`);
 	}
 });
