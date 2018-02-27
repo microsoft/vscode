@@ -527,12 +527,18 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 					if (this.explorerViewer.isExpanded(modelElement)) {
 					 expandedItems.push(modelElement);
 					}
-					//keep expanded childrens even if parent is collapsed
-					modelElement.children.forEach(item =>{
-						if(this.explorerViewer.isExpanded(item)){
-						 expandedItems.push(item);
+					var checkChildrens = item =>{
+						if (item.children){
+							item.children.forEach(child =>{
+								if(this.explorerViewer.isExpanded(item)){
+									expandedItems.push(item);
+							   }
+							   checkChildrens(child);
+							});
 						}
-					});
+					};
+
+					checkChildrens(modelElement);
 					// Rename File (Model)
 					modelElement.rename(newElement);
 
@@ -545,9 +551,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 						}
 						//Expand the element again
 						if  (expandedItems.length > 0) {
-							expandedItems.forEach(item => {
-								this.explorerViewer.expand(item);
-							});
+							this.explorerViewer.expandAll(expandedItems);
 						}
 					}, errors.onUnexpectedError);
 				});
