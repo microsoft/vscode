@@ -234,10 +234,6 @@ export class Webview {
 	}
 
 	public set contents(value: string) {
-		if (this._contents === value) {
-			return;
-		}
-
 		this._contents = value;
 		this._send('content', {
 			contents: value,
