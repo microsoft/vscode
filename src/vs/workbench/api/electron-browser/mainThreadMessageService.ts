@@ -14,6 +14,7 @@ import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { once } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { localize } from 'vs/nls';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
@@ -66,11 +67,20 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 				actions.push(new MessageItemAction('_extension_message_handle_' + command.handle, command.title, command.handle));
 			});
 
+			let source: string;
+			if (extension) {
+				source = localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name);
+			}
+
+			if (!source) {
+				source = localize('defaultSource', "Extension");
+			}
+
 			const messageHandle = this._notificationService.notify({
 				severity,
 				message,
 				actions: { primary: actions, secondary: extension ? [new ManageExtensionAction(extension.id, nls.localize('manageExtension', "Manage Extension"), this._commandService)] : [] },
-				source: extension && `${extension.displayName || extension.name}`
+				source
 			});
 
 			// if promise has not been resolved yet, now is the time to ensure a return value
