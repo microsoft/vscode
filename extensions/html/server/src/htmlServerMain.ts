@@ -276,8 +276,8 @@ connection.onCompletion(async textDocumentPosition => {
 
 		cachedCompletionList = null;
 		let emmetCompletionList: CompletionList = {
-			isIncomplete: true,
-			items: undefined
+			isIncomplete: false,
+			items: []
 		};
 		let pathCompletionList: CompletionList = {
 			isIncomplete: false,
@@ -305,7 +305,7 @@ connection.onCompletion(async textDocumentPosition => {
 			if (emmetCompletionList.items.length && hexColorRegex.test(emmetCompletionList.items[0].label) && result.items.some(x => x.label === emmetCompletionList.items[0].label)) {
 				emmetCompletionList.items.shift();
 			}
-			return { isIncomplete: true, items: [...emmetCompletionList.items, ...result.items] };
+			return { isIncomplete: emmetCompletionList.isIncomplete || result.isIncomplete, items: [...emmetCompletionList.items, ...result.items] };
 		}
 		return result;
 
