@@ -227,6 +227,7 @@ export class MarkdownContentProvider {
 		const initialData = {
 			source: sourceUri.toString(),
 			line: initialLine,
+			lineCount: markdownDocument.lineCount,
 			scrollPreviewWithEditor: config.scrollPreviewWithEditor,
 			scrollEditorWithPreview: config.scrollEditorWithPreview,
 			doubleClickToSwitchToEditor: config.doubleClickToSwitchToEditor,

@@ -30,6 +30,22 @@
 	}
 
 	/**
+	 * @param {number} min
+	 * @param {number} max
+	 * @param {number} value
+	 */
+	function clamp(min, max, value) {
+		return Math.min(max, Math.max(min, value));
+	}
+
+	/**
+	 * @param {number} line
+	 */
+	function clampLine(line) {
+		return clamp(0, settings.lineCount - 1, line);
+	}
+
+	/**
 	 * @param {string} command
 	 * @param {any[]} args
 	 */
@@ -157,9 +173,9 @@
 			if (next) {
 				const betweenProgress = (offset - window.scrollY - previous.element.getBoundingClientRect().top) / (next.element.getBoundingClientRect().top - previous.element.getBoundingClientRect().top);
 				const line = previous.line + betweenProgress * (next.line - previous.line);
-				return Math.max(line, 0);
+				return clampLine(line);
 			} else {
-				return Math.max(previous.line, 0);
+				return clampLine(previous.line);
 			}
 		}
 		return null;
