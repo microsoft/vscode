@@ -11,5 +11,6 @@
 	"terminalCursor.foreground": "終端機游標的前景色彩。",
 	"terminalCursor.background": "終端機游標的背景色彩。允許區塊游標重疊於自訂字元色彩。",
 	"terminal.selectionBackground": "終端機的選取項目背景色彩。",
+	"terminal.border": "分隔多個終端的邊界顏色。預設值為 panel.border",
 	"terminal.ansiColor": "終端機中的 '{0}' ANSI 色彩。"
 }

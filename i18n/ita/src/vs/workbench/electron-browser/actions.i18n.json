@@ -30,7 +30,6 @@
 	"remove": "Rimuovi dagli elementi aperti di recente",
 	"openRecent": "Apri recenti...",
 	"quickOpenRecent": "Apertura rapida recenti...",
-	"closeMessages": "Chiudi messaggi di notifica",
 	"reportIssueInEnglish": "Segnala problema",
 	"reportPerformanceIssue": "Segnala problema di prestazioni",
 	"keybindingsReference": "Riferimento per tasti di scelta rapida",
@@ -49,9 +48,5 @@
 	"moveWindowTabToNewWindow": "Sposta scheda della finestra in una nuova finestra",
 	"mergeAllWindowTabs": "Unisci tutte le finestre",
 	"toggleWindowTabsBar": "Attiva/Disattiva barra delle schede delle finestre",
-	"configureLocale": "Configura lingua",
-	"displayLanguage": "Definisce la lingua visualizzata di VSCode.",
-	"doc": "Per un elenco delle lingue supportate, vedere {0}.",
-	"restart": "Se si modifica il valore, è necessario riavviare VSCode.",
-	"fail.createSettings": "Non è possibile creare '{0}' ({1})."
+	"about": "Informazioni su {0}"
 }

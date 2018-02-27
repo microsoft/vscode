@@ -86,5 +86,5 @@ export function onError(error: Error, done: () => void): void {
 }
 
 export function toResource(this: any, path: string) {
-	return URI.file(paths.join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
+	return URI.file(paths.join('C:\\', Buffer.from(this.test.fullTitle()).toString('base64'), path));
 }

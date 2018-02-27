@@ -158,7 +158,7 @@ export class QueryBuilder {
 	}
 
 	/**
-	 * Takes the input from the excludePattern as seen in the searchViewlet. Runs the same algorithm as parseSearchPaths,
+	 * Takes the input from the excludePattern as seen in the searchView. Runs the same algorithm as parseSearchPaths,
 	 * but the result is a single IExpression that encapsulates all the exclude patterns.
 	 */
 	public parseExcludePattern(pattern: string): glob.IExpression | undefined {

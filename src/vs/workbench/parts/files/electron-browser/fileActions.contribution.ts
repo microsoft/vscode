@@ -18,7 +18,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext } from 'vs/workbench/parts/files/common/files';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
-import { CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_SAVED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { OPEN_FOLDER_SETTINGS_COMMAND, OPEN_FOLDER_SETTINGS_LABEL } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { AutoSaveContext } from 'vs/workbench/services/textfile/common/textfiles';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
@@ -308,8 +308,8 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '4_close',
 	order: 30,
 	command: {
-		id: CLOSE_UNMODIFIED_EDITORS_COMMAND_ID,
-		title: nls.localize('closeUnmodified', "Close Unmodified")
+		id: CLOSE_SAVED_EDITORS_COMMAND_ID,
+		title: nls.localize('closeSaved', "Close Saved")
 	}
 });
 

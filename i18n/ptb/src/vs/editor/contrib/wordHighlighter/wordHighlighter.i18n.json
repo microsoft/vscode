@@ -8,6 +8,8 @@
 	],
 	"wordHighlight": "Cor de fundo de um símbolo durante o acesso de leitura, como ao ler uma variável. A cor não deve ser opaca para não ocultar as decorações subjacentes.",
 	"wordHighlightStrong": "Cor de fundo de um símbolo durante o acesso de escrita, como ao escrever uma variável. A cor não deve ser opaca para não ocultar as decorações subjacentes.",
+	"wordHighlightBorder": "Cor de fundo de um símbolo durante acesso de leitura, como ao ler uma variável.",
+	"wordHighlightStrongBorder": "Cor de fundo de um símbolo durante acesso de escrita, como ao escrever uma variável.",
 	"overviewRulerWordHighlightForeground": "Visão geral da cor do marcador da régua para destaques de símbolos.",
 	"overviewRulerWordHighlightStrongForeground": "Visão geral da cor do marcador da régua para gravação de destaques de símbolos.",
 	"wordHighlight.next.label": "Ir para o próximo símbolo em destaque",

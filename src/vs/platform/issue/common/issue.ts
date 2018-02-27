@@ -56,7 +56,6 @@ export interface ISettingsSearchIssueReporterData extends IssueReporterData {
 }
 
 export interface IssueReporterFeatures {
-	useDuplicateSearch: boolean;
 }
 
 export interface IIssueService {

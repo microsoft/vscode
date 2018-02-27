@@ -52,7 +52,6 @@ import { Color } from 'vs/base/common/color';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { assign } from 'vs/base/common/objects';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 /**  A context key that is set when an extension editor webview has focus. */
@@ -183,19 +182,18 @@ export class ExtensionEditor extends BaseEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IViewletService private viewletService: IViewletService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IThemeService protected themeService: IThemeService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@INotificationService private notificationService: INotificationService,
-		@IOpenerService private openerService: IOpenerService,
-		@IPartService private partService: IPartService,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IPartService private readonly partService: IPartService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService);
@@ -421,11 +419,9 @@ export class ExtensionEditor extends BaseEditor {
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
 				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : {};
-				this.activeWebview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.environmentService, this.contextService, this.contextViewService, this.contextKey, this.findInputFocusContextKey, webViewOptions, false);
+				this.activeWebview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.themeService, this.environmentService, this.contextViewService, this.contextKey, this.findInputFocusContextKey, webViewOptions);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
-
-				this.activeWebview.style(this.themeService.getTheme());
 				this.activeWebview.contents = body;
 
 				this.activeWebview.onDidClickLink(link => {
@@ -434,7 +430,6 @@ export class ExtensionEditor extends BaseEditor {
 						this.openerService.open(link);
 					}
 				}, null, this.contentDisposables);
-				this.themeService.onThemeChange(theme => this.activeWebview.style(theme), null, this.contentDisposables);
 				this.contentDisposables.push(this.activeWebview);
 			})
 			.then(null, () => {

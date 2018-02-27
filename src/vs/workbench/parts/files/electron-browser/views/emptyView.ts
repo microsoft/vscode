@@ -102,7 +102,7 @@ export class EmptyView extends ViewsViewletPanel {
 
 	public focusBody(): void {
 		if (this.button) {
-			this.button.getElement().focus();
+			this.button.element.focus();
 		}
 	}
 

@@ -21,7 +21,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { maxBufferLen, detectMimeAndEncodingFromBuffer } from 'vs/base/node/mime';
 import { MIME_BINARY } from 'vs/base/common/mime';
 import { localize } from 'vs/nls';
@@ -31,6 +31,7 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 	const [resource, stat] = tuple;
 	const fileStat: IFileStat = {
 		isDirectory: false,
+		isSymbolicLink: stat.type === FileType.Symlink,
 		resource: resource,
 		name: basename(resource.path),
 		mtime: stat.mtime,

@@ -35,6 +35,7 @@
 	"panelDefaultLocation": "Controla la ubicación predeterminada del panel. Puede mostrarse en la parte inferior o a la derecha de la mesa de banco.",
 	"statusBarVisibility": "Controla la visibilidad de la barra de estado en la parte inferior del área de trabajo.",
 	"activityBarVisibility": "Controla la visibilidad de la barra de actividades en el área de trabajo.",
+	"viewVisibility": "Controla la visibilidad de las acciones en el encabezado de la vista. Las acciones en el encabezado de la vista pueden ser siempre visibles, o solo cuando la vista es enfocada o apuntada.",
 	"fontAliasing": "Controla el método de suavizado de fuentes en la mesa de trabajo.\n-por defecto: subpíxel suavizado de fuentes. En la mayoría las pantallas retina no dará el texto más agudo - alisado: suavizar la fuente a nivel del píxel, a diferencia de los subpíxeles. Puede hacer que la fuente aparezca más general - ninguno: desactiva el suavizado de fuentes. Texto se mostrará con dentados filos - auto: se aplica el 'default' o 'antialiasing' automáticamente en función de la DPI de la muestra.",
 	"workbench.fontAliasing.default": "Suavizado de fuentes en subpíxeles. En la mayoría de las pantallas que no son Retina, esta opción muestra el texto más nítido.",
 	"workbench.fontAliasing.antialiased": "Suaviza las fuentes en píxeles, en lugar de subpíxeles. Puede hacer que las fuentes se vean más claras en general.",
@@ -75,9 +76,9 @@
 	"window.nativeTabs": "Habilita las fichas de ventana en macOS Sierra. Note que los cambios requieren que reinicie el equipo y las fichas nativas deshabilitan cualquier estilo personalizado que haya configurado.",
 	"zenModeConfigurationTitle": "Modo zen",
 	"zenMode.fullScreen": "Controla si activar el modo Zen pone también el trabajo en modo de pantalla completa.",
+	"zenMode.centerLayout": "Controla si al encender el Modo Zen también se centra el diseño.",
 	"zenMode.hideTabs": "Controla si la activación del modo zen también oculta las pestañas del área de trabajo.",
 	"zenMode.hideStatusBar": "Controla si la activación del modo zen oculta también la barra de estado en la parte inferior del área de trabajo.",
 	"zenMode.hideActivityBar": "Controla si la activación del modo zen oculta también la barra de estado en la parte izquierda del área de trabajo.",
-	"zenMode.restore": "Controla si una ventana debe restaurarse a modo zen si se cerró en modo zen.",
-	"JsonSchema.locale": "Idioma de la interfaz de usuario que debe usarse."
+	"zenMode.restore": "Controla si una ventana debe restaurarse a modo zen si se cerró en modo zen."
 }

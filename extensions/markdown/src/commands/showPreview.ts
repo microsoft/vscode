@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 
 import { Command } from '../commandManager';
-import { MarkdownPreviewWebviewManager, } from '../features/previewContentProvider';
+import { MarkdownPreviewManager, PreviewSettings, } from '../features/previewContentProvider';
 import { TelemetryReporter } from '../telemetryReporter';
 
 
@@ -30,12 +30,17 @@ function getViewColumn(sideBySide: boolean): vscode.ViewColumn | undefined {
 	return active.viewColumn;
 }
 
-function showPreview(
-	webviewManager: MarkdownPreviewWebviewManager,
+interface ShowPreviewSettings {
+	readonly sideBySide?: boolean;
+	readonly pinned?: boolean;
+}
+
+async function showPreview(
+	webviewManager: MarkdownPreviewManager,
 	telemetryReporter: TelemetryReporter,
-	uri?: vscode.Uri,
-	sideBySide: boolean = false,
-) {
+	uri: vscode.Uri | undefined,
+	previewSettings: ShowPreviewSettings,
+): Promise<any> {
 	let resource = uri;
 	if (!(resource instanceof vscode.Uri)) {
 		if (vscode.window.activeTextEditor) {
@@ -53,29 +58,32 @@ function showPreview(
 		return;
 	}
 
-	const view = webviewManager.create(
-		resource,
-		getViewColumn(sideBySide) || vscode.ViewColumn.Active);
-
-	telemetryReporter.sendTelemetryEvent('openPreview', {
-		where: sideBySide ? 'sideBySide' : 'inPlace',
-		how: (uri instanceof vscode.Uri) ? 'action' : 'pallete'
+	webviewManager.preview(resource, {
+		resourceColumn: (vscode.window.activeTextEditor && vscode.window.activeTextEditor.viewColumn) || vscode.ViewColumn.One,
+		previewColumn: getViewColumn(!!previewSettings.sideBySide) || vscode.ViewColumn.Active,
+		pinned: !!previewSettings.pinned
 	});
 
-	return view;
+	telemetryReporter.sendTelemetryEvent('openPreview', {
+		where: previewSettings.sideBySide ? 'sideBySide' : 'inPlace',
+		how: (uri instanceof vscode.Uri) ? 'action' : 'pallete'
+	});
 }
 
 export class ShowPreviewCommand implements Command {
 	public readonly id = 'markdown.showPreview';
 
 	public constructor(
-		private readonly webviewManager: MarkdownPreviewWebviewManager,
+		private readonly webviewManager: MarkdownPreviewManager,
 		private readonly telemetryReporter: TelemetryReporter
 	) { }
 
-	public execute(mainUri?: vscode.Uri, allUris?: vscode.Uri[]) {
+	public execute(mainUri?: vscode.Uri, allUris?: vscode.Uri[], previewSettings?: PreviewSettings) {
 		for (const uri of (allUris || [mainUri])) {
-			showPreview(this.webviewManager, this.telemetryReporter, uri, false);
+			showPreview(this.webviewManager, this.telemetryReporter, uri, {
+				sideBySide: false,
+				pinned: previewSettings && previewSettings.pinned
+			});
 		}
 	}
 }
@@ -84,11 +92,31 @@ export class ShowPreviewToSideCommand implements Command {
 	public readonly id = 'markdown.showPreviewToSide';
 
 	public constructor(
-		private readonly webviewManager: MarkdownPreviewWebviewManager,
+		private readonly webviewManager: MarkdownPreviewManager,
+		private readonly telemetryReporter: TelemetryReporter
+	) { }
+
+	public execute(uri?: vscode.Uri, previewSettings?: PreviewSettings) {
+		showPreview(this.webviewManager, this.telemetryReporter, uri, {
+			sideBySide: true,
+			pinned: previewSettings && previewSettings.pinned
+		});
+	}
+}
+
+
+export class ShowPinnedPreviewToSideCommand implements Command {
+	public readonly id = 'markdown.showPinnedPreviewToSide';
+
+	public constructor(
+		private readonly webviewManager: MarkdownPreviewManager,
 		private readonly telemetryReporter: TelemetryReporter
 	) { }
 
 	public execute(uri?: vscode.Uri) {
-		showPreview(this.webviewManager, this.telemetryReporter, uri, true);
+		showPreview(this.webviewManager, this.telemetryReporter, uri, {
+			sideBySide: true,
+			pinned: true
+		});
 	}
 }

@@ -86,7 +86,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 			return;
 		}
 
-		const choices: Choice[] = [nls.localize('integrity.moreInformation', "More Information"), { label: nls.localize('integrity.dontShowAgain', "Don't Show Again"), isSecondary: true }];
+		const choices: Choice[] = [nls.localize('integrity.moreInformation', "More Information"), { label: nls.localize('integrity.dontShowAgain', "Don't Show Again") }];
 
 		this.choiceService.choose(Severity.Warning, nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", product.nameShort), choices).then(choice => {
 			switch (choice) {

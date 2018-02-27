@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/8196aa2cc8dd9b1eda431203857e5317866facec",
+	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/73d0058c4712dc93bb4f8f6ca3629d421da0651d",
 	"name": "Log file",
 	"scopeName": "text.log",
 	"patterns": [
@@ -86,11 +86,11 @@
 			"name": "constant.language log.constant"
 		},
 		{
-			"match": "(([A-Za-z]\\:(\\\\|/))|(\\.(\\\\|/))|(\\.\\.(\\\\|/)){1,}|(\\\\\\\\|//)[\\w -]+(\\\\|/))([\\w -]+(\\\\|/))*",
+			"match": "(([a-zA-Z]\\:)|(\\.\\.)|(\\.))?((/|\\\\)[\\w\\-\\.]*)",
 			"name": "constant.language log.constant"
 		},
 		{
-			"match": "\\b([\\w]+\\.)+(\\w)+\\b",
+			"match": "\\b([\\w-]+\\.)+([\\w-])+\\b",
 			"name": "constant.language log.constant"
 		}
 	]

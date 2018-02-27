@@ -27,14 +27,9 @@ suite('IssueReporter', () => {
 		const issueReporterModel = new IssueReporterModel();
 		assert.equal(issueReporterModel.serialize(),
 			`
-### Issue Type
-Feature Request
-
-### Description
+Issue Type: <b>Feature Request</b>
 
 undefined
-
-### VS Code Info
 
 VS Code version: undefined
 OS version: undefined

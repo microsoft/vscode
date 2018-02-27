@@ -4,10 +4,12 @@
 	 viewBox="0 0 16 16" style="enable-background:new 0 0 16 16;" xml:space="preserve">
 <style type="text/css">
 	.st0{fill:#F6F6F6;fill-opacity:0;}
-	.st1{fill:#FFCC00;}
+	.st1{fill:#CACACC;}
+	.st2{fill:#FFCC00;}
 </style>
 <title>StatusWarning_16x</title>
 <path class="st0" d="M16,0v16H0V0H16z"/>
-<path class="st1" d="M8.4,1H7.6L1.2,13.8L2.5,15h11l1.3-1.2L8.4,1z M9,13H7v-2h2V13z M9,10H7V5h2V10z"/>
+<path class="st1" d="M16,14l-2,2H2l-2-2L7,0h2L16,14z"/>
+<path class="st2" d="M8.4,1H7.6L1.2,13.8L2.5,15h11l1.3-1.2L8.4,1z M9,13H7v-2h2V13z M9,10H7V5h2V10z"/>
 <path d="M7,11h2v2H7V11z M7,5v5h2V5H7z"/>
 </svg>

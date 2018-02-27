@@ -13,6 +13,6 @@
 	"ctrlKey.long": "Control",
 	"shiftKey.long": "Shift",
 	"altKey.long": "Alt",
-	"cmdKey.long": "Comando",
+	"cmdKey.long": "Command",
 	"windowsKey.long": "Windows"
 }

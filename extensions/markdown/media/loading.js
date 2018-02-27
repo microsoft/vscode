@@ -27,10 +27,9 @@
 		if (!unloadedStyles.length) {
 			return;
 		}
-		const args = [unloadedStyles];
 		window.parent.postMessage({
-			command: 'did-click-link',
-			data: `command:_markdown.onPreviewStyleLoadError?${encodeURIComponent(JSON.stringify(args))}`
+			command: '_markdown.onPreviewStyleLoadError',
+			args: [unloadedStyles]
 		}, '*');
 	});
 }());

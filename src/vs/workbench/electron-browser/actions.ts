@@ -39,7 +39,7 @@ import { IPanel } from 'vs/workbench/common/panel';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, ActivationTimes } from 'vs/workbench/services/extensions/common/extensions';
 import { getEntries } from 'vs/base/common/performance';
 import { IssueType } from 'vs/platform/issue/common/issue';
 import { domEvent } from 'vs/base/browser/event';
@@ -552,6 +552,24 @@ export class ReloadWindowAction extends Action {
 
 	run(): TPromise<boolean> {
 		return this.windowService.reloadWindow().then(() => true);
+	}
+}
+
+export class ReloadWindowWithExtensionsDisabledAction extends Action {
+
+	static readonly ID = 'workbench.action.reloadWindowWithExtensionsDisabled';
+	static LABEL = nls.localize('reloadWindowWithExntesionsDisabled', "Reload Window With Extensions Disabled");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<boolean> {
+		return this.windowService.reloadWindow({ _: [], 'disable-extensions': true }).then(() => true);
 	}
 }
 

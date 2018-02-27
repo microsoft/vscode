@@ -1,5 +1,11 @@
 {
 	"version": "0.2.0",
+	"compounds": [
+		{
+			"name": "Debug Extension and Language Server",
+			"configurations": ["Launch Extension", "Attach Language Server"]
+		}
+	],
 	"configurations": [
 		{
 			"name": "Launch Extension",

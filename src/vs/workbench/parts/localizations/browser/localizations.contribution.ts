@@ -11,7 +11,7 @@ import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/action
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ConfigureLocaleAction } from 'vs/workbench/parts/localizations/browser/localizationsActions';
-import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { language } from 'vs/base/common/platform';

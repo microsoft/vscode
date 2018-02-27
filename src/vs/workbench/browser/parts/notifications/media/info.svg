@@ -4,12 +4,14 @@
 	 viewBox="0 0 16 16" style="enable-background:new 0 0 16 16;" xml:space="preserve">
 <style type="text/css">
 	.st0{fill:#F6F6F6;fill-opacity:0;}
-	.st1{fill:#1BA1E2;}
-	.st2{fill:#FFFFFF;}
+	.st1{fill:#CACACC;}
+	.st2{fill:#1BA1E2;}
+	.st3{fill:#FFFFFF;}
 </style>
 <path id="canvas" class="st0" d="M16,16H0V0h16V16z"/>
-<path id="iconBg" class="st1" d="M8,1C4.1,1,1,4.1,1,8s3.1,7,7,7s7-3.1,7-7S11.9,1,8,1z M9,13H7V6h2V13z M9,5H7V3h2V5z"/>
+<path id="outline" class="st1" d="M0,8c0-4.4,3.6-8,8-8s8,3.6,8,8s-3.6,8-8,8S0,12.4,0,8z"/>
+<path id="iconBg" class="st2" d="M8,1C4.1,1,1,4.1,1,8s3.1,7,7,7s7-3.1,7-7S11.8,1,8,1z M9,13H7V6h2V13z M9,5H7V3h2V5z"/>
 <g id="iconFg">
-	<path class="st2" d="M7,6h2v7H7V6z M7,5h2V3H7V5z"/>
+	<path class="st3" d="M7,6h2v7H7V6z M7,5h2V3H7V5z"/>
 </g>
 </svg>

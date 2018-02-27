@@ -215,8 +215,11 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 		super('workbench.files.action.resolveConflictLearnMoreDoNotShowAgain', nls.localize('dontShowAgain', "Don't Show Again"));
 	}
 
-	public run(): TPromise<any> {
+	public run(notification: IDisposable): TPromise<any> {
 		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true);
+
+		// Hide notification
+		notification.dispose();
 
 		return TPromise.as(void 0);
 	}

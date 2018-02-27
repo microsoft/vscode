@@ -313,7 +313,7 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 
 export class ExtHostTextEditor implements vscode.TextEditor {
 
-	public readonly type = 'texteditor';
+	public readonly editorType = 'texteditor';
 
 	private readonly _proxy: MainThreadTextEditorsShape;
 	private readonly _id: string;
@@ -321,17 +321,23 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	private _selections: Selection[];
 	private _options: ExtHostTextEditorOptions;
+	private _visibleRanges: Range[];
 	private _viewColumn: vscode.ViewColumn;
 	private _disposed: boolean = false;
 
 	get id(): string { return this._id; }
 
-	constructor(proxy: MainThreadTextEditorsShape, id: string, document: ExtHostDocumentData, selections: Selection[], options: IResolvedTextEditorConfiguration, viewColumn: vscode.ViewColumn) {
+	constructor(
+		proxy: MainThreadTextEditorsShape, id: string, document: ExtHostDocumentData,
+		selections: Selection[], options: IResolvedTextEditorConfiguration,
+		visibleRanges: Range[], viewColumn: vscode.ViewColumn
+	) {
 		this._proxy = proxy;
 		this._id = id;
 		this._documentData = document;
 		this._selections = selections;
 		this._options = new ExtHostTextEditorOptions(this._proxy, this._id, options);
+		this._visibleRanges = visibleRanges;
 		this._viewColumn = viewColumn;
 	}
 
@@ -373,6 +379,21 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	_acceptOptions(options: IResolvedTextEditorConfiguration): void {
 		ok(!this._disposed);
 		this._options._accept(options);
+	}
+
+	// ---- visible ranges
+
+	get visibleRanges(): Range[] {
+		return this._visibleRanges;
+	}
+
+	set visibleRanges(value: Range[]) {
+		throw readonly('visibleRanges');
+	}
+
+	_acceptVisibleRanges(value: Range[]): void {
+		ok(!this._disposed);
+		this._visibleRanges = value;
 	}
 
 	// ---- view column

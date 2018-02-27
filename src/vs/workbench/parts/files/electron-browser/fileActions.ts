@@ -51,7 +51,7 @@ import { IListService, ListWidget } from 'vs/platform/list/browser/listService';
 import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { distinctParents, basenameOrAuthority } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
-import { IConfirmationService, IConfirmationResult, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmationService, IConfirmationResult, IConfirmation, IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 import { getConfirmMessage } from 'vs/workbench/services/dialogs/electron-browser/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
@@ -568,7 +568,8 @@ class BaseDeleteFileAction extends BaseFileAction {
 		@INotificationService notificationService: INotificationService,
 		@IConfirmationService private confirmationService: IConfirmationService,
 		@ITextFileService textFileService: ITextFileService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IChoiceService private choiceService: IChoiceService
 	) {
 		super('moveFileToTrash', MOVE_FILE_TO_TRASH_LABEL, fileService, notificationService, textFileService);
 
@@ -689,17 +690,40 @@ class BaseDeleteFileAction extends BaseFileAction {
 							this.tree.setFocus(distinctElements[0].parent); // move focus to parent
 						}
 					}, (error: any) => {
-
-						// Allow to retry
-						let extraAction: Action;
+						const choices = [nls.localize('retry', "Retry"), nls.localize('cancel', "Cancel")];
 						if (this.useTrash) {
-							extraAction = new Action('permanentDelete', nls.localize('permDelete', "Delete Permanently"), null, true, () => { this.useTrash = false; this.skipConfirm = true; return this.run(); });
+							choices.unshift(nls.localize('permDelete', "Delete Permanently"));
 						}
 
-						this.onErrorWithRetry(error, () => this.run(), extraAction);
+						return this.choiceService.choose(Severity.Error, toErrorMessage(error, false), choices, choices.length - 1, true).then(choice => {
 
-						// Focus back to tree
-						this.tree.DOMFocus();
+							// Focus back to tree
+							this.tree.DOMFocus();
+
+
+							if (this.useTrash) {
+								switch (choice) {
+									case 0: /* Delete Permanently*/
+										this.useTrash = false;
+										this.skipConfirm = true;
+
+										return this.run();
+									case 1: /* Retry */
+										this.skipConfirm = true;
+
+										return this.run();
+								}
+							} else {
+								switch (choice) {
+									case 0: /* Retry */
+										this.skipConfirm = true;
+
+										return this.run();
+								}
+							}
+
+							return TPromise.as(void 0);
+						});
 					});
 
 					return servicePromise;

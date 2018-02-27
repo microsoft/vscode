@@ -49,6 +49,10 @@ export abstract class Panel implements IView {
 	private _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
 
+	get element(): HTMLElement {
+		return this.el;
+	}
+
 	get draggableElement(): HTMLElement {
 		return this.header;
 	}

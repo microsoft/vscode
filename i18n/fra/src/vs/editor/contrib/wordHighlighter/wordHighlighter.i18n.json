@@ -8,6 +8,8 @@
 	],
 	"wordHighlight": "Couleur d'arrière-plan d'un symbole durant l'accès en lecture, par exemple la lecture d'une variable. La couleur ne doit pas être opaque pour ne pas masquer les décorations sous-jacentes.",
 	"wordHighlightStrong": "Couleur d'arrière-plan d'un symbole durant l'accès en écriture, par exemple l'écriture dans une variable. La couleur ne doit pas être opaque pour ne pas masquer les décorations sous-jacentes.",
+	"wordHighlightBorder": "Couleur de bordure d'un symbole durant l'accès en lecture, par exemple la lecture d'une variable.",
+	"wordHighlightStrongBorder": "Couleur de bordure d'un symbole durant l'accès en écriture, par exemple l'écriture dans une variable.",
 	"overviewRulerWordHighlightForeground": "Couleur du marqueur de la règle d'aperçu pour la mise en évidence de symbole.",
 	"overviewRulerWordHighlightStrongForeground": "Couleur du marqueur de la règle d'aperçu la mise en évidence de symbole d’accès en écriture.",
 	"wordHighlight.next.label": "Aller à la prochaine mise en évidence de symbole",

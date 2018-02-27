@@ -63,7 +63,7 @@ class NPSContribution implements IWorkbenchContribution {
 			return;
 		}
 
-		const choices: Choice[] = [nls.localize('takeSurvey', "Take Survey"), nls.localize('remindLater', "Remind Me later"), { label: nls.localize('neverAgain', "Don't Show Again"), isSecondary: true }];
+		const choices: Choice[] = [nls.localize('takeSurvey', "Take Survey"), nls.localize('remindLater', "Remind Me later"), { label: nls.localize('neverAgain', "Don't Show Again") }];
 		choiceService.choose(Severity.Info, nls.localize('surveyQuestion', "Do you mind taking a quick feedback survey?"), choices).then(choice => {
 			switch (choice) {
 				case 0 /* Take Survey */:

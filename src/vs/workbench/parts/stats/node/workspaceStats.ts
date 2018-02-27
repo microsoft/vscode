@@ -139,10 +139,12 @@ export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: bool
 export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, stripEndingDotGit: boolean = false): TPromise<string[]> {
 	let path = workspaceUri.path;
 	let uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-	return fileService.resolveContent(uri, { acceptTextOnly: true }).then(
-		content => getHashedRemotesFromConfig(content.value, stripEndingDotGit),
-		err => [] // ignore missing or binary file
-	);
+	return fileService.resolveFile(uri).then(() => {
+		return fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+			content => getHashedRemotesFromConfig(content.value, stripEndingDotGit),
+			err => [] // ignore missing or binary file
+		);
+	}, err => []);
 }
 
 export class WorkspaceStats implements IWorkbenchContribution {
@@ -323,10 +325,12 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		TPromise.join<string[]>(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-			return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
-				content => getDomainsOfRemotes(content.value, SecondLevelDomainWhitelist),
-				err => [] // ignore missing or binary file
-			);
+			return this.fileService.resolveFile(uri).then(() => {
+				return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+					content => getDomainsOfRemotes(content.value, SecondLevelDomainWhitelist),
+					err => [] // ignore missing or binary file
+				);
+			}, err => []);
 		})).then(domains => {
 			const set = domains.reduce((set, list) => list.reduce((set, item) => set.add(item), set), new Set<string>());
 			const list: string[] = [];
@@ -388,10 +392,12 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return TPromise.join(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
 			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/pom.xml` });
-			return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
-				content => !!content.value.match(/azure/i),
-				err => false
-			);
+			return this.fileService.resolveFile(uri).then(stats => {
+				return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+					content => !!content.value.match(/azure/i),
+					err => false
+				);
+			}, err => false);
 		})).then(javas => {
 			if (javas.indexOf(true) !== -1) {
 				tags['java'] = true;

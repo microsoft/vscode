@@ -78,6 +78,5 @@
 	"zenMode.hideTabs": "Controlla se attivando la modalità Zen vengono nascoste anche le schede del workbench.",
 	"zenMode.hideStatusBar": "Controlla se attivando la modalità Zen viene nascosta anche la barra di stato nella parte inferiore del workbench.",
 	"zenMode.hideActivityBar": "Controlla se attivando la modalità Zen viene nascosta anche la barra di stato alla sinistra del workbench",
-	"zenMode.restore": "Controlla se una finestra deve essere ripristinata nella modalità Zen se è stata chiusa in questa modalità.",
-	"JsonSchema.locale": "Linguaggio dell'interfaccia utente da usare."
+	"zenMode.restore": "Controlla se una finestra deve essere ripristinata nella modalità Zen se è stata chiusa in questa modalità."
 }

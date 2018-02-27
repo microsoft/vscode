@@ -16,6 +16,7 @@ import { TestRPCProtocol } from './testRPCProtocol';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('ExtHostConfiguration', function () {
 
@@ -31,7 +32,7 @@ suite('ExtHostConfiguration', function () {
 		if (!shape) {
 			shape = new class extends mock<MainThreadConfigurationShape>() { };
 		}
-		return new ExtHostConfiguration(shape, new ExtHostWorkspace(new TestRPCProtocol(), null), createConfigurationData(contents));
+		return new ExtHostConfiguration(shape, new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService()), createConfigurationData(contents));
 	}
 
 	function createConfigurationData(contents: any): IConfigurationInitData {
@@ -135,7 +136,7 @@ suite('ExtHostConfiguration', function () {
 	test('inspect in no workspace context', function () {
 		const testObject = new ExtHostConfiguration(
 			new class extends mock<MainThreadConfigurationShape>() { },
-			new ExtHostWorkspace(new TestRPCProtocol(), null),
+			new ExtHostWorkspace(new TestRPCProtocol(), null, new NullLogService()),
 			{
 				defaults: new ConfigurationModel({
 					'editor': {
@@ -181,7 +182,7 @@ suite('ExtHostConfiguration', function () {
 				'id': 'foo',
 				'folders': [aWorkspaceFolder(URI.file('foo'), 0)],
 				'name': 'foo'
-			}),
+			}, new NullLogService()),
 			{
 				defaults: new ConfigurationModel({
 					'editor': {
@@ -254,7 +255,7 @@ suite('ExtHostConfiguration', function () {
 				'id': 'foo',
 				'folders': [aWorkspaceFolder(firstRoot, 0), aWorkspaceFolder(secondRoot, 1)],
 				'name': 'foo'
-			}),
+			}, new NullLogService()),
 			{
 				defaults: new ConfigurationModel({
 					'editor': {
@@ -462,7 +463,7 @@ suite('ExtHostConfiguration', function () {
 				'id': 'foo',
 				'folders': [workspaceFolder],
 				'name': 'foo'
-			}),
+			}, new NullLogService()),
 			createConfigurationData({
 				'farboo': {
 					'config': false,

@@ -213,6 +213,11 @@
           "default": true,
           "description": "%html.autoClosingTags%"
         },
+        "html.experimental.syntaxFolding": {
+          "type": "boolean",
+          "default": false,
+          "description": "%html.experimental.syntaxFolding%"
+        },
         "html.trace.server": {
           "type": "string",
           "scope": "window",
@@ -228,8 +233,8 @@
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.0.13",
-    "vscode-languageclient": "^4.0.0-next.9",
+    "vscode-extension-telemetry": "0.0.14",
+    "vscode-languageclient": "4.0.0-next.9",
     "vscode-nls": "^3.2.1"
   },
   "devDependencies": {

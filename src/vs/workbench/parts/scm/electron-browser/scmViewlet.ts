@@ -38,7 +38,7 @@ import { ActionBar, IActionItemProvider, Separator, ActionItem } from 'vs/base/b
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, getSCMResourceContextKey } from './scmUtil';
 import { attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -57,6 +57,7 @@ import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -1047,6 +1048,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	get selectedRepositories(): ISCMRepository[] { return this.repositoryPanels.map(p => p.repository); }
 
 	constructor(
+		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ISCMService protected scmService: ISCMService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -1054,7 +1056,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@INotificationService protected notificationService: INotificationService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IThemeService protected themeService: IThemeService,
 		@ICommandService protected commandService: ICommandService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService,
@@ -1064,7 +1066,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService private configurationService: IConfigurationService,
 	) {
-		super(VIEWLET_ID, { showHeaderInTitleWhenSingleView: true }, telemetryService, themeService);
+		super(VIEWLET_ID, { showHeaderInTitleWhenSingleView: true }, partService, contextMenuService, telemetryService, themeService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
 		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);

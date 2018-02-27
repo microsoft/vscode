@@ -21,7 +21,7 @@ import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -955,7 +955,7 @@ export class DebugService implements debug.IDebugService {
 				/* __GDPR__
 					"debugMisconfiguration" : {
 						"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"error": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"error": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
 					}
 				*/
 				this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined, error: errorMessage });

@@ -209,7 +209,11 @@ class NeverShowAgain {
 
 	private readonly key: string;
 
-	readonly action = new Action(`neverShowAgain:${this.key}`, nls.localize('neveragain', "Don't Show Again"), undefined, true, () => {
+	readonly action = new Action(`neverShowAgain:${this.key}`, nls.localize('neveragain', "Don't Show Again"), undefined, true, (notification: IDisposable) => {
+
+		// Hide notification
+		notification.dispose();
+
 		return TPromise.wrap(this.storageService.store(this.key, true, StorageScope.GLOBAL));
 	});
 

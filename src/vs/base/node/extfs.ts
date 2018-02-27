@@ -43,6 +43,26 @@ export function readdir(path: string, callback: (error: Error, files: string[]) 
 	return fs.readdir(path, callback);
 }
 
+export function statLink(path: string, callback: (error: Error, statAndIsLink: { stat: fs.Stats, isSymbolicLink: boolean }) => void): void {
+	fs.lstat(path, (error, stat) => {
+		if (error) {
+			return callback(error, null);
+		}
+
+		if (stat.isSymbolicLink()) {
+			fs.stat(path, (error, stat) => {
+				if (error) {
+					return callback(error, null);
+				}
+
+				callback(null, { stat, isSymbolicLink: true });
+			});
+		} else {
+			callback(null, { stat, isSymbolicLink: false });
+		}
+	});
+}
+
 export function copy(source: string, target: string, callback: (error: Error) => void, copiedSources?: { [path: string]: boolean }): void {
 	if (!copiedSources) {
 		copiedSources = Object.create(null);

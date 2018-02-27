@@ -53,7 +53,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		@IPartService partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(
 			notificationService,
@@ -106,10 +106,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			// Need to relayout composite bar since different panels have different action bar width
 			this.layoutCompositeBar();
 		}));
+		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
 
 		// Deactivate panel action on close
 		this.toUnbind.push(this.onDidPanelClose(panel => this.compositeBar.deactivateComposite(panel.getId())));
-		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
 	}
 
 	public get onDidPanelOpen(): Event<IPanel> {
@@ -155,7 +155,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private getPanel(panelId: string): IPanelIdentifier {
-		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels().filter(p => p.id === panelId).pop();
+		return this.getPanels().filter(p => p.id === panelId).pop();
 	}
 
 	private showContextMenu(e: MouseEvent): void {
@@ -171,7 +171,20 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	public getPanels(): IPanelIdentifier[] {
 		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
+			.filter(p => p.enabled)
 			.sort((v1, v2) => v1.order - v2.order);
+	}
+
+	public setPanelEnablement(id: string, enabled: boolean): void {
+		const descriptor = Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels().filter(p => p.id === id).pop();
+		if (descriptor && descriptor.enabled !== enabled) {
+			descriptor.enabled = enabled;
+			if (enabled) {
+				this.compositeBar.addComposite(descriptor);
+			} else {
+				this.compositeBar.removeComposite(id);
+			}
+		}
 	}
 
 	protected getActions(): IAction[] {

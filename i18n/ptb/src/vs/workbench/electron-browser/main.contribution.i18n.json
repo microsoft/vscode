@@ -78,6 +78,5 @@
 	"zenMode.hideTabs": "Controla se a ativação do modo Zen também oculta as abas do espaço de trabalho.",
 	"zenMode.hideStatusBar": "Controla se a ativação do modo Zen também oculta a barra de status no rodapé do espaço de trabalho.",
 	"zenMode.hideActivityBar": "Controla se a ativação do modo Zen também oculta a barra de atividades à esquerda do espaço de trabalho.",
-	"zenMode.restore": "Controla se uma janela deve ser restaurada para o modo zen se ela foi finalizada no modo zen.",
-	"JsonSchema.locale": "O idioma da interface do usuário a ser usada."
+	"zenMode.restore": "Controla se uma janela deve ser restaurada para o modo zen se ela foi finalizada no modo zen."
 }

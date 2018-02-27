@@ -33,6 +33,7 @@
 	"inspect-brk-extensions": "Permitir depuração e criação de perfil de extensões com o host de extensão em pausa após o início. Verifique as ferramentas do desenvolvedor para a conexão uri.",
 	"disableGPU": "Desabilita aceleração de hardware da GPU.",
 	"uploadLogs": "Envia os registros de atividade da sessão atual para um destino seguro.",
+	"maxMemory": "Tamanho máximo de memória para uma janela (em Mbytes).",
 	"usage": "Uso",
 	"options": "opções",
 	"paths": "caminhos",

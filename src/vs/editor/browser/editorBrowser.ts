@@ -620,6 +620,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getCenteredRangeInViewport(): Range;
 
 	/**
+	 * Returns the ranges that are currently visible.
+	 * Does not account for horizontal scrolling.
+	 */
+	getVisibleRanges(): Range[];
+
+	/**
 	 * Get the view zones.
 	 * @internal
 	 */

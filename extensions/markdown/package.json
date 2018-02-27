@@ -1,11 +1,11 @@
 {
 	"name": "vscode-markdown",
-	"displayName": "VS Code Markdown",
-	"description": "Markdown for VS Code",
-	"enableProposedApi": true,
+	"displayName": "%displayName%",
+	"description": "%description%",
 	"version": "0.2.0",
-	"publisher": "Microsoft",
+	"publisher": "vscode",
 	"aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+	"enableProposedApi": true,
 	"engines": {
 		"vscode": "^1.20.0"
 	},
@@ -18,6 +18,7 @@
 		"onCommand:markdown.refreshPreview",
 		"onCommand:markdown.showPreview",
 		"onCommand:markdown.showPreviewToSide",
+		"onCommand:markdown.showPinnedPreviewToSide",
 		"onCommand:markdown.showSource",
 		"onCommand:markdown.showPreviewSecuritySelector"
 	],
@@ -110,6 +111,15 @@
 				}
 			},
 			{
+				"command": "markdown.showPinnedPreviewToSide",
+				"title": "%markdown.showPinnedPreviewToSide.title%",
+				"category": "Markdown",
+				"icon": {
+					"light": "./media/PreviewOnRightPane_16x.svg",
+					"dark": "./media/PreviewOnRightPane_16x_dark.svg"
+				}
+			},
+			{
 				"command": "markdown.showSource",
 				"title": "%markdown.showSource.title%",
 				"category": "Markdown",
@@ -168,6 +178,11 @@
 				},
 				{
 					"command": "markdown.showPreviewToSide",
+					"when": "editorLangId == markdown",
+					"group": "navigation"
+				},
+				{
+					"command": "markdown.showPinnedPreviewToSide",
 					"when": "editorLangId == markdown",
 					"group": "navigation"
 				},
@@ -257,10 +272,10 @@
 					"description": "%markdown.preview.lineHeight.desc%",
 					"scope": "resource"
 				},
-				"markdown.preview.scrollPreviewWithEditorSelection": {
+				"markdown.preview.scrollPreviewWithEditor": {
 					"type": "boolean",
 					"default": true,
-					"description": "%markdown.preview.scrollPreviewWithEditorSelection.desc%",
+					"description": "%markdown.preview.scrollPreviewWithEditor.desc%",
 					"scope": "resource"
 				},
 				"markdown.preview.markEditorSelection": {
@@ -314,7 +329,7 @@
 		"highlight.js": "9.5.0",
 		"markdown-it": "^8.4.0",
 		"markdown-it-named-headers": "0.0.4",
-		"vscode-extension-telemetry": "^0.0.13",
+		"vscode-extension-telemetry": "^0.0.14",
 		"vscode-nls": "^3.2.1"
 	},
 	"devDependencies": {

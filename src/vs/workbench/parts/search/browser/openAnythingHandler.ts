@@ -91,15 +91,14 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		this.cancelPendingSearch();
 		this.isClosed = false; // Treat this call as the handler being in use
 
-		// Prepare search for scoring
-		const query = prepareQuery(searchValue);
-
-		const searchWithRange = this.extractRange(query.value); // Find a suitable range from the pattern looking for ":" and "#"
+		// Find a suitable range from the pattern looking for ":" and "#"
+		const searchWithRange = this.extractRange(searchValue);
 		if (searchWithRange) {
-			query.value = searchWithRange.search; // ignore range portion in query
-			query.lowercase = query.value.toLowerCase();
+			searchValue = searchWithRange.search; // ignore range portion in query
 		}
 
+		// Prepare search for scoring
+		const query = prepareQuery(searchValue);
 		if (!query.value) {
 			return TPromise.as(new QuickOpenModel()); // Respond directly to empty search
 		}

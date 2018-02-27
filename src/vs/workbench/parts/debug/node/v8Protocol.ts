@@ -21,7 +21,7 @@ export abstract class V8Protocol {
 		this.sequence = 1;
 		this.contentLength = -1;
 		this.pendingRequests = new Map<number, (e: DebugProtocol.Response) => void>();
-		this.rawData = new Buffer(0);
+		this.rawData = Buffer.allocUnsafe(0);
 	}
 
 	public getId(): string {

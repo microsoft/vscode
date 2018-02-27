@@ -51,13 +51,10 @@
 	"OpenExtensionsFile.failed": " '.vscode' klasörü içinde 'extensions.json' dosyası oluşturulamıyor ({0}).",
 	"configureWorkspaceRecommendedExtensions": "Tavsiye Edilen Eklentileri Yapılandır (Çalışma Alanı)",
 	"configureWorkspaceFolderRecommendedExtensions": "Tavsiye Edilen Eklentileri Yapılandır (Çalışma Alanı Klasörü)",
-	"builtin": "Yerleşik",
 	"malicious tooltip": "Bu eklentinin sorunlu olduğu bildirildi.",
 	"malicious": "Kötü amaçlı",
 	"disableAll": "Yüklü Tüm Eklentileri Devre Dışı Bırak",
 	"disableAllWorkspace": "Bu Çalışma Alanı için Yüklü Tüm Eklentileri Devre Dışı Bırak",
-	"enableAll": "Yüklü Tüm Eklentileri Etkinleştir",
-	"enableAllWorkspace": "Bu Çalışma Alanı için Yüklü Tüm Eklentileri Etkinleştir",
 	"extensionButtonProminentBackground": "Dikkat çeken eklenti eylemleri için buton arka plan rengi (ör. yükle butonu)",
 	"extensionButtonProminentForeground": "Dikkat çeken eklenti eylemleri için buton ön plan rengi (ör. yükle butonu)",
 	"extensionButtonProminentHoverBackground": "Dikkat çeken eklenti eylemleri için buton bağlantı vurgusu arka plan rengi (ör. yükle butonu)"

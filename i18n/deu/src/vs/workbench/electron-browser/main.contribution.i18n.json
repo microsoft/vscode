@@ -78,6 +78,5 @@
 	"zenMode.hideTabs": "Steuert, ob die Workbench-Registerkarten durch Aktivieren des Zen-Modus ebenfalls ausgeblendet werden.",
 	"zenMode.hideStatusBar": "Steuert, ob die Statusleiste im unteren Bereich der Workbench durch Aktivieren des Zen-Modus ebenfalls ausgeblendet wird.",
 	"zenMode.hideActivityBar": "Steuert, ob die Aktivitätsleiste im linken Bereich der Workbench durch Aktivieren des Zen-Modus ebenfalls ausgeblendet wird.",
-	"zenMode.restore": "Steuert, ob ein Fenster im Zen-Modus wiederhergestellt werden soll, wenn es im Zen-Modus beendet wurde.",
-	"JsonSchema.locale": "Die zu verwendende Sprache der Benutzeroberfläche."
+	"zenMode.restore": "Steuert, ob ein Fenster im Zen-Modus wiederhergestellt werden soll, wenn es im Zen-Modus beendet wurde."
 }

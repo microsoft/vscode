@@ -187,8 +187,5 @@
 	"miDownloadingUpdate": "Descargando actualización...",
 	"miInstallUpdate": "Instalar actualización...",
 	"miInstallingUpdate": "Instalando actualización...",
-	"miRestartToUpdate": "Reiniciar para actualizar...",
-	"aboutDetail": "Versión: {0}\nConfirmación: {1}\nFecha: {2}\nShell: {3}\nRepresentador: {4}\nNodo {5}\nArquitectura {6}",
-	"okButton": "Aceptar",
-	"copy": "&&Copiar"
+	"miRestartToUpdate": "Reiniciar para actualizar..."
 }

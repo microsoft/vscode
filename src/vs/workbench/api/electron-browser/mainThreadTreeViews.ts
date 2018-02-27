@@ -34,6 +34,14 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this.viewsService.getTreeViewer(treeViewId).dataProvider = dataProvider;
 	}
 
+	$reveal(treeViewId: string, item: ITreeItem, parentChain: ITreeItem[], options: { donotSelect?: boolean } = { donotSelect: false }): TPromise<void> {
+		return this.viewsService.openView(treeViewId)
+			.then(() => {
+				const viewer = this.viewsService.getTreeViewer(treeViewId);
+				return viewer ? viewer.reveal(item, parentChain, options) : null;
+			});
+	}
+
 	$refresh(treeViewId: string, itemsToRefresh: { [treeItemHandle: string]: ITreeItem }): void {
 		const dataProvider = this._dataProviders.get(treeViewId);
 		if (dataProvider) {

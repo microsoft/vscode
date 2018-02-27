@@ -9,6 +9,5 @@
 	"yes": "Ja",
 	"read more": "Weitere Informationen",
 	"no": "Nein",
-	"not now": "Erneut nachfragen",
-	"suggest auto fetch": "Möchten Sie Code regelmäßig `git fetch` ausführen lassen?"
+	"not now": "Erneut nachfragen"
 }

@@ -143,7 +143,7 @@ function loadSourcemaps() {
             cb(null, f);
             return;
         }
-        f.contents = new Buffer(contents.replace(/\/\/# sourceMappingURL=(.*)$/g, ''), 'utf8');
+        f.contents = Buffer.from(contents.replace(/\/\/# sourceMappingURL=(.*)$/g, ''), 'utf8');
         fs.readFile(path.join(path.dirname(f.path), lastMatch[1]), 'utf8', function (err, contents) {
             if (err) {
                 return cb(err);
@@ -160,7 +160,7 @@ function stripSourceMappingURL() {
     var output = input
         .pipe(es.mapSync(function (f) {
         var contents = f.contents.toString('utf8');
-        f.contents = new Buffer(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, ''), 'utf8');
+        f.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, ''), 'utf8');
         return f;
     }));
     return es.duplex(input, output);
