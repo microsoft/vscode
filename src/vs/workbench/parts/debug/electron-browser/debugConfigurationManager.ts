@@ -363,10 +363,10 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	private initLaunches(): void {
 		this.launches = this.contextService.getWorkspace().folders.map(folder => this.instantiationService.createInstance(Launch, this, folder));
-		this.launches.push(this.instantiationService.createInstance(UserLaunch, this));
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			this.launches.push(this.instantiationService.createInstance(WorkspaceLaunch, this));
 		}
+		this.launches.push(this.instantiationService.createInstance(UserLaunch, this));
 
 		if (this.launches.indexOf(this.selectedLaunch) === -1) {
 			this.selectedLaunch = undefined;
