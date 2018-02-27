@@ -517,16 +517,6 @@
         "language": "typescriptreact"
       }
     ],
-    "snippets": [
-      {
-        "language": "typescript",
-        "path": "./snippets/typescript.json"
-      },
-      {
-        "language": "typescriptreact",
-        "path": "./snippets/typescript.json"
-      }
-    ],
     "jsonValidation": [
       {
         "fileMatch": "tsconfig.json",
