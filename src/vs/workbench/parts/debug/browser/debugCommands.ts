@@ -23,13 +23,14 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { openBreakpointSource } from 'vs/workbench/parts/debug/browser/breakpointsView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
 
 export function registerCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'debug.toggleBreakpoint',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(5),
-		when: CONTEXT_BREAKPOINTS_FOCUSED,
+		when: ContextKeyExpr.and(CONTEXT_BREAKPOINTS_FOCUSED, InputFocusedContext.toNegated()),
 		primary: KeyCode.Space,
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
