@@ -122,7 +122,7 @@ export class MainThreadTextEditorProperties {
 			delta.visibleRanges = this.visibleRanges;
 		}
 
-		if (delta.selections || delta.options) {
+		if (delta.selections || delta.options || delta.visibleRanges) {
 			// something changed
 			return delta;
 		}

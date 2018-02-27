@@ -33,7 +33,7 @@ export class MarkdownPreviewConfig {
 	public readonly lineBreaks: boolean;
 	public readonly doubleClickToSwitchToEditor: boolean;
 	public readonly scrollEditorWithPreview: boolean;
-	public readonly scrollPreviewWithEditorSelection: boolean;
+	public readonly scrollPreviewWithEditor: boolean;
 	public readonly markEditorSelection: boolean;
 
 	public readonly lineHeight: number;
@@ -54,7 +54,7 @@ export class MarkdownPreviewConfig {
 		}
 
 		this.previewFrontMatter = markdownConfig.get<string>('previewFrontMatter', 'hide');
-		this.scrollPreviewWithEditorSelection = !!markdownConfig.get<boolean>('preview.scrollPreviewWithEditorSelection', true);
+		this.scrollPreviewWithEditor = !!markdownConfig.get<boolean>('preview.scrollPreviewWithEditor', true);
 		this.scrollEditorWithPreview = !!markdownConfig.get<boolean>('preview.scrollEditorWithPreview', true);
 		this.lineBreaks = !!markdownConfig.get<boolean>('preview.breaks', false);
 		this.doubleClickToSwitchToEditor = !!markdownConfig.get<boolean>('preview.doubleClickToSwitchToEditor', true);
@@ -227,7 +227,7 @@ export class MarkdownContentProvider {
 		const initialData = {
 			source: sourceUri.toString(),
 			line: initialLine,
-			scrollPreviewWithEditorSelection: config.scrollPreviewWithEditorSelection,
+			scrollPreviewWithEditor: config.scrollPreviewWithEditor,
 			scrollEditorWithPreview: config.scrollEditorWithPreview,
 			doubleClickToSwitchToEditor: config.doubleClickToSwitchToEditor,
 			disableSecurityWarnings: this.cspArbiter.shouldDisableSecurityWarnings()
@@ -279,11 +279,16 @@ class MarkdownPreview {
 	public static previewScheme = 'vscode-markdown-preview';
 	private static previewCount = 0;
 
+	public isScrolling = false;
+
 	private readonly webview: vscode.Webview;
 	private throttleTimer: any;
 	private initialLine: number | undefined = undefined;
 	private readonly disposables: vscode.Disposable[] = [];
+<<<<<<< HEAD
 	private firstUpdate = true;
+=======
+>>>>>>> Scroll sync markdown editor with markdown preview
 	private currentVersion?: { resource: vscode.Uri, version: number };
 
 	constructor(
@@ -320,10 +325,11 @@ class MarkdownPreview {
 			}
 		}, null, this.disposables);
 
-		vscode.window.onDidChangeTextEditorSelection(event => {
+		vscode.window.onDidChangeTextEditorVisibleRanges(event => {
 			if (isMarkdownFile(event.textEditor.document) && this.isPreviewOf(event.textEditor.document.uri)) {
 				const resource = event.textEditor.document.uri;
-				this.updateForSelection(resource, event.selections[0].active.line);
+				const line = getVisibleLine(event.textEditor);
+				this.updateForView(resource, line);
 			}
 		}, null, this.disposables);
 	}
@@ -347,7 +353,7 @@ class MarkdownPreview {
 	public update(resource: vscode.Uri) {
 		const editor = vscode.window.activeTextEditor;
 		if (editor && editor.document.uri.fsPath === resource.fsPath) {
-			this.initialLine = editor.selection.active.line;
+			this.initialLine = getVisibleLine(editor);
 		} else {
 			this.initialLine = undefined;
 		}
@@ -409,14 +415,19 @@ class MarkdownPreview {
 			: localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath));
 	}
 
-	private updateForSelection(resource: vscode.Uri, line: number) {
+	private updateForView(resource: vscode.Uri, topLine: number) {
 		if (!this.isPreviewOf(resource)) {
 			return;
 		}
 
-		this.logger.log('updatePreviewForSelection', { markdownFile: resource });
-		this.initialLine = line;
-		this.webview.postMessage({ line, source: resource.toString() });
+		if (this.isScrolling) {
+			this.isScrolling = false;
+			return;
+		}
+
+		this.logger.log('updateForView', { markdownFile: resource });
+		this.initialLine = topLine;
+		this.webview.postMessage({ line: topLine, source: resource.toString() });
 	}
 
 	private async doUpdate(): Promise<void> {
@@ -426,7 +437,7 @@ class MarkdownPreview {
 		const document = await vscode.workspace.openTextDocument(resource);
 		if (this.currentVersion && this.currentVersion.resource.fsPath === resource.fsPath && this.currentVersion.version === document.version) {
 			if (this.initialLine) {
-				this.updateForSelection(resource, this.initialLine);
+				this.updateForView(resource, this.initialLine);
 			}
 			return;
 		}
@@ -528,6 +539,31 @@ export class MarkdownPreviewManager {
 		preview.update(resource);
 	}
 
+	public revealLine(
+		resource: vscode.Uri,
+		line: number
+	) {
+		for (const editor of vscode.window.visibleTextEditors) {
+			if (!isMarkdownFile(editor.document) || editor.document.uri.fsPath !== resource.fsPath) {
+				continue;
+			}
+
+			const sourceLine = Math.floor(line);
+			const fraction = line - sourceLine;
+			const text = editor.document.lineAt(sourceLine).text;
+			const start = Math.floor(fraction * text.length);
+			editor.revealRange(
+				new vscode.Range(sourceLine, start, sourceLine + 1, 0),
+				vscode.TextEditorRevealType.AtTop);
+		}
+
+		for (const preview of this.previews) {
+			if (preview.isPreviewOf(resource)) {
+				preview.isScrolling = true;
+			}
+		}
+	}
+
 	private getExistingPreview(
 		resource: vscode.Uri,
 		previewSettings: PreviewSettings
@@ -545,4 +581,11 @@ function disposeAll(disposables: vscode.Disposable[]) {
 			item.dispose();
 		}
 	}
+}
+
+function getVisibleLine(editor: vscode.TextEditor): number {
+	const lineNumber = editor.visibleRanges[0].start.line;
+	const line = editor.document.lineAt(lineNumber);
+	const progress = Math.min(0.999, editor.visibleRanges[0].start.character / (line.text.length + 1));
+	return lineNumber + progress;
 }
