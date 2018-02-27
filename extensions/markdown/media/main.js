@@ -167,6 +167,9 @@
 		}
 	}
 
+	/**
+	 * @param {number} offset
+	 */
 	function getEditorLineNumberForPageOffset(offset) {
 		const { previous, next } = getLineElementsAtPageOffset(offset);
 		if (previous) {
