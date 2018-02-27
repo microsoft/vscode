@@ -222,12 +222,16 @@ const hygiene = exports.hygiene = (some, options) => {
 	});
 
 	let linterForProgram = {}; // maps tslint programs to its corresponding Linter
+	let createProgramForTslint = false; // too expensive, disabled for now
 	const configuration = tslint.Configuration.findConfiguration('tslint-hygiene.json', '.');
 
 	function createLinter(tsconfig) {
-		const program = tslint.Linter.createProgram(tsconfig);
 		const tslintOptions = { fix: false, formatter: 'json' };
-		return new tslint.Linter(tslintOptions, program);
+		if (createProgramForTslint) {
+			const program = tslint.Linter.createProgram(tsconfig);
+			return new tslint.Linter(tslintOptions, program);
+		}
+		return new tslint.Linter(tslintOptions);
 	}
 
 	function findTsConfig(segments) {
