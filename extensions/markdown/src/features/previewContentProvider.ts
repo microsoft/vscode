@@ -280,7 +280,6 @@ class MarkdownPreview {
 	public static previewScheme = 'vscode-markdown-preview';
 	private static previewCount = 0;
 
-
 	public isScrolling = false;
 	public readonly uri: vscode.Uri;
 	private readonly webview: vscode.Webview;
@@ -418,7 +417,7 @@ class MarkdownPreview {
 			: localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath));
 	}
 
-	private updateForView(resource: vscode.Uri, topLine: number) {
+	private updateForView(resource: vscode.Uri, topLine: number | undefined) {
 		if (!this.isPreviewOf(resource)) {
 			return;
 		}
@@ -428,9 +427,11 @@ class MarkdownPreview {
 			return;
 		}
 
-		this.logger.log('updateForView', { markdownFile: resource });
-		this.initialLine = topLine;
-		this.webview.postMessage({ line: topLine, source: resource.toString() });
+		if (typeof topLine === 'number') {
+			this.logger.log('updateForView', { markdownFile: resource });
+			this.initialLine = topLine;
+			this.webview.postMessage({ line: topLine, source: resource.toString() });
+		}
 	}
 
 	private async doUpdate(): Promise<void> {
@@ -590,7 +591,11 @@ function disposeAll(disposables: vscode.Disposable[]) {
 	}
 }
 
-function getVisibleLine(editor: vscode.TextEditor): number {
+function getVisibleLine(editor: vscode.TextEditor): number | undefined {
+	if (!editor.visibleRanges.length) {
+		return undefined;
+	}
+
 	const lineNumber = editor.visibleRanges[0].start.line;
 	const line = editor.document.lineAt(lineNumber);
 	const progress = Math.min(0.999, editor.visibleRanges[0].start.character / (line.text.length + 1));
