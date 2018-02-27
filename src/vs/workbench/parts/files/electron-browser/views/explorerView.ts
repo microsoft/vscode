@@ -525,15 +525,15 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				modelElements.forEach(modelElement => {
 					//Check for expanded items
 					if (this.explorerViewer.isExpanded(modelElement)) {
-					 expandedItems.push(modelElement);
+						expandedItems.push(modelElement);
 					}
 					var checkChildrens = item => {
-						if (item.children){
+						if (item.children) {
 							item.children.forEach(child =>{
-								if(this.explorerViewer.isExpanded(item)){
+								if (this.explorerViewer.isExpanded(item)) {
 									expandedItems.push(item);
-							   }
-							   checkChildrens(child);
+								}
+								checkChildrens(child);
 							});
 						}
 					};
