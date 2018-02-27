@@ -40,8 +40,8 @@ export class NotificationsToasts extends Themable {
 
 	private static PURGE_TIMEOUT: { [severity: number]: number } = (() => {
 		const intervals = Object.create(null);
-		intervals[Severity.Info] = 5000;
-		intervals[Severity.Warning] = 10000;
+		intervals[Severity.Info] = 10000;
+		intervals[Severity.Warning] = 12000;
 		intervals[Severity.Error] = 15000;
 
 		return intervals;
