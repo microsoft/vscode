@@ -262,6 +262,12 @@ export class TerminalPanel extends Panel {
 			}
 			this._cancelContextMenu = false;
 		}));
+		this._register(dom.addDisposableListener(document, 'keydown', (event: KeyboardEvent) => {
+			this._terminalContainer.classList.toggle('alt-active', !!event.altKey);
+		}));
+		this._register(dom.addDisposableListener(document, 'keyup', (event: KeyboardEvent) => {
+			this._terminalContainer.classList.toggle('alt-active', !!event.altKey);
+		}));
 		this._register(dom.addDisposableListener(this._parentDomElement, 'keyup', (event: KeyboardEvent) => {
 			if (event.keyCode === 27) {
 				// Keep terminal open on escape
