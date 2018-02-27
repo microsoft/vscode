@@ -288,7 +288,13 @@ connection.onCompletion(async textDocumentPosition => {
 			const emmetCompletionParticipant = getEmmetCompletionParticipants(document, textDocumentPosition.position, mode.getId(), emmetSettings, emmetCompletionList);
 			const pathCompletionParticipant = getPathCompletionParticipant(document, workspaceFolders, pathCompletionList);
 
-			mode.setCompletionParticipants([emmetCompletionParticipant, pathCompletionParticipant]);
+			// Ideally, fix this in the Language Service side
+			// Check participants' methods before calling them
+			if (mode.getId() === 'html') {
+				mode.setCompletionParticipants([emmetCompletionParticipant, pathCompletionParticipant]);
+			} else {
+				mode.setCompletionParticipants([emmetCompletionParticipant]);
+			}
 		}
 
 		let settings = await getDocumentSettings(document, () => mode.doComplete.length > 2);
@@ -404,8 +410,6 @@ connection.onDocumentLinks(documentLinkParam => {
 		return links;
 	}, [], `Error while document links for ${documentLinkParam.textDocument.uri}`);
 });
-
-
 
 connection.onDocumentSymbol(documentSymbolParms => {
 	return runSafe(() => {
