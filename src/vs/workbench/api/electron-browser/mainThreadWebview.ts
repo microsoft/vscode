@@ -54,10 +54,12 @@ class WebviewInput extends EditorInput {
 	private _webview: Webview | undefined;
 	private _webviewOwner: any;
 	private _webviewDisposables: IDisposable[] = [];
+	private _position: Position;
 
 	public static create(
 		resource: URI,
 		name: string,
+		position: Position,
 		options: vscode.WebviewOptions,
 		html: string,
 		events: WebviewEvents,
@@ -69,12 +71,13 @@ class WebviewInput extends EditorInput {
 
 		partService.getContainer(Parts.EDITOR_PART).appendChild(webviewContainer);
 
-		return new WebviewInput(resource, name, options, html, events, webviewContainer, undefined);
+		return new WebviewInput(resource, name, position, options, html, events, webviewContainer, undefined);
 	}
 
 	constructor(
 		resource: URI,
 		name: string,
+		position: Position,
 		options: vscode.WebviewOptions,
 		html: string,
 		events: WebviewEvents,
@@ -84,6 +87,7 @@ class WebviewInput extends EditorInput {
 		super();
 		this._resource = resource;
 		this._name = name;
+		this._position = position;
 		this._options = options;
 		this._html = html;
 		this._events = events;
@@ -123,6 +127,10 @@ class WebviewInput extends EditorInput {
 	public setName(value: string): void {
 		this._name = value;
 		this._onDidChangeLabel.fire();
+	}
+
+	public get position(): Position {
+		return this._position;
 	}
 
 	public get html(): string {
@@ -211,6 +219,7 @@ class WebviewInput extends EditorInput {
 		if (this._events) {
 			this._events.onDidChangePosition(position);
 		}
+		this._position = position;
 	}
 }
 
@@ -415,10 +424,10 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 
 	constructor(
 		context: IExtHostContext,
-		@IEditorGroupService _editorGroupService: IEditorGroupService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
 		@IPartService private readonly _partService: IPartService,
 		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
+		@IEditorGroupService private readonly _editorGroupService: IEditorGroupService,
 		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
@@ -430,7 +439,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 	}
 
 	$createWebview(handle: WebviewHandle, uri: URI, title: string, column: Position, options: vscode.WebviewOptions): void {
-		const webviewInput = WebviewInput.create(URI.revive(uri), title, options, '', {
+		const webviewInput = WebviewInput.create(URI.revive(uri), title, column, options, '', {
 			onMessage: message => this._proxy.$onMessage(handle, message),
 			onDidChangePosition: position => this._proxy.$onDidChangePosition(handle, position),
 			onDispose: () => this._proxy.$onDidDisposeWeview(handle),
@@ -459,7 +468,11 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 
 	$show(handle: WebviewHandle, column: Position): void {
 		const webviewInput = this.getWebview(handle);
-		this._editorService.openEditor(webviewInput, { pinned: true }, column);
+		if (webviewInput.position === column) {
+			return;
+		}
+
+		this._editorGroupService.moveEditor(webviewInput, webviewInput.position, column, { preserveFocus: true });
 	}
 
 	async $sendMessage(handle: WebviewHandle, message: any): Promise<boolean> {
