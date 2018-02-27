@@ -104,6 +104,7 @@
     "mocha": "^2.2.5",
     "object-assign": "^4.0.1",
     "optimist": "0.3.5",
+    "p-all": "^1.0.0",
     "pump": "^1.0.1",
     "queue": "3.0.6",
     "remap-istanbul": "^0.6.4",
