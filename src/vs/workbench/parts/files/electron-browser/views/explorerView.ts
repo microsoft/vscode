@@ -544,7 +544,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 							this.explorerViewer.setFocus(modelElement);
 						}
 						//Expand the element again
-						if  expandedItems.length > 0) {
+						if  (expandedItems.length > 0) {
 						 expandedItems.forEach(item => {
 								this.explorerViewer.expand(item);
 							});
