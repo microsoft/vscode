@@ -518,13 +518,21 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				restoreFocus = true;
 			}
 
-			let isExpanded = false;
+			let expandedItems = [];
 			// Handle Rename
 			if (oldParentResource && newParentResource && oldParentResource.toString() === newParentResource.toString()) {
 				const modelElements = this.model.findAll(oldResource);
 				modelElements.forEach(modelElement => {
-					//Check if element is expanded
-					isExpanded = this.explorerViewer.isExpanded(modelElement);
+					//Check for expanded items
+					if (this.explorerViewer.isExpanded(modelElement)) {
+					 expandedItems.push(modelElement);
+					}
+					//keep expanded childrens even if parent is collapsed
+					modelElement.children.forEach(item =>{
+						if(this.explorerViewer.isExpanded(item)){
+						 expandedItems.push(item);
+						}
+					});
 					// Rename File (Model)
 					modelElement.rename(newElement);
 
@@ -536,9 +544,12 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 							this.explorerViewer.setFocus(modelElement);
 						}
 						//Expand the element again
-						if (isExpanded) {
-							this.explorerViewer.expand(modelElement);
+						if  expandedItems.length > 0) {
+						 expandedItems.forEach(item => {
+								this.explorerViewer.expand(item);
+							});
 						}
+
 					}, errors.onUnexpectedError);
 				});
 			}
