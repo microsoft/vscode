@@ -2,7 +2,7 @@
   "name": "typescript-basics",
   "description": "%description%",
   "displayName": "%displayName%",
-  "version": "0.10.1",
+  "version": "1.0.0",
   "author": "vscode",
   "publisher": "vscode",
   "license": "MIT",
