@@ -523,7 +523,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (task.command.presentation.reveal !== RevealKind.Never || !task.isBackground) {
 			if (task.command.presentation.panel === PanelKind.New) {
 				waitOnExit = nls.localize('closeTerminal', 'Press any key to close the terminal.');
-			} else {
+			} else if (this.terminalService.configHelper.config.showTerminalReuseAlert) {
 				waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
 			}
 		}
