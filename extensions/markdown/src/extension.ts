@@ -43,7 +43,7 @@ export function activate(context: vscode.ExtensionContext) {
 	commandManager.register(new commands.ShowPreviewCommand(previewManager, telemetryReporter));
 	commandManager.register(new commands.ShowPreviewToSideCommand(previewManager, telemetryReporter));
 	commandManager.register(new commands.ShowPinnedPreviewToSideCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowSourceCommand());
+	commandManager.register(new commands.ShowSourceCommand(previewManager));
 	commandManager.register(new commands.RefreshPreviewCommand(previewManager));
 	commandManager.register(new commands.RevealLineCommand(logger, previewManager));
 	commandManager.register(new commands.MoveCursorToPositionCommand());

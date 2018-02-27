@@ -279,8 +279,9 @@ class MarkdownPreview {
 	public static previewScheme = 'vscode-markdown-preview';
 	private static previewCount = 0;
 
-	public isScrolling = false;
 
+	public isScrolling = false;
+	public readonly uri: vscode.Uri;
 	private readonly webview: vscode.Webview;
 	private throttleTimer: any;
 	private initialLine: number | undefined = undefined;
@@ -289,7 +290,7 @@ class MarkdownPreview {
 	private currentVersion?: { resource: vscode.Uri, version: number };
 
 	constructor(
-		private resource: vscode.Uri,
+		private _resource: vscode.Uri,
 		public resourceColumn: vscode.ViewColumn,
 		previewColumn: vscode.ViewColumn,
 		public readonly pinned: boolean,
@@ -297,11 +298,12 @@ class MarkdownPreview {
 		private readonly previewConfigurations: PreviewConfigManager,
 		private readonly logger: Logger
 	) {
+		this.uri = vscode.Uri.parse(`${MarkdownPreview.previewScheme}:${MarkdownPreview.previewCount++}`);
 		this.webview = vscode.window.createWebview(
-			vscode.Uri.parse(`${MarkdownPreview.previewScheme}:${MarkdownPreview.previewCount++}`),
+			this.uri,
 			previewColumn, {
 				enableScripts: true,
-				localResourceRoots: this.getLocalResourceRoots(resource)
+				localResourceRoots: this.getLocalResourceRoots(_resource)
 			});
 
 		this.webview.onDidDispose(() => {
@@ -337,6 +339,10 @@ class MarkdownPreview {
 	private readonly _onDidChangeViewColumnEmitter = new vscode.EventEmitter<vscode.ViewColumn>();
 	public readonly onDidChangeViewColumn = this._onDidChangeViewColumnEmitter.event;
 
+	public get resource(): vscode.Uri {
+		return this._resource;
+	}
+
 	public dispose() {
 		this._onDisposeEmitter.fire();
 
@@ -357,19 +363,19 @@ class MarkdownPreview {
 
 		// Schedule update
 		if (!this.throttleTimer) {
-			this.throttleTimer = setTimeout(() => this.doUpdate(), resource.fsPath === this.resource.fsPath && !this.firstUpdate ? 300 : 0);
+			this.throttleTimer = setTimeout(() => this.doUpdate(), resource.fsPath === this._resource.fsPath && !this.firstUpdate ? 300 : 0);
 		}
 
 		this.firstUpdate = false;
-		this.resource = resource;
+		this._resource = resource;
 	}
 
 	public refresh() {
-		this.update(this.resource);
+		this.update(this._resource);
 	}
 
 	public updateConfiguration() {
-		if (this.previewConfigurations.shouldUpdateConfiguration(this.resource)) {
+		if (this.previewConfigurations.shouldUpdateConfiguration(this._resource)) {
 			this.refresh();
 		}
 	}
@@ -379,7 +385,7 @@ class MarkdownPreview {
 	}
 
 	public isPreviewOf(resource: vscode.Uri): boolean {
-		return this.resource.fsPath === resource.fsPath;
+		return this._resource.fsPath === resource.fsPath;
 	}
 
 	public matchesResource(
@@ -399,7 +405,7 @@ class MarkdownPreview {
 	}
 
 	public matches(otherPreview: MarkdownPreview): boolean {
-		return this.matchesResource(otherPreview.resource, otherPreview.viewColumn, otherPreview.pinned);
+		return this.matchesResource(otherPreview._resource, otherPreview.viewColumn, otherPreview.pinned);
 	}
 
 	public show(viewColumn: vscode.ViewColumn) {
@@ -428,7 +434,7 @@ class MarkdownPreview {
 	}
 
 	private async doUpdate(): Promise<void> {
-		const resource = this.resource;
+		const resource = this._resource;
 		this.throttleTimer = undefined;
 
 		const document = await vscode.workspace.openTextDocument(resource);
@@ -442,8 +448,8 @@ class MarkdownPreview {
 		this.currentVersion = { resource, version: document.version };
 		this.contentProvider.provideTextDocumentContent(document, this.previewConfigurations, this.initialLine)
 			.then(content => {
-				if (this.resource === resource) {
-					this.webview.title = this.getPreviewTitle(this.resource);
+				if (this._resource === resource) {
+					this.webview.title = this.getPreviewTitle(this._resource);
 					this.webview.html = content;
 				}
 			});
@@ -559,6 +565,11 @@ export class MarkdownPreviewManager {
 				preview.isScrolling = true;
 			}
 		}
+	}
+
+	public getResourceForPreview(previewUri: vscode.Uri): vscode.Uri | undefined {
+		const preview = this.previews.find(preview => preview.uri.toString() === previewUri.toString());
+		return preview && preview.resource;
 	}
 
 	private getExistingPreview(

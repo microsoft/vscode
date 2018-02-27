@@ -5,19 +5,27 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../commandManager';
+import { MarkdownPreviewManager } from '../features/previewContentProvider';
 
 export class ShowSourceCommand implements Command {
 	public readonly id = 'markdown.showSource';
 
-	public execute(mdUri?: vscode.Uri) {
-		if (!mdUri) {
+	public constructor(
+		private readonly previewManager: MarkdownPreviewManager
+	) { }
+
+
+	public execute(docUri?: vscode.Uri) {
+		if (!docUri) {
 			return vscode.commands.executeCommand('workbench.action.navigateBack');
 		}
 
-		const docUri = vscode.Uri.parse(mdUri.query);
-		for (const editor of vscode.window.visibleTextEditors) {
-			if (editor.document.uri.scheme === docUri.scheme && editor.document.uri.toString() === docUri.toString()) {
-				return vscode.window.showTextDocument(editor.document, editor.viewColumn);
+		const resource = this.previewManager.getResourceForPreview(docUri);
+		if (resource) {
+			for (const editor of vscode.window.visibleTextEditors) {
+				if (editor.document.uri.fsPath === resource.fsPath) {
+					return vscode.window.showTextDocument(editor.document, editor.viewColumn);
+				}
 			}
 		}
 
