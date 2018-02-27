@@ -394,7 +394,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 							this.error(`TSServer exited with code: ${code}`);
 							/* __GDPR__
 								"tsserver.exitWithCode" : {
-									"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+									"code" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
 								}
 							*/
 							this.logTelemetry('tsserver.exitWithCode', { code: code });
