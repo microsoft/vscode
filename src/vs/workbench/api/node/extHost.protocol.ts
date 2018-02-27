@@ -345,7 +345,7 @@ export interface MainThreadTelemetryShape extends IDisposable {
 export type WebviewHandle = number;
 
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebview(handle: WebviewHandle, uri: URI, options: vscode.WebviewOptions): void;
+	$createWebview(handle: WebviewHandle, uri: URI, title: string, column: EditorPosition, options: vscode.WebviewOptions): void;
 	$disposeWebview(handle: WebviewHandle): void;
 	$show(handle: WebviewHandle, column: EditorPosition): void;
 	$setTitle(handle: WebviewHandle, value: string): void;

@@ -429,8 +429,8 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	$createWebview(handle: WebviewHandle, uri: URI, options: vscode.WebviewOptions): void {
-		const webviewInput = WebviewInput.create(URI.revive(uri), '', options, '', {
+	$createWebview(handle: WebviewHandle, uri: URI, title: string, column: Position, options: vscode.WebviewOptions): void {
+		const webviewInput = WebviewInput.create(URI.revive(uri), title, options, '', {
 			onMessage: message => this._proxy.$onMessage(handle, message),
 			onDidChangePosition: position => this._proxy.$onDidChangePosition(handle, position),
 			onDispose: () => this._proxy.$onDidDisposeWeview(handle),
@@ -438,6 +438,8 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 		}, this._partService);
 
 		this._webviews.set(handle, webviewInput);
+
+		this._editorService.openEditor(webviewInput, { pinned: true }, column);
 	}
 
 	$disposeWebview(handle: WebviewHandle): void {

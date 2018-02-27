@@ -300,6 +300,7 @@ class MarkdownPreview {
 		this.uri = vscode.Uri.parse(`${MarkdownPreview.previewScheme}:${MarkdownPreview.previewCount++}`);
 		this.webview = vscode.window.createWebview(
 			this.uri,
+			this.getPreviewTitle(this._resource),
 			previewColumn, {
 				enableScripts: true,
 				localResourceRoots: this.getLocalResourceRoots(_resource)

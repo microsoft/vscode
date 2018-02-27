@@ -555,10 +555,11 @@ declare module 'vscode' {
 		 * Create and show a new webview.
 		 *
 		 * @param uri Unique identifier for the webview.
+		 * @param title Title of the webview.
 		 * @param column Editor column to show the new webview in.
 		 * @param options Content settings for the webview.
 		 */
-		export function createWebview(uri: Uri, column: ViewColumn, options: WebviewOptions): Webview;
+		export function createWebview(uri: Uri, title: string, column: ViewColumn, options: WebviewOptions): Webview;
 
 		/**
 		 * Event fired when the active editor changes.
