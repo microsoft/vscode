@@ -351,7 +351,9 @@ function createGitIndexVinyls(paths) {
 		const fullPath = path.join(repositoryPath, relativePath);
 
 		fs.stat(fullPath, (err, stat) => {
-			if (err) {
+			if (err && err.code === 'ENOENT') { // ignore deletions
+				return c(null);
+			} else if (err) {
 				return e(err);
 			}
 
@@ -370,7 +372,8 @@ function createGitIndexVinyls(paths) {
 		});
 	}));
 
-	return pall(fns, { concurrency: 4 });
+	return pall(fns, { concurrency: 4 })
+		.then(r => r.filter(p => !!p));
 }
 
 gulp.task('hygiene', () => hygiene());
