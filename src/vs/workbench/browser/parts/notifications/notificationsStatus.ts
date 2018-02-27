@@ -44,18 +44,22 @@ export class NotificationsStatus {
 	}
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {
-		if (e.kind === NotificationChangeType.CHANGE) {
-			return; // only interested in add or remove
-		}
-
 		if (this.isNotificationsCenterVisible) {
 			return; // no change if notification center is visible
 		}
 
-		if (e.kind === NotificationChangeType.ADD) {
-			this.counter++;
-		} else {
-			this.counter = Math.max(this.counter - 1, 0);
+		switch (e.kind) {
+			case NotificationChangeType.ADD:
+				if (!e.replaces) {
+					this.counter++; // only count as new if notification is not replacing an existing one
+				}
+				break;
+			case NotificationChangeType.CHANGE:
+				// Ignore
+				break;
+			case NotificationChangeType.REMOVE:
+				this.counter = Math.max(this.counter - 1, 0);
+				break;
 		}
 
 		this.updateNotificationsStatusItem();
