@@ -36,7 +36,7 @@ export class CopyValueAction extends Action {
 
 export class CopyEvaluatePathAction extends Action {
 	static readonly ID = 'workbench.debug.viewlet.action.copyEvaluatePath';
-	static LABEL = nls.localize('copyPath', "Copy Path");
+	static LABEL = nls.localize('copyAsExpression', "Copy as Expression");
 
 	constructor(id: string, label: string, private value: any) {
 		super(id, label);
