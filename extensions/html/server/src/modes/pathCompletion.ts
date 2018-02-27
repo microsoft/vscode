@@ -75,7 +75,7 @@ export function providePathSuggestions(value: string, range: Range, activeDocFsP
 		return [];
 	}
 
-	const replaceRange = Range.create(Position.create(range.end.line, range.end.character - valueAfterLastSlash.length), range.end);
+	const replaceRange = getReplaceRange(range, valueAfterLastSlash);
 
 	return fs.readdirSync(parentDir).map(f => {
 		return {
@@ -96,6 +96,12 @@ function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: Propose
 			return path.resolve(URI.parse(workspaceFolders[i].uri).fsPath);
 		}
 	}
+}
+
+function getReplaceRange(valueRange: Range, valueAfterLastSlash: string): Range {
+	const start = Position.create(valueRange.end.line, valueRange.end.character - 1 - valueAfterLastSlash.length);
+	const end = Position.create(valueRange.end.line, valueRange.end.character - 1);
+	return Range.create(start, end);
 }
 
 // Selected from https://stackoverflow.com/a/2725168/1780148

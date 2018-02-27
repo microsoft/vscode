@@ -140,9 +140,12 @@ suite('Path Completion - TextEdit', () => {
 		assert.equal(suggestions[1].textEdit.newText, 'index.html');
 		assert.equal(suggestions[2].textEdit.newText, 'src');
 
-		assert.equal(suggestions[0].textEdit.range.start.character, 5);
-		assert.equal(suggestions[1].textEdit.range.start.character, 5);
-		assert.equal(suggestions[2].textEdit.range.start.character, 5);
+		assert.equal(suggestions[0].textEdit.range.start.character, 4);
+		assert.equal(suggestions[1].textEdit.range.start.character, 4);
+		assert.equal(suggestions[2].textEdit.range.start.character, 4);
+
+		assert.equal(suggestions[0].textEdit.range.end.character, 4);
+		assert.equal(suggestions[1].textEdit.range.end.character, 4);
+		assert.equal(suggestions[2].textEdit.range.end.character, 4);
 	});
 });
-

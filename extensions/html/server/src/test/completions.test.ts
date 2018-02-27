@@ -7,6 +7,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
+import Uri from 'vscode-uri';
 import { TextDocument, CompletionList, CompletionItemKind, } from 'vscode-languageserver-types';
 import { getLanguageModes } from '../modes/languageModes';
 import { applyEdits } from '../utils/edits';
@@ -92,7 +93,7 @@ suite('Completions', () => {
 			]
 		});
 	});
-/*
+
 	test('Path completion', function (): any {
 		let testUri = Uri.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/foo.html')).fsPath;
 
@@ -101,33 +102,34 @@ suite('Completions', () => {
 				{ label: 'about.html', resultText: '<div><a href="about/about.html">' }
 			]
 		}, testUri);
-		assertCompletions(`<div><a href=about/|>`, {
-			items: [
-				{ label: 'about.html', resultText: `<div><a href=about/about.html>` }
-			]
-		}, testUri);
+		// Unquoted value is not supported in language service yet
+		// assertCompletions(`<div><a href=about/|>`, {
+		// 	items: [
+		// 		{ label: 'about.html', resultText: `<div><a href=about/about.html>` }
+		// 	]
+		// }, testUri);
 		assertCompletions(`<div><a href='about/|'>`, {
 			items: [
 				{ label: 'about.html', resultText: `<div><a href='about/about.html'>` }
 			]
 		}, testUri);
-		assertCompletions('<div><a href="about/about|.xml">', {
-			items: [
-				{ label: 'about.html', resultText: '<div><a href="about/about.html">' }
-			]
-		}, testUri);
+		// Don't think this is a common use case
+		// assertCompletions('<div><a href="about/about|.xml">', {
+		// 	items: [
+		// 		{ label: 'about.html', resultText: '<div><a href="about/about.html">' }
+		// 	]
+		// }, testUri);
 		assertCompletions('<div><a href="about/a|">', {
 			items: [
 				{ label: 'about.html', resultText: '<div><a href="about/about.html">' }
 			]
 		}, testUri);
-		assertCompletions('<div><a href="|">', {
-			items: [
-				{ label: 'index.html', resultText: '<div><a href="index.html">' },
-				{ label: 'about', resultText: '<div><a href="about/">' }
-			]
-		}, testUri);
-
+		// We should not prompt suggestion before user enters any trigger character
+		// assertCompletions('<div><a href="|">', {
+		// 	items: [
+		// 		{ label: 'index.html', resultText: '<div><a href="index.html">' },
+		// 		{ label: 'about', resultText: '<div><a href="about/">' }
+		// 	]
+		// }, testUri);
 	});
-	*/
 });
