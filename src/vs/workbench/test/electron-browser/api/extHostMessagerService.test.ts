@@ -73,7 +73,7 @@ suite('ExtHostMessageService', function () {
 		let service = new MainThreadMessageService(null, new EmptyNotificationService(notification => {
 			assert.equal(notification.actions.primary.length, 1);
 			setImmediate(() => notification.actions.primary[0].run());
-		}), emptyCommandService, emptyChoiceService);
+		}), emptyCommandService, emptyChoiceService, null);
 
 		return service.$showMessage(1, 'h', {}, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]).then(handle => {
 			assert.equal(handle, 42);
@@ -90,7 +90,7 @@ suite('ExtHostMessageService', function () {
 					assert.equal(options[1], 'Cancel');
 					return Promise.as(0);
 				}
-			} as IChoiceService);
+			} as IChoiceService, null);
 
 			return service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: false }]).then(handle => {
 				assert.equal(handle, 42);
@@ -102,7 +102,7 @@ suite('ExtHostMessageService', function () {
 				choose(severity, message, options, modal) {
 					return Promise.as(1);
 				}
-			} as IChoiceService);
+			} as IChoiceService, null);
 
 			return service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: false }]).then(handle => {
 				assert.equal(handle, undefined);
@@ -115,7 +115,7 @@ suite('ExtHostMessageService', function () {
 					assert.equal(options.length, 1);
 					return Promise.as(0);
 				}
-			} as IChoiceService);
+			} as IChoiceService, null);
 
 			return service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]).then(handle => {
 				assert.equal(handle, 42);
