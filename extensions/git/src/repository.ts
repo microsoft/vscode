@@ -954,11 +954,36 @@ export class Repository implements Disposable {
 		this.isRepositoryHuge = didHitLimit;
 
 		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
-			const neverAgain = { title: localize('neveragain', "Don't Show Again") };
+			//check for known large folders that should be in .gitignore
+			let knownHugeFolders = ['node_modules', 'pp']; 	//maybe get from config
+			let knownHugeFolderUris: Uri[] = knownHugeFolders.map(folder => {
+				return Uri.file(`${this.repository.root}${path.sep}${folder}`);
+			});
+			knownHugeFolderUris = knownHugeFolderUris.filter((folder) => {
+				return fs.existsSync(folder.fsPath);
+			});
 
-			window.showWarningMessage(localize('huge', "The git repository at '{0}' has too many active changes, only a subset of Git features will be enabled.", this.repository.root), neverAgain).then(result => {
+			//text
+			const addKnown = localize('add known', 'Would you like to add known large folders to .gitignore?');
+			const gitWarn = localize('huge', 'The git repository at {0} has too many active changes, only a subset of Git features will be enabled.', this.repository.root);
+
+			//options
+			const neverAgain = { title: localize('neveragain', "Don't Show Again") };
+			const yes = { title: localize('yes', "Yes") };
+
+			let warningPromise;
+			if (knownHugeFolders.length) {
+				warningPromise = window.showWarningMessage(`${gitWarn} ${addKnown}`, yes, neverAgain);
+			} else {
+				warningPromise = window.showWarningMessage(gitWarn, neverAgain);
+			}
+
+			warningPromise.then(result => {
 				if (result === neverAgain) {
 					config.update('ignoreLimitWarning', true, false);
+				}
+				else if (result === yes) {
+					this.ignore(knownHugeFolderUris);
 				}
 			});
 
