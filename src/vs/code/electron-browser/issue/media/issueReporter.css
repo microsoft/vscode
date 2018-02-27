@@ -62,10 +62,6 @@ input[type="text"], textarea {
 	border: 1px solid #ced4da;
 }
 
-.inline-form-control {
-	display: inline-block !important;
-}
-
 textarea {
 	overflow: auto;
 	resize: vertical;
@@ -297,50 +293,39 @@ button {
 	color: #fff;
 }
 
-#issue-type-label {
-	width: 95px;
-}
 
-#issue-type {
-	width: calc(100% - 100px);
-	cursor: pointer;
-}
-
-#issue-title-label {
-	width: 80px;
+.section .inline-form-control, .section .inline-label {
 	display: inline-block;
 }
 
-#issue-title {
-	width: calc(100% - 85px);
+.section .inline-label {
+	width: 95px;
 }
 
+.section .inline-form-control {
+	width: calc(100% - 100px);
+}
+
+#issue-type {
+	cursor: pointer;
+}
 
 @media (max-width: 950px) {
-	#issue-type-label {
+	.section .inline-label {
 		width: 12%;
 	}
 
-	#issue-type {
+	.section .inline-form-control  {
 		width: calc(88% - 5px);
-	}
-
-	#issue-title-label {
-		width: 10%;
-		display: inline-block
-	}
-
-	#issue-title {
-		width: calc(90% - 5px);
 	}
 }
 
 @media (max-width: 620px) {
-	#issue-title-label, #issue-type-label {
+	.section .inline-label {
 		display: none !important;
 	}
 
-	#issue-type, #issue-title {
+	.inline-form-control {
 		width: 100%;
 	}
 

@@ -13,14 +13,14 @@ export default (): string => `
 
 	<div class="section">
 		<div class="input-group">
-			<label id="issue-type-label" class="inline-form-control" for="issue-type">${escape(localize('issueTypeLabel', "This is a"))}</label>
+			<label class="inline-label" for="issue-type">${escape(localize('issueTypeLabel', "This is a"))}</label>
 			<select id="issue-type" class="inline-form-control">
 				<!-- To be dynamically filled -->
 			</select>
 		</div>
 
 		<div class="input-group">
-			<label id="issue-title-label" for="issue-title">${escape(localize('issueTitleLabel', "Title"))} <span class="required-input">*</span></label>
+			<label class="inline-label" for="issue-title">${escape(localize('issueTitleLabel', "Title"))} <span class="required-input">*</span></label>
 			<input id="issue-title" type="text" class="inline-form-control" placeholder="${escape(localize('issueTitleRequired', "Please enter a title."))}" required>
 			<small id="similar-issues">
 				<!-- To be dynamically filled -->
