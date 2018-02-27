@@ -77,13 +77,17 @@ export function providePathSuggestions(value: string, range: Range, activeDocFsP
 
 	const replaceRange = getReplaceRange(range, valueAfterLastSlash);
 
-	return fs.readdirSync(parentDir).map(f => {
-		return {
-			label: f,
-			kind: isDir(path.resolve(parentDir, f)) ? CompletionItemKind.Folder : CompletionItemKind.File,
-			textEdit: TextEdit.replace(replaceRange, f)
-		};
-	});
+	try {
+		return fs.readdirSync(parentDir).map(f => {
+			return {
+				label: f,
+				kind: isDir(path.resolve(parentDir, f)) ? CompletionItemKind.Folder : CompletionItemKind.File,
+				textEdit: TextEdit.replace(replaceRange, f)
+			};
+		});
+	} catch (e) {
+		return [];
+	}
 }
 
 const isDir = (p: string) => {
