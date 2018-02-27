@@ -223,61 +223,13 @@ function hygiene(some, options) {
 		});
 	});
 
-	let linterForProgram = {}; // maps tslint programs to its corresponding Linter
-	let createProgramForTslint = false; // too expensive, disabled for now
-	const configuration = tslint.Configuration.findConfiguration('tslint-hygiene.json', '.');
-
-	function createLinter(tsconfig) {
-		const tslintOptions = { fix: false, formatter: 'json' };
-		if (createProgramForTslint) {
-			const program = tslint.Linter.createProgram(tsconfig);
-			return new tslint.Linter(tslintOptions, program);
-		}
-		return new tslint.Linter(tslintOptions);
-	}
-
-	function findTsConfig(segments) {
-		let fsPath = segments.reduce((p, each) => path.join(p, each));
-		let tsconfig = path.join(fsPath, 'tsconfig.json');
-		if (fs.existsSync(tsconfig)) {
-			return tsconfig;
-		} else if (segments.length > 1) {
-			segments.splice(-1, 1);
-			return findTsConfig(segments);
-		} else {
-			return undefined;
-		}
-	}
-
-	function getLinter(file) {
-		let segments = file.relative.split(path.sep);
-
-		// hard code the location of the tsconfig.json for the source folder to eliminate the lookup for the tsconfig.json
-		if (segments[0] === 'src') {
-			if (!linterForProgram['src']) {
-				linterForProgram['src'] = createLinter('src/tsconfig.json');
-			}
-			return linterForProgram['src'];
-		}
-		else {
-			segments.splice(-1, 1);
-			let tsconfig = findTsConfig(segments);
-			if (!tsconfig) {
-				return undefined;
-			}
-			if (!linterForProgram[tsconfig]) {
-				linterForProgram[tsconfig] = createLinter(tsconfig);
-			}
-			return linterForProgram[tsconfig];
-		}
-	}
+	const tslintConfiguration = tslint.Configuration.findConfiguration('tslint.json', '.');
+	const tslintOptions = { fix: false, formatter: 'json' };
+	const tsLinter = new tslint.Linter(tslintOptions);
 
 	const tsl = es.through(function (file) {
 		const contents = file.contents.toString('utf8');
-		let linter = getLinter(file);
-		if (linter) {
-			linter.lint(file.relative, contents, configuration.results);
-		}
+		tsLinter.lint(file.relative, contents, tslintConfiguration.results);
 		this.emit('data', file);
 	});
 
@@ -320,19 +272,17 @@ function hygiene(some, options) {
 		}, function () {
 			process.stdout.write('\n');
 
-			for (let linter in linterForProgram) {
-				const tslintResult = linterForProgram[linter].getResult();
-				if (tslintResult.failures.length > 0) {
-					for (const failure of tslintResult.failures) {
-						const name = failure.getFileName();
-						const position = failure.getStartPosition();
-						const line = position.getLineAndCharacter().line;
-						const character = position.getLineAndCharacter().character;
+			const tslintResult = tsLinter.getResult();
+			if (tslintResult.failures.length > 0) {
+				for (const failure of tslintResult.failures) {
+					const name = failure.getFileName();
+					const position = failure.getStartPosition();
+					const line = position.getLineAndCharacter().line;
+					const character = position.getLineAndCharacter().character;
 
-						console.error(`${name}:${line + 1}:${character + 1}:${failure.getFailure()}`);
-					}
-					errorCount += tslintResult.failures.length;
+					console.error(`${name}:${line + 1}:${character + 1}:${failure.getFailure()}`);
 				}
+				errorCount += tslintResult.failures.length;
 			}
 
 			if (errorCount > 0) {
