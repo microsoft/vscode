@@ -429,7 +429,7 @@ export class NotificationTemplateRenderer {
 		clearNode(this.template.buttonsContainer);
 
 		if (notification.expanded) {
-			const buttonGroup = new ButtonGroup(this.template.buttonsContainer, notification.actions.primary.length);
+			const buttonGroup = new ButtonGroup(this.template.buttonsContainer, notification.actions.primary.length, { title: true /* assign titles to buttons in case they overflow */ });
 			buttonGroup.buttons.forEach((button, index) => {
 				const action = notification.actions.primary[index];
 				button.label = action.label;

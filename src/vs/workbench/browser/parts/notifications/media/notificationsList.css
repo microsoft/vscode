@@ -124,14 +124,18 @@
 
 /** Notification: Buttons */
 
-.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-button {
-	max-width: fit-content;
-	padding: 5px 10px;
-	font-size: 12px;
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container {
+	display: flex;
+	overflow: hidden;
 }
 
 .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-button {
+	max-width: fit-content;
+	padding: 5px 10px;
 	margin-left: 10px;
+	font-size: 12px;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 /** Notification: Progress */

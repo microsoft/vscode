@@ -16,6 +16,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IButtonOptions extends IButtonStyles {
+	title?: boolean;
 }
 
 export interface IButtonStyles {
@@ -145,6 +146,9 @@ export class Button {
 			this.$el.addClass('monaco-text-button');
 		}
 		this.$el.text(value);
+		if (this.options.title) {
+			this.$el.title(value);
+		}
 	}
 
 	set icon(iconClassName: string) {
