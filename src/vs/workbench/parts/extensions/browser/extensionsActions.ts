@@ -370,12 +370,12 @@ export class ManageExtensionAction extends Action {
 
 		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [
 			[
-				instantiationService.createInstance(EnableForWorkspaceAction, EnableForWorkspaceAction.LABEL),
-				instantiationService.createInstance(EnableGloballyAction, EnableGloballyAction.LABEL)
+				instantiationService.createInstance(EnableGloballyAction, EnableGloballyAction.LABEL),
+				instantiationService.createInstance(EnableForWorkspaceAction, EnableForWorkspaceAction.LABEL)
 			],
 			[
-				instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL),
-				instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL)
+				instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL),
+				instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL)
 			],
 			[
 				instantiationService.createInstance(UninstallAction)
@@ -513,8 +513,8 @@ export class EnableAction extends Action {
 		super(EnableAction.ID, localize('enableAction', "Enable"), EnableAction.DisabledClass, false);
 
 		this._enableActions = [
-			instantiationService.createInstance(EnableForWorkspaceAction, EnableForWorkspaceAction.LABEL),
-			instantiationService.createInstance(EnableGloballyAction, EnableGloballyAction.LABEL)
+			instantiationService.createInstance(EnableGloballyAction, EnableGloballyAction.LABEL),
+			instantiationService.createInstance(EnableForWorkspaceAction, EnableForWorkspaceAction.LABEL)
 		];
 		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._enableActions]);
 		this.disposables.push(this._actionItem);
@@ -647,8 +647,8 @@ export class DisableAction extends Action {
 	) {
 		super(DisableAction.ID, localize('disableAction', "Disable"), DisableAction.DisabledClass, false);
 		this._disableActions = [
-			instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL),
-			instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL)
+			instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL),
+			instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL)
 		];
 		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._disableActions]);
 		this.disposables.push(this._actionItem);
