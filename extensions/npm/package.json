@@ -81,11 +81,11 @@
         "properties": {
           "script": {
             "type": "string",
-            "description": "The npm script to customize"
+            "description": "%taskdef.script%"
           },
           "path": {
             "type": "string",
-            "description": "The path to the folder of the package.json file that provides the script. Can be ommitted."
+            "description": "%taskdef.path%"
           }
         }
       }
