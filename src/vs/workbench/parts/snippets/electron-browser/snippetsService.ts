@@ -337,16 +337,19 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 			}
 
 			// dismbiguate suggestions with same labels
-			let lastItem: SnippetSuggestion;
-			for (const item of suggestions.sort(SnippetSuggestion.compareByLabel)) {
-				if (lastItem && lastItem.label === item.label) {
-					// use the disambiguateLabel instead of the actual label
-					lastItem.label = localize('snippetSuggest.longLabel', "{0}, {1}", lastItem.label, lastItem.snippet.name);
-					item.label = localize('snippetSuggest.longLabel', "{0}, {1}", item.label, item.snippet.name);
-				}
-				lastItem = item;
-			}
+			suggestions.sort(SnippetSuggestion.compareByLabel);
 
+			for (let i = 0; i < suggestions.length; i++) {
+				let item = suggestions[i];
+				let to = i + 1;
+				for (; to < suggestions.length && item.label === suggestions[to].label; to++) {
+					suggestions[to].label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label, suggestions[to].snippet.name);
+				}
+				if (to > i + 1) {
+					suggestions[i].label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[i].label, suggestions[i].snippet.name);
+					i = to;
+				}
+			}
 			return { suggestions };
 		});
 	}
