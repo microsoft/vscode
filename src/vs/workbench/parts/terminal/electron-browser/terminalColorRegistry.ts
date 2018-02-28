@@ -26,7 +26,7 @@ export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selec
 	dark: '#FFFFFF40',
 	hc: '#FFFFFF80'
 }, nls.localize('terminal.selectionBackground', 'The selection background color of the terminal.'));
-export const TERMINAL_BORDER_COLOR = registerColor('terminal.border', null, nls.localize('terminal.border', 'The color of the border that separates multiple terminals. This defaults to panel.border'));
+export const TERMINAL_BORDER_COLOR = registerColor('terminal.border', null, nls.localize('terminal.border', 'The color of the border that separates split panes within the terminal. This defaults to panel.border.'));
 
 const ansiColorMap = {
 	'terminal.ansiBlack': {
