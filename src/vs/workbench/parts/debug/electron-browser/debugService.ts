@@ -52,7 +52,8 @@ import { IRemoteConsoleLog, parse, getFirstFrame } from 'vs/base/node/console';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { TaskEvent, TaskEventKind } from 'vs/workbench/parts/tasks/common/tasks';
 import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotificationActions } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IAction, Action } from 'vs/base/common/actions';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -788,12 +789,16 @@ export class DebugService implements debug.IDebugService {
 							nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
 					}
 
-					return TPromise.wrapError(errors.create(message, { actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
+					return this.showError(message);
 				}
 
 				this.toDisposeOnSessionEnd.set(sessionId, []);
 
 				const workspace = launch ? launch.workspace : undefined;
+				const debugAnywayAction = new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), undefined, true, () => {
+					return this.doCreateProcess(workspace, resolvedConfig, sessionId);
+				});
+
 				return this.runPreLaunchTask(sessionId, workspace, resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
 					const errorCount = resolvedConfig.preLaunchTask ? this.markerService.getStatistics().errors : 0;
 					const successExitCode = taskSummary && taskSummary.exitCode === 0;
@@ -806,34 +811,17 @@ export class DebugService implements debug.IDebugService {
 						errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
 							nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", resolvedConfig.preLaunchTask, taskSummary.exitCode);
 
-					return this.choiceService.choose(severity.Error, message, [nls.localize('debugAnyway', "Debug Anyway"), nls.localize('showErrors', "Show Errors"), nls.localize('cancel', "Cancel")], 2, true).then(choice => {
-						switch (choice) {
-							case 0:
-								return this.doCreateProcess(workspace, resolvedConfig, sessionId);
-							case 1:
-								return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => undefined);
-							default:
-								return undefined;
-						}
+					const showErrorsAction = new Action('debug.showErrors', nls.localize('showErrors', "Show Errors"), undefined, true, () => {
+						return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => undefined);
 					});
+
+					return this.showError(message, [debugAnywayAction, showErrorsAction]);
 				}, (err: TaskError) => {
-					return this.choiceService.choose(severity.Error, err.message, [nls.localize('debugAnyway', "Debug Anyway"), debugactions.ConfigureAction.LABEL, this.taskService.configureAction().label, nls.localize('cancel', "Cancel")], 3, true).then(choice => {
-						switch (choice) {
-							case 0:
-								return this.doCreateProcess(workspace, resolvedConfig, sessionId);
-							case 1:
-								return launch && launch.openConfigFile(false);
-							case 2:
-								return this.taskService.configureAction().run();
-							default:
-								return undefined;
-						}
-					});
+					return this.showError(err.message, [debugAnywayAction, this.taskService.configureAction()]);
 				});
 			}, err => {
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-					this.notificationService.error(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
-					return undefined;
+					return this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
 				}
 
 				return launch && launch.openConfigFile(false).then(editor => void 0);
@@ -974,17 +962,21 @@ export class DebugService implements debug.IDebugService {
 					this.inDebugMode.reset();
 				}
 
-				const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
-
-				let actions: INotificationActions = { primary: [] };
-				if (errors.isErrorWithActions(error)) {
-					actions.primary.push(...error.actions);
-				}
-				actions.primary.push(configureAction);
-
-				this.notificationService.notify({ severity: severity.Error, message: errorMessage, actions });
+				this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
 				return undefined;
 			});
+		});
+	}
+
+	private showError(message: string, actions: IAction[] = []): TPromise<any> {
+		const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
+		actions.push(configureAction);
+		return this.choiceService.choose(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), actions.length, true).then(choice => {
+			if (choice < actions.length) {
+				return actions[choice].run();
+			}
+
+			return TPromise.as(null);
 		});
 	}
 
