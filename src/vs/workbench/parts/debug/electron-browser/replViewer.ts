@@ -18,12 +18,11 @@ import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IExpressionContainer, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
 import { Model, RawObjectReplElement, Expression, SimpleReplElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/browser/baseDebugView';
-import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { ClearReplAction, ReplCollapseAllAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction, CopyAllAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
-import { CollapseAction } from 'vs/workbench/browser/viewlet';
 
 const $ = dom.$;
 
@@ -418,7 +417,7 @@ export class ReplExpressionsAccessibilityProvider implements IAccessibilityProvi
 
 export class ReplExpressionsActionProvider implements IActionProvider {
 
-	constructor(private instantiationService: IInstantiationService) {
+	constructor(private instantiationService: IInstantiationService, private toFocus: { focus(): void }) {
 		// noop
 	}
 
@@ -438,7 +437,7 @@ export class ReplExpressionsActionProvider implements IActionProvider {
 		const actions: IAction[] = [];
 		actions.push(new CopyAction(CopyAction.ID, CopyAction.LABEL));
 		actions.push(new CopyAllAction(CopyAllAction.ID, CopyAllAction.LABEL, tree));
-		actions.push(new CollapseAction(tree, true, 'explore-action collapse-all'));
+		actions.push(new ReplCollapseAllAction(tree, this.toFocus));
 		actions.push(new Separator());
 		actions.push(this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL));
 
