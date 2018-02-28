@@ -14,7 +14,7 @@ export class ToggleLockCommand implements Command {
 		private readonly previewManager: MarkdownPreviewManager
 	) { }
 
-	public execute(previewUri: vscode.Uri) {
+	public execute(previewUri?: vscode.Uri) {
 		this.previewManager.toggleLock(previewUri);
 	}
 }

@@ -224,9 +224,9 @@ export interface PreviewSettings {
 export class MarkdownPreviewManager {
 	private static readonly markdownPreviewActiveContextKey = 'markdownPreviewFocus';
 
-	private previews: MarkdownPreview[] = [];
 	private readonly previewConfigurations = new PreviewConfigManager();
-
+	private readonly previews: MarkdownPreview[] = [];
+	private activePreview: MarkdownPreview | undefined = undefined;
 	private readonly disposables: vscode.Disposable[] = [];
 
 	public constructor(
@@ -236,6 +236,10 @@ export class MarkdownPreviewManager {
 		vscode.window.onDidChangeActiveEditor(editor => {
 			vscode.commands.executeCommand('setContext', MarkdownPreviewManager.markdownPreviewActiveContextKey,
 				editor && editor.editorType === 'webview' && editor.uri.scheme === MarkdownPreview.previewScheme);
+
+			this.activePreview = editor && editor.editorType === 'webview'
+				? this.previews.find(preview => editor.uri.toString() === preview.uri.toString())
+				: undefined;
 
 			if (editor && editor.editorType === 'texteditor') {
 				if (isMarkdownFile(editor.document)) {
@@ -318,8 +322,8 @@ export class MarkdownPreviewManager {
 		return preview && preview.resource;
 	}
 
-	public toggleLock(previewUri: vscode.Uri) {
-		const preview = this.getPreviewWithUri(previewUri);
+	public toggleLock(previewUri?: vscode.Uri) {
+		const preview = previewUri ? this.getPreviewWithUri(previewUri) : this.activePreview;
 		if (preview) {
 			preview.toggleLock();
 
