@@ -1,16 +1,132 @@
 {
-	"Region Start": {
-		"prefix": "#region",
-		"body": [
-			"#region"
-		],
-		"description": "Folding Region Start"
-	},
-	"Region End": {
-		"prefix": "#endregion",
-		"body": [
-			"#endregion"
-		],
-		"description": "Folding Region End"
-	}
+  "fora": {
+    "prefix": "fora",
+    "body": "for ${1:name} in ${2:array}\n  ${0:# body...}",
+    "description": "Array Comprehension",
+    "scope": "source.coffee"
+  },
+  "bfun": {
+    "prefix": "bfun",
+    "body": "(${1:args}) =>\n  ${0:# body...}",
+    "description": "Function (bound)",
+    "scope": "source.coffee"
+  },
+  "cla": {
+    "prefix": "cla",
+    "body": "class ${1:ClassName}${2: extends ${3:Ancestor}}\n\n  ${4:constructor: (${5:args}) ->\n    ${6:# body...}}\n  $7",
+    "description": "Class",
+    "scope": "source.coffee"
+  },
+  "elif": {
+    "prefix": "elif",
+    "body": "else if ${1:condition}\n  ${0:# body...}",
+    "description": "Else if",
+    "scope": "source.coffee"
+  },
+  "fun": {
+    "prefix": "fun",
+    "body": "(${1:args}) ->\n  ${0:# body...}\n\n",
+    "description": "Function",
+    "scope": "source.coffee"
+  },
+  "ife": {
+    "prefix": "ife",
+    "body": "if ${1:condition}\n  ${2:# body...}\nelse\n  ${3:# body...}",
+    "description": "If .. Else",
+    "scope": "source.coffee"
+  },
+  "if": {
+    "prefix": "if",
+    "body": "if ${1:condition}\n  ${0:# body...}",
+    "description": "If",
+    "scope": "source.coffee"
+  },
+  "#": {
+    "prefix": "#",
+    "body": "#{${1:$TM_SELECTED_TEXT}}",
+    "description": "Interpolated Code",
+    "scope": "(string.quoted.double.coffee) - string source, (string.quoted.double.heredoc.coffee) - string source"
+  },
+  "foro": {
+    "prefix": "foro",
+    "body": "for ${1:key}, ${2:value} of ${3:Object}\n  ${0:# body...}",
+    "description": "Object comprehension",
+    "scope": "source.coffee"
+  },
+  "forrex": {
+    "prefix": "forrex",
+    "body": "for ${1:name} in [${2:start}...${3:finish}]${4: by ${5:step}}\n  ${0:# body...}",
+    "description": "Range comprehension (exclusive)",
+    "scope": "source.coffee"
+  },
+  "forr": {
+    "prefix": "forr",
+    "body": "for ${1:name} in [${2:start}..${3:finish}]${4: by ${5:step}}\n  ${0:# body...}",
+    "description": "Range comprehension (inclusive)",
+    "scope": "source.coffee"
+  },
+  "swi": {
+    "prefix": "swi",
+    "body": "switch ${1:object}\n  when ${2:value}\n    ${0:# body...}",
+    "description": "Switch",
+    "scope": "source.coffee"
+  },
+  "ifte": {
+    "prefix": "ifte",
+    "body": "if ${1:condition} then ${2:value} else ${3:other}",
+    "description": "Ternary If",
+    "scope": "source.coffee"
+  },
+  "try": {
+    "prefix": "try",
+    "body": "try\n  $1\ncatch ${2:error}\n  $3",
+    "description": "Try .. Catch",
+    "scope": "source.coffee"
+  },
+  "unl": {
+    "prefix": "unl",
+    "body": "${1:action} unless ${2:condition}",
+    "description": "Unless",
+    "scope": "source.coffee"
+  },
+  "/1": {
+    "prefix": "/1",
+    "body": "# $1\n# ==============================================================================\n$0",
+    "description": "Subheader",
+    "scope": "source.coffee"
+  },
+  "/2": {
+    "prefix": "/2",
+    "body": "# $1\n# ----------------------------------------------------------------------\n$0",
+    "description": "Subheader",
+    "scope": "source.coffee"
+  },
+  "/3": {
+    "prefix": "/3",
+    "body": "# $1\n# -------------------------\n$0",
+    "description": "Subheader",
+    "scope": "source.coffee"
+  },
+  "log": {
+    "prefix": "log",
+    "body": "console.log $0",
+    "description": "log",
+    "scope": "source.coffee"
+  },
+  "req": {
+    "prefix": "req",
+    "body": "${2/^.*?([\\w_]+).*$/\\L$1/} = require ${2:'${1:sys}'}$3",
+    "description": "require",
+    "scope": "source.coffee"
+  },
+  "Region Start": {
+    "prefix": "#region",
+    "body": ["#region"],
+    "description": "Folding Region Start"
+  },
+  "Region End": {
+    "prefix": "#endregion",
+    "body": ["#endregion"],
+    "description": "Folding Region End"
+  }
 }
