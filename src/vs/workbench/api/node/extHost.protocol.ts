@@ -211,7 +211,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 export interface MainThreadTreeViewsShape extends IDisposable {
 	$registerTreeViewDataProvider(treeViewId: string): void;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): void;
-	$reveal(treeViewId: string, treeItem: ITreeItem, parentChain: ITreeItem[], options?: { donotSelect?: boolean }): TPromise<void>;
+	$reveal(treeViewId: string, treeItem: ITreeItem, parentChain: ITreeItem[], options?: { select?: boolean }): TPromise<void>;
 }
 
 export interface MainThreadErrorsShape extends IDisposable {

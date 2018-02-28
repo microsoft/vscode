@@ -587,11 +587,11 @@ declare module 'vscode' {
 		/**
 		 * Reveal an element. By default revealed element is selected.
 		 *
-		 * In order to not to select, set the option `donotSelect` to `true`.
+		 * In order to not to select, set the option `select` to `false`.
 		 *
 		 * **NOTE:** [TreeDataProvider](#TreeDataProvider) is required to implement [getParent](#TreeDataProvider.getParent) method to access this API.
 		 */
-		reveal(element: T, options?: { donotSelect?: boolean }): Thenable<void>;
+		reveal(element: T, options?: { select?: boolean }): Thenable<void>;
 	}
 
 	/**

@@ -41,7 +41,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	registerTreeDataProvider<T>(id: string, dataProvider: vscode.TreeDataProvider<T>, proposedApiFunction: <U>(fn: U) => U): vscode.TreeView<T> {
 		const treeView = this.createExtHostTreeViewer(id, dataProvider);
 		return {
-			reveal: proposedApiFunction((element: T, options?: { donotSelect?: boolean }): Thenable<void> => {
+			reveal: proposedApiFunction((element: T, options?: { select?: boolean }): Thenable<void> => {
 				return treeView.reveal(element, options);
 			}),
 			dispose: () => {
@@ -110,12 +110,12 @@ class ExtHostTreeView<T> extends Disposable {
 		return this.elements.get(treeItemHandle);
 	}
 
-	reveal(element: T, options?: { donotSelect?: boolean }): TPromise<void> {
+	reveal(element: T, options?: { select?: boolean }): TPromise<void> {
 		if (typeof this.dataProvider.getParent !== 'function') {
 			return TPromise.wrapError(new Error(`Required registered TreeDataProvider to implement 'getParent' method to access 'reveal' mehtod`));
 		}
 		return this.resolveUnknownParentChain(element)
-			.then(parentChain => this.resolveTreeItem(element, parentChain[parentChain.length - 1])
+			.then(parentChain => this.resolveTreeNode(element, parentChain[parentChain.length - 1])
 				.then(treeNode => this.proxy.$reveal(this.viewId, treeNode.item, parentChain.map(p => p.item), options)));
 	}
 
@@ -126,7 +126,7 @@ class ExtHostTreeView<T> extends Disposable {
 					return TPromise.as([]);
 				}
 				return this.resolveUnknownParentChain(parent)
-					.then(result => this.resolveTreeItem(parent, result[result.length - 1])
+					.then(result => this.resolveTreeNode(parent, result[result.length - 1])
 						.then(parentNode => {
 							result.push(parentNode);
 							return result;
@@ -142,7 +142,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return asWinJsPromise(() => this.dataProvider.getParent(element));
 	}
 
-	private resolveTreeItem(element: T, parent?: TreeNode): TPromise<TreeNode> {
+	private resolveTreeNode(element: T, parent?: TreeNode): TPromise<TreeNode> {
 		return asWinJsPromise(() => this.dataProvider.getTreeItem(element))
 			.then(extTreeItem => this.createHandle(element, extTreeItem, parent))
 			.then(handle => this.getChildren(parent ? parent.item.handle : null)
