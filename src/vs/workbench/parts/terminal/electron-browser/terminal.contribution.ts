@@ -204,11 +204,6 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false
 		},
-		'terminal.integrated.hideTerminalReuseAlert': {
-			'description': nls.localize('terminal.integrated.hideTerminalReuseAlert', "Hide alert `Terminal will be reused by tasks, press any key to close it`."),
-			'type': 'boolean',
-			'default': false
-		},
 		'terminal.integrated.enableBell': {
 			'description': nls.localize('terminal.integrated.enableBell', "Whether the terminal bell is enabled or not."),
 			'type': 'boolean',

@@ -80,7 +80,6 @@ export interface ITerminalConfiguration {
 	commandsToSkipShell: string[];
 	cwd: string;
 	confirmOnExit: boolean;
-	hideTerminalReuseAlert: boolean;
 	enableBell: boolean;
 	env: {
 		linux: { [key: string]: string };
