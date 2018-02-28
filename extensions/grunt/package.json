@@ -3,7 +3,7 @@
   "publisher": "vscode",
   "description": "Extension to add Grunt capabilities to VSCode.",
   "displayName": "Grunt support for VSCode",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "icon": "images/grunt.png",
   "engines": {
     "vscode": "*"
