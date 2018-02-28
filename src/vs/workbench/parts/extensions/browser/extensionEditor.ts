@@ -736,7 +736,7 @@ export class ExtensionEditor extends BaseEditor {
 					$('th', null, localize('schema', "Schema"))
 				),
 				...contrib.map(v => $('tr', null,
-					$('td', null, v.fileMatch),
+					$('td', null, $('code', null, v.fileMatch)),
 					$('td', null, v.url)
 				))));
 
