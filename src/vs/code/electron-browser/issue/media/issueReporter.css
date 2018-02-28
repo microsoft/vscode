@@ -126,7 +126,7 @@ body {
 	overflow-wrap: break-word;
 }
 pre {
-	margin: 0;
+	margin: 10px 20px;
 }
 pre code {
 	font-family: 'Menlo', 'Courier New', 'Courier', monospace;

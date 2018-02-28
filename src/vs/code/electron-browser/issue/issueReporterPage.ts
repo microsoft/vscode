@@ -52,9 +52,9 @@ export default (): string => `
 							<label class="caption" for="includeProcessInfo">${escape(localize('sendData', "Send my data"))}</label>
 						</div>
 					</summary>
-					<div class="block-info">
+					<pre class="block-info">
 						<!-- To be dynamically filled -->
-					</div>
+					</pre>
 				</details>
 			</div>
 			<div class="block block-workspace">

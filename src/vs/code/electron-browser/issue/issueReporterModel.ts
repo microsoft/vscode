@@ -144,20 +144,15 @@ ${this.getInfos()}
 	}
 
 	private generateProcessInfoMd(): string {
-		let md = `<details>
+		return `<details>
 <summary>Process Info</summary>
 
-|pid|CPU|Memory (MB)|Name|
-|---|---|---|---|
+\`\`\`
+${this._data.processInfo}
+\`\`\`
+
+</details>
 `;
-
-		this._data.processInfo.forEach(p => {
-			md += `|${p.pid}|${p.cpu}|${p.memory}|${p.name}|\n`;
-		});
-
-		md += '\n</details>';
-
-		return md;
 	}
 
 	private generateWorkspaceInfoMd(): string {

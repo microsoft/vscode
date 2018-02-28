@@ -39,7 +39,7 @@ export interface ProcessInfo {
 }
 
 export interface PerformanceInfo {
-	processInfo?: ProcessInfo[];
+	processInfo?: string;
 	workspaceInfo?: string;
 }
 
@@ -78,7 +78,7 @@ export function getPerformanceInfo(info: IMainProcessInfo): Promise<PerformanceI
 		}
 
 		return {
-			processInfo: getProcessList(info, rootProcess),
+			processInfo: formatProcessList(info, rootProcess),
 			workspaceInfo: workspaceInfoMessages.join('\n')
 		};
 	});
@@ -206,49 +206,6 @@ function formatLaunchConfigs(configs: WorkspaceStatItem[]): string {
 	});
 	output.push(line);
 	return output.join('\n');
-}
-
-function getProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): ProcessInfo[] {
-	const mapPidToWindowTitle = new Map<number, string>();
-	info.windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
-
-	const processes: ProcessInfo[] = [];
-
-	if (rootProcess) {
-		getProcessItem(mapPidToWindowTitle, processes, rootProcess, 0);
-	}
-
-	return processes;
-}
-
-function getProcessItem(mapPidToWindowTitle: Map<number, string>, processes: ProcessInfo[], item: ProcessItem, indent: number): void {
-	const isRoot = (indent === 0);
-
-	const MB = 1024 * 1024;
-
-	// Format name with indent
-	let name: string;
-	if (isRoot) {
-		name = `${product.applicationName} main`;
-	} else {
-		name = `${repeat('--', indent)} ${item.name}`;
-
-		if (item.name === 'window') {
-			name = `${name} (${mapPidToWindowTitle.get(item.pid)})`;
-		}
-	}
-	const memory = process.platform === 'win32' ? item.mem : (os.totalmem() * (item.mem / 100));
-	processes.push({
-		cpu: Number(item.load.toFixed(0)),
-		memory: Number((memory / MB).toFixed(0)),
-		pid: Number((item.pid).toFixed(0)),
-		name
-	});
-
-	// Recurse into children if any
-	if (Array.isArray(item.children)) {
-		item.children.forEach(child => getProcessItem(mapPidToWindowTitle, processes, child, indent + 1));
-	}
 }
 
 function formatEnvironment(info: IMainProcessInfo): string {

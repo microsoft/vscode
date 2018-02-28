@@ -679,26 +679,7 @@ export class IssueReporter extends Disposable {
 
 	private updateProcessInfo = (state) => {
 		const target = document.querySelector('.block-process .block-info');
-
-		let tableHtml = `
-			<tr>
-				<th>pid</th>
-				<th>CPU %</th>
-				<th>Memory (MB)</th>
-				<th>Name</th>
-			</tr>`;
-
-		state.processInfo.forEach(p => {
-			tableHtml += `
-				<tr>
-					<td>${p.pid}</td>
-					<td>${p.cpu}</td>
-					<td>${p.memory}</td>
-					<td>${p.name}</td>
-				</tr>`;
-		});
-
-		target.innerHTML = `<table>${tableHtml}</table>`;
+		target.innerHTML = `<code>${state.processInfo}</code>`;
 	}
 
 	private updateWorkspaceInfo = (state) => {
