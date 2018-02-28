@@ -194,7 +194,7 @@ class CommandPaletteEditorAction extends EditorAction {
 			alias: 'Command Palette',
 			precondition: null,
 			menuOpts: {
-				group: 'commands',
+				group: 'z_commands',
 				order: 1
 			} as IEditorCommandMenuOptions
 		});
