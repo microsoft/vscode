@@ -734,7 +734,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.focusedItem = null;
 			this.focusedItemIndex = null;
 			this.list.splice(0, this.list.length, this.completionModel.items);
-			this.list.reveal(selectionIndex, selectionIndex);
 
 			if (isFrozen) {
 				this.setState(State.Frozen);
@@ -742,6 +741,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.setState(State.Open);
 			}
 
+			this.list.reveal(selectionIndex, selectionIndex);
 			this.list.setFocus([selectionIndex]);
 
 			// Reset focus border
