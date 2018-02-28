@@ -38,6 +38,12 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 
 		this._disposables.push(this._editor.onDidChangeModel(_ => this._futureFixes.cancel()));
 		this._disposables.push(this._editor.onDidChangeModelLanguage(_ => this._futureFixes.cancel()));
+		this._disposables.push(this._editor.onDidChangeModelContent(_ => {
+			// cancel when the line in question has been removed
+			if (this._model && this.model.position.lineNumber >= this._editor.getModel().getLineCount()) {
+				this._futureFixes.cancel();
+			}
+		}));
 		this._disposables.push(dom.addStandardDisposableListener(this._domNode, 'click', e => {
 			// a bit of extra work to make sure the menu
 			// doesn't cover the line-text
