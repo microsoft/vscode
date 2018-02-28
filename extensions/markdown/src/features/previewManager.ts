@@ -108,13 +108,25 @@ class MarkdownPreview {
 			this.initialLine = undefined;
 		}
 
-		// Schedule update
+		// If we have changed resources, cancel any pending updates
+		const isResourceChange = resource.fsPath !== this._resource.fsPath;
+		if (isResourceChange) {
+			clearTimeout(this.throttleTimer);
+			this.throttleTimer = undefined;
+		}
+
+		this._resource = resource;
+
+		// Schedule update if none is pending
 		if (!this.throttleTimer) {
-			this.throttleTimer = setTimeout(() => this.doUpdate(), resource.fsPath === this._resource.fsPath && !this.firstUpdate ? 300 : 0);
+			if (isResourceChange || this.firstUpdate) {
+				this.doUpdate();
+			} else {
+				this.throttleTimer = setTimeout(() => this.doUpdate(), 300);
+			}
 		}
 
 		this.firstUpdate = false;
-		this._resource = resource;
 	}
 
 	public refresh() {
