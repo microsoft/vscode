@@ -41,7 +41,7 @@ declare let self: any;
 export const LANGUAGE_DEFAULT = 'en';
 
 // OS detection
-if (typeof process === 'object') {
+if (typeof process === 'object' && typeof process.getuid === 'function') {
 	_isWindows = (process.platform === 'win32');
 	_isMacintosh = (process.platform === 'darwin');
 	_isLinux = (process.platform === 'linux');
