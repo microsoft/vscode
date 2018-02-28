@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { Command } from '../commandManager';
 import { Logger } from '../logger';
-import { MarkdownPreviewManager } from '../features/previewContentProvider';
+import { MarkdownPreviewManager } from '../features/previewManager';
 
 export class RevealLineCommand implements Command {
 	public readonly id = '_markdown.revealLine';

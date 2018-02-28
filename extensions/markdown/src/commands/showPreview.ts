@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 
 import { Command } from '../commandManager';
-import { MarkdownPreviewManager, PreviewSettings, } from '../features/previewContentProvider';
+import { MarkdownPreviewManager, PreviewSettings } from '../features/previewManager';
 import { TelemetryReporter } from '../telemetryReporter';
 
 

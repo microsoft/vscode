@@ -14,7 +14,8 @@ import { loadDefaultTelemetryReporter } from './telemetryReporter';
 import { loadMarkdownExtensions } from './markdownExtensions';
 import LinkProvider from './features/documentLinkProvider';
 import MDDocumentSymbolProvider from './features/documentSymbolProvider';
-import { MarkdownContentProvider, MarkdownPreviewManager } from './features/previewContentProvider';
+import { MarkdownContentProvider } from './features/previewContentProvider';
+import { MarkdownPreviewManager } from './features/previewManager';
 
 
 export function activate(context: vscode.ExtensionContext) {

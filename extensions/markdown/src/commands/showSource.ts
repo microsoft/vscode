@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../commandManager';
-import { MarkdownPreviewManager } from '../features/previewContentProvider';
+import { MarkdownPreviewManager } from '../features/previewManager';
 
 export class ShowSourceCommand implements Command {
 	public readonly id = 'markdown.showSource';

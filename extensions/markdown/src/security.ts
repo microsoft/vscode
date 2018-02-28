@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 
-import { MarkdownPreviewManager } from './features/previewContentProvider';
+import { MarkdownPreviewManager } from './features/previewManager';
 
 import * as nls from 'vscode-nls';
 

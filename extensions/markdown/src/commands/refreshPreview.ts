@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Command } from '../commandManager';
-import { MarkdownPreviewManager } from '../features/previewContentProvider';
+import { MarkdownPreviewManager } from '../features/previewManager';
 
 export class RefreshPreviewCommand implements Command {
 	public readonly id = 'markdown.preview.refresh';
