@@ -731,17 +731,18 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			*/
 			this.telemetryService.publicLog('suggestWidget', { ...stats, ...this.editor.getTelemetryData() });
 
+			this.focusedItem = null;
+			this.focusedItemIndex = null;
+			this.list.splice(0, this.list.length, this.completionModel.items);
+			this.list.reveal(selectionIndex, selectionIndex);
+
 			if (isFrozen) {
 				this.setState(State.Frozen);
 			} else {
 				this.setState(State.Open);
 			}
 
-			this.focusedItem = null;
-			this.focusedItemIndex = null;
-			this.list.splice(0, this.list.length, this.completionModel.items);
 			this.list.setFocus([selectionIndex]);
-			this.list.reveal(selectionIndex, selectionIndex);
 
 			// Reset focus border
 			if (this.detailsBorderColor) {
