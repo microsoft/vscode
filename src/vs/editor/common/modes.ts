@@ -738,7 +738,7 @@ export interface IInplaceReplaceSupportResult {
  */
 export interface ILink {
 	range: IRange;
-	url: string;
+	url?: string;
 }
 /**
  * A provider of links.

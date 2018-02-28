@@ -4865,7 +4865,7 @@ declare module monaco.languages {
 	 */
 	export interface ILink {
 		range: IRange;
-		url: string;
+		url?: string;
 	}
 
 	/**
