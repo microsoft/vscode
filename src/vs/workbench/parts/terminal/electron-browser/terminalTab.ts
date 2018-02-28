@@ -127,10 +127,7 @@ class SplitPaneContainer {
 			this._children.push(child);
 		}
 
-		// Add the view, disabling layout/resize events in the terminal to prevent multiple resizes
-		this._children.forEach(c => c.instance.disableLayout = true);
-		this._splitView.addView(child, size, index);
-		this._children.forEach(c => c.instance.disableLayout = false);
+		this._withDisabledLayout(() => this._splitView.addView(child, size, index));
 
 		this.resetSize();
 		this._refreshOrderClasses();
@@ -196,11 +193,19 @@ class SplitPaneContainer {
 
 		// Create new split view with updated orientation
 		this._createSplitView();
-		this._children.forEach(c => c.instance.disableLayout = true);
-		this._children.forEach(child => {
-			child.orientation = orientation;
-			this._splitView.addView(child, 1);
+		this._withDisabledLayout(() => {
+			this._children.forEach(child => {
+				child.orientation = orientation;
+				this._splitView.addView(child, 1);
+			});
 		});
+	}
+
+	private _withDisabledLayout(innerFunction: () => void): void {
+		// Whenever manipulating views that are going to be changed immediately, disabling
+		// layout/resize events in the terminal prevent bad dimensions going to the pty.
+		this._children.forEach(c => c.instance.disableLayout = true);
+		innerFunction();
 		this._children.forEach(c => c.instance.disableLayout = false);
 	}
 }
