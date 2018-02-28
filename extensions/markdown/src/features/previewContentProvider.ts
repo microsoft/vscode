@@ -172,8 +172,8 @@ export class MarkdownContentProvider {
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
 				${csp}
 				<meta id="vscode-markdown-preview-data" data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}" data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}">
-				<script src="${this.getMediaPath('csp.js')}" nonce="${nonce}"></script>
-				<script src="${this.getMediaPath('loading.js')}" nonce="${nonce}"></script>
+				<script src="${this.extensionResourcePath('csp.js')}" nonce="${nonce}"></script>
+				<script src="${this.extensionResourcePath('loading.js')}" nonce="${nonce}"></script>
 				${this.getStyles(sourceUri, nonce, config)}
 				<base href="${markdownDocument.uri.with({ scheme: 'vscode-workspace-resource' }).toString(true)}">
 			</head>
@@ -185,7 +185,7 @@ export class MarkdownContentProvider {
 			</html>`;
 	}
 
-	private getMediaPath(mediaFile: string): string {
+	private extensionResourcePath(mediaFile: string): string {
 		return vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile)))
 			.with({ scheme: 'vscode-extension-resource' })
 			.toString();
@@ -244,8 +244,8 @@ export class MarkdownContentProvider {
 
 	private getStyles(resource: vscode.Uri, nonce: string, config: MarkdownPreviewConfig): string {
 		const baseStyles = [
-			this.getMediaPath('markdown.css'),
-			this.getMediaPath('tomorrow.css')
+			this.extensionResourcePath('markdown.css'),
+			this.extensionResourcePath('tomorrow.css')
 		].concat(this.extraStyles.map(resource => resource.toString()));
 
 		return `${baseStyles.map(href => `<link rel="stylesheet" type="text/css" href="${href}">`).join('\n')}
@@ -254,12 +254,11 @@ export class MarkdownContentProvider {
 	}
 
 	private getScripts(nonce: string): string {
-		const scripts = [this.getMediaPath('main.js')].concat(this.extraScripts.map(resource => resource.toString()));
+		const scripts = [this.extensionResourcePath('main.js')].concat(this.extraScripts.map(resource => resource.toString()));
 		return scripts
 			.map(source => `<script async src="${source}" nonce="${nonce}" charset="UTF-8"></script>`)
 			.join('\n');
 	}
-
 
 	private getCspForResource(resource: vscode.Uri, nonce: string): string {
 		switch (this.cspArbiter.getSecurityLevelForResource(resource)) {
