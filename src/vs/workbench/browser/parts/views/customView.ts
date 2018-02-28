@@ -511,8 +511,8 @@ class TreeItemIcon extends Disposable {
 			const hasContributedIcon = !!contributedIcon;
 			const hasChildren = this._treeItem.collapsibleState !== TreeItemCollapsibleState.None;
 			const hasThemeIcon = !!this._treeItem.resourceUri || !!this._treeItem.themeIcon;
-			const isFolder = hasThemeIcon && this._treeItem.themeIcon ? this._treeItem.themeIcon.id === FolderThemeIcon.id : hasChildren;
-			const isFile = hasThemeIcon && this._treeItem.themeIcon ? this._treeItem.themeIcon.id === FileThemeIcon.id : !hasChildren;
+			const isFolder = hasThemeIcon ? (this._treeItem.themeIcon ? this._treeItem.themeIcon.id === FolderThemeIcon.id : hasChildren) : false;
+			const isFile = hasThemeIcon ? (this._treeItem.themeIcon ? this._treeItem.themeIcon.id === FileThemeIcon.id : !hasChildren) : false;
 			const hasThemeFolderIcon = isFolder && fileIconTheme.hasFileIcons && fileIconTheme.hasFolderIcons;
 			const hasThemeFileIcon = isFile && fileIconTheme.hasFileIcons;
 			const hasIcon = hasContributedIcon || hasThemeFolderIcon || hasThemeFileIcon;
