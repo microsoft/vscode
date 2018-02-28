@@ -32,7 +32,7 @@ function getViewColumn(sideBySide: boolean): vscode.ViewColumn | undefined {
 
 interface ShowPreviewSettings {
 	readonly sideBySide?: boolean;
-	readonly pinned?: boolean;
+	readonly locked?: boolean;
 }
 
 async function showPreview(
@@ -61,7 +61,7 @@ async function showPreview(
 	webviewManager.preview(resource, {
 		resourceColumn: (vscode.window.activeTextEditor && vscode.window.activeTextEditor.viewColumn) || vscode.ViewColumn.One,
 		previewColumn: getViewColumn(!!previewSettings.sideBySide) || vscode.ViewColumn.Active,
-		pinned: !!previewSettings.pinned
+		locked: !!previewSettings.locked
 	});
 
 	telemetryReporter.sendTelemetryEvent('openPreview', {
@@ -82,7 +82,7 @@ export class ShowPreviewCommand implements Command {
 		for (const uri of (allUris || [mainUri])) {
 			showPreview(this.webviewManager, this.telemetryReporter, uri, {
 				sideBySide: false,
-				pinned: previewSettings && previewSettings.pinned
+				locked: previewSettings && previewSettings.locked
 			});
 		}
 	}
@@ -99,14 +99,14 @@ export class ShowPreviewToSideCommand implements Command {
 	public execute(uri?: vscode.Uri, previewSettings?: PreviewSettings) {
 		showPreview(this.webviewManager, this.telemetryReporter, uri, {
 			sideBySide: true,
-			pinned: previewSettings && previewSettings.pinned
+			locked: previewSettings && previewSettings.locked
 		});
 	}
 }
 
 
-export class ShowPinnedPreviewToSideCommand implements Command {
-	public readonly id = 'markdown.showPinnedPreviewToSide';
+export class ShowLockedPreviewToSideCommand implements Command {
+	public readonly id = 'markdown.showLockedPreviewToSide';
 
 	public constructor(
 		private readonly webviewManager: MarkdownPreviewManager,
@@ -116,7 +116,7 @@ export class ShowPinnedPreviewToSideCommand implements Command {
 	public execute(uri?: vscode.Uri) {
 		showPreview(this.webviewManager, this.telemetryReporter, uri, {
 			sideBySide: true,
-			pinned: true
+			locked: true
 		});
 	}
 }

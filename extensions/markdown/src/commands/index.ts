@@ -5,7 +5,7 @@
 
 export { OpenDocumentLinkCommand } from './openDocumentLink';
 export { OnPreviewStyleLoadErrorCommand } from './onPreviewStyleLoadError';
-export { ShowPreviewCommand, ShowPreviewToSideCommand, ShowPinnedPreviewToSideCommand } from './showPreview';
+export { ShowPreviewCommand, ShowPreviewToSideCommand, ShowLockedPreviewToSideCommand } from './showPreview';
 export { ShowSourceCommand } from './showSource';
 export { RefreshPreviewCommand } from './refreshPreview';
 export { ShowPreviewSecuritySelectorCommand } from './showPreviewSecuritySelector';

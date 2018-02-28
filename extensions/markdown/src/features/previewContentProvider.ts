@@ -293,7 +293,7 @@ class MarkdownPreview {
 	constructor(
 		private _resource: vscode.Uri,
 		previewColumn: vscode.ViewColumn,
-		public readonly pinned: boolean,
+		public readonly locked: boolean,
 		private readonly contentProvider: MarkdownContentProvider,
 		private readonly previewConfigurations: PreviewConfigManager,
 		private readonly logger: Logger
@@ -393,21 +393,21 @@ class MarkdownPreview {
 	public matchesResource(
 		otherResource: vscode.Uri,
 		otherViewColumn: vscode.ViewColumn | undefined,
-		otherPinned: boolean
+		otherLocked: boolean
 	): boolean {
 		if (this.viewColumn !== otherViewColumn) {
 			return false;
 		}
 
-		if (this.pinned) {
-			return otherPinned && this.isPreviewOf(otherResource);
+		if (this.locked) {
+			return otherLocked && this.isPreviewOf(otherResource);
 		} else {
-			return !otherPinned;
+			return !otherLocked;
 		}
 	}
 
 	public matches(otherPreview: MarkdownPreview): boolean {
-		return this.matchesResource(otherPreview._resource, otherPreview.viewColumn, otherPreview.pinned);
+		return this.matchesResource(otherPreview._resource, otherPreview.viewColumn, otherPreview.locked);
 	}
 
 	public show(viewColumn: vscode.ViewColumn) {
@@ -415,8 +415,8 @@ class MarkdownPreview {
 	}
 
 	private getPreviewTitle(resource: vscode.Uri): string {
-		return this.pinned
-			? localize('pinnedPreviewTitle', '[Preview] {0}', path.basename(resource.fsPath))
+		return this.locked
+			? localize('lockedPreviewTitle', '[Preview] {0}', path.basename(resource.fsPath))
 			: localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath));
 	}
 
@@ -477,7 +477,7 @@ class MarkdownPreview {
 export interface PreviewSettings {
 	readonly resourceColumn: vscode.ViewColumn;
 	readonly previewColumn: vscode.ViewColumn;
-	readonly pinned: boolean;
+	readonly locked: boolean;
 }
 
 export class MarkdownPreviewManager {
@@ -497,7 +497,7 @@ export class MarkdownPreviewManager {
 
 			if (editor && editor.editorType === 'texteditor') {
 				if (isMarkdownFile(editor.document)) {
-					for (const preview of this.previews.filter(preview => !preview.pinned)) {
+					for (const preview of this.previews.filter(preview => !preview.locked)) {
 						preview.update(editor.document.uri);
 					}
 				}
@@ -530,7 +530,7 @@ export class MarkdownPreviewManager {
 		if (preview) {
 			preview.show(previewSettings.previewColumn);
 		} else {
-			preview = new MarkdownPreview(resource, previewSettings.previewColumn, previewSettings.pinned, this.contentProvider, this.previewConfigurations, this.logger);
+			preview = new MarkdownPreview(resource, previewSettings.previewColumn, previewSettings.locked, this.contentProvider, this.previewConfigurations, this.logger);
 			preview.onDispose(() => {
 				const existing = this.previews.indexOf(preview!);
 				if (existing >= 0) {
@@ -581,7 +581,7 @@ export class MarkdownPreviewManager {
 		previewSettings: PreviewSettings
 	): MarkdownPreview | undefined {
 		return this.previews.find(preview =>
-			preview.matchesResource(resource, previewSettings.previewColumn, previewSettings.pinned));
+			preview.matchesResource(resource, previewSettings.previewColumn, previewSettings.locked));
 	}
 }
 
