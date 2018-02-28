@@ -139,7 +139,7 @@ export class BaseActionItem implements IActionItem {
 			if (this.options && this.options.isMenu) {
 				this.onClick(e);
 			} else {
-				setTimeout(() => this.onClick(e), 50);
+				setImmediate(() => this.onClick(e));
 			}
 		});
 
