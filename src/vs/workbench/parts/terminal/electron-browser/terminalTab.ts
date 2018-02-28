@@ -13,7 +13,7 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView } from 'vs/base/browser/ui/splitview/splitview';
 import { IPartService, Position } from 'vs/workbench/services/part/common/partService';
 
-const SPLIT_PANE_MIN_SIZE = 60;
+const SPLIT_PANE_MIN_SIZE = 120;
 
 class SplitPaneContainer {
 	private _height: number;
