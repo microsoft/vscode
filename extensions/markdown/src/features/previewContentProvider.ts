@@ -486,6 +486,7 @@ export interface PreviewSettings {
 }
 
 export class MarkdownPreviewManager {
+	private static readonly markdownPreviewActiveContextKey = 'markdownPreviewFocus';
 
 	private previews: MarkdownPreview[] = [];
 	private readonly previewConfigurations = new PreviewConfigManager();
@@ -497,7 +498,7 @@ export class MarkdownPreviewManager {
 		private readonly logger: Logger
 	) {
 		vscode.window.onDidChangeActiveEditor(editor => {
-			vscode.commands.executeCommand('setContext', 'markdownPreview',
+			vscode.commands.executeCommand('setContext', MarkdownPreviewManager.markdownPreviewActiveContextKey,
 				editor && editor.editorType === 'webview' && editor.uri.scheme === MarkdownPreview.previewScheme);
 
 			if (editor && editor.editorType === 'texteditor') {
