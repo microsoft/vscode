@@ -196,10 +196,12 @@ class SplitPaneContainer {
 
 		// Create new split view with updated orientation
 		this._createSplitView();
+		this._children.forEach(c => c.instance.disableLayout = true);
 		this._children.forEach(child => {
 			child.orientation = orientation;
 			this._splitView.addView(child, 1);
 		});
+		this._children.forEach(c => c.instance.disableLayout = false);
 	}
 }
 
