@@ -235,7 +235,7 @@ function registerOpenEditorAtIndexCommands(): void {
 					const editor = group.getEditor(editorIndex);
 
 					if (editor) {
-						return editorService.openEditor(editor);
+						return editorService.openEditor(editor).then(() => void 0);
 					}
 				}
 

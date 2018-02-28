@@ -323,7 +323,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const name = paths.basename(resource.fsPath);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
 
-			return editorService.openEditor({ leftResource: URI.from({ scheme: COMPARE_WITH_SAVED_SCHEMA, path: resource.fsPath }), rightResource: resource, label: editorLabel });
+			return editorService.openEditor({ leftResource: URI.from({ scheme: COMPARE_WITH_SAVED_SCHEMA, path: resource.fsPath }), rightResource: resource, label: editorLabel }).then(() => void 0);
 		}
 
 		return TPromise.as(true);
@@ -374,6 +374,7 @@ CommandsRegistry.registerCommand({
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const listService = accessor.get(IListService);
 		const tree = listService.lastFocusedList;
+
 		// Remove highlight
 		if (tree instanceof Tree) {
 			tree.clearHighlight();
@@ -382,7 +383,7 @@ CommandsRegistry.registerCommand({
 		return editorService.openEditor({
 			leftResource: globalResourceToCompare,
 			rightResource: getResourceForCommand(resource, listService, editorService)
-		});
+		}).then(() => void 0);
 	}
 });
 
