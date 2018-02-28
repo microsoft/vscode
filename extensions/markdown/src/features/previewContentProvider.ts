@@ -124,14 +124,14 @@ export class PreviewConfigManager {
 }
 
 export class MarkdownContentProvider {
-	private extraStyles: Array<vscode.Uri> = [];
-	private extraScripts: Array<vscode.Uri> = [];
+	private readonly extraStyles: Array<vscode.Uri> = [];
+	private readonly extraScripts: Array<vscode.Uri> = [];
 
 	constructor(
-		private engine: MarkdownEngine,
-		private context: vscode.ExtensionContext,
-		private cspArbiter: ContentSecurityPolicyArbiter,
-		private logger: Logger
+		private readonly engine: MarkdownEngine,
+		private readonly context: vscode.ExtensionContext,
+		private readonly cspArbiter: ContentSecurityPolicyArbiter,
+		private readonly logger: Logger
 	) { }
 
 	public addScript(resource: vscode.Uri): void {
