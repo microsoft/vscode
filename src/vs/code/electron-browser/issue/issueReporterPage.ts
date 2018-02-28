@@ -22,6 +22,7 @@ export default (): string => `
 		<div class="input-group">
 			<label class="inline-label" for="issue-title">${escape(localize('issueTitleLabel', "Title"))} <span class="required-input">*</span></label>
 			<input id="issue-title" type="text" class="inline-form-control" placeholder="${escape(localize('issueTitleRequired', "Please enter a title."))}" required>
+			<div id="issue-title-length-validation-error" class="validation-error hidden" role="alert">${escape(localize('titleLengthValidation', "The title is too long."))}</div>
 			<small id="similar-issues">
 				<!-- To be dynamically filled -->
 			</small>
@@ -149,8 +150,5 @@ export default (): string => `
 		</div>
 	</div>
 
-	<div id="url-length-validation-error" class="validation-error hidden" role="alert">
-		<-- To be dynamically filled -->
-	</div>
 	<button id="github-submit-btn" disabled>${escape(localize('loadingData', "Loading data..."))}</button>
 </div>`;

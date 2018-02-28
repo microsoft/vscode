@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/issueReporter';
-import { shell, ipcRenderer, webFrame, remote } from 'electron';
+import { shell, ipcRenderer, webFrame, remote, clipboard } from 'electron';
 import { localize } from 'vs/nls';
 import { $ } from 'vs/base/browser/dom';
 import * as collections from 'vs/base/common/collections';
@@ -345,6 +345,14 @@ export class IssueReporter extends Disposable {
 		this.addEventListener('issue-title', 'input', (e) => {
 			const description = this.issueReporterModel.getData().issueDescription;
 			const title = (<HTMLInputElement>event.target).value;
+
+			const lengthValidationMessage = document.getElementById('issue-title-length-validation-error');
+			if (title && this.getIssueUrlWithTitle(title).length > MAX_URL_LENGTH) {
+				show(lengthValidationMessage);
+			} else {
+				hide(lengthValidationMessage);
+			}
+
 			if (title || description) {
 				this.searchDuplicates(title, description);
 			} else {
@@ -638,23 +646,22 @@ export class IssueReporter extends Disposable {
 		*/
 		this.telemetryService.publicLog('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType, numSimilarIssuesDisplayed: this.numberOfSearchResultsDisplayed });
 
-		const issueTitle = encodeURIComponent((<HTMLInputElement>document.getElementById('issue-title')).value);
-		const queryStringPrefix = product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
-		const baseUrl = `${product.reportIssueUrl}${queryStringPrefix}title=${issueTitle}&body=`;
+		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>document.getElementById('issue-title')).value);
 		const issueBody = this.issueReporterModel.serialize();
-		const url = baseUrl + encodeURIComponent(issueBody);
+		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
-		const lengthValidationElement = document.getElementById('url-length-validation-error');
 		if (url.length > MAX_URL_LENGTH) {
-			lengthValidationElement.textContent = localize('urlLengthError', "The data exceeds the length limit of {0} characters. The data is length {1}.", MAX_URL_LENGTH, url.length);
-			show(lengthValidationElement);
-			return false;
-		} else {
-			hide(lengthValidationElement);
+			clipboard.writeText(issueBody);
+			url = baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
 		}
 
 		shell.openExternal(url);
 		return true;
+	}
+
+	private getIssueUrlWithTitle(issueTitle: string) {
+		const queryStringPrefix = product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
+		return `${product.reportIssueUrl}${queryStringPrefix}title=${encodeURIComponent(issueTitle)}`;
 	}
 
 	private updateSystemInfo = (state) => {
