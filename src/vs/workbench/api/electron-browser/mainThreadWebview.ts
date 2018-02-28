@@ -138,6 +138,10 @@ class WebviewInput extends EditorInput {
 	}
 
 	public setHtml(value: string): void {
+		if (value === this._html) {
+			return;
+		}
+
 		this._html = value;
 
 		if (this._webview) {
@@ -213,6 +217,8 @@ class WebviewInput extends EditorInput {
 
 		this._webviewOwner = undefined;
 		this.container.style.visibility = 'hidden';
+
+		this._html = '';
 	}
 
 	public onDidChangePosition(position: Position) {
@@ -362,7 +368,7 @@ class WebviewEditor extends BaseWebviewEditor {
 			useSameOriginForRoot: false,
 			localResourceRoots: (input && input.options.localResourceRoots) || this._contextService.getWorkspace().folders.map(x => x.uri)
 		};
-		webview.contents = input.html;
+		input.setHtml(input.html);
 		this.webviewContent.style.visibility = 'visible';
 		this.doUpdateContainer();
 	}
