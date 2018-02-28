@@ -141,7 +141,9 @@
 		}
 
 		const hiElement = lines[hi];
-		if (hi >= 1 && hiElement.element.getBoundingClientRect().top > position) {
+		const hiBounds = hiElement.element.getBoundingClientRect();
+
+		if (hi >= 1 && hiBounds.top > position) {
 			const loElement = lines[lo];
 			const bounds = loElement.element.getBoundingClientRect();
 			const previous = { element: loElement.element, line: loElement.line + (position - bounds.top) / (bounds.height) };
@@ -149,8 +151,7 @@
 			return { previous, next };
 		}
 
-		const bounds = hiElement.element.getBoundingClientRect();
-		const previous = { element: hiElement.element, line: hiElement.line + (position - bounds.top) / (bounds.height) };
+		const previous = { element: hiElement.element, line: hiElement.line + (position - hiBounds.top) / (hiBounds.height) };
 		return { previous };
 	}
 
