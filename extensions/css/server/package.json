@@ -8,7 +8,7 @@
     "node": "*"
   },
   "dependencies": {
-    "vscode-css-languageservice": "^3.0.6",
+    "vscode-css-languageservice": "^3.0.7",
     "vscode-emmet-helper": "^1.1.38",
     "vscode-languageserver": "4.0.0-next.4"
   },
