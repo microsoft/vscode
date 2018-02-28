@@ -140,6 +140,12 @@ class Extension implements IExtension {
 
 	private get defaultIconUrl(): string {
 		if (this.type === LocalExtensionType.System) {
+			if (this.local.manifest
+				&& this.local.manifest.contributes
+				&& Array.isArray(this.local.manifest.contributes.themes)
+				&& this.local.manifest.contributes.themes.length) {
+				return require.toUrl('../browser/media/theme-icon.png');
+			}
 			return require.toUrl('../browser/media/code-icon.svg');
 		}
 		return require.toUrl('../browser/media/defaultIcon.png');
