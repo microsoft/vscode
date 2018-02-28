@@ -459,7 +459,7 @@ class MonarchTokenizer implements modes.ITokenizationSupport {
 				continue;
 			}
 			let rule: monarchCommon.IRule = rules[idx];
-			if (monarchCommon.isIAction(rule.action) && rule.action.nextEmbedded !== '@pop') {
+			if (!monarchCommon.isIAction(rule.action) || rule.action.nextEmbedded !== '@pop') {
 				continue;
 			}
 			hasEmbeddedPopRule = true;
