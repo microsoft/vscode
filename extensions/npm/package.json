@@ -71,7 +71,7 @@
             "type": "string"
           },
           "description": "%config.npm.exclude%",
-          "scope": "window"
+          "scope": "resource"
         }
       }
     },
