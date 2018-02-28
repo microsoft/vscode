@@ -41,7 +41,7 @@ class SplitPaneContainer {
 	private _createSplitView(): void {
 		this._splitView = new SplitView(this._container, { orientation: this.orientation });
 		this._splitViewDisposables = [];
-		this._splitViewDisposables.push(this._splitView.onDidSashReset(() => this._resetSize()));
+		this._splitViewDisposables.push(this._splitView.onDidSashReset(() => this.resetSize()));
 		this._splitViewDisposables.push(this._splitView.onDidSashChange(() => {
 			this._isManuallySized = true;
 		}));
@@ -52,7 +52,7 @@ class SplitPaneContainer {
 		this._addChild(size / (this._children.length + 1), instance, index);
 	}
 
-	private _resetSize(): void {
+	public resetSize(): void {
 		// TODO: Optimize temrinal instance layout
 		let totalSize = 0;
 		for (let i = 0; i < this._splitView.length; i++) {
@@ -120,7 +120,7 @@ class SplitPaneContainer {
 			this._children.push(child);
 		}
 
-		this._resetSize();
+		this.resetSize();
 		this._refreshOrderClasses();
 
 		this._onDidChange = anyEvent(...this._children.map(c => c.onDidChange));
@@ -136,7 +136,7 @@ class SplitPaneContainer {
 		if (index !== null) {
 			this._children.splice(index, 1);
 			this._splitView.removeView(index);
-			this._resetSize();
+			this.resetSize();
 			this._refreshOrderClasses();
 		}
 	}
@@ -155,7 +155,7 @@ class SplitPaneContainer {
 
 	public layout(width: number, height: number): void {
 		if (!this._isManuallySized) {
-			this._resetSize();
+			this.resetSize();
 		}
 		this._width = width;
 		this._height = height;
@@ -188,10 +188,6 @@ class SplitPaneContainer {
 			child.orientation = orientation;
 			this._splitView.addView(child, 1);
 		});
-
-		// Allow time for a layout to occur
-		this.layout(this._container.offsetWidth, this._container.offsetHeight);
-		this._resetSize();
 	}
 }
 
@@ -435,10 +431,11 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			if (newPanelPosition !== this._panelPosition) {
 				const newOrientation = newPanelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 				this._splitPaneContainer.setOrientation(newOrientation);
+				this._panelPosition = newPanelPosition;
 			}
-			this._panelPosition = newPanelPosition;
 
 			this._splitPaneContainer.layout(width, height);
+			this._splitPaneContainer.resetSize();
 		}
 	}
 
