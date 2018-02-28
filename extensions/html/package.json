@@ -8,6 +8,7 @@
   "engines": {
     "vscode": "0.10.x"
   },
+  "icon": "icons/html.png",
   "activationEvents": [
     "onLanguage:html",
     "onLanguage:handlebars",
