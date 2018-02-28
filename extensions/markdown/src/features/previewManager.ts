@@ -52,7 +52,11 @@ class MarkdownPreview {
 		}, null, this.disposables);
 
 		this.webview.onDidReceiveMessage(e => {
-			vscode.commands.executeCommand(e.command, ...e.args);
+			switch (e.type) {
+				case 'command':
+					vscode.commands.executeCommand(e.body.command, ...e.body.args);
+					break;
+			}
 		}, null, this.disposables);
 
 		vscode.workspace.onDidChangeTextDocument(event => {

@@ -28,8 +28,11 @@
 			return;
 		}
 		window.parent.postMessage({
-			command: '_markdown.onPreviewStyleLoadError',
-			args: [unloadedStyles]
+			type: 'command',
+			body: {
+				command: '_markdown.onPreviewStyleLoadError',
+				args: [unloadedStyles]
+			}
 		}, '*');
 	});
 }());

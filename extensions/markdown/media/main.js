@@ -46,14 +46,26 @@
 	}
 
 	/**
+	 * Post a message to the markdown extension
+	 *
+	 * @param {string} type
+	 * @param {object} body
+	 */
+	function postMessage(type, body) {
+		window.parent.postMessage({
+			type,
+			body
+		}, '*');
+	}
+
+	/**
+	 * Post a command to be executed to the markdown extension
+	 *
 	 * @param {string} command
 	 * @param {any[]} args
 	 */
-	function postMessage(command, args) {
-		window.parent.postMessage({
-			command,
-			args
-		}, '*');
+	function postCommand(command, args) {
+		postMessage('command', { command, args });
 	}
 
 	/**
@@ -283,7 +295,7 @@
 		const offset = event.pageY;
 		const line = getEditorLineNumberForPageOffset(offset);
 		if (!isNaN(line)) {
-			postMessage('_markdown.didClick', [settings.source, line]);
+			postCommand('_markdown.didClick', [settings.source, line]);
 		}
 	});
 
@@ -303,7 +315,7 @@
 				}
 				if (node.href.startsWith('file://') || node.href.startsWith('vscode-workspace-resource:')) {
 					const [path, fragment] = node.href.replace(/^(file:\/\/|vscode-workspace-resource:)/i, '').split('#');
-					postMessage('_markdown.openDocumentLink', [{ path, fragment }]);
+					postCommand('_markdown.openDocumentLink', [{ path, fragment }]);
 					event.preventDefault();
 					event.stopPropagation();
 					break;
@@ -321,7 +333,7 @@
 			} else {
 				const line = getEditorLineNumberForPageOffset(window.scrollY);
 				if (!isNaN(line)) {
-					postMessage('_markdown.revealLine', [settings.source, line]);
+					postCommand('_markdown.revealLine', [settings.source, line]);
 				}
 			}
 		}, 50));

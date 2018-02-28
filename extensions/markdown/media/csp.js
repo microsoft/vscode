@@ -23,11 +23,14 @@
 		notification.setAttribute('title', strings.cspAlertMessageTitle);
 
 		notification.setAttribute('role', 'button');
-		notification.setAttribute('aria-label',  strings.cspAlertMessageLabel);
+		notification.setAttribute('aria-label', strings.cspAlertMessageLabel);
 		notification.onclick = () => {
 			window.parent.postMessage({
-				command: 'markdown.showPreviewSecuritySelector',
-				args: [settings.source]
+				type: 'command',
+				body: {
+					command: 'markdown.showPreviewSecuritySelector',
+					args: [settings.source]
+				}
 			}, '*');
 		};
 		document.body.appendChild(notification);
