@@ -261,6 +261,13 @@ export interface ITerminalInstance {
 	shellLaunchConfig: IShellLaunchConfig;
 
 	/**
+	 * Whether to disable layout for the terminal. This is useful when the size of the terminal is
+	 * being manipulating (eg. adding a split pane) and we want the terminal to ignore particular
+	 * resize events.
+	 */
+	disableLayout: boolean;
+
+	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 */
 	dispose(): void;

@@ -121,13 +121,16 @@ class SplitPaneContainer {
 		const child = new SplitPane(this.orientation === Orientation.HORIZONTAL ? this._height : this._width);
 		child.orientation = this.orientation;
 		child.instance = instance;
-		this._splitView.addView(child, size, index);
-
 		if (typeof index === 'number') {
 			this._children.splice(index, 0, child);
 		} else {
 			this._children.push(child);
 		}
+
+		// Add the view, disabling layout/resize events in the terminal to prevent multiple resizes
+		this._children.forEach(c => c.instance.disableLayout = true);
+		this._splitView.addView(child, size, index);
+		this._children.forEach(c => c.instance.disableLayout = false);
 
 		this.resetSize();
 		this._refreshOrderClasses();

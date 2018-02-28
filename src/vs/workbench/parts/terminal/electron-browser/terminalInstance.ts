@@ -104,6 +104,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
 
+	public disableLayout: boolean;
 	public get id(): number { return this._id; }
 	public get processId(): number { return this._processId; }
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
@@ -145,6 +146,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._id = TerminalInstance._idCounter++;
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
 		this._preLaunchInputQueue = '';
+		this.disableLayout = false;
 
 		this._logService.trace(`terminalInstance#ctor (id: ${this.id})`, this._shellLaunchConfig);
 
@@ -1090,6 +1092,10 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public layout(dimension: Dimension): void {
+		if (this.disableLayout) {
+			return;
+		}
+
 		const terminalWidth = this._evaluateColsAndRows(dimension.width, dimension.height);
 		if (!terminalWidth) {
 			return;
