@@ -150,11 +150,12 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		this._onDidChangeActiveWebview.fire(webview);
 	}
 
-	$onDidDisposeWeview(handle: WebviewHandle): void {
+	$onDidDisposeWeview(handle: WebviewHandle): Thenable<void> {
 		const webview = this._webviews.get(handle);
 		if (webview) {
 			webview.onDisposeEmitter.fire();
 		}
+		return Promise.resolve(void 0);
 	}
 
 	$onDidChangePosition(handle: WebviewHandle, newPosition: Position): void {

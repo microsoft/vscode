@@ -355,7 +355,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 export interface ExtHostWebviewsShape {
 	$onMessage(handle: WebviewHandle, message: any): void;
 	$onDidChangeActiveWeview(handle: WebviewHandle | undefined): void;
-	$onDidDisposeWeview(handle: WebviewHandle): void;
+	$onDidDisposeWeview(handle: WebviewHandle): Thenable<void>;
 	$onDidChangePosition(handle: WebviewHandle, newPosition: EditorPosition): void;
 }
 

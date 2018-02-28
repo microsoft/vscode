@@ -328,6 +328,7 @@ class WebviewEditor extends BaseWebviewEditor {
 				this.webviewContent.style.visibility = 'hidden';
 			}
 		}
+
 		super.setEditorVisible(visible, position);
 	}
 
@@ -448,7 +449,11 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 		const webviewInput = WebviewInput.create(URI.revive(uri), title, column, options, '', {
 			onMessage: message => this._proxy.$onMessage(handle, message),
 			onDidChangePosition: position => this._proxy.$onDidChangePosition(handle, position),
-			onDispose: () => this._proxy.$onDidDisposeWeview(handle),
+			onDispose: () => {
+				this._proxy.$onDidDisposeWeview(handle).then(() => {
+					this._webviews.delete(handle);
+				});
+			},
 			onDidClickLink: (link, options) => this.onDidClickLink(link, options)
 		}, this._partService);
 
