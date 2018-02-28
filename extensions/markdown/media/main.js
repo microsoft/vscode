@@ -148,7 +148,6 @@
 	 */
 	function scrollToRevealSourceLine(line) {
 		const { previous, next } = getElementsForSourceLine(line);
-		marker.update(previous && previous.element);
 		if (previous && settings.scrollPreviewWithEditor) {
 			let scrollTo = 0;
 			const rect = previous.element.getBoundingClientRect();
@@ -184,9 +183,13 @@
 		return null;
 	}
 
-
 	class ActiveLineMarker {
-		update(before) {
+		onDidChangeTextEditorSelection(line) {
+			const { previous } = getElementsForSourceLine(line);
+			this._update(previous && previous.element);
+		}
+
+		_update(before) {
 			this._unmarkActiveElement(this._current);
 			this._markActiveElement(before);
 			this._current = before;
@@ -208,7 +211,7 @@
 	}
 
 	var scrollDisabled = true;
-	var marker = new ActiveLineMarker();
+	const marker = new ActiveLineMarker();
 	const settings = JSON.parse(document.getElementById('vscode-markdown-preview-data').getAttribute('data-settings'));
 
 	function onLoad() {
@@ -223,6 +226,21 @@
 		}
 	}
 
+	const onUpdateView = (() => {
+		const doScroll = throttle(line => {
+			scrollDisabled = true;
+			scrollToRevealSourceLine(line);
+		}, 50);
+
+		return (line, settings) => {
+			if (!isNaN(line)) {
+				settings.line = line;
+				doScroll(line);
+			}
+		};
+	})();
+
+
 	if (document.readyState === 'loading' || document.readyState === 'uninitialized') {
 		document.addEventListener('DOMContentLoaded', onLoad);
 	} else {
@@ -234,23 +252,21 @@
 		scrollDisabled = true;
 	}, true);
 
-	window.addEventListener('message', (() => {
-		const doScroll = throttle(line => {
-			scrollDisabled = true;
-			scrollToRevealSourceLine(line);
-		}, 50);
-		return event => {
-			if (event.data.source !== settings.source) {
-				return;
-			}
+	window.addEventListener('message', event => {
+		if (event.data.source !== settings.source) {
+			return;
+		}
 
-			const line = +event.data.line;
-			if (!isNaN(line)) {
-				settings.line = line;
-				doScroll(line);
-			}
-		};
-	})(), false);
+		switch (event.data.type) {
+			case 'onDidChangeTextEditorSelection':
+				marker.onDidChangeTextEditorSelection(event.data.line);
+				break;
+
+			case 'updateView':
+				onUpdateView(event.data.line, settings);
+				break;
+		}
+	}, false);
 
 	document.addEventListener('dblclick', event => {
 		if (!settings.doubleClickToSwitchToEditor) {

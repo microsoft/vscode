@@ -68,6 +68,16 @@ class MarkdownPreview {
 				this.updateForView(resource, line);
 			}
 		}, null, this.disposables);
+
+		vscode.window.onDidChangeTextEditorSelection(event => {
+			if (isMarkdownFile(event.textEditor.document) && this.isPreviewOf(event.textEditor.document.uri)) {
+				this.webview.postMessage({
+					type: 'onDidChangeTextEditorSelection',
+					line: event.selections[0].active.line,
+					source: this.resource.toString()
+				});
+			}
+		}, null, this.disposables);
 	}
 
 	private readonly _onDisposeEmitter = new vscode.EventEmitter<void>();
@@ -174,7 +184,11 @@ class MarkdownPreview {
 		if (typeof topLine === 'number') {
 			this.logger.log('updateForView', { markdownFile: resource });
 			this.initialLine = topLine;
-			this.webview.postMessage({ line: topLine, source: resource.toString() });
+			this.webview.postMessage({
+				type: 'updateView',
+				line: topLine,
+				source: resource.toString()
+			});
 		}
 	}
 
