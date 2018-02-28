@@ -35,8 +35,8 @@ export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPol
 	private readonly should_disable_security_warning_key = 'preview_should_show_security_warning:';
 
 	constructor(
-		private globalState: vscode.Memento,
-		private workspaceState: vscode.Memento
+		private readonly globalState: vscode.Memento,
+		private readonly workspaceState: vscode.Memento
 	) { }
 
 	public getSecurityLevelForResource(resource: vscode.Uri): MarkdownPreviewSecurityLevel {
@@ -89,13 +89,13 @@ export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPol
 export class PreviewSecuritySelector {
 
 	public constructor(
-		private cspArbiter: ContentSecurityPolicyArbiter,
-		private webviewManager: MarkdownPreviewManager
+		private readonly cspArbiter: ContentSecurityPolicyArbiter,
+		private readonly webviewManager: MarkdownPreviewManager
 	) { }
 
 	public async showSecutitySelectorForResource(resource: vscode.Uri): Promise<void> {
 		interface PreviewSecurityPickItem extends vscode.QuickPickItem {
-			type: 'moreinfo' | 'toggle' | MarkdownPreviewSecurityLevel;
+			readonly type: 'moreinfo' | 'toggle' | MarkdownPreviewSecurityLevel;
 		}
 
 		function markActiveWhen(when: boolean): string {
