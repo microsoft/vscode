@@ -730,8 +730,15 @@ export class ExtensionEditor extends BaseEditor {
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('JSON Validation', "JSON Validation ({0})", contrib.length)),
-			$('ul', null, ...contrib.map(v => $('li', null, v.fileMatch)))
-		);
+			$('table', null,
+				$('tr', null,
+					$('th', null, localize('fileMatch', "File Match")),
+					$('th', null, localize('schema', "Schema"))
+				),
+				...contrib.map(v => $('tr', null,
+					$('td', null, v.fileMatch),
+					$('td', null, v.url)
+				))));
 
 		append(container, details);
 		return true;

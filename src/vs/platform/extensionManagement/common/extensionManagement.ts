@@ -43,6 +43,7 @@ export interface IGrammar {
 
 export interface IJSONValidation {
 	fileMatch: string;
+	url: string;
 }
 
 export interface IKeyBinding {
