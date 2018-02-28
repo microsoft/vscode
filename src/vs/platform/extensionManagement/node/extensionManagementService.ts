@@ -314,12 +314,6 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			error => TPromise.wrapError<InstallableExtension>(new ExtensionManagementError(this.joinErrors(error).message, INSTALL_ERROR_GALLERY)));
 	}
 
-	private rollback(extensions: IGalleryExtension[]): TPromise<void> {
-		return this.filterOutUninstalled(extensions)
-			.then(installed => TPromise.join(installed.map(local => this.uninstallExtension(local))))
-			.then(() => null, () => null);
-	}
-
 	private onInstallExtensions(extensions: IGalleryExtension[]): void {
 		for (const extension of extensions) {
 			this.logService.info('Installing extension:', extension.name);
@@ -361,16 +355,6 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				});
 		}
 		return TPromise.as([]);
-	}
-
-	private filterOutUninstalled(extensions: IGalleryExtension[]): TPromise<ILocalExtension[]> {
-		return this.getInstalled()
-			.then(installed => installed.filter(local => !!this.getGalleryExtensionForLocalExtension(extensions, local)));
-	}
-
-	private getGalleryExtensionForLocalExtension(galleryExtensions: IGalleryExtension[], localExtension: ILocalExtension): IGalleryExtension {
-		const filtered = galleryExtensions.filter(galleryExtension => areSameExtensions(localExtension.identifier, { id: getLocalExtensionIdFromGallery(galleryExtension, galleryExtension.version), uuid: galleryExtension.identifier.uuid }));
-		return filtered.length ? filtered[0] : null;
 	}
 
 	private installExtension(installableExtension: InstallableExtension): TPromise<ILocalExtension> {
@@ -416,28 +400,44 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					.then(
 					() => {
 						this.logService.info(`Extracted extension to ${extensionPath}:`, id);
-						return TPromise.join([readManifest(extensionPath), pfs.readdir(extensionPath)])
-							.then(null, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_READING_EXTENSION_FROM_DISK)));
+						return this.completeInstall(id, extensionPath, metadata);
 					},
 					e => TPromise.wrapError(new ExtensionManagementError(e.message, INSTALL_ERROR_EXTRACTING)))
-					.then(([{ manifest }, children]) => {
-						const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
-						const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)).toString() : null;
-						const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
-						const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)).toString() : null;
-						const type = LocalExtensionType.User;
-						const identifier = { id, uuid: metadata ? metadata.id : null };
-
-						const local: ILocalExtension = { type, identifier, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
-
-						this.logService.trace(`Updating metadata of the extension:`, id);
-						return this.saveMetadataForLocalExtension(local)
-							.then(() => {
-								this.logService.info(`Updated metadata of the extension:`, id);
-								return local;
-							}, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_SAVING_METADATA)));
+					.then(null, e => {
+						this.logService.info('Deleting the extracted extension', id);
+						return pfs.rimraf(extensionPath).then(() => TPromise.wrapError(e), () => TPromise.wrapError(e));
 					});
 			}, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING)));
+	}
+
+	private completeInstall(id: string, extensionPath: string, metadata: IGalleryMetadata): TPromise<ILocalExtension> {
+		return TPromise.join([readManifest(extensionPath), pfs.readdir(extensionPath)])
+			.then(null, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_READING_EXTENSION_FROM_DISK)))
+			.then(([{ manifest }, children]) => {
+				const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
+				const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)).toString() : null;
+				const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+				const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)).toString() : null;
+				const type = LocalExtensionType.User;
+				const identifier = { id, uuid: metadata ? metadata.id : null };
+
+				const local: ILocalExtension = { type, identifier, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
+
+				this.logService.trace(`Updating metadata of the extension:`, id);
+				return this.saveMetadataForLocalExtension(local)
+					.then(() => {
+						this.logService.info(`Updated metadata of the extension:`, id);
+						return local;
+					}, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_SAVING_METADATA)));
+			});
+	}
+
+	private rollback(extensions: IGalleryExtension[]): TPromise<void> {
+		return this.getInstalled(LocalExtensionType.User)
+			.then(installed =>
+				TPromise.join(installed.filter(local => extensions.some(galleryExtension => local.identifier.id === getLocalExtensionIdFromGallery(galleryExtension, galleryExtension.version))) // Only check id (pub.name-version) because we want to rollback the exact version
+					.map(local => this.uninstallExtension(local))))
+			.then(() => null, () => null);
 	}
 
 	uninstall(extension: ILocalExtension, force = false): TPromise<void> {
@@ -629,10 +629,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private uninstallExtension(local: ILocalExtension): TPromise<void> {
-		const identifier = { id: getGalleryExtensionIdFromLocal(local), uuid: local.identifier.uuid };
-		return this.scanUserExtensions(false) // Uninstall all extensions which are same as requested
-			.then(extensions => extensions.filter(i => areSameExtensions({ id: getGalleryExtensionIdFromLocal(i), uuid: i.identifier.uuid }, identifier)))
-			.then(uninstalled => this.setUninstalled(...uninstalled.map(u => u.identifier.id)));
+		return this.setUninstalled(local.identifier.id);
 	}
 
 	private async postUninstallExtension(extension: ILocalExtension, error?: string): TPromise<void> {
