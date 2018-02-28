@@ -6,9 +6,10 @@
 
 'use strict';
 
-
 (function () {
 	const unloadedStyles = [];
+
+	const settings = JSON.parse(document.getElementById('vscode-markdown-preview-data').getAttribute('data-settings'));
 
 	const onStyleLoadError = (event) => {
 		const source = event.target.dataset.source;
@@ -29,6 +30,7 @@
 		}
 		window.parent.postMessage({
 			type: 'command',
+			source: settings.source,
 			body: {
 				command: '_markdown.onPreviewStyleLoadError',
 				args: [unloadedStyles]

@@ -9,6 +9,5 @@ export { ShowPreviewCommand, ShowPreviewToSideCommand, ShowLockedPreviewToSideCo
 export { ShowSourceCommand } from './showSource';
 export { RefreshPreviewCommand } from './refreshPreview';
 export { ShowPreviewSecuritySelectorCommand } from './showPreviewSecuritySelector';
-export { RevealLineCommand } from './revealLine';
 export { MoveCursorToPositionCommand } from './moveCursorToPosition';
 export { ToggleLockCommand } from './toggleLock';

@@ -46,7 +46,6 @@ export function activate(context: vscode.ExtensionContext) {
 	commandManager.register(new commands.ShowLockedPreviewToSideCommand(previewManager, telemetryReporter));
 	commandManager.register(new commands.ShowSourceCommand(previewManager));
 	commandManager.register(new commands.RefreshPreviewCommand(previewManager));
-	commandManager.register(new commands.RevealLineCommand(logger, previewManager));
 	commandManager.register(new commands.MoveCursorToPositionCommand());
 	commandManager.register(new commands.ShowPreviewSecuritySelectorCommand(previewSecuritySelector));
 	commandManager.register(new commands.OnPreviewStyleLoadErrorCommand());

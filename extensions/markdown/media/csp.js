@@ -27,6 +27,7 @@
 		notification.onclick = () => {
 			window.parent.postMessage({
 				type: 'command',
+				source: settings.source,
 				body: {
 					command: 'markdown.showPreviewSecuritySelector',
 					args: [settings.source]

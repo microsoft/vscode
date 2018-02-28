@@ -52,10 +52,19 @@ class MarkdownPreview {
 		}, null, this.disposables);
 
 		this.webview.onDidReceiveMessage(e => {
+			if (e.source !== this._resource.toString()) {
+				return;
+			}
+
 			switch (e.type) {
 				case 'command':
 					vscode.commands.executeCommand(e.body.command, ...e.body.args);
 					break;
+
+				case 'revealLine':
+					this.onDidScrollPreview(e.body.line);
+					break;
+
 			}
 		}, null, this.disposables);
 
@@ -243,6 +252,23 @@ class MarkdownPreview {
 
 		return [];
 	}
+
+	private onDidScrollPreview(line: number) {
+		for (const editor of vscode.window.visibleTextEditors) {
+			if (!isMarkdownFile(editor.document) || editor.document.uri.fsPath !== this._resource.fsPath) {
+				continue;
+			}
+
+			this.isScrolling = true;
+			const sourceLine = Math.floor(line);
+			const fraction = line - sourceLine;
+			const text = editor.document.lineAt(sourceLine).text;
+			const start = Math.floor(fraction * text.length);
+			editor.revealRange(
+				new vscode.Range(sourceLine, start, sourceLine + 1, 0),
+				vscode.TextEditorRevealType.AtTop);
+		}
+	}
 }
 
 export interface PreviewSettings {
@@ -320,31 +346,6 @@ export class MarkdownPreviewManager {
 		}
 
 		preview.update(resource);
-	}
-
-	public revealLine(
-		resource: vscode.Uri,
-		line: number
-	) {
-		for (const editor of vscode.window.visibleTextEditors) {
-			if (!isMarkdownFile(editor.document) || editor.document.uri.fsPath !== resource.fsPath) {
-				continue;
-			}
-
-			const sourceLine = Math.floor(line);
-			const fraction = line - sourceLine;
-			const text = editor.document.lineAt(sourceLine).text;
-			const start = Math.floor(fraction * text.length);
-			editor.revealRange(
-				new vscode.Range(sourceLine, start, sourceLine + 1, 0),
-				vscode.TextEditorRevealType.AtTop);
-		}
-
-		for (const preview of this.previews) {
-			if (preview.isPreviewOf(resource)) {
-				preview.isScrolling = true;
-			}
-		}
 	}
 
 	public getResourceForPreview(previewUri: vscode.Uri): vscode.Uri | undefined {

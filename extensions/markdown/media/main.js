@@ -54,6 +54,7 @@
 	function postMessage(type, body) {
 		window.parent.postMessage({
 			type,
+			source: settings.source,
 			body
 		}, '*');
 	}
@@ -333,7 +334,7 @@
 			} else {
 				const line = getEditorLineNumberForPageOffset(window.scrollY);
 				if (!isNaN(line)) {
-					postCommand('_markdown.revealLine', [settings.source, line]);
+					postMessage('revealLine', { source: settings.source, line });
 				}
 			}
 		}, 50));
