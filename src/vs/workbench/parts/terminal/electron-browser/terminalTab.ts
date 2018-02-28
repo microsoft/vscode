@@ -13,6 +13,8 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView } from 'vs/base/browser/ui/splitview/splitview';
 import { IPartService, Position } from 'vs/workbench/services/part/common/partService';
 
+const SPLIT_PANE_MIN_SIZE = 60;
+
 class SplitPaneContainer {
 	private _height: number;
 	private _width: number;
@@ -98,10 +100,17 @@ class SplitPaneContainer {
 		} else if (!isSizingEndPane && direction === Direction.Down) {
 			amount *= -1;
 		}
+
+		// Ensure the size is not reduced beyond the minimum, otherwise weird things can happen
+		if (sizes[index] + amount < SPLIT_PANE_MIN_SIZE) {
+			amount = SPLIT_PANE_MIN_SIZE - sizes[index];
+		} else if (sizes[indexToChange] - amount < SPLIT_PANE_MIN_SIZE) {
+			amount = sizes[indexToChange] - SPLIT_PANE_MIN_SIZE;
+		}
+
+		// Apply the size change
 		sizes[index] += amount;
 		sizes[indexToChange] -= amount;
-
-		// Apply
 		for (let i = 0; i < this._splitView.length - 1; i++) {
 			this._splitView.resizeView(i, sizes[i]);
 		}
@@ -192,7 +201,7 @@ class SplitPaneContainer {
 }
 
 class SplitPane implements IView {
-	public minimumSize: number = 40;
+	public minimumSize: number = SPLIT_PANE_MIN_SIZE;
 	public maximumSize: number = Number.MAX_VALUE;
 
 	public instance: ITerminalInstance;
