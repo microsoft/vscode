@@ -288,6 +288,7 @@ class MarkdownPreview {
 	private readonly disposables: vscode.Disposable[] = [];
 	private firstUpdate = true;
 	private currentVersion?: { resource: vscode.Uri, version: number };
+	private _forceUpdate: boolean = false;
 
 	constructor(
 		private _resource: vscode.Uri,
@@ -371,6 +372,7 @@ class MarkdownPreview {
 	}
 
 	public refresh() {
+		this._forceUpdate = true;
 		this.update(this._resource);
 	}
 
@@ -440,12 +442,13 @@ class MarkdownPreview {
 		this.throttleTimer = undefined;
 
 		const document = await vscode.workspace.openTextDocument(resource);
-		if (this.currentVersion && this.currentVersion.resource.fsPath === resource.fsPath && this.currentVersion.version === document.version) {
+		if (!this._forceUpdate && this.currentVersion && this.currentVersion.resource.fsPath === resource.fsPath && this.currentVersion.version === document.version) {
 			if (this.initialLine) {
 				this.updateForView(resource, this.initialLine);
 			}
 			return;
 		}
+		this._forceUpdate = false;
 
 		this.currentVersion = { resource, version: document.version };
 		this.contentProvider.provideTextDocumentContent(document, this.previewConfigurations, this.initialLine)
