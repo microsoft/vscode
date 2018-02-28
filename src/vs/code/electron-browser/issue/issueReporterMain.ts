@@ -291,14 +291,14 @@ export class IssueReporter extends Disposable {
 	}
 
 	private setEventHandlers(): void {
-		document.getElementById('issue-type').addEventListener('change', (event: Event) => {
+		this.addEventListener('issue-type', 'change', (event: Event) => {
 			this.issueReporterModel.update({ issueType: parseInt((<HTMLInputElement>event.target).value) });
 			this.updatePreviewButtonState();
 			this.render();
 		});
 
 		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeSearchedExtensions', 'includeSettingsSearchDetails'].forEach(elementId => {
-			document.getElementById(elementId).addEventListener('click', (event: Event) => {
+			this.addEventListener(elementId, 'click', (event: Event) => {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
 			});
@@ -322,15 +322,15 @@ export class IssueReporter extends Disposable {
 			});
 		}
 
-		document.getElementById('reproducesWithoutExtensions').addEventListener('click', (e) => {
+		this.addEventListener('reproducesWithoutExtensions', 'click', (e) => {
 			this.issueReporterModel.update({ reprosWithoutExtensions: true });
 		});
 
-		document.getElementById('reproducesWithExtensions').addEventListener('click', (e) => {
+		this.addEventListener('reproducesWithExtensions', 'click', (e) => {
 			this.issueReporterModel.update({ reprosWithoutExtensions: false });
 		});
 
-		document.getElementById('description').addEventListener('input', (event: Event) => {
+		this.addEventListener('description', 'input', (event: Event) => {
 			const issueDescription = (<HTMLInputElement>event.target).value;
 			this.issueReporterModel.update({ issueDescription });
 
@@ -342,7 +342,7 @@ export class IssueReporter extends Disposable {
 			}
 		});
 
-		document.getElementById('issue-title').addEventListener('input', (e) => {
+		this.addEventListener('issue-title', 'input', (e) => {
 			const description = this.issueReporterModel.getData().issueDescription;
 			const title = (<HTMLInputElement>event.target).value;
 			if (title || description) {
@@ -352,26 +352,24 @@ export class IssueReporter extends Disposable {
 			}
 		});
 
-		document.getElementById('github-submit-btn').addEventListener('click', () => this.createIssue());
+		this.addEventListener('github-submit-btn', 'click', () => this.createIssue());
 
-		const disableExtensions = document.getElementById('disableExtensions');
-		disableExtensions.addEventListener('click', () => {
+		this.addEventListener('disableExtensions', 'click', () => {
 			ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindowWithExtensionsDisabled');
 		});
 
-		disableExtensions.addEventListener('keydown', (e) => {
+		this.addEventListener('disableExtensions', 'keydown', (e: KeyboardEvent) => {
 			if (e.keyCode === 13 || e.keyCode === 32) {
 				ipcRenderer.send('workbenchCommand', 'workbench.extensions.action.disableAll');
 				ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindow');
 			}
 		});
 
-		const showRunning = document.getElementById('showRunning');
-		showRunning.addEventListener('click', () => {
+		this.addEventListener('showRunning', 'click', () => {
 			ipcRenderer.send('workbenchCommand', 'workbench.action.showRuntimeExtensions');
 		});
 
-		showRunning.addEventListener('keydown', (e) => {
+		this.addEventListener('showRunning', 'keydown', (e: KeyboardEvent) => {
 			if (e.keyCode === 13 || e.keyCode === 32) {
 				ipcRenderer.send('workbenchCommand', 'workbench.action.showRuntimeExtensions');
 			}
@@ -763,6 +761,22 @@ export class IssueReporter extends Disposable {
 				"issueReporterViewSimilarIssue" : { }
 			*/
 			this.telemetryService.publicLog('issueReporterViewSimilarIssue');
+		}
+	}
+
+	private addEventListener(elementId: string, eventType: string, handler: (event: Event) => void): void {
+		const element = document.getElementById(elementId);
+		if (element) {
+			element.addEventListener(eventType, handler);
+		} else {
+			const error = new Error(`${elementId} not found.`);
+			this.logService.error(error);
+			/* __GDPR__
+				"issueReporterAddEventListenerError" : {
+						"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
+					}
+				*/
+			this.telemetryService.publicLog('issueReporterAddEventListenerError', { message: error.message });
 		}
 	}
 }
