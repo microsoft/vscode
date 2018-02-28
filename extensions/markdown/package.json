@@ -16,7 +16,7 @@
 	"activationEvents": [
 		"onLanguage:markdown",
 		"onCommand:markdown.preview.toggleLock",
-		"onCommand:markdown.refreshPreview",
+		"onCommand:markdown.preview.refresh",
 		"onCommand:markdown.showPreview",
 		"onCommand:markdown.showPreviewToSide",
 		"onCommand:markdown.showLockedPreviewToSide",
@@ -130,13 +130,13 @@
 				}
 			},
 			{
-				"command": "markdown.refreshPreview",
-				"title": "%markdown.refreshPreview.title%",
+				"command": "markdown.showPreviewSecuritySelector",
+				"title": "%markdown.showPreviewSecuritySelector.title%",
 				"category": "Markdown"
 			},
 			{
-				"command": "markdown.showPreviewSecuritySelector",
-				"title": "%markdown.showPreviewSecuritySelector.title%",
+				"command": "markdown.preview.refresh",
+				"title": "%markdown.preview.refresh.title%",
 				"category": "Markdown"
 			},
 			{
@@ -159,7 +159,7 @@
 					"group": "navigation"
 				},
 				{
-					"command": "markdown.refreshPreview",
+					"command": "markdown.preview.refresh",
 					"when": "markdownPreviewFocus",
 					"group": "1_markdown"
 				},
