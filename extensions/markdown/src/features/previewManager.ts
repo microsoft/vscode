@@ -65,6 +65,10 @@ class MarkdownPreview {
 					this.onDidScrollPreview(e.body.line);
 					break;
 
+				case 'didClick':
+					this.onDidClickPreview(e.body.line);
+					break;
+
 			}
 		}, null, this.disposables);
 
@@ -267,6 +271,17 @@ class MarkdownPreview {
 			editor.revealRange(
 				new vscode.Range(sourceLine, start, sourceLine + 1, 0),
 				vscode.TextEditorRevealType.AtTop);
+		}
+	}
+
+	private async onDidClickPreview(line: number): Promise<void> {
+		for (const visibleEditor of vscode.window.visibleTextEditors) {
+			if (this.isPreviewOf(visibleEditor.document.uri)) {
+				const editor = await vscode.window.showTextDocument(visibleEditor.document, visibleEditor.viewColumn);
+				const position = new vscode.Position(line, 0);
+				editor.selection = new vscode.Selection(position, position);
+				return;
+			}
 		}
 	}
 }

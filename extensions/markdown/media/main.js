@@ -296,7 +296,7 @@
 		const offset = event.pageY;
 		const line = getEditorLineNumberForPageOffset(offset);
 		if (!isNaN(line)) {
-			postCommand('_markdown.didClick', [settings.source, line]);
+			postMessage('didClick', { line });
 		}
 	});
 
@@ -334,7 +334,7 @@
 			} else {
 				const line = getEditorLineNumberForPageOffset(window.scrollY);
 				if (!isNaN(line)) {
-					postMessage('revealLine', { source: settings.source, line });
+					postMessage('revealLine', { line });
 				}
 			}
 		}, 50));
