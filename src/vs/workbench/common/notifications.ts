@@ -41,13 +41,6 @@ export interface INotificationChangeEvent {
 	 * The kind of notification change.
 	 */
 	kind: NotificationChangeType;
-
-	/**
-	 * If a notification replaces an existing one, send the
-	 * previous one with the event as well to find out that
-	 * the added item was already there before.
-	 */
-	replaces?: INotificationViewItem;
 }
 
 export class NotificationHandle implements INotificationHandle {
@@ -131,7 +124,7 @@ export class NotificationsModel implements INotificationsModel {
 		this._notifications.splice(0, 0, item);
 
 		// Events
-		this._onDidNotificationChange.fire({ item, index: 0, kind: NotificationChangeType.ADD, replaces: duplicate });
+		this._onDidNotificationChange.fire({ item, index: 0, kind: NotificationChangeType.ADD });
 
 		// Wrap into handle
 		return new NotificationHandle(item, item => this.disposeItem(item));
