@@ -19,7 +19,7 @@ export function readdir(path: string): TPromise<string[]> {
 }
 
 export function exists(path: string): TPromise<boolean> {
-	return new TPromise(c => fs.exists(path, c));
+	return new TPromise(c => fs.exists(path, c), () => { });
 }
 
 export function chmod(path: string, mode: number): TPromise<boolean> {
