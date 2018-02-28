@@ -210,6 +210,16 @@ export class ColorThemeData implements IColorTheme {
 		return themeData;
 	}
 
+	static createLoadedEmptyTheme(id: string, settingsId: string): ColorThemeData {
+		let themeData = new ColorThemeData();
+		themeData.id = id;
+		themeData.label = '';
+		themeData.settingsId = settingsId;
+		themeData.isLoaded = true;
+		themeData.themeTokenColors = [{ settings: {} }];
+		return themeData;
+	}
+
 	static fromStorageData(input: string): ColorThemeData {
 		try {
 			let data = JSON.parse(input);

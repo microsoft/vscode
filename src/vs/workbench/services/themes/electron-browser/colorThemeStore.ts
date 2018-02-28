@@ -51,8 +51,8 @@ export class ColorThemeStore {
 
 	public get onDidChange(): Event<ColorThemeData[]> { return this.onDidChangeEmitter.event; }
 
-	constructor( @IExtensionService private extensionService: IExtensionService) {
-		this.extensionsColorThemes = [];
+	constructor( @IExtensionService private extensionService: IExtensionService, defaultTheme: ColorThemeData) {
+		this.extensionsColorThemes = [defaultTheme];
 		this.onDidChangeEmitter = new Emitter<ColorThemeData[]>();
 		this.initialize();
 	}
@@ -98,7 +98,11 @@ export class ColorThemeStore {
 				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
 			}
 			let themeData = ColorThemeData.fromExtensionTheme(theme, normalizedAbsolutePath, extensionData);
-			this.extensionsColorThemes.push(themeData);
+			if (themeData.id === this.extensionsColorThemes[0].id) {
+				this.extensionsColorThemes[0] = themeData;
+			} else {
+				this.extensionsColorThemes.push(themeData);
+			}
 		});
 	}
 
