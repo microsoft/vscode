@@ -41,6 +41,7 @@ export function wrapWithAbbreviation(args: any) {
 	// Fetch general information for the succesive expansions. i.e. the ranges to replace and its contents
 	let expandAbbrList: ExpandAbbreviationInput[] = [];
 	let rangesToReplace: RangeAndContent[] = [];
+	let originalRangesToReplace: RangeAndContent[] = [];
 	let rangesObtained: vscode.Range[] = [];
 
 	editor.selections.forEach(selection => {
@@ -64,6 +65,7 @@ export function wrapWithAbbreviation(args: any) {
 		}
 		let textToReplace = editor.document.getText(rangeToReplace);
 		rangesToReplace.push({ range: rangeToReplace, content: textToReplace });
+		originalRangesToReplace.push({ range: rangeToReplace, content: textToReplace });
 	});
 
 	let abbreviationPromise;
@@ -98,30 +100,36 @@ export function wrapWithAbbreviation(args: any) {
 		let { abbreviation, filter } = extractedResults;
 
 		expandAbbrList = [];
-		rangesToReplace.forEach(rangeAndContent => {
-			let rangeToReplace = rangeAndContent.range;
-			if (definitive) {
-				expandAbbrList.push({ syntax: syntax || '', abbreviation, rangeToReplace, textToWrap: ['\n\t$TM_SELECTED_TEXT\n'], filter });
-			} else {
-				expandAbbrList.push({ syntax: syntax || '', abbreviation, rangeToReplace, textToWrap: ['\n\t' + rangeAndContent.content.replace(/\n/g, '\n\t') + '\n'], filter });
-			}
-		});
 
 		// we need to apply the previewchanges and get the new ranges
 		let revertPromise: Thenable<any> = Promise.resolve();
-		if (previewMade) {
-			revertPromise = revertPreview(editor, rangesToReplace, rangesObtained);
-		}
-		return revertPromise.then(() => {
-			if (definitive) {
+		if (definitive) {
+			if (previewMade) {
+				revertPromise = revertPreview(editor, rangesToReplace, rangesObtained);
+			}
+			originalRangesToReplace.forEach(rangeAndContent => {
+				let rangeToReplace = rangeAndContent.range;
+				expandAbbrList.push({ syntax: syntax || '', abbreviation, rangeToReplace, textToWrap: ['\n\t$TM_SELECTED_TEXT\n'], filter });
+			});
+			return revertPromise.then(() => {
 				return expandAbbreviationInRange(editor, expandAbbrList, true, previewMade).then(() => { return Promise.resolve(); });
-			} else {
-				return applyPreview(editor, expandAbbrList, rangesToReplace).then(range => {
-					rangesObtained = range;
+			});
+		} else {
+			rangesToReplace.forEach(rangeAndContent => {
+				let rangeToReplace = rangeAndContent.range;
+				expandAbbrList.push({ syntax: syntax || '', abbreviation, rangeToReplace, textToWrap: ['\n\t' + rangeAndContent.content.replace(/\n[\s]*/g, '\n\t') + '\n'], filter });
+			});
+
+			return Promise.resolve().then(() => {
+				return applyPreview(editor, expandAbbrList, rangesToReplace).then(ranges => {
+					for (let i = 0; i < ranges.length; i++) {
+						rangesToReplace[i].range = ranges[i];
+					}
+					rangesObtained = ranges;
 					previewMade = true;
 				});
-			}
-		});
+			});
+		}
 
 	}
 
@@ -152,6 +160,9 @@ function revertPreview(editor: vscode.TextEditor, rangesToReplace: RangeAndConte
 }
 
 function applyPreview(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], rangesToReplace: RangeAndContent[]): Thenable<vscode.Range[]> {
+	// editor is the editor
+	// expandabbrlist is as usual
+	// rangestoreplace is an array of {range to replace, originalcontent}
 	const anyExpandAbbrInput = expandAbbrList[0];
 	let expandedText = expandAbbr(anyExpandAbbrInput);
 	let rangesObtained: vscode.Range[] = [];
@@ -170,10 +181,8 @@ function applyPreview(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviat
 					indentPrefix = (preceedingText.match(/(^[\s]*)/) || ['', ''])[1];
 				}
 
-				expandedText = expandedText || '';
-				let newText = expandedText.replace('$TM_SELECTED_TEXT', rangesToReplace[i].content);
-				// TODO: replace tabstops with '|' 
-				newText = newText.replace(/\n/g, '\n' + indentPrefix);
+				let newText = expandedText || '';
+				newText = newText.replace(/\n/g, '\n' + indentPrefix).replace(/\$\{[\d]*\}/g, '|');
 				let newTextLines = (newText.match(/\n/g) || []).length;
 				let rangeToReplace = new vscode.Range(new vscode.Position(thisRange.start.line + linesInserted, thisRange.start.character), new vscode.Position(thisRange.end.line + linesInserted, thisRange.end.character));
 
