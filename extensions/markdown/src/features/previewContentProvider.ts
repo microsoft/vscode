@@ -293,7 +293,7 @@ class MarkdownPreview {
 	constructor(
 		private _resource: vscode.Uri,
 		previewColumn: vscode.ViewColumn,
-		public readonly locked: boolean,
+		public locked: boolean,
 		private readonly contentProvider: MarkdownContentProvider,
 		private readonly previewConfigurations: PreviewConfigManager,
 		private readonly logger: Logger
@@ -412,6 +412,11 @@ class MarkdownPreview {
 
 	public show(viewColumn: vscode.ViewColumn) {
 		this.webview.show(viewColumn);
+	}
+
+	public toggleLock() {
+		this.locked = !this.locked;
+		this.webview.title = this.getPreviewTitle(this._resource);
 	}
 
 	private getPreviewTitle(resource: vscode.Uri): string {
@@ -572,8 +577,22 @@ export class MarkdownPreviewManager {
 	}
 
 	public getResourceForPreview(previewUri: vscode.Uri): vscode.Uri | undefined {
-		const preview = this.previews.find(preview => preview.uri.toString() === previewUri.toString());
+		const preview = this.getPreviewWithUri(previewUri);
 		return preview && preview.resource;
+	}
+
+	public toggleLock(previewUri: vscode.Uri) {
+		const preview = this.getPreviewWithUri(previewUri);
+		if (preview) {
+			preview.toggleLock();
+
+			// Close any previews that are now redundant, such as having two dynamic previews in the same editor group
+			for (const otherPreview of this.previews) {
+				if (otherPreview !== preview && preview.matches(otherPreview)) {
+					otherPreview.dispose();
+				}
+			}
+		}
 	}
 
 	private getExistingPreview(
@@ -582,6 +601,10 @@ export class MarkdownPreviewManager {
 	): MarkdownPreview | undefined {
 		return this.previews.find(preview =>
 			preview.matchesResource(resource, previewSettings.previewColumn, previewSettings.locked));
+	}
+
+	private getPreviewWithUri(previewUri: vscode.Uri): MarkdownPreview | undefined {
+		return this.previews.find(preview => preview.uri.toString() === previewUri.toString());
 	}
 }
 

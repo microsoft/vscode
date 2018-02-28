@@ -15,6 +15,7 @@
 	],
 	"activationEvents": [
 		"onLanguage:markdown",
+		"onCommand:markdown.preview.toggleLock",
 		"onCommand:markdown.refreshPreview",
 		"onCommand:markdown.showPreview",
 		"onCommand:markdown.showPreviewToSide",
@@ -137,6 +138,11 @@
 				"command": "markdown.showPreviewSecuritySelector",
 				"title": "%markdown.showPreviewSecuritySelector.title%",
 				"category": "Markdown"
+			},
+			{
+				"command": "markdown.preview.toggleLock",
+				"title": "%markdown.preview.toggleLock.title%",
+				"category": "Markdown"
 			}
 		],
 		"menus": {
@@ -154,6 +160,11 @@
 				},
 				{
 					"command": "markdown.refreshPreview",
+					"when": "markdownPreview",
+					"group": "1_markdown"
+				},
+				{
+					"command": "markdown.preview.toggleLock",
 					"when": "markdownPreview",
 					"group": "1_markdown"
 				},

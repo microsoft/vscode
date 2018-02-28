@@ -50,6 +50,7 @@ export function activate(context: vscode.ExtensionContext) {
 	commandManager.register(new commands.ShowPreviewSecuritySelectorCommand(previewSecuritySelector));
 	commandManager.register(new commands.OnPreviewStyleLoadErrorCommand());
 	commandManager.register(new commands.OpenDocumentLinkCommand(engine));
+	commandManager.register(new commands.ToggleLockCommand(previewManager));
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
 		logger.updateConfiguration();
