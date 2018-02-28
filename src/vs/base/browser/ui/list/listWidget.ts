@@ -325,6 +325,51 @@ class KeyboardController<T> implements IDisposable {
 	}
 }
 
+class DOMFocusController<T> implements IDisposable {
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		private list: List<T>,
+		private view: ListView<T>
+	) {
+		this.disposables = [];
+
+		const onKeyDown = chain(domEvent(view.domNode, 'keydown'))
+			.filter(e => !isInputElement(e.target as HTMLElement))
+			.map(e => new StandardKeyboardEvent(e));
+
+		onKeyDown.filter(e => e.keyCode === KeyCode.Tab).on(this.onTab, this, this.disposables);
+	}
+
+	private onTab(e: StandardKeyboardEvent): void {
+		if (e.target !== this.view.domNode) {
+			return;
+		}
+
+		const focus = this.list.getFocus();
+
+		if (focus.length === 0) {
+			return;
+		}
+
+		const focusedDomElement = this.view.domElement(focus[0]);
+		const tabIndexElement = focusedDomElement.querySelector('[tabIndex]');
+
+		if (!tabIndexElement || !(tabIndexElement instanceof HTMLElement)) {
+			return;
+		}
+
+		e.preventDefault();
+		e.stopPropagation();
+		tabIndexElement.focus();
+	}
+
+	dispose() {
+		this.disposables = dispose(this.disposables);
+	}
+}
+
 export function isSelectionSingleChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
 	return platform.isMacintosh ? event.browserEvent.metaKey : event.browserEvent.ctrlKey;
 }
@@ -780,6 +825,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.onDidFocus = mapEvent(domEvent(this.view.domNode, 'focus', true), () => null);
 		this.onDidBlur = mapEvent(domEvent(this.view.domNode, 'blur', true), () => null);
+
+		this.disposables.push(new DOMFocusController(this, this.view));
 
 		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
 			const controller = new KeyboardController(this, this.view, options);
