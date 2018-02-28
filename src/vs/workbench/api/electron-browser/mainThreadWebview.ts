@@ -49,12 +49,14 @@ class WebviewInput extends EditorInput {
 	private _name: string;
 	private _options: vscode.WebviewOptions;
 	private _html: string;
+	private _currentWebviewHtml: string = '';
 	private _events: WebviewEvents | undefined;
 	private _container: HTMLElement;
 	private _webview: Webview | undefined;
 	private _webviewOwner: any;
 	private _webviewDisposables: IDisposable[] = [];
 	private _position: Position;
+
 
 	public static create(
 		resource: URI,
@@ -138,7 +140,7 @@ class WebviewInput extends EditorInput {
 	}
 
 	public setHtml(value: string): void {
-		if (value === this._html) {
+		if (value === this._currentWebviewHtml) {
 			return;
 		}
 
@@ -146,6 +148,7 @@ class WebviewInput extends EditorInput {
 
 		if (this._webview) {
 			this._webview.contents = value;
+			this._currentWebviewHtml = value;
 		}
 	}
 
@@ -218,7 +221,7 @@ class WebviewInput extends EditorInput {
 		this._webviewOwner = undefined;
 		this.container.style.visibility = 'hidden';
 
-		this._html = '';
+		this._currentWebviewHtml = '';
 	}
 
 	public onDidChangePosition(position: Position) {
