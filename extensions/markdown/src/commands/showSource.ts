@@ -22,14 +22,9 @@ export class ShowSourceCommand implements Command {
 
 		const resource = this.previewManager.getResourceForPreview(docUri);
 		if (resource) {
-			for (const editor of vscode.window.visibleTextEditors) {
-				if (editor.document.uri.fsPath === resource.fsPath) {
-					return vscode.window.showTextDocument(editor.document, editor.viewColumn);
-				}
-			}
+			return vscode.workspace.openTextDocument(resource)
+				.then(document => vscode.window.showTextDocument(document));
 		}
-
-		return vscode.workspace.openTextDocument(docUri)
-			.then(vscode.window.showTextDocument);
+		return undefined;
 	}
 }
