@@ -449,11 +449,13 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	public focusPreviousPane(): void {
-		this.setActiveInstanceByIndex(this._activeInstanceIndex - 1);
+		const newIndex = this._activeInstanceIndex === 0 ? this._terminalInstances.length - 1 : this._activeInstanceIndex - 1;
+		this.setActiveInstanceByIndex(newIndex);
 	}
 
 	public focusNextPane(): void {
-		this.setActiveInstanceByIndex(this._activeInstanceIndex + 1);
+		const newIndex = this._activeInstanceIndex === this._terminalInstances.length - 1 ? 0 : this._activeInstanceIndex + 1;
+		this.setActiveInstanceByIndex(newIndex);
 	}
 
 	public resizePane(direction: Direction): void {
