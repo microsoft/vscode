@@ -65,6 +65,28 @@
         "language": "typescriptreact",
         "path": "./snippets/typescript.json"
       }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": "tsconfig.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
+      },
+      {
+        "fileMatch": "tsconfig.json",
+        "url": "./schemas/tsconfig.schema.json"
+      },
+      {
+        "fileMatch": "tsconfig.*.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
+      },
+      {
+        "fileMatch": "tsconfig.*.json",
+        "url": "./schemas/tsconfig.schema.json"
+      },
+      {
+        "fileMatch": "typings.json",
+        "url": "https://schemastore.azurewebsites.net/schemas/json/typings.json"
+      }
     ]
   }
 }
