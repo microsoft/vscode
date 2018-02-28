@@ -181,7 +181,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.showOverlayContainer();
 		return this.defineKeybindingWidget.define().then(key => {
 			if (key) {
-				if (key !== keybindingEntry.keybindingItem.keybinding.getUserSettingsLabel()) {
+				const currentKey = keybindingEntry.keybindingItem.keybinding ? keybindingEntry.keybindingItem.keybinding.getUserSettingsLabel() : '';
+				if (currentKey !== key) {
 					this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_DEFINE, keybindingEntry.keybindingItem.command, key);
 					return this.keybindingEditingService.editKeybinding(key, keybindingEntry.keybindingItem.keybindingItem)
 						.then(() => {
