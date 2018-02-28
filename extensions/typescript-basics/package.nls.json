@@ -1,4 +1,4 @@
 {
 	"displayName": "TypeScript Language Basics",
-	"description": "Provides syntax highlighting and basic language support for TypeScript."
+	"description": "Provides Syntax highlighting, Bracket matching, Folding and Snippets in TypeScript files."
 }

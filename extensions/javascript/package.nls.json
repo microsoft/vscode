@@ -1,4 +1,4 @@
 {
 	"displayName": "JavaScript Language Basics",
-	"description": "Provides syntax highlighting and basic language support for JavaScript."
+	"description": "Provides syntax highlighting, Bracket matching, Folding and Snippets in JavaScript files."
 }

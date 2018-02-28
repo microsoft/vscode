@@ -5,5 +5,7 @@
 	"configuration.validate.run": "Whether the linter is run on save or on type.",
 	"configuration.title": "PHP",
 	"commands.categroy.php": "PHP",
-	"command.untrustValidationExecutable": "Disallow PHP validation executable (defined as workspace setting)"
+	"command.untrustValidationExecutable": "Disallow PHP validation executable (defined as workspace setting)",
+	"displayName": "PHP Language features",
+	"description": "Rich language support for php files"
 }
