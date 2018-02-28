@@ -50,6 +50,7 @@ import { Repl } from 'vs/workbench/parts/debug/electron-browser/repl';
 import { DebugQuickOpenHandler } from 'vs/workbench/parts/debug/browser/debugQuickOpen';
 import { DebugStatus } from 'vs/workbench/parts/debug/browser/debugStatus';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 
 class OpenDebugViewletAction extends ToggleViewletAction {
 	public static readonly ID = VIEWLET_ID;
@@ -206,7 +207,8 @@ configurationRegistry.registerConfiguration({
 		'launch': {
 			type: 'object',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces"),
-			default: {}
+			default: { configurations: [], compounds: [] },
+			$ref: launchSchemaId
 		}
 	}
 });
