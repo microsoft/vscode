@@ -33,6 +33,12 @@ interface INotificationToast {
 	disposeables: IDisposable[];
 }
 
+enum ToastVisibility {
+	HIDDEN_OR_VISIBLE,
+	HIDDEN,
+	VISIBLE
+}
+
 export class NotificationsToasts extends Themable {
 
 	private static MAX_WIDTH = 450;
@@ -203,12 +209,6 @@ export class NotificationsToasts extends Themable {
 		} else {
 			addClass(notificationToast, 'notification-fade-in-done');
 		}
-
-		// Ensure maximum number of toasts
-		const toasts = this.getToasts(false /* all, visible and hidden */);
-		while (toasts.length > NotificationsToasts.MAX_NOTIFICATIONS) {
-			this.removeToast(toasts.pop().item);
-		}
 	}
 
 	private removeToast(item: INotificationViewItem): void {
@@ -277,7 +277,7 @@ export class NotificationsToasts extends Themable {
 	}
 
 	public focus(): boolean {
-		const toasts = this.getToasts(true /* visible only */);
+		const toasts = this.getToasts(ToastVisibility.VISIBLE);
 		if (toasts.length > 0) {
 			toasts[0].list.focusFirst();
 
@@ -288,7 +288,7 @@ export class NotificationsToasts extends Themable {
 	}
 
 	public focusNext(): boolean {
-		const toasts = this.getToasts(true /* visible only */);
+		const toasts = this.getToasts(ToastVisibility.VISIBLE);
 		for (let i = 0; i < toasts.length; i++) {
 			const toast = toasts[i];
 			if (toast.list.hasFocus()) {
@@ -307,7 +307,7 @@ export class NotificationsToasts extends Themable {
 	}
 
 	public focusPrevious(): boolean {
-		const toasts = this.getToasts(true /* visible only */);
+		const toasts = this.getToasts(ToastVisibility.VISIBLE);
 		for (let i = 0; i < toasts.length; i++) {
 			const toast = toasts[i];
 			if (toast.list.hasFocus()) {
@@ -326,7 +326,7 @@ export class NotificationsToasts extends Themable {
 	}
 
 	public focusFirst(): boolean {
-		const toast = this.getToasts(true /* visible only */)[0];
+		const toast = this.getToasts(ToastVisibility.VISIBLE)[0];
 		if (toast) {
 			toast.list.focusFirst();
 
@@ -337,7 +337,7 @@ export class NotificationsToasts extends Themable {
 	}
 
 	public focusLast(): boolean {
-		const toasts = this.getToasts(true /* visible only */);
+		const toasts = this.getToasts(ToastVisibility.VISIBLE);
 		if (toasts.length > 0) {
 			toasts[toasts.length - 1].list.focusFirst();
 
@@ -368,18 +368,28 @@ export class NotificationsToasts extends Themable {
 		});
 	}
 
-	private getToasts(visibleOnly: boolean): INotificationToast[] {
-		let notificationToasts: INotificationToast[] = [];
+	private getToasts(state: ToastVisibility): INotificationToast[] {
+		const notificationToasts: INotificationToast[] = [];
 
 		this.mapNotificationToToast.forEach(toast => {
-			if (!visibleOnly || toast.container.style.display === 'block') {
-				notificationToasts.push(toast);
+			switch (state) {
+				case ToastVisibility.HIDDEN_OR_VISIBLE:
+					notificationToasts.push(toast);
+					break;
+				case ToastVisibility.HIDDEN:
+					if (!this.isVisible(toast)) {
+						notificationToasts.push(toast);
+					}
+					break;
+				case ToastVisibility.VISIBLE:
+					if (this.isVisible(toast)) {
+						notificationToasts.push(toast);
+					}
+					break;
 			}
 		});
 
-		notificationToasts = notificationToasts.reverse(); // from newest to oldest
-
-		return notificationToasts;
+		return notificationToasts.reverse(); // from newest to oldest
 	}
 
 	public layout(dimension: Dimension): void {
@@ -429,17 +439,37 @@ export class NotificationsToasts extends Themable {
 	}
 
 	private layoutContainer(heightToGive: number): void {
-		this.getToasts(false /* all, visible and hidden */).forEach(toast => {
+		let visibleToasts = 0;
+		this.getToasts(ToastVisibility.HIDDEN_OR_VISIBLE).forEach(toast => {
 
 			// In order to measure the client height, the element cannot have display: none
 			toast.container.style.opacity = '0';
-			toast.container.style.display = 'block';
+			this.setVisibility(toast, true);
 
 			heightToGive -= toast.container.offsetHeight;
 
-			// Hide or show toast based on available height
-			toast.container.style.display = heightToGive >= 0 ? 'block' : 'none';
+			let makeVisible = false;
+			if (visibleToasts === NotificationsToasts.MAX_NOTIFICATIONS) {
+				makeVisible = false; // never show more than MAX_NOTIFICATIONS
+			} else if (heightToGive >= 0) {
+				makeVisible = true; // hide toast if available height is too little
+			}
+
+			// Hide or show toast based on context
+			this.setVisibility(toast, makeVisible);
 			toast.container.style.opacity = null;
+
+			if (makeVisible) {
+				visibleToasts++;
+			}
 		});
+	}
+
+	private setVisibility(toast: INotificationToast, visible: boolean): void {
+		toast.container.style.display = visible ? 'block' : 'none';
+	}
+
+	private isVisible(toast: INotificationToast): boolean {
+		return toast.container.style.display === 'block';
 	}
 }
