@@ -235,7 +235,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 
 	getContextMenuActions(): IAction[] {
 		const result: IAction[] = [];
-		const viewToggleActions = this.getViewDescriptorsFromRegistry(true)
+		const viewToggleActions = this.getViewDescriptorsFromRegistry()
 			.filter(viewDescriptor => this.contextKeyService.contextMatchesRules(viewDescriptor.when))
 			.map(viewDescriptor => (<IAction>{
 				id: `${viewDescriptor.id}.toggleVisibility`,
@@ -563,13 +563,13 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		return super.isSingleView();
 	}
 
-	protected getViewDescriptorsFromRegistry(defaultOrder: boolean = false): IViewDescriptor[] {
+	protected getViewDescriptorsFromRegistry(): IViewDescriptor[] {
 		return ViewsRegistry.getViews(this.location)
 			.sort((a, b) => {
 				const viewStateA = this.viewsStates.get(a.id);
 				const viewStateB = this.viewsStates.get(b.id);
-				const orderA = !defaultOrder && viewStateA ? viewStateA.order : a.order;
-				const orderB = !defaultOrder && viewStateB ? viewStateB.order : b.order;
+				const orderA = viewStateA ? viewStateA.order : a.order;
+				const orderB = viewStateB ? viewStateB.order : b.order;
 
 				if (orderB === void 0 || orderB === null) {
 					return -1;
