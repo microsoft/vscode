@@ -289,6 +289,12 @@
 					"description": "%markdown.preview.scrollPreviewWithEditor.desc%",
 					"scope": "resource"
 				},
+				"markdown.preview.scrollPreviewWithEditorSelection": {
+					"type": "boolean",
+					"default": true,
+					"description": "%markdown.preview.scrollPreviewWithEditorSelection.desc%",
+					"deprecationMessage": "%markdown.preview.scrollPreviewWithEditorSelection.deprecationMessage%"
+				},
 				"markdown.preview.markEditorSelection": {
 					"type": "boolean",
 					"default": true,
