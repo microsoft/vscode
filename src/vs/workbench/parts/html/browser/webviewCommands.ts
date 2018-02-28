@@ -86,7 +86,7 @@ export class ShowWebViewEditorFindTermCommand extends Command {
 
 export class OpenWebviewDeveloperToolsAction extends Action {
 	static readonly ID = 'workbench.action.webview.openDeveloperTools';
-	static LABEL = nls.localize('openToolsLabel', "Webview Tools");
+	static LABEL = nls.localize('openToolsLabel', "Open Webview Developer Tools");
 
 	public constructor(
 		id: string,
