@@ -276,8 +276,30 @@ export class WorkspaceStats implements IWorkbenchContribution {
 					tags['workspace.android.cpp'] = true;
 				}
 
-				tags['workspace.reactNative'] = nameSet.has('android') && nameSet.has('ios') &&
-					nameSet.has('index.android.js') && nameSet.has('index.ios.js');
+				if (nameSet.has('package.json')) {
+					return TPromise.join(folders.map(workspaceUri => {
+						const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/package.json` });
+						return this.fileService.resolveFile(uri).then(stats => {
+							return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+								content => {
+									try {
+										const packageJsonContents = JSON.parse(content.value);
+										return !!(packageJsonContents['dependencies'] && packageJsonContents['dependencies']['react-native']);
+									} catch (e) {
+
+									}
+									return false;
+								},
+								err => false
+							);
+						}, err => false);
+					})).then(reactNatives => {
+						if (reactNatives.indexOf(true) !== -1) {
+							tags['workspace.reactNative'] = true;
+						}
+						return tags;
+					});
+				}
 
 				return tags;
 			}, error => { onUnexpectedError(error); return null; });
