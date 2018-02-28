@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
@@ -11,10 +10,9 @@ import { $, Dimension, Builder } from 'vs/base/browser/builder';
 import { Scope } from 'vs/workbench/common/memento';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { firstIndex } from 'vs/base/common/arrays';
-import { DelayedDragHandler } from 'vs/base/browser/dnd';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ViewsRegistry, ViewLocation, IViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
@@ -32,6 +30,8 @@ import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/th
 import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { localize } from 'vs/nls';
 
 export interface IViewOptions extends IPanelOptions {
 	id: string;
@@ -49,9 +49,10 @@ export abstract class ViewsViewletPanel extends ViewletPanel {
 	constructor(
 		options: IViewOptions,
 		protected keybindingService: IKeybindingService,
-		protected contextMenuService: IContextMenuService
+		protected contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(options.name, options, keybindingService, contextMenuService);
+		super(options.name, options, keybindingService, contextMenuService, configurationService);
 
 		this.id = options.id;
 		this.name = options.name;
@@ -102,25 +103,7 @@ export abstract class ViewsViewletPanel extends ViewletPanel {
 
 export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 
-	readonly id: string;
-	readonly name: string;
-	protected treeContainer: HTMLElement;
-
 	protected tree: WorkbenchTree;
-	protected isDisposed: boolean;
-	private dragHandler: DelayedDragHandler;
-
-	constructor(
-		options: IViewOptions,
-		protected keybindingService: IKeybindingService,
-		protected contextMenuService: IContextMenuService
-	) {
-		super(options, keybindingService, contextMenuService);
-
-		this.id = options.id;
-		this.name = options.name;
-		this._expanded = options.expanded;
-	}
 
 	setExpanded(expanded: boolean): void {
 		if (this.isExpanded() !== expanded) {
@@ -129,29 +112,11 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 		}
 	}
 
-	protected renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
-
-		// Expand on drag over
-		this.dragHandler = new DelayedDragHandler(container, () => this.setExpanded(true));
-	}
-
-	protected renderViewTree(container: HTMLElement): HTMLElement {
-		const treeContainer = document.createElement('div');
-		container.appendChild(treeContainer);
-		return treeContainer;
-	}
-
-	getViewer(): WorkbenchTree {
-		return this.tree;
-	}
-
 	setVisible(visible: boolean): TPromise<void> {
 		if (this.isVisible() !== visible) {
 			return super.setVisible(visible)
 				.then(() => this.updateTreeVisibility(this.tree, visible && this.isExpanded()));
 		}
-
 		return TPromise.wrap(null);
 	}
 
@@ -160,62 +125,10 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 		this.focusTree();
 	}
 
-	protected reveal(element: any, relativeTop?: number): TPromise<void> {
-		if (!this.tree) {
-			return TPromise.as(null); // return early if viewlet has not yet been created
-		}
-
-		return this.tree.reveal(element, relativeTop);
-	}
-
 	layoutBody(size: number): void {
 		if (this.tree) {
-			this.treeContainer.style.height = size + 'px';
 			this.tree.layout(size);
 		}
-	}
-
-	getActions(): IAction[] {
-		return [];
-	}
-
-	getSecondaryActions(): IAction[] {
-		return [];
-	}
-
-	getActionItem(action: IAction): IActionItem {
-		return null;
-	}
-
-	getActionsContext(): any {
-		return undefined;
-	}
-
-	getOptimalWidth(): number {
-		return 0;
-	}
-
-	create(): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	shutdown(): void {
-		// Subclass to implement
-	}
-
-	dispose(): void {
-		this.isDisposed = true;
-		this.treeContainer = null;
-
-		if (this.tree) {
-			this.tree.dispose();
-		}
-
-		if (this.dragHandler) {
-			this.dragHandler.dispose();
-		}
-
-		super.dispose();
 	}
 
 	protected updateTreeVisibility(tree: WorkbenchTree, isVisible: boolean): void {
@@ -242,13 +155,20 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 		}
 
 		// Make sure the current selected element is revealed
-		const selection = this.tree.getSelection();
-		if (selection.length > 0) {
-			this.reveal(selection[0], 0.5).done(null, errors.onUnexpectedError);
+		const selectedElement = this.tree.getSelection()[0];
+		if (selectedElement) {
+			this.tree.reveal(selectedElement, 0.5).done(null, errors.onUnexpectedError);
 		}
 
 		// Pass Focus to Viewer
 		this.tree.DOMFocus();
+	}
+
+	dispose(): void {
+		if (this.tree) {
+			this.tree.dispose();
+		}
+		super.dispose();
 	}
 }
 
@@ -281,6 +201,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		id: string,
 		private location: ViewLocation,
 		private showHeaderInTitleWhenSingleView: boolean,
+		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService protected storageService: IStorageService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -289,7 +210,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IExtensionService protected extensionService: IExtensionService
 	) {
-		super(id, { showHeaderInTitleWhenSingleView, dnd: true }, telemetryService, themeService);
+		super(id, { showHeaderInTitleWhenSingleView, dnd: true }, partService, contextMenuService, telemetryService, themeService);
 
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 	}
@@ -313,15 +234,23 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 	}
 
 	getContextMenuActions(): IAction[] {
-		return this.getViewDescriptorsFromRegistry(true)
-			.filter(viewDescriptor => viewDescriptor.canToggleVisibility && this.contextKeyService.contextMatchesRules(viewDescriptor.when))
+		const result: IAction[] = [];
+		const viewToggleActions = this.getViewDescriptorsFromRegistry(true)
+			.filter(viewDescriptor => this.contextKeyService.contextMatchesRules(viewDescriptor.when))
 			.map(viewDescriptor => (<IAction>{
 				id: `${viewDescriptor.id}.toggleVisibility`,
 				label: viewDescriptor.name,
 				checked: this.isCurrentlyVisible(viewDescriptor),
-				enabled: true,
+				enabled: viewDescriptor.canToggleVisibility,
 				run: () => this.toggleViewVisibility(viewDescriptor.id)
 			}));
+		result.push(...viewToggleActions);
+		const parentActions = super.getContextMenuActions();
+		if (viewToggleActions.length && parentActions.length) {
+			result.push(new Separator());
+		}
+		result.push(...parentActions);
+		return result;
 	}
 
 	setVisible(visible: boolean): TPromise<void> {
@@ -331,14 +260,19 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 			.then(() => void 0);
 	}
 
-	openView(id: string): void {
-		this.focus();
+	openView(id: string, focus?: boolean): TPromise<void> {
+		if (focus) {
+			this.focus();
+		}
 		const view = this.getView(id);
 		if (view) {
 			view.setExpanded(true);
-			view.focus();
+			if (focus) {
+				view.focus();
+			}
+			return TPromise.as(null);
 		} else {
-			this.toggleViewVisibility(id);
+			return this.toggleViewVisibility(id, focus);
 		}
 	}
 
@@ -365,19 +299,19 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		super.shutdown();
 	}
 
-	toggleViewVisibility(id: string): void {
+	toggleViewVisibility(id: string, focus?: boolean): TPromise<void> {
 		let viewState = this.viewsStates.get(id);
 		if (!viewState) {
-			return;
+			return TPromise.as(null);
 		}
 
 		viewState.isHidden = !!this.getView(id);
-		this.updateViews()
+		return this.updateViews()
 			.then(() => {
 				this._onDidChangeViewVisibilityState.fire(id);
 				if (!viewState.isHidden) {
-					this.openView(id);
-				} else {
+					this.openView(id, focus);
+				} else if (focus) {
 					this.focus();
 				}
 			});
@@ -441,6 +375,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 					let view = this.getView(viewDescriptor.id);
 					this.removePanel(view);
 					this.viewsViewletPanels.splice(this.viewsViewletPanels.indexOf(view), 1);
+					view.dispose();
 				}
 			}
 
@@ -561,9 +496,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 				this.viewHeaderContextMenuListeners.push(DOM.addDisposableListener(view.draggableElement, DOM.EventType.CONTEXT_MENU, e => {
 					e.stopPropagation();
 					e.preventDefault();
-					if (viewDescriptor.canToggleVisibility) {
-						this.onContextMenu(new StandardMouseEvent(e), view);
-					}
+					this.onContextMenu(new StandardMouseEvent(e), viewDescriptor);
 				}));
 			}
 		}
@@ -578,19 +511,26 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		}
 	}
 
-	private onContextMenu(event: StandardMouseEvent, view: ViewsViewletPanel): void {
+	private onContextMenu(event: StandardMouseEvent, viewDescriptor: IViewDescriptor): void {
 		event.stopPropagation();
 		event.preventDefault();
+
+		const actions: IAction[] = [];
+		actions.push(<IAction>{
+			id: `${viewDescriptor.id}.removeView`,
+			label: localize('hideView', "Hide"),
+			enabled: viewDescriptor.canToggleVisibility,
+			run: () => this.toggleViewVisibility(viewDescriptor.id)
+		});
+		const otherActions = this.getContextMenuActions();
+		if (otherActions.length) {
+			actions.push(...[new Separator(), ...otherActions]);
+		}
 
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as([<IAction>{
-				id: `${view.id}.removeView`,
-				label: nls.localize('hideView', "Hide"),
-				enabled: true,
-				run: () => this.toggleViewVisibility(view.id)
-			}]),
+			getActions: () => TPromise.as(actions)
 		});
 	}
 
@@ -690,6 +630,7 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 		location: ViewLocation,
 		private readonly viewletStateStorageId: string,
 		showHeaderInTitleWhenSingleView: boolean,
+		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -699,7 +640,7 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(id, location, showHeaderInTitleWhenSingleView, telemetryService, storageService, instantiationService, themeService, contextKeyService, contextMenuService, extensionService);
+		super(id, location, showHeaderInTitleWhenSingleView, partService, telemetryService, storageService, instantiationService, themeService, contextKeyService, contextMenuService, extensionService);
 		this.hiddenViewsStorageId = `${this.viewletStateStorageId}.hidden`;
 		this._register(this.onDidChangeViewVisibilityState(id => this.onViewVisibilityChanged(id)));
 	}

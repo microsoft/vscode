@@ -7,7 +7,7 @@
 
 import { parse as jsonParse } from 'vs/base/common/json';
 import { forEach } from 'vs/base/common/collections';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import { readFile } from 'vs/base/node/pfs';
 import { basename, extname } from 'path';

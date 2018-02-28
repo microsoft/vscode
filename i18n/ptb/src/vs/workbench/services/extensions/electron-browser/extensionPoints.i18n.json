@@ -8,6 +8,6 @@
 	],
 	"jsonParseFail": "Falha ao analisar {0}: {1}.",
 	"fileReadFail": "Não foi possível ler o arquivo {0}: {1}.",
-	"jsonsParseFail": "Falha ao analisar {0} ou {1}: {2}.",
+	"jsonsParseReportErrors": "Falha ao analisar {0}: {1}.",
 	"missingNLSKey": "Não foi possível encontrar a mensagem para a chave {0}."
 }

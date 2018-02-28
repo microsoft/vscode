@@ -20,7 +20,7 @@ import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { LanguageSelector, LanguageFilter } from 'vs/editor/common/modes/languageSelector';
-import { WorkspaceEditDto, ResourceTextEditDto, ResourceFileEditDto } from 'vs/workbench/api/node/extHost.protocol';
+import { WorkspaceEditDto, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
 
 export interface PositionLike {
 	line: number;
@@ -232,7 +232,7 @@ export namespace WorkspaceEdit {
 		const result: modes.WorkspaceEdit = {
 			edits: []
 		};
-		for (const entry of value.allEntries()) {
+		for (const entry of value.entries()) {
 			const [uri, uriOrEdits] = entry;
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
@@ -253,11 +253,11 @@ export namespace WorkspaceEdit {
 					URI.revive((<ResourceTextEditDto>edit).resource),
 					<types.TextEdit[]>(<ResourceTextEditDto>edit).edits.map(TextEdit.to)
 				);
-			} else {
-				result.renameResource(
-					URI.revive((<ResourceFileEditDto>edit).oldUri),
-					URI.revive((<ResourceFileEditDto>edit).newUri)
-				);
+				// } else {
+				// 	result.renameResource(
+				// 		URI.revive((<ResourceFileEditDto>edit).oldUri),
+				// 		URI.revive((<ResourceFileEditDto>edit).newUri)
+				// 	);
 			}
 		}
 		return result;
@@ -583,6 +583,14 @@ export namespace ProgressLocation {
 			case types.ProgressLocation.Window: return MainProgressLocation.Window;
 		}
 		return undefined;
+	}
+}
+
+export namespace FoldingRangeList {
+	export function from(rangeList: vscode.FoldingRangeList): modes.IFoldingRangeList {
+		return {
+			ranges: rangeList.ranges.map(r => ({ startLineNumber: r.startLine + 1, endLineNumber: r.endLine + 1, type: r.type }))
+		};
 	}
 }
 

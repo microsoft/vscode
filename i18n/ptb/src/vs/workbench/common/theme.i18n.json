@@ -58,16 +58,5 @@
 	"titleBarInactiveForeground": "Cor de primeiro plano da barra de título quando a janela está inativa. Observe que essa cor atualmente somente é suportada no macOS.",
 	"titleBarActiveBackground": "Cor de fundo da barra de título quando a janela está ativa. Observe que essa cor atualmente somente é suportada no macOS.",
 	"titleBarInactiveBackground": "Cor de fundo de barra de título quando a janela está inativa. Observe que essa cor é atualmente somente suportada no macOS.",
-	"titleBarBorder": "Cor da borda da barra de título. Observe que essa cor é atualmente somente suportados no macOS.",
-	"notificationsForeground": "Cor do primeiro plano de notificações. Notificações deslizam na parte superior da janela.",
-	"notificationsBackground": "Cor de fundo de notificações. Notificações deslizam na parte superior da janela.",
-	"notificationsButtonBackground": "Cor de fundo do botão de notificações. Notificações deslizam da parte superior da janela.",
-	"notificationsButtonHoverBackground": "Cor de fundo do botão de notificações quando passar sobre ele. Notificações deslizam da parte superior da janela. ",
-	"notificationsButtonForeground": "Cor de primeiro plano do botão de notificações. Notificações deslizam da parte superior da janela. ",
-	"notificationsInfoBackground": "Cor de fundo da notificação de informações. Notificações deslizam da parte superior da janela. ",
-	"notificationsInfoForeground": "Cor de primeiro plano das notificações de informação. Notificações deslizam da parte superior da janela. ",
-	"notificationsWarningBackground": "Cor de fundo das notificações de aviso. Notificações deslizam da parte superior da janela. ",
-	"notificationsWarningForeground": "Cor de primeiro plano das notificações de aviso. Notificações deslizam da parte superior da janela.",
-	"notificationsErrorBackground": "Cor de fundo das notificações de erro. Notificações deslizam da parte superior da janela. ",
-	"notificationsErrorForeground": "Cor de primeiro plano das notificações de erro. Notificações deslizam da parte superior da janela."
+	"titleBarBorder": "Cor da borda da barra de título. Observe que essa cor é atualmente somente suportados no macOS."
 }

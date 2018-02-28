@@ -18,7 +18,7 @@ import { MainThreadTextEditor } from './mainThreadEditor';
 import { ITextEditorConfigurationUpdate, TextEditorRevealType, IApplyEditsOptions, IUndoStopOptions, WorkspaceEditDto, reviveWorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { equals as objectEquals } from 'vs/base/common/objects';
-import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IExtHostContext } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadTextEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IExtHostContext } from '../node/extHost.protocol';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -28,7 +28,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { isResourceFileEdit } from 'vs/editor/common/modes';
 
-export class MainThreadEditors implements MainThreadEditorsShape {
+export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	private _proxy: ExtHostEditorsShape;
 	private _documentsAndEditors: MainThreadDocumentsAndEditors;
@@ -41,7 +41,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 	constructor(
 		documentsAndEditors: MainThreadDocumentsAndEditors,
 		extHostContext: IExtHostContext,
-		@ICodeEditorService private _codeEditorService: ICodeEditorService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IWorkbenchEditorService workbenchEditorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
@@ -79,11 +79,8 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 	private _onTextEditorAdd(textEditor: MainThreadTextEditor): void {
 		let id = textEditor.getId();
 		let toDispose: IDisposable[] = [];
-		toDispose.push(textEditor.onConfigurationChanged((opts) => {
-			this._proxy.$acceptOptionsChanged(id, opts);
-		}));
-		toDispose.push(textEditor.onSelectionChanged((event) => {
-			this._proxy.$acceptSelectionsChanged(id, event);
+		toDispose.push(textEditor.onPropertiesChanged((data) => {
+			this._proxy.$acceptEditorPropertiesChanged(id, data);
 		}));
 
 		this._textEditorsListenersMap[id] = toDispose;

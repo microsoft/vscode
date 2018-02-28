@@ -9,13 +9,13 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
-export const ID = 'issueService';
-export const IIssueService = createDecorator<IIssueService>(ID);
+export const IIssueService = createDecorator<IIssueService>('issueService');
 
 export enum IssueType {
 	Bug,
 	PerformanceIssue,
-	FeatureRequest
+	FeatureRequest,
+	SettingsSearchIssue
 }
 
 export interface IssueReporterStyles {
@@ -30,6 +30,9 @@ export interface IssueReporterStyles {
 	buttonBackground: string;
 	buttonForeground: string;
 	buttonHoverBackground: string;
+	sliderBackgroundColor: string;
+	sliderHoverColor: string;
+	sliderActiveColor: string;
 }
 
 export interface IssueReporterData {
@@ -37,6 +40,22 @@ export interface IssueReporterData {
 	zoomLevel: number;
 	enabledExtensions: ILocalExtension[];
 	issueType?: IssueType;
+}
+
+export interface ISettingSearchResult {
+	extensionId: string;
+	key: string;
+	score: number;
+}
+
+export interface ISettingsSearchIssueReporterData extends IssueReporterData {
+	issueType: IssueType.SettingsSearchIssue;
+	actualSearchResults: ISettingSearchResult[];
+	query: string;
+	filterResultCount: number;
+}
+
+export interface IssueReporterFeatures {
 }
 
 export interface IIssueService {

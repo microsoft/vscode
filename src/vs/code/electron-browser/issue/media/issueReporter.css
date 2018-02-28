@@ -30,14 +30,30 @@ td {
 	border-top: 1px solid #e9ecef;
 }
 
+.block-settingsSearchResults-details {
+	padding-bottom: .5rem;
+}
+
+.block-settingsSearchResults-details > div {
+	padding: .5rem .75rem;
+}
+
+.section {
+	margin-bottom: 1.5em;
+}
+
+#similar-issues {
+	margin-left: 12%;
+	display: block;
+}
+
 /**
  * Forms
  */
-input, textarea {
+input[type="text"], textarea {
 	display: block;
 	width: 100%;
 	padding: .375rem .75rem;
-	margin: 0;
 	font-size: 1rem;
 	line-height: 1.5;
 	color: #495057;
@@ -45,6 +61,7 @@ input, textarea {
 	border-radius: .25rem;
 	border: 1px solid #ced4da;
 }
+
 textarea {
 	overflow: auto;
 	resize: vertical;
@@ -70,10 +87,9 @@ button {
 
 select {
 	height: calc(2.25rem + 2px);
-	display: block;
-	width: 100%;
-	padding: 0.375rem 0.75rem;
-	font-size: 1rem;
+	display: inline-block;
+	padding: 3px 3px;
+	font-size: 14px;
 	line-height: 1.5;
 	color: #495057;
 	background-color: #fff;
@@ -84,6 +100,11 @@ select {
 * {
 	box-sizing: border-box;
 }
+
+textarea {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
+}
+
 html {
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
 	color: #CCCCCC;
@@ -91,6 +112,7 @@ html {
 
 body {
 	margin: 0;
+	overflow: scroll;
 }
 
 .hidden {
@@ -104,7 +126,7 @@ body {
 .block .block-info {
 	width: 100%;
 	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
-	font-size: 14px;
+	font-size: 12px;
 	overflow: auto;
 	overflow-wrap: break-word;
 }
@@ -124,7 +146,7 @@ button:disabled {
 }
 
 #issue-reporter {
-	max-width: 80vw;
+	max-width: 85vw;
 	margin-left: auto;
 	margin-right: auto;
 	margin-top: 2em;
@@ -149,6 +171,37 @@ button:disabled {
 	margin-bottom: 1em;
 }
 
+.extensions-form {
+	display: flex;
+}
+
+.extensions-form > .form-buttons {
+	display: flex;
+	margin-left: 20px;
+}
+
+.extensions-form > .form-buttons > .choice {
+	margin-right: 35px;
+	position: relative;
+}
+
+.extensions-form > .form-buttons > .choice > label, .extensions-form  > .form-buttons > .choice > input {
+	cursor: pointer;
+	height: 100%;
+	margin-top: 1px;
+}
+
+.extensions-form > .form-buttons > .choice > label {
+	position: absolute;
+	top: 50%;
+	margin-top: -50%;
+	left: 20px;
+}
+
+.system-info {
+	margin-bottom: 1.25em;
+}
+
 select, input, textarea {
 	border: 1px solid transparent;
 	margin-top: 10px;
@@ -156,7 +209,7 @@ select, input, textarea {
 
 summary {
 	border: 1px solid transparent;
-	padding: 10px;
+	padding: 0 10px;
 	margin-bottom: 5px;
 }
 
@@ -165,20 +218,26 @@ summary {
 	margin-top: 1em;
 }
 
-.caption {
+.include-data {
+	display: inline-block;
+}
+
+.include-data > .caption {
 	display: inline-block;
 	font-size: 12px;
-	vertical-align: middle;
-	height: 18px;
+	cursor: pointer;
+}
+
+.sendData {
+	margin-left: 1em;
 }
 
 input[type="checkbox"] {
-	margin-left: 1em;
-	height: 18px;
 	width: auto;
 	display: inline-block;
 	margin-top: 0;
 	vertical-align: middle;
+	cursor: pointer;
 }
 
 input:disabled {
@@ -197,13 +256,12 @@ input:disabled {
 }
 
 .workbenchCommand {
-	padding: 0;
-	font-size: 12px;
-	background: transparent;
+	cursor: pointer;
 }
 
 .workbenchCommand:disabled {
 	color: #868e96;
+	cursor: default
 }
 
 .block-extensions .block-info {
@@ -219,6 +277,7 @@ input, select, textarea {
 
 a {
 	color: #CCCCCC;
+	text-decoration: none;
 }
 
 .invalid-input {
@@ -232,4 +291,91 @@ a {
 button {
 	background-color: #007ACC;
 	color: #fff;
+}
+
+
+.section .inline-form-control, .section .inline-label {
+	display: inline-block;
+}
+
+.section .inline-label {
+	width: 95px;
+}
+
+.section .inline-form-control {
+	width: calc(100% - 100px);
+}
+
+#issue-type {
+	cursor: pointer;
+}
+
+@media (max-width: 950px) {
+	.section .inline-label {
+		width: 12%;
+	}
+
+	.section .inline-form-control  {
+		width: calc(88% - 5px);
+	}
+}
+
+@media (max-width: 620px) {
+	.section .inline-label {
+		display: none !important;
+	}
+
+	.inline-form-control {
+		width: 100%;
+	}
+
+	#similar-issues {
+		margin-left: 0;
+	}
+}
+
+::-webkit-scrollbar {
+	width: 14px;
+}
+
+::-webkit-scrollbar-thumb {
+	min-height: 20px;
+}
+
+::-webkit-scrollbar-corner {
+	display: none;
+}
+
+.issues-container {
+	margin-left: 1.5em;
+	margin-top: .5em;
+	height: 108px;
+	overflow-y: auto;
+}
+
+.issues-container > .issue {
+	padding: 4px 0;
+}
+
+.issues-container > .issue > .issue-link {
+	display: inline-block;
+	width: calc(100% - 82px);
+	height: 22px;
+	line-height: 22px;
+	overflow: hidden;
+}
+
+.issues-container > .issue > .issue-state {
+	height: 22px;
+	padding: 3px 6px;
+	margin-right: 5px;
+	color: #CCCCCC;
+	background-color: #3c3c3c;
+	border-radius: .25rem;
+	display: inline-block;
+	vertical-align: top;
+}
+
+.issues-container > .issue > .issue-state .octicon {
+	padding-right: 5px;
 }

@@ -17,7 +17,7 @@ import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape 
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import Event from 'vs/base/common/event';
-import { MainThreadEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
+import { MainThreadTextEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
 import URI from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
@@ -33,7 +33,7 @@ suite('MainThreadEditors', () => {
 	const resource = URI.parse('foo:bar');
 
 	let modelService: IModelService;
-	let editors: MainThreadEditors;
+	let editors: MainThreadTextEditors;
 
 	const movedResources = new Map<URI, URI>();
 	const createdResources = new Set<URI>();
@@ -103,7 +103,7 @@ suite('MainThreadEditors', () => {
 			editorGroupService,
 		);
 
-		editors = new MainThreadEditors(
+		editors = new MainThreadTextEditors(
 			documentAndEditor,
 			SingleProxyRPCProtocol(null),
 			codeEditorService,

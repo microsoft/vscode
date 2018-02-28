@@ -5,7 +5,7 @@
 'use strict';
 
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ViewLineData, ICoordinatesConverter, IOverviewRulerDecorations } from 'vs/editor/common/viewModel/viewModel';
@@ -14,7 +14,7 @@ import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import { ThemeColor, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
-import { IModelDecoration, ITextModel, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IModelDecoration, ITextModel, IModelDeltaDecoration, EndOfLinePreference } from 'vs/editor/common/model';
 
 export class OutputPosition {
 	_outputPositionBrand: void;
@@ -43,6 +43,7 @@ export interface ISimpleModel {
 	getLineContent(lineNumber: number): string;
 	getLineMinColumn(lineNumber: number): number;
 	getLineMaxColumn(lineNumber: number): number;
+	getValueInRange(range: IRange, eol?: EndOfLinePreference): string;
 }
 
 export interface ISplitLine {
@@ -68,6 +69,7 @@ export interface IViewModelLinesCollection {
 
 	setWrappingSettings(wrappingIndent: WrappingIndent, wrappingColumn: number, columnsForFullWidthChar: number): boolean;
 	setTabSize(newTabSize: number): boolean;
+	getHiddenAreas(): Range[];
 	setHiddenAreas(_ranges: Range[]): boolean;
 
 	onModelFlushed(): void;
@@ -177,7 +179,8 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	private _ensureValidState(): void {
 		let modelVersion = this.model.getVersionId();
 		if (modelVersion !== this._validModelVersionId) {
-			throw new Error('SplitLinesCollection: attempt to access a \'newer\' model');
+			// This is pretty bad, it means we lost track of the model...
+			this._constructLines(false);
 		}
 	}
 
@@ -218,10 +221,10 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		this.prefixSumComputer = new PrefixSumComputerWithCache(values);
 	}
 
-	private getHiddenAreas(): Range[] {
+	public getHiddenAreas(): Range[] {
 		return this.hiddenAreasIds.map((decId) => {
 			return this.model.getDecorationRange(decId);
-		}).sort(Range.compareRangesUsingStarts);
+		});
 	}
 
 	private _reduceRanges(_ranges: Range[]): Range[] {
@@ -945,7 +948,12 @@ export class SplitLine implements ISplitLine {
 		}
 		let startOffset = this.getInputStartOffsetOfOutputLineIndex(outputLineIndex);
 		let endOffset = this.getInputEndOffsetOfOutputLineIndex(model, modelLineNumber, outputLineIndex);
-		let r = model.getLineContent(modelLineNumber).substring(startOffset, endOffset);
+		let r = model.getValueInRange({
+			startLineNumber: modelLineNumber,
+			startColumn: startOffset + 1,
+			endLineNumber: modelLineNumber,
+			endColumn: endOffset + 1
+		});
 
 		if (outputLineIndex > 0) {
 			r = this.wrappedIndent + r;
@@ -954,7 +962,7 @@ export class SplitLine implements ISplitLine {
 		return r;
 	}
 
-	public getViewLineMinColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number {
+	public getViewLineMinColumn(model: ITextModel, modelLineNumber: number, outputLineIndex: number): number {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
@@ -979,7 +987,13 @@ export class SplitLine implements ISplitLine {
 		let startOffset = this.getInputStartOffsetOfOutputLineIndex(outputLineIndex);
 		let endOffset = this.getInputEndOffsetOfOutputLineIndex(model, modelLineNumber, outputLineIndex);
 
-		let lineContent = model.getLineContent(modelLineNumber).substring(startOffset, endOffset);
+		let lineContent = model.getValueInRange({
+			startLineNumber: modelLineNumber,
+			startColumn: startOffset + 1,
+			endLineNumber: modelLineNumber,
+			endColumn: endOffset + 1
+		});
+
 		if (outputLineIndex > 0) {
 			lineContent = this.wrappedIndent + lineContent;
 		}
@@ -1001,7 +1015,7 @@ export class SplitLine implements ISplitLine {
 		);
 	}
 
-	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
+	public getViewLinesData(model: ITextModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
@@ -1137,6 +1151,10 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 
 	public createCoordinatesConverter(): ICoordinatesConverter {
 		return new IdentityCoordinatesConverter(this);
+	}
+
+	public getHiddenAreas(): Range[] {
+		return [];
 	}
 
 	public setHiddenAreas(_ranges: Range[]): boolean {

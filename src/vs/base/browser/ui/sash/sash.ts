@@ -35,6 +35,7 @@ export interface ISashEvent {
 	currentX: number;
 	startY: number;
 	currentY: number;
+	altKey: boolean;
 }
 
 export interface ISashOptions {
@@ -140,12 +141,14 @@ export class Sash {
 		let mouseDownEvent = new StandardMouseEvent(e);
 		let startX = mouseDownEvent.posx;
 		let startY = mouseDownEvent.posy;
+		const altKey = mouseDownEvent.altKey;
 
 		let startEvent: ISashEvent = {
 			startX: startX,
 			currentX: startX,
 			startY: startY,
-			currentY: startY
+			currentY: startY,
+			altKey
 		};
 
 		this.$e.addClass('active');
@@ -162,7 +165,8 @@ export class Sash {
 				startX: startX,
 				currentX: mouseMoveEvent.posx,
 				startY: startY,
-				currentY: mouseMoveEvent.posy
+				currentY: mouseMoveEvent.posy,
+				altKey
 			};
 
 			this._onDidChange.fire(event);
@@ -190,12 +194,15 @@ export class Sash {
 
 		let startX = event.pageX;
 		let startY = event.pageY;
+		const altKey = event.altKey;
+
 
 		this._onDidStart.fire({
 			startX: startX,
 			currentX: startX,
 			startY: startY,
-			currentY: startY
+			currentY: startY,
+			altKey
 		});
 
 		listeners.push(DOM.addDisposableListener(this.$e.getHTMLElement(), EventType.Change, (event: GestureEvent) => {
@@ -204,7 +211,8 @@ export class Sash {
 					startX: startX,
 					currentX: event.pageX,
 					startY: startY,
-					currentY: event.pageY
+					currentY: event.pageY,
+					altKey
 				});
 			}
 		}));

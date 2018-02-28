@@ -21,6 +21,7 @@ import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
+import { clamp } from 'vs/base/common/numbers';
 
 export interface IIdentityProvider<T> {
 	(element: T): string;
@@ -203,32 +204,6 @@ class FocusTrait<T> extends Trait<T> {
 	}
 }
 
-class Aria<T> implements IRenderer<T, HTMLElement>, ISpliceable<T> {
-
-	private length = 0;
-
-	get templateId(): string {
-		return 'aria';
-	}
-
-	splice(start: number, deleteCount: number, elements: T[]): void {
-		this.length += elements.length - deleteCount;
-	}
-
-	renderTemplate(container: HTMLElement): HTMLElement {
-		return container;
-	}
-
-	renderElement(element: T, index: number, container: HTMLElement): void {
-		container.setAttribute('aria-setsize', `${this.length}`);
-		container.setAttribute('aria-posinset', `${index + 1}`);
-	}
-
-	disposeTemplate(container: HTMLElement): void {
-		// noop
-	}
-}
-
 /**
  * The TraitSpliceable is used as a util class to be able
  * to preserve traits across splice calls, given an identity
@@ -358,14 +333,24 @@ export function isSelectionRangeChangeEvent(event: IListMouseEvent<any> | IListT
 	return event.browserEvent.shiftKey;
 }
 
+function isMouseRightClick(event: UIEvent): boolean {
+	return event instanceof MouseEvent && event.button === 2;
+}
+
 const DefaultMultipleSelectionContoller = {
 	isSelectionSingleChangeEvent,
 	isSelectionRangeChangeEvent
 };
 
 const DefaultOpenController = {
-	shouldOpen: (event: UIEvent) => true
-};
+	shouldOpen: (event: UIEvent) => {
+		if (event instanceof MouseEvent) {
+			return !isMouseRightClick(event);
+		}
+
+		return true;
+	}
+} as IOpenController;
 
 class MouseController<T> implements IDisposable {
 
@@ -456,20 +441,23 @@ class MouseController<T> implements IDisposable {
 		}
 
 		let reference = this.list.getFocus()[0];
-		reference = reference === undefined ? this.list.getSelection()[0] : reference;
+		const selection = this.list.getSelection();
+		reference = reference === undefined ? selection[0] : reference;
 
 		if (this.multipleSelectionSupport && this.isSelectionRangeChangeEvent(e)) {
 			return this.changeSelection(e, reference);
 		}
 
 		const focus = e.index;
-		this.list.setFocus([focus]);
+		if (selection.every(s => s !== focus)) {
+			this.list.setFocus([focus]);
+		}
 
 		if (this.multipleSelectionSupport && this.isSelectionChangeEvent(e)) {
 			return this.changeSelection(e, reference);
 		}
 
-		if (this.options.selectOnMouseDown) {
+		if (this.options.selectOnMouseDown && !isMouseRightClick(e.browserEvent)) {
 			this.list.setSelection([focus]);
 
 			if (this.openController.shouldOpen(e.browserEvent)) {
@@ -768,13 +756,12 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		renderers: IRenderer<T, any>[],
 		options: IListOptions<T> = DefaultOptions
 	) {
-		const aria = new Aria();
 		this.focus = new FocusTrait(i => this.getElementDomId(i));
 		this.selection = new Trait('selected');
 
 		mixin(options, defaultStyles, false);
 
-		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [aria, this.focus.renderer, this.selection.renderer, r]));
+		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [this.focus.renderer, this.selection.renderer, r]));
 
 		this.view = new ListView(container, delegate, renderers, options);
 		this.view.domNode.setAttribute('role', 'tree');
@@ -784,7 +771,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.styleElement = DOM.createStyleSheet(this.view.domNode);
 
 		this.spliceable = new CombinedSpliceable([
-			aria,
 			new TraitSpliceable(this.focus, this.view, options.identityProvider),
 			new TraitSpliceable(this.selection, this.view, options.identityProvider),
 			this.view
@@ -849,6 +835,12 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	setSelection(indexes: number[]): void {
+		for (const index of indexes) {
+			if (index < 0 || index >= this.length) {
+				throw new Error(`Invalid index ${index}`);
+			}
+		}
+
 		indexes = indexes.sort(numericSort);
 		this.selection.set(indexes);
 	}
@@ -879,6 +871,12 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	setFocus(indexes: number[]): void {
+		for (const index of indexes) {
+			if (index < 0 || index >= this.length) {
+				throw new Error(`Invalid index ${index}`);
+			}
+		}
+
 		indexes = indexes.sort(numericSort);
 		this.focus.set(indexes);
 	}
@@ -962,17 +960,18 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	reveal(index: number, relativeTop?: number): void {
+		if (index < 0 || index >= this.length) {
+			throw new Error(`Invalid index ${index}`);
+		}
+
 		const scrollTop = this.view.getScrollTop();
 		const elementTop = this.view.elementTop(index);
 		const elementHeight = this.view.elementHeight(index);
 
 		if (isNumber(relativeTop)) {
-			relativeTop = relativeTop < 0 ? 0 : relativeTop;
-			relativeTop = relativeTop > 1 ? 1 : relativeTop;
-
 			// y = mx + b
 			const m = elementHeight - this.view.renderHeight;
-			this.view.setScrollTop(m * relativeTop + elementTop);
+			this.view.setScrollTop(m * clamp(relativeTop, 0, 1) + elementTop);
 		} else {
 			const viewItemBottom = elementTop + elementHeight;
 			const wrapperBottom = scrollTop + this.view.renderHeight;
@@ -983,6 +982,28 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 				this.view.setScrollTop(viewItemBottom - this.view.renderHeight);
 			}
 		}
+	}
+
+	/**
+	 * Returns the relative position of an element rendered in the list.
+	 * Returns `null` if the element isn't *entirely* in the visible viewport.
+	 */
+	getRelativeTop(index: number): number | null {
+		if (index < 0 || index >= this.length) {
+			throw new Error(`Invalid index ${index}`);
+		}
+
+		const scrollTop = this.view.getScrollTop();
+		const elementTop = this.view.elementTop(index);
+		const elementHeight = this.view.elementHeight(index);
+
+		if (elementTop < scrollTop || elementTop + elementHeight > scrollTop + this.view.renderHeight) {
+			return null;
+		}
+
+		// y = mx + b
+		const m = elementHeight - this.view.renderHeight;
+		return Math.abs((scrollTop - elementTop) / m);
 	}
 
 	private getElementDomId(index: number): string {
@@ -998,10 +1019,22 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	open(indexes: number[], browserEvent?: UIEvent): void {
+		for (const index of indexes) {
+			if (index < 0 || index >= this.length) {
+				throw new Error(`Invalid index ${index}`);
+			}
+		}
+
 		this._onOpen.fire({ indexes, elements: indexes.map(i => this.view.element(i)), browserEvent });
 	}
 
 	pin(indexes: number[]): void {
+		for (const index of indexes) {
+			if (index < 0 || index >= this.length) {
+				throw new Error(`Invalid index ${index}`);
+			}
+		}
+
 		this._onPin.fire(indexes);
 	}
 
@@ -1010,6 +1043,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		if (styles.listFocusBackground) {
 			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused:hover { background-color: ${styles.listFocusBackground}; }`); // overwrite :hover style in this case!
 		}
 
 		if (styles.listFocusForeground) {

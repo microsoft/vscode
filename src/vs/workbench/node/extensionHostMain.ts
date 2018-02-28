@@ -12,7 +12,7 @@ import { join } from 'path';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 import { IInitData, IEnvironment, IWorkspaceData, MainContext } from 'vs/workbench/api/node/extHost.protocol';
@@ -89,10 +89,10 @@ export class ExtensionHostMain {
 
 		// services
 		const rpcProtocol = new RPCProtocol(protocol);
-		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, initData.workspace);
 		const environmentService = new EnvironmentService(initData.args, initData.execPath);
 		this._extHostLogService = new ExtHostLogService(initData.windowId, initData.logLevel, environmentService);
 		this.disposables.push(this._extHostLogService);
+		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, initData.workspace, this._extHostLogService);
 
 		this._extHostLogService.info('extension host started');
 		this._extHostLogService.trace('initData', initData);
@@ -247,6 +247,8 @@ export class ExtensionHostMain {
 	}
 
 	private async activateIfGlobPatterns(extensionId: string, globPatterns: string[]): TPromise<void> {
+		this._extHostLogService.trace(`extensionHostMain#activateIfGlobPatterns: fileSearch, extension: ${extensionId}, entryPoint: workspaceContains`);
+
 		if (globPatterns.length === 0) {
 			return TPromise.as(void 0);
 		}

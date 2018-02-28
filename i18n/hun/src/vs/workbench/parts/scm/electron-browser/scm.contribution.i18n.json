@@ -13,5 +13,5 @@
 	"scmConfigurationTitle": "VKR (SCM)",
 	"alwaysShowProviders": "Mindig megjelenjen-e a verziókezelő rendszerek szakasz.",
 	"diffDecorations": "Vezérli a szerkesztőablakban megjelenő, változásokat jelölő dekorátorokat.",
-	"inputCounter": "Meghatározza, hogy mikor jelenjen meg a bemeneti karakterszámláló."
+	"diffGutterWidth": "Vezérli a szerkesztőablak margóján megjelenő, változásokat jelölő dekorátorok szélességét (pixelben)."
 }

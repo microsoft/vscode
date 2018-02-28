@@ -9,6 +9,8 @@
 	"emptyUserSettingsHeader": "Placer vos paramètres ici pour remplacer les paramètres par défaut.",
 	"emptyWorkspaceSettingsHeader": "Placer vos paramètres ici pour remplacer les paramètres utilisateur.",
 	"emptyFolderSettingsHeader": "Placer les paramètres de votre dossier ici pour remplacer ceux des paramètres de l’espace de travail.",
+	"reportSettingsSearchIssue": "Signaler un problème",
+	"newExtensionLabel": "Afficher l’Extension \"{0}\"",
 	"editTtile": "Modifier",
 	"replaceDefaultValue": "Remplacer dans les paramètres",
 	"copyDefaultValue": "Copier dans Paramètres",

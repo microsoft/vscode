@@ -15,7 +15,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { BaseDebugController, twistiePixels, renderViewTree, DefaultDebugControllerOptions } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
+import { BaseDebugController, twistiePixels, renderViewTree } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { ITree, IActionProvider, IDataSource, IRenderer, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { RestartAction, StopAction, ContinueAction, StepOverAction, StepIntoAction, StepOutAction, PauseAction, RestartFrameAction } from 'vs/workbench/parts/debug/browser/debugActions';
@@ -26,6 +26,7 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { basenameOrAuthority } from 'vs/base/common/resources';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
 
@@ -38,6 +39,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 	private settings: any;
 	private needsRefresh: boolean;
 	private ignoreSelectionChangedEvent: boolean;
+	private treeContainer: HTMLElement;
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -46,8 +48,9 @@ export class CallStackView extends TreeViewsViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService);
 		this.settings = options.viewletSettings;
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
@@ -92,7 +95,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 		dom.addClass(container, 'debug-call-stack');
 		this.treeContainer = renderViewTree(container);
 		const actionProvider = new CallStackActionProvider(this.debugService, this.keybindingService);
-		const controller = this.instantiationService.createInstance(CallStackController, actionProvider, MenuId.DebugCallStackContext, DefaultDebugControllerOptions);
+		const controller = this.instantiationService.createInstance(CallStackController, actionProvider, MenuId.DebugCallStackContext, {});
 
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new CallStackDataSource(),
@@ -155,6 +158,13 @@ export class CallStackView extends TreeViewsViewletPanel {
 		if (this.debugService.state === State.Stopped) {
 			this.onCallStackChangeScheduler.schedule();
 		}
+	}
+
+	layoutBody(size: number): void {
+		if (this.treeContainer) {
+			this.treeContainer.style.height = size + 'px';
+		}
+		super.layoutBody(size);
 	}
 
 	private updateTreeSelection(): TPromise<void> {

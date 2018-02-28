@@ -35,10 +35,11 @@
 	"panelDefaultLocation": "パネルの既定の位置を制御します。ワークベンチの下部または右のいずれかに表示できます。",
 	"statusBarVisibility": "ワークベンチの下部にステータス バーを表示するかどうかを制御します。",
 	"activityBarVisibility": "ワークベンチでのアクティビティ バーの表示をコントロールします。",
-	"fontAliasing": "ワークベンチのフォント エイリアシング方法を制御します。\n- default: サブピクセル方式でフォントを滑らかにします。ほとんどの非 Retina ディスプレイでもっとも鮮明なテキストを提供します\n- antialiased: サブピクセルとは対照的に、ピクセルのレベルでフォントを滑らかにします。フォント全体がより細く見えます\n- none: フォントのスムージングを無効にします。テキストをぎざぎざな尖ったエッジで表示します",
+	"fontAliasing": "ワークベンチのフォント エイリアシング方法を制御します。\n- default: サブピクセル方式でフォントを滑らかにします。ほとんどの非 Retina ディスプレイでもっとも鮮明なテキストを提供します\n- antialiased: サブピクセルとは対照的に、ピクセルのレベルでフォントを滑らかにします。フォント全体がより細く見えます\n- none: フォントのスムージングを無効にします。テキストをぎざぎざな尖ったエッジで表示します\n- auto: ディスプレイの DPI に基づいて自動的に `default` か `antialiased` を適用します",
 	"workbench.fontAliasing.default": "サブピクセル方式でフォントを滑らかにします。ほとんどの非 Retina ディスプレイでもっとも鮮明なテキストを提供します。",
 	"workbench.fontAliasing.antialiased": "サブピクセルとは対照的に、ピクセルのレベルでフォントを滑らかにします。フォント全体がより細く見えるようになります。",
 	"workbench.fontAliasing.none": "フォントのスムージングを無効にします。テキストをぎざぎざな尖ったエッジで表示します。",
+	"workbench.fontAliasing.auto": "ディスプレイの DPI に基づいて自動的に `default` か `antialiased` を適用します。",
 	"enableNaturalLanguageSettingsSearch": "設定で自然文検索モードを有効にするかどうかを制御します。",
 	"windowConfigurationTitle": "ウィンドウ",
 	"window.openFilesInNewWindow.on": "新しいウィンドウでファイルを開きます",
@@ -77,6 +78,5 @@
 	"zenMode.hideTabs": "Zen Mode をオンにしたときにワークベンチ タブも非表示にするかどうかを制御します。",
 	"zenMode.hideStatusBar": "Zen Mode をオンにするとワークベンチの下部にあるステータス バーを非表示にするかどうかを制御します。",
 	"zenMode.hideActivityBar": "Zen Mode をオンにするとワークベンチの左側にあるアクティビティ バーを非表示にするかを制御します。",
-	"zenMode.restore": "Zen Mode で終了したウィンドウを Zen Mode に復元するかどうかを制御します。",
-	"JsonSchema.locale": "使用する UI 言語。"
+	"zenMode.restore": "Zen Mode で終了したウィンドウを Zen Mode に復元するかどうかを制御します。"
 }

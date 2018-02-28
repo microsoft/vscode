@@ -51,11 +51,10 @@
 	"OpenExtensionsFile.failed": "Die Datei \"extensions.json\" kann nicht im Ordner \".vscode\" erstellt werden ({0}).",
 	"configureWorkspaceRecommendedExtensions": "Empfohlene Erweiterungen konfigurieren (Arbeitsbereich)",
 	"configureWorkspaceFolderRecommendedExtensions": "Empfohlene Erweiterungen konfigurieren (Arbeitsbereichsordner)",
-	"builtin": "Integriert",
+	"malicious tooltip": "Die Erweiterung wurde als problematisch gemeldet.",
+	"malicious": "Böswillig",
 	"disableAll": "Alle installierten Erweiterungen löschen",
 	"disableAllWorkspace": "Alle installierten Erweiterungen für diesen Arbeitsbereich deaktivieren",
-	"enableAll": "Alle installierten Erweiterungen aktivieren",
-	"enableAllWorkspace": "Alle installierten Erweiterungen für diesen Arbeitsbereich aktivieren",
 	"extensionButtonProminentBackground": "Hintergrundfarbe für markante Aktionenerweiterungen (z. B. die Schaltfläche zum Installieren).",
 	"extensionButtonProminentForeground": "Vordergrundfarbe für markante Aktionenerweiterungen (z. B. die Schaltfläche zum Installieren).",
 	"extensionButtonProminentHoverBackground": "Hoverhintergrundfarbe für markante Aktionenerweiterungen (z. B. die Schaltfläche zum Installieren)."

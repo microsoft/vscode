@@ -43,6 +43,32 @@ suite('ModelService', () => {
 		assert.equal(model3.getOptions().defaultEOL, DefaultEndOfLine.LF);
 	});
 
+	test('_computeEdits no change', function () {
+
+		const model = TextModel.createFromString(
+			[
+				'This is line one', //16
+				'and this is line number two', //27
+				'it is followed by #3', //20
+				'and finished with the fourth.', //29
+			].join('\n')
+		);
+
+		const textBuffer = createTextBuffer(
+			[
+				'This is line one', //16
+				'and this is line number two', //27
+				'it is followed by #3', //20
+				'and finished with the fourth.', //29
+			].join('\n'),
+			DefaultEndOfLine.LF
+		);
+
+		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
+
+		assert.deepEqual(actual, []);
+	});
+
 	test('_computeEdits first line changed', function () {
 
 		const model = TextModel.createFromString(
@@ -67,7 +93,7 @@ suite('ModelService', () => {
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
 		assert.deepEqual(actual, [
-			EditOperation.replace(new Range(1, 1, 1, 17), 'This is line One')
+			EditOperation.replace(new Range(1, 1, 2, 1), 'This is line One\n')
 		]);
 	});
 
@@ -121,8 +147,15 @@ suite('ModelService', () => {
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
 		assert.deepEqual(actual, [
-			EditOperation.replace(new Range(1, 1, 1, 17), 'This is line One'),
-			EditOperation.replace(new Range(3, 1, 3, 21), 'It is followed by #3')
+			EditOperation.replace(
+				new Range(1, 1, 4, 1),
+				[
+					'This is line One',
+					'and this is line number two',
+					'It is followed by #3',
+					''
+				].join('\r\n')
+			)
 		]);
 	});
 
@@ -149,7 +182,7 @@ suite('ModelService', () => {
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
 		assert.deepEqual(actual, [
-			EditOperation.replace(new Range(3, 2, 3, 2), '\n')
+			EditOperation.replace(new Range(3, 2, 3, 2), '\r\n')
 		]);
 	});
 

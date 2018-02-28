@@ -165,7 +165,7 @@ export class PrefixMemory extends Memory {
 	}
 }
 
-export type MemMode = 'never' | 'byRecency' | 'byPrefix';
+export type MemMode = 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 
 export class SuggestMemories {
 
@@ -177,7 +177,7 @@ export class SuggestMemories {
 
 	constructor(
 		mode: MemMode,
-		@IStorageService private _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		this._persistSoon = new RunOnceScheduler(() => this._flush(), 3000);
 		this.setMode(mode);
@@ -188,7 +188,7 @@ export class SuggestMemories {
 			return;
 		}
 		this._mode = mode;
-		this._strategy = mode === 'byPrefix' ? new PrefixMemory() : mode === 'byRecency' ? new LRUMemory() : new NoMemory();
+		this._strategy = mode === 'recentlyUsedByPrefix' ? new PrefixMemory() : mode === 'recentlyUsed' ? new LRUMemory() : new NoMemory();
 
 		try {
 			const raw = this._storageService.get(`${this._storagePrefix}/${this._mode}`, StorageScope.WORKSPACE);

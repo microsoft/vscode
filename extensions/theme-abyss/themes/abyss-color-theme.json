@@ -312,6 +312,7 @@
 		"editorHoverWidget.background": "#000c38",
 		"editorHoverWidget.border": "#004c18",
 		"editorLineNumber.foreground": "#406385",
+		"editorActiveLineNumber.foreground": "#80a2c2",
 		"editorMarkerNavigation.background": "#060621",
 		"editorMarkerNavigationError.background": "#AB395B",
 		"editorMarkerNavigationWarning.background": "#5B7E7A",

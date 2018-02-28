@@ -160,8 +160,7 @@ export class InputBox extends Widget {
 		}
 
 		if (this.placeholder) {
-			this.input.setAttribute('placeholder', this.placeholder);
-			this.input.title = this.placeholder;
+			this.setPlaceHolder(this.placeholder);
 		}
 
 		this.oninput(this.input, () => this.onValueChange());
@@ -204,6 +203,7 @@ export class InputBox extends Widget {
 	public setPlaceHolder(placeHolder: string): void {
 		if (this.input) {
 			this.input.setAttribute('placeholder', placeHolder);
+			this.input.title = placeHolder;
 		}
 	}
 

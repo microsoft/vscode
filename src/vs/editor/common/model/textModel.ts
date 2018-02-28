@@ -44,7 +44,7 @@ export enum TextBufferType {
 }
 // Here is the master switch for the text buffer implementation:
 export const OPTIONS = {
-	TEXT_BUFFER_IMPLEMENTATION: TextBufferType.LinesArray
+	TEXT_BUFFER_IMPLEMENTATION: TextBufferType.PieceTree
 };
 
 function createTextBufferBuilder() {
@@ -773,7 +773,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public getLineContent(lineNumber: number): string {
 		this._assertNotDisposed();
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
+			throw new Error('Illegal value for lineNumber');
 		}
 
 		return this._buffer.getLineContent(lineNumber);
@@ -797,7 +797,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public getLineMaxColumn(lineNumber: number): number {
 		this._assertNotDisposed();
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
+			throw new Error('Illegal value for lineNumber');
 		}
 		return this._buffer.getLineLength(lineNumber) + 1;
 	}
@@ -805,7 +805,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public getLineFirstNonWhitespaceColumn(lineNumber: number): number {
 		this._assertNotDisposed();
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
+			throw new Error('Illegal value for lineNumber');
 		}
 		return this._buffer.getLineFirstNonWhitespaceColumn(lineNumber);
 	}
@@ -813,7 +813,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public getLineLastNonWhitespaceColumn(lineNumber: number): number {
 		this._assertNotDisposed();
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
+			throw new Error('Illegal value for lineNumber');
 		}
 		return this._buffer.getLineLastNonWhitespaceColumn(lineNumber);
 	}
@@ -1586,7 +1586,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public forceTokenization(lineNumber: number): void {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
+			throw new Error('Illegal value for lineNumber');
 		}
 
 		const eventBuilder = new ModelTokensChangedEventBuilder();
@@ -1611,7 +1611,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public getLineTokens(lineNumber: number): LineTokens {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
+			throw new Error('Illegal value for lineNumber');
 		}
 
 		return this._getLineTokens(lineNumber);
@@ -2163,10 +2163,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 		const lineCount = this.getLineCount();
 
 		if (startLineNumber < 1 || startLineNumber > lineCount) {
-			throw new Error('Illegal value ' + startLineNumber + ' for `startLineNumber`');
+			throw new Error('Illegal value for startLineNumber');
 		}
 		if (endLineNumber < 1 || endLineNumber > lineCount) {
-			throw new Error('Illegal value ' + endLineNumber + ' for `endLineNumber`');
+			throw new Error('Illegal value for endLineNumber');
 		}
 
 		const foldingRules = LanguageConfigurationRegistry.getFoldingRules(this._languageIdentifier.id);

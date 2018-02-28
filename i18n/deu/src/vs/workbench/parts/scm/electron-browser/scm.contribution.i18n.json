@@ -12,5 +12,5 @@
 	"view": "Anzeigen",
 	"scmConfigurationTitle": "SCM",
 	"alwaysShowProviders": "Ob der Quellcodeverwaltungsanbieter-Abschnitt immer angezeigt wird.",
-	"inputCounter": "Steuert die Anzeige des Eingabezählers."
+	"diffDecorations": "Steuert die Diff-Dekorationen im Editor."
 }

@@ -17,17 +17,25 @@ import { ScrollType, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, registerInstantiatedEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines } from 'vs/editor/contrib/folding/foldingModel';
+import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines, setCollapseStateForType } from 'vs/editor/contrib/folding/foldingModel';
 import { FoldingDecorationProvider } from './foldingDecorations';
+import { FoldingRegions } from './foldingRanges';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { IMarginData, IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
 import { IRange } from 'vs/editor/common/core/range';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { computeRanges as computeIndentRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
+import { IndentRangeProvider } from 'vs/editor/contrib/folding/indentRangeProvider';
+import { IPosition } from 'vs/editor/common/core/position';
+import { FoldingProviderRegistry, FoldingRangeType } from 'vs/editor/common/modes';
+import { SyntaxRangeProvider } from './syntaxRangeProvider';
 
 export const ID = 'editor.contrib.folding';
+
+export interface RangeProvider {
+	compute(editorModel: ITextModel): TPromise<FoldingRegions>;
+}
 
 export class FoldingController implements IEditorContribution {
 
@@ -46,6 +54,8 @@ export class FoldingController implements IEditorContribution {
 
 	private foldingModel: FoldingModel;
 	private hiddenRangeModel: HiddenRangeModel;
+
+	private rangeProvider: RangeProvider;
 
 	private foldingModelPromise: TPromise<FoldingModel>;
 	private updateScheduler: Delayer<FoldingModel>;
@@ -68,6 +78,7 @@ export class FoldingController implements IEditorContribution {
 		this.foldingDecorationProvider.autoHideFoldingControls = this._autoHideFoldingControls;
 
 		this.globalToDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
+		this.globalToDispose.push(FoldingProviderRegistry.onDidChange(() => this.onModelChanged()));
 
 		this.globalToDispose.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.contribInfo) {
@@ -104,7 +115,11 @@ export class FoldingController implements IEditorContribution {
 		if (!model || !this._isEnabled || model.isTooLargeForTokenization()) {
 			return {};
 		}
-		return { collapsedRegions: this.foldingModel.getMemento(), lineCount: model.getLineCount() };
+		if (this.foldingModel) { // disposed ?
+			let collapsedRegions = this.foldingModel.isInitialized ? this.foldingModel.getMemento() : this.hiddenRangeModel.getMemento();
+			return { collapsedRegions, lineCount: model.getLineCount() };
+		}
+		return void 0;
 	}
 
 	/**
@@ -162,17 +177,22 @@ export class FoldingController implements IEditorContribution {
 				this.foldingModelPromise = null;
 				this.hiddenRangeModel = null;
 				this.cursorChangedScheduler = null;
+				this.rangeProvider = null;
 			}
 		});
 		this.onModelContentChanged();
 	}
 
-	private computeRanges(editorModel: ITextModel) {
-		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editorModel.getLanguageIdentifier().id);
-		let offSide = foldingRules && foldingRules.offSide;
-		let markers = foldingRules && foldingRules.markers;
-		let ranges = computeIndentRanges(editorModel, offSide, markers);
-		return ranges;
+	private getRangeProvider(): RangeProvider {
+		if (!this.rangeProvider) {
+			let foldingProviders = FoldingProviderRegistry.ordered(this.foldingModel.textModel);
+			if (foldingProviders.length) {
+				this.rangeProvider = new SyntaxRangeProvider(foldingProviders);
+			} else {
+				this.rangeProvider = new IndentRangeProvider();
+			}
+		}
+		return this.rangeProvider;
 	}
 
 	public getFoldingModel() {
@@ -186,9 +206,12 @@ export class FoldingController implements IEditorContribution {
 					// some cursors might have moved into hidden regions, make sure they are in expanded regions
 					let selections = this.editor.getSelections();
 					let selectionLineNumbers = selections ? selections.map(s => s.startLineNumber) : [];
-					this.foldingModel.update(this.computeRanges(this.foldingModel.textModel), selectionLineNumbers);
+					return this.getRangeProvider().compute(this.foldingModel.textModel).then(foldingRanges => {
+						this.foldingModel.update(foldingRanges, selectionLineNumbers);
+						return this.foldingModel;
+					});
 				}
-				return this.foldingModel;
+				return null;
 			});
 		}
 	}
@@ -215,13 +238,17 @@ export class FoldingController implements IEditorContribution {
 		this.getFoldingModel().then(foldingModel => { // null is returned if folding got disabled in the meantime
 			if (foldingModel) {
 				let selections = this.editor.getSelections();
-				if (selections) {
+				if (selections && selections.length > 0) {
+					let toToggle = [];
 					for (let selection of selections) {
 						let lineNumber = selection.selectionStartLineNumber;
 						if (this.hiddenRangeModel.isHidden(lineNumber)) {
-							let toToggle = foldingModel.getAllRegionsAtLine(lineNumber, r => r.isCollapsed && lineNumber > r.startLineNumber);
-							foldingModel.toggleCollapseState(toToggle);
+							toToggle.push(...foldingModel.getAllRegionsAtLine(lineNumber, r => r.isCollapsed && lineNumber > r.startLineNumber));
 						}
+					}
+					if (toToggle.length) {
+						foldingModel.toggleCollapseState(toToggle);
+						this.reveal(selections[0].getPosition());
 					}
 				}
 			}
@@ -313,15 +340,15 @@ export class FoldingController implements IEditorContribution {
 							toToggle.push(...foldingModel.getRegionsInside(region, r => r.isCollapsed === isCollapsed));
 						}
 						foldingModel.toggleCollapseState(toToggle);
-						this.reveal(lineNumber);
+						this.reveal({ lineNumber, column: 1 });
 					}
 				}
 			}
 		});
 	}
 
-	public reveal(focusLine: number): void {
-		this.editor.revealPositionInCenterIfOutsideViewport({ lineNumber: focusLine, column: 1 }, ScrollType.Smooth);
+	public reveal(position: IPosition): void {
+		this.editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Smooth);
 	}
 }
 
@@ -340,6 +367,7 @@ abstract class FoldingAction<T> extends EditorAction {
 			return foldingModelPromise.then(foldingModel => {
 				if (foldingModel) {
 					this.invoke(foldingController, foldingModel, editor, args);
+					foldingController.reveal(editor.getSelection().getStartPosition());
 				}
 			});
 		}
@@ -510,10 +538,6 @@ class FoldRecursivelyAction extends FoldingAction<void> {
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
 		let selectedLines = this.getSelectedLines(editor);
 		setCollapseStateLevelsDown(foldingModel, true, Number.MAX_VALUE, selectedLines);
-		if (selectedLines.length > 0) {
-			foldingController.reveal(selectedLines[0]);
-		}
-
 	}
 }
 
@@ -533,10 +557,14 @@ class FoldAllBlockCommentsAction extends FoldingAction<void> {
 	}
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let comments = LanguageConfigurationRegistry.getComments(editor.getModel().getLanguageIdentifier().id);
-		if (comments && comments.blockCommentStartToken) {
-			let regExp = new RegExp('^\\s*' + escapeRegExpCharacters(comments.blockCommentStartToken));
-			setCollapseStateForMatchingLines(foldingModel, regExp, true);
+		if (foldingModel.regions.hasTypes()) {
+			setCollapseStateForType(foldingModel, FoldingRangeType.Comment, true);
+		} else {
+			let comments = LanguageConfigurationRegistry.getComments(editor.getModel().getLanguageIdentifier().id);
+			if (comments && comments.blockCommentStartToken) {
+				let regExp = new RegExp('^\\s*' + escapeRegExpCharacters(comments.blockCommentStartToken));
+				setCollapseStateForMatchingLines(foldingModel, regExp, true);
+			}
 		}
 	}
 }
@@ -557,10 +585,14 @@ class FoldAllRegionsAction extends FoldingAction<void> {
 	}
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editor.getModel().getLanguageIdentifier().id);
-		if (foldingRules && foldingRules.markers && foldingRules.markers.start) {
-			let regExp = new RegExp(foldingRules.markers.start);
-			setCollapseStateForMatchingLines(foldingModel, regExp, true);
+		if (foldingModel.regions.hasTypes()) {
+			setCollapseStateForType(foldingModel, FoldingRangeType.Region, true);
+		} else {
+			let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editor.getModel().getLanguageIdentifier().id);
+			if (foldingRules && foldingRules.markers && foldingRules.markers.start) {
+				let regExp = new RegExp(foldingRules.markers.start);
+				setCollapseStateForMatchingLines(foldingModel, regExp, true);
+			}
 		}
 	}
 }
@@ -581,10 +613,14 @@ class UnfoldAllRegionsAction extends FoldingAction<void> {
 	}
 
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editor.getModel().getLanguageIdentifier().id);
-		if (foldingRules && foldingRules.markers && foldingRules.markers.start) {
-			let regExp = new RegExp(foldingRules.markers.start);
-			setCollapseStateForMatchingLines(foldingModel, regExp, false);
+		if (foldingModel.regions.hasTypes()) {
+			setCollapseStateForType(foldingModel, FoldingRangeType.Region, false);
+		} else {
+			let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editor.getModel().getLanguageIdentifier().id);
+			if (foldingRules && foldingRules.markers && foldingRules.markers.start) {
+				let regExp = new RegExp(foldingRules.markers.start);
+				setCollapseStateForMatchingLines(foldingModel, regExp, false);
+			}
 		}
 	}
 }

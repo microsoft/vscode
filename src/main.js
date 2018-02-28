@@ -86,6 +86,7 @@ function getCommit() {
 	} catch (exp) {
 		_commit = null;
 	}
+	return _commit || undefined;
 }
 
 function mkdirp(dir) {
@@ -159,6 +160,21 @@ function touch(file) {
 			resolve(undefined);
 		});
 	});
+}
+
+function resolveJSFlags() {
+	let jsFlags = [];
+	if (args['js-flags']) {
+		jsFlags.push(args['js-flags']);
+	}
+	if (args['max-memory'] && !/max_old_space_size=(\d+)/g.exec(args['js-flags'])) {
+		jsFlags.push(`--max_old_space_size=${args['max-memory']}`);
+	}
+	if (jsFlags.length > 0) {
+		return jsFlags.join(' ');
+	} else {
+		return null;
+	}
 }
 
 // Language tags are case insensitve however an amd loader is case sensitive
@@ -440,7 +456,8 @@ let nodeCachedDataDir = getNodeCachedDataDir().then(function (value) {
 
 		// tell v8 to not be lazy when parsing JavaScript. Generally this makes startup slower
 		// but because we generate cached data it makes subsequent startups much faster
-		app.commandLine.appendSwitch('--js-flags', '--nolazy');
+		let existingJSFlags = resolveJSFlags();
+		app.commandLine.appendSwitch('--js-flags', existingJSFlags ? existingJSFlags + ' --nolazy' : '--nolazy');
 	}
 	return value;
 });
@@ -452,6 +469,11 @@ userDefinedLocale.then((locale) => {
 		nlsConfiguration = getNLSConfiguration(locale);
 	}
 });
+
+let jsFlags = resolveJSFlags();
+if (jsFlags) {
+	app.commandLine.appendSwitch('--js-flags', jsFlags);
+}
 
 // Load our code once ready
 app.once('ready', function () {
@@ -483,7 +505,7 @@ app.once('ready', function () {
 					boot({ locale: 'en', availableLanguages: {} });
 				} else {
 					// See above the comment about the loader and case sensitiviness
-					appLocale.toLowerCase();
+					appLocale = appLocale.toLowerCase();
 					getNLSConfiguration(appLocale).then((nlsConfig) => {
 						if (!nlsConfig) {
 							nlsConfig = { locale: appLocale, availableLanguages: {} };

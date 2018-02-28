@@ -7,10 +7,6 @@
 	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/ca22c5211b87a6a1a8fd5356895237bb821df728",
 	"name": "C#",
 	"scopeName": "source.cs",
-	"fileTypes": [
-		"cs"
-	],
-	"uuid": "f7de61e2-bdde-4e2a-a139-8221b179584e",
 	"patterns": [
 		{
 			"include": "#preprocessor"

@@ -25,7 +25,6 @@ import { TextModelResolverService } from 'vs/workbench/services/textmodelResolve
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IMessageService, IConfirmation, IConfirmationResult, IChoiceService } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
@@ -63,6 +62,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
+import { IChoiceService, IConfirmation, IConfirmationResult, IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService, INotificationHandle, INotification, NoOpNotification } from 'vs/platform/notification/common/notification';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -176,14 +177,14 @@ export class TestTextFileService extends TextFileService {
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@IWindowsService windowsService: IWindowsService,
 		@IHistoryService historyService: IHistoryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModelService modelService: IModelService
 	) {
-		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, messageService, TestEnvironmentService, backupFileService, windowsService, historyService, contextKeyService, modelService);
+		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, notificationService, TestEnvironmentService, backupFileService, windowsService, historyService, contextKeyService, modelService);
 	}
 
 	public setPromptPath(path: string): void {
@@ -254,7 +255,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IFileService, new TestFileService());
 	instantiationService.stub(IBackupFileService, new TestBackupFileService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(IMessageService, new TestMessageService());
+	instantiationService.stub(INotificationService, new TestNotificationService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 	instantiationService.stub(IWindowsService, new TestWindowsService());
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
@@ -309,29 +310,32 @@ export class TestHistoryService implements IHistoryService {
 	}
 }
 
-export class TestMessageService implements IMessageService {
+export class TestNotificationService implements INotificationService {
 
 	public _serviceBrand: any;
 
-	private counter: number;
+	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
 
-	constructor() {
-		this.counter = 0;
+	public info(message: string): INotificationHandle {
+		return this.notify({ severity: Severity.Info, message });
 	}
 
-	public show(sev: Severity, message: any): () => void {
-		this.counter++;
-
-		return null;
+	public warn(message: string): INotificationHandle {
+		return this.notify({ severity: Severity.Warning, message });
 	}
 
-	public getCounter() {
-		return this.counter;
+	public error(error: string | Error): INotificationHandle {
+		return this.notify({ severity: Severity.Error, message: error });
 	}
 
-	public hideAll(): void {
-		// No-op
+	public notify(notification: INotification): INotificationHandle {
+		return TestNotificationService.NO_OP;
 	}
+}
+
+export class TestConfirmationService implements IConfirmationService {
+
+	public _serviceBrand: any;
 
 	public confirm(confirmation: IConfirmation): TPromise<boolean> {
 		return TPromise.wrap(false);
@@ -428,6 +432,10 @@ export class TestPartService implements IPartService {
 	public getWorkbenchElementId(): string { return ''; }
 
 	public toggleZenMode(): void { }
+
+	public isEditorLayoutCentered(): boolean { return false; }
+	public toggleCenteredEditorLayout(): void { }
+
 
 	public resizePart(part: Parts, sizeChange: number): void { }
 }
@@ -1218,6 +1226,10 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	showOpenDialog(windowId: number, options: Electron.OpenDialogOptions): TPromise<string[]> {
+		return TPromise.as(void 0);
+	}
+
+	openAboutDialog(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 }

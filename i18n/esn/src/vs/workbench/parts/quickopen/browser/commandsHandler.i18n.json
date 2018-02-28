@@ -11,7 +11,6 @@
 	"showCommands.label": "Paleta de comandos...",
 	"entryAriaLabelWithKey": "{0}, {1}, comandos",
 	"entryAriaLabel": "{0}, comandos",
-	"canNotRun": "El comando '{0}' no puede ejecutarse desde aquí.",
 	"actionNotEnabled": "El comando '{0}' no está habilitado en el contexto actual.",
 	"recentlyUsed": "usado recientemente",
 	"morecCommands": "otros comandos",

@@ -17,15 +17,16 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ITerminalService as IIntegratedTerminalService, KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
-import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX_READY, DEFAULT_TERMINAL_OSX, ITerminalConfiguration } from 'vs/workbench/parts/execution/electron-browser/terminal';
+import { getDefaultTerminalWindows, getDefaultTerminalLinuxReady, DEFAULT_TERMINAL_OSX, ITerminalConfiguration } from 'vs/workbench/parts/execution/electron-browser/terminal';
 import { WinTerminalService, MacTerminalService, LinuxTerminalService } from 'vs/workbench/parts/execution/electron-browser/terminalService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { getResourceForCommand } from 'vs/workbench/parts/files/browser/files';
+import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { Schemas } from 'vs/base/common/network';
 
 if (env.isWindows) {
 	registerSingleton(ITerminalService, WinTerminalService);
@@ -35,7 +36,7 @@ if (env.isWindows) {
 	registerSingleton(ITerminalService, LinuxTerminalService);
 }
 
-DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
+getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
 	let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 	configurationRegistry.registerConfiguration({
 		'id': 'externalTerminal',
@@ -56,7 +57,7 @@ DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
 			'terminal.external.windowsExec': {
 				'type': 'string',
 				'description': nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
-				'default': DEFAULT_TERMINAL_WINDOWS,
+				'default': getDefaultTerminalWindows(),
 				'isExecutable': true
 			},
 			'terminal.external.osxExec': {
@@ -84,20 +85,27 @@ CommandsRegistry.registerCommand({
 		const fileService = accessor.get(IFileService);
 		const integratedTerminalService = accessor.get(IIntegratedTerminalService);
 		const terminalService = accessor.get(ITerminalService);
-		resource = getResourceForCommand(resource, accessor.get(IListService), editorService);
 
-		return fileService.resolveFile(resource).then(stat => {
-			return stat.isDirectory ? stat.resource.fsPath : paths.dirname(stat.resource.fsPath);
-		}).then(directoryToOpen => {
-			if (configurationService.getValue<ITerminalConfiguration>().terminal.explorerKind === 'integrated') {
-				const instance = integratedTerminalService.createInstance({ cwd: directoryToOpen }, true);
-				if (instance) {
-					integratedTerminalService.setActiveInstance(instance);
-					integratedTerminalService.showPanel(true);
+		const directorySet = new Set<string>();
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
+
+		return resources.map(r => {
+			return fileService.resolveFile(r).then(stat => {
+				return stat.isDirectory ? stat.resource.fsPath : paths.dirname(stat.resource.fsPath);
+			}).then(directoryToOpen => {
+				if (!directorySet.has(directoryToOpen)) {
+					directorySet.add(directoryToOpen);
+					if (configurationService.getValue<ITerminalConfiguration>().terminal.explorerKind === 'integrated') {
+						const instance = integratedTerminalService.createInstance({ cwd: directoryToOpen }, true);
+						if (instance && (resource === r || resources.length === 1)) {
+							integratedTerminalService.setActiveInstance(instance);
+							integratedTerminalService.showPanel(true);
+						}
+					} else {
+						terminalService.openTerminal(directoryToOpen);
+					}
 				}
-			} else {
-				terminalService.openTerminal(directoryToOpen);
-			}
+			});
 		});
 	}
 });
@@ -111,7 +119,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor) => {
 		const historyService = accessor.get(IHistoryService);
 		const terminalService = accessor.get(ITerminalService);
-		const root = historyService.getLastActiveWorkspaceRoot('file');
+		const root = historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		if (root) {
 			terminalService.openTerminal(root.fsPath);
 		}
@@ -135,12 +143,12 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: 'navigation',
 	order: 30,
 	command: openConsoleCommand,
-	when: ResourceContextKey.Scheme.isEqualTo('file')
+	when: ResourceContextKey.Scheme.isEqualTo(Schemas.file)
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: 'navigation',
 	order: 30,
 	command: openConsoleCommand,
-	when: ResourceContextKey.Scheme.isEqualTo('file')
+	when: ResourceContextKey.Scheme.isEqualTo(Schemas.file)
 });

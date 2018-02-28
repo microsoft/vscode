@@ -570,7 +570,7 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 				contents.push(index < modules.length - 1 ? '\t],' : '\t]');
 			});
 			contents.push('});');
-			emitter.queue(new File({ path: bundle + '.nls.' + language.id + '.js', contents: new Buffer(contents.join('\n'), 'utf-8') }));
+			emitter.queue(new File({ path: bundle + '.nls.' + language.id + '.js', contents: Buffer.from(contents.join('\n'), 'utf-8') }));
 		});
 	});
 	Object.keys(statistics).forEach(key => {
@@ -667,7 +667,7 @@ export function createXlfFilesForCoreBundle(): ThroughStream {
 					const filePath = `${xlf.project}/${resource.replace(/\//g, '_')}.xlf`;
 					const xlfFile = new File({
 						path: filePath,
-						contents: new Buffer(xlf.toString(), 'utf8')
+						contents: Buffer.from(xlf.toString(), 'utf8')
 					});
 					this.queue(xlfFile);
 				}
@@ -738,7 +738,7 @@ export function createXlfFilesForExtensions(): ThroughStream {
 			if (_xlf) {
 				let xlfFile = new File({
 					path: path.join(extensionsProject, extensionName + '.xlf'),
-					contents: new Buffer(_xlf.toString(), 'utf8')
+					contents: Buffer.from(_xlf.toString(), 'utf8')
 				});
 				folderStream.queue(xlfFile);
 			}
@@ -810,7 +810,7 @@ export function createXlfFilesForIsl(): ThroughStream {
 
 		// Emit only upon all ISL files combined into single XLF instance
 		const newFilePath = path.join(projectName, resourceFile);
-		const xlfFile = new File({ path: newFilePath, contents: new Buffer(xlf.toString(), 'utf-8') });
+		const xlfFile = new File({ path: newFilePath, contents: Buffer.from(xlf.toString(), 'utf-8') });
 		this.queue(xlfFile);
 	});
 }
@@ -1174,7 +1174,7 @@ function createI18nFile(originalFilePath: string, messages: any): File {
 	let content = JSON.stringify(result, null, '\t').replace(/\r\n/g, '\n');
 	return new File({
 		path: path.join(originalFilePath + '.i18n.json'),
-		contents: new Buffer(content, 'utf8')
+		contents: Buffer.from(content, 'utf8')
 	});
 }
 
@@ -1328,7 +1328,7 @@ function createIslFile(originalFilePath: string, messages: Map<string>, language
 
 	return new File({
 		path: filePath,
-		contents: iconv.encode(new Buffer(content.join('\r\n'), 'utf8'), innoSetup.codePage)
+		contents: iconv.encode(Buffer.from(content.join('\r\n'), 'utf8'), innoSetup.codePage)
 	});
 }
 

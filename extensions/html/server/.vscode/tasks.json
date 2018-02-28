@@ -1,9 +1,18 @@
 {
-	"version": "0.1.0",
-	"command": "npm",
-	"isShellCommand": true,
-	"showOutput": "silent",
-	"args": ["run", "watch"],
-	"isWatching": true,
-	"problemMatcher": "$tsc-watch"
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "npm watch",
+			"command": "npm",
+			"args": ["run", "watch"],
+			"type": "shell",
+			"presentation": {
+				"reveal": "silent",
+				"focus": false,
+				"panel": "shared"
+			},
+			"isBackground": true,
+			"problemMatcher": "$tsc-watch"
+		}
+	],
 }

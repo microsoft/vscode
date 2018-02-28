@@ -14,6 +14,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const ID = 'searchService';
+export const VIEW_ID = 'workbench.view.search';
 
 export const ISearchService = createDecorator<ISearchService>(ID);
 
@@ -177,6 +178,8 @@ export interface ISearchConfigurationProperties {
 	useIgnoreFiles: boolean;
 	followSymlinks: boolean;
 	smartCase: boolean;
+	globalFindClipboard: boolean;
+	location: 'sidebar' | 'panel';
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

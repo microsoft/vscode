@@ -10,8 +10,8 @@ import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { flatten, distinct } from 'vs/base/common/arrays';
+import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { flatten, distinct, coalesce } from 'vs/base/common/arrays';
 import { extract, buffer } from 'vs/base/node/zip';
 import { TPromise } from 'vs/base/common/winjs.base';
 import {
@@ -22,18 +22,20 @@ import {
 	IExtensionIdentifier,
 	IReportedExtension
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, groupByExtension, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, groupByExtension, getMaliciousExtensionsSet, getLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Limiter } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as semver from 'semver';
 import URI from 'vs/base/common/uri';
-import { IChoiceService, Severity } from 'vs/platform/message/common/message';
 import pkg from 'vs/platform/node/package';
 import { isMacintosh } from 'vs/base/common/platform';
-import { MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/extensionsManifestCache';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import Severity from 'vs/base/common/severity';
+import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extensionLifecycle';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
@@ -98,7 +100,7 @@ interface InstallableExtension {
 	metadata?: IGalleryMetadata;
 }
 
-export class ExtensionManagementService implements IExtensionManagementService {
+export class ExtensionManagementService extends Disposable implements IExtensionManagementService {
 
 	_serviceBrand: any;
 
@@ -107,7 +109,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private uninstalledFileLimiter: Limiter<void>;
 	private reportedExtensions: TPromise<IReportedExtension[]> | undefined;
 	private lastReportTimestamp = 0;
-	private disposables: IDisposable[] = [];
+	private readonly installingExtensions: Map<string, TPromise<ILocalExtension>> = new Map<string, TPromise<ILocalExtension>>();
+	private readonly manifestCache: ExtensionsManifestCache;
+	private readonly extensionLifecycle: ExtensionsLifecycle;
 
 	private readonly _onInstallExtension = new Emitter<InstallExtensionEvent>();
 	readonly onInstallExtension: Event<InstallExtensionEvent> = this._onInstallExtension.event;
@@ -118,33 +122,25 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private readonly _onUninstallExtension = new Emitter<IExtensionIdentifier>();
 	readonly onUninstallExtension: Event<IExtensionIdentifier> = this._onUninstallExtension.event;
 
-	private readonly installingExtensions: Map<string, TPromise<ILocalExtension>> = new Map<string, TPromise<ILocalExtension>>();
-
 	private _onDidUninstallExtension = new Emitter<DidUninstallExtensionEvent>();
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IChoiceService private choiceService: IChoiceService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@ILogService private logService: ILogService
 	) {
+		super();
 		this.extensionsPath = environmentService.extensionsPath;
 		this.uninstalledPath = path.join(this.extensionsPath, '.obsolete');
 		this.uninstalledFileLimiter = new Limiter(1);
-		this.disposables.push(toDisposable(() => this.installingExtensions.clear()));
-	}
-
-	private deleteExtensionsManifestCache(): void {
-		const cacheFolder = path.join(this.environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
-		const cacheFile = path.join(cacheFolder, USER_MANIFEST_CACHE_FILE);
-
-		pfs.del(cacheFile).done(() => { }, () => { });
+		this._register(toDisposable(() => this.installingExtensions.clear()));
+		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
+		this.extensionLifecycle = this._register(new ExtensionsLifecycle(this.logService));
 	}
 
 	install(zipPath: string): TPromise<void> {
-		this.deleteExtensionsManifestCache();
-
 		zipPath = path.resolve(zipPath);
 
 		return validateLocalExtension(zipPath)
@@ -231,8 +227,6 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	installFromGallery(extension: IGalleryExtension): TPromise<void> {
-		this.deleteExtensionsManifestCache();
-
 		this.onInstallExtensions([extension]);
 		return this.collectExtensionsToInstall(extension)
 			.then(
@@ -291,7 +285,6 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private downloadInstallableExtension(extension: IGalleryExtension): TPromise<InstallableExtension> {
-		const id = getLocalExtensionIdFromGallery(extension, extension.version);
 		const metadata = <IGalleryMetadata>{
 			id: extension.identifier.uuid,
 			publisherId: extension.publisherId,
@@ -309,7 +302,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 							this.logService.info('Downloaded extension:', extension.name);
 							return validateLocalExtension(zipPath)
 								.then(
-								() => (<InstallableExtension>{ zipPath, id, metadata }),
+								manifest => (<InstallableExtension>{ zipPath, id: getLocalExtensionIdFromManifest(manifest), metadata }),
 								error => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(error).message, INSTALL_ERROR_VALIDATING))
 								);
 						},
@@ -381,8 +374,6 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private installExtension(installableExtension: InstallableExtension): TPromise<ILocalExtension> {
-		// BLOCK REPORTED EXTENSIONS HERE?
-
 		return this.unsetUninstalledAndGetLocal(installableExtension.id)
 			.then(
 			local => {
@@ -450,8 +441,6 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	uninstall(extension: ILocalExtension, force = false): TPromise<void> {
-		this.deleteExtensionsManifestCache();
-
 		return this.getInstalled(LocalExtensionType.User)
 			.then(installed => {
 				const promises = installed
@@ -462,10 +451,12 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): TPromise<ILocalExtension> {
-		this.deleteExtensionsManifestCache();
-
 		local.metadata = metadata;
-		return this.saveMetadataForLocalExtension(local);
+		return this.saveMetadataForLocalExtension(local)
+			.then(localExtension => {
+				this.manifestCache.invalidate();
+				return localExtension;
+			});
 	}
 
 	private saveMetadataForLocalExtension(local: ILocalExtension): TPromise<ILocalExtension> {
@@ -629,8 +620,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private preUninstallExtension(extension: ILocalExtension): TPromise<void> {
-		const extensionPath = path.join(this.extensionsPath, extension.identifier.id);
-		return pfs.exists(extensionPath)
+		return pfs.exists(extension.path)
 			.then(exists => exists ? null : TPromise.wrapError(new Error(nls.localize('notExists', "Could not find extension"))))
 			.then(() => {
 				this.logService.info('Uninstalling extension:', extension.identifier.id);
@@ -683,66 +673,81 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private scanUserExtensions(excludeOutdated: boolean): TPromise<ILocalExtension[]> {
 		this.logService.trace('Started scanning user extensions');
-		return this.scanExtensions(this.extensionsPath, LocalExtensionType.User)
-			.then(extensions => {
-				this.logService.info('Scanned user extensions:', extensions.length);
+		return TPromise.join([this.getUninstalledExtensions(), this.scanExtensions(this.extensionsPath, LocalExtensionType.User)])
+			.then(([uninstalled, extensions]) => {
+				extensions = extensions.filter(e => !uninstalled[e.identifier.id]);
 				if (excludeOutdated) {
 					const byExtension: ILocalExtension[][] = groupByExtension(extensions, e => ({ id: getGalleryExtensionIdFromLocal(e), uuid: e.identifier.uuid }));
-					return byExtension.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version))[0]);
+					extensions = byExtension.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version))[0]);
 				}
+				this.logService.info('Scanned user extensions:', extensions.length);
 				return extensions;
 			});
 	}
 
 	private scanExtensions(root: string, type: LocalExtensionType): TPromise<ILocalExtension[]> {
 		const limiter = new Limiter(10);
+		return pfs.readdir(root)
+			.then(extensionsFolders => TPromise.join(extensionsFolders.map(extensionFolder => limiter.queue(() => this.scanExtension(extensionFolder, root, type)))))
+			.then(extensions => coalesce(extensions));
+	}
 
-		return this.scanExtensionFolders(root)
-			.then(extensionIds => TPromise.join(extensionIds.map(id => {
-				const extensionPath = path.join(root, id);
-
-				const each = () => pfs.readdir(extensionPath).then(children => {
+	private scanExtension(folderName: string, root: string, type: LocalExtensionType): TPromise<ILocalExtension> {
+		const extensionPath = path.join(root, folderName);
+		return pfs.readdir(extensionPath)
+			.then(children => readManifest(extensionPath)
+				.then<ILocalExtension>(({ manifest, metadata }) => {
 					const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
 					const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)).toString() : null;
 					const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
 					const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)).toString() : null;
-
-					return readManifest(extensionPath)
-						.then<ILocalExtension>(({ manifest, metadata }) => {
-							if (manifest.extensionDependencies) {
-								manifest.extensionDependencies = manifest.extensionDependencies.map(id => adoptToGalleryExtensionId(id));
-							}
-							const identifier = { id: type === LocalExtensionType.System ? id : getLocalExtensionIdFromManifest(manifest), uuid: metadata ? metadata.id : null };
-							return { type, identifier, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
-						});
-				}).then(null, () => null);
-
-				return limiter.queue(each);
-			})))
-			.then(result => result.filter(a => !!a));
-	}
-
-	private scanExtensionFolders(root: string): TPromise<string[]> {
-		return this.getUninstalledExtensions()
-			.then(uninstalled => pfs.readdir(root).then(extensions => extensions.filter(id => !uninstalled[id])));
+					if (manifest.extensionDependencies) {
+						manifest.extensionDependencies = manifest.extensionDependencies.map(id => adoptToGalleryExtensionId(id));
+					}
+					const identifier = { id: type === LocalExtensionType.System ? folderName : getLocalExtensionIdFromManifest(manifest), uuid: metadata ? metadata.id : null };
+					return { type, identifier, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
+				}))
+			.then(null, () => null);
 	}
 
 	removeDeprecatedExtensions(): TPromise<any> {
-		return this.getUninstalledExtensions()
-			.then(uninstalled => {
-				const unInstalledExtensionIds = Object.keys(uninstalled);
-				return this.scanUserExtensions(false)
-					.then(extensions => {
-						const byExtension: ILocalExtension[][] = groupByExtension(extensions, e => ({ id: getGalleryExtensionIdFromLocal(e), uuid: e.identifier.uuid }));
-						const outDatedExtensionIds = flatten(byExtension.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version)).slice(1)))
-							.map(a => a.identifier.id);
+		return this.removeUninstalledExtensions()
+			.then(() => this.removeOutdatedExtensions());
+	}
 
-						return TPromise.join([...unInstalledExtensionIds, ...outDatedExtensionIds].map(id => {
-							return pfs.rimraf(path.join(this.extensionsPath, id))
-								.then(() => this.withUninstalledExtensions(uninstalled => delete uninstalled[id]));
-						}));
-					});
-			});
+	private removeUninstalledExtensions(): TPromise<void> {
+		return this.getUninstalledExtensions()
+			.then(uninstalled => this.scanExtensions(this.extensionsPath, LocalExtensionType.User) // All user extensions
+				.then(extensions => {
+					const toRemove: ILocalExtension[] = extensions.filter(e => uninstalled[e.identifier.id]);
+					return TPromise.join(toRemove.map(e => this.removeUninstalledExtension(e)));
+				})
+			).then(() => null);
+	}
+
+	private removeOutdatedExtensions(): TPromise<void> {
+		return this.scanExtensions(this.extensionsPath, LocalExtensionType.User) // All user extensions
+			.then(extensions => {
+				const toRemove: ILocalExtension[] = [];
+
+				// Outdated extensions
+				const byExtension: ILocalExtension[][] = groupByExtension(extensions, e => ({ id: getGalleryExtensionIdFromLocal(e), uuid: e.identifier.uuid }));
+				toRemove.push(...flatten(byExtension.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version)).slice(1))));
+
+				return TPromise.join(toRemove.map(extension => this.removeExtension(extension, 'outdated')));
+			}).then(() => null);
+	}
+
+	private removeUninstalledExtension(extension: ILocalExtension): TPromise<void> {
+		return this.extensionLifecycle.uninstall(extension)
+			.then(() => this.removeExtension(extension, 'uninstalled'))
+			.then(() => this.withUninstalledExtensions(uninstalled => delete uninstalled[extension.identifier.id]))
+			.then(() => null);
+	}
+
+	private removeExtension(extension: ILocalExtension, type: string): TPromise<void> {
+		this.logService.trace(extension.identifier.id, 'Deleting from disk', type);
+		return pfs.rimraf(extension.path).then(() => this.logService.info(extension.identifier.id, 'Deleted from disk'));
 	}
 
 	private isUninstalled(id: string): TPromise<boolean> {
@@ -815,10 +820,6 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				return [];
 			});
 	}
-
-	dispose() {
-		this.disposables = dispose(this.disposables);
-	}
 }
 
 export function getLocalExtensionIdFromGallery(extension: IGalleryExtension, version: string): string {
@@ -827,8 +828,4 @@ export function getLocalExtensionIdFromGallery(extension: IGalleryExtension, ver
 
 export function getLocalExtensionIdFromManifest(manifest: IExtensionManifest): string {
 	return getLocalExtensionId(getGalleryExtensionId(manifest.publisher, manifest.name), manifest.version);
-}
-
-function getLocalExtensionId(id: string, version: string): string {
-	return `${id}-${version}`;
 }

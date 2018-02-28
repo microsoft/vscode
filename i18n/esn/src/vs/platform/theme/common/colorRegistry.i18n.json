@@ -74,8 +74,6 @@
 	"hoverBackground": "Color de fondo al mantener el puntero en el editor.",
 	"hoverBorder": "Color del borde al mantener el puntero en el editor.",
 	"activeLinkForeground": "Color de los vínculos activos.",
-	"diffEditorInserted": "Color de fondo para el texto insertado.",
-	"diffEditorRemoved": "Color de fondo para el texto quitado.",
 	"diffEditorInsertedOutline": "Color de contorno para el texto insertado.",
 	"diffEditorRemovedOutline": "Color de contorno para el texto quitado.",
 	"mergeCurrentHeaderBackground": "Fondo de encabezado actual en conflictos de fusión en línea. El color no debe ser opaco para no ocultar las decoraciones subyacentes.",

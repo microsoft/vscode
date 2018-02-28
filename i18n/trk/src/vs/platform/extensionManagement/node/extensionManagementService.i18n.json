@@ -13,6 +13,7 @@
 	"cancel": "İptal",
 	"errorInstallingDependencies": "Bağımlılıklar yüklenirken hata oluştu. {0}",
 	"notFoundCompatible": "'{0}' yüklenemiyor; VS Code '{1}' ile uyumlu mevcut bir sürümü yok.",
+	"malicious extension": "Eklenti sorunlu olarak bildirildiği için yüklenemiyor.",
 	"notFoundCompatibleDependency": "Yükleme başarısız oldu çünkü, bağımlılığı bulunan '{0}' eklentisinin uyumlu olduğu VS Code'un '{1}' sürümü bulunamadı.",
 	"quitCode": "Eklenti yüklenemedi. Lütfen yeniden yüklemeden önce VS Code'u sonlandırın ve tekrar başlatın.",
 	"exitCode": "Eklenti yüklenemedi. Lütfen yeniden yüklemeden önce VS Code'u sonlandırın ve tekrar başlatın.",

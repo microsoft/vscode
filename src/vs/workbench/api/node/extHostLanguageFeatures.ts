@@ -581,7 +581,7 @@ class SuggestAdapter {
 			}
 
 			// the default text edit range
-			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) || new Range(pos, pos))
+			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos))
 				.with({ end: pos });
 
 			for (let i = 0; i < list.items.length; i++) {
@@ -618,7 +618,7 @@ class SuggestAdapter {
 
 			const doc = this._documents.getDocumentData(resource).document;
 			const pos = TypeConverters.toPosition(position);
-			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) || new Range(pos, pos)).with({ end: pos });
+			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos)).with({ end: pos });
 			const newSuggestion = this._convertCompletionItem(resolvedItem, pos, wordRangeBeforePos, _id, _parentId);
 			if (newSuggestion) {
 				mixin(suggestion, newSuggestion, true);
@@ -804,10 +804,29 @@ class ColorProviderAdapter {
 	}
 }
 
+class FoldingProviderAdapter {
+
+	constructor(
+		private _documents: ExtHostDocuments,
+		private _provider: vscode.FoldingProvider
+	) { }
+
+	provideFoldingRanges(resource: URI): TPromise<modes.IFoldingRangeList> {
+		const doc = this._documents.getDocumentData(resource).document;
+		return asWinJsPromise(token => this._provider.provideFoldingRanges(doc, token)).then(list => {
+			if (!Array.isArray(list.ranges)) {
+				return void 0;
+			}
+			return TypeConverters.FoldingRangeList.from(list);
+		});
+	}
+}
+
 type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
-	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter | ColorProviderAdapter;
+	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter
+	| ColorProviderAdapter | FoldingProviderAdapter;
 
 export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
@@ -1106,6 +1125,16 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
 		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColorPresentations(URI.revive(resource), colorInfo));
+	}
+
+	registerFoldingProvider(selector: vscode.DocumentSelector, provider: vscode.FoldingProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new FoldingProviderAdapter(this._documents, provider));
+		this._proxy.$registerFoldingProvider(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$provideFoldingRanges(handle: number, resource: UriComponents): TPromise<modes.IFoldingRangeList> {
+		return this._withAdapter(handle, FoldingProviderAdapter, adapter => adapter.provideFoldingRanges(URI.revive(resource)));
 	}
 
 	// --- configuration

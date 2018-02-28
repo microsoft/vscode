@@ -499,21 +499,21 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	private _resourceEdits: { seq: number, from: URI, to: URI }[] = [];
 	private _textEdits = new Map<string, { seq: number, uri: URI, edits: TextEdit[] }>();
 
-	createResource(uri: vscode.Uri): void {
-		this.renameResource(undefined, uri);
-	}
+	// createResource(uri: vscode.Uri): void {
+	// 	this.renameResource(undefined, uri);
+	// }
 
-	deleteResource(uri: vscode.Uri): void {
-		this.renameResource(uri, undefined);
-	}
+	// deleteResource(uri: vscode.Uri): void {
+	// 	this.renameResource(uri, undefined);
+	// }
 
-	renameResource(from: vscode.Uri, to: vscode.Uri): void {
-		this._resourceEdits.push({ seq: this._seqPool++, from, to });
-	}
+	// renameResource(from: vscode.Uri, to: vscode.Uri): void {
+	// 	this._resourceEdits.push({ seq: this._seqPool++, from, to });
+	// }
 
-	resourceEdits(): [vscode.Uri, vscode.Uri][] {
-		return this._resourceEdits.map(({ from, to }) => (<[vscode.Uri, vscode.Uri]>[from, to]));
-	}
+	// resourceEdits(): [vscode.Uri, vscode.Uri][] {
+	// 	return this._resourceEdits.map(({ from, to }) => (<[vscode.Uri, vscode.Uri]>[from, to]));
+	// }
 
 	replace(uri: URI, range: Range, newText: string): void {
 		let edit = new TextEdit(range, newText);
@@ -566,19 +566,20 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	allEntries(): ([URI, TextEdit[]] | [URI, URI])[] {
-		// use the 'seq' the we have assigned when inserting
-		// the operation and use that order in the resulting
-		// array
-		const res: ([URI, TextEdit[]] | [URI, URI])[] = [];
-		this._textEdits.forEach(value => {
-			const { seq, uri, edits } = value;
-			res[seq] = [uri, edits];
-		});
-		this._resourceEdits.forEach(value => {
-			const { seq, from, to } = value;
-			res[seq] = [from, to];
-		});
-		return res;
+		return this.entries();
+		// 	// use the 'seq' the we have assigned when inserting
+		// 	// the operation and use that order in the resulting
+		// 	// array
+		// 	const res: ([URI, TextEdit[]] | [URI, URI])[] = [];
+		// 	this._textEdits.forEach(value => {
+		// 		const { seq, uri, edits } = value;
+		// 		res[seq] = [uri, edits];
+		// 	});
+		// 	this._resourceEdits.forEach(value => {
+		// 		const { seq, from, to } = value;
+		// 		res[seq] = [from, to];
+		// 	});
+		// 	return res;
 	}
 
 	get size(): number {
@@ -1523,6 +1524,7 @@ export class TreeItem {
 	iconPath?: string | URI | { light: string | URI; dark: string | URI };
 	command?: vscode.Command;
 	contextValue?: string;
+	tooltip?: string;
 
 	constructor(label: string, collapsibleState?: vscode.TreeItemCollapsibleState)
 	constructor(resourceUri: URI, collapsibleState?: vscode.TreeItemCollapsibleState)
@@ -1540,6 +1542,18 @@ export enum TreeItemCollapsibleState {
 	None = 0,
 	Collapsed = 1,
 	Expanded = 2
+}
+
+export class ThemeIcon {
+	static readonly File = new ThemeIcon('file');
+
+	static readonly Folder = new ThemeIcon('folder');
+
+	readonly id: string;
+
+	private constructor(id: string) {
+		this.id = id;
+	}
 }
 
 export class ThemeColor {
@@ -1603,6 +1617,9 @@ export class SourceBreakpoint extends Breakpoint {
 
 	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string) {
 		super(enabled, condition, hitCondition);
+		if (location === null) {
+			throw illegalArgument('location');
+		}
 		this.location = location;
 	}
 }
@@ -1612,6 +1629,9 @@ export class FunctionBreakpoint extends Breakpoint {
 
 	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string) {
 		super(enabled, condition, hitCondition);
+		if (!functionName) {
+			throw illegalArgument('functionName');
+		}
 		this.functionName = functionName;
 	}
 }
@@ -1648,6 +1668,49 @@ export enum FileType {
 	File = 0,
 	Dir = 1,
 	Symlink = 2
+}
+
+//#endregion
+
+//#region folding api
+
+export class FoldingRangeList {
+
+	ranges: FoldingRange[];
+
+	constructor(ranges: FoldingRange[]) {
+		this.ranges = ranges;
+	}
+}
+
+export class FoldingRange {
+
+	startLine: number;
+
+	endLine: number;
+
+	type?: FoldingRangeType | string;
+
+	constructor(startLine: number, endLine: number, type?: FoldingRangeType | string) {
+		this.startLine = startLine;
+		this.endLine = endLine;
+		this.type = type;
+	}
+}
+
+export enum FoldingRangeType {
+	/**
+	 * Folding range for a comment
+	 */
+	Comment = 'comment',
+	/**
+	 * Folding range for a imports or includes
+	 */
+	Imports = 'imports',
+	/**
+	 * Folding range for a region (e.g. `#region`)
+	 */
+	Region = 'region'
 }
 
 //#endregion

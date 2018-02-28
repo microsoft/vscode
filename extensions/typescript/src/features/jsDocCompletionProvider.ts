@@ -170,6 +170,12 @@ class TryCompleteJsDocCommand implements Command {
 			if (!res || !res.body) {
 				return undefined;
 			}
+			// Workaround for #43619
+			// docCommentTemplate previously returned undefined for empty jsdoc templates.
+			// TS 2.7 now returns a single line doc comment, which breaks indentation.
+			if (res.body.newText === '/** */') {
+				return undefined;
+			}
 			return TryCompleteJsDocCommand.templateToSnippet(res.body.newText);
 		}, () => undefined);
 	}

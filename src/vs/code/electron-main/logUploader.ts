@@ -9,7 +9,6 @@ import * as os from 'os';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as readline from 'readline';
 
 import { localize } from 'vs/nls';
 import { ILaunchChannel } from 'vs/code/electron-main/launch';
@@ -17,6 +16,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import product from 'vs/platform/node/product';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { IRequestContext } from 'vs/base/node/request';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 interface PostResult {
 	readonly blob_id: string;
@@ -35,7 +35,8 @@ class Endpoint {
 
 export async function uploadLogs(
 	channel: ILaunchChannel,
-	requestService: IRequestService
+	requestService: IRequestService,
+	environmentService: IEnvironmentService
 ): TPromise<any> {
 	const endpoint = Endpoint.getFromProduct();
 	if (!endpoint) {
@@ -45,35 +46,29 @@ export async function uploadLogs(
 
 	const logsPath = await channel.call('get-logs-path', null);
 
-	if (await promptUserToConfirmLogUpload(logsPath)) {
+	if (await promptUserToConfirmLogUpload(logsPath, environmentService)) {
 		console.log(localize('beginUploading', 'Uploading...'));
 		const outZip = await zipLogs(logsPath);
 		const result = await postLogs(endpoint, outZip, requestService);
 		console.log(localize('didUploadLogs', 'Upload successful! Log file ID: {0}', result.blob_id));
-	} else {
-		console.log(localize('userDeniedUpload', 'Canceled upload'));
 	}
 }
 
-async function promptUserToConfirmLogUpload(
+function promptUserToConfirmLogUpload(
 	logsPath: string,
-): Promise<boolean> {
-	const message = localize('logUploadPromptHeader', 'Upload session logs to secure endpoint?')
-		+ '\n\n' + localize('logUploadPromptBody', 'Please review your log files here: \'{0}\'', logsPath)
-		+ '\n\n' + localize('logUploadPromptBodyDetails', 'Logs may contain personal information such as full paths and file contents.')
-		+ '\n\n' + localize('logUploadPromptKey', 'I have reviewed my logs (enter \'y\' to confirm upload)');
-
-	const rl = readline.createInterface({
-		input: process.stdin,
-		output: process.stdout
-	});
-
-	return new TPromise<boolean>(resolve =>
-		rl.question(message,
-			(answer: string) => {
-				rl.close();
-				resolve(answer && answer.trim()[0].toLowerCase() === 'y');
-			}));
+	environmentService: IEnvironmentService
+): boolean {
+	const confirmKey = 'iConfirmLogsUpload';
+	if ((environmentService.args['upload-logs'] || '').toLowerCase() === confirmKey.toLowerCase()) {
+		return true;
+	} else {
+		const message = localize('logUploadPromptHeader', 'You are about to upload your session logs to a secure Microsoft endpoint that only Microsoft\'s members of the VS Code team can access.')
+			+ '\n\n' + localize('logUploadPromptBody', 'Session logs may contain personal information such as full paths or file contents. Please review and redact your session log files here: \'{0}\'', logsPath)
+			+ '\n\n' + localize('logUploadPromptBodyDetails', 'By continuing you confirm that you have reviewed and redacted your session log files and that you agree to Microsoft using them to debug VS Code.')
+			+ '\n\n' + localize('logUploadPromptAcceptInstructions', 'Please run code with \'--upload-logs={0}\' to proceed with upload', confirmKey);
+		console.log(message);
+		return false;
+	}
 }
 
 async function postLogs(
@@ -87,7 +82,7 @@ async function postLogs(
 		result = await requestService.request({
 			url: endpoint.url,
 			type: 'POST',
-			data: new Buffer(fs.readFileSync(outZip)).toString('base64'),
+			data: Buffer.from(fs.readFileSync(outZip)).toString('base64'),
 			headers: {
 				'Content-Type': 'application/zip'
 			}
@@ -129,7 +124,7 @@ function zipLogs(
 	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-log-upload'));
 	const outZip = path.join(tempDir, 'logs.zip');
 	return new TPromise<string>((resolve, reject) => {
-		doZip(logsPath, outZip, (err, stdout, stderr) => {
+		doZip(logsPath, outZip, tempDir, (err, stdout, stderr) => {
 			if (err) {
 				console.error(localize('zipError', 'Error zipping logs: {0}', err));
 				reject(err);
@@ -143,12 +138,17 @@ function zipLogs(
 function doZip(
 	logsPath: string,
 	outZip: string,
+	tempDir: string,
 	callback: (error: Error, stdout: string, stderr: string) => void
 ) {
 	switch (os.platform()) {
 		case 'win32':
-			return cp.execFile('powershell', ['-Command', `Compress-Archive -Path "${logsPath}" -DestinationPath ${outZip}`], { cwd: logsPath }, callback);
-
+			// Copy directory first to avoid file locking issues
+			const sub = path.join(tempDir, 'sub');
+			return cp.execFile('powershell', ['-Command',
+				`[System.IO.Directory]::CreateDirectory("${sub}"); Copy-Item -recurse "${logsPath}" "${sub}"; Compress-Archive -Path "${sub}" -DestinationPath "${outZip}"`],
+				{ cwd: logsPath },
+				callback);
 		default:
 			return cp.execFile('zip', ['-r', outZip, '.'], { cwd: logsPath }, callback);
 	}

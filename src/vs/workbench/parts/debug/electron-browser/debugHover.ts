@@ -11,7 +11,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as dom from 'vs/base/browser/dom';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { DefaultController, ICancelableEvent, ClickBehavior, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
+import { ICancelableEvent, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -19,13 +19,14 @@ import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPosit
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/parts/debug/common/debug';
 import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
-import { renderExpressionValue } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
+import { renderExpressionValue } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { VariablesDataSource, VariablesRenderer } from 'vs/workbench/parts/debug/electron-browser/variablesView';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
-import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
@@ -71,7 +72,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new VariablesDataSource(),
 			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
-			controller: new DebugHoverController(this.editor)
+			controller: this.instantiationService.createInstance(DebugHoverController, this.editor)
 		}, {
 				indentPixels: 6,
 				twistiePixels: 15,
@@ -333,10 +334,13 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 }
 
-class DebugHoverController extends DefaultController {
+class DebugHoverController extends WorkbenchTreeController {
 
-	constructor(private editor: ICodeEditor) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false, openMode: OpenMode.SINGLE_CLICK });
+	constructor(
+		private editor: ICodeEditor,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super({ openMode: OpenMode.SINGLE_CLICK }, configurationService);
 	}
 
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin = 'mouse'): boolean {

@@ -63,8 +63,9 @@ export class Progress<T> implements IProgress<T> {
 }
 
 export enum ProgressLocation {
-	Scm = 1,
-	Extensions = 2,
+	Explorer = 1,
+	Scm = 3,
+	Extensions = 5,
 	Window = 10
 }
 

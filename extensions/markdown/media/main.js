@@ -30,14 +30,30 @@
 	}
 
 	/**
+	 * @param {number} min
+	 * @param {number} max
+	 * @param {number} value
+	 */
+	function clamp(min, max, value) {
+		return Math.min(max, Math.max(min, value));
+	}
+
+	/**
+	 * @param {number} line
+	 */
+	function clampLine(line) {
+		return clamp(0, settings.lineCount - 1, line);
+	}
+
+	/**
 	 * @param {string} command
 	 * @param {any[]} args
 	 */
 	function postMessage(command, args) {
 		window.parent.postMessage({
-			command: 'did-click-link',
-			data: `command:${command}?${encodeURIComponent(JSON.stringify(args))}`
-		}, 'file://');
+			command,
+			args
+		}, '*');
 	}
 
 	/**
@@ -75,12 +91,13 @@
 	 * @returns {{ previous: CodeLineElement, next?: CodeLineElement }}
 	 */
 	function getElementsForSourceLine(targetLine) {
+		const lineNumber = Math.floor(targetLine)
 		const lines = getCodeLineElements();
 		let previous = lines[0] || null;
 		for (const entry of lines) {
-			if (entry.line === targetLine) {
+			if (entry.line === lineNumber) {
 				return { previous: entry, next: null };
-			} else if (entry.line > targetLine) {
+			} else if (entry.line > lineNumber) {
 				return { previous, next: entry };
 			}
 			previous = entry;
@@ -124,10 +141,6 @@
 		return { previous };
 	}
 
-	function getSourceRevealAddedOffset() {
-		return -(window.innerHeight * 1 / 5);
-	}
-
 	/**
 	 * Attempt to reveal the element for a source line in the editor.
 	 *
@@ -136,28 +149,36 @@
 	function scrollToRevealSourceLine(line) {
 		const { previous, next } = getElementsForSourceLine(line);
 		marker.update(previous && previous.element);
-		if (previous && settings.scrollPreviewWithEditorSelection) {
+		if (previous && settings.scrollPreviewWithEditor) {
 			let scrollTo = 0;
-			if (next) {
+			const rect = previous.element.getBoundingClientRect();
+			const previousTop = rect.top;
+
+			if (next && next.line !== previous.line) {
 				// Between two elements. Go to percentage offset between them.
 				const betweenProgress = (line - previous.line) / (next.line - previous.line);
-				const elementOffset = next.element.getBoundingClientRect().top - previous.element.getBoundingClientRect().top;
-				scrollTo = previous.element.getBoundingClientRect().top + betweenProgress * elementOffset;
+				const elementOffset = next.element.getBoundingClientRect().top - previousTop;
+				scrollTo = previousTop + betweenProgress * elementOffset;
 			} else {
-				scrollTo = previous.element.getBoundingClientRect().top;
+				scrollTo = previousTop;
 			}
-			window.scroll(0, window.scrollY + scrollTo + getSourceRevealAddedOffset());
+
+			window.scroll(0, Math.max(1, window.scrollY + scrollTo));
 		}
 	}
 
+	/**
+	 * @param {number} offset
+	 */
 	function getEditorLineNumberForPageOffset(offset) {
 		const { previous, next } = getLineElementsAtPageOffset(offset);
 		if (previous) {
 			if (next) {
 				const betweenProgress = (offset - window.scrollY - previous.element.getBoundingClientRect().top) / (next.element.getBoundingClientRect().top - previous.element.getBoundingClientRect().top);
-				return previous.line + betweenProgress * (next.line - previous.line);
+				const line = previous.line + betweenProgress * (next.line - previous.line);
+				return clampLine(line);
 			} else {
-				return previous.line;
+				return clampLine(previous.line);
 			}
 		}
 		return null;
@@ -191,14 +212,14 @@
 	const settings = JSON.parse(document.getElementById('vscode-markdown-preview-data').getAttribute('data-settings'));
 
 	function onLoad() {
-		if (settings.scrollPreviewWithEditorSelection) {
-			const initialLine = +settings.line;
-			if (!isNaN(initialLine)) {
-				setTimeout(() => {
+		if (settings.scrollPreviewWithEditor) {
+			setTimeout(() => {
+				const initialLine = +settings.line;
+				if (!isNaN(initialLine)) {
 					scrollDisabled = true;
 					scrollToRevealSourceLine(initialLine);
-				}, 0);
-			}
+				}
+			}, 0);
 		}
 	}
 
@@ -219,8 +240,13 @@
 			scrollToRevealSourceLine(line);
 		}, 50);
 		return event => {
+			if (event.data.source !== settings.source) {
+				return;
+			}
+
 			const line = +event.data.line;
 			if (!isNaN(line)) {
+				settings.line = line;
 				doScroll(line);
 			}
 		};
@@ -232,7 +258,7 @@
 		}
 
 		// Ignore clicks on links
-		for (let node = event.target; node; node = node.parentNode) {
+		for (let node = /** @type {HTMLElement} */(event.target); node; node = /** @type {HTMLElement} */(node.parentNode)) {
 			if (node.tagName === "A") {
 				return;
 			}
@@ -255,13 +281,13 @@
 		/** @type {*} */
 		let node = event.target;
 		while (node) {
-			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
+			if (node.tagName && node.tagName === 'A' && node.href) {
 				if (node.getAttribute('href').startsWith('#')) {
 					break;
 				}
-				if (node.href.startsWith('file://')) {
-					const [path, fragment] = node.href.replace(/^file:\/\//i, '').split('#');
-					postMessage('_markdown.openDocumentLink', { path, fragment });
+				if (node.href.startsWith('file://') || node.href.startsWith('vscode-workspace-resource:')) {
+					const [path, fragment] = node.href.replace(/^(file:\/\/|vscode-workspace-resource:)/i, '').split('#');
+					postMessage('_markdown.openDocumentLink', [{ path, fragment }]);
 					event.preventDefault();
 					event.stopPropagation();
 					break;

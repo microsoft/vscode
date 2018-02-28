@@ -18,6 +18,7 @@
 	"RefreshAction.label": "最新の情報に更新",
 	"CollapseDeepestExpandedLevelAction.label": "すべて折りたたむ",
 	"ClearSearchResultsAction.label": "クリア",
+	"CancelSearchAction.label": "検索のキャンセル",
 	"FocusNextSearchResult.label": "次の検索結果にフォーカス",
 	"FocusPreviousSearchResult.label": "前の検索結果にフォーカス",
 	"RemoveAction.label": "却下",

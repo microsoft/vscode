@@ -21,6 +21,8 @@
 	"vscode.extension.contributes.debuggers.configurationAttributes": "Конфигурации схемы JSON для проверки launch.json.",
 	"vscode.extension.contributes.debuggers.windows": "Параметры, связанные с Windows.",
 	"vscode.extension.contributes.debuggers.windows.runtime": "Среда выполнения, используемая для Windows.",
+	"vscode.extension.contributes.debuggers.osx": "Параметры, связанные с macOS.",
+	"vscode.extension.contributes.debuggers.osx.runtime": "Среда выполнения, используемая для macOS.",
 	"vscode.extension.contributes.debuggers.linux": "Параметры, связанные с Linux.",
 	"vscode.extension.contributes.debuggers.linux.runtime": "Среда выполнения, используемая для Linux.",
 	"vscode.extension.contributes.breakpoints": "Добавляет точки останова.",
@@ -30,8 +32,12 @@
 	"app.launch.json.configurations": "Список конфигураций. Добавьте новые конфигурации или измените существующие с помощью IntelliSense.",
 	"app.launch.json.compounds": "Список составных объектов. Каждый из них ссылается на несколько конфигураций, которые будут запущены вместе.",
 	"app.launch.json.compound.name": "Имя составного объекта. Отображается в раскрывающемся меню запуска конфигурации.",
+	"useUniqueNames": "Используйте уникальное имя конфигурации.",
+	"app.launch.json.compound.folder": "Имя папки, в которой расположен составной объект.",
 	"app.launch.json.compounds.configurations": "Имена конфигураций, которые будут запущены как часть этого составного объекта.",
 	"debugNoType": "Параметр type адаптера отладки не может быть опущен и должен иметь тип string.",
 	"selectDebug": "Выбор среды",
-	"DebugConfig.failed": "Не удается создать файл launch.json в папке .vscode ({0})."
+	"DebugConfig.failed": "Не удается создать файл launch.json в папке .vscode ({0}).",
+	"workspace": "рабочая область",
+	"user settings": "параметры пользователя"
 }

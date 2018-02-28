@@ -58,16 +58,5 @@
 	"titleBarInactiveForeground": "Colore primo piano della barra del titolo quando la finestra è inattiva. Si noti che questo colore è attualmente supportato solo su macOS.",
 	"titleBarActiveBackground": "Colore di sfondo della barra di titolo quando la finestra è attiva. Si noti che questo colore è attualmente solo supportati su macOS.",
 	"titleBarInactiveBackground": "Colore di sfondo della barra del titolo quando la finestra è inattiva. Si noti che questo colore è attualmente supportato solo su macOS.",
-	"titleBarBorder": "Colore del bordo della barra di stato. Si noti che questo colore è attualmente supportato solo su macOS.",
-	"notificationsForeground": "Colore primo piano delle notifiche. Le notifiche scorrono dalla parte superiore della finestra.",
-	"notificationsBackground": "Colore di sfondo delle notifiche. Le notifiche scorrono dalla parte superiore della finestra.",
-	"notificationsButtonBackground": "Colore di sfondo del pulsante delle notifiche. Le notifiche scorrono dalla parte superiore della finestra.",
-	"notificationsButtonHoverBackground": "Colore di sfondo del pulsante delle notifiche al passaggio del mouse. Le notifiche scorrono dalla parte superiore della finestra.",
-	"notificationsButtonForeground": "Colore primo piano del pulsante delle notifiche. Le notifiche scorrono dalla parte superiore della finestra.",
-	"notificationsInfoBackground": "Colore di sfondo delle notifiche informative. Le notifiche scorrono dalla parte superiore della finestra.",
-	"notificationsInfoForeground": "Colore primo piano delle notifiche informative. Le notifiche scorrono dalla parte superiore della finestra.",
-	"notificationsWarningBackground": "Colore di sfondo delle notifiche di avviso. Le notifiche scorrono dalla parte superiore della finestra.",
-	"notificationsWarningForeground": "Colore primo piano delle notifiche di avviso. Le notifiche scorrono dalla parte superiore della finestra.",
-	"notificationsErrorBackground": "Colore di sfondo delle notifiche di errore. Le notifiche scorrono dalla parte superiore della finestra.",
-	"notificationsErrorForeground": "Colore primo piano delle notifiche di errore. Le notifiche scorrono dalla parte superiore della finestra."
+	"titleBarBorder": "Colore del bordo della barra di stato. Si noti che questo colore è attualmente supportato solo su macOS."
 }

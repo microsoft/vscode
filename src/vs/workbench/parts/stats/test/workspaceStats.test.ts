@@ -67,16 +67,48 @@ suite('Telemetry - WorkspaceStats', () => {
 		assert.deepStrictEqual(getRemotes(remote('https://username:password@github3.com/username/repository.git')), ['github3.com/username/repository.git']);
 		assert.deepStrictEqual(getRemotes(remote('https://username:password@example2.com:1234/username/repository.git')), ['example2.com/username/repository.git']);
 		assert.deepStrictEqual(getRemotes(remote('https://example3.com:1234/username/repository.git')), ['example3.com/username/repository.git']);
+
+		// Strip .git
+		assert.deepStrictEqual(getRemotes(remote('https://github.com/Microsoft/vscode.git'), true), ['github.com/Microsoft/vscode']);
+		assert.deepStrictEqual(getRemotes(remote('https://git.example.com/gitproject.git'), true), ['git.example.com/gitproject']);
+		assert.deepStrictEqual(getRemotes(remote('https://username@github2.com/username/repository.git'), true), ['github2.com/username/repository']);
+		assert.deepStrictEqual(getRemotes(remote('https://username:password@github3.com/username/repository.git'), true), ['github3.com/username/repository']);
+		assert.deepStrictEqual(getRemotes(remote('https://username:password@example2.com:1234/username/repository.git'), true), ['example2.com/username/repository']);
+		assert.deepStrictEqual(getRemotes(remote('https://example3.com:1234/username/repository.git'), true), ['example3.com/username/repository']);
+
+		// Compare Striped .git with no .git
+		assert.deepStrictEqual(getRemotes(remote('https://github.com/Microsoft/vscode.git'), true), getRemotes(remote('https://github.com/Microsoft/vscode')));
+		assert.deepStrictEqual(getRemotes(remote('https://git.example.com/gitproject.git'), true), getRemotes(remote('https://git.example.com/gitproject')));
+		assert.deepStrictEqual(getRemotes(remote('https://username@github2.com/username/repository.git'), true), getRemotes(remote('https://username@github2.com/username/repository')));
+		assert.deepStrictEqual(getRemotes(remote('https://username:password@github3.com/username/repository.git'), true), getRemotes(remote('https://username:password@github3.com/username/repository')));
+		assert.deepStrictEqual(getRemotes(remote('https://username:password@example2.com:1234/username/repository.git'), true), getRemotes(remote('https://username:password@example2.com:1234/username/repository')));
+		assert.deepStrictEqual(getRemotes(remote('https://example3.com:1234/username/repository.git'), true), getRemotes(remote('https://example3.com:1234/username/repository')));
 	});
 
 	test('SSH remotes to be hashed', function () {
 		assert.deepStrictEqual(getRemotes(remote('ssh://user@git.server.org/project.git')), ['git.server.org/project.git']);
+
+		// Strip .git
+		assert.deepStrictEqual(getRemotes(remote('ssh://user@git.server.org/project.git'), true), ['git.server.org/project']);
+
+		// Compare Striped .git with no .git
+		assert.deepStrictEqual(getRemotes(remote('ssh://user@git.server.org/project.git'), true), getRemotes(remote('ssh://user@git.server.org/project')));
 	});
 
 	test('SCP-like remotes to be hashed', function () {
 		assert.deepStrictEqual(getRemotes(remote('git@github.com:Microsoft/vscode.git')), ['github.com/Microsoft/vscode.git']);
 		assert.deepStrictEqual(getRemotes(remote('user@git.server.org:project.git')), ['git.server.org/project.git']);
 		assert.deepStrictEqual(getRemotes(remote('git.server2.org:project.git')), ['git.server2.org/project.git']);
+
+		// Strip .git
+		assert.deepStrictEqual(getRemotes(remote('git@github.com:Microsoft/vscode.git'), true), ['github.com/Microsoft/vscode']);
+		assert.deepStrictEqual(getRemotes(remote('user@git.server.org:project.git'), true), ['git.server.org/project']);
+		assert.deepStrictEqual(getRemotes(remote('git.server2.org:project.git'), true), ['git.server2.org/project']);
+
+		// Compare Striped .git with no .git
+		assert.deepStrictEqual(getRemotes(remote('git@github.com:Microsoft/vscode.git'), true), getRemotes(remote('git@github.com:Microsoft/vscode')));
+		assert.deepStrictEqual(getRemotes(remote('user@git.server.org:project.git'), true), getRemotes(remote('user@git.server.org:project')));
+		assert.deepStrictEqual(getRemotes(remote('git.server2.org:project.git'), true), getRemotes(remote('git.server2.org:project')));
 	});
 
 	test('Local remotes to be hashed', function () {
@@ -87,6 +119,13 @@ suite('Telemetry - WorkspaceStats', () => {
 	test('Multiple remotes to be hashed', function () {
 		const config = ['https://github.com/Microsoft/vscode.git', 'https://git.example.com/gitproject.git'].map(remote).join(' ');
 		assert.deepStrictEqual(getRemotes(config), ['github.com/Microsoft/vscode.git', 'git.example.com/gitproject.git']);
+
+		// Strip .git
+		assert.deepStrictEqual(getRemotes(config, true), ['github.com/Microsoft/vscode', 'git.example.com/gitproject']);
+
+		// Compare Striped .git with no .git
+		const noDotGitConfig = ['https://github.com/Microsoft/vscode', 'https://git.example.com/gitproject'].map(remote).join(' ');
+		assert.deepStrictEqual(getRemotes(config, true), getRemotes(noDotGitConfig));
 	});
 
 	test('Single remote hashed', function () {
@@ -94,11 +133,30 @@ suite('Telemetry - WorkspaceStats', () => {
 		assert.deepStrictEqual(getHashedRemotesFromConfig(remote('ssh://user@git.server.org/project.git')), [hash('git.server.org/project.git')]);
 		assert.deepStrictEqual(getHashedRemotesFromConfig(remote('user@git.server.org:project.git')), [hash('git.server.org/project.git')]);
 		assert.deepStrictEqual(getHashedRemotesFromConfig(remote('/opt/git/project.git')), []);
+
+		// Strip .git
+		assert.deepStrictEqual(getHashedRemotesFromConfig(remote('https://username:password@github3.com/username/repository.git'), true), [hash('github3.com/username/repository')]);
+		assert.deepStrictEqual(getHashedRemotesFromConfig(remote('ssh://user@git.server.org/project.git'), true), [hash('git.server.org/project')]);
+		assert.deepStrictEqual(getHashedRemotesFromConfig(remote('user@git.server.org:project.git'), true), [hash('git.server.org/project')]);
+		assert.deepStrictEqual(getHashedRemotesFromConfig(remote('/opt/git/project.git'), true), []);
+
+		// Compare Striped .git with no .git
+		assert.deepStrictEqual(getHashedRemotesFromConfig(remote('https://username:password@github3.com/username/repository.git'), true), getHashedRemotesFromConfig(remote('https://username:password@github3.com/username/repository')));
+		assert.deepStrictEqual(getHashedRemotesFromConfig(remote('ssh://user@git.server.org/project.git'), true), getHashedRemotesFromConfig(remote('ssh://user@git.server.org/project')));
+		assert.deepStrictEqual(getHashedRemotesFromConfig(remote('user@git.server.org:project.git'), true), [hash('git.server.org/project')]);
+		assert.deepStrictEqual(getHashedRemotesFromConfig(remote('/opt/git/project.git'), true), getHashedRemotesFromConfig(remote('/opt/git/project')));
 	});
 
 	test('Multiple remotes hashed', function () {
 		const config = ['https://github.com/Microsoft/vscode.git', 'https://git.example.com/gitproject.git'].map(remote).join(' ');
 		assert.deepStrictEqual(getHashedRemotesFromConfig(config), [hash('github.com/Microsoft/vscode.git'), hash('git.example.com/gitproject.git')]);
+
+		// Strip .git
+		assert.deepStrictEqual(getHashedRemotesFromConfig(config, true), [hash('github.com/Microsoft/vscode'), hash('git.example.com/gitproject')]);
+
+		// Compare Striped .git with no .git
+		const noDotGitConfig = ['https://github.com/Microsoft/vscode', 'https://git.example.com/gitproject'].map(remote).join(' ');
+		assert.deepStrictEqual(getHashedRemotesFromConfig(config, true), getHashedRemotesFromConfig(noDotGitConfig));
 	});
 
 	function remote(url: string): string {

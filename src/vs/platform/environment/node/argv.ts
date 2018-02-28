@@ -28,7 +28,8 @@ const options: minimist.Opts = {
 		'debugBrkSearch',
 		'enable-proposed-api',
 		'export-default-configuration',
-		'install-source'
+		'install-source',
+		'upload-logs'
 	],
 	boolean: [
 		'help',
@@ -60,8 +61,7 @@ const options: minimist.Opts = {
 		'skip-add-to-recently-opened',
 		'status',
 		'file-write',
-		'file-chmod',
-		'upload-logs'
+		'file-chmod'
 	],
 	alias: {
 		add: 'a',
@@ -142,7 +142,7 @@ const optionsHelp: { [name: string]: string; } = {
 	'-r, --reuse-window': localize('reuseWindow', "Force to open a file or folder in the last active window."),
 	'-w, --wait': localize('wait', "Wait for the files to be closed before returning."),
 	'--locale <locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
-	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open two distinct instances of Code."),
+	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code."),
 	'-v, --version': localize('version', "Print version."),
 	'-h, --help': localize('help', "Print usage.")
 };
@@ -167,6 +167,7 @@ const troubleshootingHelp: { [name: string]: string; } = {
 	'--inspect-brk-extensions': localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection uri."),
 	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),
 	'--upload-logs': localize('uploadLogs', "Uploads logs from current session to a secure endpoint."),
+	'--max-memory': localize('maxMemory', "Max memory size for a window (in Mbytes).")
 };
 
 export function formatOptions(options: { [name: string]: string; }, columns: number): string {

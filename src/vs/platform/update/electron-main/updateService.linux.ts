@@ -5,6 +5,7 @@
 
 'use strict';
 
+import product from 'vs/platform/node/product';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -76,7 +77,13 @@ export class LinuxUpdateService extends AbstractUpdateService {
 	}
 
 	protected doDownloadUpdate(state: AvailableForDownload): TPromise<void> {
-		shell.openExternal(state.update.url);
+		// Use the download URL if available as we don't currently detect the package type that was
+		// installed and the website download page is more useful than the tarball generally.
+		if (product.downloadUrl && product.downloadUrl.length > 0) {
+			shell.openExternal(product.downloadUrl);
+		} else {
+			shell.openExternal(state.update.url);
+		}
 		this.setState(State.Idle);
 
 		return TPromise.as(null);

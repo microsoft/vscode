@@ -86,8 +86,10 @@ export interface IExtensionsWorkbenchService {
 
 export const ConfigurationKey = 'extensions';
 export const AutoUpdateConfigurationKey = 'extensions.autoUpdate';
+export const ShowRecommendationsOnlyOnDemandKey = 'extensions.showRecommendationsOnlyOnDemand';
 
 export interface IExtensionsConfiguration {
 	autoUpdate: boolean;
 	ignoreRecommendations: boolean;
+	showRecommendationsOnlyOnDemand: boolean;
 }

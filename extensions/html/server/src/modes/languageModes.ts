@@ -20,10 +20,13 @@ import { getHTMLMode } from './htmlMode';
 
 export { ColorInformation, ColorPresentation, Color };
 
+import { FoldingRangeList } from '../protocol/foldingProvider.proposed';
+
 export interface Settings {
 	css?: any;
 	html?: any;
 	javascript?: any;
+	emmet?: { [key: string]: any };
 }
 
 export interface SettingProvider {
@@ -35,6 +38,7 @@ export interface LanguageMode {
 	configure?: (options: Settings) => void;
 	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
 	doComplete?: (document: TextDocument, position: Position, settings?: Settings) => CompletionList | null;
+	setCompletionParticipants?: (registeredCompletionParticipants: any[]) => void;
 	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem | null;
 	doHover?: (document: TextDocument, position: Position) => Hover | null;
 	doSignatureHelp?: (document: TextDocument, position: Position) => SignatureHelp | null;
@@ -47,6 +51,7 @@ export interface LanguageMode {
 	findDocumentColors?: (document: TextDocument) => ColorInformation[];
 	getColorPresentations?: (document: TextDocument, color: Color, range: Range) => ColorPresentation[];
 	doAutoClose?: (document: TextDocument, position: Position) => string | null;
+	getFoldingRanges?: (document: TextDocument) => FoldingRangeList | null;
 	onDocumentRemoved(document: TextDocument): void;
 	dispose(): void;
 }

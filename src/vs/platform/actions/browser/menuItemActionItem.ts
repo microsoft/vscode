@@ -8,8 +8,6 @@
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMenu, MenuItemAction, IMenuActionOptions, ICommandAction } from 'vs/platform/actions/common/actions';
-import { IMessageService } from 'vs/platform/message/common/message';
-import Severity from 'vs/base/common/severity';
 import { IAction } from 'vs/base/common/actions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -20,6 +18,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { createCSSRule } from 'vs/base/browser/dom';
 import URI from 'vs/base/common/uri';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 class AltKeyEmitter extends Emitter<boolean> {
 
@@ -110,9 +109,9 @@ export function fillInActions(menu: IMenu, options: IMenuActionOptions, target: 
 }
 
 
-export function createActionItem(action: IAction, keybindingService: IKeybindingService, messageService: IMessageService, contextMenuService: IContextMenuService): ActionItem {
+export function createActionItem(action: IAction, keybindingService: IKeybindingService, notificationService: INotificationService, contextMenuService: IContextMenuService): ActionItem {
 	if (action instanceof MenuItemAction) {
-		return new MenuItemActionItem(action, keybindingService, messageService, contextMenuService);
+		return new MenuItemActionItem(action, keybindingService, notificationService, contextMenuService);
 	}
 	return undefined;
 }
@@ -128,9 +127,9 @@ export class MenuItemActionItem extends ActionItem {
 
 	constructor(
 		public _action: MenuItemAction,
-		@IKeybindingService private _keybindingService: IKeybindingService,
-		@IMessageService protected _messageService: IMessageService,
-		@IContextMenuService private _contextMenuService: IContextMenuService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@INotificationService protected _notificationService: INotificationService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService
 	) {
 		super(undefined, _action, { icon: !!(_action.class || _action.item.iconPath), label: !_action.class && !_action.item.iconPath });
 	}
@@ -144,7 +143,7 @@ export class MenuItemActionItem extends ActionItem {
 		event.stopPropagation();
 
 		this.actionRunner.run(this._commandAction)
-			.done(undefined, err => this._messageService.show(Severity.Error, err));
+			.done(undefined, err => this._notificationService.error(err));
 	}
 
 	render(container: HTMLElement): void {
@@ -235,5 +234,19 @@ export class MenuItemActionItem extends ActionItem {
 		}
 
 		super.dispose();
+	}
+}
+
+// Need to subclass MenuItemActionItem in order to respect
+// the action context coming from any action bar, without breaking
+// existing users
+export class ContextAwareMenuItemActionItem extends MenuItemActionItem {
+
+	onClick(event: MouseEvent): void {
+		event.preventDefault();
+		event.stopPropagation();
+
+		this.actionRunner.run(this._commandAction, this._context)
+			.done(undefined, err => this._notificationService.error(err));
 	}
 }

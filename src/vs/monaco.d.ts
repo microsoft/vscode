@@ -2745,7 +2745,7 @@ declare module monaco.editor {
 		/**
 		 * The history mode for suggestions.
 		 */
-		selectSuggestions?: string;
+		suggestSelection?: string;
 		/**
 		 * The font size for the suggest widget.
 		 * Defaults to the editor font size.
@@ -3052,7 +3052,7 @@ declare module monaco.editor {
 		readonly acceptSuggestionOnCommitCharacter: boolean;
 		readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		readonly wordBasedSuggestions: boolean;
-		readonly selectSuggestions: 'never' | 'byRecency' | 'byPrefix';
+		readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 		readonly suggestFontSize: number;
 		readonly suggestLineHeight: number;
 		readonly selectionHighlight: boolean;
@@ -3735,6 +3735,11 @@ declare module monaco.editor {
 		 */
 		getCenteredRangeInViewport(): Range;
 		/**
+		 * Returns the ranges that are currently visible.
+		 * Does not account for horizontal scrolling.
+		 */
+		getVisibleRanges(): Range[];
+		/**
 		 * Get the vertical position (top offset) for the line w.r.t. to the first line.
 		 */
 		getTopForLineNumber(lineNumber: number): number;
@@ -4047,6 +4052,9 @@ declare module monaco.languages {
 	 */
 	export function registerColorProvider(languageId: string, provider: DocumentColorProvider): IDisposable;
 
+	/**
+	 * Register a folding provider
+	 */
 	/**
 	 * Contains additional diagnostic information about the context in which
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.

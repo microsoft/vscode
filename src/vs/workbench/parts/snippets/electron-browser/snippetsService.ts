@@ -14,7 +14,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { overlap, compare, startsWith, isFalsyOrWhitespace, endsWith } from 'vs/base/common/strings';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { join, basename, extname } from 'path';
 import { mkdirp, readdir, exists } from 'vs/base/node/pfs';
@@ -22,7 +22,7 @@ import { watch } from 'vs/base/node/extfs';
 import { SnippetFile, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ExtensionsRegistry, IExtensionPointUser } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -235,11 +235,13 @@ class SnippetsService implements ISnippetsService {
 						this._files.delete(filepath);
 					}
 				});
-			});
+			}, (error: string) => this._logService.error(error));
 			this._disposables.push({
 				dispose: () => {
-					watcher.removeAllListeners();
-					watcher.close();
+					if (watcher) {
+						watcher.removeAllListeners();
+						watcher.close();
+					}
 				}
 			});
 
@@ -296,8 +298,8 @@ export class SnippetSuggestion implements ISuggestion {
 export class SnippetSuggestProvider implements ISuggestSupport {
 
 	constructor(
-		@IModeService private _modeService: IModeService,
-		@ISnippetsService private _snippets: ISnippetsService
+		@IModeService private readonly _modeService: IModeService,
+		@ISnippetsService private readonly _snippets: ISnippetsService
 	) {
 		//
 	}

@@ -202,7 +202,7 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		}
 		let lineIndex = lineNumber - startLineNumber;
 		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
-			throw new Error('Unexpected render request');
+			return '';
 		}
 		return this._renderResult[lineIndex];
 	}

@@ -8,5 +8,6 @@
 	],
 	"quickFixWithKb": "수정 사항 표시({0})",
 	"quickFix": "수정 사항 표시",
-	"quickfix.trigger.label": "빠른 수정"
+	"quickfix.trigger.label": "빠른 수정",
+	"refactor.label": "리팩터링"
 }

@@ -11,9 +11,7 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { chain } from 'vs/base/common/event';
 import { isPromiseCanceledError, create as createError } from 'vs/base/common/errors';
-import Severity from 'vs/base/common/severity';
-import { PagedModel, IPagedModel, mergePagers, IPager } from 'vs/base/common/paging';
-import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
+import { PagedModel, IPagedModel, IPager } from 'vs/base/common/paging';
 import { SortBy, SortOrder, IQueryOptions, LocalExtensionType, IExtensionTipsService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -23,7 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Delegate, Renderer } from 'vs/workbench/parts/extensions/browser/extensionsList';
 import { IExtension, IExtensionsWorkbenchService } from '../common/extensions';
 import { Query } from '../common/extensionQuery';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IViewletViewOptions, IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -36,6 +34,8 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class ExtensionsListView extends ViewsViewletPanel {
 
@@ -47,7 +47,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 
 	constructor(
 		private options: IViewletViewOptions,
-		@IMessageService protected messageService: IMessageService,
+		@INotificationService protected notificationService: INotificationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -58,9 +58,10 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		@IEditorGroupService private editorInputService: IEditorGroupService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IModeService private modeService: IModeService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService, configurationService);
 	}
 
 	renderHeader(container: HTMLElement): void {
@@ -79,7 +80,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		const renderer = this.instantiationService.createInstance(Renderer);
 		this.list = this.instantiationService.createInstance(WorkbenchPagedList, this.extensionsList, delegate, [renderer], {
 			ariaLabel: localize('extensions', "Extensions")
-		});
+		}) as WorkbenchPagedList<IExtension>;
 
 		chain(this.list.onOpen)
 			.map(e => e.elements[0])
@@ -142,6 +143,18 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
 			case 'rating': options = assign(options, { sortBy: SortBy.WeightedRating }); break;
 			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
+		}
+
+		if (!value || ExtensionsListView.isBuiltInExtensionsQuery(value)) {
+			// Show installed extensions
+			value = value ? value.replace(/@builtin/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
+
+			let result = await this.extensionsWorkbenchService.queryLocal();
+
+			result = result
+				.filter(e => e.type === LocalExtensionType.System && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
+
+			return new PagedModel(this.sortExtensions(result, options));
 		}
 
 		if (!value || ExtensionsListView.isInstalledExtensionsQuery(value)) {
@@ -214,15 +227,11 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			return this.getRecommendationsModel(query, options);
 		}
 
-		const pagerPromises: TPromise<IPager<IExtension>>[] = [];
 		let text = query.value;
 		const extensionRegex = /\bext:([^\s]+)\b/g;
 
 		if (extensionRegex.test(query.value)) {
-			let names: string[] = [];
-
 			text = query.value.replace(extensionRegex, (m, ext) => {
-				names.push(...this.tipsService.getRecommendationsForExtension(ext));
 
 				// Get curated keywords
 				const keywords = this.tipsService.getKeywordsForExtension(ext);
@@ -236,9 +245,10 @@ export class ExtensionsListView extends ViewsViewletPanel {
 				return `tag:"__ext_${ext}" tag:"__ext_.${ext}" ${keywords.map(tag => `tag:"${tag}"`).join(' ')}${languageTag} tag:"${ext}"`;
 			});
 
-			if (names.length) {
-				const namesOptions = assign({}, options, { names, source: 'extRegex' });
-				pagerPromises.push(this.extensionsWorkbenchService.queryGallery(namesOptions));
+			if (text !== query.value) {
+				options = assign(options, { text: text.substr(0, 350), source: 'file-extension-tags' });
+				const pager = await this.extensionsWorkbenchService.queryGallery(options);
+				return new PagedModel(pager);
 			}
 		}
 
@@ -248,11 +258,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			options.source = 'viewlet';
 		}
 
-		pagerPromises.push(this.extensionsWorkbenchService.queryGallery(options));
-
-		const pagers = await TPromise.join(pagerPromises);
-		const pager = pagers.length === 2 ? mergePagers(pagers[0], pagers[1]) : pagers[0];
-
+		const pager = await this.extensionsWorkbenchService.queryGallery(options);
 		return new PagedModel(pager);
 	}
 
@@ -283,10 +289,11 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			.then(local => {
 				const installedExtensions = local.map(x => `${x.publisher}.${x.name}`);
 				let fileBasedRecommendations = this.tipsService.getFileBasedRecommendations();
-				let others = this.tipsService.getOtherRecommendations();
+				const othersPromise = this.tipsService.getOtherRecommendations();
+				const workspacePromise = this.tipsService.getWorkspaceRecommendations();
 
-				return this.tipsService.getWorkspaceRecommendations()
-					.then(workspaceRecommendations => {
+				return TPromise.join([othersPromise, workspacePromise])
+					.then(([others, workspaceRecommendations]) => {
 						const names = this.getTrimmedRecommendations(installedExtensions, value, fileBasedRecommendations, others, workspaceRecommendations);
 
 						/* __GDPR__
@@ -316,10 +323,11 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			.then(local => {
 				const installedExtensions = local.map(x => `${x.publisher}.${x.name}`);
 				let fileBasedRecommendations = this.tipsService.getFileBasedRecommendations();
-				let others = this.tipsService.getOtherRecommendations();
+				const othersPromise = this.tipsService.getOtherRecommendations();
+				const workspacePromise = this.tipsService.getWorkspaceRecommendations();
 
-				return this.tipsService.getWorkspaceRecommendations()
-					.then(workspaceRecommendations => {
+				return TPromise.join([othersPromise, workspacePromise])
+					.then(([others, workspaceRecommendations]) => {
 						workspaceRecommendations = workspaceRecommendations.map(x => x.toLowerCase());
 						fileBasedRecommendations = fileBasedRecommendations.filter(x => workspaceRecommendations.indexOf(x.toLowerCase()) === -1);
 						others = others.filter(x => workspaceRecommendations.indexOf(x.toLowerCase()) === -1);
@@ -456,21 +464,24 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		if (/ECONNREFUSED/.test(message)) {
 			const error = createError(localize('suggestProxyError', "Marketplace returned 'ECONNREFUSED'. Please check the 'http.proxy' setting."), {
 				actions: [
-					this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL),
-					CloseAction
+					this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL)
 				]
 			});
 
-			this.messageService.show(Severity.Error, error);
+			this.notificationService.error(error);
 			return;
 		}
 
-		this.messageService.show(Severity.Error, err);
+		this.notificationService.error(err);
 	}
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		super.dispose();
+	}
+
+	static isBuiltInExtensionsQuery(query: string): boolean {
+		return /@builtin/i.test(query);
 	}
 
 	static isInstalledExtensionsQuery(query: string): boolean {
@@ -525,6 +536,18 @@ export class InstalledExtensionsView extends ExtensionsListView {
 	}
 }
 
+export class BuiltInExtensionsView extends ExtensionsListView {
+
+	async show(query: string): TPromise<IPagedModel<IExtension>> {
+		if (!ExtensionsListView.isBuiltInExtensionsQuery(query)) {
+			return super.show(query);
+		}
+		let searchBuiltInQuery = '@builtin';
+		searchBuiltInQuery = query ? searchBuiltInQuery + ' ' + query : searchBuiltInQuery;
+		return super.show(searchBuiltInQuery);
+	}
+}
+
 export class RecommendedExtensionsView extends ExtensionsListView {
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
@@ -543,7 +566,7 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 		const actionbar = new ActionBar(listActionBar, {
 			animated: false
 		});
-		actionbar.onDidRun(({ error }) => error && this.messageService.show(Severity.Error, error));
+		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 		const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, InstallWorkspaceRecommendedExtensionsAction.LABEL);
 		const configureWorkspaceFolderAction = this.instantiationService.createInstance(ConfigureWorkspaceFolderRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction.ID, ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL);
 

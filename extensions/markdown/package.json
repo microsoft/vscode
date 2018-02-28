@@ -1,12 +1,13 @@
 {
 	"name": "vscode-markdown",
-	"displayName": "VS Code Markdown",
-	"description": "Markdown for VS Code",
-	"version": "0.2.0",
-	"publisher": "Microsoft",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
+	"publisher": "vscode",
 	"aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+	"enableProposedApi": true,
 	"engines": {
-		"vscode": "^1.0.0"
+		"vscode": "^1.20.0"
 	},
 	"main": "./out/extension",
 	"categories": [
@@ -17,6 +18,7 @@
 		"onCommand:markdown.refreshPreview",
 		"onCommand:markdown.showPreview",
 		"onCommand:markdown.showPreviewToSide",
+		"onCommand:markdown.showPinnedPreviewToSide",
 		"onCommand:markdown.showSource",
 		"onCommand:markdown.showPreviewSecuritySelector"
 	],
@@ -41,7 +43,7 @@
 			{
 				"language": "markdown",
 				"scopeName": "text.html.markdown",
-				"path": "./syntaxes/markdown.tmLanguage",
+				"path": "./syntaxes/markdown.tmLanguage.json",
 				"embeddedLanguages": {
 					"meta.embedded.block.html": "html",
 					"source.js": "javascript",
@@ -92,10 +94,7 @@
 		"commands": [
 			{
 				"command": "markdown.showPreview",
-				"title": {
-					"original": "Open Preview",
-					"value": "%markdown.preview.title%"
-				},
+				"title": "%markdown.preview.title%",
 				"category": "Markdown",
 				"icon": {
 					"light": "./media/Preview.svg",
@@ -104,10 +103,16 @@
 			},
 			{
 				"command": "markdown.showPreviewToSide",
-				"title": {
-					"original": "Open Preview to the Side",
-					"value": "%markdown.previewSide.title%"
-				},
+				"title": "%markdown.previewSide.title%",
+				"category": "Markdown",
+				"icon": {
+					"light": "./media/PreviewOnRightPane_16x.svg",
+					"dark": "./media/PreviewOnRightPane_16x_dark.svg"
+				}
+			},
+			{
+				"command": "markdown.showPinnedPreviewToSide",
+				"title": "%markdown.showPinnedPreviewToSide.title%",
 				"category": "Markdown",
 				"icon": {
 					"light": "./media/PreviewOnRightPane_16x.svg",
@@ -116,10 +121,7 @@
 			},
 			{
 				"command": "markdown.showSource",
-				"title": {
-					"original": "Show Source",
-					"value": "%markdown.showSource.title%"
-				},
+				"title": "%markdown.showSource.title%",
 				"category": "Markdown",
 				"icon": {
 					"light": "./media/ViewSource.svg",
@@ -128,18 +130,12 @@
 			},
 			{
 				"command": "markdown.refreshPreview",
-				"title": {
-					"original": "Refresh Preview",
-					"value": "%markdown.refreshPreview.title%"
-				},
+				"title": "%markdown.refreshPreview.title%",
 				"category": "Markdown"
 			},
 			{
 				"command": "markdown.showPreviewSecuritySelector",
-				"title": {
-					"original": "Change Preview Security Settings",
-					"value": "%markdown.showPreviewSecuritySelector.title%"
-				},
+				"title": "%markdown.showPreviewSecuritySelector.title%",
 				"category": "Markdown"
 			}
 		],
@@ -153,17 +149,17 @@
 				},
 				{
 					"command": "markdown.showSource",
-					"when": "resourceScheme == markdown",
+					"when": "markdownPreview",
 					"group": "navigation"
 				},
 				{
 					"command": "markdown.refreshPreview",
-					"when": "resourceScheme == markdown",
+					"when": "markdownPreview",
 					"group": "1_markdown"
 				},
 				{
 					"command": "markdown.showPreviewSecuritySelector",
-					"when": "resourceScheme == markdown",
+					"when": "markdownPreview",
 					"group": "1_markdown"
 				}
 			],
@@ -186,8 +182,13 @@
 					"group": "navigation"
 				},
 				{
+					"command": "markdown.showPinnedPreviewToSide",
+					"when": "editorLangId == markdown",
+					"group": "navigation"
+				},
+				{
 					"command": "markdown.showSource",
-					"when": "resourceScheme == markdown",
+					"when": "markdownPreview",
 					"group": "navigation"
 				},
 				{
@@ -196,7 +197,7 @@
 				},
 				{
 					"command": "markdown.showPreviewSecuritySelector",
-					"when": "resourceScheme == markdown"
+					"when": "markdownPreview"
 				}
 			]
 		},
@@ -271,10 +272,10 @@
 					"description": "%markdown.preview.lineHeight.desc%",
 					"scope": "resource"
 				},
-				"markdown.preview.scrollPreviewWithEditorSelection": {
+				"markdown.preview.scrollPreviewWithEditor": {
 					"type": "boolean",
 					"default": true,
-					"description": "%markdown.preview.scrollPreviewWithEditorSelection.desc%",
+					"description": "%markdown.preview.scrollPreviewWithEditor.desc%",
 					"scope": "resource"
 				},
 				"markdown.preview.markEditorSelection": {
@@ -322,20 +323,19 @@
 	},
 	"scripts": {
 		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown ./tsconfig.json",
-		"update-grammar": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ./syntaxes/gulpfile.js"
+		"update-grammar": "node ../../build/npm/update-grammar.js microsoft/vscode-markdown-tm-grammar syntaxes/markdown.tmLanguage ./syntaxes/markdown.tmLanguage.json"
 	},
 	"dependencies": {
 		"highlight.js": "9.5.0",
 		"markdown-it": "^8.4.0",
 		"markdown-it-named-headers": "0.0.4",
-		"vscode-extension-telemetry": "^0.0.11",
+		"vscode-extension-telemetry": "0.0.15",
 		"vscode-nls": "^3.2.1"
 	},
 	"devDependencies": {
 		"@types/highlight.js": "9.1.10",
 		"@types/markdown-it": "0.0.2",
 		"@types/node": "7.0.43",
-		"gulp-rename": "^1.2.2",
-		"gulp-replace": "^0.5.4"
+		"vscode": "^1.1.10"
 	}
 }

@@ -8,7 +8,7 @@
 	],
 	"terminal.integrated.chooseWindowsShellInfo": "Вы можете изменить оболочку терминала по умолчанию, нажав кнопку \"Настроить\".",
 	"customize": "Настроить",
-	"cancel": "Отмена",
+	"never again": "Больше не показывать",
 	"terminal.integrated.chooseWindowsShell": "Выберите предпочитаемую оболочку терминала. Ее можно позже изменить в параметрах",
 	"terminalService.terminalCloseConfirmationSingular": "Есть активный сеанс терминала, завершить его?",
 	"terminalService.terminalCloseConfirmationPlural": "Есть несколько активных сеансов терминала ({0}), завершить их?"

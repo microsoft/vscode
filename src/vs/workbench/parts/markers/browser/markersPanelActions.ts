@@ -64,7 +64,7 @@ export class CollapseAllAction extends TreeCollapseAction {
 
 export class FilterAction extends Action {
 
-	public static ID: string = 'workbench.actions.problems.filter';
+	public static readonly ID: string = 'workbench.actions.problems.filter';
 
 	constructor() {
 		super(FilterAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_FILTER, 'markers-panel-action-filter', true);

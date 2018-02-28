@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as Objects from 'vs/base/common/objects';
 import { asWinJsPromise } from 'vs/base/common/async';
 
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import * as TaskSystem from 'vs/workbench/parts/tasks/common/tasks';
 
 import { MainContext, MainThreadTaskShape, ExtHostTaskShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';

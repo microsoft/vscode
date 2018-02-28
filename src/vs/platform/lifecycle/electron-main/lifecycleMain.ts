@@ -60,7 +60,7 @@ export interface ILifecycleService {
 	ready(): void;
 	registerWindow(window: ICodeWindow): void;
 
-	unload(window: ICodeWindow, reason: UnloadReason, payload?: object): TPromise<boolean /* veto */>;
+	unload(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */>;
 
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): void;
 
@@ -123,7 +123,7 @@ export class LifecycleService implements ILifecycleService {
 	private registerListeners(): void {
 
 		// before-quit
-		app.on('before-quit', (e) => {
+		app.on('before-quit', e => {
 			this.logService.trace('Lifecycle#before-quit');
 
 			if (!this.quitRequested) {
@@ -176,7 +176,7 @@ export class LifecycleService implements ILifecycleService {
 		});
 	}
 
-	public unload(window: ICodeWindow, reason: UnloadReason, payload?: object): TPromise<boolean /* veto */> {
+	public unload(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
 
 		// Always allow to unload a window that is not yet ready
 		if (window.readyState !== ReadyState.READY) {
@@ -188,13 +188,26 @@ export class LifecycleService implements ILifecycleService {
 		const windowUnloadReason = this.quitRequested ? UnloadReason.QUIT : reason;
 
 		// first ask the window itself if it vetos the unload
-		return this.doUnloadWindowInRenderer(window, windowUnloadReason, payload).then(veto => {
+		return this.onBeforeUnloadWindowInRenderer(window, windowUnloadReason).then(veto => {
 			if (veto) {
+				this.logService.trace('Lifecycle#unload(): veto in renderer', window.id);
+
 				return this.handleVeto(veto);
 			}
 
 			// then check for vetos in the main side
-			return this.doUnloadWindowInMain(window, windowUnloadReason).then(veto => this.handleVeto(veto));
+			return this.onBeforeUnloadWindowInMain(window, windowUnloadReason).then(veto => {
+				if (veto) {
+					this.logService.trace('Lifecycle#unload(): veto in main', window.id);
+
+					return this.handleVeto(veto);
+				} else {
+					this.logService.trace('Lifecycle#unload(): unload continues without veto', window.id);
+				}
+
+				// finally if there are no vetos, unload the renderer
+				return this.onWillUnloadWindowInRenderer(window, windowUnloadReason).then(() => false);
+			});
 		});
 	}
 
@@ -210,8 +223,8 @@ export class LifecycleService implements ILifecycleService {
 		return veto;
 	}
 
-	private doUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason, payload?: object): TPromise<boolean /* veto */> {
-		return new TPromise<boolean>((c) => {
+	private onBeforeUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
+		return new TPromise<boolean>(c => {
 			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
 			const okChannel = `vscode:ok${oneTimeEventToken}`;
 			const cancelChannel = `vscode:cancel${oneTimeEventToken}`;
@@ -224,11 +237,11 @@ export class LifecycleService implements ILifecycleService {
 				c(true); // veto
 			});
 
-			window.send('vscode:beforeUnload', { okChannel, cancelChannel, reason, payload });
+			window.send('vscode:onBeforeUnload', { okChannel, cancelChannel, reason });
 		});
 	}
 
-	private doUnloadWindowInMain(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
+	private onBeforeUnloadWindowInMain(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
 		const vetos: (boolean | TPromise<boolean>)[] = [];
 
 		this._onBeforeWindowUnload.fire({
@@ -240,6 +253,17 @@ export class LifecycleService implements ILifecycleService {
 		});
 
 		return handleVetos(vetos, err => this.logService.error(err));
+	}
+
+	private onWillUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): TPromise<void> {
+		return new TPromise<void>(c => {
+			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
+			const replyChannel = `vscode:reply${oneTimeEventToken}`;
+
+			ipc.once(replyChannel, () => c(void 0));
+
+			window.send('vscode:onWillUnload', { replyChannel, reason });
+		});
 	}
 
 	/**
@@ -275,10 +299,14 @@ export class LifecycleService implements ILifecycleService {
 	}
 
 	public kill(code?: number): void {
+		this.logService.trace('Lifecycle#kill()');
+
 		app.exit(code);
 	}
 
 	public relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): void {
+		this.logService.trace('Lifecycle#relaunch()');
+
 		const args = process.argv.slice(1);
 		if (options && options.addArgs) {
 			args.push(...options.addArgs);

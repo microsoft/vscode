@@ -12,6 +12,7 @@
 	var firstLoad = true;
 	var loadTimeout;
 	var pendingMessages = [];
+	var enableWrappedPostMessage = false;
 
 	const initData = {
 		initialScrollProgress: undefined
@@ -66,6 +67,16 @@
 				break;
 			}
 			node = node.parentNode;
+		}
+	}
+
+	function onMessage(message) {
+		if (enableWrappedPostMessage) {
+			// Modern webview. Forward wrapped message
+			ipcRenderer.sendToHost('onmessage', message.data);
+		} else {
+			// Old school webview. Forward exact message
+			ipcRenderer.sendToHost(message.data.command, message.data.data);
 		}
 	}
 
@@ -125,7 +136,9 @@
 		// update iframe-contents
 		ipcRenderer.on('content', function (_event, data) {
 			const options = data.options;
-			const text = data.contents.join('\n');
+			enableWrappedPostMessage = options && options.enableWrappedPostMessage;
+
+			const text = data.contents;
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
 			newDocument.querySelectorAll('a').forEach(a => {
@@ -145,7 +158,7 @@
 			const defaultStyles = newDocument.createElement('style');
 			defaultStyles.id = '_defaultStyles';
 
-			const vars = Object.keys(initData.styles).map(function (variable) {
+			const vars = Object.keys(initData.styles || {}).map(function (variable) {
 				return `--${variable}: ${initData.styles[variable]};`;
 			});
 			defaultStyles.innerHTML = `
@@ -181,14 +194,35 @@
 				width: 10px;
 				height: 10px;
 			}
+
 			::-webkit-scrollbar-thumb {
-				background-color: var(--scrollbar-thumb);
+				background-color: rgba(121, 121, 121, 0.4);
 			}
+			body.vscode-light::-webkit-scrollbar-thumb {
+				background-color: rgba(100, 100, 100, 0.4);
+			}
+			body.vscode-high-contrast::-webkit-scrollbar-thumb {
+				background-color: rgba(111, 195, 223, 0.3);
+			}
+
 			::-webkit-scrollbar-thumb:hover {
-				background-color: var(--scrollbar-thumb-hover);
+				background-color: rgba(100, 100, 100, 0.7);
 			}
+			body.vscode-light::-webkit-scrollbar-thumb:hover {
+				background-color: rgba(100, 100, 100, 0.7);
+			}
+			body.vscode-high-contrast::-webkit-scrollbar-thumb:hover {
+				background-color: rgba(111, 195, 223, 0.8);
+			}
+
 			::-webkit-scrollbar-thumb:active {
-				background-color: var(--scrollbar-thumb-active);
+				background-color: rgba(85, 85, 85, 0.8);
+			}
+			body.vscode-light::-webkit-scrollbar-thumb:active {
+				background-color: rgba(0, 0, 0, 0.6);
+			}
+			body.vscode-high-contrast::-webkit-scrollbar-thumb:active {
+				background-color: rgba(111, 195, 223, 0.8);
 			}
 			`;
 			if (newDocument.head.hasChildNodes()) {
@@ -312,10 +346,8 @@
 			initData.initialScrollProgress = progress;
 		});
 
-		// forward messages from the embedded iframe
-		window.onmessage = function (message) {
-			ipcRenderer.sendToHost(message.data.command, message.data.data);
-		};
+		// Forward messages from the embedded iframe
+		window.onmessage = onMessage;
 
 		// signal ready
 		ipcRenderer.sendToHost('webview-ready', process.pid);

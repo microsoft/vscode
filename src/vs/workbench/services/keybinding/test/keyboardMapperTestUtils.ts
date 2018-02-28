@@ -72,7 +72,7 @@ export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMa
 			writeFile(filePath, actual);
 		}
 		try {
-			assert.deepEqual(actual, expected);
+			assert.deepEqual(actual.split(/\r\n|\n/), expected.split(/\r\n|\n/));
 		} catch (err) {
 			return done(err);
 		}

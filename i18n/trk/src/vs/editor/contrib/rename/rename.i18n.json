@@ -8,6 +8,6 @@
 	],
 	"no result": "Sonuç yok.",
 	"aria": "'{0}', '{1}' olarak başarıyla yeniden adlandırıldı. Özet: {2}",
-	"rename.failed": "Üzgünüz, yeniden adlandırma işlemi başarısız oldu.",
+	"rename.failed": "Yeniden adlandırma işlemi başarısız oldu.",
 	"rename.label": "Sembolü Yeniden Adlandır"
 }

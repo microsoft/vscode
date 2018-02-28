@@ -26,7 +26,6 @@
 	"workbench.action.terminal.runSelectedText": "Ausgewählten Text im aktiven Terminal ausführen",
 	"workbench.action.terminal.runActiveFile": "Aktive Datei im aktiven Terminal ausführen",
 	"workbench.action.terminal.runActiveFile.noFile": "Nur Dateien auf der Festplatte können im Terminal ausgeführt werden.",
-	"workbench.action.terminal.switchTerminalInstance": "Terminalinstanz umschalten",
 	"workbench.action.terminal.scrollDown": "Nach unten scrollen (Zeile)",
 	"workbench.action.terminal.scrollDownPage": "Nach unten scrollen (Seite)",
 	"workbench.action.terminal.scrollToBottom": "Bildlauf nach unten",

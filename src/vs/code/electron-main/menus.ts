@@ -9,8 +9,8 @@ import * as nls from 'vs/nls';
 import { isMacintosh, isLinux, isWindows, language } from 'vs/base/common/platform';
 import * as arrays from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ipcMain as ipc, app, shell, Menu, MenuItem, BrowserWindow, clipboard } from 'electron';
-import { OpenContext, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
+import { ipcMain as ipc, app, shell, Menu, MenuItem, BrowserWindow } from 'electron';
+import { OpenContext, IRunActionInWindowRequest, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -18,7 +18,7 @@ import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel, getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
+import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel, getPathLabel } from 'vs/base/common/labels';
 import { KeybindingsResolver } from 'vs/code/electron-main/keyboard';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
@@ -69,6 +69,7 @@ export class CodeMenu {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWindowsMainService private windowsMainService: IWindowsMainService,
+		@IWindowsService private windowsService: IWindowsService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IHistoryMainService private historyMainService: IHistoryMainService
@@ -687,6 +688,7 @@ export class CodeMenu {
 
 		const fullscreen = new MenuItem(this.withKeybinding('workbench.action.toggleFullScreen', { label: this.mnemonicLabel(nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")), click: () => this.windowsMainService.getLastActiveWindow().toggleFullScreen(), enabled: this.windowsMainService.getWindowCount() > 0 }));
 		const toggleZenMode = this.createMenuItem(nls.localize('miToggleZenMode', "Toggle Zen Mode"), 'workbench.action.toggleZenMode');
+		const toggleCenteredLayout = this.createMenuItem(nls.localize('miToggleCenteredLayout', "Toggle Centered Layout"), 'workbench.action.toggleCenteredLayout');
 		const toggleMenuBar = this.createMenuItem(nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar"), 'workbench.action.toggleMenuBar');
 		const splitEditor = this.createMenuItem(nls.localize({ key: 'miSplitEditor', comment: ['&& denotes a mnemonic'] }, "Split &&Editor"), 'workbench.action.splitEditor');
 		const toggleEditorLayout = this.createMenuItem(nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Toggle Editor Group &&Layout"), 'workbench.action.toggleEditorGroupLayout');
@@ -746,6 +748,7 @@ export class CodeMenu {
 			__separator__(),
 			fullscreen,
 			toggleZenMode,
+			toggleCenteredLayout,
 			isWindows || isLinux ? toggleMenuBar : void 0,
 			__separator__(),
 			splitEditor,
@@ -998,7 +1001,7 @@ export class CodeMenu {
 			}
 
 			helpMenu.append(__separator__());
-			helpMenu.append(new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")), click: () => this.openAboutDialog() }));
+			helpMenu.append(new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")), click: () => this.windowsService.openAboutDialog() }));
 		}
 	}
 
@@ -1204,39 +1207,6 @@ export class CodeMenu {
 		};
 
 		return options;
-	}
-
-	private openAboutDialog(): void {
-		const lastActiveWindow = this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
-
-		const detail = nls.localize('aboutDetail',
-			"Version {0}\nCommit {1}\nDate {2}\nShell {3}\nRenderer {4}\nNode {5}\nArchitecture {6}",
-			app.getVersion(),
-			product.commit || 'Unknown',
-			product.date || 'Unknown',
-			process.versions['electron'],
-			process.versions['chrome'],
-			process.versions['node'],
-			process.arch
-		);
-
-		const buttons = [nls.localize('okButton', "OK")];
-		if (isWindows) {
-			buttons.push(mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"))); // https://github.com/Microsoft/vscode/issues/37608
-		}
-
-		this.windowsMainService.showMessageBox({
-			title: product.nameLong,
-			type: 'info',
-			message: product.nameLong,
-			detail: `\n${detail}`,
-			buttons,
-			noLink: true
-		}, lastActiveWindow).then(result => {
-			if (isWindows && result.button === 1) {
-				clipboard.writeText(detail);
-			}
-		});
 	}
 
 	private openUrl(url: string, id: string): void {

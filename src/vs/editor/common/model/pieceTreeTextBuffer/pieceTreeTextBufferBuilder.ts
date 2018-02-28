@@ -54,7 +54,7 @@ export class PieceTreeTextBufferFactory implements ITextBufferFactory {
 			}
 		}
 
-		return new PieceTreeTextBuffer(chunks, this._bom, eol, this._containsRTL, this._isBasicASCII);
+		return new PieceTreeTextBuffer(chunks, this._bom, eol, this._containsRTL, this._isBasicASCII, this._normalizeEOL);
 	}
 
 	public getFirstLineText(lengthLimit: number): string {

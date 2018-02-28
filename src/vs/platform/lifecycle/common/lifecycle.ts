@@ -19,9 +19,16 @@ export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleSe
  * a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
  */
 export interface ShutdownEvent {
+
+	/**
+	 * Allows to veto the shutdown. The veto can be a long running operation.
+	 */
 	veto(value: boolean | TPromise<boolean>): void;
+
+	/**
+	 * The reason why Code is shutting down.
+	 */
 	reason: ShutdownReason;
-	payload?: object;
 }
 
 export enum ShutdownReason {

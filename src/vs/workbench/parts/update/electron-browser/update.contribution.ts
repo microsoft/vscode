@@ -7,6 +7,8 @@
 
 import * as nls from 'vs/nls';
 import 'vs/css!./media/update.contribution';
+import 'vs/platform/update/node/update.config.contribution';
+import * as platform from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ReleaseNotesEditor } from 'vs/workbench/parts/update/electron-browser/releaseNotesEditor';
@@ -15,7 +17,6 @@ import { IGlobalActivityRegistry, GlobalActivityExtensions } from 'vs/workbench/
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution, Win3264BitContribution } from './update';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -23,7 +24,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(ProductContribution, LifecyclePhase.Running);
 
-if (process.platform === 'win32' && process.arch === 'ia32') {
+if (platform.isWindows && process.arch === 'ia32') {
 	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 		.registerWorkbenchContribution(Win3264BitContribution, LifecyclePhase.Running);
 }
@@ -43,25 +44,3 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 
 Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions)
 	.registerWorkbenchAction(new SyncActionDescriptor(ShowCurrentReleaseNotesAction, ShowCurrentReleaseNotesAction.ID, ShowCurrentReleaseNotesAction.LABEL), 'Show Release Notes');
-
-// Configuration: Update
-const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
-configurationRegistry.registerConfiguration({
-	'id': 'update',
-	'order': 15,
-	'title': nls.localize('updateConfigurationTitle', "Update"),
-	'type': 'object',
-	'properties': {
-		'update.channel': {
-			'type': 'string',
-			'enum': ['none', 'default'],
-			'default': 'default',
-			'description': nls.localize('updateChannel', "Configure whether you receive automatic updates from an update channel. Requires a restart after change.")
-		},
-		'update.enableWindowsBackgroundUpdates': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('enableWindowsBackgroundUpdates', "Enables Windows background updates.")
-		}
-	}
-});

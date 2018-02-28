@@ -28,7 +28,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DebugHoverWidget } from 'vs/workbench/parts/debug/electron-browser/debugHover';
 import { RemoveBreakpointAction, EditConditionalBreakpointAction, EnableBreakpointAction, DisableBreakpointAction, AddConditionalBreakpointAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, IStackFrame, IDebugConfiguration, IExpression, IExceptionInfo } from 'vs/workbench/parts/debug/common/debug';
@@ -41,6 +41,7 @@ import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { first } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -408,12 +409,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	// configuration widget
 	private updateConfigurationWidgetVisibility(): void {
 		const model = this.editor.getModel();
+		if (this.configurationWidget) {
+			this.configurationWidget.dispose();
+		}
 		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString())) {
 			this.configurationWidget = this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('addConfiguration', "Add Configuration..."), null);
 			this.configurationWidget.render();
 			this.toDispose.push(this.configurationWidget.onClick(() => this.addLaunchConfiguration().done(undefined, errors.onUnexpectedError)));
-		} else if (this.configurationWidget) {
-			this.configurationWidget.dispose();
 		}
 	}
 
@@ -467,7 +469,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private static BREAKPOINT_HELPER_DECORATION: IModelDecorationOptions = {
-		glyphMarginClassName: 'debug-breakpoint-hint-glyph',
+		glyphMarginClassName: 'debug-breakpoint-hint',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 

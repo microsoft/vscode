@@ -28,7 +28,7 @@ export interface IStreamProvider {
 	(cancellationToken?: ICancellationToken): NodeJS.ReadWriteStream;
 }
 
-export function incremental(streamProvider: IStreamProvider, initial: NodeJS.ReadWriteStream, supportsCancellation: boolean): NodeJS.ReadWriteStream {
+export function incremental(streamProvider: IStreamProvider, initial: NodeJS.ReadWriteStream, supportsCancellation?: boolean): NodeJS.ReadWriteStream {
 	const input = es.through();
 	const output = es.through();
 	let state = 'idle';
@@ -129,7 +129,7 @@ export function skipDirectories(): NodeJS.ReadWriteStream {
 	});
 }
 
-export function cleanNodeModule(name: string, excludes: string[], includes: string[]): NodeJS.ReadWriteStream {
+export function cleanNodeModule(name: string, excludes: string[], includes?: string[]): NodeJS.ReadWriteStream {
 	const toGlob = (path: string) => '**/node_modules/' + name + (path ? '/' + path : '');
 	const negate = (str: string) => '!' + str;
 
@@ -190,7 +190,7 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 				return;
 			}
 
-			f.contents = new Buffer(contents.replace(/\/\/# sourceMappingURL=(.*)$/g, ''), 'utf8');
+			f.contents = Buffer.from(contents.replace(/\/\/# sourceMappingURL=(.*)$/g, ''), 'utf8');
 
 			fs.readFile(path.join(path.dirname(f.path), lastMatch[1]), 'utf8', (err, contents) => {
 				if (err) { return cb(err); }
@@ -209,7 +209,7 @@ export function stripSourceMappingURL(): NodeJS.ReadWriteStream {
 	const output = input
 		.pipe(es.mapSync<VinylFile, VinylFile>(f => {
 			const contents = (<Buffer>f.contents).toString('utf8');
-			f.contents = new Buffer(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, ''), 'utf8');
+			f.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, ''), 'utf8');
 			return f;
 		}));
 
@@ -223,7 +223,7 @@ export function rimraf(dir: string): (cb: any) => void {
 		_rimraf(dir, { maxBusyTries: 1 }, (err: any) => {
 			if (!err) {
 				return cb();
-			};
+			}
 
 			if (err.code === 'ENOTEMPTY' && ++retries < 5) {
 				return setTimeout(() => retry(cb), 10);

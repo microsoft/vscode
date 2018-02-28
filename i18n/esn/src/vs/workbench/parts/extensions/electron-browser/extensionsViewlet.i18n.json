@@ -18,5 +18,7 @@
 	"sort by name": "Ordenar por: Nombre",
 	"suggestProxyError": "Marketplace devolvió 'ECONNREFUSED'. Compruebe la configuración de 'http.proxy'.",
 	"extensions": "Extensiones",
-	"outdatedExtensions": "{0} extensiones obsoletas"
+	"outdatedExtensions": "{0} extensiones obsoletas",
+	"malicious warning": "Hemos desinstalado ' {0} ' porque se informó que era problemático.",
+	"reloadNow": "Recargar ahora"
 }

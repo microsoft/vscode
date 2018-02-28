@@ -7,12 +7,13 @@ import * as assert from 'assert';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import { StackFrame, Expression, Thread, Process } from 'vs/workbench/parts/debug/common/debugModel';
 import { MockSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
 suite('Debug - View Model', () => {
 	let model: ViewModel;
 
 	setup(() => {
-		model = new ViewModel();
+		model = new ViewModel(new MockContextKeyService());
 	});
 
 	teardown(() => {

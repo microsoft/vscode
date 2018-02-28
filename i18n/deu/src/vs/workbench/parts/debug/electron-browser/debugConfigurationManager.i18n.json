@@ -21,6 +21,8 @@
 	"vscode.extension.contributes.debuggers.configurationAttributes": "JSON-Schemakonfigurationen zum Überprüfen von \"launch.json\".",
 	"vscode.extension.contributes.debuggers.windows": "Windows-spezifische Einstellungen.",
 	"vscode.extension.contributes.debuggers.windows.runtime": "Die für Windows verwendete Laufzeit.",
+	"vscode.extension.contributes.debuggers.osx": "macOS-spezifische Einstellungen.",
+	"vscode.extension.contributes.debuggers.osx.runtime": "Für macOS verwendete Laufzeit.",
 	"vscode.extension.contributes.debuggers.linux": "Linux-spezifische Einstellungen.",
 	"vscode.extension.contributes.debuggers.linux.runtime": "Die für Linux verwendete Laufzeit.",
 	"vscode.extension.contributes.breakpoints": "Trägt Haltepunkte bei.",
@@ -30,8 +32,12 @@
 	"app.launch.json.configurations": "Die Liste der Konfigurationen. Fügen Sie neue Konfigurationen hinzu, oder bearbeiten Sie vorhandene Konfigurationen mit IntelliSense.",
 	"app.launch.json.compounds": "Liste der Verbundelemente. Jeder Verbund verweist auf mehrere Konfigurationen, die zusammen gestartet werden.",
 	"app.launch.json.compound.name": "Name des Verbunds. Wird im Dropdownmenü der Startkonfiguration angezeigt.",
+	"useUniqueNames": "Verwenden Sie eindeutige Konfigurationsnamen.",
+	"app.launch.json.compound.folder": "Name des Ordners, in dem sich der Verbund befindet.",
 	"app.launch.json.compounds.configurations": "Namen von Konfigurationen, die als Bestandteil dieses Verbunds gestartet werden.",
 	"debugNoType": "Der \"type\" des Debugadapters kann nicht ausgelassen werden und muss vom Typ \"string\" sein.",
 	"selectDebug": "Umgebung auswählen",
-	"DebugConfig.failed": "Die Datei \"launch.json\" kann nicht im Ordner \".vscode\" erstellt werden ({0})."
+	"DebugConfig.failed": "Die Datei \"launch.json\" kann nicht im Ordner \".vscode\" erstellt werden ({0}).",
+	"workspace": "Arbeitsbereich",
+	"user settings": "Benutzereinstellungen"
 }

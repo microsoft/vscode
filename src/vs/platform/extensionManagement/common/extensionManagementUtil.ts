@@ -22,7 +22,7 @@ export function getGalleryExtensionId(publisher: string, name: string): string {
 }
 
 export function getGalleryExtensionIdFromLocal(local: ILocalExtension): string {
-	return getGalleryExtensionId(local.manifest.publisher, local.manifest.name);
+	return local.manifest ? getGalleryExtensionId(local.manifest.publisher, local.manifest.name) : local.identifier.id;
 }
 
 export const LOCAL_EXTENSION_ID_REGEX = /^([^.]+\..+)-(\d+\.\d+\.\d+(-.*)?)$/;
@@ -37,6 +37,10 @@ export function getIdFromLocalExtensionId(localExtensionId: string): string {
 
 export function adoptToGalleryExtensionId(id: string): string {
 	return id.replace(EXTENSION_IDENTIFIER_REGEX, (match, publisher: string, name: string) => getGalleryExtensionId(publisher, name));
+}
+
+export function getLocalExtensionId(id: string, version: string): string {
+	return `${id}-${version}`;
 }
 
 export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t: T) => IExtensionIdentifier): T[][] {

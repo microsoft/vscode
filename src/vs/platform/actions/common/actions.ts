@@ -154,7 +154,7 @@ export class ExecuteCommandAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private _commandService: ICommandService) {
+		@ICommandService private readonly _commandService: ICommandService) {
 
 		super(id, label);
 	}

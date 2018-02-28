@@ -160,6 +160,11 @@ export function rgErrorMsgForDisplay(msg: string): string | undefined {
 		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
 	}
 
+	if (strings.startsWith(firstLine, 'Literal ')) {
+		// e.g. "Literal \n not allowed"
+		return firstLine;
+	}
+
 	return undefined;
 }
 
@@ -427,11 +432,7 @@ export function fixDriveC(path: string): string {
 
 function getRgArgs(config: IRawSearch) {
 	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
-	if (config.contentPattern.isSmartCase) {
-		args.push('--smart-case');
-	} else {
-		args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
-	}
+	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
 	// includePattern can't have siblingClauses
 	foldersToIncludeGlobs(config.folderQueries, config.includePattern).forEach(globArg => {

@@ -10,6 +10,5 @@
 	"yes": "はい",
 	"no": "いいえ",
 	"betterMergeDisabled": "拡張機能 Better Merge は現在ビルトインです。インストール済みの拡張機能は無効化され、アンインストールできます。",
-	"uninstall": "アンインストール",
-	"later": "後続"
+	"uninstall": "アンインストール"
 }

@@ -460,7 +460,7 @@ export interface IEditorOptions {
 	/**
 	 * The history mode for suggestions.
 	 */
-	selectSuggestions?: string;
+	suggestSelection?: string;
 	/**
 	 * The font size for the suggest widget.
 	 * Defaults to the editor font size.
@@ -831,7 +831,7 @@ export interface EditorContribOptions {
 	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly wordBasedSuggestions: boolean;
-	readonly selectSuggestions: 'never' | 'byRecency' | 'byPrefix';
+	readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
 	readonly selectionHighlight: boolean;
@@ -1181,7 +1181,7 @@ export class InternalEditorOptions {
 			&& a.acceptSuggestionOnCommitCharacter === b.acceptSuggestionOnCommitCharacter
 			&& a.snippetSuggestions === b.snippetSuggestions
 			&& a.wordBasedSuggestions === b.wordBasedSuggestions
-			&& a.selectSuggestions === b.selectSuggestions
+			&& a.suggestSelection === b.suggestSelection
 			&& a.suggestFontSize === b.suggestFontSize
 			&& a.suggestLineHeight === b.suggestLineHeight
 			&& a.selectionHighlight === b.selectionHighlight
@@ -1712,7 +1712,7 @@ export class EditorOptionsValidator {
 			acceptSuggestionOnCommitCharacter: _boolean(opts.acceptSuggestionOnCommitCharacter, defaults.acceptSuggestionOnCommitCharacter),
 			snippetSuggestions: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippetSuggestions, ['top', 'bottom', 'inline', 'none']),
 			wordBasedSuggestions: _boolean(opts.wordBasedSuggestions, defaults.wordBasedSuggestions),
-			selectSuggestions: _stringSet<'never' | 'byRecency' | 'byPrefix'>(opts.selectSuggestions, defaults.selectSuggestions, ['never', 'byRecency', 'byPrefix']),
+			suggestSelection: _stringSet<'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>(opts.suggestSelection, defaults.suggestSelection, ['first', 'recentlyUsed', 'recentlyUsedByPrefix']),
 			suggestFontSize: _clampedInt(opts.suggestFontSize, defaults.suggestFontSize, 0, 1000),
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
 			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
@@ -1813,7 +1813,7 @@ export class InternalEditorOptionsFactory {
 				acceptSuggestionOnCommitCharacter: opts.contribInfo.acceptSuggestionOnCommitCharacter,
 				snippetSuggestions: opts.contribInfo.snippetSuggestions,
 				wordBasedSuggestions: opts.contribInfo.wordBasedSuggestions,
-				selectSuggestions: opts.contribInfo.selectSuggestions,
+				suggestSelection: opts.contribInfo.suggestSelection,
 				suggestFontSize: opts.contribInfo.suggestFontSize,
 				suggestLineHeight: opts.contribInfo.suggestLineHeight,
 				selectionHighlight: (accessibilityIsOn ? false : opts.contribInfo.selectionHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -2268,7 +2268,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		acceptSuggestionOnCommitCharacter: true,
 		snippetSuggestions: 'inline',
 		wordBasedSuggestions: true,
-		selectSuggestions: 'byRecency',
+		suggestSelection: 'recentlyUsed',
 		suggestFontSize: 0,
 		suggestLineHeight: 0,
 		selectionHighlight: true,
@@ -2280,7 +2280,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		find: {
 			seedSearchStringFromSelection: true,
 			autoFindInSelection: false,
-			globalFindClipboard: true
+			globalFindClipboard: false
 		},
 		colorDecorators: true,
 		lightbulbEnabled: true

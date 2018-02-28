@@ -39,6 +39,8 @@
 	"statusBarNoFolderBorder": "Rahmenfarbe der Statusleiste zur Abtrennung von der Randleiste und dem Editor, wenn kein Ordner geöffnet ist. Die Statusleiste wird unten im Fenster angezeigt.",
 	"statusBarItemActiveBackground": "Hintergrundfarbe für Statusleistenelemente beim Klicken. Die Statusleiste wird am unteren Rand des Fensters angezeigt.",
 	"statusBarItemHoverBackground": "Hintergrundfarbe der Statusleistenelemente beim Daraufzeigen. Die Statusleiste wird am unteren Seitenrand angezeigt.",
+	"statusBarProminentItemBackground": "Hintergrundfarbe für markante Elemente der Statusleiste. Markante Elemente sind im Vergleich zu anderen Statusleisteneinträgen hervorgehoben, um auf ihre Bedeutung hinzuweisen. Ändern Sie den Modus mithilfe von \"TAB-Umschalttaste verschiebt Fokus\" auf der Befehlspalette, um ein Beispiel anzuzeigen. Die Statusleiste wird unten im Fenster angezeigt.",
+	"statusBarProminentItemHoverBackground": "Hintergrundfarbe für markante Elemente der Statusleiste, wenn auf diese gezeigt wird. Markante Elemente sind im Vergleich zu anderen Statusleisteneinträgen hervorgehoben, um auf ihre Bedeutung hinzuweisen. Ändern Sie den Modus mithilfe von \"TAB-Umschalttaste verschiebt Fokus\" auf der Befehlspalette, um ein Beispiel anzuzeigen. Die Statusleiste wird unten im Fenster angezeigt.",
 	"activityBarBackground": "Hintergrundfarbe der Aktivitätsleiste. Die Aktivitätsleiste wird ganz links oder rechts angezeigt und ermöglicht das Wechseln zwischen verschiedenen Ansichten der Seitenleiste.",
 	"activityBarForeground": "Vordergrundfarbe der Aktivitätsleiste (z. B. für Symbole). Die Aktivitätsleiste wird ganz links oder rechts angezeigt und ermöglicht das Wechseln zwischen verschiedenen Ansichten der Seitenleiste.",
 	"activityBarBorder": "Rahmenfarbe der Aktivitätsleiste für die Abtrennung von der Seitenleiste. Die Aktivitätsleiste wird ganz links oder rechts angezeigt und ermöglicht das Wechseln zwischen verschiedenen Ansichten der Seitenleiste.",
@@ -56,16 +58,5 @@
 	"titleBarInactiveForeground": "Vordergrund der Titelleiste, wenn das Fenster inaktiv ist. Diese Farbe wird derzeit nur von MacOS unterstützt.",
 	"titleBarActiveBackground": "Hintergrund der Titelleiste, wenn das Fenster aktiv ist. Diese Farbe wird derzeit nur von MacOS unterstützt.",
 	"titleBarInactiveBackground": "Hintergrund der Titelleiste, wenn das Fenster inaktiv ist. Diese Farbe wird derzeit nur von MacOS unterstützt.",
-	"titleBarBorder": "Rahmenfarbe der Titelleiste. Diese Farbe wird derzeit nur unter MacOS unterstützt.",
-	"notificationsForeground": "Vordergrundfarbe für Benachrichtigungen. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsBackground": "Hintergrundfarbe für Benachrichtigungen. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsButtonBackground": "Hintergrundfarbe der Benachrichtigungsschaltfläche. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsButtonHoverBackground": "Hintergrundfarbe der Benachrichtigungsschaltfläche, wenn darauf gezeigt wird. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsButtonForeground": "Vordergrundfarbe der Benachrichtigungsschaltfläche. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsInfoBackground": "Hintergrundfarbe von Benachrichtigungsinformationen. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsInfoForeground": "Vordergrundfarbe von Benachrichtigungsinformationen. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsWarningBackground": "Hintergrundfarbe von Benachrichtigungswarnungen. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsWarningForeground": "Vordergrundfarbe von Benachrichtigungswarnungen. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsErrorBackground": "Hintergrundfarbe von Benachrichtigungsfehlern. Benachrichtigungen werden oben im Fenster eingeblendet.",
-	"notificationsErrorForeground": "Vordergrundfarbe von Benachrichtigungsfehlern. Benachrichtigungen werden oben im Fenster eingeblendet."
+	"titleBarBorder": "Rahmenfarbe der Titelleiste. Diese Farbe wird derzeit nur unter MacOS unterstützt."
 }

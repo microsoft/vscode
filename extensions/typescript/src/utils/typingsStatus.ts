@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MessageItem, workspace, Disposable, ProgressLocation, window, commands, Uri } from 'vscode';
+import { MessageItem, workspace, Disposable, ProgressLocation, window } from 'vscode';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { loadMessageBundle } from 'vscode-nls';
 
@@ -106,27 +106,18 @@ export class AtaProgressReporter {
 			window.showWarningMessage<MyMessageItem>(
 				localize(
 					'typesInstallerInitializationFailed.title',
-					"Could not install typings files for JavaScript language features. Please ensure that NPM is installed or configure 'typescript.npm' in your user settings"
+					"Could not install typings files for JavaScript language features. Please ensure that NPM is installed or configure 'typescript.npm' in your user settings. Click [here]({0}) to learn more.",
+					'https://go.microsoft.com/fwlink/?linkid=847635'
 				), {
-					title: localize('typesInstallerInitializationFailed.moreInformation', "More Information"),
+					title: localize('typesInstallerInitializationFailed.doNotCheckAgain', "Don't Show Again"),
 					id: 1
-				}, {
-					title: localize('typesInstallerInitializationFailed.doNotCheckAgain', "Don't Check Again"),
-					id: 2
-				}, {
-					title: localize('typesInstallerInitializationFailed.close', 'Close'),
-					id: 3,
-					isCloseAffordance: true
 				}
 			).then(selected => {
-				if (!selected || selected.id === 3) {
+				if (!selected) {
 					return;
 				}
 				switch (selected.id) {
 					case 1:
-						commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=847635'));
-						break;
-					case 2:
 						const tsConfig = workspace.getConfiguration('typescript');
 						tsConfig.update('check.npmIsInstalled', false, true);
 						break;

@@ -340,13 +340,20 @@ export const IExtensionTipsService = createDecorator<IExtensionTipsService>('ext
 
 export interface IExtensionTipsService {
 	_serviceBrand: any;
-	getAllRecommendationsWithReason(): { [id: string]: string; };
+	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; };
 	getFileBasedRecommendations(): string[];
-	getOtherRecommendations(): string[];
+	getOtherRecommendations(): TPromise<string[]>;
 	getWorkspaceRecommendations(): TPromise<string[]>;
 	getKeymapRecommendations(): string[];
 	getKeywordsForExtension(extension: string): string[];
 	getRecommendationsForExtension(extension: string): string[];
+}
+
+export enum ExtensionRecommendationReason {
+	Workspace,
+	File,
+	Executable,
+	DynamicWorkspace
 }
 
 export const ExtensionsLabel = localize('extensions', "Extensions");

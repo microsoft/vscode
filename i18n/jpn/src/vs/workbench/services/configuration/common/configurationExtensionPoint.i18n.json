@@ -21,6 +21,7 @@
 	"workspaceConfig.name.description": "フォルダーにつけるオプションの名前。",
 	"workspaceConfig.uri.description": "フォルダーの URI",
 	"workspaceConfig.settings.description": "ワークスペースの設定",
+	"workspaceConfig.launch.description": "ワークスペースの起動構成",
 	"workspaceConfig.extensions.description": "ワークスペースの拡張機能",
 	"unknownWorkspaceProperty": "不明なワークスペース構成のプロパティ"
 }

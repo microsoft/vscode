@@ -35,10 +35,11 @@
 	"panelDefaultLocation": "Panelin varsayılan konumunu denetler. Çalışma ekranının ya altında ya da sağında gösterilebilir.",
 	"statusBarVisibility": "Çalışma ekranının altındaki durum çubuğunun görünürlüğünü denetler.",
 	"activityBarVisibility": "Çalışma ekranındaki etkinlik çubuğunun görünürlüğünü denetler.",
-	"fontAliasing": "Çalışma ekranındaki yazı tipi yumuşatma yöntemini denetler.\n- default: Alt-piksel yazı tipi yumuşatma. Bu, çoğu retina olmayan ekranda en keskin metni verir\n- antialiased: Alt-pikselin tersine, pikselin seviyesine göre yazı tipini yumuşat. Yazı tipinin genel olarak daha açık görünmesini sağlayabilir\n- none: Yazı tipi yumuşatmayı devre dışı bırakır. Metin pürüzlü keskin kenarlarla gösterilir.",
+	"fontAliasing": "Çalışma ekranındaki yazı tipi yumuşatma yöntemini denetler.\n- default: Alt-piksel yazı tipi yumuşatma. Bu, çoğu retina olmayan ekranda en keskin metni verir\n- antialiased: Alt-pikselin tersine, pikselin seviyesine göre yazı tipini yumuşat. Yazı tipinin genel olarak daha açık görünmesini sağlayabilir\n- none: Yazı tipi yumuşatmayı devre dışı bırakır. Metin pürüzlü keskin kenarlarla gösterilir.\n- auto: Ekranların DPI'ına göre otomatik olarak `default` veya`antialiased`ı uygular.",
 	"workbench.fontAliasing.default": "Alt-piksel yazı tipi yumuşatma. Bu, çoğu retina olmayan ekranda en keskin metni verir.",
 	"workbench.fontAliasing.antialiased": "Alt-pikselin tersine, pikselin seviyesine göre yazı tipini yumuşat. Yazı tipinin genel olarak daha açık görünmesini sağlayabilir.",
 	"workbench.fontAliasing.none": "Yazı tipi yumuşatmayı devre dışı bırakır. Metin pürüzlü keskin kenarlarla gösterilir.",
+	"workbench.fontAliasing.auto": "Ekranların DPI'ına göre otomatik olarak `default` veya `antialiased`ı uygular.",
 	"enableNaturalLanguageSettingsSearch": "Ayarlar için doğal dil arama modunun etkinleştirilip etkinleştirilmeyeceğini denetler.",
 	"windowConfigurationTitle": "Pencere",
 	"window.openFilesInNewWindow.on": "Dosyalar yeni bir pencerede açılacak",
@@ -77,6 +78,5 @@
 	"zenMode.hideTabs": "Zen Moduna geçmenin ayrıca çalışma ekranı sekmelerini gizleyip gizlemeyeceğini denetler.",
 	"zenMode.hideStatusBar": "Zen Moduna geçmenin ayrıca çalışma ekranının altındaki durum çubuğunu gizleyip gizlemeyeceğini denetler.",
 	"zenMode.hideActivityBar": "Zen Moduna geçmenin ayrıca çalışma ekranının solundaki etkinlik çubuğunu gizleyip gizlemeyeceğini denetler.",
-	"zenMode.restore": "Bir pencere Zen modundayken çıkıldıysa, bu pencerenin Zen moduna geri dönüp dönmeyeceğini denetler.",
-	"JsonSchema.locale": "Kullanılacak Kullanıcı Arayüzü Dili."
+	"zenMode.restore": "Bir pencere Zen modundayken çıkıldıysa, bu pencerenin Zen moduna geri dönüp dönmeyeceğini denetler."
 }

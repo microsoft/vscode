@@ -13,12 +13,12 @@ import * as panel from 'vs/workbench/browser/panel';
 import * as platform from 'vs/base/common/platform';
 import * as terminalCommands from 'vs/workbench/parts/terminal/electron-browser/terminalCommands';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_RIGHT_CLICK_COPY_PASTE, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TerminalCursorStyle } from 'vs/workbench/parts/terminal/common/terminal';
-import { TERMINAL_DEFAULT_SHELL_UNIX_LIKE, TERMINAL_DEFAULT_SHELL_WINDOWS } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TerminalCursorStyle } from 'vs/workbench/parts/terminal/common/terminal';
+import { getTerminalDefaultShellUnixLike, getTerminalDefaultShellWindows } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, CreateNewInActiveWorkspaceTerminalAction, FocusActiveTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, SelectDefaultShellWindowsTerminalAction, RunSelectedTextInTerminalAction, RunActiveFileInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction, AllowWorkspaceShellTerminalCommand, DisallowWorkspaceShellTerminalCommand, RenameTerminalAction, SelectAllTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, ShowNextFindTermTerminalFindWidgetAction, ShowPreviousFindTermTerminalFindWidgetAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, QuickOpenActionTermContributor, QuickOpenTermAction, TERMINAL_PICKER_PREFIX } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, CreateNewInActiveWorkspaceTerminalAction, FocusActiveTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, SelectDefaultShellWindowsTerminalAction, RunSelectedTextInTerminalAction, RunActiveFileInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction, AllowWorkspaceShellTerminalCommand, DisallowWorkspaceShellTerminalCommand, RenameTerminalAction, SelectAllTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, ShowNextFindTermTerminalFindWidgetAction, ShowPreviousFindTermTerminalFindWidgetAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, QuickOpenActionTermContributor, QuickOpenTermAction, TERMINAL_PICKER_PREFIX, MoveToLineStartTerminalAction, MoveToLineEndTerminalAction, SplitTerminalAction, FocusPreviousPaneTerminalAction, FocusNextPaneTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, ResizePaneDownTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -76,7 +76,7 @@ configurationRegistry.registerConfiguration({
 		'terminal.integrated.shell.linux': {
 			'description': nls.localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux."),
 			'type': 'string',
-			'default': TERMINAL_DEFAULT_SHELL_UNIX_LIKE
+			'default': getTerminalDefaultShellUnixLike()
 		},
 		'terminal.integrated.shellArgs.linux': {
 			'description': nls.localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal."),
@@ -89,7 +89,7 @@ configurationRegistry.registerConfiguration({
 		'terminal.integrated.shell.osx': {
 			'description': nls.localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on OS X."),
 			'type': 'string',
-			'default': TERMINAL_DEFAULT_SHELL_UNIX_LIKE
+			'default': getTerminalDefaultShellUnixLike()
 		},
 		'terminal.integrated.shellArgs.osx': {
 			'description': nls.localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the OS X terminal."),
@@ -105,7 +105,7 @@ configurationRegistry.registerConfiguration({
 		'terminal.integrated.shell.windows': {
 			'description': nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. When using shells shipped with Windows (cmd, PowerShell or Bash on Ubuntu)."),
 			'type': 'string',
-			'default': TERMINAL_DEFAULT_SHELL_WINDOWS
+			'default': getTerminalDefaultShellWindows()
 		},
 		'terminal.integrated.shellArgs.windows': {
 			'description': nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal."),
@@ -119,11 +119,6 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.macOptionIsMeta', "Treat the option key as the meta key in the terminal on macOS."),
 			'type': 'boolean',
 			'default': false
-		},
-		'terminal.integrated.rightClickCopyPaste': {
-			'description': nls.localize('terminal.integrated.rightClickCopyPaste', "When set, this will prevent the context menu from appearing when right clicking within the terminal, instead it will copy when there is a selection and paste when there is no selection."),
-			'type': 'boolean',
-			'default': TERMINAL_DEFAULT_RIGHT_CLICK_COPY_PASTE
 		},
 		'terminal.integrated.copyOnSelection': {
 			'description': nls.localize('terminal.integrated.copyOnSelection', "When set, text selected in the terminal will be copied to the clipboard."),
@@ -153,13 +148,13 @@ configurationRegistry.registerConfiguration({
 		'terminal.integrated.fontWeight': {
 			'type': 'string',
 			'enum': ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
-			'description': nls.localize('terminal.integrated.fontWeight', "The font weight to use within the termianl for non-bold text."),
+			'description': nls.localize('terminal.integrated.fontWeight', "The font weight to use within the terminal for non-bold text."),
 			'default': 'normal'
 		},
 		'terminal.integrated.fontWeightBold': {
 			'type': 'string',
 			'enum': ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
-			'description': nls.localize('terminal.integrated.fontWeightBold', "The font weight to use within the termianl for bold text."),
+			'description': nls.localize('terminal.integrated.fontWeightBold', "The font weight to use within the terminal for bold text."),
 			'default': 'bold'
 		},
 		'terminal.integrated.cursorBlinking': {
@@ -181,6 +176,12 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal, this defaults to true on OS X, false on other platforms."),
 			'type': 'boolean',
 			'default': platform.isMacintosh
+		},
+		'terminal.integrated.rightClickBehavior': {
+			'type': 'string',
+			'enum': ['default', 'copyPaste', 'selectWord'],
+			default: platform.isMacintosh ? 'selectWord' : platform.isWindows ? 'copyPaste' : 'default',
+			description: nls.localize('terminal.integrated.rightClickBehavior', "Controls how terminal reacts to right click, possibilities are 'default', 'copyPaste', and 'selectWord'. 'default' will show the context menu, 'copyPaste' will copy when there is a selection otherwise paste, 'selectWord' will select the word under the cursor and show the context menu.")
 		},
 		'terminal.integrated.cwd': {
 			'description': nls.localize('terminal.integrated.cwd', "An explicit start path where the terminal will be launched, this is used as the current working directory (cwd) for the shell process. This may be particularly useful in workspace settings if the root directory is not a convenient cwd."),
@@ -268,8 +269,17 @@ configurationRegistry.registerConfiguration({
 				NavigateLeftAction.ID,
 				DeleteWordLeftTerminalAction.ID,
 				DeleteWordRightTerminalAction.ID,
+				MoveToLineStartTerminalAction.ID,
+				MoveToLineEndTerminalAction.ID,
 				TogglePanelAction.ID,
-				'workbench.action.quickOpenView'
+				'workbench.action.quickOpenView',
+				SplitTerminalAction.ID,
+				FocusPreviousPaneTerminalAction.ID,
+				FocusNextPaneTerminalAction.ID,
+				ResizePaneLeftTerminalAction.ID,
+				ResizePaneRightTerminalAction.ID,
+				ResizePaneUpTerminalAction.ID,
+				ResizePaneDownTerminalAction.ID
 			].sort()
 		},
 		'terminal.integrated.env.osx': {
@@ -291,6 +301,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.showExitAlert', "Show alert `The terminal process terminated with exit code` when exit code is non-zero."),
 			'type': 'boolean',
 			'default': true
+		},
+		'terminal.integrated.experimentalRestore': {
+			'description': nls.localize('terminal.integrated.experimentalRestore', "Whether to restore terminal sessions for the workspace automatically when launching VS Code. This is an experimental setting; it may be buggy and could change in the future."),
+			'type': 'boolean',
+			'default': false
 		},
 	}
 });
@@ -398,6 +413,54 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DeleteWordRightT
 	primary: KeyMod.CtrlCmd | KeyCode.Delete,
 	mac: { primary: KeyMod.Alt | KeyCode.Delete }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Delete Word Right', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(MoveToLineStartTerminalAction, MoveToLineStartTerminalAction.ID, MoveToLineStartTerminalAction.LABEL, {
+	primary: null,
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Move To Line Start', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(MoveToLineEndTerminalAction, MoveToLineEndTerminalAction.ID, MoveToLineEndTerminalAction.LABEL, {
+	primary: null,
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Move To Line End', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
+	secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5],
+	mac: {
+		primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
+		secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
+	}
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Split', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousPaneTerminalAction, FocusPreviousPaneTerminalAction.ID, FocusPreviousPaneTerminalAction.LABEL, {
+	primary: KeyMod.Alt | KeyCode.LeftArrow,
+	secondary: [KeyMod.Alt | KeyCode.UpArrow],
+	mac: {
+		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.LeftArrow,
+		secondary: [KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.UpArrow]
+	}
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Previous Pane', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextPaneTerminalAction, FocusNextPaneTerminalAction.ID, FocusNextPaneTerminalAction.LABEL, {
+	primary: KeyMod.Alt | KeyCode.RightArrow,
+	secondary: [KeyMod.Alt | KeyCode.DownArrow],
+	mac: {
+		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.RightArrow,
+		secondary: [KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.DownArrow]
+	}
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Next Pane', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneLeftTerminalAction, ResizePaneLeftTerminalAction.ID, ResizePaneLeftTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.LeftArrow }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Left', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneRightTerminalAction, ResizePaneRightTerminalAction.ID, ResizePaneRightTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.RightArrow }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Right', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneUpTerminalAction, ResizePaneUpTerminalAction.ID, ResizePaneUpTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.UpArrow }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Up', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneDownTerminalAction, ResizePaneDownTerminalAction.ID, ResizePaneDownTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.DownArrow }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Down', category);
 
 terminalCommands.setup();
 

@@ -12,6 +12,7 @@
 	"fileTooLargeError": "Dosya, açmak için çok büyük",
 	"fileNotFoundError": "Dosya bulunamadı ({0})",
 	"fileBinaryError": "Dosya ikili olarak görünüyor ve metin olarak açılamıyor",
+	"filePermission": "Dosya için yazma izni reddedildi ({0})",
 	"fileExists": "Oluşturulacak dosya zaten mevcut ({0})",
 	"fileMoveConflict": "Taşıma/kopyalama yapılamadı. Dosya, hedefte zaten mevcut.",
 	"unableToMoveCopyError": "Taşıma/kopyalama yapılamadı. Dosya, içinde bulunduğu klasörü değiştiriyor.",

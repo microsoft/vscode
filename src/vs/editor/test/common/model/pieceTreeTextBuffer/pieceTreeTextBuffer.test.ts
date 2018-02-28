@@ -1441,7 +1441,8 @@ suite('centralized lineStarts with CRLF', () => {
 });
 
 suite('random is unsupervised', () => {
-	test('random insert delete', () => {
+	test('random insert delete', function () {
+		this.timeout(500000);
 		let str = '';
 		let pieceTable = createTextBuffer([str], false);
 
@@ -1471,7 +1472,8 @@ suite('random is unsupervised', () => {
 		assertTreeInvariants(pieceTable);
 	});
 
-	test('random chunks', () => {
+	test('random chunks', function () {
+		this.timeout(500000);
 		let chunks = [];
 		for (let i = 0; i < 5; i++) {
 			chunks.push(randomStr(1000));
@@ -1497,6 +1499,40 @@ suite('random is unsupervised', () => {
 				pieceTable.delete(pos, length);
 				str = str.substring(0, pos) + str.substring(pos + length);
 			}
+		}
+
+		assert.equal(pieceTable.getLinesRawContent(), str);
+		testLineStarts(str, pieceTable);
+		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
+	});
+
+	test('random chunks 2', function () {
+		this.timeout(500000);
+		let chunks = [];
+		chunks.push(randomStr(1000));
+
+		let pieceTable = createTextBuffer(chunks, false);
+		let str = chunks.join('');
+
+		for (let i = 0; i < 50; i++) {
+			if (Math.random() < 0.6) {
+				// insert
+				let text = randomStr(30);
+				let pos = randomInt(str.length + 1);
+				pieceTable.insert(pos, text);
+				str = str.substring(0, pos) + text + str.substring(pos);
+			} else {
+				// delete
+				let pos = randomInt(str.length);
+				let length = Math.min(
+					str.length - pos,
+					Math.floor(Math.random() * 10)
+				);
+				pieceTable.delete(pos, length);
+				str = str.substring(0, pos) + str.substring(pos + length);
+			}
+			testLinesContent(str, pieceTable);
 		}
 
 		assert.equal(pieceTable.getLinesRawContent(), str);
@@ -1589,4 +1625,53 @@ suite('search offset cache', () => {
 		var content = pieceTable.getLinesRawContent();
 		assert(content === str);
 	});
+
+	test('Line breaks replacement is not necessary when EOL is normalized', () => {
+		let pieceTable = createTextBuffer(['abc']);
+		let str = 'abc';
+
+		pieceTable.insert(3, 'def\nabc');
+		str = str + 'def\nabc';
+
+		testLineStarts(str, pieceTable);
+		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
+	});
+
+	test('Line breaks replacement is not necessary when EOL is normalized 2', () => {
+		let pieceTable = createTextBuffer(['abc\n']);
+		let str = 'abc\n';
+
+		pieceTable.insert(4, 'def\nabc');
+		str = str + 'def\nabc';
+
+		testLineStarts(str, pieceTable);
+		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
+	});
+
+	test('Line breaks replacement is not necessary when EOL is normalized 3', () => {
+		let pieceTable = createTextBuffer(['abc\n']);
+		let str = 'abc\n';
+
+		pieceTable.insert(2, 'def\nabc');
+		str = str.substring(0, 2) + 'def\nabc' + str.substring(2);
+
+		testLineStarts(str, pieceTable);
+		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
+	});
+
+	test('Line breaks replacement is not necessary when EOL is normalized 4', () => {
+		let pieceTable = createTextBuffer(['abc\n']);
+		let str = 'abc\n';
+
+		pieceTable.insert(3, 'def\nabc');
+		str = str.substring(0, 3) + 'def\nabc' + str.substring(3);
+
+		testLineStarts(str, pieceTable);
+		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
+	});
+
 });
