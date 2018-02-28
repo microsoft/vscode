@@ -23,7 +23,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
+import { registerEditorAction, EditorAction, IEditorCommandMenuOptions } from 'vs/editor/browser/editorExtensions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { once } from 'vs/base/common/event';
@@ -194,7 +194,9 @@ class CommandPaletteEditorAction extends EditorAction {
 			alias: 'Command Palette',
 			precondition: null,
 			menuOpts: {
-			}
+				group: 'commands',
+				order: 1
+			} as IEditorCommandMenuOptions
 		});
 	}
 
