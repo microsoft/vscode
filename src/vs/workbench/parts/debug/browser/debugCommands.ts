@@ -16,7 +16,6 @@ import { Expression, Variable, Breakpoint, FunctionBreakpoint } from 'vs/workben
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -175,7 +174,10 @@ export function registerCommands(): void {
 	});
 
 	const COLUMN_BREAKPOINT_COMMAND_ID = 'editor.debug.action.toggleColumnBreakpoint';
-	CommandsRegistry.registerCommand({
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		primary: KeyMod.Shift | KeyCode.F9,
+		when: EditorContextKeys.textFocus,
 		id: COLUMN_BREAKPOINT_COMMAND_ID,
 		handler: (accessor) => {
 			const debugService = accessor.get(IDebugService);
