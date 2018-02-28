@@ -17,10 +17,12 @@
   },
   "dependencies": {
     "jsonc-parser": "^1.0.0",
+    "minimatch": "^3.0.4",
     "request-light": "^0.2.2",
     "vscode-nls": "^3.2.1"
   },
   "devDependencies": {
+    "@types/minimatch": "^3.0.3",
     "@types/node": "7.0.43"
   },
   "main": "./out/main",
@@ -59,6 +61,17 @@
           ],
           "default": "npm",
           "description": "%config.npm.packageManager%"
+        },
+        "npm.exclude": {
+          "type": [
+            "string",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "%config.npm.exclude%",
+          "scope": "window"
         }
       }
     },
