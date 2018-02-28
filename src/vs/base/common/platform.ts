@@ -27,6 +27,7 @@ interface INodeProcess {
 	platform: string;
 	env: IProcessEnvironment;
 	getuid(): number;
+	nextTick: Function;
 }
 declare let process: INodeProcess;
 declare let global: any;
@@ -41,7 +42,7 @@ declare let self: any;
 export const LANGUAGE_DEFAULT = 'en';
 
 // OS detection
-if (typeof process === 'object' && typeof process.getuid === 'function') {
+if (typeof process === 'object' && typeof process.nextTick === 'function') {
 	_isWindows = (process.platform === 'win32');
 	_isMacintosh = (process.platform === 'darwin');
 	_isLinux = (process.platform === 'linux');
