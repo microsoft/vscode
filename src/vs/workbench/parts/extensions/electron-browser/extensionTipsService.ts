@@ -46,6 +46,7 @@ const empty: { [key: string]: any; } = Object.create(null);
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
 const searchMarketplace = localize('searchMarketplace', "Search Marketplace");
+const coreLanguages = ['de', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'tr', 'zh-cn', 'zh-tw'];
 
 interface IDynamicWorkspaceRecommendations {
 	remoteSet: string[];
@@ -138,6 +139,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		if (!language
 			|| language === LANGUAGE_DEFAULT
+			|| coreLanguages.some(x => language === x || language.indexOf(x + '-') === 0)
 			|| config.ignoreRecommendations
 			|| config.showRecommendationsOnlyOnDemand
 			|| languagePackSuggestionIgnoreList.indexOf(language) > -1) {
