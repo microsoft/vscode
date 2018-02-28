@@ -142,6 +142,49 @@ export class MarkdownContentProvider {
 		this.extraStyles.push(resource);
 	}
 
+	public async provideTextDocumentContent(
+		markdownDocument: vscode.TextDocument,
+		previewConfigurations: PreviewConfigManager,
+		initialLine: number | undefined = undefined
+	): Promise<string> {
+		const sourceUri = markdownDocument.uri;
+		const config = previewConfigurations.loadAndCacheConfiguration(sourceUri);
+		const initialData = {
+			source: sourceUri.toString(),
+			line: initialLine,
+			lineCount: markdownDocument.lineCount,
+			scrollPreviewWithEditor: config.scrollPreviewWithEditor,
+			scrollEditorWithPreview: config.scrollEditorWithPreview,
+			doubleClickToSwitchToEditor: config.doubleClickToSwitchToEditor,
+			disableSecurityWarnings: this.cspArbiter.shouldDisableSecurityWarnings()
+		};
+
+		this.logger.log('provideTextDocumentContent', initialData);
+
+		// Content Security Policy
+		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
+		const csp = this.getCspForResource(sourceUri, nonce);
+
+		const body = await this.engine.render(sourceUri, config.previewFrontMatter === 'hide', markdownDocument.getText());
+		return `<!DOCTYPE html>
+			<html>
+			<head>
+				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+				${csp}
+				<meta id="vscode-markdown-preview-data" data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}" data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}">
+				<script src="${this.getMediaPath('csp.js')}" nonce="${nonce}"></script>
+				<script src="${this.getMediaPath('loading.js')}" nonce="${nonce}"></script>
+				${this.getStyles(sourceUri, nonce, config)}
+				<base href="${markdownDocument.uri.with({ scheme: 'vscode-workspace-resource' }).toString(true)}">
+			</head>
+			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
+				${body}
+				<div class="code-line" data-line="${markdownDocument.lineCount}"></div>
+				${this.getScripts(nonce)}
+			</body>
+			</html>`;
+	}
+
 	private getMediaPath(mediaFile: string): string {
 		return vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile)))
 			.with({ scheme: 'vscode-extension-resource' })
@@ -217,48 +260,6 @@ export class MarkdownContentProvider {
 			.join('\n');
 	}
 
-	public async provideTextDocumentContent(
-		markdownDocument: vscode.TextDocument,
-		previewConfigurations: PreviewConfigManager,
-		initialLine: number | undefined = undefined
-	): Promise<string> {
-		const sourceUri = markdownDocument.uri;
-		const config = previewConfigurations.loadAndCacheConfiguration(sourceUri);
-		const initialData = {
-			source: sourceUri.toString(),
-			line: initialLine,
-			lineCount: markdownDocument.lineCount,
-			scrollPreviewWithEditor: config.scrollPreviewWithEditor,
-			scrollEditorWithPreview: config.scrollEditorWithPreview,
-			doubleClickToSwitchToEditor: config.doubleClickToSwitchToEditor,
-			disableSecurityWarnings: this.cspArbiter.shouldDisableSecurityWarnings()
-		};
-
-		this.logger.log('provideTextDocumentContent', initialData);
-
-		// Content Security Policy
-		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
-		const csp = this.getCspForResource(sourceUri, nonce);
-
-		const body = await this.engine.render(sourceUri, config.previewFrontMatter === 'hide', markdownDocument.getText());
-		return `<!DOCTYPE html>
-			<html>
-			<head>
-				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				${csp}
-				<meta id="vscode-markdown-preview-data" data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}" data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}">
-				<script src="${this.getMediaPath('csp.js')}" nonce="${nonce}"></script>
-				<script src="${this.getMediaPath('loading.js')}" nonce="${nonce}"></script>
-				${this.getStyles(sourceUri, nonce, config)}
-				<base href="${markdownDocument.uri.with({ scheme: 'vscode-workspace-resource' }).toString(true)}">
-			</head>
-			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
-				${body}
-				<div class="code-line" data-line="${markdownDocument.lineCount}"></div>
-				${this.getScripts(nonce)}
-			</body>
-			</html>`;
-	}
 
 	private getCspForResource(resource: vscode.Uri, nonce: string): string {
 		switch (this.cspArbiter.getSecurityLevelForResource(resource)) {
