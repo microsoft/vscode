@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 
 import { disposeAll } from '../util/dispose';
-import { isMarkdownFile } from '../features/previewContentProvider';
+import { isMarkdownFile } from './file';
 
 
 export class MarkdownFileTopmostLineMonitor {

@@ -9,7 +9,7 @@ import * as path from 'path';
 import { Command } from '../commandManager';
 import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContentsProvider } from '../tableOfContentsProvider';
-import { isMarkdownFile } from '../features/previewContentProvider';
+import { isMarkdownFile } from '../util/file';
 
 
 export interface OpenDocumentLinkArgs {

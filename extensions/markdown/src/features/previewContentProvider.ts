@@ -18,10 +18,6 @@ const previewStrings = {
 	cspAlertMessageLabel: localize('preview.securityMessage.label', 'Content Disabled Security Warning')
 };
 
-export function isMarkdownFile(document: vscode.TextDocument) {
-	return document.languageId === 'markdown';
-}
-
 export class MarkdownPreviewConfig {
 	public static getConfigForResource(resource: vscode.Uri) {
 		return new MarkdownPreviewConfig(resource);
