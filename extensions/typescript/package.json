@@ -2,6 +2,7 @@
   "name": "typescript",
   "description": "%description%",
   "displayName": "%displayName%",
+  "icon": "logo.png",
   "version": "1.0.0",
   "author": "vscode",
   "publisher": "vscode",
