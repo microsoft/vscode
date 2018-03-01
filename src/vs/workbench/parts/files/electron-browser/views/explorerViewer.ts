@@ -60,6 +60,7 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { IConfirmationService, IConfirmationResult, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { getConfirmMessage } from 'vs/workbench/services/dialogs/electron-browser/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ltrim, rtrim } from 'vs/base/common/strings';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -256,7 +257,6 @@ export class FileRenderer implements IRenderer {
 	}
 
 	private renderInputBox(container: HTMLElement, tree: ITree, stat: FileStat, editableData: IEditableData): void {
-
 		// Use a file label only for the icon next to the input box
 		const label = this.instantiationService.createInstance(FileLabel, container, void 0);
 		const extraClasses = ['explorer-item', 'explorer-item-edited'];
@@ -328,17 +328,26 @@ export class FileRenderer implements IRenderer {
 		];
 	}
 
-	private displayCurrentPath(inputBox: InputBox, initialRelPath: string, fileKind: FileKind, projectFolderName?: string) {
+	private displayCurrentPath(inputBox: InputBox, initialRelPath: string, fileKind: FileKind, projectFolderName: string = '') {
 		if (inputBox.validate()) {
-			const value = inputBox.value;
-			if (value && value.search(/[\\/]/) !== -1) {	// only show if there's a slash
-
-				const newPath = paths.normalize(paths.join(projectFolderName, initialRelPath, value), true);
+			const newPath: string = rtrim(paths.normalize(inputBox.value, true), paths.nativeSep);
+			if (newPath && newPath.search(/[\\/]/) !== -1) {	// only show if there's a slash
+				const indexLastSlash: number = newPath.lastIndexOf(paths.nativeSep);
+				const trailingPathPart: string = newPath.substring(indexLastSlash + 1);
+				const leadingPathPart: string = newPath.substring(0, indexLastSlash);
+				const existingPath: string = ltrim(paths.normalize(paths.join(projectFolderName, initialRelPath, leadingPathPart), true), paths.nativeSep);
 				const fileType: string = FileKind[fileKind].toLowerCase();
+
+				let msg: string;
+				if (existingPath) {
+					msg = nls.localize('constructedPath', "Create {0} **{1}** in **{2}**", fileType, trailingPathPart, existingPath);
+				} else {
+					msg = nls.localize('constructedPathNoExistingPath', "Create {0} **{1}**", fileType, trailingPathPart);	// case: newPath contains a single slash at the beginning
+				}
 
 				inputBox.showMessage({
 					type: MessageType.INFO,
-					content: nls.localize('constructedPath', "Create {0} in **{1}**", fileType, newPath),
+					content: msg,
 					formatContent: true
 				});
 			}
