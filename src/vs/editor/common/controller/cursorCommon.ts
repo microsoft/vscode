@@ -454,6 +454,8 @@ export class CursorColumns {
 			let charCode = lineContent.charCodeAt(i);
 			if (charCode === CharCode.Tab) {
 				result = this.nextTabStop(result, tabSize);
+			} else if (strings.isFullWidthCharacter(charCode)) {
+				result = result + 2;
 			} else {
 				result = result + 1;
 			}
@@ -479,6 +481,8 @@ export class CursorColumns {
 			let afterVisibleColumn: number;
 			if (charCode === CharCode.Tab) {
 				afterVisibleColumn = this.nextTabStop(beforeVisibleColumn, tabSize);
+			} else if (strings.isFullWidthCharacter(charCode)) {
+				afterVisibleColumn = beforeVisibleColumn + 2;
 			} else {
 				afterVisibleColumn = beforeVisibleColumn + 1;
 			}
