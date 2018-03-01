@@ -12,7 +12,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import * as platform from 'vs/base/common/platform';
-import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, StartFindAction } from 'vs/editor/contrib/find/findController';
+import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, StartFindAction, NextSelectionMatchFindAction } from 'vs/editor/contrib/find/findController';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -475,6 +475,64 @@ suite('FindController', () => {
 		}
 		return result;
 	}
+
+	test('issue #38232: Find Next Selection, regex enabled', () => {
+		withTestCodeEditor([
+			'([funny]',
+			'',
+			'([funny]'
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+			clipboardState = '';
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let nextSelectionMatchFindAction = new NextSelectionMatchFindAction();
+
+			// toggle regex
+			findController.getState().change({ isRegex: true }, false);
+
+			// change selection
+			editor.setSelection(new Selection(1, 1, 1, 9));
+
+			// cmd+f3
+			nextSelectionMatchFindAction.run(null, editor);
+
+			assert.deepEqual(editor.getSelections().map(fromRange), [
+				[3, 1, 3, 9]
+			]);
+
+			findController.dispose();
+		});
+	});
+
+	test('issue #38232: Find Next Selection, regex enabled, find widget open', () => {
+		withTestCodeEditor([
+			'([funny]',
+			'',
+			'([funny]'
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+			clipboardState = '';
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let startFindAction = new StartFindAction();
+			let nextSelectionMatchFindAction = new NextSelectionMatchFindAction();
+
+			// cmd+f - open find widget
+			startFindAction.run(null, editor);
+
+			// toggle regex
+			findController.getState().change({ isRegex: true }, false);
+
+			// change selection
+			editor.setSelection(new Selection(1, 1, 1, 9));
+
+			// cmd+f3
+			nextSelectionMatchFindAction.run(null, editor);
+
+			assert.deepEqual(editor.getSelections().map(fromRange), [
+				[3, 1, 3, 9]
+			]);
+
+			findController.dispose();
+		});
+	});
 });
 
 suite('FindController query options persistence', () => {
