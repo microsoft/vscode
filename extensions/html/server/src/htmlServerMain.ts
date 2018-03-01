@@ -17,7 +17,7 @@ import { pushAll } from './utils/arrays';
 import { getDocumentContext } from './utils/documentContext';
 import uri from 'vscode-uri';
 import { formatError, runSafe } from './utils/errors';
-import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath, getEmmetCompletionParticipants, extractAbbreviation } from 'vscode-emmet-helper';
+import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath, getEmmetCompletionParticipants } from 'vscode-emmet-helper';
 import { getPathCompletionParticipant } from './modes/pathCompletion';
 
 import { FoldingRangesRequest, FoldingProviderServerCapabilities } from './protocol/foldingProvider.proposed';
@@ -285,34 +285,18 @@ connection.onCompletion(async textDocumentPosition => {
 		};
 
 		const emmetCompletionParticipant = getEmmetCompletionParticipants(document, textDocumentPosition.position, mode.getId(), emmetSettings, emmetCompletionList);
-		if (mode.setCompletionParticipants) {
-			// Ideally, fix this in the Language Service side
-			// Check participants' methods before calling them
-			if (mode.getId() === 'html') {
-				const pathCompletionParticipant = getPathCompletionParticipant(document, workspaceFolders, pathCompletionList);
-				mode.setCompletionParticipants([emmetCompletionParticipant, pathCompletionParticipant]);
-			} else {
-				mode.setCompletionParticipants([emmetCompletionParticipant]);
-			}
+		const completionParticipants = [emmetCompletionParticipant];
+		// Ideally, fix this in the Language Service side
+		// Check participants' methods before calling them
+		if (mode.getId() === 'html') {
+			const pathCompletionParticipant = getPathCompletionParticipant(document, workspaceFolders, pathCompletionList);
+			completionParticipants.push(pathCompletionParticipant);
 		}
 
 		let settings = await getDocumentSettings(document, () => mode.doComplete.length > 2);
-		let result = mode.doComplete(document, textDocumentPosition.position, settings);
+		let result = mode.doComplete(document, textDocumentPosition.position, settings, completionParticipants);
 		result.items = [...pathCompletionList.items, ...result.items];
 		if (emmetCompletionList && emmetCompletionList.items) {
-			if (mode.getId() === 'css') {
-				// Workaround for https://github.com/Microsoft/vscode-css-languageservice/issues/69
-				const stylesheet = mode.getEmbeddedParsedDocument(document);
-				if (!emmetCompletionList.items.length
-					&& typeof stylesheet['end'] === 'number'
-					&& document.offsetAt(textDocumentPosition.position) > stylesheet['end']) {
-					const extractedResults = extractAbbreviation(document, textDocumentPosition.position, { lookAhead: false, syntax: 'css' });
-					if (extractedResults && /\.\d+$/.test(extractedResults.abbreviation)) {
-						emmetCompletionParticipant.onCssProperty({ propertyName: extractedResults.abbreviation, range: extractedResults.abbreviationRange });
-					}
-				}
-			}
-
 			cachedCompletionList = result;
 			if (emmetCompletionList.items.length && hexColorRegex.test(emmetCompletionList.items[0].label) && result.items.some(x => x.label === emmetCompletionList.items[0].label)) {
 				emmetCompletionList.items.shift();

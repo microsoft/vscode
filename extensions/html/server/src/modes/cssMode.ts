@@ -10,6 +10,9 @@ import { getCSSLanguageService, Stylesheet, ICompletionParticipant } from 'vscod
 import { LanguageMode, Settings } from './languageModes';
 import { HTMLDocumentRegions, CSS_STYLE_RULE } from './embeddedSupport';
 import { Color } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
+import { extractAbbreviation } from 'vscode-emmet-helper';
+
+const emmetAbbreviationThatBreaksParsing = /\.\d+$/;
 
 export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>): LanguageMode {
 	let cssLanguageService = getCSSLanguageService();
@@ -27,9 +30,26 @@ export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegio
 			let embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.doValidation(embedded, cssStylesheets.get(embedded), settings && settings.css);
 		},
-		doComplete(document: TextDocument, position: Position) {
+		doComplete(document: TextDocument, position: Position, settings: Settings, registeredCompletionParticipants: ICompletionParticipant[]) {
+			if (registeredCompletionParticipants) {
+				cssLanguageService.setCompletionParticipants(registeredCompletionParticipants);
+			}
+
 			let embedded = embeddedCSSDocuments.get(document);
-			return cssLanguageService.doComplete(embedded, position, cssStylesheets.get(embedded));
+
+			// Workaround for https://github.com/Microsoft/vscode-css-languageservice/issues/69
+			const stylesheet = cssStylesheets.get(embedded);
+			if (typeof (<any>stylesheet).end === 'number'
+				&& document.offsetAt(position) > (<any>stylesheet).end) {
+				const extractedResults = extractAbbreviation(document, position, { lookAhead: false, syntax: 'css' });
+				if (extractedResults && emmetAbbreviationThatBreaksParsing.test(extractedResults.abbreviation)) {
+					const emmetCompletionParticipant = registeredCompletionParticipants.filter(x => typeof (<any>x).getId === 'function' && (<any>x).getId() === 'emmet');
+					if (emmetCompletionParticipant && emmetCompletionParticipant.length === 1) {
+						emmetCompletionParticipant[0].onCssProperty({ propertyName: extractedResults.abbreviation, range: extractedResults.abbreviationRange });
+					}
+				}
+			}
+			return cssLanguageService.doComplete(embedded, position, stylesheet);
 		},
 		setCompletionParticipants(registeredCompletionParticipants: ICompletionParticipant[]) {
 			cssLanguageService.setCompletionParticipants(registeredCompletionParticipants);
