@@ -36,6 +36,7 @@ export interface IExtension {
 	latestVersion: string;
 	description: string;
 	url: string;
+	downloadUrl: string;
 	repository: string;
 	iconUrl: string;
 	iconUrlFallback: string;

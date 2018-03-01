@@ -117,6 +117,14 @@ class Extension implements IExtension {
 		return `${product.extensionsGallery.itemUrl}?itemName=${this.publisher}.${this.name}`;
 	}
 
+	get downloadUrl(): string {
+		if (!product.extensionsGallery) {
+			return null;
+		}
+
+		return `${product.extensionsGallery.serviceUrl}/publishers/${this.publisher}/vsextensions/${this.name}/${this.latestVersion}/vspackage`;
+	}
+
 	get iconUrl(): string {
 		return this.galleryIconUrl || this.localIconUrl || this.defaultIconUrl;
 	}
