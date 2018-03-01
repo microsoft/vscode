@@ -49,5 +49,6 @@
 	"typescript.locale": "Sets the locale used to report TypeScript errors. Requires TypeScript >= 2.6.0. Default of 'null' uses VS Code's locale for TypeScript errors.",
 	"javascript.implicitProjectConfig.experimentalDecorators": "Enable/disable 'experimentalDecorators' for JavaScript files that are not part of a project. Existing jsconfig.json or tsconfig.json files override this setting. Requires TypeScript >=2.3.1.",
 	"typescript.autoImportSuggestions.enabled": "Enable/disable auto import suggestions. Requires TypeScript >=2.6.1",
-	"typescript.experimental.syntaxFolding": "Enables/disables syntax aware folding markers."
+	"typescript.experimental.syntaxFolding": "Enables/disables syntax aware folding markers.",
+	"taskDefinition.tsconfig.description": "The tsconfig file that defines the TS build."
 }

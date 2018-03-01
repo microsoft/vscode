@@ -528,7 +528,7 @@
         "properties": {
           "tsconfig": {
             "type": "string",
-            "description": "The tsconfig file that defines the TS build"
+            "description": "%taskDefinition.tsconfig.description%"
           },
           "option": {
             "type": "string"
