@@ -6,8 +6,9 @@
 import * as vscode from 'vscode';
 
 import { Command } from '../commandManager';
-import { MarkdownPreviewManager, PreviewSettings } from '../features/previewManager';
+import { MarkdownPreviewManager } from '../features/previewManager';
 import { TelemetryReporter } from '../telemetryReporter';
+import { PreviewSettings } from '../features/preview';
 
 
 function getViewColumn(sideBySide: boolean): vscode.ViewColumn | undefined {
