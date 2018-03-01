@@ -266,7 +266,7 @@ const schema: IJSONSchema = {
 					type: 'string'
 				},
 				'vscode:uninstall': {
-					description: nls.localize('vscode.extension.scripts.uninstall', 'Script executed after the extension is uninstalled from VS Code (after restarting VS Code). Only Node scripts are supported.'),
+					description: nls.localize('vscode.extension.scripts.uninstall', 'Uninstall hook for VS Code extension. Script that gets executed when the extension is completely uninstalled from VS Code which is when VS Code is restarted (shutdown and start) after the extension is uninstalled. Only Node scripts are supported.'),
 					type: 'string'
 				}
 			}
