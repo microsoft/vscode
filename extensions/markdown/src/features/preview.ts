@@ -7,56 +7,12 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 
 import { Logger } from '../logger';
-import { MarkdownContentProvider, PreviewConfigManager, isMarkdownFile } from './previewContentProvider';
+import { MarkdownContentProvider, PreviewConfigManager } from './previewContentProvider';
 import { disposeAll } from '../util/dispose';
 
 import * as nls from 'vscode-nls';
+import { getVisibleLine, MarkdownFileTopmostLineMonitor } from '../util/topmostLineMonitor';
 const localize = nls.loadMessageBundle();
-
-export class MarkdownFileTopmostLineMonitor {
-	private readonly disposables: vscode.Disposable[] = [];
-
-	private readonly pendingUpdates = new Map<string, number>();
-
-	constructor() {
-		vscode.window.onDidChangeTextEditorVisibleRanges(event => {
-			if (isMarkdownFile(event.textEditor.document)) {
-				const line = getVisibleLine(event.textEditor);
-				if (line) {
-					this.updateLine(event.textEditor.document.uri, line);
-				}
-			}
-		}, null, this.disposables);
-	}
-
-	dispose() {
-		disposeAll(this.disposables);
-	}
-
-	private readonly _onDidChangeTopmostLineEmitter = new vscode.EventEmitter<{ resource: vscode.Uri, line: number }>();
-	public readonly onDidChangeTopmostLine = this._onDidChangeTopmostLineEmitter.event;
-
-	private updateLine(
-		resource: vscode.Uri,
-		line: number
-	) {
-		const key = resource.toString();
-		if (!this.pendingUpdates.has(key)) {
-			// schedule update
-			setTimeout(() => {
-				if (this.pendingUpdates.has(key)) {
-					this._onDidChangeTopmostLineEmitter.fire({
-						resource,
-						line: this.pendingUpdates.get(key) as number
-					});
-					this.pendingUpdates.delete(key);
-				}
-			}, 50);
-		}
-
-		this.pendingUpdates.set(key, line);
-	}
-}
 
 export class MarkdownPreview {
 
@@ -338,22 +294,4 @@ export interface PreviewSettings {
 	readonly resourceColumn: vscode.ViewColumn;
 	readonly previewColumn: vscode.ViewColumn;
 	readonly locked: boolean;
-}
-
-/**
- * Get the top-most visible range of `editor`.
- *
- * Returns a fractional line number based the visible character within the line.
- * Floor to get real line number
- */
-function getVisibleLine(editor: vscode.TextEditor): number | undefined {
-	if (!editor.visibleRanges.length) {
-		return undefined;
-	}
-
-	const firstVisiblePosition = editor.visibleRanges[0].start;
-	const lineNumber = firstVisiblePosition.line;
-	const line = editor.document.lineAt(lineNumber);
-	const progress = firstVisiblePosition.character / (line.text.length + 2);
-	return lineNumber + progress;
 }
