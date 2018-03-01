@@ -1906,6 +1906,34 @@ suite('Editor Controller - Regression tests', () => {
 			assertCursor(cursor, new Selection(1, 6, 1, 6));
 		});
 	});
+
+	test('issue #44805: Should not be able to undo in readonly editor', () => {
+		let model = TextModel.createFromString(
+			[
+				''
+			].join('\n'),
+			{
+				defaultEOL: DefaultEndOfLine.LF,
+				detectIndentation: false,
+				insertSpaces: false,
+				tabSize: 4,
+				trimAutoWhitespace: true
+			}
+		);
+
+		withTestCodeEditor(null, { readOnly: true, model: model }, (editor, cursor) => {
+			model.pushEditOperations([new Selection(1, 1, 1, 1)], [{
+				range: new Range(1, 1, 1, 1),
+				text: 'Hello world!'
+			}], () => [new Selection(1, 1, 1, 1)]);
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'Hello world!');
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'Hello world!');
+		});
+
+		model.dispose();
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {
