@@ -110,7 +110,7 @@ class Extension implements IExtension {
 	}
 
 	get url(): string {
-		if (!product.extensionsGallery) {
+		if (!product.extensionsGallery || !this.gallery) {
 			return null;
 		}
 
