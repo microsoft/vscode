@@ -40,6 +40,40 @@ suite('ViewModel', () => {
 		});
 	});
 
+	test('issue #44805: SplitLinesCollection: attempt to access a \'newer\' model', () => {
+		const text = [''];
+		testViewModel(text, {}, (viewModel, model) => {
+			assert.equal(viewModel.getLineCount(), 1);
+
+			model.pushEditOperations([], [{
+				range: new Range(1, 1, 1, 1),
+				text: '\ninsert1'
+			}], () => ([]));
+
+			model.pushEditOperations([], [{
+				range: new Range(1, 1, 1, 1),
+				text: '\ninsert2'
+			}], () => ([]));
+
+			model.pushEditOperations([], [{
+				range: new Range(1, 1, 1, 1),
+				text: '\ninsert3'
+			}], () => ([]));
+
+			let viewLineCount: number[] = [];
+
+			viewLineCount.push(viewModel.getLineCount());
+			viewModel.addEventListener((events) => {
+				// Access the view model
+				viewLineCount.push(viewModel.getLineCount());
+			});
+			model.undo();
+			viewLineCount.push(viewModel.getLineCount());
+
+			assert.deepEqual(viewLineCount, [4, 1, 1, 1]);
+		});
+	});
+
 	function assertGetPlainTextToCopy(text: string[], ranges: Range[], emptySelectionClipboard: boolean, expected: string | string[]): void {
 		testViewModel(text, {}, (viewModel, model) => {
 			let actual = viewModel.getPlainTextToCopy(ranges, emptySelectionClipboard);

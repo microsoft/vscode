@@ -180,7 +180,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		let modelVersion = this.model.getVersionId();
 		if (modelVersion !== this._validModelVersionId) {
 			// This is pretty bad, it means we lost track of the model...
-			this._constructLines(false);
+			throw new Error(`ViewModel is out of sync with Model!`);
 		}
 	}
 

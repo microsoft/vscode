@@ -234,6 +234,14 @@ export class ModelRawContentChangedEvent {
 		}
 		return false;
 	}
+
+	public static merge(a: ModelRawContentChangedEvent, b: ModelRawContentChangedEvent): ModelRawContentChangedEvent {
+		const changes = [].concat(a.changes).concat(b.changes);
+		const versionId = b.versionId;
+		const isUndoing = (a.isUndoing || b.isUndoing);
+		const isRedoing = (a.isRedoing || b.isRedoing);
+		return new ModelRawContentChangedEvent(changes, versionId, isUndoing, isRedoing);
+	}
 }
 
 /**
@@ -244,4 +252,27 @@ export class InternalModelContentChangeEvent {
 		public readonly rawContentChangedEvent: ModelRawContentChangedEvent,
 		public readonly contentChangedEvent: IModelContentChangedEvent,
 	) { }
+
+	public merge(other: InternalModelContentChangeEvent): InternalModelContentChangeEvent {
+		const rawContentChangedEvent = ModelRawContentChangedEvent.merge(this.rawContentChangedEvent, other.rawContentChangedEvent);
+		const contentChangedEvent = InternalModelContentChangeEvent._mergeChangeEvents(this.contentChangedEvent, other.contentChangedEvent);
+		return new InternalModelContentChangeEvent(rawContentChangedEvent, contentChangedEvent);
+	}
+
+	private static _mergeChangeEvents(a: IModelContentChangedEvent, b: IModelContentChangedEvent): IModelContentChangedEvent {
+		const changes = [].concat(a.changes).concat(b.changes);
+		const eol = b.eol;
+		const versionId = b.versionId;
+		const isUndoing = (a.isUndoing || b.isUndoing);
+		const isRedoing = (a.isRedoing || b.isRedoing);
+		const isFlush = (a.isFlush || b.isFlush);
+		return {
+			changes: changes,
+			eol: eol,
+			versionId: versionId,
+			isUndoing: isUndoing,
+			isRedoing: isRedoing,
+			isFlush: isFlush
+		};
+	}
 }

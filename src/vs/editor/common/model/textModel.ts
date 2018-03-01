@@ -1018,12 +1018,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public pushEditOperations(beforeCursorState: Selection[], editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer): Selection[] {
 		try {
-			this._eventEmitter.beginDeferredEmit();
 			this._onDidChangeDecorations.beginDeferredEmit();
+			this._eventEmitter.beginDeferredEmit();
 			return this._pushEditOperations(beforeCursorState, editOperations, cursorStateComputer);
 		} finally {
-			this._onDidChangeDecorations.endDeferredEmit();
 			this._eventEmitter.endDeferredEmit();
+			this._onDidChangeDecorations.endDeferredEmit();
 		}
 	}
 
@@ -1108,12 +1108,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public applyEdits(rawOperations: model.IIdentifiedSingleEditOperation[]): model.IIdentifiedSingleEditOperation[] {
 		try {
-			this._eventEmitter.beginDeferredEmit();
 			this._onDidChangeDecorations.beginDeferredEmit();
+			this._eventEmitter.beginDeferredEmit();
 			return this._applyEdits(rawOperations);
 		} finally {
-			this._onDidChangeDecorations.endDeferredEmit();
 			this._eventEmitter.endDeferredEmit();
+			this._onDidChangeDecorations.endDeferredEmit();
 		}
 	}
 
@@ -1250,12 +1250,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public undo(): Selection[] {
 		try {
-			this._eventEmitter.beginDeferredEmit();
 			this._onDidChangeDecorations.beginDeferredEmit();
+			this._eventEmitter.beginDeferredEmit();
 			return this._undo();
 		} finally {
-			this._onDidChangeDecorations.endDeferredEmit();
 			this._eventEmitter.endDeferredEmit();
+			this._onDidChangeDecorations.endDeferredEmit();
 		}
 	}
 
@@ -1275,12 +1275,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public redo(): Selection[] {
 		try {
-			this._eventEmitter.beginDeferredEmit();
 			this._onDidChangeDecorations.beginDeferredEmit();
+			this._eventEmitter.beginDeferredEmit();
 			return this._redo();
 		} finally {
-			this._onDidChangeDecorations.endDeferredEmit();
 			this._eventEmitter.endDeferredEmit();
+			this._onDidChangeDecorations.endDeferredEmit();
 		}
 	}
 
@@ -2469,12 +2469,12 @@ export class DidChangeContentEmitter extends Disposable {
 	public readonly event: Event<InternalModelContentChangeEvent> = this._actual.event;
 
 	private _deferredCnt: number;
-	private _deferredEvents: InternalModelContentChangeEvent[];
+	private _deferredEvent: InternalModelContentChangeEvent;
 
 	constructor() {
 		super();
 		this._deferredCnt = 0;
-		this._deferredEvents = [];
+		this._deferredEvent = null;
 	}
 
 	public beginDeferredEmit(): void {
@@ -2484,15 +2484,21 @@ export class DidChangeContentEmitter extends Disposable {
 	public endDeferredEmit(): void {
 		this._deferredCnt--;
 		if (this._deferredCnt === 0) {
-			while (this._deferredEvents.length > 0) {
-				this._actual.fire(this._deferredEvents.shift());
+			if (this._deferredEvent !== null) {
+				const e = this._deferredEvent;
+				this._deferredEvent = null;
+				this._actual.fire(e);
 			}
 		}
 	}
 
 	public fire(e: InternalModelContentChangeEvent): void {
 		if (this._deferredCnt > 0) {
-			this._deferredEvents.push(e);
+			if (this._deferredEvent) {
+				this._deferredEvent = this._deferredEvent.merge(e);
+			} else {
+				this._deferredEvent = e;
+			}
 			return;
 		}
 		this._actual.fire(e);
