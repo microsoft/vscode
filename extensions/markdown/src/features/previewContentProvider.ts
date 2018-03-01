@@ -8,14 +8,29 @@ import * as path from 'path';
 import { MarkdownEngine } from '../markdownEngine';
 
 import * as nls from 'vscode-nls';
-import { Logger } from '../logger';
-import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from '../security';
 const localize = nls.loadMessageBundle();
 
+import { Logger } from '../logger';
+import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from '../security';
+
+/**
+ * Strings used inside the markdown preview.
+ *
+ * Stored here and then injected in the preview so that they
+ * can be localized using our normal localization process.
+ */
 const previewStrings = {
-	cspAlertMessageText: localize('preview.securityMessage.text', 'Some content has been disabled in this document'),
-	cspAlertMessageTitle: localize('preview.securityMessage.title', 'Potentially unsafe or insecure content has been disabled in the markdown preview. Change the Markdown preview security setting to allow insecure content or enable scripts'),
-	cspAlertMessageLabel: localize('preview.securityMessage.label', 'Content Disabled Security Warning')
+	cspAlertMessageText: localize(
+		'preview.securityMessage.text',
+		'Some content has been disabled in this document'),
+
+	cspAlertMessageTitle: localize(
+		'preview.securityMessage.title',
+		'Potentially unsafe or insecure content has been disabled in the markdown preview. Change the Markdown preview security setting to allow insecure content or enable scripts'),
+
+	cspAlertMessageLabel: localize(
+		'preview.securityMessage.label',
+		'Content Disabled Security Warning')
 };
 
 export class MarkdownPreviewConfig {
@@ -205,7 +220,7 @@ export class MarkdownContentProvider {
 				.toString();
 		}
 
-		// use a workspace relative path if there is a workspace
+		// Use a workspace relative path if there is a workspace
 		let root = vscode.workspace.getWorkspaceFolder(resource);
 		if (root) {
 			return vscode.Uri.file(path.join(root.uri.fsPath, href))
@@ -213,7 +228,7 @@ export class MarkdownContentProvider {
 				.toString();
 		}
 
-		// otherwise look relative to the markdown file
+		// Otherwise look relative to the markdown file
 		return vscode.Uri.file(path.join(path.dirname(resource.fsPath), href))
 			.with({ scheme: 'vscode-workspace-resource' })
 			.toString();
