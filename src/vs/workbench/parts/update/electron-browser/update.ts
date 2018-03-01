@@ -32,6 +32,7 @@ import * as semver from 'semver';
 import { OS } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 const NotNowAction = new Action(
 	'update.later',
@@ -295,6 +296,7 @@ export class UpdateContribution implements IGlobalActivity {
 		@ICommandService private commandService: ICommandService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@INotificationService private notificationService: INotificationService,
+		@IChoiceService private choiceService: IChoiceService,
 		@IUpdateService private updateService: IUpdateService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IActivityService private activityService: IActivityService
@@ -367,7 +369,13 @@ export class UpdateContribution implements IGlobalActivity {
 	}
 
 	private onUpdateNotAvailable(): void {
-		this.notificationService.info(nls.localize('noUpdatesAvailable', "There are currently no updates available."));
+		this.choiceService.choose(
+			severity.Info,
+			nls.localize('noUpdatesAvailable', "There are currently no updates available."),
+			[nls.localize('ok', "OK")],
+			0,
+			true
+		);
 	}
 
 	// linux
