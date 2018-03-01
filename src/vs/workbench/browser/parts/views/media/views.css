@@ -50,14 +50,6 @@
 	display: none;
 }
 
-.tree-explorer-viewlet-tree-view.file-icon-themable-tree.custom-view-align-icons-and-twisties .monaco-tree-row:not(.has-children) .content::before {
-	display: none;
-}
-
-.tree-explorer-viewlet-tree-view.file-icon-themable-tree.align-icons-and-twisties:not(.custom-view-align-icons-and-twisties) .monaco-tree-row:not(.has-children) .content::before {
-	display: block;
-}
-
 .tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item {
 	display: flex;
 	height: 22px;
@@ -83,48 +75,6 @@
 	width: 16px;
 	height: 22px;
 	-webkit-font-smoothing: antialiased;
-}
-
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon.placeholder-icon {
-	border: 1px;
-	border-style:dashed;
-	border-radius: 1px;
-	margin: 5px 6px 5px 2px;
-	height: 12px;
-	width: 6px;
-}
-
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon.file-icon {
-	content: ' ';
-	background-image: url('Document_16x.svg');
-}
-
-.hs-black .tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon.file-icon,
-.vs-dark .tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon.file-icon {
-	content: ' ';
-	background-image: url('Document_16x_inverse.svg');
-}
-
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon.folder-icon {
-	content: ' ';
-	background-image: url('Folder_16x.svg');
-}
-
-.hs-black .tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon.folder-icon,
-.vs-dark .tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon.folder-icon {
-	content: ' ';
-	background-image: url('Folder_16x_inverse.svg');
-}
-
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row.expanded .custom-view-tree-node-item > .custom-view-tree-node-item-icon.folder-icon {
-	content: ' ';
-	background-image: url('FolderOpen_16x.svg');
-}
-
-.hc-black .tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row.expanded .custom-view-tree-node-item > .custom-view-tree-node-item-icon.folder-icon,
-.vs-dark .tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row.expanded .custom-view-tree-node-item > .custom-view-tree-node-item-icon.folder-icon {
-	content: ' ';
-	background-image: url('FolderOpen_16x_inverse.svg');
 }
 
 .tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .actions {
