@@ -7,11 +7,12 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 
 import { Logger } from '../logger';
-import { MarkdownContentProvider, PreviewConfigManager } from './previewContentProvider';
+import { MarkdownContentProvider } from './previewContentProvider';
 import { disposeAll } from '../util/dispose';
 
 import * as nls from 'vscode-nls';
 import { getVisibleLine, MarkdownFileTopmostLineMonitor } from '../util/topmostLineMonitor';
+import { PreviewConfigManager } from './previewConfig';
 const localize = nls.loadMessageBundle();
 
 export class MarkdownPreview {

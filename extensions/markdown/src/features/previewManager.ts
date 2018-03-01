@@ -6,11 +6,12 @@
 import * as vscode from 'vscode';
 
 import { Logger } from '../logger';
-import { MarkdownContentProvider, PreviewConfigManager } from './previewContentProvider';
+import { MarkdownContentProvider } from './previewContentProvider';
 import { MarkdownPreview, PreviewSettings } from './preview';
 import { disposeAll } from '../util/dispose';
 import { MarkdownFileTopmostLineMonitor } from '../util/topmostLineMonitor';
 import { isMarkdownFile } from '../util/file';
+import { PreviewConfigManager } from './previewConfig';
 
 export class MarkdownPreviewManager {
 	private static readonly markdownPreviewActiveContextKey = 'markdownPreviewFocus';
