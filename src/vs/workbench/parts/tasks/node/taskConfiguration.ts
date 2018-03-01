@@ -296,6 +296,11 @@ export interface ConfigurationProperties {
 	 * output.
 	 */
 	problemMatcher?: ProblemMatcherConfig.ProblemMatcherType;
+
+	/**
+	 * Whether to show the `Terminal will be reused by tasks, press any key to close it` message.
+	 */
+	showTerminalReuseAlert?: boolean;
 }
 
 export interface CustomTask extends CommandProperties, ConfigurationProperties {
@@ -424,6 +429,12 @@ export interface BaseTaskRunnerConfiguration {
 	 * Problem matcher declarations
 	 */
 	declares?: ProblemMatcherConfig.NamedProblemMatcher[];
+
+	/**
+	 * Controls whether the message `Terminal will be reused by tasks, press any key to close it` is shown or not.
+	 * If omitted true is used.
+	 */
+	showTerminalReuseAlert?: boolean;
 }
 
 /**

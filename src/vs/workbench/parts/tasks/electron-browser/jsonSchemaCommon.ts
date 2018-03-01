@@ -170,6 +170,11 @@ const schema: IJSONSchema = {
 				problemMatcher: {
 					$ref: '#/definitions/problemMatcherType',
 					description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
+				},
+				showTerminalReuseAlert: {
+					type: 'boolean',
+					description: nls.localize('JsonSchema.tasks.showTerminalReuseAlert', 'Controls whether the message `Terminal will be reused by tasks, press any key to close it` is shown or not. If omitted the globally defined value is used.'),
+					default: true
 				}
 			}
 		},
@@ -236,6 +241,11 @@ const schema: IJSONSchema = {
 						type: 'object',
 						$ref: '#/definitions/taskDescription'
 					}
+				},
+				showTerminalReuseAlert: {
+					type: 'boolean',
+					description: nls.localize('JsonSchema.showTerminalReuseAlert', 'Controls whether the message `Terminal will be reused by tasks, press any key to close it` is shown or not. Default is true.'),
+					default: true
 				}
 			}
 		}
