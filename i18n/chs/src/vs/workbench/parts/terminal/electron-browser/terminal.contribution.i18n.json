@@ -16,7 +16,6 @@
 	"terminal.integrated.shell.windows": "终端在 Windows 使用的 shell 路径。使用随 Windows 一起提供的 shell (cmd、PowerShell 或 Bash on Ubuntu) 时。",
 	"terminal.integrated.shellArgs.windows": "在 Windows 终端上时使用的命令行参数。",
 	"terminal.integrated.macOptionIsMeta": "在终端中，使用 Option 键作为 Meta 键。(macOS)",
-	"terminal.integrated.rightClickCopyPaste": "设置后，在终端内右键单击时，这将阻止显示上下文菜单，相反，它将在有选项时进行复制，并且在没有选项时进行粘贴。",
 	"terminal.integrated.copyOnSelection": "设置后，终端中选中的文字将被复制到剪贴板。",
 	"terminal.integrated.fontFamily": "控制终端的字体系列，这在编辑器中是默认的。fontFamily 的值。",
 	"terminal.integrated.fontSize": "控制终端的字号(以像素为单位)。",
@@ -27,6 +26,7 @@
 	"terminal.integrated.cursorStyle": "控制终端游标的样式。",
 	"terminal.integrated.scrollback": "控制终端保持在缓冲区的最大行数。",
 	"terminal.integrated.setLocaleVariables": "控制是否在终端启动时设置区域设置变量，在 OS X 上默认设置为 true，在其他平台上为 false。",
+	"terminal.integrated.rightClickBehavior": "控制终端在点击右键时进行的操作，可选值为 \"default\"、 \"copyPaste\" 和 \"selectWord\"。选择 \"default\" 将显示上下文菜单；选择 \"copyPaste\" 将在有选择内容时进行复制，其他时候进行粘贴；选择 \"selectWord\" 终端将选择光标下的字并显示上下文菜单。",
 	"terminal.integrated.cwd": "将在其中启动终端的一个显式起始路径，它用作 shell 进程的当前工作目录(cwd)。当根目录为不方便的 cwd 时，此路径在工作区设置中可能十分有用。",
 	"terminal.integrated.confirmOnExit": "在存在活动终端会话的情况下，退出时是否要确认。",
 	"terminal.integrated.enableBell": "是否启用终端响铃。",
@@ -35,6 +35,7 @@
 	"terminal.integrated.env.linux": "要添加到 VS Code 进程中的带有环境变量的对象，其会被 Linux 终端使用。",
 	"terminal.integrated.env.windows": "要添加到 VS Code 进程中的带有环境变量的对象，其会被 Windows 终端使用。",
 	"terminal.integrated.showExitAlert": "当退出代码非零时，显示“终端进程以某退出代码终止”的警告。",
+	"terminal.integrated.experimentalRestore": "启动 VS Code 时，是否自动恢复工作区的终端会话。这是一项实验性设置，可能会出现问题，将来也可能会有变化。",
 	"terminalCategory": "终端",
 	"viewCategory": "查看"
 }

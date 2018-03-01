@@ -13,14 +13,12 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import arrays = require('vs/base/common/arrays');
 import objects = require('vs/base/common/objects');
 import DOM = require('vs/base/browser/dom');
-import Severity from 'vs/base/common/severity';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Action } from 'vs/base/common/actions';
 import { AutoSaveConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { toResource } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService, IResourceInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IWindowsService, IWindowService, IWindowSettings, IPath, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
@@ -32,7 +30,7 @@ import * as browser from 'vs/base/browser/browser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Position, IResourceInput, IUntitledResourceInput, IEditor } from 'vs/platform/editor/common/editor';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { Themable } from 'vs/workbench/common/theme';
 import { ipcRenderer as ipc, webFrame } from 'electron';
@@ -48,6 +46,7 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { AccessibilitySupport, isRootUser, isWindows, isMacintosh } from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
@@ -83,7 +82,7 @@ export class ElectronWindow extends Themable {
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@ITitleService private titleService: ITitleService,
 		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@ICommandService private commandService: ICommandService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IViewletService private viewletService: IViewletService,
@@ -158,7 +157,7 @@ export class ElectronWindow extends Themable {
 				*/
 				this.telemetryService.publicLog('commandExecuted', { id: request.id, from: request.from });
 			}, err => {
-				this.messageService.show(Severity.Error, err);
+				this.notificationService.error(err);
 			});
 		});
 
@@ -195,7 +194,7 @@ export class ElectronWindow extends Themable {
 
 		// Message support
 		ipc.on('vscode:showInfoMessage', (_event: any, message: string) => {
-			this.messageService.show(Severity.Info, message);
+			this.notificationService.info(message);
 		});
 
 		// Support toggling auto save
@@ -339,7 +338,7 @@ export class ElectronWindow extends Themable {
 
 				// Show warning message (unix only)
 				if (isAdmin && !isWindows) {
-					this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", product.nameShort));
+					this.notificationService.warn(nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", product.nameShort));
 				}
 			});
 		});

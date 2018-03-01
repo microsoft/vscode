@@ -394,7 +394,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 							this.error(`TSServer exited with code: ${code}`);
 							/* __GDPR__
 								"tsserver.exitWithCode" : {
-									"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+									"code" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
 								}
 							*/
 							this.logTelemetry('tsserver.exitWithCode', { code: code });
@@ -545,8 +545,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 						localize('serverDiedAfterStart', 'The TypeScript language service died 5 times right after it got started. The service will not be restarted.'),
 						{
 							title: localize('serverDiedReportIssue', 'Report Issue'),
-							id: MessageAction.reportIssue,
-							isCloseAffordance: true
+							id: MessageAction.reportIssue
 						});
 					/* __GDPR__
 						"serviceExited" : {}
@@ -559,8 +558,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 						localize('serverDied', 'The TypeScript language service died unexpectedly 5 times in the last 5 Minutes.'),
 						{
 							title: localize('serverDiedReportIssue', 'Report Issue'),
-							id: MessageAction.reportIssue,
-							isCloseAffordance: true
+							id: MessageAction.reportIssue
 						});
 				}
 				if (prompt) {
@@ -583,7 +581,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			if (resource.scheme === fileSchemes.walkThroughSnippet || resource.scheme === fileSchemes.untitled) {
 				const dirName = path.dirname(resource.path);
 				const fileName = this.inMemoryResourcePrefix + path.basename(resource.path);
-				return resource.with({ path: path.join(dirName, fileName) }).toString(true);
+				return resource.with({ path: path.posix.join(dirName, fileName) }).toString(true);
 			}
 		}
 
@@ -613,7 +611,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 					const dirName = path.dirname(resource.path);
 					const fileName = path.basename(resource.path);
 					if (fileName.startsWith(this.inMemoryResourcePrefix)) {
-						resource = resource.with({ path: path.join(dirName, fileName.slice(this.inMemoryResourcePrefix.length)) });
+						resource = resource.with({ path: path.posix.join(dirName, fileName.slice(this.inMemoryResourcePrefix.length)) });
 					}
 				}
 				return resource;

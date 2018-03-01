@@ -16,7 +16,7 @@ import strings = require('vs/base/common/strings');
 import extfs = require('vs/base/node/extfs');
 import { onError } from 'vs/base/test/common/utils';
 import { Readable } from 'stream';
-import { isLinux } from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 
 const ignore = () => { };
 
@@ -72,6 +72,46 @@ suite('Extfs', () => {
 
 			extfs.del(parentDir, os.tmpdir(), done, ignore);
 		}); // 493 = 0755
+	});
+
+	test('stat link', function (done: () => void) {
+		if (isWindows) {
+			// Symlinks are not the same on win, and we can not create them programitically without admin privileges
+			return done();
+		}
+
+		const id1 = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id1);
+		const directory = path.join(parentDir, 'extfs', id1);
+
+		const id2 = uuid.generateUuid();
+		const symbolicLink = path.join(parentDir, 'extfs', id2);
+
+		mkdirp(directory, 493, error => {
+			if (error) {
+				return onError(error, done);
+			}
+
+			fs.symlinkSync(directory, symbolicLink);
+
+			extfs.statLink(directory, (error, statAndIsLink) => {
+				if (error) {
+					return onError(error, done);
+				}
+
+				assert.ok(!statAndIsLink.isSymbolicLink);
+
+				extfs.statLink(symbolicLink, (error, statAndIsLink) => {
+					if (error) {
+						return onError(error, done);
+					}
+
+					assert.ok(statAndIsLink.isSymbolicLink);
+					extfs.delSync(directory);
+					done();
+				});
+			});
+		});
 	});
 
 	test('delSync - swallows file not found error', function () {

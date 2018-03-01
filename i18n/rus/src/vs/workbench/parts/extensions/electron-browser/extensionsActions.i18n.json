@@ -10,6 +10,5 @@
 	"installVSIX": "Установка из VSIX...",
 	"installFromVSIX": "Установить из VSIX",
 	"installButton": "&&Установить",
-	"InstallVSIXAction.success": "Расширение установлено. Чтобы включить его, выполните перезапуск.",
 	"InstallVSIXAction.reloadNow": "Перезагрузить"
 }

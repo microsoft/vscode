@@ -23,7 +23,7 @@ export class HiddenRangeModel {
 		this._foldingModel = model;
 		this._foldingModelListener = model.onDidChange(_ => this.updateHiddenRanges());
 		this._hiddenRanges = [];
-		if (model.ranges.length) {
+		if (model.regions.length) {
 			this.updateHiddenRanges();
 		}
 	}
@@ -37,7 +37,7 @@ export class HiddenRangeModel {
 		let lastCollapsedStart = Number.MAX_VALUE;
 		let lastCollapsedEnd = -1;
 
-		let ranges = this._foldingModel.ranges;
+		let ranges = this._foldingModel.regions;
 		for (; i < ranges.length; i++) {
 			if (!ranges.isCollapsed(i)) {
 				continue;

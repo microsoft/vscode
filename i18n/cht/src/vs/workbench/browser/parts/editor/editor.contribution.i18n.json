@@ -19,14 +19,12 @@
 	"close": "關閉",
 	"closeOthers": "關閉其他",
 	"closeRight": "關到右側",
-	"closeAllUnmodified": "關閉未變更的檔案",
 	"closeAll": "全部關閉",
 	"keepOpen": "保持開啟",
 	"toggleInlineView": "切換至內嵌檢視",
 	"showOpenedEditors": "顯示開啟的編輯器",
 	"keepEditor": "保留編輯器",
 	"closeEditorsInGroup": "關閉群組中的所有編輯器",
-	"closeUnmodifiedEditors": "在群組中關閉未修改的編輯器",
 	"closeOtherEditors": "關閉其他編輯器",
 	"closeRightEditors": "將編輯器關到右側"
 }

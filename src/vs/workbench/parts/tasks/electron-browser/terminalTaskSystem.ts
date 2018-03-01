@@ -23,7 +23,7 @@ import * as TPath from 'vs/base/common/paths';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from 'vs/platform/markers/common/problemMatcher';
+import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from 'vs/workbench/parts/tasks/common/problemMatcher';
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -435,7 +435,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
 					}
-				} else if (basename === 'bash.exe') {
+				} else if (basename === 'bash.exe' || basename === 'zsh.exe') {
 					windowsShellArgs = false;
 					if (!shellSpecified) {
 						toAdd.push('-c');

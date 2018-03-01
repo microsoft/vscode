@@ -5,20 +5,27 @@
 'use strict';
 
 import nls = require('vs/nls');
-import { IMessageService, IChoiceService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { MainThreadMessageServiceShape, MainContext, IExtHostContext, MainThreadMessageOptions } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { once } from 'vs/base/common/event';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { localize } from 'vs/nls';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IMessageService private readonly _messageService: IMessageService,
-		@IChoiceService private readonly _choiceService: IChoiceService
+		@INotificationService private readonly _notificationService: INotificationService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IChoiceService private readonly _choiceService: IChoiceService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService
 	) {
 		//
 	}
@@ -39,38 +46,54 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 		return new Promise<number>(resolve => {
 
-			let messageHide: Function;
-			let actions: MessageItemAction[] = [];
-			let hasCloseAffordance = false;
+			let primaryActions: MessageItemAction[] = [];
 
 			class MessageItemAction extends Action {
 				constructor(id: string, label: string, handle: number) {
 					super(id, label, undefined, true, () => {
 						resolve(handle);
-						messageHide(); // triggers dispose! make sure promise is already resolved
 						return undefined;
 					});
 				}
-				dispose(): void {
-					resolve(undefined);
+			}
+
+			class ManageExtensionAction extends Action {
+				constructor(id: string, label: string, commandService: ICommandService) {
+					super(id, label, undefined, true, () => {
+						return commandService.executeCommand('_extensions.manage', id);
+					});
 				}
 			}
 
 			commands.forEach(command => {
-				if (command.isCloseAffordance === true) {
-					hasCloseAffordance = true;
-				}
-				actions.push(new MessageItemAction('_extension_message_handle_' + command.handle, command.title, command.handle));
+				primaryActions.push(new MessageItemAction('_extension_message_handle_' + command.handle, command.title, command.handle));
 			});
 
-			if (!hasCloseAffordance) {
-				actions.push(new MessageItemAction('__close', nls.localize('close', "Close"), undefined));
+			let source: string;
+			if (extension) {
+				source = localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name);
 			}
 
-			messageHide = this._messageService.show(severity, {
+			if (!source) {
+				source = localize('defaultSource', "Extension");
+			}
+
+			const secondaryActions: IAction[] = [];
+			if (extension && extension.extensionFolderPath !== this._environmentService.extensionDevelopmentPath) {
+				secondaryActions.push(new ManageExtensionAction(extension.id, nls.localize('manageExtension', "Manage Extension"), this._commandService));
+			}
+
+			const messageHandle = this._notificationService.notify({
+				severity,
 				message,
-				actions,
-				source: extension && `${extension.displayName || extension.name}`
+				actions: { primary: primaryActions, secondary: secondaryActions },
+				source
+			});
+
+			// if promise has not been resolved yet, now is the time to ensure a return value
+			// otherwise if already resolved it means the user clicked one of the buttons
+			once(messageHandle.onDidDispose)(() => {
+				resolve(undefined);
 			});
 		});
 	}

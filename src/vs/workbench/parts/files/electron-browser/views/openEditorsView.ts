@@ -248,10 +248,14 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		}
 	}
 
+	private get showGroups(): boolean {
+		return this.model.groups.length > 1;
+	}
+
 	private get elements(): (IEditorGroup | OpenEditor)[] {
 		const result: (IEditorGroup | OpenEditor)[] = [];
 		this.model.groups.forEach(g => {
-			if (this.model.groups.length > 1) {
+			if (this.showGroups) {
 				result.push(g);
 			}
 			result.push(...g.getEditors().map(ei => new OpenEditor(ei, g)));
@@ -262,7 +266,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 	private getIndex(group: IEditorGroup, editor: IEditorInput): number {
 		let index = editor ? group.indexOf(editor) : 0;
-		if (this.model.groups.length === 1) {
+		if (!this.showGroups) {
 			return index;
 		}
 
@@ -328,15 +332,17 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			this.listRefreshScheduler.schedule(this.structuralRefreshDelay);
 		} else if (!this.listRefreshScheduler.isScheduled()) {
 
-			const newElement = e.editor ? new OpenEditor(e.editor, e.group) : e.group;
-			const index = this.getIndex(e.group, e.editor);
-			const previousLength = this.list.length;
-			this.list.splice(index, 1, [newElement]);
+			const newElement = e.editor ? new OpenEditor(e.editor, e.group) : this.showGroups ? e.group : undefined;
+			if (newElement) {
+				const index = this.getIndex(e.group, e.editor);
+				const previousLength = this.list.length;
+				this.list.splice(index, 1, [newElement]);
 
-			if (previousLength !== this.list.length) {
-				this.updateSize();
+				if (previousLength !== this.list.length) {
+					this.updateSize();
+				}
+				this.focusActiveEditor();
 			}
-			this.focusActiveEditor();
 		}
 	}
 
@@ -379,7 +385,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 	private get elementCount(): number {
 		return this.model.groups.map(g => g.count)
-			.reduce((first, second) => first + second, this.model.groups.length > 1 ? this.model.groups.length : 0);
+			.reduce((first, second) => first + second, this.showGroups ? this.model.groups.length : 0);
 	}
 
 	private getMaxExpandedBodySize(): number {

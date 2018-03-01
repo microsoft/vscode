@@ -88,6 +88,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	private selectList: List<ISelectOptionItem>;
 	private selectDropDownListContainer: HTMLElement;
 	private widthControlElement: HTMLElement;
+	private _currentSelection: number;
 
 	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles) {
 
@@ -360,6 +361,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 				dom.toggleClass(this.selectElement, 'synthetic-focus', false);
 			}
 		});
+		this._currentSelection = this.selected;
 	}
 
 	private hideSelectDropDown(focusSelect: boolean) {
@@ -521,6 +523,9 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 				index: this.selectElement.selectedIndex,
 				selected: this.selectElement.title
 			});
+
+			// Reset Selection Handler
+			this._currentSelection = -1;
 			this.hideSelectDropDown(true);
 		}
 		dom.EventHelper.stop(e);
@@ -528,6 +533,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 	// List Exit - passive - hide drop-down, fire onDidSelect
 	private onListBlur(): void {
+
+		if (this._currentSelection >= 0) {
+			this.select(this._currentSelection);
+		}
 
 		this._onDidSelect.fire({
 			index: this.selectElement.selectedIndex,
@@ -541,6 +550,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	// List exit - active - hide ContextView dropdown, return focus to parent select, fire onDidSelect
 	private onEscape(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
+		this.select(this._currentSelection);
 
 		this.hideSelectDropDown(true);
 
@@ -553,6 +563,9 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	// List exit - active - hide ContextView dropdown, return focus to parent select, fire onDidSelect
 	private onEnter(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
+
+		// Reset current selection
+		this._currentSelection = -1;
 
 		this.hideSelectDropDown(true);
 		this._onDidSelect.fire({

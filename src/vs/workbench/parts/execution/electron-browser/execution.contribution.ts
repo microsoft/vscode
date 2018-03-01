@@ -27,6 +27,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
+import { distinct } from 'vs/base/common/arrays';
 
 if (env.isWindows) {
 	registerSingleton(ITerminalService, WinTerminalService);
@@ -85,25 +86,19 @@ CommandsRegistry.registerCommand({
 		const fileService = accessor.get(IFileService);
 		const integratedTerminalService = accessor.get(IIntegratedTerminalService);
 		const terminalService = accessor.get(ITerminalService);
-
-		const directorySet = new Set<string>();
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
 
-		return resources.map(r => {
-			return fileService.resolveFile(r).then(stat => {
-				return stat.isDirectory ? stat.resource.fsPath : paths.dirname(stat.resource.fsPath);
-			}).then(directoryToOpen => {
-				if (!directorySet.has(directoryToOpen)) {
-					directorySet.add(directoryToOpen);
-					if (configurationService.getValue<ITerminalConfiguration>().terminal.explorerKind === 'integrated') {
-						const instance = integratedTerminalService.createInstance({ cwd: directoryToOpen }, true);
-						if (instance && (resource === r || resources.length === 1)) {
-							integratedTerminalService.setActiveInstance(instance);
-							integratedTerminalService.showPanel(true);
-						}
-					} else {
-						terminalService.openTerminal(directoryToOpen);
+		return fileService.resolveFiles(resources.map(r => ({ resource: r }))).then(stats => {
+			const directoriesToOpen = distinct(stats.map(({ stat }) => stat.isDirectory ? stat.resource.fsPath : paths.dirname(stat.resource.fsPath)));
+			return directoriesToOpen.map(dir => {
+				if (configurationService.getValue<ITerminalConfiguration>().terminal.explorerKind === 'integrated') {
+					const instance = integratedTerminalService.createInstance({ cwd: dir }, true);
+					if (instance && (resources.length === 1 || !resource || dir === resource.fsPath || dir === paths.dirname(resource.fsPath))) {
+						integratedTerminalService.setActiveInstance(instance);
+						integratedTerminalService.showPanel(true);
 					}
+				} else {
+					terminalService.openTerminal(dir);
 				}
 			});
 		});

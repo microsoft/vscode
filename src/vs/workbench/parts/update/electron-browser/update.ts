@@ -11,7 +11,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IMessageService, CloseAction, Severity } from 'vs/platform/message/common/message';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import URI from 'vs/base/common/uri';
@@ -32,6 +31,7 @@ import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/pla
 import * as semver from 'semver';
 import { OS } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const NotNowAction = new Action(
 	'update.later',
@@ -167,11 +167,6 @@ export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesActio
 	}
 }
 
-const LinkAction = (id: string, message: string, licenseUrl: string) => new Action(
-	id, message, null, true,
-	() => { window.open(licenseUrl); return TPromise.as(null); }
-);
-
 export class ProductContribution implements IWorkbenchContribution {
 
 	private static readonly KEY = 'releaseNotes/lastVersion';
@@ -179,7 +174,7 @@ export class ProductContribution implements IWorkbenchContribution {
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
@@ -190,24 +185,19 @@ export class ProductContribution implements IWorkbenchContribution {
 			instantiationService.invokeFunction(loadReleaseNotes, pkg.version).then(
 				text => editorService.openEditor(instantiationService.createInstance(ReleaseNotesInput, pkg.version, text), { pinned: true }),
 				() => {
-					messageService.show(Severity.Info, {
+					notificationService.notify({
+						severity: severity.Info,
 						message: nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
-						actions: [
-							instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction),
-							CloseAction
-						]
+						actions: { primary: [instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction)] }
 					});
 				});
 		}
 
 		// should we show the new license?
 		if (product.licenseUrl && lastVersion && semver.satisfies(lastVersion, '<1.0.0') && semver.satisfies(pkg.version, '>=1.0.0')) {
-			messageService.show(Severity.Info, {
-				message: nls.localize('licenseChanged', "Our license terms have changed, please go through them.", product.nameLong, pkg.version),
-				actions: [
-					LinkAction('update.showLicense', nls.localize('license', "Read License"), product.licenseUrl),
-					CloseAction
-				]
+			notificationService.notify({
+				severity: severity.Info,
+				message: nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", product.licenseUrl),
 			});
 		}
 
@@ -219,7 +209,11 @@ class NeverShowAgain {
 
 	private readonly key: string;
 
-	readonly action = new Action(`neverShowAgain:${this.key}`, nls.localize('neveragain', "Don't Show Again"), undefined, true, () => {
+	readonly action = new Action(`neverShowAgain:${this.key}`, nls.localize('neveragain', "Don't Show Again"), undefined, true, (notification: IDisposable) => {
+
+		// Hide notification
+		notification.dispose();
+
 		return TPromise.wrap(this.storageService.store(this.key, true, StorageScope.GLOBAL));
 	});
 
@@ -241,7 +235,7 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
@@ -259,13 +253,10 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 			? Win3264BitContribution.INSIDER_URL
 			: Win3264BitContribution.URL;
 
-		messageService.show(Severity.Info, {
-			message: nls.localize('64bitisavailable', "{0} for 64-bit Windows is now available!", product.nameShort),
-			actions: [
-				LinkAction('update.show64bitreleasenotes', nls.localize('learn more', "Learn More"), url),
-				neverShowAgain.action,
-				CloseAction
-			]
+		this.notificationService.notify({
+			severity: severity.Info,
+			message: nls.localize('64bitisavailable', "{0} for 64-bit Windows is now available! Click [here]({1}) to learn more.", product.nameShort, url),
+			actions: { secondary: [neverShowAgain.action] }
 		});
 	}
 }
@@ -303,7 +294,7 @@ export class UpdateContribution implements IGlobalActivity {
 		@IStorageService private storageService: IStorageService,
 		@ICommandService private commandService: ICommandService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IUpdateService private updateService: IUpdateService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IActivityService private activityService: IActivityService
@@ -376,7 +367,7 @@ export class UpdateContribution implements IGlobalActivity {
 	}
 
 	private onUpdateNotAvailable(): void {
-		this.messageService.show(severity.Info, nls.localize('noUpdatesAvailable', "There are no updates currently available."));
+		this.notificationService.info(nls.localize('noUpdatesAvailable', "There are currently no updates available."));
 	}
 
 	// linux
@@ -389,9 +380,10 @@ export class UpdateContribution implements IGlobalActivity {
 		const downloadAction = new Action('update.downloadNow', nls.localize('download now', "Download Now"), null, true, () =>
 			this.updateService.downloadUpdate());
 
-		this.messageService.show(severity.Info, {
+		this.notificationService.notify({
+			severity: severity.Info,
 			message: nls.localize('thereIsUpdateAvailable', "There is an available update."),
-			actions: [downloadAction, NotNowAction, releaseNotesAction]
+			actions: { primary: [downloadAction, NotNowAction, releaseNotesAction] }
 		});
 	}
 
@@ -405,9 +397,10 @@ export class UpdateContribution implements IGlobalActivity {
 		const installUpdateAction = new Action('update.applyUpdate', nls.localize('installUpdate', "Install Update"), undefined, true, () =>
 			this.updateService.applyUpdate());
 
-		this.messageService.show(severity.Info, {
+		this.notificationService.notify({
+			severity: severity.Info,
 			message: nls.localize('updateAvailable', "There's an available update: {0} {1}", product.nameLong, update.productVersion),
-			actions: [installUpdateAction, NotNowAction, releaseNotesAction]
+			actions: { primary: [installUpdateAction, NotNowAction, releaseNotesAction] }
 		});
 	}
 
@@ -419,9 +412,10 @@ export class UpdateContribution implements IGlobalActivity {
 			return;
 		}
 
-		this.messageService.show(severity.Info, {
+		this.notificationService.notify({
+			severity: severity.Info,
 			message: nls.localize('updateInstalling', "{0} {1} is being installed in the background, we'll let you know when it's done.", product.nameLong, update.productVersion),
-			actions: [neverShowAgain.action, CloseAction]
+			actions: { secondary: [neverShowAgain.action] }
 		});
 	}
 
@@ -435,9 +429,10 @@ export class UpdateContribution implements IGlobalActivity {
 		const applyUpdateAction = new Action('update.applyUpdate', nls.localize('updateNow', "Update Now"), undefined, true, () =>
 			this.updateService.quitAndInstall());
 
-		this.messageService.show(severity.Info, {
+		this.notificationService.notify({
+			severity: severity.Info,
 			message: nls.localize('updateAvailableAfterRestart', "{0} will be updated after it restarts.", product.nameLong),
-			actions: [applyUpdateAction, NotNowAction, releaseNotesAction]
+			actions: { primary: [applyUpdateAction, NotNowAction, releaseNotesAction] }
 		});
 	}
 

@@ -29,7 +29,7 @@ export const IWorkbenchEditorService = createDecorator<IWorkbenchEditorService>(
 
 export type IResourceInputType = IResourceInput | IUntitledResourceInput | IResourceDiffInput | IResourceSideBySideInput;
 
-export type ICloseEditorsFilter = { except?: IEditorInput, direction?: Direction, unmodifiedOnly?: boolean };
+export type ICloseEditorsFilter = { except?: IEditorInput, direction?: Direction, savedOnly?: boolean };
 
 /**
  * The editor service allows to open editors and work on the active

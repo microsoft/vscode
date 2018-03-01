@@ -322,7 +322,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 }
 
 Registry.as<IStatusbarRegistry>(Extensions.Statusbar).registerStatusbarItem(
-	new StatusbarItemDescriptor(ZoomStatusbarItem, StatusbarAlignment.RIGHT, 101)
+	new StatusbarItemDescriptor(ZoomStatusbarItem, StatusbarAlignment.RIGHT, 101 /* to the left of editor status (100) */)
 );
 
 interface ImageState {

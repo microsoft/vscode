@@ -362,7 +362,6 @@ function getGitErrorCode(stderr: string): string | undefined {
 export class Git {
 
 	private gitPath: string;
-	private version: string;
 	private env: any;
 
 	private _onOutput = new EventEmitter();
@@ -370,7 +369,6 @@ export class Git {
 
 	constructor(options: IGitOptions) {
 		this.gitPath = options.gitPath;
-		this.version = options.version;
 		this.env = options.env || {};
 	}
 
@@ -463,7 +461,7 @@ export class Git {
 		});
 
 		if (options.log !== false) {
-			this.log(`git ${args.join(' ')}\n`);
+			this.log(`> git ${args.join(' ')}\n`);
 		}
 
 		return cp.spawn(this.gitPath, args, options);

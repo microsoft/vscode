@@ -14,7 +14,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IQuickOpenService, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
@@ -25,6 +24,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -62,8 +62,7 @@ export class KillTerminalAction extends Action {
 		id: string, label: string,
 		@ITerminalService private terminalService: ITerminalService
 	) {
-		super(id, label);
-		this.class = 'terminal-action kill';
+		super(id, label, 'terminal-action kill');
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -89,8 +88,7 @@ export class QuickKillTerminalAction extends Action {
 		@ITerminalService private terminalService: ITerminalService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
-		super(id, label);
-		this.class = 'terminal-action kill';
+		super(id, label, 'terminal-action kill');
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -239,12 +237,18 @@ export class CreateNewTerminalAction extends Action {
 		@ICommandService private commandService: ICommandService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
-		super(id, label);
-		this.class = 'terminal-action new';
+		super(id, label, 'terminal-action new');
 	}
 
 	public run(event?: any): TPromise<any> {
 		const folders = this.workspaceContextService.getWorkspace().folders;
+		if (event instanceof MouseEvent && (event.altKey || event.ctrlKey)) {
+			const activeInstance = this.terminalService.getActiveInstance();
+			if (activeInstance) {
+				this.terminalService.splitInstance(activeInstance);
+				return TPromise.as(null);
+			}
+		}
 
 		let instancePromise: TPromise<ITerminalInstance>;
 		if (folders.length <= 1) {
@@ -304,7 +308,7 @@ export class SplitTerminalAction extends Action {
 		id: string, label: string,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
-		super(id, label);
+		super(id, label, 'terminal-action split');
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -565,7 +569,7 @@ export class RunActiveFileInTerminalAction extends Action {
 		id: string, label: string,
 		@ICodeEditorService private codeEditorService: ICodeEditorService,
 		@ITerminalService private terminalService: ITerminalService,
-		@IMessageService private messageService: IMessageService
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(id, label);
 	}
@@ -581,7 +585,7 @@ export class RunActiveFileInTerminalAction extends Action {
 		}
 		const uri = editor.getModel().uri;
 		if (uri.scheme !== 'file') {
-			this.messageService.show(Severity.Warning, nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
+			this.notificationService.warn(nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
 			return TPromise.as(void 0);
 		}
 		instance.sendText(uri.fsPath, true);
@@ -598,8 +602,7 @@ export class SwitchTerminalAction extends Action {
 		id: string, label: string,
 		@ITerminalService private terminalService: ITerminalService
 	) {
-		super(SwitchTerminalAction.ID, SwitchTerminalAction.LABEL);
-		this.class = 'terminal-action switch-terminal';
+		super(SwitchTerminalAction.ID, SwitchTerminalAction.LABEL, 'terminal-action switch-terminal');
 	}
 
 	public run(item?: string): TPromise<any> {

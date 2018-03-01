@@ -21,14 +21,14 @@
 	"debugRequestNotSupported": "L’attribut '{0}' a une valeur '{1}' non prise en charge dans la configuration de débogage sélectionnée.",
 	"debugRequesMissing": "L’attribut '{0}' est introuvable dans la configuration de débogage choisie.",
 	"debugTypeNotSupported": "Le type de débogage '{0}' configuré n'est pas pris en charge.",
-	"debugTypeMissing": "La propriété 'type' est manquante pour la configuration de lancement sélectionnée.",
+	"debugTypeMissing": "Propriété 'type' manquante pour la configuration de lancement choisie.",
+	"debugAnyway": "Déboguer quand même",
 	"preLaunchTaskErrors": "Des erreurs de build ont été détectées durant le preLaunchTask '{0}'.",
 	"preLaunchTaskError": "Une erreur de build a été détectée durant le preLaunchTask '{0}'.",
 	"preLaunchTaskExitCode": "Le preLaunchTask '{0}' s'est terminé avec le code de sortie {1}.",
-	"debugAnyway": "Déboguer quand même",
 	"showErrors": "Afficher les erreurs",
-	"cancel": "Annuler",
 	"noFolderWorkspaceDebugError": "Impossible de déboguer le fichier actif. Vérifiez qu'il est enregistré sur le disque et qu'une extension de débogage est installée pour ce type de fichier.",
+	"cancel": "Annuler",
 	"DebugTaskNotFound": "preLaunchTask '{0}' introuvable.",
 	"taskNotTracked": "La tâche de prélancement '{0}' n'a pas pu être tracée."
 }

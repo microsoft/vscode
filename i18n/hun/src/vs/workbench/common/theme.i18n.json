@@ -59,15 +59,12 @@
 	"titleBarActiveBackground": "A címsor háttérszíne, ha az ablak aktív. Megjegyzés: ez a beállítás jelenleg csak macOS-en támogatott.",
 	"titleBarInactiveBackground": "A címsor háttérszíne, ha az ablak inaktív. Megjegyzés: ez a beállítás jelenleg csak macOS-en támogatott.",
 	"titleBarBorder": "A címsor keretszíne, ha az ablak aktív. Megjegyzés: ez a beállítás jelenleg csak macOS-en támogatott.",
-	"notificationsForeground": "Az értesítések előtérszíne. Az értesítések az ablak tetején ugranak fel.",
-	"notificationsBackground": "Az értesítések háttérszíne. Az értesítések az ablak tetején ugranak fel.",
-	"notificationsButtonBackground": "Az értesítések gombjainak háttérszíne. Az értesítések az ablak tetején ugranak fel.",
-	"notificationsButtonHoverBackground": "Az értesítések gombjainak háttérszíne, ha az egérkurzor fölöttük van. Az értesítések az ablak tetején ugranak fel.",
-	"notificationsButtonForeground": "Az értesítések gombjainak előtérszíne. Az értesítések az ablak tetején ugranak fel.",
-	"notificationsInfoBackground": "Az információs értesítések háttérszíne. Az értesítések az ablak tetején ugranak fel.",
-	"notificationsInfoForeground": "Az információs értesítések előtérszíne. Az értesítések az ablak tetején ugranak fel.",
-	"notificationsWarningBackground": "A figyelmeztető értesítések háttérszíne. Az értesítések az ablak tetején ugranak fel.",
-	"notificationsWarningForeground": "A figyelmeztető értesítések előtérszíne. Az értesítések az ablak tetején ugranak fel.",
-	"notificationsErrorBackground": "A hibajelző értesítések háttérszíne. Az értesítések az ablak tetején ugranak fel.",
-	"notificationsErrorForeground": "A hibajelző értesítések előtérszíne. Az értesítések az ablak tetején ugranak fel."
+	"notificationsCenterBorder": "Az értesítési központ keretszíne. Az értesítések az ablak jobb alsó részén jelennek meg.",
+	"notificationsToastBorder": "Az értesítések keretszíne. Az értesítések az ablak jobb alsó részén jelennek meg.",
+	"notificationsForeground": "Az értesítések előtérszíne. Az értesítések az ablak jobb alsó részén jelennek meg.",
+	"notificationsBackground": "Az értesítések háttérszíne. Az értesítések az ablak jobb alsó részén jelennek meg.",
+	"notificationsLink": "Az értesítésekben található hivatkozások előtérszíne. Az értesítések az ablak jobb alsó részén jelennek meg.",
+	"notificationsCenterHeaderForeground": "Az értesítési központ fejlécének előtérszíne. Az értesítések az ablak jobb alsó részén jelennek meg.",
+	"notificationsCenterHeaderBackground": "Az értesítési központ fejlécének háttérszíne. Az értesítések az ablak jobb alsó részén jelennek meg.",
+	"notificationsBorder": "Az értesítéseket egymástól elválasztó keret színe az értesítési központban. Az értesítések az ablak jobb alsó részén jelennek meg."
 }

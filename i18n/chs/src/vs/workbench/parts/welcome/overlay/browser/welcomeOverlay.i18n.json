@@ -13,7 +13,7 @@
 	"welcomeOverlay.extensions": "管理扩展",
 	"welcomeOverlay.problems": "查看错误和警告",
 	"welcomeOverlay.commandPalette": "查找并运行所有命令",
-	"welcomeOverlay": "用户界面概述",
-	"hideWelcomeOverlay": "隐藏界面概述",
+	"welcomeOverlay": "用户界面概览",
+	"hideWelcomeOverlay": "隐藏界面概览",
 	"help": "帮助"
 }

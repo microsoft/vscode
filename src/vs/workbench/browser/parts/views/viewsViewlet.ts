@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
@@ -11,9 +10,9 @@ import { $, Dimension, Builder } from 'vs/base/browser/builder';
 import { Scope } from 'vs/workbench/common/memento';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { firstIndex } from 'vs/base/common/arrays';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ViewsRegistry, ViewLocation, IViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
@@ -31,6 +30,8 @@ import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/th
 import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { localize } from 'vs/nls';
 
 export interface IViewOptions extends IPanelOptions {
 	id: string;
@@ -200,6 +201,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		id: string,
 		private location: ViewLocation,
 		private showHeaderInTitleWhenSingleView: boolean,
+		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService protected storageService: IStorageService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -208,7 +210,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IExtensionService protected extensionService: IExtensionService
 	) {
-		super(id, { showHeaderInTitleWhenSingleView, dnd: true }, telemetryService, themeService);
+		super(id, { showHeaderInTitleWhenSingleView, dnd: true }, partService, contextMenuService, telemetryService, themeService);
 
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 	}
@@ -232,15 +234,23 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 	}
 
 	getContextMenuActions(): IAction[] {
-		return this.getViewDescriptorsFromRegistry(true)
-			.filter(viewDescriptor => viewDescriptor.canToggleVisibility && this.contextKeyService.contextMatchesRules(viewDescriptor.when))
+		const result: IAction[] = [];
+		const viewToggleActions = this.getViewDescriptorsFromRegistry()
+			.filter(viewDescriptor => this.contextKeyService.contextMatchesRules(viewDescriptor.when))
 			.map(viewDescriptor => (<IAction>{
 				id: `${viewDescriptor.id}.toggleVisibility`,
 				label: viewDescriptor.name,
 				checked: this.isCurrentlyVisible(viewDescriptor),
-				enabled: true,
+				enabled: viewDescriptor.canToggleVisibility,
 				run: () => this.toggleViewVisibility(viewDescriptor.id)
 			}));
+		result.push(...viewToggleActions);
+		const parentActions = super.getContextMenuActions();
+		if (viewToggleActions.length && parentActions.length) {
+			result.push(new Separator());
+		}
+		result.push(...parentActions);
+		return result;
 	}
 
 	setVisible(visible: boolean): TPromise<void> {
@@ -250,14 +260,19 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 			.then(() => void 0);
 	}
 
-	openView(id: string): void {
-		this.focus();
+	openView(id: string, focus?: boolean): TPromise<void> {
+		if (focus) {
+			this.focus();
+		}
 		const view = this.getView(id);
 		if (view) {
 			view.setExpanded(true);
-			view.focus();
+			if (focus) {
+				view.focus();
+			}
+			return TPromise.as(null);
 		} else {
-			this.toggleViewVisibility(id);
+			return this.toggleViewVisibility(id, focus);
 		}
 	}
 
@@ -284,19 +299,19 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		super.shutdown();
 	}
 
-	toggleViewVisibility(id: string): void {
+	toggleViewVisibility(id: string, focus?: boolean): TPromise<void> {
 		let viewState = this.viewsStates.get(id);
 		if (!viewState) {
-			return;
+			return TPromise.as(null);
 		}
 
 		viewState.isHidden = !!this.getView(id);
-		this.updateViews()
+		return this.updateViews()
 			.then(() => {
 				this._onDidChangeViewVisibilityState.fire(id);
 				if (!viewState.isHidden) {
-					this.openView(id);
-				} else {
+					this.openView(id, focus);
+				} else if (focus) {
 					this.focus();
 				}
 			});
@@ -481,9 +496,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 				this.viewHeaderContextMenuListeners.push(DOM.addDisposableListener(view.draggableElement, DOM.EventType.CONTEXT_MENU, e => {
 					e.stopPropagation();
 					e.preventDefault();
-					if (viewDescriptor.canToggleVisibility) {
-						this.onContextMenu(new StandardMouseEvent(e), view);
-					}
+					this.onContextMenu(new StandardMouseEvent(e), viewDescriptor);
 				}));
 			}
 		}
@@ -498,19 +511,26 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		}
 	}
 
-	private onContextMenu(event: StandardMouseEvent, view: ViewsViewletPanel): void {
+	private onContextMenu(event: StandardMouseEvent, viewDescriptor: IViewDescriptor): void {
 		event.stopPropagation();
 		event.preventDefault();
+
+		const actions: IAction[] = [];
+		actions.push(<IAction>{
+			id: `${viewDescriptor.id}.removeView`,
+			label: localize('hideView', "Hide"),
+			enabled: viewDescriptor.canToggleVisibility,
+			run: () => this.toggleViewVisibility(viewDescriptor.id)
+		});
+		const otherActions = this.getContextMenuActions();
+		if (otherActions.length) {
+			actions.push(...[new Separator(), ...otherActions]);
+		}
 
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as([<IAction>{
-				id: `${view.id}.removeView`,
-				label: nls.localize('hideView', "Hide"),
-				enabled: true,
-				run: () => this.toggleViewVisibility(view.id)
-			}]),
+			getActions: () => TPromise.as(actions)
 		});
 	}
 
@@ -543,13 +563,13 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		return super.isSingleView();
 	}
 
-	protected getViewDescriptorsFromRegistry(defaultOrder: boolean = false): IViewDescriptor[] {
+	protected getViewDescriptorsFromRegistry(): IViewDescriptor[] {
 		return ViewsRegistry.getViews(this.location)
 			.sort((a, b) => {
 				const viewStateA = this.viewsStates.get(a.id);
 				const viewStateB = this.viewsStates.get(b.id);
-				const orderA = !defaultOrder && viewStateA ? viewStateA.order : a.order;
-				const orderB = !defaultOrder && viewStateB ? viewStateB.order : b.order;
+				const orderA = viewStateA ? viewStateA.order : a.order;
+				const orderB = viewStateB ? viewStateB.order : b.order;
 
 				if (orderB === void 0 || orderB === null) {
 					return -1;
@@ -610,6 +630,7 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 		location: ViewLocation,
 		private readonly viewletStateStorageId: string,
 		showHeaderInTitleWhenSingleView: boolean,
+		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -619,7 +640,7 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(id, location, showHeaderInTitleWhenSingleView, telemetryService, storageService, instantiationService, themeService, contextKeyService, contextMenuService, extensionService);
+		super(id, location, showHeaderInTitleWhenSingleView, partService, telemetryService, storageService, instantiationService, themeService, contextKeyService, contextMenuService, extensionService);
 		this.hiddenViewsStorageId = `${this.viewletStateStorageId}.hidden`;
 		this._register(this.onDidChangeViewVisibilityState(id => this.onViewVisibilityChanged(id)));
 	}

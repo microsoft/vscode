@@ -78,6 +78,5 @@
 	"zenMode.hideTabs": "Zen Moduna geçmenin ayrıca çalışma ekranı sekmelerini gizleyip gizlemeyeceğini denetler.",
 	"zenMode.hideStatusBar": "Zen Moduna geçmenin ayrıca çalışma ekranının altındaki durum çubuğunu gizleyip gizlemeyeceğini denetler.",
 	"zenMode.hideActivityBar": "Zen Moduna geçmenin ayrıca çalışma ekranının solundaki etkinlik çubuğunu gizleyip gizlemeyeceğini denetler.",
-	"zenMode.restore": "Bir pencere Zen modundayken çıkıldıysa, bu pencerenin Zen moduna geri dönüp dönmeyeceğini denetler.",
-	"JsonSchema.locale": "Kullanılacak Kullanıcı Arayüzü Dili."
+	"zenMode.restore": "Bir pencere Zen modundayken çıkıldıysa, bu pencerenin Zen moduna geri dönüp dönmeyeceğini denetler."
 }

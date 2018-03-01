@@ -14,8 +14,7 @@ const builtInExtensionsPath = path.join(__dirname, '..', 'builtInExtensions.json
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 
 function readJson(filePath) {
-	//@ts-ignore review
-	return JSON.parse(fs.readFileSync(filePath));
+	return JSON.parse(fs.readFileSync(filePath, { encoding: 'utf8' }));
 }
 
 function writeJson(filePath, obj) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import { registerColor, editorBackground, contrastBorder, transparent, lighten, darken } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
@@ -366,71 +366,53 @@ export const TITLE_BAR_BORDER = registerColor('titleBar.border', {
 
 // < --- Notifications --- >
 
-export const NOTIFICATIONS_FOREGROUND = registerColor('notification.foreground', {
-	dark: '#EEEEEE',
-	light: '#EEEEEE',
-	hc: '#FFFFFF'
-}, nls.localize('notificationsForeground', "Notifications foreground color. Notifications slide in from the top of the window."));
-
-export const NOTIFICATIONS_BACKGROUND = registerColor('notification.background', {
-	dark: '#333333',
-	light: '#2C2C2C',
-	hc: '#000000'
-}, nls.localize('notificationsBackground', "Notifications background color. Notifications slide in from the top of the window."));
-
-export const NOTIFICATIONS_BUTTON_BACKGROUND = registerColor('notification.buttonBackground', {
-	dark: '#0E639C',
-	light: '#007ACC',
-	hc: null
-}, nls.localize('notificationsButtonBackground', "Notifications button background color. Notifications slide in from the top of the window."));
-
-export const NOTIFICATIONS_BUTTON_HOVER_BACKGROUND = registerColor('notification.buttonHoverBackground', {
-	dark: lighten(NOTIFICATIONS_BUTTON_BACKGROUND, 0.2),
-	light: darken(NOTIFICATIONS_BUTTON_BACKGROUND, 0.2),
-	hc: null
-}, nls.localize('notificationsButtonHoverBackground', "Notifications button background color when hovering. Notifications slide in from the top of the window."));
-
-export const NOTIFICATIONS_BUTTON_FOREGROUND = registerColor('notification.buttonForeground', {
-	dark: Color.white,
-	light: Color.white,
-	hc: Color.white
-}, nls.localize('notificationsButtonForeground', "Notifications button foreground color. Notifications slide in from the top of the window."));
-
-export const NOTIFICATIONS_INFO_BACKGROUND = registerColor('notification.infoBackground', {
-	dark: '#007acc',
-	light: '#007acc',
+export const NOTIFICATIONS_CENTER_BORDER = registerColor('notificationsCenter.border', {
+	dark: null,
+	light: null,
 	hc: contrastBorder
-}, nls.localize('notificationsInfoBackground', "Notifications info background color. Notifications slide in from the top of the window."));
+}, nls.localize('notificationsCenterBorder', "Notifications center border color. Notifications slide in from the bottom right of the window."));
 
-export const NOTIFICATIONS_INFO_FOREGROUND = registerColor('notification.infoForeground', {
-	dark: NOTIFICATIONS_FOREGROUND,
-	light: NOTIFICATIONS_FOREGROUND,
-	hc: null
-}, nls.localize('notificationsInfoForeground', "Notifications info foreground color. Notifications slide in from the top of the window."));
-
-export const NOTIFICATIONS_WARNING_BACKGROUND = registerColor('notification.warningBackground', {
-	dark: '#B89500',
-	light: '#B89500',
+export const NOTIFICATIONS_TOAST_BORDER = registerColor('notificationsToast.border', {
+	dark: null,
+	light: null,
 	hc: contrastBorder
-}, nls.localize('notificationsWarningBackground', "Notifications warning background color. Notifications slide in from the top of the window."));
+}, nls.localize('notificationsToastBorder', "Notification toast border color. Notifications slide in from the bottom right of the window."));
 
-export const NOTIFICATIONS_WARNING_FOREGROUND = registerColor('notification.warningForeground', {
-	dark: NOTIFICATIONS_FOREGROUND,
-	light: NOTIFICATIONS_FOREGROUND,
+export const NOTIFICATIONS_FOREGROUND = registerColor('notifications.foreground', {
+	dark: null,
+	light: null,
 	hc: null
-}, nls.localize('notificationsWarningForeground', "Notifications warning foreground color. Notifications slide in from the top of the window."));
+}, nls.localize('notificationsForeground', "Notifications foreground color. Notifications slide in from the bottom right of the window."));
 
-export const NOTIFICATIONS_ERROR_BACKGROUND = registerColor('notification.errorBackground', {
-	dark: '#BE1100',
-	light: '#BE1100',
-	hc: contrastBorder
-}, nls.localize('notificationsErrorBackground', "Notifications error background color. Notifications slide in from the top of the window."));
+export const NOTIFICATIONS_BACKGROUND = registerColor('notifications.background', {
+	dark: editorWidgetBackground,
+	light: editorWidgetBackground,
+	hc: editorWidgetBackground
+}, nls.localize('notificationsBackground', "Notifications background color. Notifications slide in from the bottom right of the window."));
 
-export const NOTIFICATIONS_ERROR_FOREGROUND = registerColor('notification.errorForeground', {
-	dark: NOTIFICATIONS_FOREGROUND,
-	light: NOTIFICATIONS_FOREGROUND,
+export const NOTIFICATIONS_LINKS = registerColor('notificationLink.foreground', {
+	dark: textLinkForeground,
+	light: textLinkForeground,
+	hc: textLinkForeground
+}, nls.localize('notificationsLink', "Notification links foreground color. Notifications slide in from the bottom right of the window."));
+
+export const NOTIFICATIONS_CENTER_HEADER_FOREGROUND = registerColor('notificationsCenterHeader.foreground', {
+	dark: null,
+	light: null,
 	hc: null
-}, nls.localize('notificationsErrorForeground', "Notifications error foreground color. Notifications slide in from the top of the window."));
+}, nls.localize('notificationsCenterHeaderForeground', "Notifications center header foreground color. Notifications slide in from the bottom right of the window."));
+
+export const NOTIFICATIONS_CENTER_HEADER_BACKGROUND = registerColor('notificationsCenterHeader.background', {
+	dark: lighten(NOTIFICATIONS_BACKGROUND, 0.3),
+	light: darken(NOTIFICATIONS_BACKGROUND, 0.05),
+	hc: NOTIFICATIONS_BACKGROUND
+}, nls.localize('notificationsCenterHeaderBackground', "Notifications center header background color. Notifications slide in from the bottom right of the window."));
+
+export const NOTIFICATIONS_BORDER = registerColor('notifications.border', {
+	dark: NOTIFICATIONS_CENTER_HEADER_BACKGROUND,
+	light: NOTIFICATIONS_CENTER_HEADER_BACKGROUND,
+	hc: NOTIFICATIONS_CENTER_HEADER_BACKGROUND
+}, nls.localize('notificationsBorder', "Notifications border color separating from other notifications in the notifications center. Notifications slide in from the bottom right of the window."));
 
 /**
  * Base class for all themable workbench components.

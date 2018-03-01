@@ -15,5 +15,6 @@
 	"developer": "Desenvolvedor",
 	"extensionsConfigurationTitle": "Extensões",
 	"extensionsAutoUpdate": "Atualizar extensões automaticamente",
-	"extensionsIgnoreRecommendations": "Se definido como verdadeiro, as notificações para recomendações de extensão irão parar de aparecer."
+	"extensionsIgnoreRecommendations": "Se definido como verdadeiro, as notificações para recomendações de extensão irão parar de aparecer.",
+	"extensionsShowRecommendationsOnlyOnDemand": "Se configurado como verdadeira, as recomendações não serão localizadas ou mostradas a menos que sejam especificamente solicitadas pelo usuário."
 }

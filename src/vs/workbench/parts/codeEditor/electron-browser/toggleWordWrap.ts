@@ -13,12 +13,11 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IMessageService } from 'vs/platform/message/common/message';
-import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { InternalEditorOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -150,8 +149,8 @@ class ToggleWordWrapAction extends EditorAction {
 		const editorConfiguration = editor.getConfiguration();
 		if (editorConfiguration.wrappingInfo.inDiffEditor) {
 			// Cannot change wrapping settings inside the diff editor
-			const messageService = accessor.get(IMessageService);
-			messageService.show(Severity.Info, nls.localize('wordWrap.notInDiffEditor', "Cannot toggle word wrap in a diff editor."));
+			const notificationService = accessor.get(INotificationService);
+			notificationService.info(nls.localize('wordWrap.notInDiffEditor', "Cannot toggle word wrap in a diff editor."));
 			return;
 		}
 
@@ -258,7 +257,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: 'editor.action.toggleWordWrap',
 		title: nls.localize('unwrapMinified', "Disable wrapping for this file"),
-		iconPath: { dark: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/WordWrap_16x.svg')).fsPath }
+		iconPath: { dark: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/media/WordWrap_16x.svg')).fsPath }
 	},
 	group: 'navigation',
 	order: 1,
@@ -272,7 +271,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: 'editor.action.toggleWordWrap',
 		title: nls.localize('wrapMinified', "Enable wrapping for this file"),
-		iconPath: { dark: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/WordWrap_16x.svg')).fsPath }
+		iconPath: { dark: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/media/WordWrap_16x.svg')).fsPath }
 	},
 	group: 'navigation',
 	order: 1,

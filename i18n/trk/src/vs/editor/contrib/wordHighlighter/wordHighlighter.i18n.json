@@ -8,6 +8,8 @@
 	],
 	"wordHighlight": "Bir değişkeni okumak gibi, okuma-erişimi sırasındaki bir sembolün arka plan rengi. Altta yer alan süslemeleri gizlememek için renk opak olmamalıdır.",
 	"wordHighlightStrong": "Bir değişkene yazmak gibi, yazma-erişimi sırasındaki bir sembolün arka plan rengi. Altta yer alan süslemeleri gizlememek için renk opak olmamalıdır.",
+	"wordHighlightBorder": "Bir değişken okunurken ki gibi, bir sembolün okuma-erişimi sırasındaki kenarlık rengi.",
+	"wordHighlightStrongBorder": "Bir değişkene yazılırken ki gibi, bir sembolün yazma erişimi sırasındaki kenarlık rengi.",
 	"overviewRulerWordHighlightForeground": "Sembol vurguları için genel bakış cetvelinin işaretleyici rengi.",
 	"overviewRulerWordHighlightStrongForeground": "Yazma erişimli sembol vurguları için genel bakış cetvelinin işaretleyici rengi.",
 	"wordHighlight.next.label": "Sonraki Sembol Vurgusuna Git",

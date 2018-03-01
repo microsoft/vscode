@@ -18,6 +18,7 @@
 	"zoomReset": "Réinitialiser le zoom",
 	"appPerf": "Performance de démarrage",
 	"reloadWindow": "Recharger la fenêtre",
+	"reloadWindowWithExntesionsDisabled": "Recharger la fenêtre avec les extensions désactivées",
 	"switchWindowPlaceHolder": "Sélectionner une fenêtre vers laquelle basculer",
 	"current": "Fenêtre active",
 	"close": "Fermer la fenêtre",
@@ -30,7 +31,6 @@
 	"remove": "Supprimer des récemment ouverts",
 	"openRecent": "Ouvrir les éléments récents...",
 	"quickOpenRecent": "Ouverture rapide des éléments récents...",
-	"closeMessages": "Fermer les messages de notification",
 	"reportIssueInEnglish": "Signaler un problème",
 	"reportPerformanceIssue": "Signaler un problème de performance",
 	"keybindingsReference": "Référence des raccourcis clavier",
@@ -49,9 +49,6 @@
 	"moveWindowTabToNewWindow": "Déplacer l’onglet de la fenêtre vers la nouvelle fenêtre",
 	"mergeAllWindowTabs": "Fusionner toutes les fenêtres",
 	"toggleWindowTabsBar": "Activer/désactiver la barre de fenêtres d’onglets",
-	"configureLocale": "Configurer la langue",
-	"displayLanguage": "Définit le langage affiché par VSCode.",
-	"doc": "Consultez {0} pour connaître la liste des langues prises en charge.",
-	"restart": "Le changement de la valeur nécessite le redémarrage de VS Code.",
-	"fail.createSettings": "Impossible de créer '{0}' ({1})."
+	"about": "À propos de {0}",
+	"inspect context keys": "Inspecter les clés de contexte"
 }

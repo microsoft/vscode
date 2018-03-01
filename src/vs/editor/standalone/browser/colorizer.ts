@@ -37,7 +37,7 @@ export class Colorizer {
 		themeService.setTheme(theme);
 
 		let text = domNode.firstChild.nodeValue;
-		domNode.className += 'monaco-editor ' + theme;
+		domNode.className += ' ' + theme;
 		let render = (str: string) => {
 			domNode.innerHTML = str;
 		};

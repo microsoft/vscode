@@ -10,7 +10,7 @@ import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
-import { IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, ISearchConfiguration, ISearchService, pathIncludedInQuery, ISearchResultProvider } from 'vs/platform/search/common/search';
+import { IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, IFolderQuery, ISearchConfiguration, ISearchService, pathIncludedInQuery, ISearchResultProvider } from 'vs/platform/search/common/search';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -268,9 +268,25 @@ export class DiskSearch implements ISearchResultProvider {
 		this.raw = new SearchChannelClient(channel);
 	}
 
-	public async search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
-		let request: PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
+	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
+		const folderQueries = query.folderQueries || [];
+		return TPromise.join(folderQueries.map(q => q.folder.scheme === Schemas.file && pfs.exists(q.folder.fsPath)))
+			.then(exists => {
+				const existingFolders = folderQueries.filter((q, index) => exists[index]);
+				const rawSearch = this.rawSearchQuery(query, existingFolders);
 
+				let request: PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
+				if (query.type === QueryType.File) {
+					request = this.raw.fileSearch(rawSearch);
+				} else {
+					request = this.raw.textSearch(rawSearch);
+				}
+
+				return DiskSearch.collectResults(request);
+			});
+	}
+
+	private rawSearchQuery(query: ISearchQuery, existingFolders: IFolderQuery[]) {
 		let rawSearch: IRawSearch = {
 			folderQueries: [],
 			extraFiles: [],
@@ -286,18 +302,14 @@ export class DiskSearch implements ISearchResultProvider {
 			ignoreSymlinks: query.ignoreSymlinks
 		};
 
-		if (query.folderQueries) {
-			for (const q of query.folderQueries) {
-				if (q.folder.scheme === Schemas.file && await pfs.exists(q.folder.fsPath)) {
-					rawSearch.folderQueries.push({
-						excludePattern: q.excludePattern,
-						includePattern: q.includePattern,
-						fileEncoding: q.fileEncoding,
-						disregardIgnoreFiles: q.disregardIgnoreFiles,
-						folder: q.folder.fsPath
-					});
-				}
-			}
+		for (const q of existingFolders) {
+			rawSearch.folderQueries.push({
+				excludePattern: q.excludePattern,
+				includePattern: q.includePattern,
+				fileEncoding: q.fileEncoding,
+				disregardIgnoreFiles: q.disregardIgnoreFiles,
+				folder: q.folder.fsPath
+			});
 		}
 
 		if (query.extraFileResources) {
@@ -312,13 +324,7 @@ export class DiskSearch implements ISearchResultProvider {
 			rawSearch.contentPattern = query.contentPattern;
 		}
 
-		if (query.type === QueryType.File) {
-			request = this.raw.fileSearch(rawSearch);
-		} else {
-			request = this.raw.textSearch(rawSearch);
-		}
-
-		return DiskSearch.collectResults(request);
+		return rawSearch;
 	}
 
 	public static collectResults(request: PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>): PPromise<ISearchComplete, ISearchProgressItem> {

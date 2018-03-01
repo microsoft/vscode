@@ -34,8 +34,8 @@ suite('Emmet Support', () => {
 		assert.ok(emmetCompletionList)
 
 		if (expectedProposal && expectedProposalDoc) {
-			let actualLabels = emmetCompletionList!.items.map(c => c.label).sort();
-			let actualDocs = emmetCompletionList!.items.map(c => c.documentation).sort();
+			let actualLabels = (emmetCompletionList!.items || []).map(c => c.label).sort();
+			let actualDocs = (emmetCompletionList!.items || []).map(c => c.documentation).sort();
 			assert.ok(actualLabels.indexOf(expectedProposal) !== -1, 'Not found:' + expectedProposal + ' is ' + actualLabels.join(', '));
 			assert.ok(actualDocs.indexOf(expectedProposalDoc) !== -1, 'Not found:' + expectedProposalDoc + ' is ' + actualDocs.join(', '));
 		} else {

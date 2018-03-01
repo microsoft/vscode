@@ -302,6 +302,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': true
 		},
+		'terminal.integrated.experimentalRestore': {
+			'description': nls.localize('terminal.integrated.experimentalRestore', "Whether to restore terminal sessions for the workspace automatically when launching VS Code. This is an experimental setting; it may be buggy and could change in the future."),
+			'type': 'boolean',
+			'default': false
+		},
 	}
 });
 
@@ -417,8 +422,12 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(MoveToLineEndTer
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Move To Line End', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_D,
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_D }
+	primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
+	secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5],
+	mac: {
+		primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
+		secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
+	}
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Split', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousPaneTerminalAction, FocusPreviousPaneTerminalAction.ID, FocusPreviousPaneTerminalAction.LABEL, {
 	primary: KeyMod.Alt | KeyCode.LeftArrow,

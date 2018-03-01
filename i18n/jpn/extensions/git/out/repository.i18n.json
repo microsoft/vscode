@@ -30,7 +30,6 @@
 	"changes": "変更",
 	"commitMessageCountdown": "現在の行で残り {0} 文字",
 	"commitMessageWarning": "現在の行で {1} から {0} 文字オーバー",
-	"ok": "OK",
 	"neveragain": "今後は表示しない",
 	"huge": "'{0}' のGit リポジトリにアクティブな変更が多いため、 Git 機能の一部のみが有効になります。"
 }

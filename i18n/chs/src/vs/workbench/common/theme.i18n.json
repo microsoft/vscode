@@ -59,15 +59,12 @@
 	"titleBarActiveBackground": "窗口处于活动状态时的标题栏背景色。请注意，该颜色当前仅在 macOS 上受支持。",
 	"titleBarInactiveBackground": "窗口处于非活动状态时的标题栏背景色。请注意，该颜色当前仅在 macOS 上受支持。",
 	"titleBarBorder": "标题栏边框颜色。请注意，该颜色当前仅在 macOS 上受支持。",
-	"notificationsForeground": "通知前景色。通知从窗口顶部滑入。",
-	"notificationsBackground": "通知背颜色。通知从窗口顶部滑入。",
-	"notificationsButtonBackground": "通知按钮背景色。通知从窗口顶部滑入。",
-	"notificationsButtonHoverBackground": "悬停时的通知按钮背景色。通知从窗口顶部滑入。",
-	"notificationsButtonForeground": "通知按钮前景色。通知从窗口顶部滑入。",
-	"notificationsInfoBackground": "消息通知背景色。通知从窗口顶部滑入。",
-	"notificationsInfoForeground": "消息通知前景色。通知从窗口顶部滑入。",
-	"notificationsWarningBackground": "警告通知背颜色。通知从窗口顶部滑入。",
-	"notificationsWarningForeground": "警告通知前景色。通知从窗口顶部滑入。",
-	"notificationsErrorBackground": "错误通知背景色。通知从窗口顶部滑入。",
-	"notificationsErrorForeground": "错误通知前景色。通知从窗口顶部滑入。"
+	"notificationsCenterBorder": "通知中心的边框颜色。通知从窗口右下角滑入。",
+	"notificationsToastBorder": "通知横幅的边框颜色。通知从窗口右下角滑入。",
+	"notificationsForeground": "通知的前景色。通知从窗口右下角滑入。",
+	"notificationsBackground": "通知的背景色。通知从窗口右下角滑入。",
+	"notificationsLink": "通知链接的前景色。通知从窗口右下角滑入。",
+	"notificationsCenterHeaderForeground": "通知中心头部的前景色。通知从窗口右下角滑入。",
+	"notificationsCenterHeaderBackground": "通知中心头部的背景色。通知从窗口右下角滑入。",
+	"notificationsBorder": "通知中心中分隔通知的边框的颜色。通知从窗口右下角滑入。"
 }

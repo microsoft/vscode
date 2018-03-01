@@ -33,6 +33,7 @@
 	"inspect-brk-extensions": "允許對擴展主機在啟動後暫停擴充功能進行除錯和分析。檢查開發工具中的連接 uri。",
 	"disableGPU": "停用 GPU 硬體加速。",
 	"uploadLogs": "上傳目前的工作階段紀錄至安全的端點。",
+	"maxMemory": "視窗的最大記憶體大小 (以 MB 為單位)。",
 	"usage": "使用方式",
 	"options": "選項",
 	"paths": "路徑",

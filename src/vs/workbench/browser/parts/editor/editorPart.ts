@@ -32,7 +32,6 @@ import { Position, POSITIONS, Direction, IEditor } from 'vs/platform/editor/comm
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IMessageService, IMessageWithAction, Severity } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { EditorStacksModel, EditorGroup, EditorIdentifier, EditorCloseEvent } from 'vs/workbench/common/editor/editorStacksModel';
@@ -48,6 +47,8 @@ import { IEditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } fr
 import { ThrottledEmitter } from 'vs/base/common/async';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { INotificationService, Severity, INotificationActions } from 'vs/platform/notification/common/notification';
+import { isErrorWithActions } from 'vs/base/common/errors';
 
 class ProgressMonitor {
 
@@ -74,7 +75,7 @@ interface IEditorReplacement extends EditorIdentifier {
 	options?: EditorOptions;
 }
 
-export type ICloseEditorsFilter = { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean };
+export type ICloseEditorsFilter = { except?: EditorInput, direction?: Direction, savedOnly?: boolean };
 export type ICloseEditorsByFilterArgs = { positionOne?: ICloseEditorsFilter, positionTwo?: ICloseEditorsFilter, positionThree?: ICloseEditorsFilter };
 export type ICloseEditorsArgs = { positionOne?: EditorInput[], positionTwo?: EditorInput[], positionThree?: EditorInput[] };
 
@@ -126,7 +127,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	constructor(
 		id: string,
 		restoreFromStorage: boolean,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IStorageService private storageService: IStorageService,
 		@IPartService private partService: IPartService,
@@ -540,24 +541,24 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		});
 	}
 
-	private doHandleSetInputError(e: Error | IMessageWithAction, group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): void {
+	private doHandleSetInputError(error: Error, group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): void {
 		const position = this.stacks.positionOfGroup(group);
 
 		// Stop loading promise if any
 		monitor.cancel();
 
 		// Report error only if this was not us restoring previous error state
-		if (this.partService.isCreated() && !errors.isPromiseCanceledError(e)) {
-			const errorMessage = nls.localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), toErrorMessage(e));
-
-			let error: any;
-			if (e && (<IMessageWithAction>e).actions && (<IMessageWithAction>e).actions.length) {
-				error = errors.create(errorMessage, { actions: (<IMessageWithAction>e).actions }); // Support error actions from thrower
-			} else {
-				error = errorMessage;
+		if (this.partService.isCreated() && !errors.isPromiseCanceledError(error)) {
+			const actions: INotificationActions = { primary: [] };
+			if (isErrorWithActions(error)) {
+				actions.primary = error.actions;
 			}
 
-			this.messageService.show(Severity.Error, types.isString(error) ? new Error(error) : error);
+			this.notificationService.notify({
+				severity: Severity.Error,
+				message: nls.localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), toErrorMessage(error)),
+				actions
+			});
 		}
 
 		this.editorGroupsControl.updateProgress(position, ProgressState.DONE);
@@ -827,8 +828,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			editorsToClose = group.getEditors(true /* in MRU order */);
 			filter = filterOrEditors || Object.create(null);
 
-			// Filter: unmodified only
-			if (filter.unmodifiedOnly) {
+			// Filter: saved only
+			if (filter.savedOnly) {
 				editorsToClose = editorsToClose.filter(e => !e.isDirty());
 			}
 
@@ -873,14 +874,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 	}
 
-	private doCloseEditorsWithFilter(group: EditorGroup, filter: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean }): void {
+	private doCloseEditorsWithFilter(group: EditorGroup, filter: { except?: EditorInput, direction?: Direction, savedOnly?: boolean }): void {
 
 		// Close all editors if there is no editor to except and
-		// we either are not only closing unmodified editors or
+		// we either are not only closing saved editors or
 		// there are no dirty editors.
 		let closeAllEditors = false;
 		if (!filter.except) {
-			if (!filter.unmodifiedOnly) {
+			if (!filter.savedOnly) {
 				closeAllEditors = true;
 			} else {
 				closeAllEditors = !group.getEditors().some(e => e.isDirty());
@@ -892,10 +893,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			this.doCloseAllEditorsInGroup(group);
 		}
 
-		// Close unmodified editors in group
-		else if (filter.unmodifiedOnly) {
+		// Close saved editors in group
+		else if (filter.savedOnly) {
 
-			// We can just close all unmodified editors around the currently active dirty one
+			// We can just close all saved editors around the currently active dirty one
 			if (group.activeEditor.isDirty()) {
 				group.getEditors().filter(editor => !editor.isDirty() && !editor.matches(filter.except)).forEach(editor => this.doCloseInactiveEditor(group, editor));
 			}
@@ -961,7 +962,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				// It could be that the editor saved meanwhile, so we check again
 				// to see if anything needs to happen before closing for good.
 				// This can happen for example if autoSave: onFocusChange is configured
-				// so that the save happens when the dialog opens. 
+				// so that the save happens when the dialog opens.
 				if (!editor.isDirty()) {
 					return res === ConfirmResult.CANCEL ? true : false;
 				}

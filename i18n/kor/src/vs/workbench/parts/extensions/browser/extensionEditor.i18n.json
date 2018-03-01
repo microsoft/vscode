@@ -9,6 +9,7 @@
 	"name": "확장 이름",
 	"extension id": "확장 ID",
 	"preview": "미리 보기",
+	"builtin": "기본 제공",
 	"publisher": "게시자 이름",
 	"install count": "설치 수",
 	"rating": "등급",

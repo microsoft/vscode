@@ -7,8 +7,8 @@
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import * as types from 'vs/base/common/types';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, CUSTOM_EDITOR_SCOPE_COLORS_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, CUSTOM_EDITOR_SCOPE_COLORS_SETTING, DETECT_HC_SETTING, HC_THEME_ID } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -31,6 +31,7 @@ import { IBroadcastService } from 'vs/platform/broadcast/electron-browser/broadc
 import { ColorThemeStore } from 'vs/workbench/services/themes/electron-browser/colorThemeStore';
 import { FileIconThemeStore } from 'vs/workbench/services/themes/electron-browser/fileIconThemeStore';
 import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 // implementation
 
@@ -97,10 +98,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IBroadcastService private broadcastService: IBroadcastService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		@IWindowService private windowService: IWindowService,
 		@IInstantiationService private instantiationService: IInstantiationService) {
 
 		this.container = container;
-		this.colorThemeStore = new ColorThemeStore(extensionService);
+		this.colorThemeStore = new ColorThemeStore(extensionService, ColorThemeData.createLoadedEmptyTheme(DEFAULT_THEME_ID, DEFAULT_THEME_SETTING_VALUE));
 		this.onFileIconThemeChange = new Emitter<IFileIconTheme>();
 		this.iconThemeStore = new FileIconThemeStore(extensionService);
 		this.onColorThemeChange = new Emitter<IColorTheme>();
@@ -192,8 +194,15 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private initialize(): TPromise<[IColorTheme, IFileIconTheme]> {
+		let detectHCThemeSetting = this.configurationService.getValue<boolean>(DETECT_HC_SETTING);
 
-		let colorThemeSetting = this.configurationService.getValue<string>(COLOR_THEME_SETTING);
+		let colorThemeSetting: string;
+		if (this.windowService.getConfiguration().highContrast && detectHCThemeSetting) {
+			colorThemeSetting = HC_THEME_ID;
+		} else {
+			colorThemeSetting = this.configurationService.getValue<string>(COLOR_THEME_SETTING);
+		}
+
 		let iconThemeSetting = this.configurationService.getValue<string>(ICON_THEME_SETTING) || '';
 
 		return Promise.join([

@@ -8,7 +8,7 @@
 			"program": "${workspaceFolder}/node_modules/gulp/bin/gulp.js",
 			"stopOnEntry": true,
 			"args": [
-				"watch-extension:json-client"
+				"hygiene"
 			],
 			"cwd": "${workspaceFolder}"
 		},

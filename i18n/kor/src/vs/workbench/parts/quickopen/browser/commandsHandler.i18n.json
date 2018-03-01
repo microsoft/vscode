@@ -11,7 +11,6 @@
 	"showCommands.label": "명령 팔레트...",
 	"entryAriaLabelWithKey": "{0}, {1}, 명령",
 	"entryAriaLabel": "{0}, 명령",
-	"canNotRun": "'{0}' 명령은 여기에서 실행할 수 없습니다.",
 	"actionNotEnabled": "'{0}' 명령은 현재 컨텍스트에서 사용할 수 없습니다.",
 	"recentlyUsed": "최근에 사용한 항목",
 	"morecCommands": "기타 명령",

@@ -15,8 +15,11 @@ import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import product from 'vs/platform/node/product';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IChoiceService, Choice } from 'vs/platform/dialogs/common/dialogs';
+import Severity from 'vs/base/common/severity';
+import { ILogService } from '../../../../platform/log/common/log';
 
 function ignore<T>(code: string, value: T = null): (err: any) => TPromise<T> {
 	return err => err.code === code ? TPromise.as<T>(value) : TPromise.wrapError<T>(err);
@@ -43,7 +46,9 @@ class InstallAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IMessageService private messageService: IMessageService
+		@INotificationService private notificationService: INotificationService,
+		@IChoiceService private choiceService: IChoiceService,
+		@ILogService private logService: ILogService
 	) {
 		super(id, label);
 	}
@@ -56,7 +61,7 @@ class InstallAction extends Action {
 		return isAvailable().then(isAvailable => {
 			if (!isAvailable) {
 				const message = nls.localize('not available', "This command is not available");
-				this.messageService.show(Severity.Info, message);
+				this.notificationService.info(message);
 				return undefined;
 			}
 
@@ -82,7 +87,8 @@ class InstallAction extends Action {
 					}
 				})
 				.then(() => {
-					this.messageService.show(Severity.Info, nls.localize('successIn', "Shell command '{0}' successfully installed in PATH.", product.applicationName));
+					this.logService.trace('cli#install', this.target);
+					this.notificationService.info(nls.localize('successIn', "Shell command '{0}' successfully installed in PATH.", product.applicationName));
 				});
 		});
 	}
@@ -97,21 +103,22 @@ class InstallAction extends Action {
 
 	private createBinFolder(): TPromise<void> {
 		return new TPromise<void>((c, e) => {
-			const message = nls.localize('warnEscalation', "Code will now prompt with 'osascript' for Administrator privileges to install the shell command.");
-			const actions = [
-				new Action('ok', nls.localize('ok', "OK"), '', true, () => {
-					const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && chown \\" & (do shell script (\\"whoami\\")) & \\" /usr/local/bin\\" with administrator privileges"';
+			const choices: Choice[] = [nls.localize('ok', "OK"), nls.localize('cancel2', "Cancel")];
 
-					nfcall(cp.exec, command, {})
-						.then(null, _ => TPromise.wrapError(new Error(nls.localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."))))
-						.done(c, e);
+			this.choiceService.choose(Severity.Info, nls.localize('warnEscalation', "Code will now prompt with 'osascript' for Administrator privileges to install the shell command."), choices, 1, true).then(choice => {
+				switch (choice) {
+					case 0 /* OK */:
+						const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && chown \\" & (do shell script (\\"whoami\\")) & \\" /usr/local/bin\\" with administrator privileges"';
 
-					return null;
-				}),
-				new Action('cancel2', nls.localize('cancel2', "Cancel"), '', true, () => { e(new Error(nls.localize('aborted', "Aborted"))); return null; })
-			];
-
-			this.messageService.show(Severity.Info, { message, actions });
+						nfcall(cp.exec, command, {})
+							.then(null, _ => TPromise.wrapError(new Error(nls.localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."))))
+							.done(c, e);
+						break;
+					case 1 /* Cancel */:
+						e(new Error(nls.localize('aborted', "Aborted")));
+						break;
+				}
+			});
 		});
 	}
 }
@@ -124,7 +131,8 @@ class UninstallAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IMessageService private messageService: IMessageService
+		@INotificationService private notificationService: INotificationService,
+		@ILogService private logService: ILogService
 	) {
 		super(id, label);
 	}
@@ -137,14 +145,15 @@ class UninstallAction extends Action {
 		return isAvailable().then(isAvailable => {
 			if (!isAvailable) {
 				const message = nls.localize('not available', "This command is not available");
-				this.messageService.show(Severity.Info, message);
+				this.notificationService.info(message);
 				return undefined;
 			}
 
 			return pfs.unlink(this.target)
 				.then(null, ignore('ENOENT'))
 				.then(() => {
-					this.messageService.show(Severity.Info, nls.localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", product.applicationName));
+					this.logService.trace('cli#uninstall', this.target);
+					this.notificationService.info(nls.localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", product.applicationName));
 				});
 		});
 	}

@@ -3735,6 +3735,11 @@ declare module monaco.editor {
 		 */
 		getCenteredRangeInViewport(): Range;
 		/**
+		 * Returns the ranges that are currently visible.
+		 * Does not account for horizontal scrolling.
+		 */
+		getVisibleRanges(): Range[];
+		/**
 		 * Get the vertical position (top offset) for the line w.r.t. to the first line.
 		 */
 		getTopForLineNumber(lineNumber: number): number;
@@ -4047,6 +4052,9 @@ declare module monaco.languages {
 	 */
 	export function registerColorProvider(languageId: string, provider: DocumentColorProvider): IDisposable;
 
+	/**
+	 * Register a folding provider
+	 */
 	/**
 	 * Contains additional diagnostic information about the context in which
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
@@ -4857,7 +4865,7 @@ declare module monaco.languages {
 	 */
 	export interface ILink {
 		range: IRange;
-		url: string;
+		url?: string;
 	}
 
 	/**

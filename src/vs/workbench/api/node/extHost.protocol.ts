@@ -14,7 +14,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
@@ -154,11 +154,6 @@ export interface MainThreadDocumentsShape extends IDisposable {
 	$trySaveDocument(uri: UriComponents): TPromise<boolean>;
 }
 
-export interface ISelectionChangeEvent {
-	selections: Selection[];
-	source?: string;
-}
-
 export interface ITextEditorConfigurationUpdate {
 	tabSize?: number | 'auto';
 	insertSpaces?: boolean | 'auto';
@@ -216,6 +211,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 export interface MainThreadTreeViewsShape extends IDisposable {
 	$registerTreeViewDataProvider(treeViewId: string): void;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): void;
+	$reveal(treeViewId: string, treeItem: ITreeItem, parentChain: ITreeItem[], options?: { select?: boolean }): TPromise<void>;
 }
 
 export interface MainThreadErrorsShape extends IDisposable {
@@ -282,6 +278,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): void;
 	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): void;
 	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): void;
+	$registerFoldingProvider(handle: number, selector: vscode.DocumentSelector): void;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ISerializedLanguageConfiguration): void;
 }
 
@@ -345,19 +342,21 @@ export interface MainThreadTelemetryShape extends IDisposable {
 	$publicLog(eventName: string, data?: any): void;
 }
 
-export interface MainThreadWebviewShape extends IDisposable {
-	$createWebview(handle: number): void;
-	$disposeWebview(handle: number): void;
-	$show(handle: number, column: EditorPosition): void;
-	$setTitle(handle: number, value: string): void;
-	$setHtml(handle: number, value: string): void;
-	$setOptions(handle: number, value: vscode.WebviewOptions): void;
-	$sendMessage(handle: number, value: any): Thenable<boolean>;
+export type WebviewHandle = number;
+
+export interface MainThreadWebviewsShape extends IDisposable {
+	$createWebview(handle: WebviewHandle, uri: URI, title: string, column: EditorPosition, options: vscode.WebviewOptions): void;
+	$disposeWebview(handle: WebviewHandle): void;
+	$show(handle: WebviewHandle, column: EditorPosition): void;
+	$setTitle(handle: WebviewHandle, value: string): void;
+	$setHtml(handle: WebviewHandle, value: string): void;
+	$sendMessage(handle: WebviewHandle, value: any): Thenable<boolean>;
 }
 export interface ExtHostWebviewsShape {
-	$onMessage(handle: number, message: any): void;
-	$onBecameActive(handle: number): void;
-	$onBecameInactive(handle: number): void;
+	$onMessage(handle: WebviewHandle, message: any): void;
+	$onDidChangeActiveWeview(handle: WebviewHandle | undefined): void;
+	$onDidDisposeWeview(handle: WebviewHandle): Thenable<void>;
+	$onDidChangePosition(handle: WebviewHandle, newPosition: EditorPosition): void;
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
@@ -509,14 +508,24 @@ export interface ITextEditorAddData {
 	documentUri: UriComponents;
 	options: IResolvedTextEditorConfiguration;
 	selections: ISelection[];
+	visibleRanges: IRange[];
 	editorPosition: EditorPosition;
 }
 export interface ITextEditorPositionData {
 	[id: string]: EditorPosition;
 }
+export interface IEditorPropertiesChangeData {
+	options: IResolvedTextEditorConfiguration | null;
+	selections: ISelectionChangeEvent | null;
+	visibleRanges: IRange[] | null;
+}
+export interface ISelectionChangeEvent {
+	selections: Selection[];
+	source?: string;
+}
+
 export interface ExtHostEditorsShape {
-	$acceptOptionsChanged(id: string, opts: IResolvedTextEditorConfiguration): void;
-	$acceptSelectionsChanged(id: string, event: ISelectionChangeEvent): void;
+	$acceptEditorPropertiesChanged(id: string, props: IEditorPropertiesChangeData): void;
 	$acceptEditorPositionData(data: ITextEditorPositionData): void;
 }
 
@@ -692,6 +701,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink>;
 	$provideDocumentColors(handle: number, resource: UriComponents): TPromise<IRawColorInfo[]>;
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]>;
+	$provideFoldingRanges(handle: number, resource: UriComponents): TPromise<modes.IFoldingRangeList>;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -811,7 +821,7 @@ export const MainContext = {
 	MainThreadStorage: createMainId<MainThreadStorageShape>('MainThreadStorage'),
 	MainThreadTelemetry: createMainId<MainThreadTelemetryShape>('MainThreadTelemetry'),
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
-	MainThreadWebview: createMainId<MainThreadWebviewShape>('MainThreadWebview'),
+	MainThreadWebviews: createMainId<MainThreadWebviewsShape>('MainThreadWebviews'),
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace'),
 	MainThreadFileSystem: createMainId<MainThreadFileSystemShape>('MainThreadFileSystem'),
 	MainThreadExtensionService: createMainId<MainThreadExtensionServiceShape>('MainThreadExtensionService'),

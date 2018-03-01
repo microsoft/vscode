@@ -9,11 +9,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import Severity from 'vs/base/common/severity';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const Extensions = {
 	WorkbenchActions: 'workbench.contributions.actions'
@@ -86,12 +85,12 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 	private _createCommandHandler(descriptor: SyncActionDescriptor): ICommandHandler {
 		return (accessor, args) => {
-			const messageService = accessor.get(IMessageService);
+			const notificationService = accessor.get(INotificationService);
 			const instantiationService = accessor.get(IInstantiationService);
 			const lifecycleService = accessor.get(ILifecycleService);
 
-			TPromise.as(this._triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args)).then(null, (err) => {
-				messageService.show(Severity.Error, err);
+			TPromise.as(this._triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args)).then(null, err => {
+				notificationService.error(err);
 			});
 		};
 	}

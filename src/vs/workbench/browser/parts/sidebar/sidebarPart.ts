@@ -7,18 +7,16 @@ import 'vs/css!./media/sidebarpart';
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { CompositePart } from 'vs/workbench/browser/parts/compositePart';
 import { Viewlet, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -27,8 +25,8 @@ import Event from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER } from 'vs/workbench/common/theme';
-import { ToggleSidebarVisibilityAction } from 'vs/workbench/browser/actions/toggleSidebarVisibility';
 import { Dimension } from 'vs/base/browser/builder';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class SidebarPart extends CompositePart<Viewlet> {
 
@@ -40,7 +38,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 
 	constructor(
 		id: string,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -50,7 +48,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		@IThemeService themeService: IThemeService
 	) {
 		super(
-			messageService,
+			notificationService,
 			storageService,
 			telemetryService,
 			contextMenuService,
@@ -134,25 +132,6 @@ export class SidebarPart extends CompositePart<Viewlet> {
 
 		return super.layout(dimension);
 	}
-
-	protected getTitleAreaContextMenuActions(): IAction[] {
-		const contextMenuActions = super.getTitleAreaContextMenuActions();
-		if (contextMenuActions.length) {
-			contextMenuActions.push(new Separator());
-		}
-		contextMenuActions.push(this.createHideSideBarAction());
-		return contextMenuActions;
-	}
-
-	private createHideSideBarAction(): IAction {
-		return <IAction>{
-			id: ToggleSidebarVisibilityAction.ID,
-			label: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
-			enabled: true,
-			run: () => this.partService.setSideBarHidden(true)
-		};
-	}
-
 }
 
 class FocusSideBarAction extends Action {

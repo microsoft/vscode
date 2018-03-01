@@ -9,5 +9,6 @@
 	"copy": "コピー",
 	"paste": "貼り付け",
 	"selectAll": "すべて選択",
-	"clear": "クリア"
+	"clear": "クリア",
+	"split": "分割"
 }

@@ -13,8 +13,6 @@
 	"markdown.preview.fontSize.desc": "Consente di controllare le dimensioni del carattere in pixel usate nell'anteprima markdown.",
 	"markdown.preview.lineHeight.desc": "Consente di controllare l'altezza della riga usata nell'anteprima markdown. Questo numero è relativo alle dimensioni del carattere.",
 	"markdown.preview.markEditorSelection.desc": "Contrassegna la selezione dell'editor corrente nell'anteprima markdown.",
-	"markdown.preview.scrollEditorWithPreview.desc": "Quando si scorre l'anteprima markdown, aggiorna la visualizzazione dell'editor.",
-	"markdown.preview.scrollPreviewWithEditorSelection.desc": "Scorre l'anteprima markdown in modo da visualizzare la riga attualmente selezionata dall'editor.",
 	"markdown.preview.title": "Apri anteprima",
 	"markdown.previewFrontMatter.dec": "Consente di impostare il rendering del front matter YAML nell'anteprima markdown. Con 'hide' il front matter viene rimosso; altrimenti il front matter viene considerato come contenuto markdown.",
 	"markdown.previewSide.title": "Apri anteprima lateralmente",

@@ -10,7 +10,7 @@ vscode-jsonrpc@^3.6.0-next.1:
   version "3.6.0-next.1"
   resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.6.0-next.1.tgz#3cb463dffe5842d6aec16718ca9252708cd6aabe"
 
-vscode-languageclient@^4.0.0-next.9:
+vscode-languageclient@4.0.0-next.9:
   version "4.0.0-next.9"
   resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-4.0.0-next.9.tgz#2a06568f46ee9de3490f85e227d3740a21a03d3a"
   dependencies:

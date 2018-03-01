@@ -539,18 +539,18 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 
 	if (!breakpoint.enabled || !debugService.getModel().areBreakpointsActivated()) {
 		return {
-			className: 'debug-breakpoint-disabled-glyph',
-			message: nls.localize('breakpointDisabledHover', "Disabled Breakpoint"),
+			className: breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-disabled' : 'debug-breakpoint-disabled',
+			message: nls.localize('breakpointDisabledHover', "Disabled breakpoint"),
 		};
 	}
 
 	const appendMessage = (text: string): string => {
-		return !(breakpoint instanceof FunctionBreakpoint) && breakpoint.message ? text.concat(breakpoint.message) : text;
+		return !(breakpoint instanceof FunctionBreakpoint) && breakpoint.message ? text.concat(', ' + breakpoint.message) : text;
 	};
 	if (debugActive && !breakpoint.verified) {
 		return {
-			className: 'debug-breakpoint-unverified-glyph',
-			message: appendMessage(nls.localize('breakpointUnverifieddHover', "Unverified Breakpoint")),
+			className: breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-unverified' : 'debug-breakpoint-unverified',
+			message: appendMessage(nls.localize('breakpointUnverifieddHover', "Unverified breakpoint")),
 		};
 	}
 
@@ -558,19 +558,19 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 	if (breakpoint instanceof FunctionBreakpoint) {
 		if (process && !process.session.capabilities.supportsFunctionBreakpoints) {
 			return {
-				className: 'debug-breakpoint-unsupported-glyph',
+				className: 'debug-breakpoint-unsupported',
 				message: nls.localize('functionBreakpointUnsupported', "Function breakpoints not supported by this debug type"),
 			};
 		}
 
 		return {
-			className: 'debug-breakpoint-glyph',
+			className: 'debug-function-breakpoint',
 		};
 	}
 
 	if (debugActive && textFileService.isDirty(breakpoint.uri)) {
 		return {
-			className: 'debug-breakpoint-unverified-glyph',
+			className: 'debug-breakpoint-unverified',
 			message: appendMessage(nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session.")),
 		};
 	}
@@ -578,32 +578,32 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 	if (breakpoint.condition || breakpoint.hitCondition) {
 		if (process && breakpoint.condition && !process.session.capabilities.supportsConditionalBreakpoints) {
 			return {
-				className: 'debug-breakpoint-unsupported-glyph',
+				className: 'debug-breakpoint-unsupported',
 				message: nls.localize('conditionalBreakpointUnsupported', "Conditional breakpoints not supported by this debug type"),
 			};
 		}
 		if (process && breakpoint.hitCondition && !process.session.capabilities.supportsHitConditionalBreakpoints) {
 			return {
-				className: 'debug-breakpoint-unsupported-glyph',
+				className: 'debug-breakpoint-unsupported',
 				message: nls.localize('hitBreakpointUnsupported', "Hit conditional breakpoints not supported by this debug type"),
 			};
 		}
 
 		if (breakpoint.condition && breakpoint.hitCondition) {
 			return {
-				className: 'debug-breakpoint-conditional-glyph',
+				className: 'debug-breakpoint-conditional',
 				message: appendMessage(`Expression: ${breakpoint.condition}\nHitCount: ${breakpoint.hitCondition}`)
 			};
 		}
 
 		return {
-			className: 'debug-breakpoint-conditional-glyph',
+			className: 'debug-breakpoint-conditional',
 			message: appendMessage(breakpoint.condition ? breakpoint.condition : breakpoint.hitCondition)
 		};
 	}
 
 	return {
-		className: 'debug-breakpoint-glyph',
+		className: 'debug-breakpoint',
 		message: breakpoint.message
 	};
 }

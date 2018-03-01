@@ -8,9 +8,11 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfiguration } from 'vscode';
+import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfiguration, TextDocument, FoldingRangeList, FoldingRange, Disposable } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
+
+import { FoldingRangesRequest } from './protocol/foldingProvider.proposed';
 
 import { hash } from './utils/hash';
 
@@ -54,6 +56,9 @@ interface JSONSchemaSettings {
 }
 
 let telemetryReporter: TelemetryReporter | undefined;
+
+let foldingProviderRegistration: Disposable | undefined = void 0;
+const foldingSetting = 'json.experimental.syntaxFolding';
 
 export function activate(context: ExtensionContext) {
 
@@ -99,7 +104,7 @@ export function activate(context: ExtensionContext) {
 	let disposable = client.start();
 	toDispose.push(disposable);
 	client.onReady().then(() => {
-		client.onTelemetry(e => {
+		disposable = client.onTelemetry(e => {
 			if (telemetryReporter) {
 				telemetryReporter.sendTelemetryEvent(e.key, e.data);
 			}
@@ -124,6 +129,14 @@ export function activate(context: ExtensionContext) {
 		toDispose.push(workspace.onDidCloseTextDocument(d => handleContentChange(d.uri)));
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
+
+		initFoldingProvider();
+		toDispose.push(workspace.onDidChangeConfiguration(c => {
+			if (c.affectsConfiguration(foldingSetting)) {
+				initFoldingProvider();
+			}
+		}));
+		toDispose.push({ dispose: () => foldingProviderRegistration && foldingProviderRegistration.dispose() });
 	});
 
 	let languageConfiguration: LanguageConfiguration = {
@@ -135,6 +148,29 @@ export function activate(context: ExtensionContext) {
 	};
 	languages.setLanguageConfiguration('json', languageConfiguration);
 	languages.setLanguageConfiguration('jsonc', languageConfiguration);
+
+	function initFoldingProvider() {
+		let enable = workspace.getConfiguration().get(foldingSetting);
+		if (enable) {
+			if (!foldingProviderRegistration) {
+				foldingProviderRegistration = languages.registerFoldingProvider(documentSelector, {
+					provideFoldingRanges(document: TextDocument) {
+						return client.sendRequest(FoldingRangesRequest.type, { textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document) }).then(res => {
+							if (res && Array.isArray(res.ranges)) {
+								return new FoldingRangeList(res.ranges.map(r => new FoldingRange(r.startLine, r.endLine, r.type)));
+							}
+							return null;
+						});
+					}
+				});
+			}
+		} else {
+			if (foldingProviderRegistration) {
+				foldingProviderRegistration.dispose();
+				foldingProviderRegistration = void 0;
+			}
+		}
+	}
 }
 
 export function deactivate(): Promise<any> {

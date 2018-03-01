@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./lineNumbers';
-import { editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
+import { editorLineNumbers, editorActiveLineNumber } from 'vs/editor/common/view/editorColorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import * as platform from 'vs/base/common/platform';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
@@ -174,5 +174,9 @@ registerThemingParticipant((theme, collector) => {
 	let lineNumbers = theme.getColor(editorLineNumbers);
 	if (lineNumbers) {
 		collector.addRule(`.monaco-editor .line-numbers { color: ${lineNumbers}; }`);
+	}
+	const activeLineNumber = theme.getColor(editorActiveLineNumber);
+	if (activeLineNumber) {
+		collector.addRule(`.monaco-editor .current-line ~ .line-numbers { color: ${activeLineNumber}; }`);
 	}
 });

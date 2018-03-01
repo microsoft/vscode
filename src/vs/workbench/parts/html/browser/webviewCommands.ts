@@ -82,3 +82,55 @@ export class ShowWebViewEditorFindTermCommand extends Command {
 		return null;
 	}
 }
+
+
+export class OpenWebviewDeveloperToolsAction extends Action {
+	static readonly ID = 'workbench.action.webview.openDeveloperTools';
+	static LABEL = nls.localize('openToolsLabel', "Open Webview Developer Tools");
+
+	public constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const elements = document.querySelectorAll('webview.ready');
+		for (let i = 0; i < elements.length; i++) {
+			try {
+				(elements.item(i) as Electron.WebviewTag).openDevTools();
+			} catch (e) {
+				console.error(e);
+			}
+		}
+		return null;
+	}
+}
+
+
+export class ReloadWebviewAction extends Action {
+	static readonly ID = 'workbench.action.webview.reloadWebviewAction';
+	static LABEL = nls.localize('refreshWebviewLabel', "Reload Webviews");
+
+	public constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private readonly workbenchEditorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		for (const webview of this.getVisibleWebviews()) {
+			webview.reload();
+		}
+		return null;
+	}
+
+	private getVisibleWebviews() {
+		return this.workbenchEditorService.getVisibleEditors()
+			.filter(c => c && (c as any).isWebviewEditor)
+			.map(e => e as WebviewEditor);
+	}
+}

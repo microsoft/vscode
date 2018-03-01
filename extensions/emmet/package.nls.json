@@ -1,4 +1,5 @@
 {
+	"description": "Emmet support for VS Code",
 	"command.wrapWithAbbreviation": "Wrap with Abbreviation",
 	"command.wrapIndividualLinesWithAbbreviation": "Wrap Individual Lines with Abbreviation",
 	"command.removeTag": "Remove Tag",

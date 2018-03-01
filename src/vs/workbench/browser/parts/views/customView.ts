@@ -11,11 +11,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { $ } from 'vs/base/browser/builder';
-import { LIGHT } from 'vs/platform/theme/common/themeService';
+import { LIGHT, FileThemeIcon, FolderThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITree, IDataSource, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
-import { TreeItemCollapsibleState, ITreeItem, ITreeViewer, ICustomViewsService, ITreeViewDataProvider, ViewsRegistry, IViewDescriptor, TreeViewItemHandleArg, ICustomViewDescriptor } from 'vs/workbench/common/views';
+import { TreeItemCollapsibleState, ITreeItem, ITreeViewer, ICustomViewsService, ITreeViewDataProvider, ViewsRegistry, IViewDescriptor, TreeViewItemHandleArg, ICustomViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar, IActionItemProvider, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -32,6 +32,8 @@ import { fillInActions, ContextAwareMenuItemActionItem } from 'vs/platform/actio
 import { FileKind } from 'vs/platform/files/common/files';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export class CustomViewsService extends Disposable implements ICustomViewsService {
 
@@ -40,7 +42,8 @@ export class CustomViewsService extends Disposable implements ICustomViewsServic
 	private viewers: Map<string, CustomTreeViewer> = new Map<string, CustomTreeViewer>();
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		super();
 		this.createViewers(ViewsRegistry.getAllViews());
@@ -50,6 +53,19 @@ export class CustomViewsService extends Disposable implements ICustomViewsServic
 
 	getTreeViewer(id: string): ITreeViewer {
 		return this.viewers.get(id);
+	}
+
+	openView(id: string, focus: boolean): TPromise<void> {
+		const viewDescriptor = ViewsRegistry.getView(id);
+		if (viewDescriptor) {
+			return this.viewletService.openViewlet(viewDescriptor.id)
+				.then((viewlet: IViewsViewlet) => {
+					if (viewlet && viewlet.openView) {
+						viewlet.openView(id, focus);
+					}
+				});
+		}
+		return TPromise.as(null);
 	}
 
 	private createViewers(viewDescriptors: IViewDescriptor[]): void {
@@ -122,7 +138,7 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 			this._dataProvider = new class implements ITreeViewDataProvider {
 				onDidChange = dataProvider.onDidChange;
 				onDispose = dataProvider.onDispose;
-				getChildren(node?: ITreeItem): TPromise<any[]> {
+				getChildren(node?: ITreeItem): TPromise<ITreeItem[]> {
 					if (node.children) {
 						return TPromise.as(node.children);
 					}
@@ -247,6 +263,24 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 		return TPromise.as(null);
 	}
 
+	reveal(item: ITreeItem, parentChain: ITreeItem[], options?: { select?: boolean }): TPromise<void> {
+		if (this.tree && this.isVisible) {
+			options = options ? options : { select: true };
+			const select = isUndefinedOrNull(options.select) ? true : options.select;
+			var result = TPromise.as(null);
+			parentChain.forEach((e) => {
+				result = result.then(() => this.tree.expand(e));
+			});
+			return result.then(() => this.tree.reveal(item))
+				.then(() => {
+					if (select) {
+						this.tree.setSelection([item]);
+					}
+				});
+		}
+		return TPromise.as(null);
+	}
+
 	private activate() {
 		if (!this.activated) {
 			this.extensionService.activateByEvent(`onView:${this.id}`);
@@ -299,9 +333,10 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 		if (icon) {
 			return true;
 		}
-		if (node.resourceUri) {
+		if (node.resourceUri || node.themeIcon) {
 			const fileIconTheme = this.themeService.getFileIconTheme();
-			if (node.collapsibleState !== TreeItemCollapsibleState.None) {
+			const isFolder = node.themeIcon ? node.themeIcon.id === FolderThemeIcon.id : node.collapsibleState !== TreeItemCollapsibleState.None;
+			if (isFolder) {
 				return fileIconTheme.hasFileIcons && fileIconTheme.hasFolderIcons;
 			}
 			return fileIconTheme.hasFileIcons;
@@ -414,8 +449,9 @@ class TreeRenderer implements IRenderer {
 		DOM.removeClass(templateData.label, 'custom-view-tree-node-item-label');
 		DOM.removeClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 
-		if (resource && !icon) {
-			templateData.resourceLabel.setLabel({ name: label, resource }, { fileKind: node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE, title: node.tooltip });
+		if ((resource || node.themeIcon) && !icon) {
+			const title = node.tooltip ? node.tooltip : resource ? void 0 : label;
+			templateData.resourceLabel.setLabel({ name: label, resource: resource ? resource : URI.parse('_icon_resource') }, { fileKind: this.getFileKind(node), title });
 			DOM.addClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 		} else {
 			templateData.label.textContent = label;
@@ -428,8 +464,21 @@ class TreeRenderer implements IRenderer {
 		templateData.actionBar.push(this.menus.getResourceActions(node), { icon: true, label: false });
 	}
 
+	private getFileKind(node: ITreeItem): FileKind {
+		if (node.themeIcon) {
+			switch (node.themeIcon.id) {
+				case FileThemeIcon.id:
+					return FileKind.FILE;
+				case FolderThemeIcon.id:
+					return FileKind.FOLDER;
+			}
+		}
+		return node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE;
+	}
+
 	public disposeTemplate(tree: ITree, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		templateData.resourceLabel.dispose();
+		templateData.actionBar.dispose();
 		templateData.icon.dispose();
 	}
 }
@@ -462,9 +511,9 @@ class TreeItemIcon extends Disposable {
 
 			const hasContributedIcon = !!contributedIcon;
 			const hasChildren = this._treeItem.collapsibleState !== TreeItemCollapsibleState.None;
-			const hasResource = !!this._treeItem.resourceUri;
-			const isFolder = hasResource && hasChildren;
-			const isFile = hasResource && !hasChildren;
+			const hasThemeIcon = !!this._treeItem.resourceUri || !!this._treeItem.themeIcon;
+			const isFolder = hasThemeIcon ? (this._treeItem.themeIcon ? this._treeItem.themeIcon.id === FolderThemeIcon.id : hasChildren) : false;
+			const isFile = hasThemeIcon ? (this._treeItem.themeIcon ? this._treeItem.themeIcon.id === FileThemeIcon.id : !hasChildren) : false;
 			const hasThemeFolderIcon = isFolder && fileIconTheme.hasFileIcons && fileIconTheme.hasFolderIcons;
 			const hasThemeFileIcon = isFile && fileIconTheme.hasFileIcons;
 			const hasIcon = hasContributedIcon || hasThemeFolderIcon || hasThemeFileIcon;

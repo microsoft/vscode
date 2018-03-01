@@ -8,11 +8,9 @@
 import * as nls from 'vs/nls';
 import { isPromiseCanceledError, illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileService } from 'vs/platform/files/common/files';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -32,6 +30,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 
 export function rename(model: ITextModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
@@ -113,7 +112,7 @@ class RenameController implements IEditorContribution {
 
 	constructor(
 		private editor: ICodeEditor,
-		@IMessageService private readonly _messageService: IMessageService,
+		@INotificationService private readonly _notificationService: INotificationService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -201,7 +200,7 @@ class RenameController implements IEditorContribution {
 					if (state.validate(this.editor)) {
 						MessageController.get(this.editor).showMessage(result.rejectReason, this.editor.getPosition());
 					} else {
-						this._messageService.show(Severity.Info, result.rejectReason);
+						this._notificationService.info(result.rejectReason);
 					}
 					return undefined;
 				}
@@ -216,7 +215,7 @@ class RenameController implements IEditorContribution {
 				});
 
 			}, err => {
-				this._messageService.show(Severity.Error, nls.localize('rename.failed', "Sorry, rename failed to execute."));
+				this._notificationService.error(nls.localize('rename.failed', "Rename failed to execute."));
 				return TPromise.wrapError(err);
 			});
 

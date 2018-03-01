@@ -5,15 +5,15 @@
 
 import * as path from 'path';
 import VsCodeTelemetryReporter from 'vscode-extension-telemetry';
+import { memoize } from './memoize';
 
 interface IPackageInfo {
-	name: string;
-	version: string;
-	aiKey: string;
+	readonly name: string;
+	readonly version: string;
+	readonly aiKey: string;
 }
 
 export default class TelemetryReporter {
-	private _packageInfo: IPackageInfo | null = null;
 	private _reporter: VsCodeTelemetryReporter | null = null;
 
 	dispose() {
@@ -28,48 +28,40 @@ export default class TelemetryReporter {
 	) { }
 
 	public logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
-		if (this.reporter) {
+		const reporter = this.reporter;
+		if (reporter) {
 			if (!properties) {
 				properties = {};
 			}
 			properties['version'] = this.clientVersionDelegate();
 
-			this.reporter.sendTelemetryEvent(eventName, properties);
+			reporter.sendTelemetryEvent(eventName, properties);
 		}
 	}
 
+	@memoize
 	private get reporter(): VsCodeTelemetryReporter | null {
-		if (typeof this._reporter !== 'undefined') {
-			return this._reporter;
-		}
-
 		if (this.packageInfo && this.packageInfo.aiKey) {
 			this._reporter = new VsCodeTelemetryReporter(
 				this.packageInfo.name,
 				this.packageInfo.version,
 				this.packageInfo.aiKey);
-		} else {
-			this._reporter = null;
+			return this._reporter;
 		}
-		return this._reporter;
+		return null;
 	}
 
+	@memoize
 	private get packageInfo(): IPackageInfo | null {
-		if (this._packageInfo !== undefined) {
-			return this._packageInfo;
-		}
 		const packagePath = path.join(__dirname, '..', '..', 'package.json');
 		const extensionPackage = require(packagePath);
 		if (extensionPackage) {
-			this._packageInfo = {
+			return {
 				name: extensionPackage.name,
 				version: extensionPackage.version,
 				aiKey: extensionPackage.aiKey
 			};
-		} else {
-			this._packageInfo = null;
 		}
-
-		return this._packageInfo;
+		return null;
 	}
 }

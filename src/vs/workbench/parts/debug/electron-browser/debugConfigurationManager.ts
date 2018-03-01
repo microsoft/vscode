@@ -18,9 +18,9 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import * as extensionsRegistry from 'vs/platform/extensions/common/extensionsRegistry';
+import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -363,10 +363,10 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	private initLaunches(): void {
 		this.launches = this.contextService.getWorkspace().folders.map(folder => this.instantiationService.createInstance(Launch, this, folder));
-		this.launches.push(this.instantiationService.createInstance(UserLaunch, this));
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			this.launches.push(this.instantiationService.createInstance(WorkspaceLaunch, this));
 		}
+		this.launches.push(this.instantiationService.createInstance(UserLaunch, this));
 
 		if (this.launches.indexOf(this.selectedLaunch) === -1) {
 			this.selectedLaunch = undefined;
@@ -516,7 +516,8 @@ class Launch implements ILaunch {
 		@IFileService private fileService: IFileService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService
+		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
 		// noop
 	}
@@ -573,6 +574,18 @@ class Launch implements ILaunch {
 		return config.configurations.filter(config => config && config.name === name).shift();
 	}
 
+	protected getWorkspaceForResolving(): IWorkspaceFolder {
+		if (this.workspace) {
+			return this.workspace;
+		}
+
+		if (this.contextService.getWorkspace().folders.length === 1) {
+			return this.contextService.getWorkspace().folders[0];
+		}
+
+		return undefined;
+	}
+
 	public resolveConfiguration(config: IConfig): TPromise<IConfig> {
 		const result = objects.deepClone(config) as IConfig;
 		// Set operating system specific properties #1873
@@ -589,7 +602,7 @@ class Launch implements ILaunch {
 
 		// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
 		Object.keys(result).forEach(key => {
-			result[key] = this.configurationResolverService.resolveAny(this.workspace, result[key]);
+			result[key] = this.configurationResolverService.resolveAny(this.getWorkspaceForResolving(), result[key]);
 		});
 
 		const adapter = this.configurationManager.getAdapter(result.type);
@@ -660,13 +673,13 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
-		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService);
+		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService, contextService);
 	}
 
 	get uri(): uri {
-		return this.workspaceContextService.getWorkspace().configuration;
+		return this.contextService.getWorkspace().configuration;
 	}
 
 	get name(): string {
@@ -678,7 +691,7 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 	}
 
 	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
-		return this.editorService.openEditor({ resource: this.workspaceContextService.getWorkspace().configuration });
+		return this.editorService.openEditor({ resource: this.contextService.getWorkspace().configuration });
 	}
 }
 
@@ -690,9 +703,10 @@ class UserLaunch extends Launch implements ILaunch {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
-		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService);
+		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService, contextService);
 	}
 
 	get uri(): uri {

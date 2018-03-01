@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/issueReporter';
-import { shell, ipcRenderer, webFrame, remote } from 'electron';
+import { shell, ipcRenderer, webFrame, remote, clipboard } from 'electron';
 import { localize } from 'vs/nls';
 import { $ } from 'vs/base/browser/dom';
 import * as collections from 'vs/base/common/collections';
@@ -41,7 +41,7 @@ import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
-const MAX_URL_LENGTH = 5400;
+const MAX_URL_LENGTH = platform.isWindows ? 2081 : 5400;
 
 interface SearchResult {
 	html_url: string;
@@ -66,9 +66,7 @@ export class IssueReporter extends Disposable {
 	private telemetryService: ITelemetryService;
 	private logService: ILogService;
 	private issueReporterModel: IssueReporterModel;
-	private shouldQueueSearch = true;
 	private numberOfSearchResultsDisplayed = 0;
-	private features: IssueReporterFeatures;
 	private receivedSystemInfo = false;
 	private receivedPerformanceInfo = false;
 
@@ -85,8 +83,6 @@ export class IssueReporter extends Disposable {
 			},
 			extensionsDisabled: this.environmentService.disableExtensions,
 		});
-
-		this.features = configuration.features;
 
 		ipcRenderer.on('issuePerformanceInfoResponse', (event, info) => {
 			this.logService.trace('issueReporter: Received performance data');
@@ -295,14 +291,14 @@ export class IssueReporter extends Disposable {
 	}
 
 	private setEventHandlers(): void {
-		document.getElementById('issue-type').addEventListener('change', (event: Event) => {
+		this.addEventListener('issue-type', 'change', (event: Event) => {
 			this.issueReporterModel.update({ issueType: parseInt((<HTMLInputElement>event.target).value) });
 			this.updatePreviewButtonState();
 			this.render();
 		});
 
 		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeSearchedExtensions', 'includeSettingsSearchDetails'].forEach(elementId => {
-			document.getElementById(elementId).addEventListener('click', (event: Event) => {
+			this.addEventListener(elementId, 'click', (event: Event) => {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
 			});
@@ -326,47 +322,62 @@ export class IssueReporter extends Disposable {
 			});
 		}
 
-		document.getElementById('reproducesWithoutExtensions').addEventListener('click', (e) => {
+		this.addEventListener('reproducesWithoutExtensions', 'click', (e) => {
 			this.issueReporterModel.update({ reprosWithoutExtensions: true });
 		});
 
-		document.getElementById('reproducesWithExtensions').addEventListener('click', (e) => {
+		this.addEventListener('reproducesWithExtensions', 'click', (e) => {
 			this.issueReporterModel.update({ reprosWithoutExtensions: false });
 		});
 
-		document.getElementById('description').addEventListener('input', (event: Event) => {
+		this.addEventListener('description', 'input', (event: Event) => {
 			const issueDescription = (<HTMLInputElement>event.target).value;
 			this.issueReporterModel.update({ issueDescription });
 
-			if (this.features.useDuplicateSearch) {
-				const title = (<HTMLInputElement>document.getElementById('issue-title')).value;
+			const title = (<HTMLInputElement>document.getElementById('issue-title')).value;
+			if (title || issueDescription) {
 				this.searchDuplicates(title, issueDescription);
+			} else {
+				this.clearSearchResults();
 			}
 		});
 
-		document.getElementById('issue-title').addEventListener('input', (e) => { this.searchIssues(e); });
+		this.addEventListener('issue-title', 'input', (e) => {
+			const description = this.issueReporterModel.getData().issueDescription;
+			const title = (<HTMLInputElement>event.target).value;
 
-		document.getElementById('github-submit-btn').addEventListener('click', () => this.createIssue());
+			const lengthValidationMessage = document.getElementById('issue-title-length-validation-error');
+			if (title && this.getIssueUrlWithTitle(title).length > MAX_URL_LENGTH) {
+				show(lengthValidationMessage);
+			} else {
+				hide(lengthValidationMessage);
+			}
 
-		const disableExtensions = document.getElementById('disableExtensions');
-		disableExtensions.addEventListener('click', () => {
-			ipcRenderer.send('workbenchCommand', 'workbench.extensions.action.disableAll');
-			ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindow');
+			if (title || description) {
+				this.searchDuplicates(title, description);
+			} else {
+				this.clearSearchResults();
+			}
 		});
 
-		disableExtensions.addEventListener('keydown', (e) => {
+		this.addEventListener('github-submit-btn', 'click', () => this.createIssue());
+
+		this.addEventListener('disableExtensions', 'click', () => {
+			ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindowWithExtensionsDisabled');
+		});
+
+		this.addEventListener('disableExtensions', 'keydown', (e: KeyboardEvent) => {
 			if (e.keyCode === 13 || e.keyCode === 32) {
 				ipcRenderer.send('workbenchCommand', 'workbench.extensions.action.disableAll');
 				ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindow');
 			}
 		});
 
-		const showRunning = document.getElementById('showRunning');
-		showRunning.addEventListener('click', () => {
+		this.addEventListener('showRunning', 'click', () => {
 			ipcRenderer.send('workbenchCommand', 'workbench.action.showRuntimeExtensions');
 		});
 
-		showRunning.addEventListener('keydown', (e) => {
+		this.addEventListener('showRunning', 'keydown', (e: KeyboardEvent) => {
 			if (e.keyCode === 13 || e.keyCode === 32) {
 				ipcRenderer.send('workbenchCommand', 'workbench.action.showRuntimeExtensions');
 			}
@@ -427,21 +438,6 @@ export class IssueReporter extends Disposable {
 		return false;
 	}
 
-	@debounce(300)
-	private searchIssues(event: Event): void {
-		const title = (<HTMLInputElement>event.target).value;
-		if (title) {
-			if (this.features.useDuplicateSearch) {
-				const description = this.issueReporterModel.getData().issueDescription;
-				this.searchDuplicates(title, description);
-			} else {
-				this.searchGitHub(title);
-			}
-		} else {
-			this.clearSearchResults();
-		}
-	}
-
 	private clearSearchResults(): void {
 		const similarIssues = document.getElementById('similar-issues');
 		similarIssues.innerHTML = '';
@@ -479,53 +475,17 @@ export class IssueReporter extends Disposable {
 		});
 	}
 
-	private searchGitHub(title: string): void {
-		const query = `is:issue+repo:microsoft/vscode+${title}`;
-		const similarIssues = document.getElementById('similar-issues');
-
-		window.fetch(`https://api.github.com/search/issues?q=${query}`).then((response) => {
-			response.json().then(result => {
-				similarIssues.innerHTML = '';
-				if (result && result.items) {
-					this.displaySearchResults(result.items);
-				} else {
-					// If the items property isn't present, the rate limit has been hit
-					const message = $('div.list-title');
-					message.textContent = localize('rateLimited', "GitHub query limit exceeded. Please wait.");
-					similarIssues.appendChild(message);
-
-					const resetTime = response.headers.get('X-RateLimit-Reset');
-					const timeToWait = parseInt(resetTime) - Math.floor(Date.now() / 1000);
-					if (this.shouldQueueSearch) {
-						this.shouldQueueSearch = false;
-						setTimeout(() => {
-							this.searchGitHub(title);
-							this.shouldQueueSearch = true;
-						}, timeToWait * 1000);
-					}
-
-					throw new Error(result.message);
-				}
-			}).catch((error) => {
-				this.logSearchError(error);
-			});
-		}).catch((error) => {
-			this.logSearchError(error);
-		});
-	}
-
 	private displaySearchResults(results: SearchResult[]) {
 		const similarIssues = document.getElementById('similar-issues');
 		if (results.length) {
-			const hasIssueState = results.every(result => !!result.state);
-			const issues = hasIssueState ? $('div.issues-container') : $('ul.issues-container');
+			const issues = $('div.issues-container');
 			const issuesText = $('div.list-title');
 			issuesText.textContent = localize('similarIssues', "Similar issues");
 
 			this.numberOfSearchResultsDisplayed = results.length < 5 ? results.length : 5;
 			for (let i = 0; i < this.numberOfSearchResultsDisplayed; i++) {
 				const issue = results[i];
-				const link = issue.state ? $('a.issue-link', { href: issue.html_url }) : $('a', { href: issue.html_url });
+				const link = $('a.issue-link', { href: issue.html_url });
 				link.textContent = issue.title;
 				link.title = issue.title;
 				link.addEventListener('click', (e) => this.openLink(e));
@@ -547,7 +507,7 @@ export class IssueReporter extends Disposable {
 					issueState.appendChild(issueStateLabel);
 				}
 
-				const item = issue.state ? $('div.issue', {}, issueState, link) : $('li.issue', {}, link);
+				const item = $('div.issue', {}, issueState, link);
 				issues.appendChild(item);
 			}
 
@@ -564,7 +524,7 @@ export class IssueReporter extends Disposable {
 		this.logService.warn('issueReporter#search ', error.message);
 		/* __GDPR__
 		"issueReporterSearchError" : {
-				"message" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
 			}
 		*/
 		this.telemetryService.publicLog('issueReporterSearchError', { message: error.message });
@@ -686,23 +646,22 @@ export class IssueReporter extends Disposable {
 		*/
 		this.telemetryService.publicLog('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType, numSimilarIssuesDisplayed: this.numberOfSearchResultsDisplayed });
 
-		const issueTitle = encodeURIComponent((<HTMLInputElement>document.getElementById('issue-title')).value);
-		const queryStringPrefix = product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
-		const baseUrl = `${product.reportIssueUrl}${queryStringPrefix}title=${issueTitle}&body=`;
+		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>document.getElementById('issue-title')).value);
 		const issueBody = this.issueReporterModel.serialize();
-		const url = baseUrl + encodeURIComponent(issueBody);
+		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
-		const lengthValidationElement = document.getElementById('url-length-validation-error');
 		if (url.length > MAX_URL_LENGTH) {
-			lengthValidationElement.textContent = localize('urlLengthError', "The data exceeds the length limit of {0} characters. The data is length {1}.", MAX_URL_LENGTH, url.length);
-			show(lengthValidationElement);
-			return false;
-		} else {
-			hide(lengthValidationElement);
+			clipboard.writeText(issueBody);
+			url = baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
 		}
 
 		shell.openExternal(url);
 		return true;
+	}
+
+	private getIssueUrlWithTitle(issueTitle: string) {
+		const queryStringPrefix = product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
+		return `${product.reportIssueUrl}${queryStringPrefix}title=${encodeURIComponent(issueTitle)}`;
 	}
 
 	private updateSystemInfo = (state) => {
@@ -720,26 +679,7 @@ export class IssueReporter extends Disposable {
 
 	private updateProcessInfo = (state) => {
 		const target = document.querySelector('.block-process .block-info');
-
-		let tableHtml = `
-			<tr>
-				<th>pid</th>
-				<th>CPU %</th>
-				<th>Memory (MB)</th>
-				<th>Name</th>
-			</tr>`;
-
-		state.processInfo.forEach(p => {
-			tableHtml += `
-				<tr>
-					<td>${p.pid}</td>
-					<td>${p.cpu}</td>
-					<td>${p.memory}</td>
-					<td>${p.name}</td>
-				</tr>`;
-		});
-
-		target.innerHTML = `<table>${tableHtml}</table>`;
+		target.innerHTML = `<code>${state.processInfo}</code>`;
 	}
 
 	private updateWorkspaceInfo = (state) => {
@@ -806,11 +746,25 @@ export class IssueReporter extends Disposable {
 			shell.openExternal((<HTMLAnchorElement>event.target).href);
 
 			/* __GDPR__
-				"issueReporterViewSimilarIssue" : {
-					"usingDuplicatesAPI" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
+				"issueReporterViewSimilarIssue" : { }
 			*/
-			this.telemetryService.publicLog('issueReporterViewSimilarIssue', { usingDuplicatesAPI: this.features.useDuplicateSearch });
+			this.telemetryService.publicLog('issueReporterViewSimilarIssue');
+		}
+	}
+
+	private addEventListener(elementId: string, eventType: string, handler: (event: Event) => void): void {
+		const element = document.getElementById(elementId);
+		if (element) {
+			element.addEventListener(eventType, handler);
+		} else {
+			const error = new Error(`${elementId} not found.`);
+			this.logService.error(error);
+			/* __GDPR__
+				"issueReporterAddEventListenerError" : {
+						"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
+					}
+				*/
+			this.telemetryService.publicLog('issueReporterAddEventListenerError', { message: error.message });
 		}
 	}
 }

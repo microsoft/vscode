@@ -61,14 +61,9 @@ export class IssueReporterModel {
 
 	serialize(): string {
 		return `
-### Issue Type
-${this.getIssueTypeTitle()}
-
-### Description
+Issue Type: <b>${this.getIssueTypeTitle()}</b>
 
 ${this._data.issueDescription}
-
-### VS Code Info
 
 VS Code version: ${this._data.versionInfo && this._data.versionInfo.vscodeVersion}
 OS version: ${this._data.versionInfo && this._data.versionInfo.os}
@@ -149,20 +144,15 @@ ${this.getInfos()}
 	}
 
 	private generateProcessInfoMd(): string {
-		let md = `<details>
+		return `<details>
 <summary>Process Info</summary>
 
-|pid|CPU|Memory (MB)|Name|
-|---|---|---|---|
+\`\`\`
+${this._data.processInfo}
+\`\`\`
+
+</details>
 `;
-
-		this._data.processInfo.forEach(p => {
-			md += `|${p.pid}|${p.cpu}|${p.memory}|${p.name}|\n`;
-		});
-
-		md += '\n</details>';
-
-		return md;
 	}
 
 	private generateWorkspaceInfoMd(): string {

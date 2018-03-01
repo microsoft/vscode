@@ -35,7 +35,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
@@ -44,6 +43,7 @@ import { IDecorationsService } from 'vs/workbench/services/decorations/browser/d
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	viewletState: FileViewletState;
@@ -82,7 +82,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	constructor(
 		options: IExplorerViewOptions,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
@@ -518,10 +518,13 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				restoreFocus = true;
 			}
 
+			let isExpanded = false;
 			// Handle Rename
 			if (oldParentResource && newParentResource && oldParentResource.toString() === newParentResource.toString()) {
 				const modelElements = this.model.findAll(oldResource);
 				modelElements.forEach(modelElement => {
+					//Check if element is expanded
+					isExpanded = this.explorerViewer.isExpanded(modelElement);
 					// Rename File (Model)
 					modelElement.rename(newElement);
 
@@ -531,6 +534,10 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 						// Select in Viewer if set
 						if (restoreFocus) {
 							this.explorerViewer.setFocus(modelElement);
+						}
+						//Expand the element again
+						if (isExpanded) {
+							this.explorerViewer.expand(modelElement);
 						}
 					}, errors.onUnexpectedError);
 				});
@@ -928,7 +935,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			// Select and Reveal
 			return this.explorerViewer.refresh(root).then(() => this.doSelect(root.find(resource), reveal));
 
-		}, e => { this.messageService.show(Severity.Error, e); });
+		}, e => { this.notificationService.error(e); });
 	}
 
 	private hasSingleSelection(resource: URI): FileStat {

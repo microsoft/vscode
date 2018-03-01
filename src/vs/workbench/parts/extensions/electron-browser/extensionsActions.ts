@@ -6,17 +6,15 @@
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
-import severity from 'vs/base/common/severity';
 import paths = require('vs/base/common/paths');
-import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IFileService } from 'vs/platform/files/common/files';
 import URI from 'vs/base/common/uri';
+import Severity from 'vs/base/common/severity';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 export class OpenExtensionsFolderAction extends Action {
 
@@ -58,8 +56,7 @@ export class InstallVSIXAction extends Action {
 		id = InstallVSIXAction.ID,
 		label = InstallVSIXAction.LABEL,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IMessageService private messageService: IMessageService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IChoiceService private choiceService: IChoiceService,
 		@IWindowService private windowsService: IWindowService
 	) {
 		super(id, label, 'extension-action install-vsix', true);
@@ -77,13 +74,13 @@ export class InstallVSIXAction extends Action {
 			}
 
 			return TPromise.join(result.map(vsix => this.extensionsWorkbenchService.install(vsix))).then(() => {
-				this.messageService.show(
-					severity.Info,
-					{
-						message: localize('InstallVSIXAction.success', "Successfully installed the extension. Reload to enable it."),
-						actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('InstallVSIXAction.reloadNow', "Reload Now"))]
+				return this.choiceService.choose(Severity.Info, localize('InstallVSIXAction.success', "Successfully installed the extension. Reload to enable it."), [localize('InstallVSIXAction.reloadNow', "Reload Now")]).then(choice => {
+					if (choice === 0) {
+						return this.windowsService.reloadWindow();
 					}
-				);
+
+					return TPromise.as(undefined);
+				});
 			});
 		});
 	}

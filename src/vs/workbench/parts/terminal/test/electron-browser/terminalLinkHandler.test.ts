@@ -22,8 +22,8 @@ class TestTerminalLinkHandler extends TerminalLinkHandler {
 }
 
 class TestXterm {
-	public setHypertextLinkHandler() { }
-	public setHypertextValidationCallback() { }
+	public webLinksInit() { }
+	public registerLinkMatcher() { }
 }
 
 interface LinkFormatInfo {

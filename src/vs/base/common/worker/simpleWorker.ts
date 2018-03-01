@@ -163,6 +163,10 @@ class SimpleWorkerProtocol {
 				err: undefined
 			});
 		}, (e) => {
+			if (e.detail instanceof Error) {
+				// Loading errors have a detail property that points to the actual error
+				e.detail = transformErrorForSerialization(e.detail);
+			}
 			this._send({
 				vsWorker: this._workerId,
 				seq: req,

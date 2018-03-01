@@ -7,7 +7,6 @@
 
 import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
-import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as labels from 'vs/base/common/labels';
 import URI from 'vs/base/common/uri';
@@ -21,7 +20,6 @@ import { ExplorerFocusCondition, FileOnDiskContentProvider, VIEWLET_ID } from 'v
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { basename } from 'vs/base/common/paths';
@@ -43,6 +41,7 @@ import { getResourceForCommand, getMultiSelectedResources } from 'vs/workbench/p
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Schemas } from 'vs/base/common/network';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 // Commands
 
@@ -244,12 +243,13 @@ CommandsRegistry.registerCommand({
 	handler: (accessor, resource: URI) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const textFileService = accessor.get(ITextFileService);
-		const messageService = accessor.get(IMessageService);
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
+		const notificationService = accessor.get(INotificationService);
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService)
+			.filter(resource => resource.scheme !== Schemas.untitled);
 
-		if (resource && resource.scheme !== Schemas.untitled) {
+		if (resources.length) {
 			return textFileService.revertAll(resources, { force: true }).then(null, error => {
-				messageService.show(Severity.Error, nls.localize('genericRevertError', "Failed to revert '{0}': {1}", basename(resource.fsPath), toErrorMessage(error, false)));
+				notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", resources.map(r => basename(r.fsPath)).join(', '), toErrorMessage(error, false)));
 			});
 		}
 
@@ -323,7 +323,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const name = paths.basename(resource.fsPath);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
 
-			return editorService.openEditor({ leftResource: URI.from({ scheme: COMPARE_WITH_SAVED_SCHEMA, path: resource.fsPath }), rightResource: resource, label: editorLabel });
+			return editorService.openEditor({ leftResource: URI.from({ scheme: COMPARE_WITH_SAVED_SCHEMA, path: resource.fsPath }), rightResource: resource, label: editorLabel }).then(() => void 0);
 		}
 
 		return TPromise.as(true);
@@ -374,6 +374,7 @@ CommandsRegistry.registerCommand({
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const listService = accessor.get(IListService);
 		const tree = listService.lastFocusedList;
+
 		// Remove highlight
 		if (tree instanceof Tree) {
 			tree.clearHighlight();
@@ -382,15 +383,15 @@ CommandsRegistry.registerCommand({
 		return editorService.openEditor({
 			leftResource: globalResourceToCompare,
 			rightResource: getResourceForCommand(resource, listService, editorService)
-		});
+		}).then(() => void 0);
 	}
 });
 
-function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, messageService: IMessageService): void {
+function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, notificationService: INotificationService): void {
 	if (resources.length) {
 		sequence(resources.map(r => () => windowsService.showItemInFolder(paths.normalize(r.fsPath, true))));
 	} else {
-		messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
+		notificationService.info(nls.localize('openFileToReveal', "Open a file first to reveal"));
 	}
 }
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -403,7 +404,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	handler: (accessor: ServicesAccessor, resource: URI) => {
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
-		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(IMessageService));
+		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(INotificationService));
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -415,17 +416,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const activeInput = editorService.getActiveEditorInput();
 		const resources = activeInput && activeInput.getResource() ? [activeInput.getResource()] : [];
-		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(IMessageService));
+		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(INotificationService));
 	}
 });
 
-function resourcesToClipboard(resources: URI[], clipboardService: IClipboardService, messageService: IMessageService): void {
+function resourcesToClipboard(resources: URI[], clipboardService: IClipboardService, notificationService: INotificationService): void {
 	if (resources.length) {
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
 		const text = resources.map(r => r.scheme === Schemas.file ? labels.getPathLabel(r) : r.toString()).join(lineDelimiter);
 		clipboardService.writeText(text);
 	} else {
-		messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
+		notificationService.info(nls.localize('openFileToCopy', "Open a file first to copy its path"));
 	}
 }
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -438,7 +439,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: COPY_PATH_COMMAND_ID,
 	handler: (accessor, resource: URI) => {
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
-		resourcesToClipboard(resources, accessor.get(IClipboardService), accessor.get(IMessageService));
+		resourcesToClipboard(resources, accessor.get(IClipboardService), accessor.get(INotificationService));
 	}
 });
 
@@ -451,7 +452,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const activeInput = editorService.getActiveEditorInput();
 		const resources = activeInput && activeInput.getResource() ? [activeInput.getResource()] : [];
-		resourcesToClipboard(resources, accessor.get(IClipboardService), accessor.get(IMessageService));
+		resourcesToClipboard(resources, accessor.get(IClipboardService), accessor.get(INotificationService));
 	}
 });
 

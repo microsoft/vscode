@@ -9,6 +9,7 @@
 	"fileInvalidPath": "ファイルのリソース ({0}) が無効です",
 	"fileIsDirectoryError": "ファイルはディレクトリです",
 	"fileNotModifiedError": "ファイルは次の時点以後に変更されていません:",
+	"fileTooLargeForHeapError": "ファイル サイズがウィンドウのメモリ制限を超えました。code --max-memory=NEWSIZE をお試しください",
 	"fileTooLargeError": "開くファイルが大きすぎます",
 	"fileNotFoundError": "ファイルが見つかりません ({0})",
 	"fileBinaryError": "ファイルはバイナリのようなので、テキストとして開くことができません",

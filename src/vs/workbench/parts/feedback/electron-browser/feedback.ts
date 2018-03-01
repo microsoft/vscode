@@ -114,8 +114,7 @@ export class FeedbackDropdown extends Dropdown {
 
 	protected renderContents(container: HTMLElement): IDisposable {
 		const $form = $('form.feedback-form').attr({
-			action: 'javascript:void(0);',
-			tabIndex: '-1'
+			action: 'javascript:void(0);'
 		}).appendTo(container);
 
 		$(container).addClass('monaco-menu-container');
@@ -224,7 +223,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.toDispose.push(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
 			$form.style('background-color', colors.editorWidgetBackground);
-			$form.style('box-shadow', colors.widgetShadow ? `0 2px 8px ${colors.widgetShadow}` : null);
+			$form.style('box-shadow', colors.widgetShadow ? `0 5px 8px ${colors.widgetShadow}` : null);
 
 			if (this.feedbackDescriptionInput) {
 				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground;

@@ -12,6 +12,7 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPosit
 import { attachQuickOpenStyler } from 'vs/platform/theme/common/styler';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { foreground } from 'vs/platform/theme/common/colorRegistry';
 
 export interface IQuickOpenEditorWidgetOptions {
 	inputAriaLabel: string;
@@ -50,7 +51,9 @@ export class QuickOpenEditorWidget implements IOverlayWidget {
 				keyboardSupport: true
 			}
 		);
-		this.styler = attachQuickOpenStyler(this.quickOpenWidget, this.themeService);
+		this.styler = attachQuickOpenStyler(this.quickOpenWidget, this.themeService, {
+			pickerGroupForeground: foreground
+		});
 
 		this.quickOpenWidget.create();
 		this.codeEditor.addOverlayWidget(this);

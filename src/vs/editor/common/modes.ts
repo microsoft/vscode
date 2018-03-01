@@ -738,7 +738,7 @@ export interface IInplaceReplaceSupportResult {
  */
 export interface ILink {
 	range: IRange;
-	url: string;
+	url?: string;
 }
 /**
  * A provider of links.
@@ -824,6 +824,67 @@ export interface DocumentColorProvider {
 	 * Provide the string representations for a color.
 	 */
 	provideColorPresentations(model: model.ITextModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
+}
+
+/**
+ * A provider of colors for editor models.
+ */
+/**
+ * @internal
+ */
+export interface FoldingProvider {
+	/**
+	 * Provides the color ranges for a specific model.
+	 */
+	provideFoldingRanges(model: model.ITextModel, token: CancellationToken): IFoldingRangeList | Thenable<IFoldingRangeList>;
+}
+/**
+ * @internal
+ */
+export interface IFoldingRangeList {
+
+	ranges: IFoldingRange[];
+}
+/**
+ * @internal
+ */
+export interface IFoldingRange {
+
+	/**
+	 * The start line number
+	 */
+	startLineNumber: number;
+
+	/**
+	 * The end line number
+	 */
+	endLineNumber: number;
+
+	/**
+	 * The optional type of the folding range
+	 */
+	type?: FoldingRangeType | string;
+
+	// auto-collapse
+	// header span
+
+}
+/**
+ * @internal
+ */
+export enum FoldingRangeType {
+	/**
+	 * Folding range for a comment
+	 */
+	Comment = 'comment',
+	/**
+	 * Folding range for a imports or includes
+	 */
+	Imports = 'imports',
+	/**
+	 * Folding range for a region (e.g. `#region`)
+	 */
+	Region = 'region'
 }
 
 /**
@@ -970,6 +1031,11 @@ export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
  * @internal
  */
 export const ColorProviderRegistry = new LanguageFeatureRegistry<DocumentColorProvider>();
+
+/**
+ * @internal
+ */
+export const FoldingProviderRegistry = new LanguageFeatureRegistry<FoldingProvider>();
 
 /**
  * @internal

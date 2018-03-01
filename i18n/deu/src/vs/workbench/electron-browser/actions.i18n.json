@@ -30,7 +30,6 @@
 	"remove": "Aus zuletzt geöffneten entfernen",
 	"openRecent": "Zuletzt benutzt...",
 	"quickOpenRecent": "Zuletzt benutzte schnell öffnen...",
-	"closeMessages": "Benachrichtigungs-E-Mail schließen",
 	"reportIssueInEnglish": "Problem melden",
 	"reportPerformanceIssue": "Leistungsproblem melden",
 	"keybindingsReference": "Referenz für Tastenkombinationen",
@@ -49,9 +48,5 @@
 	"moveWindowTabToNewWindow": "Fensterregisterkarte in neues Fenster verschieben",
 	"mergeAllWindowTabs": "Alle Fenster zusammenführen",
 	"toggleWindowTabsBar": "Fensterregisterkarten-Leiste umschalten",
-	"configureLocale": "Sprache konfigurieren",
-	"displayLanguage": "Definiert die Anzeigesprache von VSCode.",
-	"doc": "Unter {0} finden Sie eine Liste der unterstützten Sprachen.",
-	"restart": "Das Ändern dieses Wertes erfordert einen Neustart von VSCode.",
-	"fail.createSettings": "{0} ({1}) kann nicht erstellt werden."
+	"about": "Informationen zu {0}"
 }

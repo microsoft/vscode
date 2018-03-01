@@ -17,12 +17,12 @@ import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfi
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { getTerminalDefaultShellWindows } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 import { TerminalTab } from 'vs/workbench/parts/terminal/electron-browser/terminalTab';
+import { IChoiceService, IConfirmationService, Choice } from 'vs/platform/dialogs/common/dialogs';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
@@ -34,18 +34,18 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 	}
 
 	constructor(
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IPanelService _panelService: IPanelService,
-		@IPartService _partService: IPartService,
-		@ILifecycleService _lifecycleService: ILifecycleService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IPanelService panelService: IPanelService,
+		@IPartService partService: IPartService,
+		@IStorageService storageService: IStorageService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
 		@IChoiceService private readonly _choiceService: IChoiceService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IMessageService private readonly _messageService: IMessageService
+		@IConfirmationService private readonly _confirmationService: IConfirmationService
 	) {
-		super(_contextKeyService, _panelService, _partService, _lifecycleService);
+		super(contextKeyService, panelService, partService, lifecycleService, storageService);
 
 		this._terminalTabs = [];
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
@@ -127,11 +127,11 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		}
 
 		const message = nls.localize('terminal.integrated.chooseWindowsShellInfo', "You can change the default terminal shell by selecting the customize button.");
-		const options = [nls.localize('customize', "Customize"), nls.localize('cancel', "Cancel"), nls.localize('never again', "OK, Don't Show Again")];
-		this._choiceService.choose(Severity.Info, message, options, 1).then(choice => {
+		const options: Choice[] = [nls.localize('customize', "Customize"), { label: nls.localize('never again', "Don't Show Again") }];
+		this._choiceService.choose(Severity.Info, message, options).then(choice => {
 			switch (choice) {
-				case 0:
-					return this.selectDefaultWindowsShell().then(shell => {
+				case 0 /* Customize */:
+					this.selectDefaultWindowsShell().then(shell => {
 						if (!shell) {
 							return TPromise.as(null);
 						}
@@ -145,12 +145,10 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 						}
 						return TPromise.as(null);
 					});
-				case 1:
-					return TPromise.as(null);
-				case 2:
+					break;
+				case 1 /* Do not show again */:
 					this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true);
-				default:
-					return TPromise.as(null);
+					break;
 			}
 		});
 	}
@@ -227,7 +225,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
 		}
 
-		return this._messageService.confirm({
+		return this._confirmationService.confirm({
 			message,
 			type: 'warning',
 		}).then(confirmed => !confirmed);

@@ -11,16 +11,16 @@ import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IActionRunner, ActionRunner, IAction, IRunEvent } from 'vs/base/common/actions';
 import { Menu } from 'vs/base/browser/ui/menu/menu';
-import Severity from 'vs/base/common/severity';
 
-import { IContextViewService, IContextMenuDelegate } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IMessageService } from 'vs/platform/message/common/message';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 
 export class ContextMenuHandler {
 
 	private contextViewService: IContextViewService;
-	private messageService: IMessageService;
+	private notificationService: INotificationService;
 	private telemetryService: ITelemetryService;
 
 	private actionRunner: IActionRunner;
@@ -28,12 +28,12 @@ export class ContextMenuHandler {
 	private menuContainerElement: HTMLElement;
 	private toDispose: IDisposable[];
 
-	constructor(element: HTMLElement, contextViewService: IContextViewService, telemetryService: ITelemetryService, messageService: IMessageService) {
+	constructor(element: HTMLElement, contextViewService: IContextViewService, telemetryService: ITelemetryService, notificationService: INotificationService) {
 		this.setContainer(element);
 
 		this.contextViewService = contextViewService;
 		this.telemetryService = telemetryService;
-		this.messageService = messageService;
+		this.notificationService = notificationService;
 
 		this.actionRunner = new ActionRunner();
 		this.menuContainerElement = null;
@@ -66,8 +66,8 @@ export class ContextMenuHandler {
 
 			hideViewOnRun = false;
 
-			if (e.error && this.messageService) {
-				this.messageService.show(Severity.Error, e.error);
+			if (e.error && this.notificationService) {
+				this.notificationService.error(e.error);
 			}
 		}));
 	}

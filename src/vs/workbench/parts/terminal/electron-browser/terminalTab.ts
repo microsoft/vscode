@@ -13,6 +13,8 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView } from 'vs/base/browser/ui/splitview/splitview';
 import { IPartService, Position } from 'vs/workbench/services/part/common/partService';
 
+const SPLIT_PANE_MIN_SIZE = 120;
+
 class SplitPaneContainer {
 	private _height: number;
 	private _width: number;
@@ -41,7 +43,7 @@ class SplitPaneContainer {
 	private _createSplitView(): void {
 		this._splitView = new SplitView(this._container, { orientation: this.orientation });
 		this._splitViewDisposables = [];
-		this._splitViewDisposables.push(this._splitView.onDidSashReset(() => this._resetSize()));
+		this._splitViewDisposables.push(this._splitView.onDidSashReset(() => this.resetSize()));
 		this._splitViewDisposables.push(this._splitView.onDidSashChange(() => {
 			this._isManuallySized = true;
 		}));
@@ -52,7 +54,7 @@ class SplitPaneContainer {
 		this._addChild(size / (this._children.length + 1), instance, index);
 	}
 
-	private _resetSize(): void {
+	public resetSize(): void {
 		// TODO: Optimize temrinal instance layout
 		let totalSize = 0;
 		for (let i = 0; i < this._splitView.length; i++) {
@@ -98,10 +100,17 @@ class SplitPaneContainer {
 		} else if (!isSizingEndPane && direction === Direction.Down) {
 			amount *= -1;
 		}
+
+		// Ensure the size is not reduced beyond the minimum, otherwise weird things can happen
+		if (sizes[index] + amount < SPLIT_PANE_MIN_SIZE) {
+			amount = SPLIT_PANE_MIN_SIZE - sizes[index];
+		} else if (sizes[indexToChange] - amount < SPLIT_PANE_MIN_SIZE) {
+			amount = sizes[indexToChange] - SPLIT_PANE_MIN_SIZE;
+		}
+
+		// Apply the size change
 		sizes[index] += amount;
 		sizes[indexToChange] -= amount;
-
-		// Apply
 		for (let i = 0; i < this._splitView.length - 1; i++) {
 			this._splitView.resizeView(i, sizes[i]);
 		}
@@ -112,15 +121,16 @@ class SplitPaneContainer {
 		const child = new SplitPane(this.orientation === Orientation.HORIZONTAL ? this._height : this._width);
 		child.orientation = this.orientation;
 		child.instance = instance;
-		this._splitView.addView(child, size, index);
-
 		if (typeof index === 'number') {
 			this._children.splice(index, 0, child);
 		} else {
 			this._children.push(child);
 		}
 
-		this._resetSize();
+		this._withDisabledLayout(() => this._splitView.addView(child, size, index));
+
+		this.resetSize();
+		this._refreshOrderClasses();
 
 		this._onDidChange = anyEvent(...this._children.map(c => c.onDidChange));
 	}
@@ -135,22 +145,35 @@ class SplitPaneContainer {
 		if (index !== null) {
 			this._children.splice(index, 1);
 			this._splitView.removeView(index);
-			this._resetSize();
+			this.resetSize();
+			this._refreshOrderClasses();
+		}
+	}
+
+	private _refreshOrderClasses(): void {
+		this._children.forEach((c, i) => {
+			c.setIsFirst(i === 0);
+			c.setIsLast(i === this._children.length - 1);
+		});
+		// HACK: Force another layout, this isn't ideal but terminal instance uses the first/last CSS
+		// rules for sizing the terminal and the layout is performed when the split view is added.
+		if (this._children.length > 0) {
+			this.layout(this._width, this._height);
 		}
 	}
 
 	public layout(width: number, height: number): void {
 		if (!this._isManuallySized) {
-			this._resetSize();
+			this.resetSize();
 		}
 		this._width = width;
 		this._height = height;
 		if (this.orientation === Orientation.HORIZONTAL) {
-			this._splitView.layout(width);
 			this._children.forEach(c => c.orthogonalLayout(height));
+			this._splitView.layout(width);
 		} else {
-			this._splitView.layout(height);
 			this._children.forEach(c => c.orthogonalLayout(width));
+			this._splitView.layout(height);
 		}
 	}
 
@@ -170,24 +193,31 @@ class SplitPaneContainer {
 
 		// Create new split view with updated orientation
 		this._createSplitView();
-		this._children.forEach(child => {
-			child.orientation = orientation;
-			this._splitView.addView(child, 1);
+		this._withDisabledLayout(() => {
+			this._children.forEach(child => {
+				child.orientation = orientation;
+				this._splitView.addView(child, 1);
+			});
 		});
+	}
 
-		// Allow time for a layout to occur
-		this.layout(this._container.offsetWidth, this._container.offsetHeight);
-		this._resetSize();
+	private _withDisabledLayout(innerFunction: () => void): void {
+		// Whenever manipulating views that are going to be changed immediately, disabling
+		// layout/resize events in the terminal prevent bad dimensions going to the pty.
+		this._children.forEach(c => c.instance.disableLayout = true);
+		innerFunction();
+		this._children.forEach(c => c.instance.disableLayout = false);
 	}
 }
 
 class SplitPane implements IView {
-	public minimumSize: number = 40;
+	public minimumSize: number = SPLIT_PANE_MIN_SIZE;
 	public maximumSize: number = Number.MAX_VALUE;
 
 	public instance: ITerminalInstance;
 	public orientation: Orientation | undefined;
 	protected _size: number;
+	private _container: HTMLElement | undefined;
 
 	private _onDidChange: Event<number | undefined> = Event.None;
 	public get onDidChange(): Event<number | undefined> { return this._onDidChange; }
@@ -201,7 +231,20 @@ class SplitPane implements IView {
 		if (!container) {
 			return;
 		}
+		this._container = container;
 		this.instance.attachToElement(container);
+	}
+
+	public setIsFirst(isFirst: boolean): void {
+		if (this._container) {
+			this._container.classList.toggle('first', isFirst);
+		}
+	}
+
+	public setIsLast(isLast: boolean): void {
+		if (this._container) {
+			this._container.classList.toggle('last', isLast);
+		}
 	}
 
 	public layout(size: number): void {
@@ -407,19 +450,22 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			if (newPanelPosition !== this._panelPosition) {
 				const newOrientation = newPanelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 				this._splitPaneContainer.setOrientation(newOrientation);
+				this._panelPosition = newPanelPosition;
 			}
-			this._panelPosition = newPanelPosition;
 
 			this._splitPaneContainer.layout(width, height);
+			this._splitPaneContainer.resetSize();
 		}
 	}
 
 	public focusPreviousPane(): void {
-		this.setActiveInstanceByIndex(this._activeInstanceIndex - 1);
+		const newIndex = this._activeInstanceIndex === 0 ? this._terminalInstances.length - 1 : this._activeInstanceIndex - 1;
+		this.setActiveInstanceByIndex(newIndex);
 	}
 
 	public focusNextPane(): void {
-		this.setActiveInstanceByIndex(this._activeInstanceIndex + 1);
+		const newIndex = this._activeInstanceIndex === this._terminalInstances.length - 1 ? 0 : this._activeInstanceIndex + 1;
+		this.setActiveInstanceByIndex(newIndex);
 	}
 
 	public resizePane(direction: Direction): void {

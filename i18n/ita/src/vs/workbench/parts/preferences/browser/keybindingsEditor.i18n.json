@@ -20,7 +20,6 @@
 	"showSameKeybindings": "Mostra gli stessi tasti di scelta rapida",
 	"copyLabel": "Copia",
 	"copyCommandLabel": "Copia comando",
-	"error": "Errore '{0}' durante la modifica del tasto di scelta rapida. Si prega di aprire il file 'keybindings.json' e verificare.",
 	"command": "Comando",
 	"keybinding": "Tasto di scelta rapida",
 	"source": "Origine",

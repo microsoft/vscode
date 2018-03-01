@@ -26,7 +26,6 @@ import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
@@ -36,6 +35,8 @@ import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensions
 import product from 'vs/platform/node/product';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -138,6 +139,15 @@ class Extension implements IExtension {
 	}
 
 	private get defaultIconUrl(): string {
+		if (this.type === LocalExtensionType.System) {
+			if (this.local.manifest
+				&& this.local.manifest.contributes
+				&& Array.isArray(this.local.manifest.contributes.themes)
+				&& this.local.manifest.contributes.themes.length) {
+				return require.toUrl('../browser/media/theme-icon.png');
+			}
+			return require.toUrl('../browser/media/code-icon.svg');
+		}
 		return require.toUrl('../browser/media/defaultIcon.png');
 	}
 
@@ -212,6 +222,14 @@ class Extension implements IExtension {
 		if (this.local && this.local.readmeUrl) {
 			const uri = URI.parse(this.local.readmeUrl);
 			return readFile(uri.fsPath, 'utf8');
+		}
+
+		if (this.type === LocalExtensionType.System) {
+			return TPromise.as(`# ${this.displayName || this.name}
+**Notice** This is a an extension that is bundled with Visual Studio Code.
+
+${this.description}
+`);
 		}
 
 		return TPromise.wrapError<string>(new Error('not available'));
@@ -343,7 +361,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IChoiceService private choiceService: IChoiceService,
 		@IURLService urlService: IURLService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
@@ -588,10 +606,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	setEnablement(extension: IExtension, enablementState: EnablementState): TPromise<void> {
-		if (extension.type === LocalExtensionType.System) {
-			return TPromise.wrap<void>(void 0);
-		}
-
 		const enable = enablementState === EnablementState.Enabled || enablementState === EnablementState.WorkspaceEnabled;
 		return this.promptAndSetEnablement(extension, enablementState, enable).then(reload => {
 			/* __GDPR__
@@ -883,7 +897,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			"extensionGallery:install" : {
 				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
@@ -894,7 +908,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			"extensionGallery:update" : {
 				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
@@ -905,7 +919,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			"extensionGallery:uninstall" : {
 				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
@@ -926,7 +940,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return;
 		}
 
-		this.messageService.show(Severity.Error, err);
+		this.notificationService.error(err);
 	}
 
 	private onOpenExtensionUrl(uri: URI): void {
@@ -957,15 +971,14 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 					return this.open(extension).then(() => {
 						const message = nls.localize('installConfirmation', "Would you like to install the '{0}' extension?", extension.displayName, extension.publisher);
 						const options = [
-							nls.localize('install', "Install"),
-							nls.localize('cancel', "Cancel")
+							nls.localize('install', "Install")
 						];
-						return this.choiceService.choose(Severity.Info, message, options, 2, false).then(value => {
-							if (value !== 0) {
-								return TPromise.as(null);
+						return this.choiceService.choose(Severity.Info, message, options).then(value => {
+							if (value === 0) {
+								return this.install(extension);
 							}
 
-							return this.install(extension);
+							return TPromise.as(null);
 						});
 					});
 				});

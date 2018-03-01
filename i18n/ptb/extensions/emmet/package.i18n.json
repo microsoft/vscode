@@ -55,8 +55,8 @@
 	"emmetPreferencesFormatNoIndentTags": "Uma matriz de nomes de abas que não devem ter recuo interno",
 	"emmetPreferencesFormatForceIndentTags": "Uma matriz de nomes de abas que deve sempre devem ter recuo interno",
 	"emmetPreferencesAllowCompactBoolean": "Se verdadeiro, a notação compacta de atributos booleanos são produzidos",
-	"emmetPreferencesCssWebkitProperties": "Propriedades css separadas por vírgula que obtém o prefixo do fornecedor webkit quando usadas em abreviações emmet que começam com `-`. Deixe vazio para prevenir o prefixo webkit sempre.",
-	"emmetPreferencesCssMozProperties": "Propriedades css separadas por vírgula que obtém o prefixo do fornecedor moz quando usadas em abreviações emmet que começam com `-`. Deixe vazio para prevenir o prefixo moz sempre.",
-	"emmetPreferencesCssOProperties": "Propriedades css separadas por vírgula que obtém o prefixo do fornecedor 'o' quando usadas em abreviações emmet que começam com `-`. Deixe vazio para prevenir o prefixo 'o' sempre.",
-	"emmetPreferencesCssMsProperties": "Propriedades css separadas por vírgula que obtém o prefixo do fornecedor ms quando usadas em abreviações emmet que começam com `-`. Deixe vazio para prevenir o prefixo ms sempre."
+	"emmetPreferencesCssWebkitProperties": "Propriedades CSS separadas por vírgula que recebem o prefixo vendor 'webkit' quando utilizado em abreviações do Emmet que iniciam com `-`. Defina como string vazia para sempre evitar o prefixo 'webkit'.",
+	"emmetPreferencesCssMozProperties": "Propriedades CSS separadas por vírgula que recebem o prefixo vendor 'moz' quando utilizado em abreviações do Emmet que iniciam com `-`. Defina como string vazia para sempre evitar o prefixo 'moz'.",
+	"emmetPreferencesCssOProperties": "Propriedades CSS separadas por vírgula que recebem o prefixo vendor 'o' quando utilizado em abreviações do Emmet que iniciam com `-`. Defina como string vazia para sempre evitar o prefixo 'o'.",
+	"emmetPreferencesCssMsProperties": "Propriedades CSS separadas por vírgula que recebem o prefixo vendor 'ms' quando utilizado em abreviações do Emmet que iniciam com `-`. Defina como string vazia para sempre evitar o prefixo 'ms'."
 }
