@@ -37,10 +37,10 @@ export const CLEAR_ALL_NOTIFICATIONS = 'notifications.clearAll';
 const notificationFocusedId = 'notificationFocus';
 export const NotificationFocusedContext = new RawContextKey<boolean>(notificationFocusedId, true);
 
-const notificationsCenterVisibleId = 'notificationsCenterVisible';
+const notificationsCenterVisibleId = 'notificationCenterVisible';
 export const NotificationsCenterVisibleContext = new RawContextKey<boolean>(notificationsCenterVisibleId, false);
 
-const notificationsToastsVisibleId = 'notificationsToastsVisible';
+const notificationsToastsVisibleId = 'notificationToastsVisible';
 export const NotificationsToastsVisibleContext = new RawContextKey<boolean>(notificationsToastsVisibleId, false);
 
 export interface INotificationsCenterController {
