@@ -202,7 +202,7 @@ configurationRegistry.registerConfiguration({
 		'debug.openDebug': {
 			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
 			default: 'openOnFirstSessionStart',
-			description: nls.localize('openDebug', "Controls whether debug viewlet should be open on debugging session start.")
+			description: nls.localize('openDebug', "Controls whether debug view should be open on debugging session start.")
 		},
 		'launch': {
 			type: 'object',
