@@ -74,6 +74,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	flex: 1; /* let the message always grow */
+	user-select: text;
 }
 
 .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a:focus {
@@ -84,7 +85,6 @@
 .monaco-workbench .notifications-list-container .notification-list-item.expanded .notification-list-item-message {
 	white-space: normal;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
-	user-select: text;
 }
 
 /** Notification: Toolbar Container */
