@@ -251,6 +251,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 						eventCounter++;
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 					} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
+						if (eventCounter === 0) {
+							return;
+						}
 						eventCounter--;
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
 					}

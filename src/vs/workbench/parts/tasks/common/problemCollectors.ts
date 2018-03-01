@@ -367,6 +367,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 	// Current State
 	private currentOwner: string;
 	private currentResource: string;
+	private lastBeginLine: string;
 
 	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService) {
 		super(problemMatchers, markerService, modelService);
@@ -419,11 +420,17 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 	}
 
 	private tryBegin(line: string): boolean {
+		// Disallow multiple consecutive begin lines to be identical in order to catch cases where
+		// CLI tools will rewrite terminal output, potentially causing tasks to begin multiple times
+		if (this.lastBeginLine === line) {
+			return false;
+		}
 		let result = false;
 		for (let i = 0; i < this.watchingBeginsPatterns.length; i++) {
 			let beginMatcher = this.watchingBeginsPatterns[i];
 			let matches = beginMatcher.pattern.regexp.exec(line);
 			if (matches) {
+				this.lastBeginLine = line;
 				result = true;
 				this._onDidStateChange.fire(ProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingBegins));
 				this.cleanMarkerCaches();
@@ -447,6 +454,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 			let endMatcher = this.watchingEndsPatterns[i];
 			let matches = endMatcher.pattern.regexp.exec(line);
 			if (matches) {
+				this.lastBeginLine = null;
 				this._onDidStateChange.fire(ProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingEnds));
 				result = true;
 				let owner = endMatcher.problemMatcher.owner;
