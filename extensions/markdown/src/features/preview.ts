@@ -44,6 +44,7 @@ export class MarkdownPreview {
 			this.getPreviewTitle(this._resource),
 			previewColumn, {
 				enableScripts: true,
+				enableCommandUris: true,
 				localResourceRoots: this.getLocalResourceRoots(_resource)
 			});
 
