@@ -83,7 +83,7 @@ export class OpenLogFileAction extends Action {
 	run(): TPromise<void> {
 		const entries: IPickOpenEntry[] = [
 			{ id: URI.file(paths.join(this.environmentService.logsPath, `renderer${this.windowService.getCurrentWindowId()}.log`)).fsPath, label: this.contextService.getWorkspace().name ? nls.localize('rendererProcess', "Window ({0})", this.contextService.getWorkspace().name) : nls.localize('emptyWindow', "Window") },
-			{ id: URI.file(paths.join(this.environmentService.logsPath, `extHost${this.windowService.getCurrentWindowId()}.log`)).fsPath, label: nls.localize('extensionHost', "Extension Host") },
+			{ id: URI.file(paths.join(this.environmentService.logsPath, `exthost${this.windowService.getCurrentWindowId()}.log`)).fsPath, label: nls.localize('extensionHost', "Extension Host") },
 			{ id: URI.file(paths.join(this.environmentService.logsPath, `sharedprocess.log`)).fsPath, label: nls.localize('sharedProcess', "Shared") },
 			{ id: URI.file(paths.join(this.environmentService.logsPath, `main.log`)).fsPath, label: nls.localize('mainProcess', "Main") }
 		];
