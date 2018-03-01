@@ -73,6 +73,13 @@ suite('markdown.TableOfContentsProvider', () => {
 		assert.strictEqual(await provider.lookup('foo'), undefined);
 		assert.strictEqual(await provider.lookup('fo o'), undefined);
 	});
+
+	test('should normalize special characters #44779', async () => {
+		const doc = new InMemoryDocument(testFileName, `# Indentação\n`);
+		const provider = new TableOfContentsProvider(new MarkdownEngine(), doc);
+
+		assert.strictEqual((await provider.lookup('indentacao'))!.line, 0);
+	});
 });
 
 class InMemoryDocument implements vscode.TextDocument {
