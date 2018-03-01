@@ -11,4 +11,4 @@ To run scripts as tasks you use the `Tasks` menu.
 - `npm.autoDetect` enable detecting scripts as tasks, the default is `on`.
 - `npm.runSilent` run npm script with the `--silent` option, the default is `false`.
 - `npm.packageManager` the package manager used to run the scripts: `npm` or `yarn`, the default is `npm`.
-- `npm.exclude` glob patterns for folders that should be excluded from automatic script detection. The pattern is matched against the **absolute path** of the package.json. For example to exclude all test folders user '**/test/**.
+- `npm.exclude` glob patterns for folders that should be excluded from automatic script detection. The pattern is matched against the **absolute path** of the package.json. For example, to exclude all test folders use '&ast;&ast;/test/&ast;&ast;'.
