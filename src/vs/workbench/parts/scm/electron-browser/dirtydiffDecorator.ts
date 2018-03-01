@@ -461,10 +461,17 @@ export class MoveToPreviousChangeAction extends EditorAction {
 
 		const lineNumber = outerEditor.getPosition().lineNumber;
 		const model = controller.modelRegistry.getModel(outerEditor.getModel());
+
+		if (model.changes.length === 0) {
+			return;
+		}
+
 		const index = model.findPreviousClosestChange(lineNumber, false);
 		const change = model.changes[index];
 
-		outerEditor.setPosition(new Position(change.modifiedStartLineNumber, 1));
+		const position = new Position(change.modifiedStartLineNumber, 1);
+		outerEditor.setPosition(position);
+		outerEditor.revealPosition(position);
 	}
 }
 registerEditorAction(MoveToPreviousChangeAction);
@@ -496,10 +503,17 @@ export class MoveToNextChangeAction extends EditorAction {
 
 		const lineNumber = outerEditor.getPosition().lineNumber;
 		const model = controller.modelRegistry.getModel(outerEditor.getModel());
+
+		if (model.changes.length === 0) {
+			return;
+		}
+
 		const index = model.findNextClosestChange(lineNumber, false);
 		const change = model.changes[index];
 
-		outerEditor.setPosition(new Position(change.modifiedStartLineNumber, 1));
+		const position = new Position(change.modifiedStartLineNumber, 1);
+		outerEditor.setPosition(position);
+		outerEditor.revealPosition(position);
 	}
 }
 registerEditorAction(MoveToNextChangeAction);
