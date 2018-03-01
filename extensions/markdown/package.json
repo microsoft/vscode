@@ -209,6 +209,10 @@
 				{
 					"command": "markdown.showPreviewSecuritySelector",
 					"when": "markdownPreviewFocus"
+				},
+				{
+					"command": "markdown.preview.toggleLock",
+					"when": "markdownPreviewFocus"
 				}
 			]
 		},
