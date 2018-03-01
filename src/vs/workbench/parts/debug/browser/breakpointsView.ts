@@ -117,14 +117,20 @@ export class BreakpointsView extends ViewsViewletPanel {
 		const actions: IAction[] = [];
 		const element = e.element;
 
-		if (element instanceof Breakpoint) {
+		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint) {
 			actions.push(new Action('workbench.action.debug.openEditorAndEditBreakpoint', nls.localize('editConditionalBreakpoint', "Edit Breakpoint..."), undefined, true, () => {
-				return openBreakpointSource(element, false, false, this.debugService, this.editorService).then(editor => {
-					const codeEditor = editor.getControl();
-					if (isCodeEditor(codeEditor)) {
-						codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(element.lineNumber, element.column);
-					}
-				});
+				if (element instanceof Breakpoint) {
+					return openBreakpointSource(element, false, false, this.debugService, this.editorService).then(editor => {
+						const codeEditor = editor.getControl();
+						if (isCodeEditor(codeEditor)) {
+							codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(element.lineNumber, element.column);
+						}
+					});
+				}
+
+				this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
+				this.onBreakpointsChange();
+				return undefined;
 			}));
 			actions.push(new Separator());
 		}
@@ -483,7 +489,9 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 			}
 		}));
 		toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
-			wrapUp(true);
+			if (!template.breakpoint.name) {
+				wrapUp(true);
+			}
 		}));
 
 		template.inputBox = inputBox;
