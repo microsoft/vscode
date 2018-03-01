@@ -11,13 +11,13 @@ import { MarkdownPreview, PreviewSettings } from './preview';
 import { disposeAll } from '../util/dispose';
 import { MarkdownFileTopmostLineMonitor } from '../util/topmostLineMonitor';
 import { isMarkdownFile } from '../util/file';
-import { PreviewConfigManager } from './previewConfig';
+import { MarkdownPreviewConfigurationManager } from './previewConfig';
 
 export class MarkdownPreviewManager {
 	private static readonly markdownPreviewActiveContextKey = 'markdownPreviewFocus';
 
 	private readonly topmostLineMonitor = new MarkdownFileTopmostLineMonitor();
-	private readonly previewConfigurations = new PreviewConfigManager();
+	private readonly previewConfigurations = new MarkdownPreviewConfigurationManager();
 	private readonly previews: MarkdownPreview[] = [];
 	private activePreview: MarkdownPreview | undefined = undefined;
 	private readonly disposables: vscode.Disposable[] = [];

@@ -12,7 +12,7 @@ import { disposeAll } from '../util/dispose';
 
 import * as nls from 'vscode-nls';
 import { getVisibleLine, MarkdownFileTopmostLineMonitor } from '../util/topmostLineMonitor';
-import { PreviewConfigManager } from './previewConfig';
+import { MarkdownPreviewConfigurationManager } from './previewConfig';
 const localize = nls.loadMessageBundle();
 
 export class MarkdownPreview {
@@ -35,7 +35,7 @@ export class MarkdownPreview {
 		previewColumn: vscode.ViewColumn,
 		public locked: boolean,
 		private readonly contentProvider: MarkdownContentProvider,
-		private readonly previewConfigurations: PreviewConfigManager,
+		private readonly previewConfigurations: MarkdownPreviewConfigurationManager,
 		private readonly logger: Logger,
 		topmostLineMonitor: MarkdownFileTopmostLineMonitor
 	) {
@@ -156,7 +156,7 @@ export class MarkdownPreview {
 	}
 
 	public updateConfiguration() {
-		if (this.previewConfigurations.shouldUpdateConfiguration(this._resource)) {
+		if (this.previewConfigurations.hasConfigurationChanged(this._resource)) {
 			this.refresh();
 		}
 	}

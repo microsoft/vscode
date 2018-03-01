@@ -12,7 +12,7 @@ const localize = nls.loadMessageBundle();
 
 import { Logger } from '../logger';
 import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from '../security';
-import { PreviewConfigManager, MarkdownPreviewConfig } from './previewConfig';
+import { MarkdownPreviewConfigurationManager, MarkdownPreviewConfiguration } from './previewConfig';
 
 /**
  * Strings used inside the markdown preview.
@@ -55,7 +55,7 @@ export class MarkdownContentProvider {
 
 	public async provideTextDocumentContent(
 		markdownDocument: vscode.TextDocument,
-		previewConfigurations: PreviewConfigManager,
+		previewConfigurations: MarkdownPreviewConfigurationManager,
 		initialLine: number | undefined = undefined
 	): Promise<string> {
 		const sourceUri = markdownDocument.uri;
@@ -134,7 +134,7 @@ export class MarkdownContentProvider {
 			.toString();
 	}
 
-	private computeCustomStyleSheetIncludes(resource: vscode.Uri, config: MarkdownPreviewConfig): string {
+	private computeCustomStyleSheetIncludes(resource: vscode.Uri, config: MarkdownPreviewConfiguration): string {
 		if (config.styles && Array.isArray(config.styles)) {
 			return config.styles.map(style => {
 				return `<link rel="stylesheet" class="code-user-style" data-source="${style.replace(/"/g, '&quot;')}" href="${this.fixHref(resource, style)}" type="text/css" media="screen">`;
@@ -143,7 +143,7 @@ export class MarkdownContentProvider {
 		return '';
 	}
 
-	private getSettingsOverrideStyles(nonce: string, config: MarkdownPreviewConfig): string {
+	private getSettingsOverrideStyles(nonce: string, config: MarkdownPreviewConfiguration): string {
 		return `<style nonce="${nonce}">
 			body {
 				${config.fontFamily ? `font-family: ${config.fontFamily};` : ''}
@@ -153,7 +153,7 @@ export class MarkdownContentProvider {
 		</style>`;
 	}
 
-	private getStyles(resource: vscode.Uri, nonce: string, config: MarkdownPreviewConfig): string {
+	private getStyles(resource: vscode.Uri, nonce: string, config: MarkdownPreviewConfiguration): string {
 		const baseStyles = [
 			this.extensionResourcePath('markdown.css'),
 			this.extensionResourcePath('tomorrow.css')

@@ -5,9 +5,9 @@
 
 import * as vscode from 'vscode';
 
-export class MarkdownPreviewConfig {
-	public static getConfigForResource(resource: vscode.Uri) {
-		return new MarkdownPreviewConfig(resource);
+export class MarkdownPreviewConfiguration {
+	public static getForResource(resource: vscode.Uri) {
+		return new MarkdownPreviewConfiguration(resource);
 	}
 
 	public readonly scrollBeyondLastLine: boolean;
@@ -50,7 +50,7 @@ export class MarkdownPreviewConfig {
 		this.styles = markdownConfig.get<string[]>('styles', []);
 	}
 
-	public isEqualTo(otherConfig: MarkdownPreviewConfig) {
+	public isEqualTo(otherConfig: MarkdownPreviewConfiguration) {
 		for (let key in this) {
 			if (this.hasOwnProperty(key) && key !== 'styles') {
 				if (this[key] !== otherConfig[key]) {
@@ -75,23 +75,23 @@ export class MarkdownPreviewConfig {
 	[key: string]: any;
 }
 
-export class PreviewConfigManager {
-	private previewConfigurationsForWorkspaces = new Map<string, MarkdownPreviewConfig>();
+export class MarkdownPreviewConfigurationManager {
+	private readonly previewConfigurationsForWorkspaces = new Map<string, MarkdownPreviewConfiguration>();
 
 	public loadAndCacheConfiguration(
 		resource: vscode.Uri
-	) {
-		const config = MarkdownPreviewConfig.getConfigForResource(resource);
+	): MarkdownPreviewConfiguration {
+		const config = MarkdownPreviewConfiguration.getForResource(resource);
 		this.previewConfigurationsForWorkspaces.set(this.getKey(resource), config);
 		return config;
 	}
 
-	public shouldUpdateConfiguration(
+	public hasConfigurationChanged(
 		resource: vscode.Uri
 	): boolean {
 		const key = this.getKey(resource);
 		const currentConfig = this.previewConfigurationsForWorkspaces.get(key);
-		const newConfig = MarkdownPreviewConfig.getConfigForResource(resource);
+		const newConfig = MarkdownPreviewConfiguration.getForResource(resource);
 		return (!currentConfig || !currentConfig.isEqualTo(newConfig));
 	}
 
@@ -99,9 +99,6 @@ export class PreviewConfigManager {
 		resource: vscode.Uri
 	): string {
 		const folder = vscode.workspace.getWorkspaceFolder(resource);
-		if (!folder) {
-			return '';
-		}
-		return folder.uri.toString();
+		return folder ? folder.uri.toString() : '';
 	}
 }
