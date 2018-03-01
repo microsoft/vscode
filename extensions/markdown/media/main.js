@@ -145,14 +145,10 @@
 
 		if (hi >= 1 && hiBounds.top > position) {
 			const loElement = lines[lo];
-			const bounds = loElement.element.getBoundingClientRect();
-			const previous = { element: loElement.element, line: loElement.line + (position - bounds.top) / (bounds.height) };
-			const next = { element: hiElement.element, line: hiElement.line, fractional: 0 };
-			return { previous, next };
+			return { previous: loElement, next: hiElement };
 		}
 
-		const previous = { element: hiElement.element, line: hiElement.line + (position - hiBounds.top) / (hiBounds.height) };
-		return { previous };
+		return { previous: hiElement };
 	}
 
 	/**
@@ -186,12 +182,17 @@
 	function getEditorLineNumberForPageOffset(offset) {
 		const { previous, next } = getLineElementsAtPageOffset(offset);
 		if (previous) {
+			const previousBounds = previous.element.getBoundingClientRect();
+			const offsetFromPrevious = (offset - window.scrollY - previousBounds.top);
+
 			if (next) {
-				const betweenProgress = (offset - window.scrollY - previous.element.getBoundingClientRect().top) / (next.element.getBoundingClientRect().top - previous.element.getBoundingClientRect().top);
-				const line = previous.line + betweenProgress * (next.line - previous.line);
+				const progressBetweenElements = offsetFromPrevious / (next.element.getBoundingClientRect().top - previousBounds.top);
+				const line = previous.line + progressBetweenElements * (next.line - previous.line);
 				return clampLine(line);
 			} else {
-				return clampLine(previous.line);
+				const progressWithinElement = offsetFromPrevious / (previousBounds.height);
+				const line = previous.line + progressWithinElement;
+				return clampLine(line);
 			}
 		}
 		return null;
