@@ -52,6 +52,7 @@ export interface LanguageMode {
 	getColorPresentations?: (document: TextDocument, color: Color, range: Range) => ColorPresentation[];
 	doAutoClose?: (document: TextDocument, position: Position) => string | null;
 	getFoldingRanges?: (document: TextDocument) => FoldingRangeList | null;
+	getEmbeddedParsedDocument?: (document: TextDocument) => any;
 	onDocumentRemoved(document: TextDocument): void;
 	dispose(): void;
 }
