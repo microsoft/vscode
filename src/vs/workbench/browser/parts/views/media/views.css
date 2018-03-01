@@ -50,6 +50,11 @@
 	display: none;
 }
 
+.tree-explorer-viewlet-tree-view.file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content:not(.align-with-twisty)::before,
+.tree-explorer-viewlet-tree-view.file-icon-themable-tree.hide-arrows .monaco-tree-row .content::before {
+	display: inline-block;
+}
+
 .tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item {
 	display: flex;
 	height: 22px;

@@ -339,6 +339,7 @@ interface ITreeExplorerTemplateData {
 	resourceLabel: ResourceLabel;
 	icon: HTMLElement;
 	actionBar: ActionBar;
+	aligner: Aligner;
 }
 
 class TreeRenderer implements IRenderer {
@@ -375,7 +376,7 @@ class TreeRenderer implements IRenderer {
 			actionRunner: new MultipleSelectionActionRunner(() => tree.getSelection())
 		});
 
-		return { label, resourceLabel, icon, actionBar };
+		return { label, resourceLabel, icon, actionBar, aligner: new Aligner(container, tree, this.themeService) };
 	}
 
 	public renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
@@ -404,6 +405,8 @@ class TreeRenderer implements IRenderer {
 		DOM.toggleClass(templateData.icon, 'custom-view-tree-node-item-icon', !!icon);
 		templateData.actionBar.context = (<TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle });
 		templateData.actionBar.push(this.menus.getResourceActions(node), { icon: true, label: false });
+
+		templateData.aligner.align(node);
 	}
 
 	private getFileKind(node: ITreeItem): FileKind {
@@ -421,6 +424,81 @@ class TreeRenderer implements IRenderer {
 	public disposeTemplate(tree: ITree, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		templateData.resourceLabel.dispose();
 		templateData.actionBar.dispose();
+		templateData.aligner.dispose();
+	}
+}
+
+class Aligner extends Disposable {
+
+	private node: ITreeItem;
+
+	constructor(
+		private container: HTMLElement,
+		private tree: ITree,
+		private themeService: IWorkbenchThemeService
+	) {
+		super();
+		this._register(this.themeService.onDidFileIconThemeChange(() => this.alignByTheme()));
+	}
+
+	align(treeItem: ITreeItem): void {
+		this.node = treeItem;
+		this.alignByTheme();
+	}
+
+	private alignByTheme(): void {
+		if (this.node) {
+			DOM.toggleClass(this.container, 'align-with-twisty', this.hasToAlignWithTwisty());
+		}
+	}
+
+	private hasToAlignWithTwisty(): boolean {
+		if (this.hasParentHasIcon()) {
+			return false;
+		}
+
+		const fileIconTheme = this.themeService.getFileIconTheme();
+		if (!(fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons)) {
+			return false;
+		}
+		if (this.node.collapsibleState !== TreeItemCollapsibleState.None) {
+			return false;
+		}
+		const icon = this.themeService.getTheme().type === LIGHT ? this.node.icon : this.node.iconDark;
+		const hasIcon = !!icon || !!this.node.resourceUri;
+		if (!hasIcon) {
+			return false;
+		}
+
+		const siblingsWithChildren = this.getSiblings().filter(s => s.collapsibleState !== TreeItemCollapsibleState.None);
+		for (const s of siblingsWithChildren) {
+			const icon = this.themeService.getTheme().type === LIGHT ? s.icon : s.iconDark;
+			if (icon) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	private getSiblings(): ITreeItem[] {
+		const parent: ITreeItem = this.tree.getNavigator(this.node).parent() || this.tree.getInput();
+		return parent.children;
+	}
+
+	private hasParentHasIcon(): boolean {
+		const parent = this.tree.getNavigator(this.node).parent() || this.tree.getInput();
+		const icon = this.themeService.getTheme().type === LIGHT ? parent.icon : parent.iconDark;
+		if (icon) {
+			return true;
+		}
+		if (parent.resourceUri) {
+			const fileIconTheme = this.themeService.getFileIconTheme();
+			if (fileIconTheme.hasFileIcons && fileIconTheme.hasFolderIcons) {
+				return true;
+			}
+		}
+		return false;
 	}
 }
 
