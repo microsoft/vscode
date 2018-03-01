@@ -37,7 +37,10 @@ export function registerCommands(): void {
 			const list = focused;
 
 			list.focusNext(count);
-			list.reveal(list.getFocus()[0]);
+			const listFocus = list.getFocus();
+			if (listFocus.length) {
+				list.reveal(listFocus[0]);
+			}
 		}
 
 		// Tree
@@ -133,7 +136,10 @@ export function registerCommands(): void {
 			const list = focused;
 
 			list.focusPrevious(count);
-			list.reveal(list.getFocus()[0]);
+			const listFocus = list.getFocus();
+			if (listFocus.length) {
+				list.reveal(listFocus[0]);
+			}
 		}
 
 		// Tree
