@@ -646,6 +646,24 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}, () => this.extensionService.uninstall(local));
 	}
 
+	reinstall(extension: IExtension): TPromise<void> {
+		if (!(extension instanceof Extension)) {
+			return undefined;
+		}
+
+		const ext = extension as Extension;
+		const local = ext.local || this.installed.filter(e => e.id === extension.id)[0].local;
+
+		if (!local) {
+			return TPromise.wrapError<void>(new Error('Missing local'));
+		}
+
+		return this.progressService.withProgress({
+			location: ProgressLocation.Extensions,
+			tooltip: `${local.identifier.id}`
+		}, () => this.extensionService.reinstall(local));
+	}
+
 	private promptAndSetEnablement(extension: IExtension, enablementState: EnablementState, enable: boolean): TPromise<any> {
 		const allDependencies = this.getDependenciesRecursively(extension, this.local, enablementState, []);
 		if (allDependencies.length > 0) {

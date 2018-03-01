@@ -242,6 +242,20 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			error => this.onDidInstallExtensions([extension], [], [error]));
 	}
 
+	reinstall(extension: ILocalExtension): TPromise<void> {
+		if (!this.galleryService.isEnabled()) {
+			return TPromise.wrapError(new Error('Marketplace is not enabled'));
+		}
+		return this.findGalleryExtension(extension)
+			.then(galleryExtension => {
+				if (galleryExtension) {
+					return this.removeUninstalledExtension(extension)
+						.then(() => this.installFromGallery(galleryExtension));
+				}
+				return TPromise.wrapError(new Error('Only Market place Extensions can be reinstalled'));
+			});
+	}
+
 	private collectExtensionsToInstall(extension: IGalleryExtension): TPromise<IGalleryExtension[]> {
 		return this.galleryService.loadCompatibleVersion(extension)
 			.then(compatible => {
@@ -472,11 +486,24 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private getMetadata(extensionName: string): TPromise<IGalleryMetadata> {
-		return this.galleryService.query({ names: [extensionName], pageSize: 1 })
-			.then(galleryResult => {
-				const galleryExtension = galleryResult.firstPage[0];
-				return galleryExtension ? <IGalleryMetadata>{ id: galleryExtension.identifier.uuid, publisherDisplayName: galleryExtension.publisherDisplayName, publisherId: galleryExtension.publisherId } : null;
-			});
+		return this.findGalleryExtensionByName(extensionName)
+			.then(galleryExtension => galleryExtension ? <IGalleryMetadata>{ id: galleryExtension.identifier.uuid, publisherDisplayName: galleryExtension.publisherDisplayName, publisherId: galleryExtension.publisherId } : null);
+	}
+
+	private findGalleryExtension(local: ILocalExtension): TPromise<IGalleryExtension> {
+		if (local.identifier.uuid) {
+			return this.findGalleryExtensionById(local.identifier.uuid)
+				.then(galleryExtension => galleryExtension ? galleryExtension : this.findGalleryExtensionByName(getGalleryExtensionIdFromLocal(local)));
+		}
+		return this.findGalleryExtensionByName(getGalleryExtensionIdFromLocal(local));
+	}
+
+	private findGalleryExtensionById(uuid: string): TPromise<IGalleryExtension> {
+		return this.galleryService.query({ ids: [uuid], pageSize: 1 }).then(galleryResult => galleryResult.firstPage[0]);
+	}
+
+	private findGalleryExtensionByName(name: string): TPromise<IGalleryExtension> {
+		return this.galleryService.query({ names: [name], pageSize: 1 }).then(galleryResult => galleryResult.firstPage[0]);
 	}
 
 	private joinErrors(errorOrErrors: (Error | string) | ((Error | string)[])): Error {

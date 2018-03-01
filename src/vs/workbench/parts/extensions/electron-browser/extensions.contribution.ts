@@ -24,7 +24,7 @@ import {
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, ShowBuiltInExtensionsAction, UpdateAllAction,
 	EnableAllAction, EnableAllWorkpsaceAction, DisableAllAction, DisableAllWorkpsaceAction, CheckForUpdatesAction, ShowLanguageExtensionsAction, ShowAzureExtensionsAction, EnableAutoUpdateAction, DisableAutoUpdateAction, ConfigureRecommendedExtensionsCommandsContributor
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
-import { OpenExtensionsFolderAction, InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
+import { OpenExtensionsFolderAction, InstallVSIXAction, ReinstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ExtensionEditor } from 'vs/workbench/parts/extensions/browser/extensionEditor';
@@ -194,6 +194,7 @@ actionRegistry.registerWorkbenchAction(checkForUpdatesAction, `Extensions: Check
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL), `Extensions: Enable Auto Updating Extensions`, ExtensionsLabel);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL), `Extensions: Disable Auto Updating Extensions`, ExtensionsLabel);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowRuntimeExtensionsAction, ShowRuntimeExtensionsAction.ID, ShowRuntimeExtensionsAction.LABEL), 'Show Running Extensions', localize('developer', "Developer"));
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReinstallAction, ReinstallAction.ID, ReinstallAction.LABEL), 'Reinstall Extension...', localize('developer', "Developer"));
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
