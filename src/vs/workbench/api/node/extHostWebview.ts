@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { Position } from 'vs/platform/editor/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export class ExtHostWebview implements vscode.Webview {
 	public readonly editorType = 'webview';
@@ -159,7 +160,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 			webview.onDisposeEmitter.fire();
 			this._webviews.delete(handle);
 		}
-		return Promise.resolve(void 0);
+		return TPromise.as(void 0);
 	}
 
 	$onDidChangePosition(handle: WebviewHandle, newPosition: Position): void {
