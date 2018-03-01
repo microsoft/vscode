@@ -76,6 +76,9 @@ export class MarkdownPreviewManager {
 		preview.update(resource);
 	}
 
+	public get activePreviewResource() {
+		return this.activePreview && this.activePreview.resource;
+	}
 
 	public getResourceForPreview(previewUri: vscode.Uri): vscode.Uri | undefined {
 		const preview = this.getPreviewWithUri(previewUri);
