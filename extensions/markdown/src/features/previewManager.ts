@@ -73,13 +73,13 @@ class MarkdownPreview {
 		}, null, this.disposables);
 
 		vscode.workspace.onDidChangeTextDocument(event => {
-			if (isMarkdownFile(event.document) && this.isPreviewOf(event.document.uri)) {
+			if (this.isPreviewOf(event.document.uri)) {
 				this.refresh();
 			}
 		}, null, this.disposables);
 
 		vscode.window.onDidChangeTextEditorVisibleRanges(event => {
-			if (isMarkdownFile(event.textEditor.document) && this.isPreviewOf(event.textEditor.document.uri)) {
+			if (this.isPreviewOf(event.textEditor.document.uri)) {
 				const resource = event.textEditor.document.uri;
 				const line = getVisibleLine(event.textEditor);
 				this.updateForView(resource, line);
@@ -87,7 +87,7 @@ class MarkdownPreview {
 		}, null, this.disposables);
 
 		vscode.window.onDidChangeTextEditorSelection(event => {
-			if (isMarkdownFile(event.textEditor.document) && this.isPreviewOf(event.textEditor.document.uri)) {
+			if (this.isPreviewOf(event.textEditor.document.uri)) {
 				this.webview.postMessage({
 					type: 'onDidChangeTextEditorSelection',
 					line: event.selections[0].active.line,
@@ -261,7 +261,7 @@ class MarkdownPreview {
 
 	private onDidScrollPreview(line: number) {
 		for (const editor of vscode.window.visibleTextEditors) {
-			if (!isMarkdownFile(editor.document) || editor.document.uri.fsPath !== this._resource.fsPath) {
+			if (!this.isPreviewOf(editor.document.uri)) {
 				continue;
 			}
 
