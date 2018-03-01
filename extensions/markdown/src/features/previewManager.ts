@@ -11,6 +11,51 @@ import { Logger } from '../logger';
 import { MarkdownContentProvider, PreviewConfigManager, isMarkdownFile } from './previewContentProvider';
 const localize = nls.loadMessageBundle();
 
+class MarkdownFileTopmostLineMonitor {
+	private readonly disposables: vscode.Disposable[] = [];
+
+	private readonly pendingUpdates = new Map<string, number>();
+
+	constructor() {
+		vscode.window.onDidChangeTextEditorVisibleRanges(event => {
+			if (isMarkdownFile(event.textEditor.document)) {
+				const line = getVisibleLine(event.textEditor);
+				if (line) {
+					this.updateLine(event.textEditor.document.uri, line);
+				}
+			}
+		}, null, this.disposables);
+	}
+
+	dispose() {
+		disposeAll(this.disposables);
+	}
+
+	private readonly _onDidChangeTopmostLineEmitter = new vscode.EventEmitter<{ resource: vscode.Uri, line: number }>();
+	public readonly onDidChangeTopmostLine = this._onDidChangeTopmostLineEmitter.event;
+
+	private updateLine(
+		resource: vscode.Uri,
+		line: number
+	) {
+		const key = resource.toString();
+		if (!this.pendingUpdates.has(key)) {
+			// schedule update
+			setTimeout(() => {
+				if (this.pendingUpdates.has(key)) {
+					this._onDidChangeTopmostLineEmitter.fire({
+						resource,
+						line: this.pendingUpdates.get(key) as number
+					});
+					this.pendingUpdates.delete(key);
+				}
+			}, 50);
+		}
+
+		this.pendingUpdates.set(key, line);
+	}
+}
+
 class MarkdownPreview {
 
 	public static previewScheme = 'vscode-markdown-preview';
@@ -32,7 +77,8 @@ class MarkdownPreview {
 		public locked: boolean,
 		private readonly contentProvider: MarkdownContentProvider,
 		private readonly previewConfigurations: PreviewConfigManager,
-		private readonly logger: Logger
+		private readonly logger: Logger,
+		topmostLineMonitor: MarkdownFileTopmostLineMonitor
 	) {
 		this.uri = vscode.Uri.parse(`${MarkdownPreview.previewScheme}:${MarkdownPreview.previewCount++}`);
 		this.webview = vscode.window.createWebview(
@@ -78,11 +124,9 @@ class MarkdownPreview {
 			}
 		}, null, this.disposables);
 
-		vscode.window.onDidChangeTextEditorVisibleRanges(event => {
-			if (this.isPreviewOf(event.textEditor.document.uri)) {
-				const resource = event.textEditor.document.uri;
-				const line = getVisibleLine(event.textEditor);
-				this.updateForView(resource, line);
+		topmostLineMonitor.onDidChangeTopmostLine(event => {
+			if (this.isPreviewOf(event.resource)) {
+				this.updateForView(event.resource, event.line);
 			}
 		}, null, this.disposables);
 
@@ -297,6 +341,7 @@ export interface PreviewSettings {
 export class MarkdownPreviewManager {
 	private static readonly markdownPreviewActiveContextKey = 'markdownPreviewFocus';
 
+	private readonly topmostLineMonitor = new MarkdownFileTopmostLineMonitor();
 	private readonly previewConfigurations = new PreviewConfigManager();
 	private readonly previews: MarkdownPreview[] = [];
 	private activePreview: MarkdownPreview | undefined = undefined;
@@ -398,7 +443,8 @@ export class MarkdownPreviewManager {
 			previewSettings.locked,
 			this.contentProvider,
 			this.previewConfigurations,
-			this.logger);
+			this.logger,
+			this.topmostLineMonitor);
 
 		preview.onDispose(() => {
 			const existing = this.previews.indexOf(preview!);
