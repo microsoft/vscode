@@ -154,7 +154,16 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			result = result
 				.filter(e => e.type === LocalExtensionType.System && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
 
-			return new PagedModel(this.sortExtensions(result, options));
+			const themesExtensions = result.filter(e => {
+				return e.local.manifest
+					&& e.local.manifest.contributes
+					&& Array.isArray(e.local.manifest.contributes.themes)
+					&& e.local.manifest.contributes.themes.length;
+			});
+			const themesExtensionsIds = themesExtensions.map(e => e.id);
+			const others = result.filter(e => themesExtensionsIds.indexOf(e.id) === -1);
+
+			return new PagedModel([...this.sortExtensions(others, options), ...this.sortExtensions(themesExtensions, options)]);
 		}
 
 		if (!value || ExtensionsListView.isInstalledExtensionsQuery(value)) {
