@@ -82,10 +82,6 @@ export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegio
 			let embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.getColorPresentations(embedded, cssStylesheets.get(embedded), color, range);
 		},
-		getEmbeddedParsedDocument(document: TextDocument) {
-			let embedded = embeddedCSSDocuments.get(document);
-			return cssStylesheets.get(embedded);
-		},
 		onDocumentRemoved(document: TextDocument) {
 			embeddedCSSDocuments.onDocumentRemoved(document);
 			cssStylesheets.onDocumentRemoved(document);
