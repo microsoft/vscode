@@ -54,6 +54,7 @@ import { TaskEvent, TaskEventKind } from 'vs/workbench/parts/tasks/common/tasks'
 import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IAction, Action } from 'vs/base/common/actions';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -1195,6 +1196,8 @@ export class DebugService implements debug.IDebugService {
 			if (breakpointsToSend.length && !rawSource.adapterData) {
 				rawSource.adapterData = breakpointsToSend[0].adapterData;
 			}
+			// Normalize all drive letters going out from vscode to debug adapters so we are consistent with our resolving #43959
+			rawSource.path = normalizeDriveLetter(rawSource.path);
 
 			return session.setBreakpoints({
 				source: rawSource,
