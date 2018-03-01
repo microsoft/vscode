@@ -3833,7 +3833,7 @@ declare module 'vscode' {
 	 * An output channel is a container for readonly textual information.
 	 *
 	 * To get an instance of an `OutputChannel` use
-	 * [	createOutputChannel](#window.createOutputChannel).
+	 * [createOutputChannel](#window.createOutputChannel).
 	 */
 	export interface OutputChannel {
 
