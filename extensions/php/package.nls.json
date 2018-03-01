@@ -6,6 +6,6 @@
 	"configuration.title": "PHP",
 	"commands.categroy.php": "PHP",
 	"command.untrustValidationExecutable": "Disallow PHP validation executable (defined as workspace setting)",
-	"displayName": "PHP Language features",
-	"description": "Provides rich language support for php files"
+	"displayName": "PHP Language Features",
+	"description": "Provides intelli-sense, linting, and language basics for PHP files."
 }
