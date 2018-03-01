@@ -207,7 +207,9 @@ export class FoldingController implements IEditorContribution {
 					let selections = this.editor.getSelections();
 					let selectionLineNumbers = selections ? selections.map(s => s.startLineNumber) : [];
 					return this.getRangeProvider().compute(this.foldingModel.textModel).then(foldingRanges => {
-						this.foldingModel.update(foldingRanges, selectionLineNumbers);
+						if (this.foldingModel) { // null if editor has been disposed, or folding turned off
+							this.foldingModel.update(foldingRanges, selectionLineNumbers);
+						}
 						return this.foldingModel;
 					});
 				}
