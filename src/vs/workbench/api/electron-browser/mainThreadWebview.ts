@@ -467,7 +467,9 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 
 	$disposeWebview(handle: WebviewHandle): void {
 		const webview = this.getWebview(handle);
-		this._editorService.closeEditors({ positionOne: [webview], positionTwo: [webview], positionThree: [webview] });
+		if (webview) {
+			this._editorService.closeEditor(webview.position, webview);
+		}
 	}
 
 	$setTitle(handle: WebviewHandle, value: string): void {
