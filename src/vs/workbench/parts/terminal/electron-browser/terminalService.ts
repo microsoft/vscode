@@ -25,7 +25,6 @@ import { TerminalTab } from 'vs/workbench/parts/terminal/electron-browser/termin
 import { IChoiceService, IConfirmationService, Choice } from 'vs/platform/dialogs/common/dialogs';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
-	private WSL_BASH = 'WSL Bash';
 	private _configHelper: TerminalConfigHelper;
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 
@@ -70,11 +69,6 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		this._onInstancesChanged.fire();
 		this._suggestShellChange(wasNewTerminalAction);
 		return instance;
-	}
-
-	public isWslBashTerminal(terminalInstance: ITerminalInstance): boolean {
-		const expectedLocations = this._getExpectedLocations();
-		return terminalInstance.shellLaunchConfig.executable === expectedLocations[this.WSL_BASH][0];
 	}
 
 	public focusFindWidget(): TPromise<void> {
@@ -175,7 +169,28 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 	}
 
 	private _detectWindowsShells(): TPromise<IPickOpenEntry[]> {
-		const expectedLocations = this._getExpectedLocations();
+		// Determine the correct System32 path. We want to point to Sysnative
+		// when the 32-bit version of VS Code is running on a 64-bit machine.
+		// The reason for this is because PowerShell's important PSReadline
+		// module doesn't work if this is not the case. See #27915.
+		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
+		const system32Path = `${process.env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}`;
+		const expectedLocations = {
+			'Command Prompt': [`${system32Path}\\cmd.exe`],
+			PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
+			'WSL Bash': [
+				`${system32Path}\\bash.exe`,
+				`${system32Path}\\wsl.exe`,
+			],
+			'Git Bash': [
+				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
+				`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
+				`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
+				`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
+				`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
+			]
+		};
+
 		const promises: TPromise<[string, string]>[] = [];
 		Object.keys(expectedLocations).forEach(key => promises.push(this._validateShellPaths(key, expectedLocations[key])));
 		return TPromise.join(promises).then(results => {
@@ -186,28 +201,6 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 				};
 			});
 		});
-	}
-
-	private _getExpectedLocations(): { [key: string]: string[] } {
-		// Determine the correct System32 path. We want to point to Sysnative
-		// when the 32-bit version of VS Code is running on a 64-bit machine.
-		// The reason for this is because PowerShell's important PSReadline
-		// module doesn't work if this is not the case. See #27915.
-		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
-		const system32Path = `${process.env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}`;
-		const expectedLocations = {
-			'Command Prompt': [`${system32Path}\\cmd.exe`],
-			PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
-			[this.WSL_BASH]: [`${system32Path}\\bash.exe`],
-			'Git Bash': [
-				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
-				`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
-				`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
-				`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
-				`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
-			]
-		};
-		return expectedLocations;
 	}
 
 	private _validateShellPaths(label: string, potentialPaths: string[]): TPromise<[string, string]> {

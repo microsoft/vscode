@@ -76,7 +76,6 @@ export abstract class TerminalService implements ITerminalService {
 	public abstract getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract selectDefaultWindowsShell(): TPromise<string>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	public abstract isWslBashTerminal(terminalInstance: ITerminalInstance): boolean;
 
 	private _restoreTabs(): void {
 		if (!this.configHelper.config.experimentalRestore) {
