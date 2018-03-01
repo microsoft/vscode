@@ -23,7 +23,7 @@ import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestTextResourceConfigurationService, TestContextService, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextResourceConfigurationService, TestContextService, TestLifecycleService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import URI from 'vs/base/common/uri';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
@@ -42,10 +42,11 @@ import { ExtensionManagementService } from 'vs/platform/extensionManagement/node
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/common/extensionEnablementService.test';
 import { IURLService } from 'vs/platform/url/common/url';
-import { IChoiceService } from 'vs/platform/message/common/message';
 import product from 'vs/platform/node/product';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -179,7 +180,7 @@ suite('ExtensionsTipsService Test', () => {
 		uninstallEvent = new Emitter<IExtensionIdentifier>();
 		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
-
+		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		testConfigurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, testConfigurationService);
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
@@ -226,7 +227,7 @@ suite('ExtensionsTipsService Test', () => {
 			}
 		});
 
-		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: false });
+		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: false, showRecommendationsOnlyOnDemand: false });
 		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, store: () => { } });
 		instantiationService.stub(IModelService, <IModelService>{
 			getModels(): any { return []; },
@@ -260,16 +261,28 @@ suite('ExtensionsTipsService Test', () => {
 			const myWorkspace = testWorkspace(URI.from({ scheme: 'file', path: folderDir }));
 			workspaceService = new TestContextService(myWorkspace);
 			instantiationService.stub(IWorkspaceContextService, workspaceService);
-			instantiationService.stub(IFileService, new FileService(workspaceService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), { disableWatcher: true }));
+			instantiationService.stub(IFileService, new FileService(workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), { disableWatcher: true }));
 		});
 	}
 
 	function testNoPromptForValidRecommendations(recommendations: string[]) {
 		return setUpFolderWorkspace('myFolder', recommendations).then(() => {
 			testObject = instantiationService.createInstance(ExtensionTipsService);
-			const promise = testObject.promptWorkspaceRecommendationsPromise || testObject.getWorkspaceRecommendations();
-			return promise.then(() => {
+			return testObject.promptWorkspaceRecommendationsPromise.then(() => {
 				assert.equal(Object.keys(testObject.getAllRecommendationsWithReason()).length, recommendations.length);
+				assert.ok(!prompted);
+			});
+		});
+	}
+
+	function testNoPromptOrRecommendationsForValidRecommendations(recommendations: string[]) {
+		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
+			testObject = instantiationService.createInstance(ExtensionTipsService);
+			assert.equal(!testObject.promptWorkspaceRecommendationsPromise, true);
+			assert.ok(!prompted);
+
+			return testObject.getWorkspaceRecommendations().then(() => {
+				assert.equal(Object.keys(testObject.getAllRecommendationsWithReason()).length, 0);
 				assert.ok(!prompted);
 			});
 		});
@@ -277,12 +290,12 @@ suite('ExtensionsTipsService Test', () => {
 
 	test('ExtensionTipsService: No Prompt for valid workspace recommendations when galleryService is absent', () => {
 		instantiationService.stub(IExtensionGalleryService, 'isEnabled', false);
-		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
+		return testNoPromptOrRecommendationsForValidRecommendations(mockTestData.validRecommendedExtensions);
 	});
 
 	test('ExtensionTipsService: No Prompt for valid workspace recommendations during extension development', () => {
 		instantiationService.stub(IEnvironmentService, { extensionDevelopmentPath: true });
-		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
+		return testNoPromptOrRecommendationsForValidRecommendations(mockTestData.validRecommendedExtensions);
 	});
 
 	test('ExtensionTipsService: No workspace recommendations or prompts when extensions.json has empty array', () => {
@@ -318,6 +331,17 @@ suite('ExtensionsTipsService Test', () => {
 	test('ExtensionTipsService: No Prompt for valid workspace recommendations if ignoreRecommendations is set', () => {
 		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: true });
 		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
+	});
+
+	test('ExtensionTipsService: No Prompt for valid workspace recommendations if showRecommendationsOnlyOnDemand is set', () => {
+		testConfigurationService.setUserConfiguration(ConfigurationKey, { showRecommendationsOnlyOnDemand: true });
+		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
+			testObject = instantiationService.createInstance(ExtensionTipsService);
+			return testObject.promptWorkspaceRecommendationsPromise.then(() => {
+				assert.equal(Object.keys(testObject.getAllRecommendationsWithReason()).length, 0);
+				assert.ok(!prompted);
+			});
+		});
 	});
 
 	test('ExtensionTipsService: No Prompt for valid workspace recommendations if ignoreRecommendations is set for current workspace', () => {

@@ -15,7 +15,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { groupBy } from 'vs/base/common/arrays';
 import { dispose } from 'vs/base/common/lifecycle';
-import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver } from './snippetVariables';
+import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver, TimeBasedVariableResolver } from './snippetVariables';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -318,7 +318,8 @@ export class SnippetSession {
 				.resolveVariables(new CompositeSnippetVariableResolver([
 					modelBasedVariableResolver,
 					new ClipboardBasedVariableResolver(clipboardService, idx, indexedSelections.length),
-					new SelectionBasedVariableResolver(model, selection)
+					new SelectionBasedVariableResolver(model, selection),
+					new TimeBasedVariableResolver
 				]));
 
 			const offset = model.getOffsetAt(start) + delta;
@@ -443,8 +444,7 @@ export class SnippetSession {
 			return false;
 		}
 
-		let ranges: Range[] = [];
-		let placeholderIndex: number = -1;
+		let allPossibleSelections: Map<number, Range[]>;
 		for (const snippet of this._snippets) {
 
 			const possibleSelections = snippet.computePossibleSelections();
@@ -452,49 +452,58 @@ export class SnippetSession {
 			// for the first snippet find the placeholder (and its ranges)
 			// that contain at least one selection. for all remaining snippets
 			// the same placeholder (and their ranges) must be used.
-			if (placeholderIndex < 0) {
+			if (!allPossibleSelections) {
+				allPossibleSelections = new Map<number, Range[]>();
 				possibleSelections.forEach((ranges, index) => {
-					if (placeholderIndex >= 0) {
-						return;
-					}
+
 					ranges.sort(Range.compareRangesUsingStarts);
 					for (const selection of selections) {
 						if (ranges[0].containsRange(selection)) {
-							placeholderIndex = index;
+							allPossibleSelections.set(index, []);
 							break;
 						}
 					}
 				});
 			}
 
-			if (placeholderIndex < 0) {
+			if (allPossibleSelections.size === 0) {
 				// return false if we couldn't associate a selection to
 				// this (the first) snippet
 				return false;
 			}
 
-			ranges.push(...possibleSelections.get(placeholderIndex));
+			// add selections from 'this' snippet so that we know all
+			// selections for this placeholder
+			allPossibleSelections.forEach((array, index) => {
+				array.push(...possibleSelections.get(index));
+			});
 		}
 
-		if (selections.length !== ranges.length) {
-			// this means we started at a placeholder with N
-			// ranges and new have M (N > M) selections.
-			// So (at least) one placeholder is without selection -> cancel
-			return false;
-		}
-
-		// also sort (placeholder)-ranges. then walk both arrays and
-		// make sure the placeholder-ranges contain the corresponding
+		// sort selections (and later placeholder-ranges). then walk both
+		// arrays and make sure the placeholder-ranges contain the corresponding
 		// selection
 		selections.sort(Range.compareRangesUsingStarts);
-		ranges.sort(Range.compareRangesUsingStarts);
 
-		for (let i = 0; i < ranges.length; i++) {
-			if (!ranges[i].containsRange(selections[i])) {
-				return false;
+		allPossibleSelections.forEach((ranges, index) => {
+
+			if (ranges.length !== selections.length) {
+				allPossibleSelections.delete(index);
+				return;
 			}
-		}
 
-		return true;
+			ranges.sort(Range.compareRangesUsingStarts);
+
+			for (let i = 0; i < ranges.length; i++) {
+				if (!ranges[i].containsRange(selections[i])) {
+					allPossibleSelections.delete(index);
+					return;
+				}
+			}
+		});
+
+		// from all possible selections we have deleted those
+		// that don't match with the current selection. if we don't
+		// have any left, we don't have a selection anymore
+		return allPossibleSelections.size > 0;
 	}
 }

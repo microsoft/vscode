@@ -4,23 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {
-	createMainContextProxyIdentifier as createMainId,
-	createExtHostContextProxyIdentifier as createExtId,
-	ProxyIdentifier,
-	IRPCProtocol,
-	ProxyType
-} from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { createMainContextProxyIdentifier as createMainId, createExtHostContextProxyIdentifier as createExtId, ProxyIdentifier, IRPCProtocol } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 
 import * as vscode from 'vscode';
 
-import { UriComponents } from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
@@ -30,7 +24,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 
 import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
-import { IConfig } from 'vs/workbench/parts/debug/common/debug';
+import { IConfig, IAdapterExecutable } from 'vs/workbench/parts/debug/common/debug';
 
 import { IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -48,11 +42,13 @@ import { ITreeItem } from 'vs/workbench/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
-import { IStat, IFileChange } from 'vs/platform/files/common/files';
+import { IStat, FileChangeType } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
-import { EndOfLineSequence, ISingleEditOperation } from 'vs/editor/common/model';
+import { ISingleEditOperation } from 'vs/editor/common/model';
+import { ILineMatch, IPatternInfo } from 'vs/platform/search/common/search';
+import { LogLevel } from 'vs/platform/log/common/log';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -70,6 +66,7 @@ export interface IWorkspaceData {
 	id: string;
 	name: string;
 	folders: { uri: UriComponents, name: string, index: number }[];
+	configuration?: UriComponents;
 }
 
 export interface IInitData {
@@ -82,10 +79,11 @@ export interface IInitData {
 	windowId: number;
 	args: ParsedArgs;
 	execPath: string;
+	logLevel: LogLevel;
 }
 
 export interface IConfigurationInitData extends IConfigurationData {
-	configurationScopes: ConfigurationScope[];
+	configurationScopes: { [key: string]: ConfigurationScope };
 }
 
 export interface IWorkspaceConfigurationChangeEventData {
@@ -156,11 +154,6 @@ export interface MainThreadDocumentsShape extends IDisposable {
 	$trySaveDocument(uri: UriComponents): TPromise<boolean>;
 }
 
-export interface ISelectionChangeEvent {
-	selections: Selection[];
-	source?: string;
-}
-
 export interface ITextEditorConfigurationUpdate {
 	tabSize?: number | 'auto';
 	insertSpaces?: boolean | 'auto';
@@ -191,8 +184,6 @@ export interface IApplyEditsOptions extends IUndoStopOptions {
 	setEndOfLine: EndOfLine;
 }
 
-
-
 export interface ITextDocumentShowOptions {
 	position?: EditorPosition;
 	preserveFocus?: boolean;
@@ -200,17 +191,7 @@ export interface ITextDocumentShowOptions {
 	selection?: IRange;
 }
 
-export interface IWorkspaceResourceEdit {
-	resource: UriComponents;
-	modelVersionId?: number;
-	edits: {
-		range?: IRange;
-		newText: string;
-		newEol?: EndOfLineSequence;
-	}[];
-}
-
-export interface MainThreadEditorsShape extends IDisposable {
+export interface MainThreadTextEditorsShape extends IDisposable {
 	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): TPromise<string>;
 	$registerTextEditorDecorationType(key: string, options: editorCommon.IDecorationRenderOptions): void;
 	$removeTextEditorDecorationType(key: string): void;
@@ -222,14 +203,15 @@ export interface MainThreadEditorsShape extends IDisposable {
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<void>;
 	$trySetSelections(id: string, selections: ISelection[]): TPromise<void>;
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean>;
-	$tryApplyWorkspaceEdit(workspaceResourceEdits: IWorkspaceResourceEdit[]): TPromise<boolean>;
+	$tryApplyWorkspaceEdit(workspaceEditDto: WorkspaceEditDto): TPromise<boolean>;
 	$tryInsertSnippet(id: string, template: string, selections: IRange[], opts: IUndoStopOptions): TPromise<boolean>;
 	$getDiffInformation(id: string): TPromise<editorCommon.ILineChange[]>;
 }
 
 export interface MainThreadTreeViewsShape extends IDisposable {
-	$registerView(treeViewId: string): void;
+	$registerTreeViewDataProvider(treeViewId: string): void;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): void;
+	$reveal(treeViewId: string, treeItem: ITreeItem, parentChain: ITreeItem[], options?: { select?: boolean }): TPromise<void>;
 }
 
 export interface MainThreadErrorsShape extends IDisposable {
@@ -291,11 +273,12 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector): void;
 	$registerOnTypeFormattingSupport(handle: number, selector: vscode.DocumentSelector, autoFormatTriggerCharacters: string[]): void;
 	$registerNavigateTypeSupport(handle: number): void;
-	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector, supportsResolveInitialValues: boolean): void;
 	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[], supportsResolveDetails: boolean): void;
 	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): void;
 	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): void;
 	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): void;
+	$registerFoldingProvider(handle: number, selector: vscode.DocumentSelector): void;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ISerializedLanguageConfiguration): void;
 }
 
@@ -359,10 +342,33 @@ export interface MainThreadTelemetryShape extends IDisposable {
 	$publicLog(eventName: string, data?: any): void;
 }
 
+export type WebviewHandle = number;
+
+export interface MainThreadWebviewsShape extends IDisposable {
+	$createWebview(handle: WebviewHandle, uri: URI, title: string, column: EditorPosition, options: vscode.WebviewOptions): void;
+	$disposeWebview(handle: WebviewHandle): void;
+	$show(handle: WebviewHandle, column: EditorPosition): void;
+	$setTitle(handle: WebviewHandle, value: string): void;
+	$setHtml(handle: WebviewHandle, value: string): void;
+	$sendMessage(handle: WebviewHandle, value: any): Thenable<boolean>;
+}
+export interface ExtHostWebviewsShape {
+	$onMessage(handle: WebviewHandle, message: any): void;
+	$onDidChangeActiveWeview(handle: WebviewHandle | undefined): void;
+	$onDidDisposeWeview(handle: WebviewHandle): Thenable<void>;
+	$onDidChangePosition(handle: WebviewHandle, newPosition: EditorPosition): void;
+}
+
 export interface MainThreadWorkspaceShape extends IDisposable {
-	$startSearch(includePattern: string, includeFolder: string, excludePattern: string, maxResults: number, requestId: number): Thenable<UriComponents[]>;
+	$startSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, requestId: number): Thenable<UriComponents[]>;
 	$cancelSearch(requestId: number): Thenable<boolean>;
 	$saveAll(includeUntitled?: boolean): Thenable<boolean>;
+	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents, name?: string }[]): Thenable<void>;
+}
+
+export interface IFileChangeDto {
+	resource: UriComponents;
+	type: FileChangeType;
 }
 
 export interface MainThreadFileSystemShape extends IDisposable {
@@ -370,15 +376,15 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$unregisterFileSystemProvider(handle: number): void;
 
 	$onDidAddFileSystemRoot(root: UriComponents): void;
-	$onFileSystemChange(handle: number, resource: IFileChange[]): void;
-	$reportFileChunk(handle: number, resource: UriComponents, chunk: number[] | null): void;
+	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
+	$reportFileChunk(handle: number, session: number, chunk: number[] | null): void;
 
-	$handleSearchProgress(handle: number, session: number, resource: UriComponents): void;
+	$handleFindMatch(handle: number, session, data: UriComponents | [UriComponents, ILineMatch]): void;
 }
 
 export interface MainThreadTaskShape extends IDisposable {
-	$registerTaskProvider(handle: number): TPromise<any>;
-	$unregisterTaskProvider(handle: number): TPromise<any>;
+	$registerTaskProvider(handle: number): TPromise<void>;
+	$unregisterTaskProvider(handle: number): TPromise<void>;
 }
 
 export interface MainThreadExtensionServiceShape extends IDisposable {
@@ -403,7 +409,7 @@ export interface SCMGroupFeatures {
 
 export type SCMRawResource = [
 	number /*handle*/,
-	string /*resourceUri*/,
+	UriComponents /*resourceUri*/,
 	string[] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
@@ -426,7 +432,7 @@ export type SCMRawResourceSplices = [
 ];
 
 export interface MainThreadSCMShape extends IDisposable {
-	$registerSourceControl(handle: number, id: string, label: string, rootUri: string | undefined): void;
+	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined): void;
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void;
 	$unregisterSourceControl(handle: number): void;
 
@@ -439,18 +445,20 @@ export interface MainThreadSCMShape extends IDisposable {
 
 	$setInputBoxValue(sourceControlHandle: number, value: string): void;
 	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
-	$setLineWarningLength(sourceControlHandle: number, lineWarningLength: number): void;
+	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void;
 }
 
 export type DebugSessionUUID = string;
 
 export interface MainThreadDebugServiceShape extends IDisposable {
-	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, handle: number): TPromise<any>;
+	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasDebugAdapterExecutable: boolean, handle: number): TPromise<any>;
 	$unregisterDebugConfigurationProvider(handle: number): TPromise<any>;
 	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean>;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any>;
 	$appendDebugConsole(value: string): TPromise<any>;
 	$startBreakpointEvents(): TPromise<any>;
+	$registerBreakpoints(breakpoints: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): TPromise<void>;
+	$unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): TPromise<void>;
 }
 
 export interface MainThreadWindowShape extends IDisposable {
@@ -485,10 +493,10 @@ export interface IModelAddedData {
 	isDirty: boolean;
 }
 export interface ExtHostDocumentsShape {
-	$acceptModelModeChanged(strURL: string, oldModeId: string, newModeId: string): void;
-	$acceptModelSaved(strURL: string): void;
-	$acceptDirtyStateChanged(strURL: string, isDirty: boolean): void;
-	$acceptModelChanged(strURL: string, e: IModelChangedEvent, isDirty: boolean): void;
+	$acceptModelModeChanged(strURL: UriComponents, oldModeId: string, newModeId: string): void;
+	$acceptModelSaved(strURL: UriComponents): void;
+	$acceptDirtyStateChanged(strURL: UriComponents, isDirty: boolean): void;
+	$acceptModelChanged(strURL: UriComponents, e: IModelChangedEvent, isDirty: boolean): void;
 }
 
 export interface ExtHostDocumentSaveParticipantShape {
@@ -500,19 +508,29 @@ export interface ITextEditorAddData {
 	documentUri: UriComponents;
 	options: IResolvedTextEditorConfiguration;
 	selections: ISelection[];
+	visibleRanges: IRange[];
 	editorPosition: EditorPosition;
 }
 export interface ITextEditorPositionData {
 	[id: string]: EditorPosition;
 }
+export interface IEditorPropertiesChangeData {
+	options: IResolvedTextEditorConfiguration | null;
+	selections: ISelectionChangeEvent | null;
+	visibleRanges: IRange[] | null;
+}
+export interface ISelectionChangeEvent {
+	selections: Selection[];
+	source?: string;
+}
+
 export interface ExtHostEditorsShape {
-	$acceptOptionsChanged(id: string, opts: IResolvedTextEditorConfiguration): void;
-	$acceptSelectionsChanged(id: string, event: ISelectionChangeEvent): void;
+	$acceptEditorPropertiesChanged(id: string, props: IEditorPropertiesChangeData): void;
 	$acceptEditorPositionData(data: ITextEditorPositionData): void;
 }
 
 export interface IDocumentsAndEditorsDelta {
-	removedDocuments?: string[];
+	removedDocuments?: UriComponents[];
 	addedDocuments?: IModelAddedData[];
 	removedEditors?: string[];
 	addedEditors?: ITextEditorAddData[];
@@ -524,8 +542,7 @@ export interface ExtHostDocumentsAndEditorsShape {
 }
 
 export interface ExtHostTreeViewsShape {
-	$getElements(treeViewId: string): TPromise<ITreeItem[]>;
-	$getChildren(treeViewId: string, treeItemHandle: string): TPromise<ITreeItem[]>;
+	$getChildren(treeViewId: string, treeItemHandle?: string): TPromise<ITreeItem[]>;
 }
 
 export interface ExtHostWorkspaceShape {
@@ -535,14 +552,15 @@ export interface ExtHostWorkspaceShape {
 export interface ExtHostFileSystemShape {
 	$utimes(handle: number, resource: UriComponents, mtime: number, atime: number): TPromise<IStat>;
 	$stat(handle: number, resource: UriComponents): TPromise<IStat>;
-	$read(handle: number, offset: number, count: number, resource: UriComponents): TPromise<number>;
+	$read(handle: number, session: number, offset: number, count: number, resource: UriComponents): TPromise<number>;
 	$write(handle: number, resource: UriComponents, content: number[]): TPromise<void>;
 	$unlink(handle: number, resource: UriComponents): TPromise<void>;
 	$move(handle: number, resource: UriComponents, target: UriComponents): TPromise<IStat>;
 	$mkdir(handle: number, resource: UriComponents): TPromise<IStat>;
 	$readdir(handle: number, resource: UriComponents): TPromise<[UriComponents, IStat][]>;
 	$rmdir(handle: number, resource: UriComponents): TPromise<void>;
-	$fileFiles(handle: number, session: number, query: string): TPromise<void>;
+	$findFiles(handle: number, session: number, query: string): TPromise<void>;
+	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, options: { includes: string[], excludes: string[] }): TPromise<void>;
 }
 
 export interface ExtHostExtensionServiceShape {
@@ -616,15 +634,36 @@ export interface WorkspaceSymbolsDto extends IdObject {
 	symbols: SymbolInformationDto[];
 }
 
-export interface ResourceEditDto {
+export interface ResourceFileEditDto {
+	oldUri: UriComponents;
+	newUri: UriComponents;
+}
+
+export interface ResourceTextEditDto {
 	resource: UriComponents;
-	range: IRange;
-	newText: string;
+	modelVersionId?: number;
+	edits: modes.TextEdit[];
 }
 
 export interface WorkspaceEditDto {
-	edits: ResourceEditDto[];
+	edits: (ResourceFileEditDto | ResourceTextEditDto)[];
+
+	// todo@joh reject should go into rename
 	rejectReason?: string;
+}
+
+export function reviveWorkspaceEditDto(data: WorkspaceEditDto): modes.WorkspaceEdit {
+	if (data && data.edits) {
+		for (const edit of data.edits) {
+			if (typeof (<ResourceTextEditDto>edit).resource === 'object') {
+				(<ResourceTextEditDto>edit).resource = URI.revive((<ResourceTextEditDto>edit).resource);
+			} else {
+				(<ResourceFileEditDto>edit).newUri = URI.revive((<ResourceFileEditDto>edit).newUri);
+				(<ResourceFileEditDto>edit).oldUri = URI.revive((<ResourceFileEditDto>edit).oldUri);
+			}
+		}
+	}
+	return <modes.WorkspaceEdit>data;
 }
 
 export interface CodeActionDto {
@@ -632,6 +671,7 @@ export interface CodeActionDto {
 	edit?: WorkspaceEditDto;
 	diagnostics?: IMarkerData[];
 	command?: modes.Command;
+	kind?: string;
 }
 
 export interface ExtHostLanguageFeaturesShape {
@@ -644,7 +684,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideHover(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Hover>;
 	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.DocumentHighlight[]>;
 	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext): TPromise<LocationDto[]>;
-	$provideCodeActions(handle: number, resource: UriComponents, range: IRange): TPromise<CodeActionDto[]>;
+	$provideCodeActions(handle: number, resource: UriComponents, range: IRange, context: modes.CodeActionContext): TPromise<CodeActionDto[]>;
 	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]>;
 	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]>;
 	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]>;
@@ -652,6 +692,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$resolveWorkspaceSymbol(handle: number, symbol: SymbolInformationDto): TPromise<SymbolInformationDto>;
 	$releaseWorkspaceSymbols(handle: number, id: number): void;
 	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string): TPromise<WorkspaceEditDto>;
+	$resolveInitialRenameValue(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.RenameInitialValue>;
 	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.SuggestContext): TPromise<SuggestResultDto>;
 	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion>;
 	$releaseCompletionItems(handle: number, id: number): void;
@@ -660,6 +701,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink>;
 	$provideDocumentColors(handle: number, resource: UriComponents): TPromise<IRawColorInfo[]>;
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]>;
+	$provideFoldingRanges(handle: number, resource: UriComponents): TPromise<modes.IFoldingRangeList>;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -673,49 +715,64 @@ export interface ExtHostTerminalServiceShape {
 }
 
 export interface ExtHostSCMShape {
-	$provideOriginalResource(sourceControlHandle: number, uri: string): TPromise<string>;
+	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents): TPromise<UriComponents>;
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void>;
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void>;
+	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): TPromise<[string, number] | undefined>;
 }
 
 export interface ExtHostTaskShape {
 	$provideTasks(handle: number): TPromise<TaskSet>;
 }
 
-export interface IBreakpointData {
-	type: 'source' | 'function';
-	id: string;
+export interface IFunctionBreakpointDto {
+	type: 'function';
+	id?: string;
 	enabled: boolean;
 	condition?: string;
 	hitCondition?: string;
+	functionName: string;
 }
 
-export interface ISourceBreakpointData extends IBreakpointData {
+export interface ISourceBreakpointDto {
 	type: 'source';
+	id?: string;
+	enabled: boolean;
+	condition?: string;
+	hitCondition?: string;
 	uri: UriComponents;
 	line: number;
 	character: number;
 }
 
-export interface IFunctionBreakpointData extends IBreakpointData {
-	type: 'function';
-	functionName: string;
+export interface IBreakpointsDeltaDto {
+	added?: (ISourceBreakpointDto | IFunctionBreakpointDto)[];
+	removed?: string[];
+	changed?: (ISourceBreakpointDto | IFunctionBreakpointDto)[];
 }
 
-export interface IBreakpointsDelta {
-	added?: (ISourceBreakpointData | IFunctionBreakpointData)[];
-	removed?: string[];
-	changed?: (ISourceBreakpointData | IFunctionBreakpointData)[];
+export interface ISourceMultiBreakpointDto {
+	type: 'sourceMulti';
+	uri: UriComponents;
+	lines: {
+		id: string;
+		enabled: boolean;
+		condition?: string;
+		hitCondition?: string;
+		line: number;
+		character: number;
+	}[];
 }
 
 export interface ExtHostDebugServiceShape {
 	$resolveDebugConfiguration(handle: number, folder: UriComponents | undefined, debugConfiguration: IConfig): TPromise<IConfig>;
 	$provideDebugConfigurations(handle: number, folder: UriComponents | undefined): TPromise<IConfig[]>;
+	$debugAdapterExecutable(handle: number, folder: UriComponents | undefined): TPromise<IAdapterExecutable>;
 	$acceptDebugSessionStarted(id: DebugSessionUUID, type: string, name: string): void;
 	$acceptDebugSessionTerminated(id: DebugSessionUUID, type: string, name: string): void;
 	$acceptDebugSessionActiveChanged(id: DebugSessionUUID | undefined, type?: string, name?: string): void;
 	$acceptDebugSessionCustomEvent(id: DebugSessionUUID, type: string, name: string, event: any): void;
-	$acceptBreakpointsDelta(delat: IBreakpointsDelta): void;
+	$acceptBreakpointsDelta(delat: IBreakpointsDeltaDto): void;
 }
 
 
@@ -736,6 +793,10 @@ export interface ExtHostWindowShape {
 	$onDidChangeWindowFocus(value: boolean): void;
 }
 
+export interface ExtHostLogServiceShape {
+	$setLevel(level: LogLevel);
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -747,7 +808,7 @@ export const MainContext = {
 	MainThreadDialogs: createMainId<MainThreadDiaglogsShape>('MainThreadDiaglogs'),
 	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments'),
 	MainThreadDocumentContentProviders: createMainId<MainThreadDocumentContentProvidersShape>('MainThreadDocumentContentProviders'),
-	MainThreadEditors: createMainId<MainThreadEditorsShape>('MainThreadEditors'),
+	MainThreadTextEditors: createMainId<MainThreadTextEditorsShape>('MainThreadTextEditors'),
 	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors'),
 	MainThreadTreeViews: createMainId<MainThreadTreeViewsShape>('MainThreadTreeViews'),
 	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures'),
@@ -760,11 +821,12 @@ export const MainContext = {
 	MainThreadStorage: createMainId<MainThreadStorageShape>('MainThreadStorage'),
 	MainThreadTelemetry: createMainId<MainThreadTelemetryShape>('MainThreadTelemetry'),
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
+	MainThreadWebviews: createMainId<MainThreadWebviewsShape>('MainThreadWebviews'),
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace'),
 	MainThreadFileSystem: createMainId<MainThreadFileSystemShape>('MainThreadFileSystem'),
 	MainThreadExtensionService: createMainId<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
 	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM'),
-	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask', ProxyType.CustomMarshaller),
+	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadWindow: createMainId<MainThreadWindowShape>('MainThreadWindow'),
 };
 
@@ -786,10 +848,11 @@ export const ExtHostContext = {
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService'),
-	// ExtHostLogService: createExtId<ExtHostLogServiceShape>('ExtHostLogService'),
+	ExtHostLogService: createExtId<ExtHostLogServiceShape>('ExtHostLogService'),
 	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService'),
 	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM'),
-	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask', ProxyType.CustomMarshaller),
+	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask'),
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
 	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
+	ExtHostWebviews: createExtId<ExtHostWebviewsShape>('ExtHostWebviews')
 };

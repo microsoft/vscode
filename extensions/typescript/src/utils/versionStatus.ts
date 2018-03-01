@@ -14,7 +14,7 @@ export default class VersionStatus {
 	constructor(
 		private readonly normalizePath: (resource: vscode.Uri) => string | null
 	) {
-		this.versionBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
+		this.versionBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99 /* to the right of editor status (100) */);
 		this.onChangeEditorSub = vscode.window.onDidChangeActiveTextEditor(this.showHideStatus, this);
 	}
 
@@ -40,8 +40,10 @@ export default class VersionStatus {
 		if (vscode.languages.match([languageModeIds.typescript, languageModeIds.typescriptreact], doc)) {
 			if (this.normalizePath(doc.uri)) {
 				this.versionBarEntry.show();
-				return;
+			} else {
+				this.versionBarEntry.hide();
 			}
+			return;
 		}
 
 		if (!vscode.window.activeTextEditor.viewColumn) {

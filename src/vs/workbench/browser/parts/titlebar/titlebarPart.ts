@@ -33,6 +33,7 @@ import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INA
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { trim } from 'vs/base/common/strings';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -136,7 +137,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private getWindowTitle(): string {
 		let title = this.doGetWindowTitle();
-		if (!title) {
+		if (!trim(title)) {
 			title = this.environmentService.appNameLong;
 		}
 

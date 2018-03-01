@@ -555,6 +555,10 @@ export class CodeWindow implements ICodeWindow {
 			configuration['extensions-dir'] = cli['extensions-dir'];
 		}
 
+		if (cli) {
+			configuration['disable-extensions'] = cli['disable-extensions'];
+		}
+
 		configuration.isInitialStartup = false; // since this is a reload
 
 		// Load config
@@ -565,6 +569,7 @@ export class CodeWindow implements ICodeWindow {
 
 		// Set window ID
 		windowConfiguration.windowId = this._win.id;
+		windowConfiguration.logLevel = this.logService.getLevel();
 
 		// Set zoomlevel
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
@@ -577,7 +582,11 @@ export class CodeWindow implements ICodeWindow {
 		windowConfiguration.fullscreen = this._win.isFullScreen();
 
 		// Set Accessibility Config
-		windowConfiguration.highContrast = isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
+		let autoDetectHighContrast = true;
+		if (windowConfig && windowConfig.autoDetectHighContrast === false) {
+			autoDetectHighContrast = false;
+		}
+		windowConfiguration.highContrast = isWindows && autoDetectHighContrast && systemPreferences.isInvertedColorScheme();
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 
 		// Theme
@@ -593,7 +602,7 @@ export class CodeWindow implements ICodeWindow {
 		const environment = parseArgs(process.argv);
 		const config = objects.assign(environment, windowConfiguration);
 		for (let key in config) {
-			if (!config[key]) {
+			if (config[key] === void 0 || config[key] === null || config[key] === '') {
 				delete config[key]; // only send over properties that have a true value
 			}
 		}
@@ -836,7 +845,7 @@ export class CodeWindow implements ICodeWindow {
 				this._win.setAutoHideMenuBar(true);
 
 				if (notify) {
-					this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the **Alt** key."));
+					this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the Alt-key."));
 				}
 				break;
 
@@ -953,7 +962,7 @@ export class CodeWindow implements ICodeWindow {
 		const segments: ITouchBarSegment[] = items.map(item => {
 			let icon: Electron.NativeImage;
 			if (item.iconPath) {
-				icon = nativeImage.createFromPath(item.iconPath);
+				icon = nativeImage.createFromPath(item.iconPath.dark);
 				if (icon.isEmpty()) {
 					icon = void 0;
 				}

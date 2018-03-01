@@ -20,6 +20,7 @@ import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector }
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { editorWidgetBackground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 
 export const FEEDBACK_VISIBLE_CONFIG = 'workbench.statusBar.feedback.visible';
 
@@ -70,6 +71,7 @@ export class FeedbackDropdown extends Dropdown {
 		container: HTMLElement,
 		options: IFeedbackDropdownOptions,
 		@ICommandService private commandService: ICommandService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 		@IIntegrityService private integrityService: IIntegrityService,
 		@IThemeService private themeService: IThemeService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
@@ -112,8 +114,7 @@ export class FeedbackDropdown extends Dropdown {
 
 	protected renderContents(container: HTMLElement): IDisposable {
 		const $form = $('form.feedback-form').attr({
-			action: 'javascript:void(0);',
-			tabIndex: '-1'
+			action: 'javascript:void(0);'
 		}).appendTo(container);
 
 		$(container).addClass('monaco-menu-container');
@@ -171,7 +172,16 @@ export class FeedbackDropdown extends Dropdown {
 		$('div').append($('a').attr('target', '_blank').attr('href', '#').text(nls.localize("submit a bug", "Submit a bug")).attr('tabindex', '0'))
 			.on('click', event => {
 				dom.EventHelper.stop(event);
-				this.commandService.executeCommand('workbench.action.reportIssues').done(null, errors.onUnexpectedError);
+				const actionId = 'workbench.action.openIssueReporter';
+				this.commandService.executeCommand(actionId).done(null, errors.onUnexpectedError);
+
+				/* __GDPR__
+					"workbenchActionExecuted" : {
+						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryService.publicLog('workbenchActionExecuted', { id: actionId, from: 'feedback' });
 			})
 			.appendTo($contactUsContainer);
 
@@ -197,7 +207,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		const $buttons = $('div.form-buttons').appendTo($form);
 
-		const $hideButtonContainer = $('div.hide-button').appendTo($buttons);
+		const $hideButtonContainer = $('div.hide-button-container').appendTo($buttons);
 
 		this.hideButton = $('input.hide-button').type('checkbox').attr('checked', '').id('hide-button').appendTo($hideButtonContainer).getHTMLElement() as HTMLInputElement;
 
@@ -213,7 +223,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.toDispose.push(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
 			$form.style('background-color', colors.editorWidgetBackground);
-			$form.style('box-shadow', colors.widgetShadow ? `0 2px 8px ${colors.widgetShadow}` : null);
+			$form.style('box-shadow', colors.widgetShadow ? `0 5px 8px ${colors.widgetShadow}` : null);
 
 			if (this.feedbackDescriptionInput) {
 				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground;
@@ -293,7 +303,7 @@ export class FeedbackDropdown extends Dropdown {
 			this.autoHideTimeout = null;
 		}
 
-		if (!this.hideButton.checked) {
+		if (this.hideButton && !this.hideButton.checked) {
 			this.configurationService.updateValue(FEEDBACK_VISIBLE_CONFIG, false).done(null, errors.onUnexpectedError);
 		}
 

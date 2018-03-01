@@ -11,7 +11,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { ISuggestSupport, SuggestRegistry, StandardTokenType, SuggestTriggerKind } from 'vs/editor/common/modes';
+import { ISuggestSupport, SuggestRegistry, StandardTokenType, SuggestTriggerKind, SuggestContext } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
 import { CompletionModel } from './completionModel';
@@ -19,22 +19,22 @@ import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/comm
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export interface ICancelEvent {
-	retrigger: boolean;
+	readonly retrigger: boolean;
 }
 
 export interface ITriggerEvent {
-	auto: boolean;
+	readonly auto: boolean;
 }
 
 export interface ISuggestEvent {
-	completionModel: CompletionModel;
-	isFrozen: boolean;
-	auto: boolean;
+	readonly completionModel: CompletionModel;
+	readonly isFrozen: boolean;
+	readonly auto: boolean;
 }
 
 export interface SuggestTriggerContext {
-	auto: boolean;
-	triggerCharacter?: string;
+	readonly auto: boolean;
+	readonly triggerCharacter?: string;
 }
 
 export class LineContext {
@@ -347,13 +347,23 @@ export class SuggestModel implements IDisposable {
 		// Capture context when request was sent
 		this._context = ctx;
 
+		// Build context for request
+		let suggestCtx: SuggestContext;
+		if (context.triggerCharacter) {
+			suggestCtx = {
+				triggerKind: SuggestTriggerKind.TriggerCharacter,
+				triggerCharacter: context.triggerCharacter
+			};
+		} else if (onlyFrom && onlyFrom.length) {
+			suggestCtx = { triggerKind: SuggestTriggerKind.TriggerForIncompleteCompletions };
+		} else {
+			suggestCtx = { triggerKind: SuggestTriggerKind.Invoke };
+		}
+
 		this._requestPromise = provideSuggestionItems(model, this._editor.getPosition(),
 			this._editor.getConfiguration().contribInfo.snippetSuggestions,
 			onlyFrom,
-			{
-				triggerCharacter: context.triggerCharacter,
-				triggerKind: context.triggerCharacter ? SuggestTriggerKind.TriggerCharacter : SuggestTriggerKind.Invoke
-			}
+			suggestCtx
 		).then(items => {
 
 			this._requestPromise = null;

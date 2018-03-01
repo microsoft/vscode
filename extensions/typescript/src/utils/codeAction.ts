@@ -5,26 +5,16 @@
 
 import { WorkspaceEdit, workspace } from 'vscode';
 import * as Proto from '../protocol';
-import { tsTextSpanToVsRange } from './convert';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import { createWorkspaceEditFromFileCodeEdits } from './workspaceEdit';
 
 export function getEditForCodeAction(
 	client: ITypeScriptServiceClient,
 	action: Proto.CodeAction
 ): WorkspaceEdit | undefined {
-	if (action.changes && action.changes.length) {
-		const workspaceEdit = new WorkspaceEdit();
-		for (const change of action.changes) {
-			for (const textChange of change.textChanges) {
-				workspaceEdit.replace(client.asUrl(change.fileName),
-					tsTextSpanToVsRange(textChange),
-					textChange.newText);
-			}
-		}
-
-		return workspaceEdit;
-	}
-	return undefined;
+	return action.changes && action.changes.length
+		? createWorkspaceEditFromFileCodeEdits(client, action.changes)
+		: undefined;
 }
 
 export async function applyCodeAction(

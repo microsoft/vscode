@@ -19,9 +19,10 @@ import extfs = require('vs/base/node/extfs');
 import encodingLib = require('vs/base/node/encoding');
 import utils = require('vs/workbench/services/files/test/node/utils');
 import { onError } from 'vs/base/test/common/utils';
-import { TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEnvironmentService, TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 suite('FileService', () => {
 	let service: FileService;
@@ -38,7 +39,7 @@ suite('FileService', () => {
 				return onError(error, done);
 			}
 
-			service = new FileService(new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))), new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), { disableWatcher: true });
+			service = new FileService(new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), { disableWatcher: true });
 			done();
 		});
 	});
@@ -135,8 +136,57 @@ suite('FileService', () => {
 		}, error => onError(error, done));
 	});
 
+	test('createFolder: creating multiple folders at once', function (done: () => void) {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
+		service.resolveFile(uri.file(testDir)).done(parent => {
+			const resource = uri.file(path.join(parent.resource.fsPath, ...multiFolderPaths));
+
+			return service.createFolder(resource).then(f => {
+				const lastFolderName = multiFolderPaths[multiFolderPaths.length - 1];
+				assert.equal(f.name, lastFolderName);
+				assert.equal(fs.existsSync(f.resource.fsPath), true);
+
+				assert.ok(event);
+				assert.equal(event.resource.fsPath, resource.fsPath);
+				assert.equal(event.operation, FileOperation.CREATE);
+				assert.equal(event.target.resource.fsPath, resource.fsPath);
+				assert.equal(event.target.isDirectory, true);
+				toDispose.dispose();
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
 	test('touchFile', function (done: () => void) {
 		service.touchFile(uri.file(path.join(testDir, 'test.txt'))).done(s => {
+			assert.equal(s.name, 'test.txt');
+			assert.equal(fs.existsSync(s.resource.fsPath), true);
+			assert.equal(fs.readFileSync(s.resource.fsPath).length, 0);
+
+			const stat = fs.statSync(s.resource.fsPath);
+
+			return TPromise.timeout(10).then(() => {
+				return service.touchFile(s.resource).done(s => {
+					const statNow = fs.statSync(s.resource.fsPath);
+					assert.ok(statNow.mtime.getTime() >= stat.mtime.getTime()); // one some OS the resolution seems to be 1s, so we use >= here
+					assert.equal(statNow.size, stat.size);
+
+					done();
+				});
+			});
+		}, error => onError(error, done));
+	});
+
+	test('touchFile - multi folder', function (done: () => void) {
+		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
+
+		service.touchFile(uri.file(path.join(testDir, ...multiFolderPaths, 'test.txt'))).done(s => {
 			assert.equal(s.name, 'test.txt');
 			assert.equal(fs.existsSync(s.resource.fsPath), true);
 			assert.equal(fs.readFileSync(s.resource.fsPath).length, 0);
@@ -178,6 +228,32 @@ suite('FileService', () => {
 		}, error => onError(error, done));
 	});
 
+	test('renameFile - multi folder', function (done: () => void) {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
+		const renameToPath = path.join(...multiFolderPaths, 'other.html');
+
+		const resource = uri.file(path.join(testDir, 'index.html'));
+		service.resolveFile(resource).done(source => {
+			return service.rename(source.resource, renameToPath).then(renamed => {
+				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
+				assert.equal(fs.existsSync(source.resource.fsPath), false);
+
+				assert.ok(event);
+				assert.equal(event.resource.fsPath, resource.fsPath);
+				assert.equal(event.operation, FileOperation.MOVE);
+				assert.equal(event.target.resource.fsPath, renamed.resource.fsPath);
+				toDispose.dispose();
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
 	test('renameFolder', function (done: () => void) {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
@@ -201,6 +277,31 @@ suite('FileService', () => {
 		});
 	});
 
+	test('renameFolder - multi folder', function (done: () => void) {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
+		const renameToPath = path.join(...multiFolderPaths);
+
+		const resource = uri.file(path.join(testDir, 'deep'));
+		service.resolveFile(resource).done(source => {
+			return service.rename(source.resource, renameToPath).then(renamed => {
+				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
+				assert.equal(fs.existsSync(source.resource.fsPath), false);
+
+				assert.ok(event);
+				assert.equal(event.resource.fsPath, resource.fsPath);
+				assert.equal(event.operation, FileOperation.MOVE);
+				assert.equal(event.target.resource.fsPath, renamed.resource.fsPath);
+				toDispose.dispose();
+
+				done();
+			});
+		});
+	});
 	test('renameFile - MIX CASE', function (done: () => void) {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
@@ -581,6 +682,54 @@ suite('FileService', () => {
 		}, error => onError(error, done));
 	});
 
+	test('updateContent (ITextSnapShot)', function (done: () => void) {
+		const resource = uri.file(path.join(testDir, 'small.txt'));
+
+		service.resolveContent(resource).done(c => {
+			assert.equal(c.value, 'Small File');
+
+			const model = TextModel.createFromString('Updates to the small file');
+
+			return service.updateContent(c.resource, model.createSnapshot()).then(c => {
+				assert.equal(fs.readFileSync(resource.fsPath), 'Updates to the small file');
+
+				model.dispose();
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
+	test('updateContent (large file)', function (done: () => void) {
+		const resource = uri.file(path.join(testDir, 'lorem.txt'));
+
+		service.resolveContent(resource).done(c => {
+			const newValue = c.value + c.value;
+			c.value = newValue;
+
+			return service.updateContent(c.resource, c.value).then(c => {
+				assert.equal(fs.readFileSync(resource.fsPath), newValue);
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
+	test('updateContent (large file, ITextSnapShot)', function (done: () => void) {
+		const resource = uri.file(path.join(testDir, 'lorem.txt'));
+
+		service.resolveContent(resource).done(c => {
+			const newValue = c.value + c.value;
+			const model = TextModel.createFromString(newValue);
+
+			return service.updateContent(c.resource, model.createSnapshot()).then(c => {
+				assert.equal(fs.readFileSync(resource.fsPath), newValue);
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
 	test('updateContent - use encoding (UTF 16 BE)', function (done: () => void) {
 		const resource = uri.file(path.join(testDir, 'small.txt'));
 		const encoding = 'utf16be';
@@ -594,6 +743,31 @@ suite('FileService', () => {
 
 					return service.resolveContent(resource).then(c => {
 						assert.equal(c.encoding, encoding);
+
+						done();
+					});
+				});
+			});
+		}, error => onError(error, done));
+	});
+
+	test('updateContent - use encoding (UTF 16 BE, ITextSnapShot)', function (done: () => void) {
+		const resource = uri.file(path.join(testDir, 'small.txt'));
+		const encoding = 'utf16be';
+
+		service.resolveContent(resource).done(c => {
+			c.encoding = encoding;
+
+			const model = TextModel.createFromString(c.value);
+
+			return service.updateContent(c.resource, model.createSnapshot(), { encoding: encoding }).then(c => {
+				return encodingLib.detectEncodingByBOM(c.resource.fsPath).then((enc) => {
+					assert.equal(enc, encodingLib.UTF16be);
+
+					return service.resolveContent(resource).then(c => {
+						assert.equal(c.encoding, encoding);
+
+						model.dispose();
 
 						done();
 					});
@@ -617,6 +791,31 @@ suite('FileService', () => {
 
 					return service.resolveContent(resource).then(c => {
 						assert.equal(c.encoding, encoding);
+
+						done();
+					});
+				});
+			});
+		}, error => onError(error, done));
+	});
+
+	test('updateContent - encoding preserved (UTF 16 LE, ITextSnapShot)', function (done: () => void) {
+		const encoding = 'utf16le';
+		const resource = uri.file(path.join(testDir, 'some_utf16le.css'));
+
+		service.resolveContent(resource).done(c => {
+			assert.equal(c.encoding, encoding);
+
+			const model = TextModel.createFromString('Some updates');
+
+			return service.updateContent(c.resource, model.createSnapshot(), { encoding: encoding }).then(c => {
+				return encodingLib.detectEncodingByBOM(c.resource.fsPath).then((enc) => {
+					assert.equal(enc, encodingLib.UTF16le);
+
+					return service.resolveContent(resource).then(c => {
+						assert.equal(c.encoding, encoding);
+
+						model.dispose();
 
 						done();
 					});
@@ -737,7 +936,7 @@ suite('FileService', () => {
 		const resource = uri.file(path.join(testDir, 'some_utf8_bom.txt'));
 
 		service.resolveContent(resource).done(c => {
-			assert.equal(encodingLib.detectEncodingByBOMFromBuffer(new Buffer(c.value), 512), null);
+			assert.equal(encodingLib.detectEncodingByBOMFromBuffer(Buffer.from(c.value), 512), null);
 
 			done();
 		}, error => onError(error, done));
@@ -811,7 +1010,7 @@ suite('FileService', () => {
 
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
-			const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))), textResourceConfigurationService, configurationService, new TestLifecycleService(), {
+			const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))), TestEnvironmentService, textResourceConfigurationService, configurationService, new TestLifecycleService(), {
 				encodingOverride,
 				disableWatcher: true
 			});
@@ -838,7 +1037,7 @@ suite('FileService', () => {
 		const _sourceDir = require.toUrl('./fixtures/service');
 		const resource = uri.file(path.join(testDir, 'index.html'));
 
-		const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))), new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), {
+		const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), {
 			disableWatcher: true
 		});
 
@@ -846,26 +1045,32 @@ suite('FileService', () => {
 			fs.readFile(resource.fsPath, (error, data) => {
 				assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), null);
 
+				const model = TextModel.createFromString('Hello Bom');
+
 				// Update content: UTF_8 => UTF_8_BOM
-				_service.updateContent(resource, 'Hello Bom', { encoding: encodingLib.UTF8_with_bom }).done(() => {
+				_service.updateContent(resource, model.createSnapshot(), { encoding: encodingLib.UTF8_with_bom }).done(() => {
 					fs.readFile(resource.fsPath, (error, data) => {
 						assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), encodingLib.UTF8);
 
 						// Update content: PRESERVE BOM when using UTF-8
-						_service.updateContent(resource, 'Please stay Bom', { encoding: encodingLib.UTF8 }).done(() => {
+						model.setValue('Please stay Bom');
+						_service.updateContent(resource, model.createSnapshot(), { encoding: encodingLib.UTF8 }).done(() => {
 							fs.readFile(resource.fsPath, (error, data) => {
 								assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), encodingLib.UTF8);
 
 								// Update content: REMOVE BOM
-								_service.updateContent(resource, 'Go away Bom', { encoding: encodingLib.UTF8, overwriteEncoding: true }).done(() => {
+								model.setValue('Go away Bom');
+								_service.updateContent(resource, model.createSnapshot(), { encoding: encodingLib.UTF8, overwriteEncoding: true }).done(() => {
 									fs.readFile(resource.fsPath, (error, data) => {
 										assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), null);
 
 										// Update content: BOM comes not back
-										_service.updateContent(resource, 'Do not come back Bom', { encoding: encodingLib.UTF8 }).done(() => {
+										model.setValue('Do not come back Bom');
+										_service.updateContent(resource, model.createSnapshot(), { encoding: encodingLib.UTF8 }).done(() => {
 											fs.readFile(resource.fsPath, (error, data) => {
 												assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), null);
 
+												model.dispose();
 												_service.dispose();
 												done();
 											});
@@ -892,7 +1097,7 @@ suite('FileService', () => {
 	test('resolveContent - from position (with umlaut)', function (done: () => void) {
 		const resource = uri.file(path.join(testDir, 'small_umlaut.txt'));
 
-		service.resolveContent(resource, { position: new Buffer('Small File with Ü').length }).done(content => {
+		service.resolveContent(resource, { position: Buffer.from('Small File with Ü').length }).done(content => {
 			assert.equal(content.value, 'mlaut');
 			done();
 		}, error => onError(error, done));

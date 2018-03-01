@@ -17,6 +17,7 @@ import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorMo
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { snapshotToString } from 'vs/platform/files/common/files';
 
 export class TestUntitledEditorService extends UntitledEditorService {
 
@@ -142,7 +143,7 @@ suite('Workbench - Untitled Editor', () => {
 			assert.ok(!model1.isDirty());
 
 			return service.loadOrCreate({ initialValue: 'Hello World' }).then(model2 => {
-				assert.equal(model2.getValue(), 'Hello World');
+				assert.equal(snapshotToString(model2.createSnapshot()), 'Hello World');
 
 				const input = service.createOrGet();
 

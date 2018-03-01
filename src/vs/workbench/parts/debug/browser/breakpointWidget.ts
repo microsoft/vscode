@@ -15,7 +15,7 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IDebugService, IBreakpoint, IRawBreakpoint } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IBreakpoint } from 'vs/workbench/parts/debug/common/debug';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { once } from 'vs/base/common/functional';
 import { attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
@@ -109,31 +109,38 @@ export class BreakpointWidget extends ZoneWidget {
 					const oldBreakpoint = this.debugService.getModel().getBreakpoints()
 						.filter(bp => bp.lineNumber === this.lineNumber && bp.column === this.column && bp.uri.toString() === uri.toString()).pop();
 
-					const raw: IRawBreakpoint = {
-						lineNumber: this.lineNumber,
-						column: oldBreakpoint ? oldBreakpoint.column : undefined,
-						enabled: true,
-						condition: oldBreakpoint && oldBreakpoint.condition,
-						hitCondition: oldBreakpoint && oldBreakpoint.hitCondition
-					};
+					let condition = oldBreakpoint && oldBreakpoint.condition;
+					let hitCondition = oldBreakpoint && oldBreakpoint.hitCondition;
 
 					if (this.hitCountContext) {
-						raw.hitCondition = this.inputBox.value;
+						hitCondition = this.inputBox.value;
 						if (this.conditionInput) {
-							raw.condition = this.conditionInput;
+							condition = this.conditionInput;
 						}
 					} else {
-						raw.condition = this.inputBox.value;
+						condition = this.inputBox.value;
 						if (this.hitCountInput) {
-							raw.hitCondition = this.hitCountInput;
+							hitCondition = this.hitCountInput;
 						}
 					}
 
 					if (oldBreakpoint) {
-						this.debugService.removeBreakpoints(oldBreakpoint.getId()).done(null, errors.onUnexpectedError);
+						this.debugService.updateBreakpoints(oldBreakpoint.uri, {
+							[oldBreakpoint.getId()]: {
+								condition,
+								hitCondition,
+								verified: oldBreakpoint.verified
+							}
+						}, false);
+					} else {
+						this.debugService.addBreakpoints(uri, [{
+							lineNumber: this.lineNumber,
+							column: oldBreakpoint ? oldBreakpoint.column : undefined,
+							enabled: true,
+							condition,
+							hitCondition
+						}]).done(null, errors.onUnexpectedError);
 					}
-
-					this.debugService.addBreakpoints(uri, [raw]).done(null, errors.onUnexpectedError);
 				}
 
 				this.dispose();

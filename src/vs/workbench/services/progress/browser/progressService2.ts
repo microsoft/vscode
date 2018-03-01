@@ -61,8 +61,8 @@ export class ProgressService2 implements IProgressService2 {
 	private _stack: [IProgressOptions, Progress<IProgressStep>][] = [];
 
 	constructor(
-		@IActivityService private _activityBar: IActivityService,
-		@IViewletService private _viewletService: IViewletService
+		@IActivityService private readonly _activityBar: IActivityService,
+		@IViewletService private readonly _viewletService: IViewletService
 	) {
 		//
 	}
@@ -73,8 +73,12 @@ export class ProgressService2 implements IProgressService2 {
 		switch (location) {
 			case ProgressLocation.Window:
 				return this._withWindowProgress(options, task);
+			case ProgressLocation.Explorer:
+				return this._withViewletProgress('workbench.view.explorer', task);
 			case ProgressLocation.Scm:
 				return this._withViewletProgress('workbench.view.scm', task);
+			case ProgressLocation.Extensions:
+				return this._withViewletProgress('workbench.view.extensions', task);
 			default:
 				console.warn(`Bad progress location: ${location}`);
 				return undefined;

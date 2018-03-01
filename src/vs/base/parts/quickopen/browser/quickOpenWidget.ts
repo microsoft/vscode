@@ -26,6 +26,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;
@@ -154,8 +155,8 @@ export class QuickOpenWidget implements IModelProvider {
 				}
 			})
 				.on(DOM.EventType.CONTEXT_MENU, (e: Event) => DOM.EventHelper.stop(e, true)) // Do this to fix an issue on Mac where the menu goes into the way
-				.on(DOM.EventType.FOCUS, (e: Event) => this.gainingFocus(), null, true)
-				.on(DOM.EventType.BLUR, (e: Event) => this.loosingFocus(e), null, true);
+				.on(DOM.EventType.FOCUS, (e: FocusEvent) => this.gainingFocus(), null, true)
+				.on(DOM.EventType.BLUR, (e: FocusEvent) => this.loosingFocus(e), null, true);
 
 			// Progress Bar
 			this.progressBar = new ProgressBar(div.clone(), { progressBarBackground: this.styles.progressBarBackground });
@@ -253,7 +254,10 @@ export class QuickOpenWidget implements IModelProvider {
 
 				this.toUnbind.push(this.tree.onDidChangeSelection((event: ISelectionEvent) => {
 					if (event.selection && event.selection.length > 0) {
-						this.elementSelected(event.selection[0], event);
+						const mouseEvent: StandardMouseEvent = event.payload && event.payload.originalEvent instanceof StandardMouseEvent ? event.payload.originalEvent : void 0;
+						const shouldOpenInBackground = mouseEvent ? this.shouldOpenInBackground(mouseEvent) : false;
+
+						this.elementSelected(event.selection[0], event, shouldOpenInBackground ? Mode.OPEN_IN_BACKGROUND : Mode.OPEN);
 					}
 				}));
 			}).
@@ -399,19 +403,26 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 	}
 
-	private shouldOpenInBackground(e: StandardKeyboardEvent): boolean {
-		if (e.keyCode !== KeyCode.RightArrow) {
-			return false; // only for right arrow
+	private shouldOpenInBackground(e: StandardKeyboardEvent | StandardMouseEvent): boolean {
+
+		// Keyboard
+		if (e instanceof StandardKeyboardEvent) {
+			if (e.keyCode !== KeyCode.RightArrow) {
+				return false; // only for right arrow
+			}
+
+			if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+				return false; // no modifiers allowed
+			}
+
+			// validate the cursor is at the end of the input and there is no selection,
+			// and if not prevent opening in the background such as the selection can be changed
+			const element = this.inputBox.inputElement;
+			return element.selectionEnd === this.inputBox.value.length && element.selectionStart === element.selectionEnd;
 		}
 
-		if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
-			return false; // no modifiers allowed
-		}
-
-		// validate the cursor is at the end of the input and there is no selection,
-		// and if not prevent opening in the background such as the selection can be changed
-		const element = this.inputBox.inputElement;
-		return element.selectionEnd === this.inputBox.value.length && element.selectionStart === element.selectionEnd;
+		// Mouse
+		return e.middleButton;
 	}
 
 	private onType(): void {
@@ -931,12 +942,12 @@ export class QuickOpenWidget implements IModelProvider {
 		this.isLoosingFocus = false;
 	}
 
-	private loosingFocus(e: Event): void {
+	private loosingFocus(e: FocusEvent): void {
 		if (!this.isVisible()) {
 			return;
 		}
 
-		const relatedTarget = (<any>e).relatedTarget;
+		const relatedTarget = e.relatedTarget as HTMLElement;
 		if (!this.quickNavigateConfiguration && DOM.isAncestor(relatedTarget, this.builder.getHTMLElement())) {
 			return; // user clicked somewhere into quick open widget, do not close thereby
 		}

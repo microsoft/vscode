@@ -430,9 +430,9 @@ class MarkerController implements editorCommon.IEditorContribution {
 
 	constructor(
 		editor: ICodeEditor,
-		@IMarkerService private _markerService: IMarkerService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IThemeService private _themeService: IThemeService
+		@IMarkerService private readonly _markerService: IMarkerService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		this._editor = editor;
 		this._markersNavigationVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._contextKeyService);
@@ -494,7 +494,7 @@ class NextMarkerAction extends MarkerNavigationAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.marker.next',
-			label: nls.localize('markerAction.next.label', "Go to Next Error or Warning"),
+			label: nls.localize('markerAction.next.label', "Go to Next Problem (Error, Warning, Info)"),
 			alias: 'Go to Next Error or Warning',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
@@ -509,7 +509,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.marker.prev',
-			label: nls.localize('markerAction.previous.label', "Go to Previous Error or Warning"),
+			label: nls.localize('markerAction.previous.label', "Go to Previous Problem (Error, Warning, Info)"),
 			alias: 'Go to Previous Error or Warning',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {

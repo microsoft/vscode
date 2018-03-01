@@ -11,7 +11,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { join, normalize } from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ITokenizationSupport, TokenizationRegistry, IState, LanguageId, TokenMetadata } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { StackElement, IGrammar, Registry, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2 } from 'vscode-textmate';
@@ -37,6 +37,16 @@ export class TMScopeRegistry {
 	}
 
 	public register(scopeName: string, filePath: string, embeddedLanguages?: IEmbeddedLanguagesMap): void {
+		if (this._scopeNameToLanguageRegistration[scopeName]) {
+			const existingRegistration = this._scopeNameToLanguageRegistration[scopeName];
+			if (existingRegistration.grammarFilePath !== filePath) {
+				console.warn(
+					`Overwriting grammar scope name to file mapping for scope ${scopeName}.\n` +
+					`Old grammar file: ${existingRegistration.grammarFilePath}.\n` +
+					`New grammar file: ${filePath}`
+				);
+			}
+		}
 		this._scopeNameToLanguageRegistration[scopeName] = new TMLanguageRegistration(scopeName, filePath, embeddedLanguages);
 	}
 
@@ -145,7 +155,7 @@ export class TextMateService implements ITextMateService {
 		let defaultBackground: Color = Color.transparent;
 		for (let i = 0, len = colorTheme.tokenColors.length; i < len; i++) {
 			let rule = colorTheme.tokenColors[i];
-			if (!rule.scope) {
+			if (!rule.scope && rule.settings) {
 				if (rule.settings.foreground) {
 					defaultForeground = Color.fromHex(rule.settings.foreground);
 				}

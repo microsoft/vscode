@@ -19,13 +19,15 @@ import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorCon
 import { Location, ReferenceProviderRegistry } from 'vs/editor/common/modes';
 import { PeekContext, getOuterEditor } from './peekViewWidget';
 import { ReferencesController, RequestOptions, ctxReferenceSearchVisible } from './referencesController';
-import { ReferencesModel } from './referencesModel';
+import { ReferencesModel, OneReference } from './referencesModel';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel } from 'vs/editor/common/model';
+import { IListService } from 'vs/platform/list/browser/listService';
+import { ctxReferenceWidgetSearchTreeFocused } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 
 const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
@@ -166,6 +168,19 @@ CommandsRegistry.registerCommand({
 });
 
 function closeActiveReferenceSearch(accessor: ServicesAccessor, args: any) {
+	withController(accessor, controller => controller.closeWidget());
+}
+
+function openReferenceToSide(accessor: ServicesAccessor, args: any) {
+	const listService = accessor.get(IListService);
+
+	const focus = listService.lastFocusedList && listService.lastFocusedList.getFocus();
+	if (focus instanceof OneReference) {
+		withController(accessor, controller => controller.openReference(focus, true));
+	}
+}
+
+function withController(accessor: ServicesAccessor, fn: (controller: ReferencesController) => void): void {
 	var outerEditor = getOuterEditor(accessor);
 	if (!outerEditor) {
 		return;
@@ -176,12 +191,12 @@ function closeActiveReferenceSearch(accessor: ServicesAccessor, args: any) {
 		return;
 	}
 
-	controller.closeWidget();
+	fn(controller);
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeReferenceSearch',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(50),
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek')),
@@ -197,6 +212,16 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: closeActiveReferenceSearch
 });
 
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'openReferenceToSide',
+	weight: KeybindingsRegistry.WEIGHT.editorContrib(),
+	primary: KeyMod.CtrlCmd | KeyCode.Enter,
+	mac: {
+		primary: KeyMod.WinCtrl | KeyCode.Enter
+	},
+	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ctxReferenceWidgetSearchTreeFocused),
+	handler: openReferenceToSide
+});
 
 export function provideReferences(model: ITextModel, position: Position): TPromise<Location[]> {
 

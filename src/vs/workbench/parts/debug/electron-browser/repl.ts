@@ -41,16 +41,16 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { clipboard } from 'electron';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { memoize } from 'vs/base/common/decorators';
 import { dispose } from 'vs/base/common/lifecycle';
+import { OpenMode, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 
 const $ = dom.$;
 
 const replTreeOptions: ITreeOptions = {
 	twistiePixels: 20,
-	ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
-	keyboardSupport: false
+	ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel")
 };
 
 const HISTORY_STORAGE_KEY = 'debug.repl.history';
@@ -93,8 +93,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		@IPanelService private panelService: IPanelService,
 		@IThemeService protected themeService: IThemeService,
 		@IModelService private modelService: IModelService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IListService private listService: IListService
+		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super(debug.REPL_ID, telemetryService, themeService);
 
@@ -136,15 +135,15 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.createReplInput(this.container);
 
 		this.renderer = this.instantiationService.createInstance(ReplExpressionsRenderer);
-		const controller = this.instantiationService.createInstance(ReplExpressionsController, new ReplExpressionsActionProvider(this.instantiationService), MenuId.DebugConsoleContext);
+		const controller = this.instantiationService.createInstance(ReplExpressionsController, new ReplExpressionsActionProvider(this.instantiationService, this.replInput), MenuId.DebugConsoleContext, { openMode: OpenMode.SINGLE_CLICK, clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change, to preserve focus behaviour in input field */ });
 		controller.toFocusOnClick = this.replInput;
 
-		this.tree = new WorkbenchTree(this.treeContainer, {
+		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new ReplExpressionsDataSource(),
 			renderer: this.renderer,
 			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
 			controller
-		}, replTreeOptions, this.contextKeyService, this.listService, this.themeService);
+		}, replTreeOptions);
 
 		if (!Repl.HISTORY) {
 			Repl.HISTORY = new ReplHistory(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')));

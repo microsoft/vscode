@@ -7,10 +7,10 @@
 
 import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, CancellationTokenSource, StatusBarAlignment } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
-import { Repository, Resource, Status, CommitOptions, ResourceGroupType, RepositoryState } from './repository';
+import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
-import { grep, eventToPromise, isDescendant } from './util';
+import { grep, isDescendant } from './util';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange, getModifiedRange } from './staging';
 import * as path from 'path';
 import { lstat, Stats } from 'fs';
@@ -237,7 +237,7 @@ export class CommandCenter {
 			}
 
 			const { size, object } = await repository.lstree(gitRef, uri.fsPath);
-			const { mimetype, encoding } = await repository.detectObjectType(object);
+			const { mimetype } = await repository.detectObjectType(object);
 
 			if (mimetype === 'text/plain') {
 				return toGitUri(uri, ref);
@@ -963,26 +963,30 @@ export class CommandCenter {
 		getCommitMessage: () => Promise<string | undefined>,
 		opts?: CommitOptions
 	): Promise<boolean> {
-		const unsavedTextDocuments = workspace.textDocuments
-			.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
+		const config = workspace.getConfiguration('git');
+		const promptToSaveFilesBeforeCommit = config.get<boolean>('promptToSaveFilesBeforeCommit') === true;
 
-		if (unsavedTextDocuments.length > 0) {
-			const message = unsavedTextDocuments.length === 1
-				? localize('unsaved files single', "The following file is unsaved: {0}.\n\nWould you like to save it before comitting?", path.basename(unsavedTextDocuments[0].uri.fsPath))
-				: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before comitting?", unsavedTextDocuments.length);
-			const saveAndCommit = localize('save and commit', "Save All & Commit");
-			const commit = localize('commit', "Commit Anyway");
-			const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
+		if (promptToSaveFilesBeforeCommit) {
+			const unsavedTextDocuments = workspace.textDocuments
+				.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
 
-			if (pick === saveAndCommit) {
-				await Promise.all(unsavedTextDocuments.map(d => d.save()));
-				await repository.status();
-			} else if (pick !== commit) {
-				return false; // do not commit on cancel
+			if (unsavedTextDocuments.length > 0) {
+				const message = unsavedTextDocuments.length === 1
+					? localize('unsaved files single', "The following file is unsaved: {0}.\n\nWould you like to save it before comitting?", path.basename(unsavedTextDocuments[0].uri.fsPath))
+					: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before comitting?", unsavedTextDocuments.length);
+				const saveAndCommit = localize('save and commit', "Save All & Commit");
+				const commit = localize('commit', "Commit Anyway");
+				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
+
+				if (pick === saveAndCommit) {
+					await Promise.all(unsavedTextDocuments.map(d => d.save()));
+					await repository.status();
+				} else if (pick !== commit) {
+					return false; // do not commit on cancel
+				}
 			}
 		}
 
-		const config = workspace.getConfiguration('git');
 		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
 		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
 		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
@@ -1046,13 +1050,6 @@ export class CommandCenter {
 			if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
 				value = (await repository.getCommit(repository.HEAD.commit)).message;
 			}
-
-			const getPreviousCommitMessage = async () => {
-				//Only return the previous commit message if it's an amend commit and the repo already has a commit
-				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
-					return (await repository.getCommit('HEAD')).message;
-				}
-			};
 
 			return await window.showInputBox({
 				value,
@@ -1448,7 +1445,7 @@ export class CommandCenter {
 		if (shouldPrompt) {
 			const message = localize('sync is unpredictable', "This action will push and pull commits to and from '{0}'.", HEAD.upstream);
 			const yes = localize('ok', "OK");
-			const neverAgain = localize('never again', "OK, Never Show Again");
+			const neverAgain = localize('never again', "OK, Don't Show Again");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
 
 			if (pick === neverAgain) {

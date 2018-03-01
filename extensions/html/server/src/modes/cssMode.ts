@@ -6,7 +6,7 @@
 
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
 import { TextDocument, Position, Range } from 'vscode-languageserver-types';
-import { getCSSLanguageService, Stylesheet } from 'vscode-css-languageservice';
+import { getCSSLanguageService, Stylesheet, ICompletionParticipant } from 'vscode-css-languageservice';
 import { LanguageMode, Settings } from './languageModes';
 import { HTMLDocumentRegions, CSS_STYLE_RULE } from './embeddedSupport';
 import { Color } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
@@ -30,6 +30,9 @@ export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegio
 		doComplete(document: TextDocument, position: Position) {
 			let embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.doComplete(embedded, position, cssStylesheets.get(embedded));
+		},
+		setCompletionParticipants(registeredCompletionParticipants: ICompletionParticipant[]) {
+			cssLanguageService.setCompletionParticipants(registeredCompletionParticipants);
 		},
 		doHover(document: TextDocument, position: Position) {
 			let embedded = embeddedCSSDocuments.get(document);

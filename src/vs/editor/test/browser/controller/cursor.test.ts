@@ -1852,6 +1852,88 @@ suite('Editor Controller - Regression tests', () => {
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
 		});
 	});
+
+	test('issue #41573 - delete across multiple lines does not shrink the selection when word wraps', () => {
+		const model = TextModel.createFromString([
+			'Authorization: \'Bearer pHKRfCTFSnGxs6akKlb9ddIXcca0sIUSZJutPHYqz7vEeHdMTMh0SGN0IGU3a0n59DXjTLRsj5EJ2u33qLNIFi9fk5XF8pK39PndLYUZhPt4QvHGLScgSkK0L4gwzkzMloTQPpKhqiikiIOvyNNSpd2o8j29NnOmdTUOKi9DVt74PD2ohKxyOrWZ6oZprTkb3eKajcpnS0LABKfaw2rmv4\','
+		].join('\n'));
+		const config = new TestConfiguration({
+			wordWrap: 'wordWrapColumn',
+			wordWrapColumn: 100
+		});
+		const viewModel = new ViewModel(0, config, model, null);
+		const cursor = new Cursor(config, model, viewModel);
+
+		console.log(viewModel.getLineCount());
+
+		moveTo(cursor, 1, 43, false);
+		moveTo(cursor, 1, 147, true);
+		assertCursor(cursor, new Selection(1, 43, 1, 147));
+
+		model.applyEdits([{
+			range: new Range(1, 1, 1, 43),
+			text: ''
+		}]);
+
+		assertCursor(cursor, new Selection(1, 1, 1, 105));
+
+		cursor.dispose();
+		viewModel.dispose();
+		config.dispose();
+		model.dispose();
+	});
+
+	test('issue #22717: Moving text cursor cause an incorrect position in Chinese', () => {
+		// a single model line => 4 view lines
+		withTestCodeEditor([
+			[
+				'一二三四五六七八九十',
+				'12345678901234567890',
+			].join('\n')
+		], {}, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
+
+			moveDown(cursor);
+			assertCursor(cursor, new Selection(2, 9, 2, 9));
+
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(2, 10, 2, 10));
+
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(2, 11, 2, 11));
+
+			moveUp(cursor);
+			assertCursor(cursor, new Selection(1, 6, 1, 6));
+		});
+	});
+
+	test('issue #44805: Should not be able to undo in readonly editor', () => {
+		let model = TextModel.createFromString(
+			[
+				''
+			].join('\n'),
+			{
+				defaultEOL: DefaultEndOfLine.LF,
+				detectIndentation: false,
+				insertSpaces: false,
+				tabSize: 4,
+				trimAutoWhitespace: true
+			}
+		);
+
+		withTestCodeEditor(null, { readOnly: true, model: model }, (editor, cursor) => {
+			model.pushEditOperations([new Selection(1, 1, 1, 1)], [{
+				range: new Range(1, 1, 1, 1),
+				text: 'Hello world!'
+			}], () => [new Selection(1, 1, 1, 1)]);
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'Hello world!');
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'Hello world!');
+		});
+
+		model.dispose();
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {

@@ -7,14 +7,16 @@
 
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import { ResourceMap } from 'vs/base/common/map';
 import { isLinux } from 'vs/base/common/platform';
-import { IFileStat, isParent } from 'vs/platform/files/common/files';
+import { IFileStat } from 'vs/platform/files/common/files';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
+import { IEditorGroup, toResource, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getPathLabel } from 'vs/base/common/labels';
+import { Schemas } from 'vs/base/common/network';
 
 export class Model {
 
@@ -73,17 +75,17 @@ export class FileStat implements IFileStat {
 	public mtime: number;
 	public etag: string;
 	private _isDirectory: boolean;
-	public hasChildren: boolean;
+	private _isSymbolicLink: boolean;
 	public children: FileStat[];
 	public parent: FileStat;
 
 	public isDirectoryResolved: boolean;
 
-	constructor(resource: URI, public root: FileStat, isDirectory?: boolean, hasChildren?: boolean, name: string = getPathLabel(resource), mtime?: number, etag?: string) {
+	constructor(resource: URI, public root: FileStat, isSymbolicLink?: boolean, isDirectory?: boolean, name: string = getPathLabel(resource), mtime?: number, etag?: string) {
 		this.resource = resource;
 		this.name = name;
 		this.isDirectory = !!isDirectory;
-		this.hasChildren = isDirectory && hasChildren;
+		this._isSymbolicLink = !!isSymbolicLink;
 		this.etag = etag;
 		this.mtime = mtime;
 
@@ -92,6 +94,10 @@ export class FileStat implements IFileStat {
 		}
 
 		this.isDirectoryResolved = false;
+	}
+
+	public get isSymbolicLink(): boolean {
+		return this._isSymbolicLink;
 	}
 
 	public get isDirectory(): boolean {
@@ -123,7 +129,7 @@ export class FileStat implements IFileStat {
 	}
 
 	public static create(raw: IFileStat, root: FileStat, resolveTo?: URI[]): FileStat {
-		const stat = new FileStat(raw.resource, root, raw.isDirectory, raw.hasChildren, raw.name, raw.mtime, raw.etag);
+		const stat = new FileStat(raw.resource, root, raw.isSymbolicLink, raw.isDirectory, raw.name, raw.mtime, raw.etag);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -132,7 +138,7 @@ export class FileStat implements IFileStat {
 			// the folder is fully resolved if either it has a list of children or the client requested this by using the resolveTo
 			// array of resource path to resolve.
 			stat.isDirectoryResolved = !!raw.children || (!!resolveTo && resolveTo.some((r) => {
-				return paths.isEqualOrParent(r.fsPath, stat.resource.fsPath, !isLinux /* ignorecase */);
+				return resources.isEqualOrParent(r, stat.resource, !isLinux /* ignorecase */);
 			}));
 
 			// Recurse into children
@@ -141,7 +147,6 @@ export class FileStat implements IFileStat {
 					const child = FileStat.create(raw.children[i], root, resolveTo);
 					child.parent = stat;
 					stat.children.push(child);
-					stat.hasChildren = stat.children.length > 0;
 				}
 			}
 		}
@@ -169,7 +174,6 @@ export class FileStat implements IFileStat {
 		local.resource = disk.resource;
 		local.name = disk.name;
 		local.isDirectory = disk.isDirectory;
-		local.hasChildren = disk.isDirectory && disk.hasChildren;
 		local.mtime = disk.mtime;
 		local.isDirectoryResolved = disk.isDirectoryResolved;
 
@@ -217,7 +221,6 @@ export class FileStat implements IFileStat {
 		child.updateResource(false);
 
 		this.children.push(child);
-		this.hasChildren = this.children.length > 0;
 	}
 
 	/**
@@ -230,8 +233,6 @@ export class FileStat implements IFileStat {
 				break;
 			}
 		}
-
-		this.hasChildren = this.children.length > 0;
 	}
 
 	/**
@@ -256,10 +257,9 @@ export class FileStat implements IFileStat {
 
 	private updateResource(recursive: boolean): void {
 		this.resource = this.parent.resource.with({ path: paths.join(this.parent.resource.path, this.name) });
-		// this.resource = URI.file(paths.join(this.parent.resource.fsPath, this.name));
 
 		if (recursive) {
-			if (this.isDirectory && this.hasChildren && this.children) {
+			if (this.isDirectory && this.children) {
 				this.children.forEach((child: FileStat) => {
 					child.updateResource(true);
 				});
@@ -288,23 +288,23 @@ export class FileStat implements IFileStat {
 	public find(resource: URI): FileStat {
 
 		// Return if path found
-		if (paths.isEqual(resource.fsPath, this.resource.fsPath, !isLinux /* ignorecase */)) {
+		if (resources.isEqual(resource, this.resource, !isLinux /* ignorecase */)) {
 			return this;
 		}
 
 		// Return if not having any children
-		if (!this.hasChildren) {
+		if (!this.children) {
 			return null;
 		}
 
 		for (let i = 0; i < this.children.length; i++) {
 			const child = this.children[i];
 
-			if (paths.isEqual(resource.fsPath, child.resource.fsPath, !isLinux /* ignorecase */)) {
+			if (resources.isEqual(resource, child.resource, !isLinux /* ignorecase */)) {
 				return child;
 			}
 
-			if (child.isDirectory && isParent(resource.fsPath, child.resource.fsPath, !isLinux /* ignorecase */)) {
+			if (child.isDirectory && resources.isEqualOrParent(resource, child.resource, !isLinux /* ignorecase */)) {
 				return child.find(resource);
 			}
 		}
@@ -335,7 +335,6 @@ export class NewStatPlaceholder extends FileStat {
 		this.isDirectoryResolved = void 0;
 		this.name = void 0;
 		this.isDirectory = void 0;
-		this.hasChildren = void 0;
 		this.mtime = void 0;
 	}
 
@@ -374,24 +373,26 @@ export class NewStatPlaceholder extends FileStat {
 		child.parent = parent;
 		parent.children.push(child);
 
-		parent.hasChildren = parent.children.length > 0;
-
 		return child;
 	}
 }
 
-export class OpenEditor {
+export class OpenEditor implements IEditorIdentifier {
 
-	constructor(private editor: IEditorInput, private group: IEditorGroup) {
+	constructor(private _editor: IEditorInput, private _group: IEditorGroup) {
 		// noop
 	}
 
-	public get editorInput() {
-		return this.editor;
+	public get editor() {
+		return this._editor;
 	}
 
-	public get editorGroup() {
-		return this.group;
+	public get editorIndex() {
+		return this._group.indexOf(this.editor);
+	}
+
+	public get group() {
+		return this._group;
 	}
 
 	public getId(): string {
@@ -403,7 +404,7 @@ export class OpenEditor {
 	}
 
 	public isUntitled(): boolean {
-		return !!toResource(this.editor, { supportSideBySide: true, filter: 'untitled' });
+		return !!toResource(this.editor, { supportSideBySide: true, filter: Schemas.untitled });
 	}
 
 	public isDirty(): boolean {

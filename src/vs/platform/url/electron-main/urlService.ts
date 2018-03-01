@@ -10,6 +10,7 @@ import { IURLService } from 'vs/platform/url/common/url';
 import product from 'vs/platform/node/product';
 import { app } from 'electron';
 import URI from 'vs/base/common/uri';
+import { ILogService } from '../../log/common/log';
 
 export class URLService implements IURLService {
 
@@ -18,14 +19,17 @@ export class URLService implements IURLService {
 	private openUrlEmitter: Emitter<string> = new Emitter<string>();
 	onOpenURL: Event<URI>;
 
-	constructor(initial: string | string[] = []) {
+	constructor(
+		initial: string | string[],
+		@ILogService private logService: ILogService
+	) {
 		const globalBuffer = (global.getOpenUrls() || []) as string[];
 		const initialBuffer = [
 			...(typeof initial === 'string' ? [initial] : initial),
 			...globalBuffer
 		];
 
-		app.setAsDefaultProtocolClient(product.urlProtocol, process.execPath, ['--open-url']);
+		app.setAsDefaultProtocolClient(product.urlProtocol, process.execPath, ['--open-url', '--']);
 
 		const rawOnOpenUrl = fromNodeEventEmitter(app, 'open-url', (event: Electron.Event, url: string) => ({ event, url }));
 
@@ -51,6 +55,7 @@ export class URLService implements IURLService {
 	}
 
 	open(url: string): void {
+		this.logService.trace('urlService#open', url);
 		this.openUrlEmitter.fire(url);
 	}
 }

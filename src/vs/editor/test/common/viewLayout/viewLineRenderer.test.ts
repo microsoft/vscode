@@ -1197,6 +1197,64 @@ suite('viewLineRenderer.renderLine 2', () => {
 		assert.deepEqual(actual.html, expected);
 	});
 
+	test('issue #22832: Consider fullwidth characters when rendering tabs', () => {
+
+		let actual = renderViewLine(new RenderLineInput(
+			true,
+			'asd = "擦"\t\t#asd',
+			false,
+			0,
+			createViewLineTokens([createPart(15, 3)]),
+			[],
+			4,
+			10,
+			10000,
+			'none',
+			false,
+			false
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="mtk3">asd\u00a0=\u00a0"擦"\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0#asd</span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.html, expected);
+	});
+
+	test('issue #22832: Consider fullwidth characters when rendering tabs (render whitespace)', () => {
+
+		let actual = renderViewLine(new RenderLineInput(
+			true,
+			'asd = "擦"\t\t#asd',
+			false,
+			0,
+			createViewLineTokens([createPart(15, 3)]),
+			[],
+			4,
+			10,
+			10000,
+			'all',
+			false,
+			false
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="mtk3">asd</span>',
+			'<span class="vs-whitespace">\u00b7</span>',
+			'<span class="mtk3">=</span>',
+			'<span class="vs-whitespace">\u00b7</span>',
+			'<span class="mtk3">"擦"</span>',
+			'<span class="vs-whitespace">\u2192\u00a0\u2192\u00a0\u00a0\u00a0</span>',
+			'<span class="mtk3">#asd</span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.html, expected);
+	});
+
 	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
 		let renderLineOutput = renderViewLine(new RenderLineInput(
 			false,

@@ -77,7 +77,6 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 	explorer: {
 		openEditors: {
 			visible: number;
-			dynamicHeight: boolean;
 		};
 		autoReveal: boolean;
 		enableDragAndDrop: boolean;

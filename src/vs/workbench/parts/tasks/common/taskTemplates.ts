@@ -124,10 +124,16 @@ const maven: TaskEntry = {
 	].join('\n')
 };
 
-export let templates: TaskEntry[] = [dotnetBuild, msbuild, maven].sort((a, b) => {
-	return (a.sort || a.label).localeCompare(b.sort || b.label);
-});
-templates.push(command);
+let _templates: TaskEntry[] = null;
+export function getTemplates(): TaskEntry[] {
+	if (!_templates) {
+		_templates = [dotnetBuild, msbuild, maven].sort((a, b) => {
+			return (a.sort || a.label).localeCompare(b.sort || b.label);
+		});
+		_templates.push(command);
+	}
+	return _templates;
+}
 
 
 /** Version 1.0 templates

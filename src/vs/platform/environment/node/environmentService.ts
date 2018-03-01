@@ -12,7 +12,6 @@ import URI from 'vs/base/common/uri';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
-import { LogLevel } from 'vs/platform/log/common/log';
 import { toLocalISOString } from 'vs/base/common/date';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 
@@ -22,7 +21,8 @@ const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
 
 function getNixIPCHandle(userDataPath: string, type: string): string {
 	if (xdgRuntimeDir) {
-		return path.join(xdgRuntimeDir, `${pkg.name}-${pkg.version}-${type}.sock`);
+		const scope = crypto.createHash('md5').update(userDataPath).digest('hex').substr(0, 8);
+		return path.join(xdgRuntimeDir, `vscode-${scope}-${pkg.version}-${type}.sock`);
 	}
 
 	return path.join(userDataPath, `${pkg.version}-${type}.sock`);
@@ -151,33 +151,6 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this._args.verbose; }
-
-	@memoize
-	get logLevel(): LogLevel {
-		if (this.verbose) {
-			return LogLevel.Trace;
-		}
-		if (typeof this._args.log === 'string') {
-			const logLevel = this._args.log.toLowerCase();
-			switch (logLevel) {
-				case 'trace':
-					return LogLevel.Trace;
-				case 'debug':
-					return LogLevel.Debug;
-				case 'info':
-					return LogLevel.Info;
-				case 'warn':
-					return LogLevel.Warning;
-				case 'error':
-					return LogLevel.Error;
-				case 'critical':
-					return LogLevel.Critical;
-				case 'off':
-					return LogLevel.Off;
-			}
-		}
-		return LogLevel.Info;
-	}
 
 	get wait(): boolean { return this._args.wait; }
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }

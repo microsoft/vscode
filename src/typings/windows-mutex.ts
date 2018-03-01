@@ -9,4 +9,6 @@ declare module 'windows-mutex' {
 		isActive(): boolean;
 		release(): void;
 	}
+
+	export function isActive(name: string): boolean;
 }

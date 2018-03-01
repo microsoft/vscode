@@ -40,11 +40,11 @@ export class ContextMenuController implements IEditorContribution {
 
 	constructor(
 		editor: ICodeEditor,
-		@IContextMenuService private _contextMenuService: IContextMenuService,
-		@IContextViewService private _contextViewService: IContextViewService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IKeybindingService private _keybindingService: IKeybindingService,
-		@IMenuService private _menuService: IMenuService
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IMenuService private readonly _menuService: IMenuService
 	) {
 		this._editor = editor;
 

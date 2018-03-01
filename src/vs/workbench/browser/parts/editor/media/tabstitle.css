@@ -87,9 +87,31 @@
 	margin-bottom: auto;
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink .tab-label {
+	position: relative;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container >  .tab.sizing-shrink > .tab-label::after {
+	content: "";
+	position: absolute;
+	right: 0;
+	height: 100%;
+	width: 10px;
+	opacity: 1;
+	padding: 0;
+}
+
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label,
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label > .monaco-icon-label-description-container {
 	overflow: visible; /* fixes https://github.com/Microsoft/vscode/issues/20182 */
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink > .monaco-icon-label > .monaco-icon-label-description-container {
+	text-overflow: clip;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink > .monaco-icon-label > .monaco-icon-label-description-container {
+	text-overflow: ellipsis;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .monaco-icon-label::before {

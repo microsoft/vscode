@@ -129,7 +129,6 @@ suite('Editor Model - Model', () => {
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 3), ' new line\nNo longer')]);
 		assert.deepEqual(e, new ModelRawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'My new line First Line'),
 				new ModelRawLineChanged(1, 'My new line'),
 				new ModelRawLinesInserted(2, 2, ['No longer First Line']),
 			],
@@ -245,7 +244,6 @@ suite('Editor Model - Model', () => {
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 2, 6))]);
 		assert.deepEqual(e, new ModelRawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'My '),
 				new ModelRawLineChanged(1, 'My Second Line'),
 				new ModelRawLinesDeleted(2, 2),
 			],
@@ -266,7 +264,6 @@ suite('Editor Model - Model', () => {
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 3, 5))]);
 		assert.deepEqual(e, new ModelRawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'My '),
 				new ModelRawLineChanged(1, 'My Third Line'),
 				new ModelRawLinesDeleted(2, 3),
 			],

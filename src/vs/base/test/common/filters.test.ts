@@ -393,11 +393,11 @@ suite('Filters', () => {
 
 		// issue #17836
 		// assertTopScore(fuzzyScore, 'TEdit', 1, 'TextEditorDecorationType', 'TextEdit', 'TextEditor');
-		assertTopScore(fuzzyScore, 'p', 0, 'parse', 'posix', 'pafdsa', 'path', 'p');
+		assertTopScore(fuzzyScore, 'p', 4, 'parse', 'posix', 'pafdsa', 'path', 'p');
 		assertTopScore(fuzzyScore, 'pa', 0, 'parse', 'pafdsa', 'path');
 
 		// issue #14583
-		assertTopScore(fuzzyScore, 'log', 3, 'HTMLOptGroupElement', 'ScrollLogicalPosition', 'SVGFEMorphologyElement', 'log');
+		assertTopScore(fuzzyScore, 'log', 3, 'HTMLOptGroupElement', 'ScrollLogicalPosition', 'SVGFEMorphologyElement', 'log', 'logger');
 		assertTopScore(fuzzyScore, 'e', 2, 'AbstractWorker', 'ActiveXObject', 'else');
 
 		// issue #14446
@@ -415,6 +415,8 @@ suite('Filters', () => {
 		assertTopScore(fuzzyScore, 'is', 0, 'isValidViewletId', 'import statement');
 
 		assertTopScore(fuzzyScore, 'title', 1, 'files.trimTrailingWhitespace', 'window.title');
+
+		assertTopScore(fuzzyScore, 'const', 1, 'constructor', 'const', 'cuOnstrul');
 	});
 
 	test('Unexpected suggestion scoring, #28791', function () {

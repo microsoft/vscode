@@ -335,6 +335,8 @@ export class Configuration extends CommonEditorConfiguration {
 			extra += 'ff ';
 		} else if (browser.isEdge) {
 			extra += 'edge ';
+		} else if (browser.isSafari) {
+			extra += 'safari ';
 		}
 		if (platform.isMacintosh) {
 			extra += 'mac ';

@@ -22,9 +22,10 @@ import { Parts, IPartService } from 'vs/workbench/services/part/common/partServi
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
-import Webview, { WebviewOptions } from './webview';
+import { Webview, WebviewOptions } from './webview';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { WebviewEditor } from './webviewEditor';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 
 /**
@@ -32,7 +33,7 @@ import { WebviewEditor } from './webviewEditor';
  */
 export class HtmlPreviewPart extends WebviewEditor {
 
-	static ID: string = 'workbench.editor.htmlPreviewPart';
+	static readonly ID: string = 'workbench.editor.htmlPreviewPart';
 	static class: string = 'htmlPreviewPart';
 
 	private _webviewDisposables: IDisposable[];
@@ -46,13 +47,14 @@ export class HtmlPreviewPart extends WebviewEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ITextModelService private textModelResolverService: ITextModelService,
 		@IThemeService themeService: IThemeService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IPartService private partService: IPartService,
 		@IStorageService storageService: IStorageService,
-		@IContextViewService private _contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IPartService private readonly partService: IPartService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService, themeService, storageService, contextKeyService);
 	}
@@ -84,7 +86,19 @@ export class HtmlPreviewPart extends WebviewEditor {
 				webviewOptions = this.input.options;
 			}
 
-			this._webview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey, this.findInputFocusContextKey, webviewOptions);
+			this._webview = new Webview(
+				this.content,
+				this.partService.getContainer(Parts.EDITOR_PART),
+				this.themeService,
+				this._environmentService,
+				this._contextViewService,
+				this.contextKey,
+				this.findInputFocusContextKey,
+				{
+					...webviewOptions,
+					useSameOriginForRoot: true
+				});
+
 			if (this.input && this.input instanceof HtmlInput) {
 				const state = this.loadViewState(this.input.getResource());
 				this.scrollYPercentage = state ? state.scrollYPercentage : 0;
@@ -93,7 +107,6 @@ export class HtmlPreviewPart extends WebviewEditor {
 				const resourceUri = this.input.getResource();
 				this.webview.baseUrl = resourceUri.toString(true);
 			}
-			this.onThemeChange(this.themeService.getTheme());
 			this._webviewDisposables = [
 				this._webview,
 				this._webview.onDidClickLink(uri => this.openerService.open(uri)),
@@ -129,8 +142,8 @@ export class HtmlPreviewPart extends WebviewEditor {
 			this._themeChangeSubscription = this.themeService.onThemeChange(this.onThemeChange.bind(this));
 
 			if (this._hasValidModel()) {
-				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());
-				this.webview.contents = this.model.getLinesContent();
+				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent().join('\n'));
+				this.webview.contents = this.model.getLinesContent().join('\n');
 			}
 		}
 	}
@@ -143,13 +156,8 @@ export class HtmlPreviewPart extends WebviewEditor {
 		const { width, height } = dimension;
 		this.content.style.width = `${width}px`;
 		this.content.style.height = `${height}px`;
-		if (this._webview) {
-			this._webview.layout();
-		}
-	}
 
-	public focus(): void {
-		this.webview.focus();
+		super.layout(dimension);
 	}
 
 	public clearInput(): void {
@@ -220,14 +228,14 @@ export class HtmlPreviewPart extends WebviewEditor {
 				this._modelChangeSubscription = this.model.onDidChangeContent(() => {
 					if (this.model) {
 						this.scrollYPercentage = 0;
-						this.webview.contents = this.model.getLinesContent();
+						this.webview.contents = this.model.getLinesContent().join('\n');
 					}
 				});
 				const state = this.loadViewState(resourceUri);
 				this.scrollYPercentage = state ? state.scrollYPercentage : 0;
 				this.webview.baseUrl = resourceUri.toString(true);
 				this.webview.options = input.options;
-				this.webview.contents = this.model.getLinesContent();
+				this.webview.contents = this.model.getLinesContent().join('\n');
 				this.webview.initialScrollProgress = this.scrollYPercentage;
 				return undefined;
 			});

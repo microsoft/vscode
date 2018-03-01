@@ -58,55 +58,6 @@
 	display: none;
 }
 
-.explorer-folders-view .monaco-tree-row .content {
-	display: flex;
-}
-
-.explorer-folders-view .monaco-tree-row .content::before {
-	background-size: 16px;
-	background-position: 50% 50%;
-	background-repeat: no-repeat;
-	padding-right: 6px;
-	width: 16px;
-	height: 22px;
-	display: inline-block;
-	vertical-align: top;
-	content: ' ';
-}
-
-.explorer-folders-view.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content::before {
-	display: none;
-}
-
-.explorer-folders-view .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("expanded.svg");
-}
-
-.explorer-folders-view .monaco-tree-row.has-children .content::before {
-	display: inline-block;
-	background-image: url("collapsed.svg");
-}
-
-.vs-dark .explorer-folders-view .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("expanded-dark.svg");
-}
-
-.vs-dark .explorer-folders-view .monaco-tree-row.has-children .content::before {
-	background-image: url("collapsed-dark.svg");
-}
-
-.hc-black .explorer-folders-view .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("expanded-hc.svg");
-}
-
-.hc-black .explorer-folders-view .monaco-tree-row.has-children .content::before {
-	background-image: url("collapsed-hc.svg");
-}
-
-.explorer-folders-view.hide-arrows .monaco-tree-row .content::before {
-	display: none;
-}
-
 .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row:hover > .monaco-action-bar,
 .explorer-viewlet .explorer-open-editors .monaco-list.focused .monaco-list-row.focused > .monaco-action-bar,
 .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty > .monaco-action-bar {
@@ -158,6 +109,7 @@
 .monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,
 .monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox {
 	height: 22px;
+	margin-left: -1px;
 }
 
 .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {

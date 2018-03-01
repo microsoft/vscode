@@ -12,9 +12,12 @@ const shell = require('gulp-shell');
 const es = require('event-stream');
 const vfs = require('vinyl-fs');
 const util = require('./lib/util');
+// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 const packageJson = require('../package.json');
+// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 const product = require('../product.json');
-const rpmDependencies = require('../resources/linux/rpm/dependencies');
+// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
+const rpmDependencies = require('../resources/linux/rpm/dependencies.json');
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
 
@@ -110,8 +113,7 @@ function buildDebPackage(arch) {
 	return shell.task([
 		'chmod 755 ' + product.applicationName + '-' + debArch + '/DEBIAN/postinst ' + product.applicationName + '-' + debArch + '/DEBIAN/prerm ' + product.applicationName + '-' + debArch + '/DEBIAN/postrm',
 		'mkdir -p deb',
-		'fakeroot dpkg-deb -b ' + product.applicationName + '-' + debArch + ' deb',
-		'dpkg-scanpackages deb /dev/null > Packages'
+		'fakeroot dpkg-deb -b ' + product.applicationName + '-' + debArch + ' deb'
 	], { cwd: '.build/linux/deb/' + debArch });
 }
 
@@ -218,10 +220,10 @@ function prepareSnapPackage(arch) {
 
 function buildSnapPackage(arch) {
 	const snapBuildPath = getSnapBuildPath(arch);
-
+	const snapFilename = `${product.applicationName}-${packageJson.version}-${linuxPackageRevision}-${arch}.snap`;
 	return shell.task([
 		`chmod +x ${snapBuildPath}/electron-launch`,
-		`cd ${snapBuildPath} && snapcraft snap`
+		`cd ${snapBuildPath} && snapcraft snap --output ../${snapFilename}`
 	]);
 }
 

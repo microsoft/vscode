@@ -1546,7 +1546,7 @@ declare module monaco.editor {
 		 * @param limitResultCount Limit the number of results
 		 * @return The ranges where the matches are. It is empty if not matches have been found.
 		 */
-		findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean, limitResultCount?: number): FindMatch[];
+		findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount?: number): FindMatch[];
 		/**
 		 * Search the model.
 		 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -1558,7 +1558,7 @@ declare module monaco.editor {
 		 * @param limitResultCount Limit the number of results
 		 * @return The ranges where the matches are. It is empty if no matches have been found.
 		 */
-		findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean, limitResultCount?: number): FindMatch[];
+		findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount?: number): FindMatch[];
 		/**
 		 * Search the model for the next match. Loops to the beginning of the model if needed.
 		 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -1569,7 +1569,7 @@ declare module monaco.editor {
 		 * @param captureMatches The result will contain the captured groups.
 		 * @return The range where the next match is. It is null if no next match has been found.
 		 */
-		findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): FindMatch;
+		findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch;
 		/**
 		 * Search the model for the previous match. Loops to the end of the model if needed.
 		 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -1580,7 +1580,7 @@ declare module monaco.editor {
 		 * @param captureMatches The result will contain the captured groups.
 		 * @return The range where the previous match is. It is null if no previous match has been found.
 		 */
-		findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): FindMatch;
+		findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch;
 		/**
 		 * Get the language associated with this model.
 		 */
@@ -2396,6 +2396,11 @@ declare module monaco.editor {
 		 */
 		enabled?: boolean;
 		/**
+		 * Control the side of the minimap in editor.
+		 * Defaults to 'right'.
+		 */
+		side?: 'right' | 'left';
+		/**
 		 * Control the rendering of the minimap slider.
 		 * Defaults to 'mouseover'.
 		 */
@@ -2538,6 +2543,10 @@ declare module monaco.editor {
 		 * Defaults to 'line'.
 		 */
 		cursorStyle?: string;
+		/**
+		 * Control the width of the cursor when cursorStyle is set to 'line'
+		 */
+		cursorWidth?: number;
 		/**
 		 * Enable font ligatures.
 		 * Defaults to false.
@@ -2733,6 +2742,10 @@ declare module monaco.editor {
 		 * Enable word based suggestions. Defaults to 'true'
 		 */
 		wordBasedSuggestions?: boolean;
+		/**
+		 * The history mode for suggestions.
+		 */
+		suggestSelection?: string;
 		/**
 		 * The font size for the suggest widget.
 		 * Defaults to the editor font size.
@@ -2957,6 +2970,7 @@ declare module monaco.editor {
 
 	export interface InternalEditorMinimapOptions {
 		readonly enabled: boolean;
+		readonly side: 'right' | 'left';
 		readonly showSlider: 'always' | 'mouseover';
 		readonly renderCharacters: boolean;
 		readonly maxColumn: number;
@@ -3003,6 +3017,7 @@ declare module monaco.editor {
 		readonly cursorBlinking: TextEditorCursorBlinkingStyle;
 		readonly mouseWheelZoom: boolean;
 		readonly cursorStyle: TextEditorCursorStyle;
+		readonly cursorWidth: number;
 		readonly hideCursorInOverviewRuler: boolean;
 		readonly scrollBeyondLastLine: boolean;
 		readonly smoothScrolling: boolean;
@@ -3037,6 +3052,7 @@ declare module monaco.editor {
 		readonly acceptSuggestionOnCommitCharacter: boolean;
 		readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		readonly wordBasedSuggestions: boolean;
+		readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 		readonly suggestFontSize: number;
 		readonly suggestLineHeight: number;
 		readonly selectionHighlight: boolean;
@@ -3157,6 +3173,10 @@ declare module monaco.editor {
 		 * The height of the content (actual height)
 		 */
 		readonly contentHeight: number;
+		/**
+		 * The position for the minimap
+		 */
+		readonly minimapLeft: number;
 		/**
 		 * The width of the minimap
 		 */
@@ -3715,6 +3735,11 @@ declare module monaco.editor {
 		 */
 		getCenteredRangeInViewport(): Range;
 		/**
+		 * Returns the ranges that are currently visible.
+		 * Does not account for horizontal scrolling.
+		 */
+		getVisibleRanges(): Range[];
+		/**
 		 * Get the vertical position (top offset) for the line w.r.t. to the first line.
 		 */
 		getTopForLineNumber(lineNumber: number): number;
@@ -4028,6 +4053,9 @@ declare module monaco.languages {
 	export function registerColorProvider(languageId: string, provider: DocumentColorProvider): IDisposable;
 
 	/**
+	 * Register a folding provider
+	 */
+	/**
 	 * Contains additional diagnostic information about the context in which
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
 	 */
@@ -4038,6 +4066,10 @@ declare module monaco.languages {
 		 * @readonly
 		 */
 		readonly markers: editor.IMarkerData[];
+		/**
+		 * Requested kind of actions to return.
+		 */
+		readonly only?: string;
 	}
 
 	/**
@@ -4161,6 +4193,18 @@ declare module monaco.languages {
 		 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.~~
 		 */
 		textEdit?: editor.ISingleEditOperation;
+		/**
+		 * An optional array of additional text edits that are applied when
+		 * selecting this completion. Edits must not overlap with the main edit
+		 * nor with themselves.
+		 */
+		additionalTextEdits?: editor.ISingleEditOperation[];
+		/**
+		 * An optional set of characters that when pressed while this completion is active will accept it first and
+		 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
+		 * characters will be ignored.
+		 */
+		commitCharacters?: string[];
 	}
 
 	/**
@@ -4482,6 +4526,7 @@ declare module monaco.languages {
 	export enum SuggestTriggerKind {
 		Invoke = 0,
 		TriggerCharacter = 1,
+		TriggerForIncompleteCompletions = 2,
 	}
 
 	export interface CodeAction {
@@ -4489,6 +4534,7 @@ declare module monaco.languages {
 		command?: Command;
 		edit?: WorkspaceEdit;
 		diagnostics?: editor.IMarkerData[];
+		kind?: string;
 	}
 
 	/**
@@ -4819,7 +4865,7 @@ declare module monaco.languages {
 	 */
 	export interface ILink {
 		range: IRange;
-		url: string;
+		url?: string;
 	}
 
 	/**
@@ -4902,19 +4948,30 @@ declare module monaco.languages {
 		provideColorPresentations(model: editor.ITextModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
 	}
 
-	export interface IResourceEdit {
+	export interface ResourceFileEdit {
+		oldUri: Uri;
+		newUri: Uri;
+	}
+
+	export interface ResourceTextEdit {
 		resource: Uri;
-		range: IRange;
-		newText: string;
+		modelVersionId?: number;
+		edits: TextEdit[];
 	}
 
 	export interface WorkspaceEdit {
-		edits: IResourceEdit[];
+		edits: Array<ResourceTextEdit | ResourceFileEdit>;
 		rejectReason?: string;
+	}
+
+	export interface RenameInitialValue {
+		range: IRange;
+		text?: string;
 	}
 
 	export interface RenameProvider {
 		provideRenameEdits(model: editor.ITextModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
+		resolveInitialRenameValue?(model: editor.ITextModel, position: Position, token: CancellationToken): RenameInitialValue | Thenable<RenameInitialValue>;
 	}
 
 	export interface Command {

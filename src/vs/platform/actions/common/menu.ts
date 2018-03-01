@@ -23,8 +23,8 @@ export class Menu implements IMenu {
 	constructor(
 		id: MenuId,
 		startupSignal: TPromise<boolean>,
-		@ICommandService private _commandService: ICommandService,
-		@IContextKeyService private _contextKeyService: IContextKeyService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		startupSignal.then(_ => {
 			const menuItems = MenuRegistry.getMenuItems(id);
@@ -73,7 +73,7 @@ export class Menu implements IMenu {
 			const activeActions: MenuItemAction[] = [];
 			for (const item of items) {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
-					const action = new MenuItemAction(item.command, item.alt, options, this._commandService);
+					const action = new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService);
 					action.order = item.order; //TODO@Ben order is menu item property, not an action property
 					activeActions.push(action);
 				}

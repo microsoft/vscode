@@ -21,6 +21,14 @@ export function themeColorFromId(id: ColorIdentifier) {
 	return { id };
 }
 
+// theme icon
+export interface ThemeIcon {
+	readonly id: string;
+}
+
+export const FileThemeIcon = { id: 'file' };
+export const FolderThemeIcon = { id: 'folder' };
+
 // base themes
 export const DARK: ThemeType = 'dark';
 export const LIGHT: ThemeType = 'light';

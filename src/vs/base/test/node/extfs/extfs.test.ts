@@ -15,12 +15,46 @@ import uuid = require('vs/base/common/uuid');
 import strings = require('vs/base/common/strings');
 import extfs = require('vs/base/node/extfs');
 import { onError } from 'vs/base/test/common/utils';
+import { Readable } from 'stream';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 
 const ignore = () => { };
 
 const mkdirp = (path: string, mode: number, callback: (error) => void) => {
 	extfs.mkdirp(path, mode).done(() => callback(null), error => callback(error));
 };
+
+const chunkSize = 64 * 1024;
+const readError = 'Error while reading';
+function toReadable(value: string, throwError?: boolean): Readable {
+	const totalChunks = Math.ceil(value.length / chunkSize);
+	const stringChunks: string[] = [];
+
+	for (let i = 0, j = 0; i < totalChunks; ++i, j += chunkSize) {
+		stringChunks[i] = value.substr(j, chunkSize);
+	}
+
+	let counter = 0;
+	return new Readable({
+		read: function () {
+			if (throwError) {
+				this.emit('error', new Error(readError));
+			}
+
+			let res: string;
+			let canPush = true;
+			while (canPush && (res = stringChunks[counter++])) {
+				canPush = this.push(res);
+			}
+
+			// EOS
+			if (!res) {
+				this.push(null);
+			}
+		},
+		encoding: 'utf8'
+	});
+}
 
 suite('Extfs', () => {
 
@@ -38,6 +72,46 @@ suite('Extfs', () => {
 
 			extfs.del(parentDir, os.tmpdir(), done, ignore);
 		}); // 493 = 0755
+	});
+
+	test('stat link', function (done: () => void) {
+		if (isWindows) {
+			// Symlinks are not the same on win, and we can not create them programitically without admin privileges
+			return done();
+		}
+
+		const id1 = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id1);
+		const directory = path.join(parentDir, 'extfs', id1);
+
+		const id2 = uuid.generateUuid();
+		const symbolicLink = path.join(parentDir, 'extfs', id2);
+
+		mkdirp(directory, 493, error => {
+			if (error) {
+				return onError(error, done);
+			}
+
+			fs.symlinkSync(directory, symbolicLink);
+
+			extfs.statLink(directory, (error, statAndIsLink) => {
+				if (error) {
+					return onError(error, done);
+				}
+
+				assert.ok(!statAndIsLink.isSymbolicLink);
+
+				extfs.statLink(symbolicLink, (error, statAndIsLink) => {
+					if (error) {
+						return onError(error, done);
+					}
+
+					assert.ok(statAndIsLink.isSymbolicLink);
+					extfs.delSync(directory);
+					done();
+				});
+			});
+		});
 	});
 
 	test('delSync - swallows file not found error', function () {
@@ -174,7 +248,7 @@ suite('Extfs', () => {
 		}
 	});
 
-	test('writeFileAndFlush', function (done: () => void) {
+	test('writeFileAndFlush (string)', function (done: () => void) {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'extfs', id);
@@ -205,6 +279,200 @@ suite('Extfs', () => {
 
 					extfs.del(parentDir, os.tmpdir(), done, ignore);
 				});
+			});
+		});
+	});
+
+	test('writeFileAndFlush (stream)', function (done: () => void) {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+		const testFile = path.join(newDir, 'flushed.txt');
+
+		mkdirp(newDir, 493, error => {
+			if (error) {
+				return onError(error, done);
+			}
+
+			assert.ok(fs.existsSync(newDir));
+
+			extfs.writeFileAndFlush(testFile, toReadable('Hello World'), null, error => {
+				if (error) {
+					return onError(error, done);
+				}
+
+				assert.equal(fs.readFileSync(testFile), 'Hello World');
+
+				const largeString = (new Array(100 * 1024)).join('Large String\n');
+
+				extfs.writeFileAndFlush(testFile, toReadable(largeString), null, error => {
+					if (error) {
+						return onError(error, done);
+					}
+
+					assert.equal(fs.readFileSync(testFile), largeString);
+
+					extfs.del(parentDir, os.tmpdir(), done, ignore);
+				});
+			});
+		});
+	});
+
+	test('writeFileAndFlush (file stream)', function (done: () => void) {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const sourceFile = require.toUrl('./fixtures/index.html');
+		const newDir = path.join(parentDir, 'extfs', id);
+		const testFile = path.join(newDir, 'flushed.txt');
+
+		mkdirp(newDir, 493, error => {
+			if (error) {
+				return onError(error, done);
+			}
+
+			assert.ok(fs.existsSync(newDir));
+
+			extfs.writeFileAndFlush(testFile, fs.createReadStream(sourceFile), null, error => {
+				if (error) {
+					return onError(error, done);
+				}
+
+				assert.equal(fs.readFileSync(testFile).toString(), fs.readFileSync(sourceFile).toString());
+
+				extfs.del(parentDir, os.tmpdir(), done, ignore);
+			});
+		});
+	});
+
+	test('writeFileAndFlush (string, error handling)', function (done: () => void) {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+		const testFile = path.join(newDir, 'flushed.txt');
+
+		mkdirp(newDir, 493, error => {
+			if (error) {
+				return onError(error, done);
+			}
+
+			assert.ok(fs.existsSync(newDir));
+
+			fs.mkdirSync(testFile); // this will trigger an error because testFile is now a directory!
+
+			extfs.writeFileAndFlush(testFile, 'Hello World', null, error => {
+				if (!error) {
+					return onError(new Error('Expected error for writing to readonly file'), done);
+				}
+
+				extfs.del(parentDir, os.tmpdir(), done, ignore);
+			});
+		});
+	});
+
+	test('writeFileAndFlush (stream, error handling EISDIR)', function (done: () => void) {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+		const testFile = path.join(newDir, 'flushed.txt');
+
+		mkdirp(newDir, 493, error => {
+			if (error) {
+				return onError(error, done);
+			}
+
+			assert.ok(fs.existsSync(newDir));
+
+			fs.mkdirSync(testFile); // this will trigger an error because testFile is now a directory!
+
+			const readable = toReadable('Hello World');
+			extfs.writeFileAndFlush(testFile, readable, null, error => {
+				if (!error || (<any>error).code !== 'EISDIR') {
+					return onError(new Error('Expected EISDIR error for writing to folder but got: ' + (error ? (<any>error).code : 'no error')), done);
+				}
+
+				// verify that the stream is still consumable (for https://github.com/Microsoft/vscode/issues/42542)
+				assert.equal(readable.read(), 'Hello World');
+
+				extfs.del(parentDir, os.tmpdir(), done, ignore);
+			});
+		});
+	});
+
+	test('writeFileAndFlush (stream, error handling READERROR)', function (done: () => void) {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+		const testFile = path.join(newDir, 'flushed.txt');
+
+		mkdirp(newDir, 493, error => {
+			if (error) {
+				return onError(error, done);
+			}
+
+			assert.ok(fs.existsSync(newDir));
+
+			extfs.writeFileAndFlush(testFile, toReadable('Hello World', true /* throw error */), null, error => {
+				if (!error || error.message !== readError) {
+					return onError(new Error('Expected error for writing to folder'), done);
+				}
+
+				extfs.del(parentDir, os.tmpdir(), done, ignore);
+			});
+		});
+	});
+
+	test('writeFileAndFlush (stream, error handling EACCES)', function (done: () => void) {
+		if (isLinux) {
+			return done(); // somehow this test fails on Linux in our TFS builds
+		}
+
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+		const testFile = path.join(newDir, 'flushed.txt');
+
+		mkdirp(newDir, 493, error => {
+			if (error) {
+				return onError(error, done);
+			}
+
+			assert.ok(fs.existsSync(newDir));
+
+			fs.writeFileSync(testFile, '');
+			fs.chmodSync(testFile, 33060); // make readonly
+
+			extfs.writeFileAndFlush(testFile, toReadable('Hello World'), null, error => {
+				if (!error || !((<any>error).code !== 'EACCES' || (<any>error).code !== 'EPERM')) {
+					return onError(new Error('Expected EACCES/EPERM error for writing to folder but got: ' + (error ? (<any>error).code : 'no error')), done);
+				}
+
+				extfs.del(parentDir, os.tmpdir(), done, ignore);
+			});
+		});
+	});
+
+	test('writeFileAndFlush (file stream, error handling)', function (done: () => void) {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const sourceFile = require.toUrl('./fixtures/index.html');
+		const newDir = path.join(parentDir, 'extfs', id);
+		const testFile = path.join(newDir, 'flushed.txt');
+
+		mkdirp(newDir, 493, error => {
+			if (error) {
+				return onError(error, done);
+			}
+
+			assert.ok(fs.existsSync(newDir));
+
+			fs.mkdirSync(testFile); // this will trigger an error because testFile is now a directory!
+
+			extfs.writeFileAndFlush(testFile, fs.createReadStream(sourceFile), null, error => {
+				if (!error) {
+					return onError(new Error('Expected error for writing to folder'), done);
+				}
+
+				extfs.del(parentDir, os.tmpdir(), done, ignore);
 			});
 		});
 	});

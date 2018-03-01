@@ -63,8 +63,8 @@
 /* make sure selection color wins when a label is being selected */
 .monaco-tree.focused .selected .monaco-icon-label, /* tree */
 .monaco-tree.focused .selected .monaco-icon-label::after,
-.monaco-list:focus .focused.selected .monaco-icon-label, /* list */
-.monaco-list:focus .focused.selected .monaco-icon-label::after
+.monaco-list:focus .selected .monaco-icon-label, /* list */
+.monaco-list:focus .selected .monaco-icon-label::after
 {
 	color: inherit !important;
 }

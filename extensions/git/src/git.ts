@@ -267,6 +267,7 @@ export class GitError {
 			this.message = data.error.message;
 		} else {
 			this.error = void 0;
+			this.message = '';
 		}
 
 		this.message = this.message || data.message || 'Git error';
@@ -361,7 +362,6 @@ function getGitErrorCode(stderr: string): string | undefined {
 export class Git {
 
 	private gitPath: string;
-	private version: string;
 	private env: any;
 
 	private _onOutput = new EventEmitter();
@@ -369,7 +369,6 @@ export class Git {
 
 	constructor(options: IGitOptions) {
 		this.gitPath = options.gitPath;
-		this.version = options.version;
 		this.env = options.env || {};
 	}
 
@@ -462,7 +461,7 @@ export class Git {
 		});
 
 		if (options.log !== false) {
-			this.log(`git ${args.join(' ')}\n`);
+			this.log(`> git ${args.join(' ')}\n`);
 		}
 
 		return cp.spawn(this.gitPath, args, options);
@@ -679,7 +678,7 @@ export class Repository {
 		return stdout;
 	}
 
-	async lstree(treeish: string, path: string): Promise<{ mode: number, object: string, size: number }> {
+	async lstree(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }> {
 		if (!treeish) { // index
 			const { stdout } = await this.run(['ls-files', '--stage', '--', path]);
 
@@ -693,7 +692,7 @@ export class Repository {
 			const catFile = await this.run(['cat-file', '-s', object]);
 			const size = parseInt(catFile.stdout);
 
-			return { mode: parseInt(mode), object, size };
+			return { mode, object, size };
 		}
 
 		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', path]);
@@ -705,7 +704,7 @@ export class Repository {
 		}
 
 		const [, mode, , object, size] = match;
-		return { mode: parseInt(mode), object, size: parseInt(size) };
+		return { mode, object, size: parseInt(size) };
 	}
 
 	async detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
@@ -787,7 +786,16 @@ export class Repository {
 			});
 		}
 
-		await this.run(['update-index', '--cacheinfo', '100644', hash, path]);
+		let mode: string;
+
+		try {
+			const details = await this.lstree('HEAD', path);
+			mode = details.mode;
+		} catch (err) {
+			mode = '100644';
+		}
+
+		await this.run(['update-index', '--cacheinfo', mode, hash, path]);
 	}
 
 	async checkout(treeish: string, paths: string[]): Promise<void> {

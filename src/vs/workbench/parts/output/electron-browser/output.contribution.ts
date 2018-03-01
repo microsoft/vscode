@@ -13,7 +13,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { OutputService, LogContentProvider } from 'vs/workbench/parts/output/electron-browser/outputServices';
 import { ToggleOutputAction, ClearOutputAction } from 'vs/workbench/parts/output/browser/outputActions';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, COMMAND_OPEN_LOG_VIEWER } from 'vs/workbench/parts/output/common/output';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, COMMAND_OPEN_LOG_VIEWER, LOG_MODE_ID, LOG_MIME } from 'vs/workbench/parts/output/common/output';
 import { PanelRegistry, Extensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -37,6 +37,14 @@ ModesRegistry.registerLanguage({
 	extensions: [],
 	aliases: [null],
 	mimetypes: [OUTPUT_MIME]
+});
+
+// Register Log Output Mode
+ModesRegistry.registerLanguage({
+	id: LOG_MODE_ID,
+	extensions: [],
+	aliases: [null],
+	mimetypes: [LOG_MIME]
 });
 
 // Register Output Panel
@@ -91,7 +99,6 @@ interface IActionDescriptor {
 	// ICommandUI
 	title: string;
 	category?: string;
-	iconClass?: string;
 	f1?: boolean;
 
 	// menus
@@ -111,13 +118,13 @@ interface IActionDescriptor {
 
 function registerAction(desc: IActionDescriptor) {
 
-	const { id, handler, title, category, iconClass, f1, menu, keybinding } = desc;
+	const { id, handler, title, category, f1, menu, keybinding } = desc;
 
 	// 1) register as command
 	CommandsRegistry.registerCommand(id, handler);
 
 	// 2) command palette
-	let command = { id, title, iconClass, category };
+	let command = { id, title, category };
 	if (f1) {
 		MenuRegistry.addCommand(command);
 	}

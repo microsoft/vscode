@@ -15,7 +15,7 @@ This project incorporates components from the projects listed below. The origina
 8.	atom/language-shellscript (https://github.com/atom/language-shellscript)
 9.	atom/language-xml (https://github.com/atom/language-xml)
 10.	Benvie/JavaScriptNext.tmLanguage (https://github.com/Microsoft/vscode-JSON.tmLanguage)
-11.	chjj-marked version 0.3.6 (https://github.com/npmcomponent/chjj-marked)
+11.	chjj-marked version 0.3.12 (https://github.com/npmcomponent/chjj-marked)
 12.	chriskempson/tomorrow-theme (https://github.com/chriskempson/tomorrow-theme)
 13.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
 14.	daaain/Handlebars (https://github.com/daaain/Handlebars)
@@ -43,9 +43,9 @@ This project incorporates components from the projects listed below. The origina
 36.	mmims/language-batchfile (https://github.com/mmims/language-batchfile)
 37.	octicons-code version 3.1.0 (https://octicons.github.com)
 38.	octicons-font version 3.1.0 (https://octicons.github.com)
-39.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
-40.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
-41.	SublimeText/PowerShell (https://github.com/SublimeText/PowerShell)
+39.	PowerShell/EditorSyntax (https://github.com/powershell/editorsyntax)
+40.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
+41.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
 42.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
 43.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
 44.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
@@ -60,7 +60,8 @@ This project incorporates components from the projects listed below. The origina
 53.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
 54.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
 55.	TypeScript-TmLanguage version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
-56.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
+56.	vscode-logfile-highlighter version 1.2.0 (https://github.com/emilast/vscode-logfile-highlighter)
+57.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
 
 
 %% atom/language-c NOTICES AND INFORMATION BEGIN HERE
@@ -1483,6 +1484,34 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 =========================================
 END OF octicons-font NOTICES AND INFORMATION
 
+%% PowerShell/EditorSyntax NOTICES AND INFORMATION BEGIN HERE
+=========================================
+Copyright (c) Microsoft Corporation
+
+All rights reserved.
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+=========================================
+END OF PowerShell/EditorSyntax NOTICES AND INFORMATION
+
 %% seti-ui NOTICES AND INFORMATION BEGIN HERE
 =========================================
 Copyright (c) 2014 Jesse Weed
@@ -1533,20 +1562,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 =========================================
 END OF shaders-tmLanguage NOTICES AND INFORMATION
-
-%% SublimeText/PowerShell NOTICES AND INFORMATION BEGIN HERE
-=========================================
-The MIT License (MIT)
-
-Copyright (c) 2011 Guillermo López-Anglada
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-=========================================
-END OF SublimeText/PowerShell NOTICES AND INFORMATION
 
 %% textmate/asp.vb.net.tmbundle NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -1822,6 +1837,32 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 =========================================
 END OF TypeScript-TmLanguage NOTICES AND INFORMATION
+
+%% vscode-logfile-highlighter NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Copyright (c) 2015 emilast
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+=========================================
+END OF vscode-logfile-highlighter NOTICES AND INFORMATION
 
 %% vscode-swift NOTICES AND INFORMATION BEGIN HERE
 =========================================

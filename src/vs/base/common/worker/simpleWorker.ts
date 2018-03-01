@@ -163,6 +163,10 @@ class SimpleWorkerProtocol {
 				err: undefined
 			});
 		}, (e) => {
+			if (e.detail instanceof Error) {
+				// Loading errors have a detail property that points to the actual error
+				e.detail = transformErrorForSerialization(e.detail);
+			}
 			this._send({
 				vsWorker: this._workerId,
 				seq: req,
@@ -338,13 +342,6 @@ export class SimpleWorkerServer {
 				if (typeof loaderConfig.paths.vs !== 'undefined') {
 					delete loaderConfig.paths['vs'];
 				}
-			}
-			let nlsConfig = loaderConfig['vs/nls'];
-			// We need to have pseudo translation
-			if (nlsConfig && nlsConfig.pseudo) {
-				require(['vs/nls'], function (nlsPlugin) {
-					nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
-				});
 			}
 
 			// Since this is in a web worker, enable catching errors

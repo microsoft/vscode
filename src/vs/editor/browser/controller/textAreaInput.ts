@@ -558,6 +558,10 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
 		if (currentIsFocused && currentSelectionStart === selectionStart && currentSelectionEnd === selectionEnd) {
 			// No change
+			// Firefox iframe bug https://github.com/Microsoft/monaco-editor/issues/643#issuecomment-367871377
+			if (browser.isFirefox && window.parent !== window) {
+				textArea.focus();
+			}
 			return;
 		}
 
@@ -567,6 +571,9 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 			// No need to focus, only need to change the selection range
 			this.setIgnoreSelectionChangeTime('setSelectionRange');
 			textArea.setSelectionRange(selectionStart, selectionEnd);
+			if (browser.isFirefox && window.parent !== window) {
+				textArea.focus();
+			}
 			return;
 		}
 

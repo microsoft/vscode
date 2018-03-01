@@ -109,7 +109,7 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 	}
 
 	private getTerminals(): TerminalEntry[] {
-		const terminals = this.terminalService.getInstanceLabels();
+		const terminals = this.terminalService.getTabLabels();
 		const terminalEntries = terminals.map(terminal => {
 			return new TerminalEntry(terminal, this.terminalService);
 		});

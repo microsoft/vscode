@@ -14,15 +14,15 @@ import { Position } from 'vs/editor/common/core/position';
 import { overlap, compare, startsWith, isFalsyOrWhitespace, endsWith } from 'vs/base/common/strings';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { join, basename, extname } from 'path';
-import { mkdirp, readdir } from 'vs/base/node/pfs';
-import { watch } from 'fs';
+import { mkdirp, readdir, exists } from 'vs/base/node/pfs';
+import { watch } from 'vs/base/node/extfs';
 import { SnippetFile, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ExtensionsRegistry, IExtensionPointUser } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -48,7 +48,7 @@ namespace schema {
 		} else if (isFalsyOrWhitespace(snippet.language) && !endsWith(snippet.path, '.code-snippets')) {
 			extension.collector.error(localize(
 				'invalid.language.0',
-				"When omitting the language, the value of `contribtes.{0}.path` must be a `.code-snippets`-file. Provided value: {1}",
+				"When omitting the language, the value of `contributes.{0}.path` must be a `.code-snippets`-file. Provided value: {1}",
 				extension.description.name, String(snippet.path)
 			));
 			return false;
@@ -163,27 +163,33 @@ class SnippetsService implements ISnippetsService {
 						continue;
 					}
 
-					const file = new SnippetFile(contribution.path, contribution.language, extension.description);
-					this._files.set(file.filepath, file);
+					if (this._files.has(contribution.path)) {
+						this._files.get(contribution.path).defaultScopes.push(contribution.language);
 
-					if (this._environmentService.isExtensionDevelopment) {
-						file.load().then(file => {
-							// warn about bad tabstop/variable usage
-							if (file.data.some(snippet => snippet.isBogous)) {
+					} else {
+						const file = new SnippetFile(contribution.path, contribution.language ? [contribution.language] : undefined, extension.description);
+						this._files.set(file.filepath, file);
+
+						if (this._environmentService.isExtensionDevelopment) {
+							file.load().then(file => {
+								// warn about bad tabstop/variable usage
+								if (file.data.some(snippet => snippet.isBogous)) {
+									extension.collector.warn(localize(
+										'badVariableUse',
+										"One or more snippets from the extension '{0}' very likely confuse snippet-variables and snippet-placeholders (see https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax for more details)",
+										extension.description.name
+									));
+								}
+							}, err => {
+								// generic error
 								extension.collector.warn(localize(
-									'badVariableUse',
-									"One or more snippets from the extension '{0}' very likely confuse snippet-variables and snippet-placeholders (see https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax for more details)",
-									extension.description.name
+									'badFile',
+									"The snippet file \"{0}\" could not be read.",
+									file.filepath
 								));
-							}
-						}, err => {
-							// generic error
-							extension.collector.warn(localize(
-								'badFile',
-								"The snippet file \"{0}\" could not be read.",
-								file.filepath
-							));
-						});
+							});
+						}
+
 					}
 				}
 			}
@@ -195,7 +201,7 @@ class SnippetsService implements ISnippetsService {
 			const ext = extname(filepath);
 			if (ext === '.json') {
 				const langName = basename(filepath, '.json');
-				this._files.set(filepath, new SnippetFile(filepath, langName, undefined));
+				this._files.set(filepath, new SnippetFile(filepath, [langName], undefined));
 
 			} else if (ext === '.code-snippets') {
 				this._files.set(filepath, new SnippetFile(filepath, undefined, undefined));
@@ -211,27 +217,34 @@ class SnippetsService implements ISnippetsService {
 			}
 		}).then(() => {
 			// watch
-			const watcher = watch(userSnippetsFolder);
-			this._disposables.push({ dispose: () => watcher.close() });
-			watcher.on('change', (type, filename) => {
+			const watcher = watch(userSnippetsFolder, (type, filename) => {
 				if (typeof filename !== 'string') {
 					return;
 				}
 				const filepath = join(userSnippetsFolder, filename);
-				if (type === 'change') {
-					// `changed` file
-					if (this._files.has(filepath)) {
-						this._files.get(filepath).reset();
-					}
-				} else if (type === 'rename') {
-					// `created` or `deleted` file
-					if (!this._files.has(filepath)) {
-						addUserSnippet(filepath);
+				exists(filepath).then(value => {
+					if (value) {
+						// file created or changed
+						if (this._files.has(filepath)) {
+							this._files.get(filepath).reset();
+						} else {
+							addUserSnippet(filepath);
+						}
 					} else {
+						// file not found
 						this._files.delete(filepath);
+					}
+				});
+			}, (error: string) => this._logService.error(error));
+			this._disposables.push({
+				dispose: () => {
+					if (watcher) {
+						watcher.removeAllListeners();
+						watcher.close();
 					}
 				}
 			});
+
 		}).then(undefined, err => {
 			this._logService.error('Failed to load user snippets', err);
 		});
@@ -285,8 +298,8 @@ export class SnippetSuggestion implements ISuggestion {
 export class SnippetSuggestProvider implements ISuggestSupport {
 
 	constructor(
-		@IModeService private _modeService: IModeService,
-		@ISnippetsService private _snippets: ISnippetsService
+		@IModeService private readonly _modeService: IModeService,
+		@ISnippetsService private readonly _snippets: ISnippetsService
 	) {
 		//
 	}
@@ -324,16 +337,19 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 			}
 
 			// dismbiguate suggestions with same labels
-			let lastItem: SnippetSuggestion;
-			for (const item of suggestions.sort(SnippetSuggestion.compareByLabel)) {
-				if (lastItem && lastItem.label === item.label) {
-					// use the disambiguateLabel instead of the actual label
-					lastItem.label = localize('snippetSuggest.longLabel', "{0}, {1}", lastItem.label, lastItem.snippet.name);
-					item.label = localize('snippetSuggest.longLabel', "{0}, {1}", item.label, item.snippet.name);
-				}
-				lastItem = item;
-			}
+			suggestions.sort(SnippetSuggestion.compareByLabel);
 
+			for (let i = 0; i < suggestions.length; i++) {
+				let item = suggestions[i];
+				let to = i + 1;
+				for (; to < suggestions.length && item.label === suggestions[to].label; to++) {
+					suggestions[to].label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label, suggestions[to].snippet.name);
+				}
+				if (to > i + 1) {
+					suggestions[i].label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[i].label, suggestions[i].snippet.name);
+					i = to;
+				}
+			}
 			return { suggestions };
 		});
 	}

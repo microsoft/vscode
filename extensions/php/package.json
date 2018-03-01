@@ -1,7 +1,10 @@
 {
 	"name": "php",
-	"version": "0.1.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
 	"publisher": "vscode",
+	"icon": "icons/logo.png",
 	"engines": {
 		"vscode": "0.10.x"
 	},
@@ -10,7 +13,7 @@
 	],
 	"main": "./out/phpMain",
 	"dependencies": {
-		"vscode-nls": "^1.0.4"
+		"vscode-nls": "^3.2.1"
 	},
 	"contributes": {
 		"languages": [

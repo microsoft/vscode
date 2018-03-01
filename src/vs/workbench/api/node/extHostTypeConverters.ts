@@ -20,6 +20,7 @@ import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { LanguageSelector, LanguageFilter } from 'vs/editor/common/modes/languageSelector';
+import { WorkspaceEditDto, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
 
 export interface PositionLike {
 	line: number;
@@ -228,24 +229,36 @@ export const TextEdit = {
 
 export namespace WorkspaceEdit {
 	export function from(value: vscode.WorkspaceEdit): modes.WorkspaceEdit {
-		const result: modes.WorkspaceEdit = { edits: [] };
-		for (let entry of value.entries()) {
-			let [uri, textEdits] = entry;
-			for (let textEdit of textEdits) {
-				result.edits.push({
-					resource: uri,
-					newText: textEdit.newText,
-					range: fromRange(textEdit.range)
-				});
+		const result: modes.WorkspaceEdit = {
+			edits: []
+		};
+		for (const entry of value.entries()) {
+			const [uri, uriOrEdits] = entry;
+			if (Array.isArray(uriOrEdits)) {
+				// text edits
+				result.edits.push({ resource: uri, edits: uriOrEdits.map(TextEdit.from) });
+			} else {
+				// resource edits
+				result.edits.push({ oldUri: uri, newUri: uriOrEdits });
 			}
 		}
 		return result;
 	}
 
-	export function to(value: modes.WorkspaceEdit) {
+	export function to(value: WorkspaceEditDto) {
 		const result = new types.WorkspaceEdit();
 		for (const edit of value.edits) {
-			result.replace(edit.resource, toRange(edit.range), edit.newText);
+			if (Array.isArray((<ResourceTextEditDto>edit).edits)) {
+				result.set(
+					URI.revive((<ResourceTextEditDto>edit).resource),
+					<types.TextEdit[]>(<ResourceTextEditDto>edit).edits.map(TextEdit.to)
+				);
+				// } else {
+				// 	result.renameResource(
+				// 		URI.revive((<ResourceFileEditDto>edit).oldUri),
+				// 		URI.revive((<ResourceFileEditDto>edit).newUri)
+				// 	);
+			}
 		}
 		return result;
 	}
@@ -347,7 +360,8 @@ export namespace CompletionTriggerKind {
 		switch (kind) {
 			case modes.SuggestTriggerKind.TriggerCharacter:
 				return types.CompletionTriggerKind.TriggerCharacter;
-
+			case modes.SuggestTriggerKind.TriggerForIncompleteCompletions:
+				return types.CompletionTriggerKind.TriggerForIncompleteCompletions;
 			case modes.SuggestTriggerKind.Invoke:
 			default:
 				return types.CompletionTriggerKind.Invoke;
@@ -572,6 +586,14 @@ export namespace ProgressLocation {
 	}
 }
 
+export namespace FoldingRangeList {
+	export function from(rangeList: vscode.FoldingRangeList): modes.IFoldingRangeList {
+		return {
+			ranges: rangeList.ranges.map(r => ({ startLineNumber: r.startLine + 1, endLineNumber: r.endLine + 1, type: r.type }))
+		};
+	}
+}
+
 export function toTextEditorOptions(options?: vscode.TextDocumentShowOptions): ITextEditorOptions {
 	if (options) {
 		return {
@@ -589,11 +611,11 @@ export function toGlobPattern(pattern: vscode.GlobPattern): string | IRelativePa
 		return pattern;
 	}
 
-	if (!isRelativePattern(pattern)) {
-		return undefined;
+	if (isRelativePattern(pattern)) {
+		return new types.RelativePattern(pattern.base, pattern.pattern);
 	}
 
-	return new types.RelativePattern(pattern.base, pattern.pattern);
+	return pattern; // preserve `undefined` and `null`
 }
 
 function isRelativePattern(obj: any): obj is vscode.RelativePattern {

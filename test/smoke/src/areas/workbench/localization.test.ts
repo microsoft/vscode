@@ -17,7 +17,7 @@ export function setup() {
 				return;
 			}
 
-			await app.restart(['--locale=DE']);
+			await app.restart({ extraArgs: ['--locale=DE'] });
 		});
 
 		it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {

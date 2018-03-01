@@ -20,6 +20,8 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { getZoomFactor } from 'vs/base/browser/browser';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { memoize } from 'vs/base/common/decorators';
+import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
+import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 
 const MIN_SIDEBAR_PART_WIDTH = 170;
 const MIN_EDITOR_PART_HEIGHT = 70;
@@ -63,6 +65,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private panel: Part;
 	private statusbar: Part;
 	private quickopen: QuickOpenController;
+	private notificationsCenter: NotificationsCenter;
+	private notificationsToasts: NotificationsToasts;
 	private toUnbind: IDisposable[];
 	private workbenchSize: Dimension;
 	private sashXOne: Sash;
@@ -91,6 +95,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			statusbar: Part
 		},
 		quickopen: QuickOpenController,
+		notificationsCenter: NotificationsCenter,
+		notificationsToasts: NotificationsToasts,
 		@IStorageService private storageService: IStorageService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -108,6 +114,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.panel = parts.panel;
 		this.statusbar = parts.statusbar;
 		this.quickopen = quickopen;
+		this.notificationsCenter = notificationsCenter;
+		this.notificationsToasts = notificationsToasts;
 		this.toUnbind = [];
 		this.panelSizeBeforeMaximized = this.storageService.getInteger(WorkbenchLayout.panelSizeBeforeMaximizedKey, StorageScope.GLOBAL, 0);
 		this.panelMaximized = false;
@@ -451,7 +459,6 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.statusbarHeight = isStatusbarHidden ? 0 : this.partLayoutInfo.statusbar.height;
 		this.titlebarHeight = isTitlebarHidden ? 0 : this.partLayoutInfo.titlebar.height / getZoomFactor(); // adjust for zoom prevention
 
-		const previousMaxPanelHeight = this.sidebarHeight - this.partLayoutInfo.editor.minHeight;
 		this.sidebarHeight = this.workbenchSize.height - this.statusbarHeight - this.titlebarHeight;
 		let sidebarSize = new Dimension(this.sidebarWidth, this.sidebarHeight);
 
@@ -468,9 +475,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			panelHeight = 0;
 			panelWidth = 0;
 		} else if (panelPosition === Position.BOTTOM) {
-			if (this.panelHeight === previousMaxPanelHeight) {
-				panelHeight = maxPanelHeight;
-			} else if (this.panelHeight > 0) {
+			if (this.panelHeight > 0) {
 				panelHeight = Math.min(maxPanelHeight, Math.max(this.partLayoutInfo.panel.minHeight, this.panelHeight));
 			} else {
 				panelHeight = sidebarSize.height * DEFAULT_PANEL_SIZE_COEFFICIENT;
@@ -643,6 +648,10 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// Quick open
 		this.quickopen.layout(this.workbenchSize);
+
+		// Notifications
+		this.notificationsCenter.layout(this.workbenchSize);
+		this.notificationsToasts.layout(this.workbenchSize);
 
 		// Sashes
 		this.sashXOne.layout();

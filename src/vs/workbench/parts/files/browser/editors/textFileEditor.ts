@@ -24,7 +24,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CancelAction } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -62,7 +61,7 @@ export class TextFileEditor extends BaseTextEditor {
 	private onFilesChanged(e: FileChangesEvent): void {
 		const deleted = e.getDeleted();
 		if (deleted && deleted.length) {
-			this.clearTextEditorViewState(deleted.map(d => d.resource.toString()));
+			this.clearTextEditorViewState(deleted.map(d => d.resource));
 		}
 	}
 
@@ -127,7 +126,7 @@ export class TextFileEditor extends BaseTextEditor {
 				textEditor.setModel(textFileModel.textEditorModel);
 
 				// Always restore View State if any associated
-				const editorViewState = this.loadTextEditorViewState(this.input.getResource().toString());
+				const editorViewState = this.loadTextEditorViewState(this.input.getResource());
 				if (editorViewState) {
 					textEditor.restoreViewState(editorViewState);
 				}
@@ -155,18 +154,13 @@ export class TextFileEditor extends BaseTextEditor {
 					return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
 						actions: [
 							new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
-								return this.fileService.updateContent(input.getResource(), '').then(() => {
-
-									// Open
-									return this.editorService.openEditor({
-										resource: input.getResource(),
-										options: {
-											pinned: true // new file gets pinned by default
-										}
-									});
-								});
-							}),
-							CancelAction
+								return this.fileService.updateContent(input.getResource(), '').then(() => this.editorService.openEditor({
+									resource: input.getResource(),
+									options: {
+										pinned: true // new file gets pinned by default
+									}
+								}));
+							})
 						]
 					}));
 				}
@@ -235,7 +229,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 	private doSaveTextEditorViewState(input: FileEditorInput): void {
 		if (input && !input.isDisposed()) {
-			this.saveTextEditorViewState(input.getResource().toString());
+			this.saveTextEditorViewState(input.getResource());
 		}
 	}
 }

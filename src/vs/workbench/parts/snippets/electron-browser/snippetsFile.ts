@@ -7,7 +7,7 @@
 
 import { parse as jsonParse } from 'vs/base/common/json';
 import { forEach } from 'vs/base/common/collections';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import { readFile } from 'vs/base/node/pfs';
 import { basename, extname } from 'path';
@@ -141,7 +141,7 @@ export class SnippetFile {
 
 	constructor(
 		readonly filepath: string,
-		private readonly _defaultScope: string,
+		readonly defaultScopes: string[],
 		private readonly _extension: IExtensionDescription
 	) {
 		this.isGlobalSnippets = extname(filepath) === '.code-snippets';
@@ -149,7 +149,7 @@ export class SnippetFile {
 	}
 
 	select(selector: string, bucket: Snippet[]): void {
-		if (this.isGlobalSnippets) {
+		if (this.isGlobalSnippets || !this.isUserSnippets) {
 			this._scopeSelect(selector, bucket);
 		} else {
 			this._filepathSelect(selector, bucket);
@@ -229,12 +229,21 @@ export class SnippetFile {
 		}
 
 		let scopes: string[];
-		if (this._defaultScope) {
-			scopes = [this._defaultScope];
+		if (this.defaultScopes) {
+			scopes = this.defaultScopes;
 		} else if (typeof snippet.scope === 'string') {
-			scopes = snippet.scope.split(',').filter(s => !isFalsyOrWhitespace(s));
+			scopes = snippet.scope.split(',').map(s => s.trim()).filter(s => !isFalsyOrWhitespace(s));
 		} else {
 			scopes = [];
+		}
+
+		let source: string;
+		if (this._extension) {
+			source = this._extension.displayName || this._extension.name;
+		} else if (this.isGlobalSnippets) {
+			source = localize('source.snippetGlobal', "Global User Snippet");
+		} else {
+			source = localize('source.snippet', "User Snippet");
 		}
 
 		bucket.push(new Snippet(
@@ -243,7 +252,7 @@ export class SnippetFile {
 			prefix,
 			description,
 			body,
-			this._extension ? (this._extension.displayName || this._extension.name) : localize('source.snippet', "User Snippet"),
+			source,
 			this._extension !== void 0
 		));
 	}

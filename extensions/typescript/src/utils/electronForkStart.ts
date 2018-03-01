@@ -57,7 +57,7 @@ log('ELECTRON_RUN_AS_NODE: ' + process.env['ELECTRON_RUN_AS_NODE']);
 
 	var fsWriteSyncString = function (fd: number, str: string, _position: number, encoding?: string) {
 		//  fs.writeSync(fd, string[, position[, encoding]]);
-		var buf = new Buffer(str, encoding || 'utf8');
+		var buf = Buffer.from(str, encoding || 'utf8');
 		return fsWriteSyncBuffer(fd, buf, 0, buf.length);
 	};
 

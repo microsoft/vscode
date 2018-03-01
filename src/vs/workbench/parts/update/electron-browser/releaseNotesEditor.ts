@@ -14,7 +14,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ReleaseNotesInput } from './releaseNotesInput';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import WebView from 'vs/workbench/parts/html/browser/webview';
+import { Webview } from 'vs/workbench/parts/html/browser/webview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
@@ -29,14 +29,18 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 
-function renderBody(body: string, css: string): string {
+function renderBody(
+	body: string,
+	css: string
+): string {
+	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
 	return `<!DOCTYPE html>
 		<html>
 			<head>
 				<base href="https://code.visualstudio.com/raw/">
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src file: https: 'unsafe-inline'; child-src 'none'; frame-src 'none';">
-				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src vscode-core-resource: https: 'unsafe-inline'; child-src 'none'; frame-src 'none';">
+				<link rel="stylesheet" type="text/css" href="${styleSheetPath}">
 				<style>${css}</style>
 			</head>
 			<body>${body}</body>
@@ -45,21 +49,21 @@ function renderBody(body: string, css: string): string {
 
 export class ReleaseNotesEditor extends WebviewEditor {
 
-	static ID: string = 'workbench.editor.releaseNotes';
+	static readonly ID: string = 'workbench.editor.releaseNotes';
 
 	private contentDisposables: IDisposable[] = [];
 	private scrollYPercentage: number = 0;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IThemeService protected themeService: IThemeService,
-		@IOpenerService private openerService: IOpenerService,
-		@IModeService private modeService: IModeService,
-		@IPartService private partService: IPartService,
 		@IStorageService storageService: IStorageService,
-		@IContextViewService private _contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService protected readonly themeService: IThemeService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IModeService private readonly modeService: IModeService,
+		@IPartService private readonly partService: IPartService,
+		@IContextViewService private readonly _contextViewService: IContextViewService
 	) {
 		super(ReleaseNotesEditor.ID, telemetryService, themeService, storageService, contextKeyService);
 	}
@@ -81,34 +85,25 @@ export class ReleaseNotesEditor extends WebviewEditor {
 
 		await super.setInput(input, options);
 
-		const result: TPromise<IMode>[] = [];
-		const renderer = new marked.Renderer();
-		renderer.code = (code, lang) => {
-			const modeId = this.modeService.getModeIdForLanguageName(lang);
-			result.push(this.modeService.getOrCreateMode(modeId));
-			return '';
-		};
+		const body = await this.renderBody(text);
+		this._webview = new Webview(
+			this.content,
+			this.partService.getContainer(Parts.EDITOR_PART),
+			this.themeService,
+			this.environmentService,
+			this._contextViewService,
+			this.contextKey,
+			this.findInputFocusContextKey,
+			{});
 
-		marked(text, { renderer });
-		await TPromise.join(result);
-
-		renderer.code = (code, lang) => {
-			const modeId = this.modeService.getModeIdForLanguageName(lang);
-			return `<code>${tokenizeToString(code, modeId)}</code>`;
-		};
-
-		const colorMap = TokenizationRegistry.getColorMap();
-		const css = generateTokensCSSForColorMap(colorMap);
-		const body = renderBody(marked(text, { renderer }), css);
-		this._webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey, this.findInputFocusContextKey);
 		if (this.input && this.input instanceof ReleaseNotesInput) {
 			const state = this.loadViewState(this.input.version);
 			if (state) {
 				this._webview.initialScrollProgress = state.scrollYPercentage;
 			}
 		}
-		this.onThemeChange(this.themeService.getTheme());
-		this._webview.contents = [body];
+
+		this._webview.contents = body;
 
 		this._webview.onDidClickLink(link => {
 			addGAParameters(this.telemetryService, this.environmentService, link, 'ReleaseNotes')
@@ -118,23 +113,8 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		this._webview.onDidScroll(event => {
 			this.scrollYPercentage = event.scrollYPercentage;
 		}, null, this.contentDisposables);
-		this.themeService.onThemeChange(this.onThemeChange, this, this.contentDisposables);
 		this.contentDisposables.push(this._webview);
 		this.contentDisposables.push(toDisposable(() => this._webview = null));
-	}
-
-	layout(): void {
-		if (this._webview) {
-			this._webview.layout();
-		}
-	}
-
-	focus(): void {
-		if (!this._webview) {
-			return;
-		}
-
-		this._webview.focus();
 	}
 
 	dispose(): void {
@@ -164,5 +144,36 @@ export class ReleaseNotesEditor extends WebviewEditor {
 			});
 		}
 		super.shutdown();
+	}
+
+	private async renderBody(text: string) {
+		const colorMap = TokenizationRegistry.getColorMap();
+		const css = generateTokensCSSForColorMap(colorMap);
+		const body = renderBody(await this.renderContent(text), css);
+		return body;
+	}
+
+	private async renderContent(text: string): TPromise<string> {
+		const renderer = await this.getRenderer(text);
+		return marked(text, { renderer });
+	}
+
+	private async getRenderer(text: string) {
+		const result: TPromise<IMode>[] = [];
+		const renderer = new marked.Renderer();
+		renderer.code = (code, lang) => {
+			const modeId = this.modeService.getModeIdForLanguageName(lang);
+			result.push(this.modeService.getOrCreateMode(modeId));
+			return '';
+		};
+
+		marked(text, { renderer });
+		await TPromise.join(result);
+
+		renderer.code = (code, lang) => {
+			const modeId = this.modeService.getModeIdForLanguageName(lang);
+			return `<code>${tokenizeToString(code, modeId)}</code>`;
+		};
+		return renderer;
 	}
 }

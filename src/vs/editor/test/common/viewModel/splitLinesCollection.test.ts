@@ -17,8 +17,9 @@ import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
@@ -784,6 +785,9 @@ function createModel(text: string): ISimpleModel {
 		},
 		getLineMaxColumn: (lineNumber: number) => {
 			return text.length + 1;
+		},
+		getValueInRange: (range: IRange, eol?: EndOfLinePreference) => {
+			return text.substring(range.startColumn - 1, range.endColumn - 1);
 		}
 	};
 }

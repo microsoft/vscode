@@ -16,7 +16,6 @@
 			return;
 		}
 		didShow = true;
-		const args = [settings.previewUri];
 
 		const notification = document.createElement('a');
 		notification.innerText = strings.cspAlertMessageText;
@@ -24,9 +23,17 @@
 		notification.setAttribute('title', strings.cspAlertMessageTitle);
 
 		notification.setAttribute('role', 'button');
-		notification.setAttribute('aria-label',  strings.cspAlertMessageLabel);
-		notification.setAttribute('href', `command:markdown.showPreviewSecuritySelector?${encodeURIComponent(JSON.stringify(args))}`);
-
+		notification.setAttribute('aria-label', strings.cspAlertMessageLabel);
+		notification.onclick = () => {
+			window.parent.postMessage({
+				type: 'command',
+				source: settings.source,
+				body: {
+					command: 'markdown.showPreviewSecuritySelector',
+					args: [settings.source]
+				}
+			}, '*');
+		};
 		document.body.appendChild(notification);
 	};
 

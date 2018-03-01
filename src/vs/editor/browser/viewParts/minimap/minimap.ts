@@ -83,6 +83,10 @@ class MinimapOptions {
 	public readonly lineHeight: number;
 
 	/**
+	 * container dom node left position (in CSS px)
+	 */
+	public readonly minimapLeft: number;
+	/**
 	 * container dom node width (in CSS px)
 	 */
 	public readonly minimapWidth: number;
@@ -121,6 +125,7 @@ class MinimapOptions {
 		this.pixelRatio = pixelRatio;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this.lineHeight = configuration.editor.lineHeight;
+		this.minimapLeft = layoutInfo.minimapLeft;
 		this.minimapWidth = layoutInfo.minimapWidth;
 		this.minimapHeight = layoutInfo.height;
 
@@ -138,6 +143,7 @@ class MinimapOptions {
 			&& this.pixelRatio === other.pixelRatio
 			&& this.typicalHalfwidthCharacterWidth === other.typicalHalfwidthCharacterWidth
 			&& this.lineHeight === other.lineHeight
+			&& this.minimapLeft === other.minimapLeft
 			&& this.minimapWidth === other.minimapWidth
 			&& this.minimapHeight === other.minimapHeight
 			&& this.canvasInnerWidth === other.canvasInnerWidth
@@ -456,7 +462,6 @@ export class Minimap extends ViewPart {
 		this._domNode.setPosition('absolute');
 		this._domNode.setAttribute('role', 'presentation');
 		this._domNode.setAttribute('aria-hidden', 'true');
-		this._domNode.setRight(this._context.configuration.editor.layoutInfo.verticalScrollbarWidth);
 
 		this._shadow = createFastDomNode(document.createElement('div'));
 		this._shadow.setClassName('minimap-shadow-hidden');
@@ -563,6 +568,7 @@ export class Minimap extends ViewPart {
 	}
 
 	private _applyLayout(): void {
+		this._domNode.setLeft(this._options.minimapLeft);
 		this._domNode.setWidth(this._options.minimapWidth);
 		this._domNode.setHeight(this._options.minimapHeight);
 		this._shadow.setHeight(this._options.minimapHeight);
@@ -654,6 +660,8 @@ export class Minimap extends ViewPart {
 		const renderMinimap = this._options.renderMinimap;
 		if (renderMinimap === RenderMinimap.None) {
 			this._shadow.setClassName('minimap-shadow-hidden');
+			this._sliderHorizontal.setWidth(0);
+			this._sliderHorizontal.setHeight(0);
 			return;
 		}
 		if (renderingCtx.scrollLeft + renderingCtx.viewportWidth >= renderingCtx.scrollWidth) {

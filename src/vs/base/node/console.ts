@@ -69,7 +69,7 @@ export function getFirstFrame(arg0: IRemoteConsoleLog | string): IStackFrame {
 	// at e.$executeContributedCommand(c:\Users\someone\Desktop\end-js\extension.js:19:17)
 	const stack = arg0;
 	if (stack) {
-		const topFrame = stack.split('\n')[0];
+		const topFrame = findFirstFrame(stack);
 
 		// at [^\/]* => line starts with "at" followed by any character except '/' (to not capture unix paths too late)
 		// (?:(?:[a-zA-Z]+:)|(?:[\/])|(?:\\\\) => windows drive letter OR unix root OR unc root
@@ -88,12 +88,25 @@ export function getFirstFrame(arg0: IRemoteConsoleLog | string): IStackFrame {
 	return void 0;
 }
 
+function findFirstFrame(stack: string): string {
+	if (!stack) {
+		return stack;
+	}
+
+	const newlineIndex = stack.indexOf('\n');
+	if (newlineIndex === -1) {
+		return stack;
+	}
+
+	return stack.substring(0, newlineIndex);
+}
+
 export function log(entry: IRemoteConsoleLog, label: string): void {
 	const { args, stack } = parse(entry);
 
 	const isOneStringArg = typeof args[0] === 'string' && args.length === 1;
 
-	let topFrame = stack && stack.split('\n')[0];
+	let topFrame = findFirstFrame(stack);
 	if (topFrame) {
 		topFrame = `(${topFrame.trim()})`;
 	}

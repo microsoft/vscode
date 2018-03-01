@@ -9,20 +9,24 @@ import * as assert from 'assert';
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import Uri from 'vs/base/common/uri';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TestMessageService, TestContextService, TestHistoryService } from 'vs/workbench/test/workbenchTestServices';
+import { TestNotificationService, TestContextService, TestHistoryService } from 'vs/workbench/test/workbenchTestServices';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 
 class TestTerminalInstance extends TerminalInstance {
+
 	public _getCwd(shell: IShellLaunchConfig, root: Uri): string {
 		return super._getCwd(shell, root);
 	}
@@ -37,7 +41,7 @@ suite('Workbench - TerminalInstance', () => {
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IMessageService, new TestMessageService());
+		instantiationService.stub(INotificationService, new TestNotificationService());
 		instantiationService.stub(IHistoryService, new TestHistoryService());
 	});
 
@@ -152,11 +156,13 @@ suite('Workbench - TerminalInstance', () => {
 			let keybindingService = new MockKeybindingService();
 			let terminalFocusContextKey = contextKeyService.createKey('test', false);
 			instantiationService = new TestInstantiationService();
-			instantiationService.stub(IMessageService, new TestMessageService());
+			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			instantiationService.stub(INotificationService, new TestNotificationService());
 			instantiationService.stub(IWorkspaceContextService, new TestContextService());
 			instantiationService.stub(IKeybindingService, keybindingService);
 			instantiationService.stub(IContextKeyService, contextKeyService);
 			instantiationService.stub(IHistoryService, new TestHistoryService());
+			instantiationService.stub(ILogService, new NullLogService());
 			configHelper = {
 				config: {
 					cwd: null

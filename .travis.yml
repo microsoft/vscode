@@ -12,8 +12,8 @@ cache:
 notifications:
   email: false
   webhooks:
-    - http://vscode-probot.westus.cloudapp.azure.com:3450/travis/notifications
-    - http://vscode-test-probot.westus.cloudapp.azure.com:3450/travis/notifications
+    - https://vscode-probot.westus.cloudapp.azure.com:7890/travis/notifications
+    - https://vscode-test-probot.westus.cloudapp.azure.com:7890/travis/notifications
 
 addons:
   apt:
@@ -52,13 +52,18 @@ install:
   - yarn
 
 script:
-  - node_modules/.bin/gulp hygiene
   - node_modules/.bin/gulp electron --silent
   - node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
   - node_modules/.bin/gulp compile --silent --max_old_space_size=4096
-  - node_modules/.bin/gulp optimize-vscode --silent --max_old_space_size=4096
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --coverage --reporter dot; else ./scripts/test.sh --reporter dot; fi
   - ./scripts/test-integration.sh
 
 after_success:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then node_modules/.bin/coveralls < .build/coverage/lcov.info; fi
+
+matrix:
+  include:
+    - os: linux
+      env: label=hygiene
+      script: node_modules/.bin/gulp hygiene
+      after_success: skip

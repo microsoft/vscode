@@ -20,6 +20,7 @@
 		"editorHoverWidget.background": "#221a14",
 		"editorGroupHeader.tabsBackground": "#131510",
 		"editorGroup.background": "#0f0c08",
+		"editorActiveLineNumber.foreground": "#adadad",
 		"tab.inactiveBackground": "#131510",
 		"titleBar.activeBackground": "#423523",
 		"statusBar.background": "#423523",

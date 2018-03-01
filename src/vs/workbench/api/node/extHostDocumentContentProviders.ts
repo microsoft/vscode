@@ -13,6 +13,7 @@ import * as vscode from 'vscode';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { MainContext, ExtHostDocumentContentProvidersShape, MainThreadDocumentContentProvidersShape, IMainContext } from './extHost.protocol';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
+import { Schemas } from 'vs/base/common/network';
 
 export class ExtHostDocumentContentProvider implements ExtHostDocumentContentProvidersShape {
 
@@ -32,7 +33,9 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 	}
 
 	registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider): vscode.Disposable {
-		if (scheme === 'file' || scheme === 'untitled') {
+		// todo@remote
+		// check with scheme from fs-providers!
+		if (scheme === Schemas.file || scheme === Schemas.untitled) {
 			throw new Error(`scheme '${scheme}' already registered`);
 		}
 

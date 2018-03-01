@@ -11,11 +11,13 @@ import {
 import { TextDocument } from 'vscode-languageserver-types';
 
 import { ConfigurationRequest } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
+import { WorkspaceFolder } from 'vscode-languageserver-protocol/lib/protocol.workspaceFolders.proposed';
 import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { formatError, runSafe } from './utils/errors';
+import uri from 'vscode-uri';
 
 export interface Settings {
 	css: LanguageSettings;
@@ -49,9 +51,19 @@ connection.onShutdown(() => {
 });
 
 let scopedSettingsSupport = false;
+let workspaceFolders: WorkspaceFolder[] | undefined;
+
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
+	workspaceFolders = (<any>params).workspaceFolders;
+	if (!Array.isArray(workspaceFolders)) {
+		workspaceFolders = [];
+		if (params.rootPath) {
+			workspaceFolders.push({ name: '', uri: uri.file(params.rootPath).toString() });
+		}
+	}
+
 	function hasClientCapability(name: string) {
 		let keys = name.split('.');
 		let c: any = params.capabilities;
@@ -172,8 +184,7 @@ function validateTextDocument(textDocument: TextDocument): void {
 connection.onCompletion(textDocumentPosition => {
 	return runSafe(() => {
 		let document = documents.get(textDocumentPosition.textDocument.uri);
-		let stylesheet = stylesheets.get(document);
-		return getLanguageService(document).doComplete(document, textDocumentPosition.position, stylesheet)!; /* TODO: remove ! once LS has null annotations */
+		return getLanguageService(document).doComplete(document, textDocumentPosition.position, stylesheets.get(document))!; /* TODO: remove ! once LS has null annotations */
 	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`);
 });
 

@@ -12,7 +12,7 @@ import { join } from 'path';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 import { IInitData, IEnvironment, IWorkspaceData, MainContext } from 'vs/workbench/api/node/extHost.protocol';
@@ -21,12 +21,11 @@ import * as watchdog from 'native-watchdog';
 import * as glob from 'vs/base/common/glob';
 import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { createLogService } from 'vs/platform/log/node/spdlogService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import URI from 'vs/base/common/uri';
+import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 
 // const nativeExit = process.exit.bind(process);
 function patchProcess(allowExit: boolean) {
@@ -78,7 +77,7 @@ export class ExtensionHostMain {
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
 	private _extHostConfiguration: ExtHostConfiguration;
-	private _logService: ILogService;
+	private _extHostLogService: ExtHostLogService;
 	private disposables: IDisposable[] = [];
 
 	constructor(protocol: IMessagePassingProtocol, initData: IInitData) {
@@ -90,16 +89,16 @@ export class ExtensionHostMain {
 
 		// services
 		const rpcProtocol = new RPCProtocol(protocol);
-		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, initData.workspace);
 		const environmentService = new EnvironmentService(initData.args, initData.execPath);
-		this._logService = createLogService(`exthost${initData.windowId}`, environmentService);
-		this.disposables.push(this._logService);
+		this._extHostLogService = new ExtHostLogService(initData.windowId, initData.logLevel, environmentService);
+		this.disposables.push(this._extHostLogService);
+		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, initData.workspace, this._extHostLogService);
 
-		this._logService.info('extension host started');
-		this._logService.trace('initData', initData);
+		this._extHostLogService.info('extension host started');
+		this._extHostLogService.trace('initData', initData);
 
 		this._extHostConfiguration = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
-		this._extensionService = new ExtHostExtensionService(initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._logService, environmentService);
+		this._extensionService = new ExtHostExtensionService(initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._extHostLogService, environmentService);
 
 		// error forwarding and stack trace scanning
 		const extensionErrors = new WeakMap<Error, IExtensionDescription>();
@@ -143,7 +142,7 @@ export class ExtensionHostMain {
 			.then(() => this.handleEagerExtensions())
 			.then(() => this.handleExtensionTests())
 			.then(() => {
-				this._logService.info(`eager extensions activated`);
+				this._extHostLogService.info(`eager extensions activated`);
 			});
 	}
 
@@ -248,6 +247,8 @@ export class ExtensionHostMain {
 	}
 
 	private async activateIfGlobPatterns(extensionId: string, globPatterns: string[]): TPromise<void> {
+		this._extHostLogService.trace(`extensionHostMain#activateIfGlobPatterns: fileSearch, extension: ${extensionId}, entryPoint: workspaceContains`);
+
 		if (globPatterns.length === 0) {
 			return TPromise.as(void 0);
 		}

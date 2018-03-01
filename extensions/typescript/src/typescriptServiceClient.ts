@@ -354,8 +354,9 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		return this.servicePromise = new Promise<ForkedTsServerProcess>(async (resolve, reject) => {
 			try {
 				const tsServerForkArgs = await this.getTsServerArgs(currentVersion);
+				const debugPort = this.getDebugPort();
 				const tsServerForkOptions: electron.IForkOptions = {
-					execArgv: [] // [`--debug-brk=5859`]
+					execArgv: debugPort ? [`--inspect=${debugPort}`] : [] // [`--debug-brk=5859`]
 				};
 				electron.fork(currentVersion.tsServerPath, tsServerForkArgs, tsServerForkOptions, this.logger, (err: any, childProcess: cp.ChildProcess | null) => {
 					if (err || !childProcess) {
@@ -393,7 +394,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 							this.error(`TSServer exited with code: ${code}`);
 							/* __GDPR__
 								"tsserver.exitWithCode" : {
-									"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+									"code" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
 								}
 							*/
 							this.logTelemetry('tsserver.exitWithCode', { code: code });
@@ -544,8 +545,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 						localize('serverDiedAfterStart', 'The TypeScript language service died 5 times right after it got started. The service will not be restarted.'),
 						{
 							title: localize('serverDiedReportIssue', 'Report Issue'),
-							id: MessageAction.reportIssue,
-							isCloseAffordance: true
+							id: MessageAction.reportIssue
 						});
 					/* __GDPR__
 						"serviceExited" : {}
@@ -558,8 +558,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 						localize('serverDied', 'The TypeScript language service died unexpectedly 5 times in the last 5 Minutes.'),
 						{
 							title: localize('serverDiedReportIssue', 'Report Issue'),
-							id: MessageAction.reportIssue,
-							isCloseAffordance: true
+							id: MessageAction.reportIssue
 						});
 				}
 				if (prompt) {
@@ -578,12 +577,12 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	}
 
 	public normalizePath(resource: Uri): string | null {
-		if (resource.scheme === fileSchemes.walkThroughSnippet) {
-			return resource.toString();
-		}
-
-		if (resource.scheme === fileSchemes.untitled && this._apiVersion.has213Features()) {
-			return resource.toString();
+		if (this._apiVersion.has213Features()) {
+			if (resource.scheme === fileSchemes.walkThroughSnippet || resource.scheme === fileSchemes.untitled) {
+				const dirName = path.dirname(resource.path);
+				const fileName = this.inMemoryResourcePrefix + path.basename(resource.path);
+				return resource.with({ path: path.posix.join(dirName, fileName) }).toString(true);
+			}
 		}
 
 		if (resource.scheme !== fileSchemes.file) {
@@ -599,11 +598,24 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		return result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
 	}
 
+	private get inMemoryResourcePrefix(): string {
+		return this._apiVersion.has270Features() ? '^' : '';
+	}
+
 	public asUrl(filepath: string): Uri {
-		if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON)
-			|| (filepath.startsWith(fileSchemes.untitled + ':') && this._apiVersion.has213Features())
-		) {
-			return Uri.parse(filepath);
+		if (this._apiVersion.has213Features()) {
+			if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON) || (filepath.startsWith(fileSchemes.untitled + ':'))
+			) {
+				let resource = Uri.parse(filepath);
+				if (this.inMemoryResourcePrefix) {
+					const dirName = path.dirname(resource.path);
+					const fileName = path.basename(resource.path);
+					if (fileName.startsWith(this.inMemoryResourcePrefix)) {
+						resource = resource.with({ path: path.posix.join(dirName, fileName.slice(this.inMemoryResourcePrefix.length)) });
+					}
+				}
+				return resource;
+			}
 		}
 		return Uri.file(filepath);
 	}
@@ -620,8 +632,10 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 					return root.uri.fsPath;
 				}
 			}
+			return roots[0].uri.fsPath;
 		}
-		return roots[0].uri.fsPath;
+
+		return undefined;
 	}
 
 	public execute(command: string, args: any, expectsResultOrToken?: boolean | CancellationToken): Promise<any> {
@@ -925,6 +939,18 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			}
 		}
 		return args;
+	}
+
+
+	private getDebugPort(): number | undefined {
+		const value = process.env['TSS_DEBUG'];
+		if (value) {
+			const port = parseInt(value);
+			if (!isNaN(port)) {
+				return port;
+			}
+		}
+		return undefined;
 	}
 
 	private resetClientVersion() {

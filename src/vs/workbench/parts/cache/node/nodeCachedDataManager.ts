@@ -35,7 +35,7 @@ export class NodeCachedDataManager implements IWorkbenchContribution {
 			if (err) {
 				/* __GDPR__
 					"cachedDataError" : {
-						"errorCode" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"errorCode" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 						"path": { "classification": "CustomerContent", "purpose": "PerformanceAndHealth" }
 					}
 				*/

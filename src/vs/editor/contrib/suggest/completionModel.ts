@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { fuzzyScore, fuzzyScoreGracefulAggressive } from 'vs/base/common/filters';
+import { fuzzyScore, fuzzyScoreGracefulAggressive, skipScore } from 'vs/base/common/filters';
 import { ISuggestSupport, ISuggestResult } from 'vs/editor/common/modes';
 import { ISuggestionItem, SnippetConfig } from './suggest';
 import { isDisposable } from 'vs/base/common/lifecycle';
@@ -185,11 +185,8 @@ export class CompletionModel {
 					continue;
 				}
 				item.score = match[0];
-				item.matches = [];
-				match = scoreFn(word, suggestion.label, suggestion.overwriteBefore);
-				if (match) {
-					item.matches = match[1];
-				}
+				item.matches = skipScore(word, suggestion.label)[1];
+
 			} else {
 				// by default match `word` against the `label`
 				let match = scoreFn(word, suggestion.label, suggestion.overwriteBefore);

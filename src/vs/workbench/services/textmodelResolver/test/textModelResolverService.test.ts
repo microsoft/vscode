@@ -22,6 +22,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { once } from 'vs/base/common/event';
+import { snapshotToString } from 'vs/platform/files/common/files';
 
 class ServiceAccessor {
 	constructor(
@@ -73,7 +74,7 @@ suite('Workbench - TextModelResolverService', () => {
 
 		input.resolve().then(model => {
 			assert.ok(model);
-			assert.equal((model as ResourceEditorModel).getValue(), 'Hello Test');
+			assert.equal(snapshotToString((model as ResourceEditorModel).createSnapshot()), 'Hello Test');
 
 			let disposed = false;
 			once(model.onDispose)(() => {

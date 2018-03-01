@@ -7,8 +7,8 @@
 
 import uri from 'vs/base/common/uri';
 import resources = require('vs/base/common/resources');
-import { IconLabel, IIconLabelOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { toResource } from 'vs/workbench/common/editor';
@@ -32,7 +32,7 @@ export interface IResourceLabel {
 	resource?: uri;
 }
 
-export interface IResourceLabelOptions extends IIconLabelOptions {
+export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	fileKind?: FileKind;
 	fileDecorations?: { colors: boolean, badges: boolean, data?: IDecorationData };
 }
@@ -94,7 +94,7 @@ export class ResourceLabel extends IconLabel {
 			return; // we need the resource to compare
 		}
 
-		if (e.model.uri.scheme === Schemas.file && e.oldModeId === PLAINTEXT_MODE_ID) {
+		if (e.model.uri.scheme === Schemas.file && e.oldModeId === PLAINTEXT_MODE_ID) { // todo@remote does this apply?
 			return; // ignore transitions in files from no mode to specific mode because this happens each time a model is created
 		}
 
@@ -172,7 +172,7 @@ export class ResourceLabel extends IconLabel {
 			return;
 		}
 
-		const iconLabelOptions: IIconLabelOptions = {
+		const iconLabelOptions: IIconLabelValueOptions = {
 			title: '',
 			italic: this.options && this.options.italic,
 			matches: this.options && this.options.matches,

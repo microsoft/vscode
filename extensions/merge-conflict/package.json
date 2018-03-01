@@ -1,9 +1,10 @@
 {
   "name": "merge-conflict",
   "publisher": "vscode",
-  "displayName": "merge-conflict",
-  "description": "Merge Conflict",
-  "version": "0.7.0",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "icon": "resources/icons/merge-conflict.png",
+  "version": "1.0.0",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
     "vscode": "^1.5.0"
@@ -24,51 +25,61 @@
       {
         "category": "%command.category%",
         "title": "%command.accept.all-current%",
+        "original": "Accept All Current",
         "command": "merge-conflict.accept.all-current"
       },
       {
         "category": "%command.category%",
         "title": "%command.accept.all-incoming%",
+        "original": "Accept All Incoming",
         "command": "merge-conflict.accept.all-incoming"
       },
       {
         "category": "%command.category%",
         "title": "%command.accept.all-both%",
+        "original": "Accept All Both",
         "command": "merge-conflict.accept.all-both"
       },
       {
         "category": "%command.category%",
         "title": "%command.accept.current%",
+        "original": "Accept Current",
         "command": "merge-conflict.accept.current"
       },
       {
         "category": "%command.category%",
         "title": "%command.accept.incoming%",
+        "original": "Accept Incoming",
         "command": "merge-conflict.accept.incoming"
       },
       {
         "category": "%command.category%",
         "title": "%command.accept.selection%",
+        "original": "Accept Selection",
         "command": "merge-conflict.accept.selection"
       },
       {
         "category": "%command.category%",
         "title": "%command.accept.both%",
+        "original": "Accept Both",
         "command": "merge-conflict.accept.both"
       },
       {
         "category": "%command.category%",
         "title": "%command.next%",
+        "original": "Next Conflict",
         "command": "merge-conflict.next"
       },
       {
         "category": "%command.category%",
         "title": "%command.previous%",
+        "original": "Previous Conflict",
         "command": "merge-conflict.previous"
       },
       {
         "category": "%command.category%",
         "title": "%command.compare%",
+        "original":"Compare Current Conflict",
         "command": "merge-conflict.compare"
       }
     ],
@@ -89,8 +100,7 @@
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.0.8",
-    "vscode-nls": "^2.0.2"
+    "vscode-nls": "^3.2.1"
   },
   "devDependencies": {
     "@types/node": "8.0.33"

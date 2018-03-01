@@ -12,6 +12,7 @@ import * as vscode from 'vscode';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { relative } from 'path';
+import { startsWith } from 'vs/base/common/strings';
 
 export class Disposable {
 
@@ -491,10 +492,28 @@ export class TextEdit {
 	}
 }
 
-export class WorkspaceEdit {
+export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
-	private _values: [URI, TextEdit[]][] = [];
-	private _index = new Map<string, number>();
+	private _seqPool: number = 0;
+
+	private _resourceEdits: { seq: number, from: URI, to: URI }[] = [];
+	private _textEdits = new Map<string, { seq: number, uri: URI, edits: TextEdit[] }>();
+
+	// createResource(uri: vscode.Uri): void {
+	// 	this.renameResource(undefined, uri);
+	// }
+
+	// deleteResource(uri: vscode.Uri): void {
+	// 	this.renameResource(uri, undefined);
+	// }
+
+	// renameResource(from: vscode.Uri, to: vscode.Uri): void {
+	// 	this._resourceEdits.push({ seq: this._seqPool++, from, to });
+	// }
+
+	// resourceEdits(): [vscode.Uri, vscode.Uri][] {
+	// 	return this._resourceEdits.map(({ from, to }) => (<[vscode.Uri, vscode.Uri]>[from, to]));
+	// }
 
 	replace(uri: URI, range: Range, newText: string): void {
 		let edit = new TextEdit(range, newText);
@@ -502,8 +521,9 @@ export class WorkspaceEdit {
 		if (array) {
 			array.push(edit);
 		} else {
-			this.set(uri, [edit]);
+			array = [edit];
 		}
+		this.set(uri, array);
 	}
 
 	insert(resource: URI, position: Position, newText: string): void {
@@ -515,34 +535,59 @@ export class WorkspaceEdit {
 	}
 
 	has(uri: URI): boolean {
-		return this._index.has(uri.toString());
+		return this._textEdits.has(uri.toString());
 	}
 
 	set(uri: URI, edits: TextEdit[]): void {
-		const idx = this._index.get(uri.toString());
-		if (typeof idx === 'undefined') {
-			let newLen = this._values.push([uri, edits]);
-			this._index.set(uri.toString(), newLen - 1);
+		let data = this._textEdits.get(uri.toString());
+		if (!data) {
+			data = { seq: this._seqPool++, uri, edits: [] };
+			this._textEdits.set(uri.toString(), data);
+		}
+		if (!edits) {
+			data.edits = undefined;
 		} else {
-			this._values[idx][1] = edits;
+			data.edits = edits.slice(0);
 		}
 	}
 
 	get(uri: URI): TextEdit[] {
-		let idx = this._index.get(uri.toString());
-		return typeof idx !== 'undefined' && this._values[idx][1];
+		if (!this._textEdits.has(uri.toString())) {
+			return undefined;
+		}
+		const { edits } = this._textEdits.get(uri.toString());
+		return edits ? edits.slice() : undefined;
 	}
 
 	entries(): [URI, TextEdit[]][] {
-		return this._values;
+		const res: [URI, TextEdit[]][] = [];
+		this._textEdits.forEach(value => res.push([value.uri, value.edits]));
+		return res.slice();
+	}
+
+	allEntries(): ([URI, TextEdit[]] | [URI, URI])[] {
+		return this.entries();
+		// 	// use the 'seq' the we have assigned when inserting
+		// 	// the operation and use that order in the resulting
+		// 	// array
+		// 	const res: ([URI, TextEdit[]] | [URI, URI])[] = [];
+		// 	this._textEdits.forEach(value => {
+		// 		const { seq, uri, edits } = value;
+		// 		res[seq] = [uri, edits];
+		// 	});
+		// 	this._resourceEdits.forEach(value => {
+		// 		const { seq, from, to } = value;
+		// 		res[seq] = [from, to];
+		// 	});
+		// 	return res;
 	}
 
 	get size(): number {
-		return this._values.length;
+		return this._textEdits.size + this._resourceEdits.length;
 	}
 
 	toJSON(): any {
-		return this._values;
+		return this.entries();
 	}
 }
 
@@ -818,11 +863,38 @@ export class CodeAction {
 
 	dianostics?: Diagnostic[];
 
-	constructor(title: string, edit?: WorkspaceEdit) {
+	kind?: CodeActionKind;
+
+	constructor(title: string, kind?: CodeActionKind) {
 		this.title = title;
-		this.edit = edit;
+		this.kind = kind;
 	}
 }
+
+
+export class CodeActionKind {
+	private static readonly sep = '.';
+
+	public static readonly Empty = new CodeActionKind('');
+	public static readonly QuickFix = CodeActionKind.Empty.append('quickfix');
+	public static readonly Refactor = CodeActionKind.Empty.append('refactor');
+	public static readonly RefactorExtract = CodeActionKind.Refactor.append('extract');
+	public static readonly RefactorInline = CodeActionKind.Refactor.append('inline');
+	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
+
+	constructor(
+		public readonly value: string
+	) { }
+
+	public append(parts: string): CodeActionKind {
+		return new CodeActionKind(this.value ? this.value + CodeActionKind.sep + parts : parts);
+	}
+
+	public contains(other: CodeActionKind): boolean {
+		return this.value === other.value || startsWith(other.value, this.value + CodeActionKind.sep);
+	}
+}
+
 
 export class CodeLens {
 
@@ -907,7 +979,8 @@ export class SignatureHelp {
 
 export enum CompletionTriggerKind {
 	Invoke = 0,
-	TriggerCharacter = 1
+	TriggerCharacter = 1,
+	TriggerForIncompleteCompletions = 2
 }
 
 export interface CompletionContext {
@@ -1126,6 +1199,12 @@ export enum ColorFormat {
 	RGB = 0,
 	HEX = 1,
 	HSL = 2
+}
+
+export enum SourceControlInputBoxValidationType {
+	Error = 0,
+	Warning = 1,
+	Information = 2
 }
 
 export enum TaskRevealKind {
@@ -1440,11 +1519,21 @@ export enum ProgressLocation {
 
 export class TreeItem {
 
+	label?: string;
+	resourceUri?: URI;
 	iconPath?: string | URI | { light: string | URI; dark: string | URI };
 	command?: vscode.Command;
 	contextValue?: string;
+	tooltip?: string;
 
-	constructor(public label: string, public collapsibleState: vscode.TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
+	constructor(label: string, collapsibleState?: vscode.TreeItemCollapsibleState)
+	constructor(resourceUri: URI, collapsibleState?: vscode.TreeItemCollapsibleState)
+	constructor(arg1: string | URI, public collapsibleState: vscode.TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
+		if (arg1 instanceof URI) {
+			this.resourceUri = arg1;
+		} else {
+			this.label = arg1;
+		}
 	}
 
 }
@@ -1453,6 +1542,18 @@ export enum TreeItemCollapsibleState {
 	None = 0,
 	Collapsed = 1,
 	Expanded = 2
+}
+
+export class ThemeIcon {
+	static readonly File = new ThemeIcon('file');
+
+	static readonly Folder = new ThemeIcon('folder');
+
+	readonly id: string;
+
+	private constructor(id: string) {
+		this.id = id;
+	}
 }
 
 export class ThemeColor {
@@ -1500,20 +1601,25 @@ export class Breakpoint {
 	readonly condition?: string;
 	readonly hitCondition?: string;
 
-	protected constructor(enabled: boolean, condition: string, hitCondition: string) {
-		this.enabled = enabled;
-		this.condition = condition;
-		this.hitCondition = hitCondition;
-		this.condition = condition;
-		this.hitCondition = hitCondition;
+	protected constructor(enabled?: boolean, condition?: string, hitCondition?: string) {
+		this.enabled = typeof enabled === 'boolean' ? enabled : true;
+		if (typeof condition === 'string') {
+			this.condition = condition;
+		}
+		if (typeof hitCondition === 'string') {
+			this.hitCondition = hitCondition;
+		}
 	}
 }
 
 export class SourceBreakpoint extends Breakpoint {
 	readonly location: Location;
 
-	constructor(enabled: boolean, condition: string, hitCondition: string, location: Location) {
+	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string) {
 		super(enabled, condition, hitCondition);
+		if (location === null) {
+			throw illegalArgument('location');
+		}
 		this.location = location;
 	}
 }
@@ -1521,9 +1627,22 @@ export class SourceBreakpoint extends Breakpoint {
 export class FunctionBreakpoint extends Breakpoint {
 	readonly functionName: string;
 
-	constructor(enabled: boolean, condition: string, hitCondition: string, functionName: string) {
+	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string) {
 		super(enabled, condition, hitCondition);
+		if (!functionName) {
+			throw illegalArgument('functionName');
+		}
 		this.functionName = functionName;
+	}
+}
+
+export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
+	readonly command: string;
+	readonly args: string[];
+
+	constructor(command: string, args?: string[]) {
+		this.command = command;
+		this.args = args;
 	}
 }
 
@@ -1536,3 +1655,62 @@ export enum LogLevel {
 	Critical = 6,
 	Off = 7
 }
+
+//#region file api
+// todo@remote
+export enum FileChangeType {
+	Updated = 0,
+	Added = 1,
+	Deleted = 2
+}
+
+export enum FileType {
+	File = 0,
+	Dir = 1,
+	Symlink = 2
+}
+
+//#endregion
+
+//#region folding api
+
+export class FoldingRangeList {
+
+	ranges: FoldingRange[];
+
+	constructor(ranges: FoldingRange[]) {
+		this.ranges = ranges;
+	}
+}
+
+export class FoldingRange {
+
+	startLine: number;
+
+	endLine: number;
+
+	type?: FoldingRangeType | string;
+
+	constructor(startLine: number, endLine: number, type?: FoldingRangeType | string) {
+		this.startLine = startLine;
+		this.endLine = endLine;
+		this.type = type;
+	}
+}
+
+export enum FoldingRangeType {
+	/**
+	 * Folding range for a comment
+	 */
+	Comment = 'comment',
+	/**
+	 * Folding range for a imports or includes
+	 */
+	Imports = 'imports',
+	/**
+	 * Folding range for a region (e.g. `#region`)
+	 */
+	Region = 'region'
+}
+
+//#endregion

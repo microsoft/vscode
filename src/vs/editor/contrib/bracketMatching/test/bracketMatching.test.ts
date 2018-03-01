@@ -7,6 +7,7 @@
 import * as assert from 'assert';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
@@ -91,6 +92,51 @@ suite('bracket matching', () => {
 			editor.setPosition(new Position(1, 26));
 			bracketMatchingController.jumpToBracket();
 			assert.deepEqual(editor.getPosition(), new Position(1, 26));
+
+			bracketMatchingController.dispose();
+		});
+
+		model.dispose();
+		mode.dispose();
+	});
+
+	test('Select to next bracket', () => {
+		let mode = new BracketMode();
+		let model = TextModel.createFromString('var x = (3 + (5-7)); y();', undefined, mode.getLanguageIdentifier());
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			let bracketMatchingController = editor.registerAndInstantiateContribution<BracketMatchingController>(BracketMatchingController);
+
+
+			// start position in open brackets
+			editor.setPosition(new Position(1, 9));
+			bracketMatchingController.selectToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 20));
+			assert.deepEqual(editor.getSelection(), new Selection(1, 9, 1, 20));
+
+			// start position in close brackets
+			editor.setPosition(new Position(1, 20));
+			bracketMatchingController.selectToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 20));
+			assert.deepEqual(editor.getSelection(), new Selection(1, 9, 1, 20));
+
+			// start position between brackets
+			editor.setPosition(new Position(1, 16));
+			bracketMatchingController.selectToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 19));
+			assert.deepEqual(editor.getSelection(), new Selection(1, 14, 1, 19));
+
+			// start position outside brackets
+			editor.setPosition(new Position(1, 21));
+			bracketMatchingController.selectToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 25));
+			assert.deepEqual(editor.getSelection(), new Selection(1, 23, 1, 25));
+
+			// do not break if no brackets are available
+			editor.setPosition(new Position(1, 26));
+			bracketMatchingController.selectToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 26));
+			assert.deepEqual(editor.getSelection(), new Selection(1, 26, 1, 26));
 
 			bracketMatchingController.dispose();
 		});

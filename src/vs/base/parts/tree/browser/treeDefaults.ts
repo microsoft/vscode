@@ -38,8 +38,14 @@ export enum ClickBehavior {
 	ON_MOUSE_UP
 }
 
+export enum OpenMode {
+	SINGLE_CLICK,
+	DOUBLE_CLICK
+}
+
 export interface IControllerOptions {
 	clickBehavior?: ClickBehavior;
+	openMode?: OpenMode;
 	keyboardSupport?: boolean;
 }
 
@@ -82,7 +88,7 @@ export class DefaultController implements _.IController {
 
 	private options: IControllerOptions;
 
-	constructor(options: IControllerOptions = { clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: true }) {
+	constructor(options: IControllerOptions = { clickBehavior: ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: true, openMode: OpenMode.SINGLE_CLICK }) {
 		this.options = options;
 
 		this.downKeyBindingDispatcher = new KeybindingDispatcher();
@@ -153,12 +159,14 @@ export class DefaultController implements _.IController {
 
 	protected onLeftClick(tree: _.ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
 		const payload = { origin: origin, originalEvent: eventish };
+		const event = <mouse.IMouseEvent>eventish;
+		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
 
 		if (tree.getInput() === element) {
 			tree.clearFocus(payload);
 			tree.clearSelection(payload);
 		} else {
-			const isMouseDown = eventish && (<mouse.IMouseEvent>eventish).browserEvent && (<mouse.IMouseEvent>eventish).browserEvent.type === 'mousedown';
+			const isMouseDown = eventish && event.browserEvent && event.browserEvent.type === 'mousedown';
 			if (!isMouseDown) {
 				eventish.preventDefault(); // we cannot preventDefault onMouseDown because this would break DND otherwise
 			}
@@ -168,14 +176,34 @@ export class DefaultController implements _.IController {
 			tree.setSelection([element], payload);
 			tree.setFocus(element, payload);
 
-			if (tree.isExpanded(element)) {
-				tree.collapse(element).done(null, errors.onUnexpectedError);
-			} else {
-				tree.expand(element).done(null, errors.onUnexpectedError);
+			if (this.openOnSingleClick || isDoubleClick || this.isClickOnTwistie(event)) {
+				if (tree.isExpanded(element)) {
+					tree.collapse(element).done(null, errors.onUnexpectedError);
+				} else {
+					tree.expand(element).done(null, errors.onUnexpectedError);
+				}
 			}
 		}
 
 		return true;
+	}
+
+	protected setOpenMode(openMode: OpenMode) {
+		this.options.openMode = openMode;
+	}
+
+	protected get openOnSingleClick(): boolean {
+		return this.options.openMode === OpenMode.SINGLE_CLICK;
+	}
+
+	protected isClickOnTwistie(event: mouse.IMouseEvent): boolean {
+		const target = event.target as HTMLElement;
+
+		// There is no way to find out if the ::before element is clicked where
+		// the twistie is drawn, but the <div class="content"> element in the
+		// tree item is the only thing we get back as target when the user clicks
+		// on the twistie.
+		return target && target.className === 'content' && dom.hasClass(target.parentElement, 'monaco-tree-row');
 	}
 
 	public onContextMenu(tree: _.ITree, element: any, event: _.ContextMenuEvent): boolean {

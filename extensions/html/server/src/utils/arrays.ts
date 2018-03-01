@@ -11,3 +11,7 @@ export function pushAll<T>(to: T[], from: T[]) {
 		}
 	}
 }
+
+export function contains<T>(arr: T[], val: T) {
+	return arr.indexOf(val) !== -1;
+}

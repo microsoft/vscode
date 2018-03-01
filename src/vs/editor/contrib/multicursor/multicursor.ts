@@ -810,6 +810,11 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		}
 
 		const model = this.editor.getModel();
+		if (model.isTooLargeForTokenization()) {
+			// the file is too large, so searching word under cursor in the whole document takes is blocking the UI.
+			return;
+		}
+
 		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model);
 
 		let allMatches = model.findMatches(this.state.searchText, true, false, this.state.matchCase, this.state.wordSeparators, false).map(m => m.range);

@@ -70,6 +70,11 @@
 	flex-shrink: 0;
 }
 
+.quick-open-widget .quick-open-tree .monaco-icon-label,
+.quick-open-widget .quick-open-tree .monaco-icon-label .monaco-icon-label-description-container {
+	flex: 1; /* make sure the icon label grows within the row */
+}
+
 .quick-open-widget .quick-open-tree .quick-open-entry .monaco-highlighted-label span {
 	opacity: 1;
 }
@@ -77,15 +82,6 @@
 .quick-open-widget .quick-open-tree .quick-open-entry-meta {
 	opacity: 0.7;
 	line-height: normal;
-}
-
-.quick-open-widget .quick-open-tree .quick-open-entry-description {
-	opacity: 0.7;
-	margin-left: 0.5em;
-	font-size: 0.9em;
-	overflow: hidden;
-	flex: 1;
-	text-overflow: ellipsis;
 }
 
 .quick-open-widget .quick-open-tree .content.has-group-label .quick-open-entry-keybinding {

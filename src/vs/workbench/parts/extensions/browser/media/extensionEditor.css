@@ -61,6 +61,12 @@
 	white-space: nowrap;
 }
 
+.extension-editor > .header > .details > .title > .builtin {
+	font-size: 10px;
+	font-style: italic;
+	margin-left: 10px;
+}
+
 .vs .extension-editor > .header > .details > .title > .preview {
 	color: white;
 }
@@ -171,6 +177,7 @@
 	height: calc(100% - 36px);
 	position: relative;
 	overflow: hidden;
+	user-select: text;
 }
 
 .extension-editor > .body > .content.loading {

@@ -21,6 +21,7 @@
 		"editorWhitespace.foreground": "#c10000",
 		"editor.selectionBackground": "#750000",
 		"editorLineNumber.foreground": "#ff777788",
+		"editorActiveLineNumber.foreground": "#ffbbbb88",
 		"editorWidget.background": "#300000",
 		"editorHoverWidget.background": "#300000",
 		"editorSuggestWidget.background": "#300000",

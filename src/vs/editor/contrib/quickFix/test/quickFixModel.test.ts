@@ -47,7 +47,7 @@ suite('QuickFix', () => {
 	test('Orcale -> marker added', done => {
 
 		const oracle = new QuickFixOracle(editor, markerService, e => {
-			assert.equal(e.type, 'auto');
+			assert.equal(e.trigger.type, 'auto');
 			assert.ok(e.fixes);
 
 			e.fixes.then(fixes => {
@@ -83,7 +83,7 @@ suite('QuickFix', () => {
 		return new Promise((resolve, reject) => {
 
 			const oracle = new QuickFixOracle(editor, markerService, e => {
-				assert.equal(e.type, 'auto');
+				assert.equal(e.trigger.type, 'auto');
 				assert.ok(e.fixes);
 				e.fixes.then(fixes => {
 					oracle.dispose();
@@ -160,7 +160,7 @@ suite('QuickFix', () => {
 		await new Promise(resolve => {
 
 			let oracle = new QuickFixOracle(editor, markerService, e => {
-				assert.equal(e.type, 'auto');
+				assert.equal(e.trigger.type, 'auto');
 				assert.deepEqual(e.range, { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 4 });
 				assert.deepEqual(e.position, { lineNumber: 3, column: 1 });
 

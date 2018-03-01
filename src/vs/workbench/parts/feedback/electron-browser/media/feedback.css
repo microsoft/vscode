@@ -88,7 +88,6 @@
 	position: absolute;
 	top: 0;
 	right: 0;
-	margin: .5em 0 0 0;
 	padding: .5em;
 	width: 22px;
 	height: 22px;
@@ -160,7 +159,12 @@
 	display: flex;
 }
 
-.monaco-shell .feedback-form .form-buttons .hide-button {
+.monaco-shell .feedback-form .form-buttons .hide-button-container {
+	display: flex;
+}
+
+.monaco-shell .feedback-form .form-buttons .hide-button-container input,
+.monaco-shell .feedback-form .form-buttons .hide-button-container label {
 	align-self: center;
 }
 

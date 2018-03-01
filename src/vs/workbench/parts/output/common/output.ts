@@ -22,14 +22,24 @@ export const OUTPUT_MIME = 'text/x-code-output';
 export const OUTPUT_SCHEME = 'output';
 
 /**
- * Output resource scheme.
+ * Id used by the output editor.
+ */
+export const OUTPUT_MODE_ID = 'Log';
+
+/**
+ * Mime type used by the log output editor.
+ */
+export const LOG_MIME = 'text/x-code-log-output';
+
+/**
+ * Log resource scheme.
  */
 export const LOG_SCHEME = 'log';
 
 /**
- * Id used by the output editor.
+ * Id used by the log output editor.
  */
-export const OUTPUT_MODE_ID = 'Log';
+export const LOG_MODE_ID = 'log';
 
 /**
  * Output panel id
