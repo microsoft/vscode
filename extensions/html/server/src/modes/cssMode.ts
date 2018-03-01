@@ -12,8 +12,6 @@ import { HTMLDocumentRegions, CSS_STYLE_RULE } from './embeddedSupport';
 import { Color } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 import { extractAbbreviation } from 'vscode-emmet-helper';
 
-const emmetAbbreviationThatBreaksParsing = /\.\d+$/;
-
 export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>): LanguageMode {
 	let cssLanguageService = getCSSLanguageService();
 	let embeddedCSSDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument('css'));
@@ -31,23 +29,24 @@ export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegio
 			return cssLanguageService.doValidation(embedded, cssStylesheets.get(embedded), settings && settings.css);
 		},
 		doComplete(document: TextDocument, position: Position, settings: Settings, registeredCompletionParticipants: ICompletionParticipant[]) {
-			if (registeredCompletionParticipants) {
-				cssLanguageService.setCompletionParticipants(registeredCompletionParticipants);
-			}
-
 			let embedded = embeddedCSSDocuments.get(document);
-
-			// Workaround for https://github.com/Microsoft/vscode-css-languageservice/issues/69
 			const stylesheet = cssStylesheets.get(embedded);
-			if (typeof (<any>stylesheet).end === 'number'
-				&& document.offsetAt(position) > (<any>stylesheet).end) {
-				const extractedResults = extractAbbreviation(document, position, { lookAhead: false, syntax: 'css' });
-				if (extractedResults && emmetAbbreviationThatBreaksParsing.test(extractedResults.abbreviation)) {
-					const emmetCompletionParticipant = registeredCompletionParticipants.filter(x => typeof (<any>x).getId === 'function' && (<any>x).getId() === 'emmet');
-					if (emmetCompletionParticipant && emmetCompletionParticipant.length === 1) {
-						emmetCompletionParticipant[0].onCssProperty({ propertyName: extractedResults.abbreviation, range: extractedResults.abbreviationRange });
+
+			if (registeredCompletionParticipants) {
+				const nonEmmetCompletionParticipants = [];
+				// Css Emmet completions in html files are provided no matter where the cursor is inside the embedded css document
+				// Mimic the same here, until we solve the issue of css language service not able to parse complete embedded documents when there are errors
+				for (let i = 0; i < registeredCompletionParticipants.length; i++) {
+					if (typeof (<any>registeredCompletionParticipants[i]).getId === 'function' && (<any>registeredCompletionParticipants[i]).getId() === 'emmet') {
+						const extractedResults = extractAbbreviation(document, position, { lookAhead: false, syntax: 'css' });
+						if (extractedResults && extractedResults.abbreviation) {
+							registeredCompletionParticipants[i].onCssProperty({ propertyName: extractedResults.abbreviation, range: extractedResults.abbreviationRange });
+						}
+					} else {
+						nonEmmetCompletionParticipants.push(registeredCompletionParticipants[i]);
 					}
 				}
+				cssLanguageService.setCompletionParticipants(nonEmmetCompletionParticipants);
 			}
 			return cssLanguageService.doComplete(embedded, position, stylesheet);
 		},
