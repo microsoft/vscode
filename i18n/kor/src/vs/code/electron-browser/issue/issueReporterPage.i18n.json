@@ -17,6 +17,5 @@
 	"yes": "예",
 	"no": "아니요",
 	"disableExtensions": "모든 확장을 사용하지 않도록 설정하고 창 다시 로드",
-	"showRunningExtensions": "실행 중인 확장 모두 보기",
 	"loadingData": "데이터 로드 중..."
 }

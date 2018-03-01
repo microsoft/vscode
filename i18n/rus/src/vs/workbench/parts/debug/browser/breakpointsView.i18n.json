@@ -10,8 +10,6 @@
 	"functionBreakpointsNotSupported": "Точки останова функций не поддерживаются в этом типе отладки",
 	"functionBreakpointPlaceholder": "Функция, в которой производится останов",
 	"functionBreakPointInputAriaLabel": "Введите точку останова в функции",
-	"breakpointDisabledHover": "Отключенная точка останова",
-	"breakpointUnverifieddHover": "Непроверенная точка останова",
 	"breakpointDirtydHover": "Непроверенная точка останова. Файл был изменен, перезапустите сеанс отладки.",
 	"conditionalBreakpointUnsupported": "Условные точки останова не поддерживаются этим типом отладки"
 }

@@ -29,5 +29,6 @@
 	"html.trace.server.desc": "Rastrear a comunicação entre o VS Code e o servidor de linguagem HTML.",
 	"html.validate.scripts": "Configura se o suporte da linguagem HTML interna valida scripts embutidos.",
 	"html.validate.styles": "Configura se o suporte da linguagem HTML interna valida estilos embutidos.",
+	"html.experimental.syntaxFolding": "Habilita/Desabilita a sintaxe dos marcadores de pastas ativas.",
 	"html.autoClosingTags": "Ativar/desativar o fechamento automático de tags HTML."
 }

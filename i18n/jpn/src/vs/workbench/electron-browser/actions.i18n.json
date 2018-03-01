@@ -18,6 +18,7 @@
 	"zoomReset": "ズームのリセット",
 	"appPerf": "スタートアップ パフォーマンス",
 	"reloadWindow": "ウィンドウの再読み込み",
+	"reloadWindowWithExntesionsDisabled": "拡張機能を無効にしてウィンドウを再読み込み",
 	"switchWindowPlaceHolder": "切り替え先のウィンドウを選択してください",
 	"current": "現在のウィンドウ",
 	"close": "ウィンドウを閉じる",

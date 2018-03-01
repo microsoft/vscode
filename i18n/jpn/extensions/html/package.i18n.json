@@ -29,5 +29,6 @@
 	"html.trace.server.desc": "VS Code と HTML 言語サーバー間の通信をトレースします。",
 	"html.validate.scripts": "ビルトイン HTML 言語サポートが埋め込みスクリプトを検証するかどうかを構成します。",
 	"html.validate.styles": "ビルトイン HTML 言語サポートが埋め込みスタイルを検証するかどうかを構成します。",
+	"html.experimental.syntaxFolding": "構文の折りたたみマーカー認識を有効/無効にします。",
 	"html.autoClosingTags": "HTML タグの自動クローズを有効/無効にします。"
 }

@@ -10,8 +10,6 @@
 	"functionBreakpointsNotSupported": "Funktionshaltepunkte werden von diesem Debugtyp nicht unterstützt.",
 	"functionBreakpointPlaceholder": "Funktion mit Haltepunkt",
 	"functionBreakPointInputAriaLabel": "Geben Sie den Funktionshaltepunkt ein.",
-	"breakpointDisabledHover": "Deaktivierter Haltepunkt",
-	"breakpointUnverifieddHover": "Nicht überprüfter Haltepunkt",
 	"breakpointDirtydHover": "Nicht überprüfter Haltepunkt. Die Datei wurde geändert. Bitte starten Sie die Debugsitzung neu.",
 	"conditionalBreakpointUnsupported": "Bedingte Haltepunkte werden für diesen Debugtyp nicht unterstützt."
 }

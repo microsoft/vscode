@@ -19,14 +19,12 @@
 	"close": "Chiudi",
 	"closeOthers": "Chiudi altri",
 	"closeRight": "Chiudi a destra",
-	"closeAllUnmodified": "Chiudi non modificati",
 	"closeAll": "Chiudi tutto",
 	"keepOpen": "Mantieni aperto",
 	"toggleInlineView": "Attiva/disattiva visualizzazione Inline",
 	"showOpenedEditors": "Mostra editor aperti",
 	"keepEditor": "Mantieni editor",
 	"closeEditorsInGroup": "Chiudi tutti gli editor del gruppo",
-	"closeUnmodifiedEditors": "Chiudi editor non modificati del gruppo",
 	"closeOtherEditors": "Chiudi gli altri editor",
 	"closeRightEditors": "Chiudi editor a destra"
 }

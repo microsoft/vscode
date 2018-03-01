@@ -34,6 +34,7 @@
 	"confirmDeleteMessageFolder": "'{0}'과(와) 해당 내용을 영구히 삭제할까요?",
 	"confirmDeleteMessageFile": "'{0}'을(를) 영구히 삭제할까요?",
 	"irreversible": "이 작업은 취소할 수 없습니다.",
+	"cancel": "취소",
 	"permDelete": "영구히 삭제",
 	"importFiles": "파일 가져오기",
 	"confirmOverwrite": "이름이 같은 파일 또는 폴더가 대상 폴더에 이미 있습니다. 덮어쓸까요?",

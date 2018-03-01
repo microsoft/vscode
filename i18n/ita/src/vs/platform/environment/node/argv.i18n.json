@@ -33,6 +33,7 @@
 	"inspect-brk-extensions": "Consentire il debug e profiling delle estensioni con l'host di estensione in pausa dopo inizio. Controllare gli strumenti di sviluppo per l'uri di connessione.",
 	"disableGPU": "Disabilita l'accelerazione hardware della GPU.",
 	"uploadLogs": "Caricamento dei log della sessione corrente verso un punto di comunicazione sicuro.",
+	"maxMemory": "Dimensione massima della memoria per una finestra (in Mbytes).",
 	"usage": "Utilizzo",
 	"options": "opzioni",
 	"paths": "percorsi",

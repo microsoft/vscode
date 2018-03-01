@@ -18,6 +18,5 @@
 	"yes": "Evet",
 	"no": "Hayır",
 	"disableExtensions": "tüm eklentileri devre dışı bırakıp pencereyi yeniden yükleyin",
-	"showRunningExtensions": "tüm çalışan eklentileri görün",
 	"loadingData": "Veri yükleniyor..."
 }

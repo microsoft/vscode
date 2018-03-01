@@ -34,6 +34,7 @@
 	"confirmDeleteMessageFolder": "¿Está seguro de que desea eliminar '{0}' y su contenido de forma permanente?",
 	"confirmDeleteMessageFile": "¿Está seguro de que desea eliminar '{0}' de forma permanente?",
 	"irreversible": "Esta acción es irreversible.",
+	"cancel": "Cancelar",
 	"permDelete": "Eliminar permanentemente",
 	"importFiles": "Importar archivos",
 	"confirmOverwrite": "Ya existe un archivo o carpeta con el mismo nombre en la carpeta de destino. ¿Quiere reemplazarlo?",

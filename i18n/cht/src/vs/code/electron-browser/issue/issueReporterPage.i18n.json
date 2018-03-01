@@ -20,10 +20,7 @@
 	"tryDisablingExtensions": "是否在停用擴充功能後問題仍會發生？",
 	"yes": "是",
 	"no": "否",
-	"disableExtensionsLabel": "嘗試在之後重現該問題",
 	"disableExtensions": "停用所有延伸模組並重新載入視窗",
-	"showRunningExtensionsLabel": "若您懷疑這是個擴充功能問題，",
-	"showRunningExtensions": "查看所有正在執行的擴充功能",
 	"details": "請輸入詳細資料。",
 	"loadingData": "正在載入資料..."
 }

@@ -37,7 +37,7 @@
 	"usage": "使用情况",
 	"options": "选项",
 	"paths": "路径",
-	"stdinWindows": "要读取其他程序的输出，请追加 \"-\" (例如 \"echo Hello World\" | {0} -')",
+	"stdinWindows": "要读取其他程序的输出，请追加 \"-\" (例如 \"echo Hello World | {0} -')",
 	"stdinUnix": "要从 stdin 中读取，请追加 \"-\" (例如 \"ps aux | grep code | {0} -')",
 	"optionsUpperCase": "选项",
 	"extensionsManagement": "扩展管理",

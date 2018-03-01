@@ -54,5 +54,9 @@
 	"emmetPreferencesFilterCommentTrigger": "Yorum filterinin uygulanması için kısaltmada bulunması gereken virgülle ayrılmış öznitelik adları listesi",
 	"emmetPreferencesFormatNoIndentTags": "İçe girintilenmemesi gereken bir etiket adları dizisi",
 	"emmetPreferencesFormatForceIndentTags": "Her zaman içe girintilenmesi gereken bir etiket adları dizisi",
-	"emmetPreferencesAllowCompactBoolean": "Doğruysa, boole niteliklerinin öz gösterimi üretilir"
+	"emmetPreferencesAllowCompactBoolean": "Doğruysa, boole niteliklerinin öz gösterimi üretilir",
+	"emmetPreferencesCssWebkitProperties": "`-` ile başlayan Emmet kısaltmasında kullanıldığında 'webkit' önekini alacak virgülle ayrılmış CSS özellikleri. 'webkit' önekinden her zaman kaçınmak için boş bir dize olarak ayarlayın.",
+	"emmetPreferencesCssMozProperties": "`-` ile başlayan Emmet kısaltmasında kullanıldığında 'moz' önekini alacak virgülle ayrılmış CSS özellikleri. 'moz' önekinden her zaman kaçınmak için boş bir dize olarak ayarlayın.",
+	"emmetPreferencesCssOProperties": "`-` ile başlayan Emmet kısaltmasında kullanıldığında 'o' önekini alacak virgülle ayrılmış CSS özellikleri. 'o' önekinden her zaman kaçınmak için boş bir dize olarak ayarlayın.",
+	"emmetPreferencesCssMsProperties": "`-` ile başlayan Emmet kısaltmasında kullanıldığında 'ms' önekini alacak virgülle ayrılmış CSS özellikleri. 'ms' önekinden her zaman kaçınmak için boş bir dize olarak ayarlayın."
 }

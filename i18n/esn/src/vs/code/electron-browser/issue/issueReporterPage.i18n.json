@@ -17,6 +17,5 @@
 	"yes": "Sí",
 	"no": "No",
 	"disableExtensions": "Deshabilitar todas las extensiones y volver a cargar la ventana",
-	"showRunningExtensions": "Ver todas las extensiones en ejecución",
 	"loadingData": "Cargando datos..."
 }

@@ -9,9 +9,8 @@
 	"typescript.projectConfigNoWorkspace": "Nyisson meg egy mappát a VS Code-ban typescriptes vagy javascriptes projekt használatához!",
 	"typescript.projectConfigUnsupportedFile": "Nem sikerült meghatározni a TypeScript- vagy JavaScript-projektet. Nem támogatott fájltípus",
 	"typescript.projectConfigCouldNotGetInfo": "Nem sikerült meghatározni a TypeScript- vagy JavaScript-projektet",
-	"typescript.noTypeScriptProjectConfig": "A fájl nem része egy TypeScript-projektnek",
-	"typescript.noJavaScriptProjectConfig": "A fájl nem része egy JavaScript-projektnek",
+	"typescript.noTypeScriptProjectConfig": "A fájl nem egy TypeScript-projekt része. További információkat [ide]({0}) kattintva tudhat meg.",
+	"typescript.noJavaScriptProjectConfig": "A fájl nem egy JavaScript-projekt része. További információkat [ide]({0}) kattintva tudhat meg.",
 	"typescript.configureTsconfigQuickPick": "tsconfig.json konfigurálása",
-	"typescript.configureJsconfigQuickPick": "jsconfig.json konfigurálása",
-	"typescript.projectConfigLearnMore": "További információ"
+	"typescript.configureJsconfigQuickPick": "jsconfig.json konfigurálása"
 }

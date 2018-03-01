@@ -10,6 +10,7 @@
 	"malicious": "この拡張機能には問題があると報告されています。",
 	"installingMarketPlaceExtension": "Marketplace から拡張機能をインストールしています...",
 	"uninstallingExtension": "拡張機能をアンインストールしています...",
+	"enableDependeciesConfirmation": "'{0}' を有効にするとその依存関係も有効になります。続行しますか?",
 	"enable": "はい",
 	"doNotEnable": "いいえ",
 	"disableDependeciesConfirmation": "'{0}' のみ、またはその依存関係も無効にしますか?",

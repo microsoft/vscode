@@ -20,10 +20,10 @@
 	"tryDisablingExtensions": "拡張機能が無効な場合に問題は再現可能ですか?",
 	"yes": "はい",
 	"no": "いいえ",
-	"disableExtensionsLabel": "次を実行後に問題を再現してみてください: ",
+	"disableExtensionsLabel": "{0} を実行後に問題を再現してみてください。",
 	"disableExtensions": "すべての拡張機能を無効にしてウィンドウを再読みする",
-	"showRunningExtensionsLabel": "拡張機能の問題と疑われる場合: ",
-	"showRunningExtensions": "すべての実行中の拡張機能を確認する",
+	"showRunningExtensionsLabel": "拡張機能の問題と疑われる場合、拡張機能の問題を報告するために {0} を実行してください。",
+	"showRunningExtensions": "すべての実行中の拡張機能を表示する",
 	"details": "詳細を入力してください。",
 	"loadingData": "データを読み込んでいます..."
 }

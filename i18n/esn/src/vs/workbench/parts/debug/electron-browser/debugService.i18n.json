@@ -20,13 +20,13 @@
 	"debugRequesMissing": "El atributo '{0}' está ausente en la configuración de depuración elegida. ",
 	"debugTypeNotSupported": "El tipo de depuración '{0}' configurado no es compatible.",
 	"debugTypeMissing": "Falta la propiedad \"type\" en la configuración de inicio seleccionada.",
+	"debugAnyway": "Depurar de todos modos",
 	"preLaunchTaskErrors": "Errores de compilación durante la tarea preLaunchTask '{0}'.",
 	"preLaunchTaskError": "Error de compilación durante la tarea preLaunchTask '{0}'.",
 	"preLaunchTaskExitCode": "La tarea preLaunchTask '{0}' finalizó con el código de salida {1}.",
-	"debugAnyway": "Depurar de todos modos",
 	"showErrors": "Mostrar errores",
-	"cancel": "Cancelar",
 	"noFolderWorkspaceDebugError": "El archivo activo no se puede depurar. Compruebe que se ha guardado en el disco y que tiene una extensión de depuración instalada para ese tipo de archivo.",
+	"cancel": "Cancelar",
 	"DebugTaskNotFound": "No se encontró el elemento preLaunchTask '{0}'.",
 	"taskNotTracked": "No se puede realizar un seguimiento de la tarea preLaunchTask '{0}'."
 }

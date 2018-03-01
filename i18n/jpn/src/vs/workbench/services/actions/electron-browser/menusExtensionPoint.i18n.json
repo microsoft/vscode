@@ -22,6 +22,7 @@
 	"menus.editorTabContext": "エディターのタブのコンテキスト メニュー",
 	"menus.debugCallstackContext": "デバッグの呼び出し履歴のコンテキスト メニュー",
 	"menus.scmTitle": "ソース管理のタイトル メニュー",
+	"menus.scmSourceControl": "ソース管理メニュー",
 	"menus.resourceGroupContext": "ソース管理リソース グループのコンテキスト メニュー",
 	"menus.resourceStateContext": "ソース管理リソース状態のコンテキスト メニュー",
 	"view.viewTitle": "提供されたビューのタイトル メニュー",

@@ -15,6 +15,7 @@
 	"editorWhitespaces": "エディターのスペース文字の色。",
 	"editorIndentGuides": "エディター インデント ガイドの色。",
 	"editorLineNumbers": "エディターの行番号の色。",
+	"editorActiveLineNumber": "エディターのアクティブ行番号の色",
 	"editorRuler": "エディター ルーラーの色。",
 	"editorCodeLensForeground": "CodeLens エディターの前景色。",
 	"editorBracketMatchBackground": "一致するかっこの背景色",

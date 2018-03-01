@@ -17,6 +17,5 @@
 	"yes": "Ja",
 	"no": "Nein",
 	"disableExtensions": "Alle Erweiterungen werden deaktiviert, und das Fenster wird neu geladen",
-	"showRunningExtensions": "Alle ausgeführten Erweiterungen anzeigen",
 	"loadingData": "Daten werden geladen …"
 }

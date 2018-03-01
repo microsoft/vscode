@@ -30,6 +30,5 @@
 	"vscode.extension.badges.description": "バッジの説明。",
 	"vscode.extension.extensionDependencies": "他の拡張機能に対する依存関係。拡張機能の識別子は常に ${publisher}.${name} です。例: vscode.csharp。",
 	"vscode.extension.scripts.prepublish": "パッケージが VS Code 拡張機能として公開される前に実行されるスクリプト。",
-	"vscode.extension.scripts.uninstall": "VS Code から拡張機能がアンインストールされる後にスクリプト。Node script のみに対応しています。",
 	"vscode.extension.icon": "128x128 ピクセルのアイコンへのパス。"
 }

@@ -15,6 +15,7 @@
 	"editorWhitespaces": "Couleur des espaces blancs dans l'éditeur.",
 	"editorIndentGuides": "Couleur des repères de retrait de l'éditeur.",
 	"editorLineNumbers": "Couleur des numéros de ligne de l'éditeur.",
+	"editorActiveLineNumber": "Couleur des numéros de lignes actives de l'éditeur",
 	"editorRuler": "Couleur des règles de l'éditeur",
 	"editorCodeLensForeground": "Couleur pour les indicateurs CodeLens",
 	"editorBracketMatchBackground": "Couleur d'arrière-plan pour les accolades associées",

@@ -16,5 +16,6 @@
 	"json.format.enable.desc": "启用/禁用默认 JSON 格式化程序(需要重启)",
 	"json.tracing.desc": "跟踪 VS Code 与 JSON 语言服务器之间的通信。",
 	"json.colorDecorators.enable.desc": "启用或禁用颜色修饰器",
-	"json.colorDecorators.enable.deprecationMessage": "已弃用设置 \"json.colorDecorators.enable\"，请改用 \"editor.colorDecorators\"。"
+	"json.colorDecorators.enable.deprecationMessage": "已弃用设置 \"json.colorDecorators.enable\"，请改用 \"editor.colorDecorators\"。",
+	"json.experimental.syntaxFolding": "启用或禁用语法折叠标记。"
 }

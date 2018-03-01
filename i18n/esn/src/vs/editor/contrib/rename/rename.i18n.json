@@ -8,5 +8,6 @@
 	],
 	"no result": "No hay ningún resultado.",
 	"aria": "Nombre cambiado correctamente de '{0}' a '{1}'. Resumen: {2}",
+	"rename.failed": "No se pudo cambiar el nombre.",
 	"rename.label": "Cambiar el nombre del símbolo"
 }
