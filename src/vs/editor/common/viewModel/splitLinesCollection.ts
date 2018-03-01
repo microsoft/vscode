@@ -288,6 +288,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		let hiddenAreaIdx = -1;
 		let nextLineNumberToUpdateHiddenArea = (hiddenAreaIdx + 1 < hiddenAreas.length) ? hiddenAreaEnd + 1 : this.lines.length + 2;
 
+		let hasVisibleLine = false;
 		for (let i = 0; i < this.lines.length; i++) {
 			let lineNumber = i + 1;
 
@@ -306,6 +307,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 					lineChanged = true;
 				}
 			} else {
+				hasVisibleLine = true;
 				// Line should be visible
 				if (!this.lines[i].isVisible()) {
 					this.lines[i] = this.lines[i].setVisible(true);
@@ -316,6 +318,11 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 				let newOutputLineCount = this.lines[i].getViewLineCount();
 				this.prefixSumComputer.changeValue(i, newOutputLineCount);
 			}
+		}
+
+		if (!hasVisibleLine) {
+			// Cannot have everything be hidden => reveal everything!
+			this.setHiddenAreas([]);
 		}
 
 		return true;
@@ -465,6 +472,10 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 	public acceptVersionId(versionId: number): void {
 		this._validModelVersionId = versionId;
+		if (this.lines.length === 1 && !this.lines[0].isVisible()) {
+			// At least one line must be visible => reset hidden areas
+			this.setHiddenAreas([]);
+		}
 	}
 
 	public getViewLineCount(): number {

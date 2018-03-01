@@ -74,6 +74,39 @@ suite('ViewModel', () => {
 		});
 	});
 
+	test('issue #44805: No visible lines via API call', () => {
+		const text = [
+			'line1',
+			'line2',
+			'line3'
+		];
+		testViewModel(text, {}, (viewModel, model) => {
+			assert.equal(viewModel.getLineCount(), 3);
+			viewModel.setHiddenAreas([new Range(1, 1, 3, 1)]);
+			assert.ok(viewModel.getVisibleRanges() !== null);
+		});
+	});
+
+	test('issue #44805: No visible lines via undoing', () => {
+		const text = [
+			''
+		];
+		testViewModel(text, {}, (viewModel, model) => {
+			assert.equal(viewModel.getLineCount(), 1);
+
+			model.pushEditOperations([], [{
+				range: new Range(1, 1, 1, 1),
+				text: 'line1\nline2\nline3'
+			}], () => ([]));
+
+			viewModel.setHiddenAreas([new Range(1, 1, 1, 1)]);
+			assert.equal(viewModel.getLineCount(), 2);
+
+			model.undo();
+			assert.ok(viewModel.getVisibleRanges() !== null);
+		});
+	});
+
 	function assertGetPlainTextToCopy(text: string[], ranges: Range[], emptySelectionClipboard: boolean, expected: string | string[]): void {
 		testViewModel(text, {}, (viewModel, model) => {
 			let actual = viewModel.getPlainTextToCopy(ranges, emptySelectionClipboard);
