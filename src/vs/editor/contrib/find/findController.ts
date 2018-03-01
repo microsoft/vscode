@@ -228,6 +228,9 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 
 	public setSearchString(searchString: string): void {
+		if (this._state.isRegex) {
+			searchString = strings.escapeRegExpCharacters(searchString);
+		}
 		this._state.change({ searchString: searchString }, false);
 	}
 
