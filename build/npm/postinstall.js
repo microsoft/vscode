@@ -29,6 +29,7 @@ const extensions = [
 	'configuration-editing',
 	'extension-editing',
 	'markdown',
+	'markdown-basics',
 	'typescript',
 	'typescript-basics',
 	'php',
