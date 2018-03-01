@@ -1882,6 +1882,30 @@ suite('Editor Controller - Regression tests', () => {
 		config.dispose();
 		model.dispose();
 	});
+
+	test('issue #22717: Moving text cursor cause an incorrect position in Chinese', () => {
+		// a single model line => 4 view lines
+		withTestCodeEditor([
+			[
+				'一二三四五六七八九十',
+				'12345678901234567890',
+			].join('\n')
+		], {}, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
+
+			moveDown(cursor);
+			assertCursor(cursor, new Selection(2, 9, 2, 9));
+
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(2, 10, 2, 10));
+
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(2, 11, 2, 11));
+
+			moveUp(cursor);
+			assertCursor(cursor, new Selection(1, 6, 1, 6));
+		});
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {
