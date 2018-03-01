@@ -350,7 +350,7 @@ export class UpdateAction extends Action {
 			console.error(err);
 			this.notificationService.notify({
 				severity: Severity.Error,
-				message: localize('failedToInstall', "Failed to install \'{0}\'.", extension.id),
+				message: localize('failedToUpdate', "Failed to update \'{0}\'.", extension.id),
 				actions: {
 					primary: [
 						this.instantiationService.createInstance(DownloadExtensionAction, extension)
@@ -862,7 +862,7 @@ export class UpdateAllAction extends Action {
 			console.error(err);
 			this.notificationService.notify({
 				severity: Severity.Error,
-				message: localize('failedToInstall', "Failed to install \'{0}\'.", extension.id),
+				message: localize('failedToUpdate', "Failed to update \'{0}\'.", extension.id),
 				actions: {
 					primary: [
 						this.instantiationService.createInstance(DownloadExtensionAction, extension)
