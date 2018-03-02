@@ -8,7 +8,7 @@ steps:
 
 - script: |
     apt-get update
-    apt-get install -y libxkbfile-dev pkg-config
+    apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev
 
 - powershell: |
     Get-ChildItem -Recurse -Exclude .git | ForEach-Object { Remove-Item -Recurse -Path $_.FullName -Force }
