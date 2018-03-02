@@ -566,7 +566,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 	if (breakpoint instanceof FunctionBreakpoint) {
 		if (process && !process.session.capabilities.supportsFunctionBreakpoints) {
 			return {
-				className: 'debug-breakpoint-unsupported',
+				className: 'debug-function-breakpoint-unverified',
 				message: nls.localize('functionBreakpointUnsupported', "Function breakpoints not supported by this debug type"),
 			};
 		}
