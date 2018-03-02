@@ -18,7 +18,7 @@ const css_done = 'done';
 const css_active = 'active';
 const css_infinite = 'infinite';
 const css_discrete = 'discrete';
-const css_progress_container = 'progress-container';
+const css_progress_container = 'monaco-progress-container';
 const css_progress_bit = 'progress-bit';
 
 export interface IProgressBarOptions extends IProgressBarStyles {

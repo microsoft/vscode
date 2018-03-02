@@ -39,7 +39,7 @@ export class BaseDropdown extends ActionRunner {
 
 		this._toDispose = [];
 
-		this.$el = $('.dropdown').appendTo(container);
+		this.$el = $('.monaco-dropdown').appendTo(container);
 
 		this.$label = $('.dropdown-label');
 

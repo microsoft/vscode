@@ -78,13 +78,13 @@
 	background: url('continue-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {
 	border: none;
 	margin-top: 0px;
 	cursor: pointer;
 }
 
-.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .select-box {
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .monaco-select-box {
 	opacity: 0.7;
 	font-style: italic;
 	cursor: initial;

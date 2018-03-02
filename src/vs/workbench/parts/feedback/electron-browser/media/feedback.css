@@ -131,11 +131,11 @@
 }
 
 /* Statusbar */
-.monaco-shell .statusbar-item > .dropdown.send-feedback {
+.monaco-shell .statusbar-item > .monaco-dropdown.send-feedback {
 	display: inline-block;
 }
 
-.monaco-shell .statusbar-item > .dropdown.send-feedback > .dropdown-label.send-feedback {
+.monaco-shell .statusbar-item > .monaco-dropdown.send-feedback > .dropdown-label.send-feedback {
 	-webkit-mask: url('smiley.svg') no-repeat 50% 50%; /* use mask to be able to change color dynamically */
 	width: 26px;
 }

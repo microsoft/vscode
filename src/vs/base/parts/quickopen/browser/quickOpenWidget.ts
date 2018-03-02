@@ -327,7 +327,7 @@ export class QuickOpenWidget implements IModelProvider {
 		})
 
 			// Widget Attributes
-			.addClass('quick-open-widget')
+			.addClass('monaco-quick-open-widget')
 			.build(this.container);
 
 		// Support layout
