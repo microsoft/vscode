@@ -178,7 +178,10 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		const expectedLocations = {
 			'Command Prompt': [`${system32Path}\\cmd.exe`],
 			PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
-			'WSL Bash': [`${system32Path}\\bash.exe`],
+			'WSL Bash': [
+				`${system32Path}\\bash.exe`,
+				`${system32Path}\\wsl.exe`,
+			],
 			'Git Bash': [
 				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
 				`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
@@ -187,6 +190,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 				`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
 			]
 		};
+
 		const promises: TPromise<[string, string]>[] = [];
 		Object.keys(expectedLocations).forEach(key => promises.push(this._validateShellPaths(key, expectedLocations[key])));
 		return TPromise.join(promises).then(results => {

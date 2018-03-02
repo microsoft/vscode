@@ -345,6 +345,14 @@ export interface ITerminalInstance {
 	paste(): void;
 
 	/**
+	 * Send file to the terminal instance. The file is run by the underlying pty
+	 * process (shell) of the terminal instance.
+	 *
+	 * @param filePath Path of file to run.
+	 */
+	sendFile(filePath: string, addNewLine: boolean): void;
+
+	/**
 	 * Send text to the terminal instance. The text is written to the stdin of the underlying pty
 	 * process (shell) of the terminal instance.
 	 *
