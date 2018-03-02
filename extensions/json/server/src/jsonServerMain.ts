@@ -110,6 +110,11 @@ let schemaRequestService = (uri: string): Thenable<string> => {
 		});
 	}
 	if (uri.indexOf('//schema.management.azure.com/') !== -1) {
+		/* __GDPR__
+			"json.schema" : {
+				"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		 */
 		connection.telemetry.logEvent({
 			key: 'json.schema',
 			value: {
