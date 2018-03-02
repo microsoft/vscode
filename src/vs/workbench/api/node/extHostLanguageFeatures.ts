@@ -514,7 +514,7 @@ class RenameAdapter {
 		});
 	}
 
-	resolveInitialRenameValue(resource: URI, position: IPosition): TPromise<modes.RenameInitialValue> {
+	resolveInitialRenameValue(resource: URI, position: IPosition): TPromise<modes.RenameInformation> {
 		if (typeof this._provider.resolveInitialRenameValue !== 'function') {
 			return TPromise.as(undefined);
 		}
@@ -523,7 +523,7 @@ class RenameAdapter {
 		let pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise(token => this._provider.resolveInitialRenameValue(doc, pos, token)).then((value) => {
-			return <modes.RenameInitialValue>{
+			return <modes.RenameInformation>{
 				range: TypeConverters.fromRange(value.range),
 				text: value.text
 			};
@@ -1061,7 +1061,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.provideRenameEdits(URI.revive(resource), position, newName));
 	}
 
-	$resolveInitialRenameValue(handle: number, resource: URI, position: IPosition): TPromise<modes.RenameInitialValue> {
+	$resolveInitialRenameValue(handle: number, resource: URI, position: IPosition): TPromise<modes.RenameInformation> {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveInitialRenameValue(resource, position));
 	}
 

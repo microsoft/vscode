@@ -23,7 +23,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { sequence, asWinJsPromise } from 'vs/base/common/async';
-import { WorkspaceEdit, RenameProviderRegistry, RenameInitialValue } from 'vs/editor/common/modes';
+import { WorkspaceEdit, RenameProviderRegistry, RenameInformation } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
@@ -81,7 +81,7 @@ export function rename(model: ITextModel, position: Position, newName: string): 
 // TODO@joh
 // merge this into above function to make we always
 // use the same provider for resolving and renamin
-function resolveInitialRenameValue(model: ITextModel, position: Position): TPromise<RenameInitialValue> {
+function resolveInitialRenameValue(model: ITextModel, position: Position): TPromise<RenameInformation> {
 	const [first] = RenameProviderRegistry.ordered(model);
 	if (!first || typeof first.resolveInitialRenameValue !== 'function') {
 		return TPromise.as(null);
@@ -91,7 +91,7 @@ function resolveInitialRenameValue(model: ITextModel, position: Position): TProm
 		return !result ? undefined : result;
 	}, err => {
 		onUnexpectedExternalError(err);
-		return TPromise.wrapError<RenameInitialValue>(new Error('provider failed'));
+		return TPromise.wrapError<RenameInformation>(new Error('provider failed'));
 	});
 }
 
