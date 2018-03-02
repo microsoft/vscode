@@ -240,7 +240,7 @@ function saveAll(saveAllArguments: any, editorService: IWorkbenchEditorService, 
 
 CommandsRegistry.registerCommand({
 	id: REVERT_FILE_COMMAND_ID,
-	handler: (accessor, resource: URI | {}) => {
+	handler: (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const textFileService = accessor.get(ITextFileService);
 		const notificationService = accessor.get(INotificationService);
@@ -264,7 +264,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: {
 		primary: KeyMod.WinCtrl | KeyCode.Enter
 	},
-	id: OPEN_TO_SIDE_COMMAND_ID, handler: (accessor, resource: URI | {}) => {
+	id: OPEN_TO_SIDE_COMMAND_ID, handler: (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const editorGroupService = accessor.get(IEditorGroupService);
 		const listService = accessor.get(IListService);
@@ -308,7 +308,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: undefined,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_D),
-	handler: (accessor, resource: URI | {}) => {
+	handler: (accessor, resource: URI | object) => {
 		if (!provider) {
 			const instantiationService = accessor.get(IInstantiationService);
 			const textModelService = accessor.get(ITextModelService);
@@ -334,7 +334,7 @@ let globalResourceToCompare: URI;
 let resourceSelectedForCompareContext: IContextKey<boolean>;
 CommandsRegistry.registerCommand({
 	id: SELECT_FOR_COMPARE_COMMAND_ID,
-	handler: (accessor, resource: URI | {}) => {
+	handler: (accessor, resource: URI | object) => {
 		const listService = accessor.get(IListService);
 		const tree = listService.lastFocusedList;
 		// Remove highlight
@@ -353,7 +353,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: COMPARE_SELECTED_COMMAND_ID,
-	handler: (accessor, resource: URI | {}) => {
+	handler: (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
 
@@ -370,7 +370,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: COMPARE_RESOURCE_COMMAND_ID,
-	handler: (accessor, resource: URI | {}) => {
+	handler: (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const listService = accessor.get(IListService);
 		const tree = listService.lastFocusedList;
@@ -402,7 +402,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
 	},
-	handler: (accessor: ServicesAccessor, resource: URI | {}) => {
+	handler: (accessor: ServicesAccessor, resource: URI | object) => {
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
 		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(INotificationService));
 	}
@@ -437,7 +437,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
 	},
 	id: COPY_PATH_COMMAND_ID,
-	handler: (accessor, resource: URI | {}) => {
+	handler: (accessor, resource: URI | object) => {
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
 		resourcesToClipboard(resources, accessor.get(IClipboardService), accessor.get(INotificationService));
 	}
@@ -458,7 +458,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 CommandsRegistry.registerCommand({
 	id: REVEAL_IN_EXPLORER_COMMAND_ID,
-	handler: (accessor, resource: URI | {}) => {
+	handler: (accessor, resource: URI | object) => {
 		const viewletService = accessor.get(IViewletService);
 		const contextService = accessor.get(IWorkspaceContextService);
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
@@ -486,7 +486,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: undefined,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S,
-	handler: (accessor, resource: URI | {}) => {
+	handler: (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		return save(getResourceForCommand(resource, accessor.get(IListService), editorService), true, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
 	}
@@ -497,7 +497,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_S,
 	id: SAVE_FILE_COMMAND_ID,
-	handler: (accessor, resource: URI | {}) => {
+	handler: (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
 
@@ -518,7 +518,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: SAVE_ALL_IN_GROUP_COMMAND_ID,
-	handler: (accessor, resource: URI | {}, editorContext: IEditorCommandsContext) => {
+	handler: (accessor, resource: URI | object, editorContext: IEditorCommandsContext) => {
 		const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService));
 		const editorGroupService = accessor.get(IEditorGroupService);
 		let saveAllArg: any;
@@ -551,7 +551,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: REMOVE_ROOT_FOLDER_COMMAND_ID,
-	handler: (accessor, resource: URI | {}) => {
+	handler: (accessor, resource: URI | object) => {
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 		const contextService = accessor.get(IWorkspaceContextService);
 		const workspace = contextService.getWorkspace();
