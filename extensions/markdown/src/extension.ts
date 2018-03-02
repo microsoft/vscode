@@ -16,6 +16,7 @@ import LinkProvider from './features/documentLinkProvider';
 import MDDocumentSymbolProvider from './features/documentSymbolProvider';
 import { MarkdownContentProvider } from './features/previewContentProvider';
 import { MarkdownPreviewManager } from './features/previewManager';
+import MarkdownFoldingProvider from './features/foldingProvider';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -36,6 +37,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(selector, new MDDocumentSymbolProvider(engine)));
 	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider()));
+	context.subscriptions.push(vscode.languages.registerFoldingProvider(selector, new MarkdownFoldingProvider(engine)));
 
 	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, previewManager);
 
