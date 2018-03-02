@@ -17,8 +17,9 @@ steps:
 - script: |
     apt-get update
     apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev
-    git config --global core.autocrlf false
-    git config --global core.safescrlf true
+  name: "Install Dependencies"
+
+- script: |
     git checkout -f master
     yarn
     npm run gulp -- electron-x64
