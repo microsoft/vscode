@@ -6,18 +6,6 @@ variables:
 
 steps:
 
-- script: |
-    apt-get update
-    apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev
-
-- powershell: |
-    Get-ChildItem -Recurse -Exclude .git | ForEach-Object { Remove-Item -Recurse -Path $_.FullName -Force }
-
-- script: |
-    git config --global core.autocrlf false
-    git config --global core.safescrlf true
-    git checkout -f master
-
 - task: NodeTool@0
   inputs:
     versionSpec: "8.9.1"
@@ -26,15 +14,21 @@ steps:
   inputs:
     versionSpec: "1.3.2"
 
-- powershell: |
+- script: |
+    apt-get update
+    apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev
+    git config --global core.autocrlf false
+    git config --global core.safescrlf true
+    git checkout -f master
     yarn
-    .\node_modules\.bin\gulp electron
-    .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit
-    npm run compile
+    npm run gulp -- electron-x64
+
+- script: |
+    npm run gulp -- hygiene
+    ./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
+    npm run gulp -- vscode-linux-x64-min
   name: build
 
-- powershell: |
-    node --version
-    .\scripts\test.bat
-    .\scripts\test-integration.bat
+- script: |
+    ./scripts/test.sh --build --reporter dot
   name: test
