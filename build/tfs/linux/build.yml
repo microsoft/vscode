@@ -14,7 +14,7 @@ steps:
 
 - script: |
     apt-get update
-    apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 libgconf-2-4 xvfb
+    apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 libgconf-2-4 dbus xvfb
     cp build/tfs/linux/x64/xvfb.init /etc/init.d/xvfb
     chmod +x /etc/init.d/xvfb
     update-rc.d xvfb defaults
