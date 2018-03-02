@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "vscode-css-languageservice": "^3.0.6",
-    "vscode-emmet-helper": "1.1.38",
+    "vscode-emmet-helper": "1.2.0",
     "vscode-html-languageservice": "^2.0.17-next.3",
     "vscode-languageserver": "4.0.0-next.4",
     "vscode-languageserver-types": "^3.6.0-next.1",
