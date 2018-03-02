@@ -552,6 +552,7 @@ export class IssueReporter extends Disposable {
 	private renderBlocks(): void {
 		// Depending on Issue Type, we render different blocks and text
 		const { issueType } = this.issueReporterModel.getData();
+		const blockContainer = document.getElementById('block-container');
 		const systemBlock = document.querySelector('.block-system');
 		const processBlock = document.querySelector('.block-process');
 		const workspaceBlock = document.querySelector('.block-workspace');
@@ -564,6 +565,7 @@ export class IssueReporter extends Disposable {
 		const descriptionSubtitle = document.getElementById('issue-description-subtitle');
 
 		// Hide all by default
+		hide(blockContainer);
 		hide(systemBlock);
 		hide(processBlock);
 		hide(workspaceBlock);
@@ -573,6 +575,7 @@ export class IssueReporter extends Disposable {
 		hide(disabledExtensions);
 
 		if (issueType === IssueType.Bug) {
+			show(blockContainer);
 			show(systemBlock);
 			show(extensionsBlock);
 			show(disabledExtensions);
@@ -580,6 +583,7 @@ export class IssueReporter extends Disposable {
 			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
 			descriptionSubtitle.innerHTML = localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
 		} else if (issueType === IssueType.PerformanceIssue) {
+			show(blockContainer);
 			show(systemBlock);
 			show(processBlock);
 			show(workspaceBlock);
@@ -592,6 +596,7 @@ export class IssueReporter extends Disposable {
 			descriptionTitle.innerHTML = `${localize('description', "Description")} <span class="required-input">*</span>`;
 			descriptionSubtitle.innerHTML = localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
 		} else if (issueType === IssueType.SettingsSearchIssue) {
+			show(blockContainer);
 			show(searchedExtensionsBlock);
 			show(settingsSearchResultsBlock);
 

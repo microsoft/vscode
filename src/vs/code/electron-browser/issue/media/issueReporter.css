@@ -103,19 +103,17 @@ textarea {
 html {
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
 	color: #CCCCCC;
+	height: 100%;
 }
 
 body {
 	margin: 0;
 	overflow: scroll;
+	height: 100%;
 }
 
 .hidden {
 	display: none;
-}
-
-#block-container {
-	margin-top: 1em;
 }
 
 .block .block-info {
@@ -144,11 +142,32 @@ button:disabled {
 	max-width: 85vw;
 	margin-left: auto;
 	margin-right: auto;
-	margin-top: 2em;
+	padding-top: 2em;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.description-section {
+	flex-grow: 1;
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+}
+
+textarea {
+	flex-grow: 1;
+	min-height: 150px;
+}
+
+.block-info-text {
+	display: flex;
+	flex-grow: 1;
 }
 
 #github-submit-btn {
-	float: right;
+	flex-shrink: 0;
+	margin-left: auto;
 	margin-top: 10px;
 	margin-bottom: 10px;
 }
