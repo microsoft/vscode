@@ -300,6 +300,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			isEmptyHoverContent = true;
 
 		let containColorPicker = false;
+		let markdownDisposeable: IDisposable;
 		messages.forEach((msg) => {
 			if (!msg.range) {
 				return;
@@ -313,7 +314,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					.filter(contents => !isEmptyMarkdownString(contents))
 					.forEach(contents => {
 						const renderedContents = this._markdownRenderer.render(contents);
-						fragment.appendChild($('div.hover-row', null, renderedContents));
+						markdownDisposeable = renderedContents;
+						fragment.appendChild($('div.hover-row', null, renderedContents.element));
 						isEmptyHoverContent = false;
 					});
 			} else {
@@ -388,7 +390,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					this.updateContents(fragment);
 					this._colorPicker.layout();
 
-					this.renderDisposable = combinedDisposable([colorListener, colorChangeListener, widget]);
+					this.renderDisposable = combinedDisposable([colorListener, colorChangeListener, widget, markdownDisposeable]);
 				});
 			}
 		});

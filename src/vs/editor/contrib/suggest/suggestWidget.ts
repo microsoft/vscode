@@ -201,6 +201,7 @@ class SuggestionDetails {
 	private docs: HTMLElement;
 	private ariaLabel: string;
 	private disposables: IDisposable[];
+	private renderDisposeable: IDisposable;
 	private borderWidth: number = 1;
 
 	constructor(
@@ -241,6 +242,8 @@ class SuggestionDetails {
 	}
 
 	render(item: ICompletionItem): void {
+		this.renderDisposeable = dispose(this.renderDisposeable);
+
 		if (!item || !canExpandCompletionItem(item)) {
 			this.type.textContent = '';
 			this.docs.textContent = '';
@@ -255,7 +258,9 @@ class SuggestionDetails {
 		} else {
 			addClass(this.docs, 'markdown-docs');
 			this.docs.innerHTML = '';
-			this.docs.appendChild(this.markdownRenderer.render(item.suggestion.documentation));
+			const renderedContents = this.markdownRenderer.render(item.suggestion.documentation);
+			this.renderDisposeable = renderedContents;
+			this.docs.appendChild(renderedContents.element);
 		}
 
 		if (item.suggestion.detail) {
@@ -332,6 +337,7 @@ class SuggestionDetails {
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
+		this.renderDisposeable = dispose(this.renderDisposeable);
 	}
 }
 
