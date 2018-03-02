@@ -1333,7 +1333,7 @@ export class CommandCenter {
 
 		const remoteCharCnt = remotePick.label.length;
 
-		repository.pull(false, remotePick.label, branchPick.label.slice(remoteCharCnt + 1));
+		repository.pullFrom(false, remotePick.label, branchPick.label.slice(remoteCharCnt + 1));
 	}
 
 	@command('git.pull', { repository: true })
@@ -1345,7 +1345,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.pull();
+		await repository.pull(repository.HEAD && repository.HEAD.upstream);
 	}
 
 	@command('git.pullRebase', { repository: true })
@@ -1357,7 +1357,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.pullWithRebase();
+		await repository.pullWithRebase(repository.HEAD && repository.HEAD.upstream);
 	}
 
 	@command('git.push', { repository: true })
@@ -1375,7 +1375,7 @@ export class CommandCenter {
 		}
 
 		try {
-			await repository.push();
+			await repository.push(repository.HEAD.upstream);
 		} catch (err) {
 			if (err.gitErrorCode !== GitErrorCodes.NoUpstreamBranch) {
 				throw err;
@@ -1443,7 +1443,7 @@ export class CommandCenter {
 		const shouldPrompt = config.get<boolean>('confirmSync') === true;
 
 		if (shouldPrompt) {
-			const message = localize('sync is unpredictable', "This action will push and pull commits to and from '{0}'.", HEAD.upstream);
+			const message = localize('sync is unpredictable', "This action will push and pull commits to and from '{0}/{1}'.", HEAD.upstream.remote, HEAD.upstream.name);
 			const yes = localize('ok', "OK");
 			const neverAgain = localize('never again', "OK, Don't Show Again");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
@@ -1456,9 +1456,9 @@ export class CommandCenter {
 		}
 
 		if (rebase) {
-			await repository.syncRebase();
+			await repository.syncRebase(HEAD.upstream);
 		} else {
-			await repository.sync();
+			await repository.sync(HEAD.upstream);
 		}
 	}
 
@@ -1476,7 +1476,7 @@ export class CommandCenter {
 				return;
 			}
 
-			await repository.sync();
+			await repository.sync(HEAD.upstream);
 		}));
 	}
 
