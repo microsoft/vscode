@@ -18,7 +18,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import URI from 'vs/base/common/uri';
 import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
-import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey } from 'vs/platform/list/browser/listService';
+import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget } from 'vs/platform/list/browser/listService';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { range } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -26,11 +26,24 @@ import { ITree } from 'vs/base/parts/tree/browser/tree';
 
 // --- List Commands
 
+function ensureDOMFocus(widget: ListWidget): void {
+	// it can happen that one of the commands is executed while
+	// DOM focus is within another focusable control within the
+	// list/tree item. therefor we should ensure that the
+	// list/tree has DOM focus again after the command ran.
+	if (widget && !widget.isDOMFocused()) {
+		widget.domFocus();
+	}
+}
+
 export function registerCommands(): void {
 
 	function focusDown(accessor: ServicesAccessor, arg2?: number): void {
 		const focused = accessor.get(IListService).lastFocusedList;
 		const count = typeof arg2 === 'number' ? arg2 : 1;
+
+		// Ensure DOM Focus
+		ensureDOMFocus(focused);
 
 		// List
 		if (focused instanceof List || focused instanceof PagedList) {
@@ -130,6 +143,9 @@ export function registerCommands(): void {
 	function focusUp(accessor: ServicesAccessor, arg2?: number): void {
 		const focused = accessor.get(IListService).lastFocusedList;
 		const count = typeof arg2 === 'number' ? arg2 : 1;
+
+		// Ensure DOM Focus
+		ensureDOMFocus(focused);
 
 		// List
 		if (focused instanceof List || focused instanceof PagedList) {
@@ -261,6 +277,9 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const focused = accessor.get(IListService).lastFocusedList;
 
+			// Ensure DOM Focus
+			ensureDOMFocus(focused);
+
 			// List
 			if (focused instanceof List || focused instanceof PagedList) {
 				const list = focused;
@@ -286,6 +305,9 @@ export function registerCommands(): void {
 		primary: KeyCode.PageDown,
 		handler: (accessor) => {
 			const focused = accessor.get(IListService).lastFocusedList;
+
+			// Ensure DOM Focus
+			ensureDOMFocus(focused);
 
 			// List
 			if (focused instanceof List || focused instanceof PagedList) {
@@ -324,6 +346,9 @@ export function registerCommands(): void {
 	function listFocusFirst(accessor: ServicesAccessor, options?: { fromFocused: boolean }): void {
 		const focused = accessor.get(IListService).lastFocusedList;
 
+		// Ensure DOM Focus
+		ensureDOMFocus(focused);
+
 		// List
 		if (focused instanceof List || focused instanceof PagedList) {
 			const list = focused;
@@ -359,6 +384,9 @@ export function registerCommands(): void {
 
 	function listFocusLast(accessor: ServicesAccessor, options?: { fromFocused: boolean }): void {
 		const focused = accessor.get(IListService).lastFocusedList;
+
+		// Ensure DOM Focus
+		ensureDOMFocus(focused);
 
 		// List
 		if (focused instanceof List || focused instanceof PagedList) {

@@ -294,7 +294,7 @@ export class FileRenderer implements IRenderer {
 
 			setTimeout(() => {
 				if (!blur) { // https://github.com/Microsoft/vscode/issues/20269
-					tree.DOMFocus();
+					tree.domFocus();
 				}
 				lifecycle.dispose(toDispose);
 				container.removeChild(label.element);
@@ -408,7 +408,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		event.stopPropagation();
 
 		// Set DOM focus
-		tree.DOMFocus();
+		tree.domFocus();
 		if (stat instanceof NewStatPlaceholder) {
 			return true;
 		}
@@ -497,7 +497,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 			},
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
-					tree.DOMFocus();
+					tree.domFocus();
 				}
 			},
 			getActionsContext: () => selection && selection.indexOf(stat) >= 0

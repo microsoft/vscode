@@ -698,7 +698,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 						return this.choiceService.choose(Severity.Error, toErrorMessage(error, false), choices, choices.length - 1, true).then(choice => {
 
 							// Focus back to tree
-							this.tree.DOMFocus();
+							this.tree.domFocus();
 
 
 							if (this.useTrash) {
@@ -878,7 +878,7 @@ class CopyFileAction extends BaseFileAction {
 			this.tree.clearHighlight();
 		}
 
-		this.tree.DOMFocus();
+		this.tree.domFocus();
 
 		return TPromise.as(null);
 	}
@@ -942,7 +942,7 @@ class PasteFileAction extends BaseFileAction {
 
 				return void 0;
 			}, error => this.onError(error)).then(() => {
-				this.tree.DOMFocus();
+				this.tree.domFocus();
 			});
 		}, error => {
 			this.onError(new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile")));
@@ -1221,7 +1221,7 @@ export class FocusFilesExplorer extends Action {
 			const view = viewlet.getExplorerView();
 			if (view) {
 				view.setExpanded(true);
-				view.getViewer().DOMFocus();
+				view.getViewer().domFocus();
 			}
 		});
 	}

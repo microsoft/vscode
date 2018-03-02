@@ -575,7 +575,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 
 	focus(): void {
-		this._tree.DOMFocus();
+		this._tree.domFocus();
 	}
 
 	protected _onTitleClick(e: MouseEvent): void {

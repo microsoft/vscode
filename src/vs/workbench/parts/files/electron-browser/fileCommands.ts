@@ -340,7 +340,7 @@ CommandsRegistry.registerCommand({
 		// Remove highlight
 		if (tree instanceof Tree) {
 			tree.clearHighlight();
-			tree.DOMFocus();
+			tree.domFocus();
 		}
 
 		globalResourceToCompare = getResourceForCommand(resource, listService, accessor.get(IWorkbenchEditorService));

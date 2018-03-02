@@ -172,7 +172,7 @@ export class DefaultController implements _.IController {
 			}
 			eventish.stopPropagation();
 
-			tree.DOMFocus();
+			tree.domFocus();
 			tree.setSelection([element], payload);
 			tree.setFocus(element, payload);
 
@@ -458,7 +458,7 @@ export class CollapseAllAction extends Action {
 		this.viewer.collapseAll();
 		this.viewer.clearSelection();
 		this.viewer.clearFocus();
-		this.viewer.DOMFocus();
+		this.viewer.domFocus();
 		this.viewer.focusFirst();
 
 		return TPromise.as(null);

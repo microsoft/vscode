@@ -101,7 +101,7 @@ export class MarkersPanel extends Panel {
 		}
 
 		if (this.markersWorkbenchService.markersModel.hasFilteredResources()) {
-			this.tree.DOMFocus();
+			this.tree.domFocus();
 			if (this.tree.getSelection().length === 0) {
 				this.tree.focusFirst();
 			}

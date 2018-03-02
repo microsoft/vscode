@@ -81,6 +81,10 @@ export class PagedList<T> implements IDisposable {
 		return this.list.getHTMLElement() === document.activeElement;
 	}
 
+	domFocus(): void {
+		this.list.domFocus();
+	}
+
 	get onDidFocus(): Event<void> {
 		return this.list.onDidFocus;
 	}

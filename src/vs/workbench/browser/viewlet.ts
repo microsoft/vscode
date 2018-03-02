@@ -170,7 +170,7 @@ export class CollapseAction extends Action {
 			viewer.collapseAll();
 			viewer.clearSelection();
 			viewer.clearFocus();
-			viewer.DOMFocus();
+			viewer.domFocus();
 			viewer.focusFirst();
 
 			return TPromise.as(null);

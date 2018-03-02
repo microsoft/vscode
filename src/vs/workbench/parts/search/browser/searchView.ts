@@ -827,7 +827,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private selectTreeIfNotSelected(): void {
 		if (this.tree.getInput()) {
-			this.tree.DOMFocus();
+			this.tree.domFocus();
 			let selection = this.tree.getSelection();
 			if (selection.length === 0) {
 				this.tree.focusNext();
