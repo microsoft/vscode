@@ -313,7 +313,7 @@ export function prepareQuery(original: string): IPreparedQuery {
 	if (original) {
 		value = stripWildcards(original).replace(/\s/g, ''); // get rid of all wildcards and whitespace
 		if (isWindows) {
-			value = value.replace(/\//g, '\\'); // Help Windows users to search for paths when using slash
+			value = value.replace(/\//g, nativeSep); // Help Windows users to search for paths when using slash
 		}
 
 		lowercase = value.toLowerCase();
