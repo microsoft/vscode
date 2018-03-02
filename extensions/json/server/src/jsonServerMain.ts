@@ -6,9 +6,13 @@
 
 import {
 	createConnection, IConnection,
-	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
+	TextDocuments, InitializeParams, InitializeResult, NotificationType, RequestType,
 	DocumentRangeFormattingRequest, Disposable, ServerCapabilities
 } from 'vscode-languageserver';
+
+import{
+    TextDocument
+} from 'vscode-languageserver-protocol';
 
 import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
@@ -59,11 +63,18 @@ documents.listen(connection);
 
 let clientSnippetSupport = false;
 let clientDynamicRegisterSupport = false;
+let JsonProjectDocuments;
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
-
+    if (params.initializationOptions && params.initializationOptions.projectValidation){
+        var JsonProjectFiles = getJsonFiles(params.rootUri.substring("file://".length, params.rootUri.length), []);
+		JsonProjectDocuments = JsonProjectFiles.map(function(oJsonProjectFile){
+			return TextDocument.create("file://" + oJsonProjectFile.path, "json", 0, oJsonProjectFile.content);
+		});
+        JsonProjectDocuments.forEach(validateTextDocument);
+    }
 	function hasClientCapability(...keys: string[]) {
 		let c = params.capabilities as any;
 		for (let i = 0; c && i < keys.length; i++) {
@@ -87,6 +98,23 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 
 	return { capabilities };
 });
+
+function getJsonFiles (dir: string, jsonFiles:{path: string, content: string}[]){
+    jsonFiles = jsonFiles;
+    var files = fs.readdirSync(dir);
+    for (var i in files){
+        var name = dir + '/' + files[i];
+        if (fs.statSync(name).isDirectory()){
+            getJsonFiles(name, jsonFiles);
+        } else {
+            if (name.split('.').pop() === 'json') {
+                var fileContent = fs.readFileSync(name).toString();
+                jsonFiles.push({path: name, content: fileContent});
+            }
+        }
+    }
+    return jsonFiles;
+}
 
 let workspaceContext = {
 	resolveRelativePath: (relativePath: string, resource: string) => {
@@ -217,7 +245,11 @@ function updateConfiguration() {
 	languageService.configure(languageSettings);
 
 	// Revalidate any open text documents
-	documents.all().forEach(triggerValidation);
+	if (JsonProjectDocuments) {
+        JsonProjectDocuments.forEach(validateTextDocument);
+	}else{
+		documents.all().forEach(triggerValidation);
+	}
 }
 
 // The content of a text document has changed. This event is emitted
@@ -228,8 +260,12 @@ documents.onDidChangeContent((change) => {
 
 // a document has closed: clear all diagnostics
 documents.onDidClose(event => {
-	cleanPendingValidation(event.document);
-	connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
+    if (JsonProjectDocuments){
+        return;
+    }else {
+        cleanPendingValidation(event.document);
+        connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
+    }
 });
 
 let pendingValidationRequests: { [uri: string]: NodeJS.Timer; } = {};
@@ -274,10 +310,18 @@ connection.onDidChangeWatchedFiles((change) => {
 	// Monitored files have changed in VSCode
 	let hasChanges = false;
 	change.changes.forEach(c => {
+        if (JsonProjectDocuments && c.type === 1 && c.uri.split('.').pop() === 'json'){
+            var textDocument = TextDocument.create(c.uri, "json", 0, fs.readFileSync(c.uri.substring("file://".length, c.uri.length)).toString());
+            validateTextDocument(textDocument);
+        }
 		if (languageService.resetSchema(c.uri)) {
 			hasChanges = true;
 		}
 	});
+	
+	if (hasChanges && JsonProjectDocuments) {
+        JsonProjectDocuments.forEach(validateTextDocument);
+	}
 	if (hasChanges) {
 		documents.all().forEach(validateTextDocument);
 	}
