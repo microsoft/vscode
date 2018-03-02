@@ -1,0 +1,36 @@
+variables:
+  ELECTRON_RUN_AS_NODE: 1
+  VSCODE_BUILD_VERBOSE: true
+  APPVEYOR: true
+  System.Debug: true
+
+steps:
+
+- powershell: |
+    Get-ChildItem -Recurse -Exclude .git | ForEach-Object { Remove-Item -Recurse -Path $_.FullName -Force }
+
+- script: |
+    git config --global core.autocrlf false
+    git config --global core.safescrlf true
+    git checkout -f master
+
+- task: NodeTool@0
+  inputs:
+    versionSpec: "8.9.1"
+
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.3.2"
+
+- powershell: |
+    yarn
+    .\node_modules\.bin\gulp electron
+    .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit
+    npm run compile
+  name: build
+
+- powershell: |
+    node --version
+    .\scripts\test.bat
+    .\scripts\test-integration.bat
+  name: test
