@@ -1,4 +1,4 @@
 {
 	"displayName": "Razor Language Basics",
-	"description": "Provides Syntax highlighting, Folding and Bracket matching in Razor files"
+	"description": "Provides syntax highlighting, bracket matching and folding in Razor files."
 }
