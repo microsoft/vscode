@@ -6,6 +6,9 @@ variables:
 
 steps:
 
+- script: |
+    apt install libxkbfile-dev
+
 - powershell: |
     Get-ChildItem -Recurse -Exclude .git | ForEach-Object { Remove-Item -Recurse -Path $_.FullName -Force }
 
