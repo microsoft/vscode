@@ -35,7 +35,7 @@ import { FileReferences, OneReference, ReferencesModel } from './referencesModel
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { registerColor, activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import URI from 'vs/base/common/uri';
@@ -536,14 +536,14 @@ export class ReferenceWidget extends PeekViewWidget {
 		public layoutData: LayoutData,
 		private _textModelResolverService: ITextModelService,
 		private _contextService: IWorkspaceContextService,
-		private _themeService: IThemeService,
+		themeService: IThemeService,
 		private _instantiationService: IInstantiationService,
 		private _environmentService: IEnvironmentService
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
 
-		this._applyTheme(_themeService.getTheme());
-		this._callOnDispose.push(_themeService.onThemeChange(this._applyTheme.bind(this)));
+		this._applyTheme(themeService.getTheme());
+		this._callOnDispose.push(themeService.onThemeChange(this._applyTheme.bind(this)));
 		this.create();
 	}
 
@@ -651,7 +651,6 @@ export class ReferenceWidget extends PeekViewWidget {
 			};
 
 			this._tree = this._instantiationService.createInstance(WorkbenchTree, div.getHTMLElement(), config, options);
-			this._callOnDispose.push(attachListStyler(this._tree, this._themeService));
 
 			ctxReferenceWidgetSearchTreeFocused.bindTo(this._tree.contextKeyService);
 
