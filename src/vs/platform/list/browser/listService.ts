@@ -206,16 +206,16 @@ export class WorkbenchList<T> extends List<T> {
 		this.registerListeners();
 	}
 
-	public get useAltAsMultipleSelectionModifier(): boolean {
-		return this._useAltAsMultipleSelectionModifier;
-	}
-
 	private registerListeners(): void {
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
 			}
 		}));
+	}
+
+	get useAltAsMultipleSelectionModifier(): boolean {
+		return this._useAltAsMultipleSelectionModifier;
 	}
 }
 
@@ -252,10 +252,6 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		this.registerListeners();
 	}
 
-	public get useAltAsMultipleSelectionModifier(): boolean {
-		return this._useAltAsMultipleSelectionModifier;
-	}
-
 	private registerListeners(): void {
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
@@ -264,7 +260,13 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		}));
 	}
 
+	get useAltAsMultipleSelectionModifier(): boolean {
+		return this._useAltAsMultipleSelectionModifier;
+	}
+
 	dispose(): void {
+		super.dispose();
+
 		this.disposables = dispose(this.disposables);
 	}
 }
@@ -309,14 +311,6 @@ export class WorkbenchTree extends Tree {
 		this.registerListeners();
 	}
 
-	public get openOnSingleClick(): boolean {
-		return this._openOnSingleClick;
-	}
-
-	public get useAltAsMultipleSelectionModifier(): boolean {
-		return this._useAltAsMultipleSelectionModifier;
-	}
-
 	private registerListeners(): void {
 		this.disposables.push(this.onDidChangeSelection(() => {
 			const selection = this.getSelection();
@@ -335,7 +329,17 @@ export class WorkbenchTree extends Tree {
 		}));
 	}
 
+	get openOnSingleClick(): boolean {
+		return this._openOnSingleClick;
+	}
+
+	get useAltAsMultipleSelectionModifier(): boolean {
+		return this._useAltAsMultipleSelectionModifier;
+	}
+
 	dispose(): void {
+		super.dispose();
+
 		this.disposables = dispose(this.disposables);
 	}
 }
@@ -400,7 +404,7 @@ export interface IResourceResultsNavigationOptions {
 export class TreeResourceNavigator extends Disposable {
 
 	private _openResource: Emitter<IOpenResourceOptions> = new Emitter<IOpenResourceOptions>();
-	public readonly openResource: Event<IOpenResourceOptions> = this._openResource.event;
+	readonly openResource: Event<IOpenResourceOptions> = this._openResource.event;
 
 	constructor(private tree: WorkbenchTree, private options?: IResourceResultsNavigationOptions) {
 		super();

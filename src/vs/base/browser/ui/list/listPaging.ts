@@ -58,7 +58,7 @@ class PagedRenderer<TElement, TTemplateData> implements IRenderer<number, ITempl
 	}
 }
 
-export class PagedList<T> {
+export class PagedList<T> implements IDisposable {
 
 	private list: List<number>;
 	private _model: IPagedModel<T>;
@@ -184,5 +184,9 @@ export class PagedList<T> {
 
 	style(styles: IListStyles): void {
 		this.list.style(styles);
+	}
+
+	dispose(): void {
+		this.list.dispose();
 	}
 }
