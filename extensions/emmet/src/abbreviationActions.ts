@@ -53,7 +53,11 @@ export function wrapWithAbbreviation(args: any) {
 
 		editor.selections.forEach(selection => {
 			let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
-			if (rangeToReplace.isEmpty) {
+			if (!rangeToReplace.isSingleLine && rangeToReplace.end.character === 0) {
+				let previousLine = rangeToReplace.end.line - 1;
+				let lastChar = editor.document.lineAt(previousLine).text.length;
+				rangeToReplace = new vscode.Range(rangeToReplace.start, new vscode.Position(previousLine, lastChar));
+			} else if (rangeToReplace.isEmpty) {
 				let { active } = selection;
 				let currentNode = getNode(rootNode, active, true);
 				if (currentNode && (currentNode.start.line === active.line || currentNode.end.line === active.line)) {
