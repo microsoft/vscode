@@ -69,24 +69,29 @@ class RenameSkeleton {
 		return information;
 	}
 
-	async rename(newName: string): TPromise<WorkspaceEdit> {
-		let [provider] = this._provider;
+	async provideRenameEdits(newName: string, i: number = 0, rejects: string[] = []): TPromise<WorkspaceEdit> {
+
+		if (i >= this._provider.length) {
+			return {
+				edits: undefined,
+				rejectReason: rejects.join('\n')
+			};
+		}
+
+		let provider = this._provider[i];
 		let result = await asWinJsPromise((token) => provider.provideRenameEdits(this.model, this.position, newName, token));
 		if (!result) {
-			result = {
-				edits: undefined,
-				rejectReason: nls.localize('no result', "No result.")
-			};
+			return this.provideRenameEdits(newName, i + 1, rejects.concat(nls.localize('no result', "No result.")));
+		} else if (result.rejectReason) {
+			return this.provideRenameEdits(newName, i + 1, rejects.concat(result.rejectReason));
 		}
 		return result;
 	}
 }
 
-
-export function rename(model: ITextModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
-	return new RenameSkeleton(model, position).rename(newName);
+export async function rename(model: ITextModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
+	return new RenameSkeleton(model, position).provideRenameEdits(newName);
 }
-
 
 // ---  register actions and commands
 
@@ -150,7 +155,7 @@ class RenameController implements IEditorContribution {
 			const edit = new BulkEdit(this.editor, null, this._textModelResolverService, this._fileService);
 			const state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
 
-			const renameOperation = skeleton.rename(newName).then(result => {
+			const renameOperation = skeleton.provideRenameEdits(newName).then(result => {
 				if (result.rejectReason) {
 					if (state.validate(this.editor)) {
 						MessageController.get(this.editor).showMessage(result.rejectReason, this.editor.getPosition());
