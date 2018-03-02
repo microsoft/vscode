@@ -18,7 +18,7 @@ steps:
   inputs:
     versionSpec: "8.9.1"
 
-- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@0
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
     versionSpec: "1.3.2"
 
