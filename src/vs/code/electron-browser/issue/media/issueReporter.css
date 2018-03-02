@@ -206,6 +206,7 @@ summary {
 	border: 1px solid transparent;
 	padding: 0 10px;
 	margin-bottom: 5px;
+	cursor: pointer;
 }
 
 .validation-error {
@@ -250,8 +251,9 @@ input:disabled {
 	margin-top: .5em;
 }
 
-.workbenchCommand {
+a, .workbenchCommand {
 	cursor: pointer;
+	border: 1px solid transparent;
 }
 
 .workbenchCommand:disabled {
