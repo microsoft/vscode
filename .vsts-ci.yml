@@ -1,5 +1,5 @@
 variables:
-  ELECTRON_RUN_AS_NODE: 1 
+  ELECTRON_RUN_AS_NODE: 1
   VSCODE_BUILD_VERBOSE: true
   APPVEYOR: true
   System.Debug: true
@@ -18,7 +18,7 @@ steps:
   inputs:
     versionSpec: "8.9.1"
 
-- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+- task: YarnInstaller@0
   inputs:
     versionSpec: "1.3.2"
 
