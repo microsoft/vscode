@@ -33,10 +33,10 @@
 	bottom: 2px; /* Matches padding-bottom on .terminal-outer-container */
 	top: 0;
 }
-.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view.first .terminal-wrapper {
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:first-child .terminal-wrapper {
 	margin-left: 20px;
 }
-.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view.last .terminal-wrapper {
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:last-child .terminal-wrapper {
 	margin-right: 20px;
 }
 
@@ -52,7 +52,7 @@
 .monaco-workbench .panel.integrated-terminal .xterm-viewport {
 	margin-right: -10px;
 }
-.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view.last .xterm-viewport {
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:last-child .xterm-viewport {
 	margin-right: -20px;
 }
 
@@ -111,7 +111,7 @@
 	left: 0;
 	user-select: none;
 }
-.monaco-workbench .panel.integrated-terminal .monaco-split-view2.vertical .split-view-view:not(.last) .xterm {
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.vertical .split-view-view:not(:last-child) .xterm {
 	/* When vertical and NOT the bottom terminal, align to the top instead to prevent the output jumping around erratically */
 	top: 0;
 	bottom: auto;
