@@ -250,7 +250,7 @@ class KeybindingItemMatches {
 
 	private checkForSourceFilter(searchValue: string) {
 		const words = searchValue.split(':');
-		return (words.length) && (words[0].trim().toLowerCase() === 'source') ?
+		return (words.length) && (words[0].trim().toLowerCase() === '@source') ?
 			words[1].trim() :
 			searchValue;
 	}
