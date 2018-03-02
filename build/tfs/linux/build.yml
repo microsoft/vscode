@@ -16,7 +16,7 @@ steps:
 
 - script: |
     apt-get update
-    apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1
+    apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 libgconf-2-4
 
 - script: |
     git checkout -f master
