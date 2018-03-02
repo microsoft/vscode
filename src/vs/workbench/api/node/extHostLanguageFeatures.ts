@@ -469,7 +469,7 @@ class NavigateTypeAdapter {
 }
 
 interface RenameProvider2 extends vscode.RenameProvider {
-	resolveInitialRenameValue?(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<any>;
+	resolveInitialRenameValue?(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.RenameInitialValue>;
 }
 
 class RenameAdapter {
@@ -522,10 +522,17 @@ class RenameAdapter {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 
-		return asWinJsPromise(token => this._provider.resolveInitialRenameValue(doc, pos, token)).then((value) => {
+		return asWinJsPromise(token => this._provider.resolveInitialRenameValue(doc, pos, token)).then(value => {
+			if (!value) {
+				return undefined;
+			}
+			if (!value.range.contains(pos)) {
+				console.warn('INVALID rename information, must contain the request-position');
+				return undefined;
+			}
 			return <modes.RenameInformation>{
 				range: TypeConverters.fromRange(value.range),
-				text: value.text
+				text: value.text || doc.getText(value.range)
 			};
 		});
 	}
