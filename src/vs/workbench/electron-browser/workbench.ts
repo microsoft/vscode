@@ -160,7 +160,7 @@ export class Workbench implements IPartService {
 	private static readonly sidebarRestoreStorageKey = 'workbench.sidebar.restore';
 	private static readonly panelHiddenStorageKey = 'workbench.panel.hidden';
 	private static readonly zenModeActiveStorageKey = 'workbench.zenmode.active';
-	private static readonly centeredEditorLayoutActiveStorageKey = 'workbench.centered.editorlayout.active';
+	private static readonly centeredEditorLayoutActiveStorageKey = 'workbench.centerededitorlayout.active';
 	private static readonly panelPositionStorageKey = 'workbench.panel.location';
 	private static readonly defaultPanelPositionStorageKey = 'workbench.panel.defaultLocation';
 
