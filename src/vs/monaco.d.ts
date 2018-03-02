@@ -4966,7 +4966,7 @@ declare module monaco.languages {
 
 	export interface RenameInformation {
 		range: IRange;
-		text?: string;
+		text: string;
 	}
 
 	export interface RenameProvider {

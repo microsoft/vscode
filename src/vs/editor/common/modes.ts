@@ -919,7 +919,7 @@ export interface WorkspaceEdit {
 
 export interface RenameInformation {
 	range: IRange;
-	text?: string;
+	text: string;
 }
 
 export interface RenameProvider {
