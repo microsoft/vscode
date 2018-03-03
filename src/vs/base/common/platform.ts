@@ -53,7 +53,9 @@ if (typeof process === 'object' && typeof process.nextTick === 'function') {
 			const resolved = nlsConfig.availableLanguages['*'];
 			_locale = nlsConfig.locale;
 			// VSCode's default language is 'en'
-			_language = resolved ? resolved : LANGUAGE_DEFAULT;
+			_language = resolved ?
+				resolved.indexOf('-') > -1 ? resolved.split('-')[0] + '-' + resolved.split('-')[1].toUpperCase() : resolved :
+				LANGUAGE_DEFAULT;
 			_translationsConfigFile = nlsConfig._translationsConfigFile;
 		} catch (e) {
 		}
