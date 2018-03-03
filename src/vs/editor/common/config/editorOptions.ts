@@ -2172,7 +2172,9 @@ export const EDITOR_MODEL_DEFAULTS = {
 	tabSize: 4,
 	insertSpaces: true,
 	detectIndentation: true,
-	trimAutoWhitespace: true
+	trimAutoWhitespace: true,
+	hugeFileSize: 20 * 1024 * 1024, // 20 MB
+	hugeFileNumLines: 300 * 1000 // 300K lines
 };
 
 /**

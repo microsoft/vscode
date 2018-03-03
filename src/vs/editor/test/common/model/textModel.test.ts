@@ -10,6 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { UTF8_BOM_CHARACTER } from 'vs/base/common/strings';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 
 function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
 	var m = TextModel.createFromString(
@@ -19,7 +20,9 @@ function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: numb
 			insertSpaces: defaultInsertSpaces,
 			detectIndentation: true,
 			defaultEOL: DefaultEndOfLine.LF,
-			trimAutoWhitespace: true
+			trimAutoWhitespace: true,
+			hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+			hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 		}
 	);
 	var r = m.getOptions();
@@ -711,7 +714,9 @@ suite('Editor Model - TextModel', () => {
 				tabSize: 4,
 				insertSpaces: false,
 				trimAutoWhitespace: true,
-				defaultEOL: DefaultEndOfLine.LF
+				defaultEOL: DefaultEndOfLine.LF,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			}
 		);
 
@@ -747,7 +752,9 @@ suite('Editor Model - TextModel', () => {
 				tabSize: 4,
 				insertSpaces: true,
 				trimAutoWhitespace: true,
-				defaultEOL: DefaultEndOfLine.LF
+				defaultEOL: DefaultEndOfLine.LF,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			}
 		);
 

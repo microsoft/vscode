@@ -18,7 +18,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { CoreNavigationCommands, CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
@@ -1138,7 +1138,9 @@ suite('Editor Controller - Regression tests', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: false
+				trimAutoWhitespace: false,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			},
 		);
 
@@ -1163,7 +1165,9 @@ suite('Editor Controller - Regression tests', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: false
+				trimAutoWhitespace: false,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			},
 		);
 
@@ -1228,7 +1232,9 @@ suite('Editor Controller - Regression tests', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			},
 			mode.getLanguageIdentifier()
 		);
@@ -1256,7 +1262,9 @@ suite('Editor Controller - Regression tests', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			}
 		);
 
@@ -1288,7 +1296,9 @@ suite('Editor Controller - Regression tests', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			},
 		);
 
@@ -1349,7 +1359,7 @@ suite('Editor Controller - Regression tests', () => {
 				'hello'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { tabSize: 4, insertSpaces: true, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { tabSize: 4, insertSpaces: true, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 3, false);
 			moveTo(cursor, 1, 5, true);
@@ -1377,7 +1387,9 @@ suite('Editor Controller - Regression tests', () => {
 				insertSpaces: true,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			},
 		);
 
@@ -1498,7 +1510,9 @@ suite('Editor Controller - Regression tests', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			}
 		);
 
@@ -1552,7 +1566,7 @@ suite('Editor Controller - Regression tests', () => {
 				'just some text',
 			],
 			languageIdentifier: null,
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 1, false);
 
@@ -1580,7 +1594,9 @@ suite('Editor Controller - Regression tests', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			}
 		);
 
@@ -1604,7 +1620,9 @@ suite('Editor Controller - Regression tests', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			}
 		);
 
@@ -1917,7 +1935,9 @@ suite('Editor Controller - Regression tests', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			}
 		);
 
@@ -1947,7 +1967,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'',
 				'1'
 			],
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(1, 21), source: 'keyboard' });
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
@@ -1970,7 +1990,9 @@ suite('Editor Controller - Cursor Configuration', () => {
 				tabSize: 13,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			}
 		);
 
@@ -2040,7 +2062,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'\thello'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
 			assertCursor(cursor, new Selection(1, 7, 1, 7));
@@ -2058,7 +2080,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'\thello'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
 			assertCursor(cursor, new Selection(1, 7, 1, 7));
@@ -2076,7 +2098,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'\thell()'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
 			assertCursor(cursor, new Selection(1, 7, 1, 7));
@@ -2097,7 +2119,9 @@ suite('Editor Controller - Cursor Configuration', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: false
+				trimAutoWhitespace: false,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			}
 		}, (model, cursor) => {
 
@@ -2125,7 +2149,9 @@ suite('Editor Controller - Cursor Configuration', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			}
 		}, (model, cursor) => {
 			moveTo(cursor, 1, model.getLineContent(1).length + 1);
@@ -2151,7 +2177,9 @@ suite('Editor Controller - Cursor Configuration', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			},
 			languageIdentifier: mode.getLanguageIdentifier(),
 		}, (model, cursor) => {
@@ -2199,7 +2227,9 @@ suite('Editor Controller - Cursor Configuration', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			}
 		);
 
@@ -2243,7 +2273,9 @@ suite('Editor Controller - Cursor Configuration', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			}
 		);
 
@@ -2309,7 +2341,9 @@ suite('Editor Controller - Cursor Configuration', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			}
 		);
 
@@ -2335,7 +2369,9 @@ suite('Editor Controller - Cursor Configuration', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			}
 		);
 
@@ -2406,7 +2442,9 @@ suite('Editor Controller - Cursor Configuration', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			}
 		);
 
@@ -2482,7 +2520,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\tif (true) {'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines },
 			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 12, false);
@@ -2506,7 +2544,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines },
 			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 2, false);
@@ -2525,7 +2563,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t\treturn true'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines },
 			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 15, false);
@@ -2545,7 +2583,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t\t\treturn true'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines },
 			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 14, false);
@@ -2573,7 +2611,9 @@ suite('Editor Controller - Indentation Rules', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			},
 			mode.getLanguageIdentifier()
 		);
@@ -2602,7 +2642,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines },
 			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 13, false);
@@ -2623,7 +2663,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 4, 3, false);
 			moveTo(cursor, 4, 4, true);
@@ -2642,7 +2682,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\tif (true) {'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 12, false);
 			moveTo(cursor, 2, 13, true);
@@ -2663,7 +2703,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\tif (true) {'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
@@ -2688,7 +2728,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'    if (true) {'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
@@ -2712,7 +2752,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'    if (true) {'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
@@ -2740,7 +2780,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines },
 			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 5, 4, false);
@@ -2761,7 +2801,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 9, false);
 			assertCursor(cursor, new Selection(3, 9, 3, 9));
@@ -2781,7 +2821,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 3, false);
 			assertCursor(cursor, new Selection(3, 3, 3, 3));
@@ -2801,7 +2841,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'  }a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 11, false);
 			assertCursor(cursor, new Selection(3, 11, 3, 11));
@@ -2821,7 +2861,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 2, false);
 			assertCursor(cursor, new Selection(3, 2, 3, 2));
@@ -2848,7 +2888,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 4, false);
 			assertCursor(cursor, new Selection(3, 4, 3, 4));
@@ -2875,7 +2915,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 2, false);
 			assertCursor(cursor, new Selection(3, 2, 3, 2));
@@ -2905,7 +2945,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 3, false);
 			assertCursor(cursor, new Selection(3, 3, 3, 3));
@@ -2931,7 +2971,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				''
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 5, false);
 			moveTo(cursor, 4, 3, true);
@@ -2956,7 +2996,9 @@ suite('Editor Controller - Indentation Rules', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			},
 			languageIdentifier: mode.getLanguageIdentifier(),
 		}, (model, cursor) => {
@@ -2983,7 +3025,9 @@ suite('Editor Controller - Indentation Rules', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			},
 			languageIdentifier: mode.getLanguageIdentifier(),
 		}, (model, cursor) => {
@@ -3007,7 +3051,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}',
 				'?>'
 			],
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 5, 3, false);
 			assertCursor(cursor, new Selection(5, 3, 5, 3));
@@ -3026,7 +3070,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'		return 5;',
 				'	'
 			],
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 2, false);
 			assertCursor(cursor, new Selection(3, 2, 3, 2));
@@ -3052,7 +3096,9 @@ suite('Editor Controller - Indentation Rules', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			},
 			mode.getLanguageIdentifier()
 		);
@@ -3084,7 +3130,9 @@ suite('Editor Controller - Indentation Rules', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			},
 			mode.getLanguageIdentifier()
 		);
@@ -3116,7 +3164,9 @@ suite('Editor Controller - Indentation Rules', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			},
 			mode.getLanguageIdentifier()
 		);
@@ -3147,7 +3197,9 @@ suite('Editor Controller - Indentation Rules', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			},
 			mode.getLanguageIdentifier()
 		);
@@ -3178,7 +3230,9 @@ suite('Editor Controller - Indentation Rules', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			},
 			mode.getLanguageIdentifier()
 		);
@@ -3209,7 +3263,9 @@ suite('Editor Controller - Indentation Rules', () => {
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			},
 			mode.getLanguageIdentifier()
 		);
@@ -3245,7 +3301,9 @@ suite('Editor Controller - Indentation Rules', () => {
 				detectIndentation: false,
 				insertSpaces: true,
 				tabSize: 2,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			},
 			rubyMode.getLanguageIdentifier()
 		);
@@ -3272,7 +3330,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 5, 3, false);
 			assertCursor(cursor, new Selection(5, 3, 5, 3));
@@ -3294,7 +3352,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 3, false);
 			assertCursor(cursor, new Selection(2, 3, 2, 3));
@@ -3313,7 +3371,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines },
 			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 3, false);
@@ -3444,7 +3502,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'',
 				')',
 			].join('\n'),
-			{ insertSpaces: true, detectIndentation: false, tabSize: 2, trimAutoWhitespace: false, defaultEOL: DefaultEndOfLine.LF },
+			{ insertSpaces: true, detectIndentation: false, tabSize: 2, trimAutoWhitespace: false, defaultEOL: DefaultEndOfLine.LF, hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize, hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines },
 			mode.getLanguageIdentifier()
 		);
 

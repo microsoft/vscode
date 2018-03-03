@@ -181,6 +181,8 @@ interface IRawConfig {
 		insertSpaces?: any;
 		detectIndentation?: any;
 		trimAutoWhitespace?: any;
+		hugeFileSize?: any;
+		hugeFileNumLines?: any;
 	};
 }
 
@@ -259,12 +261,30 @@ export class ModelServiceImpl implements IModelService {
 			detectIndentation = (config.editor.detectIndentation === 'false' ? false : Boolean(config.editor.detectIndentation));
 		}
 
+		let hugeFileSize = EDITOR_MODEL_DEFAULTS.hugeFileSize;
+		if (config.editor && typeof config.editor.hugeFileSize !== 'undefined') {
+			let parsedHugeFileSize = parseInt(config.editor.hugeFileSize, 10);
+			if (!isNaN(parsedHugeFileSize)) {
+				hugeFileSize = parsedHugeFileSize;
+			}
+		}
+
+		let hugeFileNumLines = EDITOR_MODEL_DEFAULTS.hugeFileNumLines;
+		if (config.editor && typeof config.editor.hugeFileNumLines !== 'undefined') {
+			let parsedHugeFileNumLines = parseInt(config.editor.hugeFileNumLines, 10);
+			if (!isNaN(parsedHugeFileNumLines)) {
+				hugeFileNumLines = parsedHugeFileNumLines;
+			}
+		}
+
 		return {
 			tabSize: tabSize,
 			insertSpaces: insertSpaces,
 			detectIndentation: detectIndentation,
 			defaultEOL: newDefaultEOL,
-			trimAutoWhitespace: trimAutoWhitespace
+			trimAutoWhitespace: trimAutoWhitespace,
+			hugeFileSize: hugeFileSize,
+			hugeFileNumLines: hugeFileNumLines
 		};
 	}
 

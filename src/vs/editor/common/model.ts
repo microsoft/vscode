@@ -389,6 +389,8 @@ export interface ITextModelCreationOptions {
 	detectIndentation: boolean;
 	trimAutoWhitespace: boolean;
 	defaultEOL: DefaultEndOfLine;
+	hugeFileSize: number;
+	hugeFileNumLines: number;
 }
 
 export interface ITextModelUpdateOptions {

@@ -9,6 +9,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel, DefaultEndOfLine } from 'vs/editor/common/model';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction, InsertLineBeforeAction, InsertLineAfterAction, IndentLinesAction, SortLinesAscendingAction, SortLinesDescendingAction } from 'vs/editor/contrib/linesOperations/linesOperations';
 import { Cursor } from 'vs/editor/common/controller/cursor';
@@ -755,7 +756,9 @@ suite('Editor Contrib - Line Operations', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				hugeFileSize: EDITOR_MODEL_DEFAULTS.hugeFileSize,
+				hugeFileNumLines: EDITOR_MODEL_DEFAULTS.hugeFileNumLines
 			}
 		);
 
