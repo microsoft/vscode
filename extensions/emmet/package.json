@@ -338,7 +338,11 @@
         "@emmetio/html-matcher": "^0.3.3",
         "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
         "@emmetio/math-expression": "^0.1.1",
+<<<<<<< HEAD
         "vscode-emmet-helper": "^1.2.0",
+=======
+        "vscode-emmet-helper": "^1.1.32",
+>>>>>>> parent of 7420a04c64... Fix for Emmet's wrap with abbreviation inserting extra spaces (#43345)
         "vscode-languageserver-types": "^3.5.0",
         "image-size": "^0.5.2",
         "vscode-nls": "3.2.1"
