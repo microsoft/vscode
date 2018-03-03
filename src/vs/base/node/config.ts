@@ -165,8 +165,8 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	}
 
 	private onConfigFileChange(eventType: string, filename: string, isParentFolder: boolean): void {
-
-		if (isParentFolder && filename.indexOf(this.configName, filename.length - this.configName.length) !== filename.length - this.configName.length) {
+		const pattern = new RegExp(`\\${this.configName}$|/${this.configName}$|^${this.configName}$`);
+		if (isParentFolder && !pattern.test(filename)) {
 			return; // a change to a sibling file that is not our config file
 		}
 
