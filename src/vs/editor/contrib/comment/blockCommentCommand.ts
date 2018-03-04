@@ -32,8 +32,11 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		if (offset + needleLength > haystackLength) {
 			return false;
 		}
+
+		const haystackUpper = haystack.toUpperCase();
+		const needleUpper = needle.toUpperCase();
 		for (let i = 0; i < needleLength; i++) {
-			if (haystack.charCodeAt(offset + i) !== needle.charCodeAt(i)) {
+			if (haystackUpper.charCodeAt(offset + i) !== needleUpper.charCodeAt(i)) {
 				return false;
 			}
 		}
