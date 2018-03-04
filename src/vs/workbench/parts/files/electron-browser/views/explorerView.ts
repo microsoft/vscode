@@ -523,22 +523,8 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			if (oldParentResource && newParentResource && oldParentResource.toString() === newParentResource.toString()) {
 				const modelElements = this.model.findAll(oldResource);
 				modelElements.forEach(modelElement => {
-					//Check for expanded items
-					if (this.explorerViewer.isExpanded(modelElement)) {
-						expandedItems.push(modelElement);
-					}
-					var checkChildrens = item => {
-						if (item.children) {
-							item.children.forEach(child =>{
-								if (this.explorerViewer.isExpanded(item)) {
-									expandedItems.push(item);
-								}
-								checkChildrens(child);
-							});
-						}
-					};
-
-					checkChildrens(modelElement);
+					//Get expanded elements
+					expandedItems = this.getExpandedChildren(modelElement);
 					// Rename File (Model)
 					modelElement.rename(newElement);
 
@@ -550,9 +536,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 							this.explorerViewer.setFocus(modelElement);
 						}
 						//Expand the element again
-						if  (expandedItems.length > 0) {
-							this.explorerViewer.expandAll(expandedItems);
-						}
+						this.explorerViewer.expandAll(expandedItems);
 					}, errors.onUnexpectedError);
 				});
 			}
@@ -800,6 +784,28 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 
 		return promise;
+	}
+
+	private getExpandedChildren(element: FileStat) {
+		let expandedItems = [];
+		//Check for expanded items
+		if (this.explorerViewer.isExpanded(element)) {
+			expandedItems.push(element);
+		}
+
+		var checkChildrens = item => {
+			if (item.children) {
+				item.children.forEach(child =>{
+					if (this.explorerViewer.isExpanded(item)) {
+						expandedItems.push(item);
+					}
+					checkChildrens(child);
+				});
+			}
+		};
+
+		checkChildrens(element);
+		return expandedItems;
 	}
 
 	private resolveRoots(targetsToResolve: { root: FileStat, resource: URI, options: { resolveTo: any[] } }[], targetsToExpand: URI[]): TPromise<any> {
