@@ -524,7 +524,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				const modelElements = this.model.findAll(oldResource);
 				modelElements.forEach(modelElement => {
 					//Get expanded elements
-					expandedItems = this.getExpandedChildren(modelElement);
+					expandedItems = this.getExpandedItems(modelElement);
 					// Rename File (Model)
 					modelElement.rename(newElement);
 
@@ -786,7 +786,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		return promise;
 	}
 
-	private getExpandedChildren(element: FileStat) {
+	private getExpandedItems(element: FileStat) {
 		let expandedItems = [];
 		//Check for expanded items
 		if (this.explorerViewer.isExpanded(element)) {
