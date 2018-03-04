@@ -176,6 +176,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		let range: IRange = null;
 
 		// Find Line/Column number from search value using RegExp
+		value = value.replace('./', '');
 		const patternMatch = OpenAnythingHandler.LINE_COLON_PATTERN.exec(value);
 		if (patternMatch && patternMatch.length > 1) {
 			const startLineNumber = parseInt(patternMatch[1], 10);
