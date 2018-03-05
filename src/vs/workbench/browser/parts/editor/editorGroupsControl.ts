@@ -1049,6 +1049,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			this.centeredEditorSashRight = new Sash(container.getHTMLElement(), this, { baseSize: 5, orientation: Orientation.VERTICAL });
 			registerSashListeners(this.centeredEditorSashLeft);
 			registerSashListeners(this.centeredEditorSashRight);
+			this.centeredEditorSashLeft.hide();
+			this.centeredEditorSashRight.hide();
 
 			this.centeredEditorActive = false;
 			this.centeredEditorLeftMarginRatio = 0.5;
