@@ -151,10 +151,6 @@
 	background: url('close.svg') center center no-repeat;
 }
 
-.monaco-shell.vs .feedback-form .cancel:hover {
-	background-color: #eaeaea;
-}
-
 .monaco-shell .feedback-form .form-buttons {
 	display: flex;
 }
@@ -221,10 +217,6 @@
 	background: url('close-dark.svg') center center no-repeat;
 }
 
-.monaco-shell.vs-dark .feedback-form .cancel:hover {
-	background-color: rgba(30,30,30,0.8);
-}
-
 .monaco-shell .feedback-form .sentiment.smile {
 	background-image: url('happy.svg');
 	background-position: center;
@@ -263,13 +255,6 @@
 .monaco-shell.hc-black .feedback-form .content .contactus {
 	padding: 10px;
 	float: right;
-}
-.monaco-shell.hc-black .feedback-form .cancel {
-	opacity: 0.6;
-}
-
-.monaco-shell.hc-black .feedback-form .cancel:hover {
-	opacity: 1;
 }
 
 .monaco-shell.hc-black .feedback-form .form-buttons .send,
