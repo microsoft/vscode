@@ -2052,15 +2052,9 @@ vinyl@~2.0.1:
     remove-trailing-separator "^1.0.1"
     replace-ext "^1.0.0"
 
-<<<<<<< HEAD
 vscode-emmet-helper@^1.2.0:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-1.2.0.tgz#6b9311be065c9c99d5de2dae18ea0730d9cfb734"
-=======
-vscode-emmet-helper@^1.1.32:
-  version "1.1.32"
-  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-1.1.32.tgz#5a67c6aa34255129d8b6564f5182f016a2b5b0da"
->>>>>>> parent of 7420a04c64... Fix for Emmet's wrap with abbreviation inserting extra spaces (#43345)
   dependencies:
     "@emmetio/extract-abbreviation" "0.1.6"
     jsonc-parser "^1.0.0"
