@@ -133,6 +133,8 @@ export interface IWorkbenchStartedInfo {
 
 type FontAliasingOption = 'default' | 'antialiased' | 'none' | 'auto';
 
+const fontAliasingValues: FontAliasingOption[] = ['antialiased', 'none', 'auto'];
+
 const Identifiers = {
 	WORKBENCH_CONTAINER: 'workbench.main.container',
 	TITLEBAR_PART: 'workbench.parts.titlebar',
@@ -969,13 +971,12 @@ export class Workbench implements IPartService {
 
 	private setFontAliasing(aliasing: FontAliasingOption) {
 		this.fontAliasing = aliasing;
-		const fontAliasingClassNames = [
-			'monaco-font-aliasing-antialiased',
-			'monaco-font-aliasing-none',
-			'monaco-font-aliasing-auto'
-		];
-		document.body.classList.remove(...fontAliasingClassNames);
-		if (aliasing !== 'default') {
+
+		// Remove all
+		document.body.classList.remove(...fontAliasingValues.map(value => `monaco-font-aliasing-${value}`));
+
+		// Add specific
+		if (fontAliasingValues.some(option => option === aliasing)) {
 			document.body.classList.add(`monaco-font-aliasing-${aliasing}`);
 		}
 	}
