@@ -6,7 +6,8 @@
 import { getSettings } from './settings';
 import { postCommand, postMessage } from './messaging';
 import { onceDocumentLoaded } from './events';
-import { getEditorLineNumberForPageOffset, getElementsForSourceLine, scrollToRevealSourceLine } from './scroll-sync';
+import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine } from './scroll-sync';
+import { ActiveLineMarker } from './activeLineMarker';
 
 // From https://remysharp.com/2010/07/21/throttling-function-calls
 function throttle(fn: (x: any) => any, threshhold: any, scope?: any) {
@@ -31,35 +32,6 @@ function throttle(fn: (x: any) => any, threshhold: any, scope?: any) {
 	};
 }
 
-
-class ActiveLineMarker {
-	private _current: any;
-
-	onDidChangeTextEditorSelection(line: number) {
-		const { previous } = getElementsForSourceLine(line);
-		this._update(previous && previous.element);
-	}
-
-	_update(before: HTMLElement | undefined) {
-		this._unmarkActiveElement(this._current);
-		this._markActiveElement(before);
-		this._current = before;
-	}
-
-	_unmarkActiveElement(element: HTMLElement | undefined) {
-		if (!element) {
-			return;
-		}
-		element.className = element.className.replace(/\bcode-active-line\b/g, '');
-	}
-
-	_markActiveElement(element: HTMLElement | undefined) {
-		if (!element) {
-			return;
-		}
-		element.className += ' code-active-line';
-	}
-}
 
 var scrollDisabled = true;
 const marker = new ActiveLineMarker();
