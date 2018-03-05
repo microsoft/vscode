@@ -419,14 +419,18 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (this._splitPaneContainer) {
 			// Check if the panel position changed and rotate panes if so
 			const newPanelPosition = this._partService.getPanelPosition();
-			if (newPanelPosition !== this._panelPosition) {
+			const panelPositionChanged = newPanelPosition !== this._panelPosition;
+			if (panelPositionChanged) {
 				const newOrientation = newPanelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 				this._splitPaneContainer.setOrientation(newOrientation);
 				this._panelPosition = newPanelPosition;
 			}
 
 			this._splitPaneContainer.layout(width, height);
-			this._splitPaneContainer.resetSize();
+
+			if (panelPositionChanged) {
+				this._splitPaneContainer.resetSize();
+			}
 		}
 	}
 
