@@ -9,12 +9,14 @@ import { MarkdownEngine } from './markdownEngine';
 import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
 import { Logger } from './logger';
 import { CommandManager } from './commandManager';
-import * as commands from './commands';
+import * as commands from './commands/index';
 import { loadDefaultTelemetryReporter } from './telemetryReporter';
 import { loadMarkdownExtensions } from './markdownExtensions';
 import LinkProvider from './features/documentLinkProvider';
 import MDDocumentSymbolProvider from './features/documentSymbolProvider';
-import { MDDocumentContentProvider, getMarkdownUri, isMarkdownFile } from './features/previewContentProvider';
+import { MarkdownContentProvider } from './features/previewContentProvider';
+import { MarkdownPreviewManager } from './features/previewManager';
+import MarkdownFoldingProvider from './features/foldingProvider';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -27,58 +29,33 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const selector = 'markdown';
 
-	const contentProvider = new MDDocumentContentProvider(engine, context, cspArbiter, logger);
-	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(MDDocumentContentProvider.scheme, contentProvider));
-
+	const contentProvider = new MarkdownContentProvider(engine, context, cspArbiter, logger);
 	loadMarkdownExtensions(contentProvider, engine);
+
+	const previewManager = new MarkdownPreviewManager(contentProvider, logger);
+	context.subscriptions.push(previewManager);
 
 	context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(selector, new MDDocumentSymbolProvider(engine)));
 	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider()));
+	context.subscriptions.push(vscode.languages.registerFoldingProvider(selector, new MarkdownFoldingProvider(engine)));
 
-	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, contentProvider);
+	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, previewManager);
 
 	const commandManager = new CommandManager();
 	context.subscriptions.push(commandManager);
-	commandManager.register(new commands.ShowPreviewCommand(cspArbiter, telemetryReporter));
-	commandManager.register(new commands.ShowPreviewToSideCommand(cspArbiter, telemetryReporter));
-	commandManager.register(new commands.ShowSourceCommand());
-	commandManager.register(new commands.RefreshPreviewCommand(contentProvider));
-	commandManager.register(new commands.RevealLineCommand(logger));
+	commandManager.register(new commands.ShowPreviewCommand(previewManager, telemetryReporter));
+	commandManager.register(new commands.ShowPreviewToSideCommand(previewManager, telemetryReporter));
+	commandManager.register(new commands.ShowLockedPreviewToSideCommand(previewManager, telemetryReporter));
+	commandManager.register(new commands.ShowSourceCommand(previewManager));
+	commandManager.register(new commands.RefreshPreviewCommand(previewManager));
 	commandManager.register(new commands.MoveCursorToPositionCommand());
-	commandManager.register(new commands.ShowPreviewSecuritySelectorCommand(previewSecuritySelector));
+	commandManager.register(new commands.ShowPreviewSecuritySelectorCommand(previewSecuritySelector, previewManager));
 	commandManager.register(new commands.OnPreviewStyleLoadErrorCommand());
-	commandManager.register(new commands.DidClickCommand());
 	commandManager.register(new commands.OpenDocumentLinkCommand(engine));
-
-	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {
-		if (isMarkdownFile(document)) {
-			const uri = getMarkdownUri(document.uri);
-			contentProvider.update(uri);
-		}
-	}));
-
-	context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
-		if (isMarkdownFile(event.document)) {
-			const uri = getMarkdownUri(event.document.uri);
-			contentProvider.update(uri);
-		}
-	}));
+	commandManager.register(new commands.ToggleLockCommand(previewManager));
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
 		logger.updateConfiguration();
-		contentProvider.updateConfiguration();
-	}));
-
-	context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(event => {
-		if (isMarkdownFile(event.textEditor.document)) {
-			const markdownFile = getMarkdownUri(event.textEditor.document.uri);
-			logger.log('updatePreviewForSelection', { markdownFile: markdownFile.toString() });
-
-			vscode.commands.executeCommand('_workbench.htmlPreview.postMessage',
-				markdownFile,
-				{
-					line: event.selections[0].active.line
-				});
-		}
+		previewManager.updateConfiguration();
 	}));
 }

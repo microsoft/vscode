@@ -35,9 +35,12 @@
 	"panelDefaultLocation": "Contrôle l’emplacement par défaut du panneau. Il peut être affiché soit en bas ou à droite du banc d'essai.",
 	"statusBarVisibility": "Contrôle la visibilité de la barre d'état au bas du banc d'essai.",
 	"activityBarVisibility": "Contrôle la visibilité de la barre d'activités dans le banc d'essai.",
+	"viewVisibility": "Contrôle la visibilité des actions d'en-tête de vue. Les actions d'en-tête de vue peuvent être soit toujours visibles, ou uniquement visibles quand cette vue a le focus ou est survolée.",
+	"fontAliasing": "Contrôle la méthode de font aliasing dans le workbench.\n- default : Lissage des polices de sous-pixel. Sur la plupart des affichages non-ratina, cela vous donnera le texte le plus vif\n- antialiased : Lisse les polices au niveau du pixel, plutôt que les sous-pixels. Peut faire en sorte que la police apparaisse plus fine dans l’ensemble \n- none : Désactive le lissage des polices. Le texte s'affichera avec des bordures dentelées\n- auto: Applique `default` ou `antialiased` automatiquement en se basant sur la résolution de l'affichage.",
 	"workbench.fontAliasing.default": "Lissage de sous-pixel des polices. Sur la plupart des affichages non-retina, cela vous donnera le texte le plus vif.",
 	"workbench.fontAliasing.antialiased": "Lisser les polices au niveau du pixel, plutôt que les sous-pixels. Peut faire en sorte que la police apparaisse plus légère dans l’ensemble.",
 	"workbench.fontAliasing.none": "Désactive le lissage des polices. Le texte s'affichera avec des bordures dentelées.",
+	"workbench.fontAliasing.auto": "Applique `default` ou `antialiased`automatiquement en se basant sur la résolution de l'affichage.",
 	"enableNaturalLanguageSettingsSearch": "Contrôle s’il faut activer le mode de recherche en langage naturel pour les paramètres.",
 	"windowConfigurationTitle": "Fenêtre",
 	"window.openFilesInNewWindow.on": "Les fichiers s'ouvrent dans une nouvelle fenêtre",
@@ -73,9 +76,9 @@
 	"window.nativeTabs": "Active les onglets macOS Sierra. Notez que vous devez redémarrer l'ordinateur pour appliquer les modifications et que les onglets natifs désactivent tout style de barre de titre personnalisé configuré, le cas échéant.",
 	"zenModeConfigurationTitle": "Mode Zen",
 	"zenMode.fullScreen": "Contrôle si l'activation de Zen Mode met également le banc d'essai en mode plein écran.",
+	"zenMode.centerLayout": "Contrôle si l'activation du mode Zen centre également la disposition.",
 	"zenMode.hideTabs": "Contrôle si l'activation du mode Zen masque également les onglets du banc d'essai.",
 	"zenMode.hideStatusBar": "Contrôle si l'activation du mode Zen masque également la barre d'état au bas du banc d'essai.",
 	"zenMode.hideActivityBar": "Contrôle si l'activation du mode Zen masque également la barre d'activités à gauche du banc d'essai.",
-	"zenMode.restore": "Contrôle si une fenêtre doit être restaurée en mode zen, si elle a été fermée en mode zen.",
-	"JsonSchema.locale": "Langue d'interface utilisateur (IU) à utiliser."
+	"zenMode.restore": "Contrôle si une fenêtre doit être restaurée en mode zen, si elle a été fermée en mode zen."
 }

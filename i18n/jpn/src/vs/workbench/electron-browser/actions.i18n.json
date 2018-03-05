@@ -18,6 +18,7 @@
 	"zoomReset": "ズームのリセット",
 	"appPerf": "スタートアップ パフォーマンス",
 	"reloadWindow": "ウィンドウの再読み込み",
+	"reloadWindowWithExntesionsDisabled": "拡張機能を無効にしてウィンドウを再読み込み",
 	"switchWindowPlaceHolder": "切り替え先のウィンドウを選択してください",
 	"current": "現在のウィンドウ",
 	"close": "ウィンドウを閉じる",
@@ -30,7 +31,6 @@
 	"remove": "最近開いた項目から削除",
 	"openRecent": "最近開いた項目…",
 	"quickOpenRecent": "最近使用したものを開く...",
-	"closeMessages": "通知メッセージを閉じる",
 	"reportIssueInEnglish": "問題の報告",
 	"reportPerformanceIssue": "パフォーマンスの問題のレポート",
 	"keybindingsReference": "キーボード ショートカットの参照",
@@ -49,9 +49,6 @@
 	"moveWindowTabToNewWindow": "ウィンドウ タブを新しいウィンドウに移動",
 	"mergeAllWindowTabs": "すべてのウィンドウを統合",
 	"toggleWindowTabsBar": "ウィンドウ タブ バーの切り替え",
-	"configureLocale": "言語を構成する",
-	"displayLanguage": "VSCode の表示言語を定義します。",
-	"doc": "サポートされている言語の一覧については、{0} をご覧ください。",
-	"restart": "値を変更するには VS Code の再起動が必要です。",
-	"fail.createSettings": "'{0}' ({1}) を作成できません。"
+	"about": "{0} のバージョン情報",
+	"inspect context keys": "コンテキスト キーの検査"
 }

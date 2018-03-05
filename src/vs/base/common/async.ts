@@ -6,7 +6,6 @@
 'use strict';
 
 import * as errors from 'vs/base/common/errors';
-import * as platform from 'vs/base/common/platform';
 import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -181,7 +180,7 @@ export class Delayer<T> {
 	private timeout: number;
 	private completionPromise: Promise;
 	private onSuccess: ValueCallback;
-	private task: ITask<T>;
+	private task: ITask<T | TPromise<T>>;
 
 	constructor(public defaultDelay: number) {
 		this.timeout = null;
@@ -190,7 +189,7 @@ export class Delayer<T> {
 		this.task = null;
 	}
 
-	trigger(task: ITask<T>, delay: number = this.defaultDelay): TPromise<T> {
+	trigger(task: ITask<T | TPromise<T>>, delay: number = this.defaultDelay): TPromise<T> {
 		this.task = task;
 		this.cancelTimeout();
 
@@ -525,7 +524,7 @@ export function setDisposableTimeout(handler: Function, timeout: number, ...args
 }
 
 export class TimeoutTimer extends Disposable {
-	private _token: platform.TimeoutToken;
+	private _token: number;
 
 	constructor() {
 		super();
@@ -539,14 +538,14 @@ export class TimeoutTimer extends Disposable {
 
 	cancel(): void {
 		if (this._token !== -1) {
-			platform.clearTimeout(this._token);
+			clearTimeout(this._token);
 			this._token = -1;
 		}
 	}
 
 	cancelAndSet(runner: () => void, timeout: number): void {
 		this.cancel();
-		this._token = platform.setTimeout(() => {
+		this._token = setTimeout(() => {
 			this._token = -1;
 			runner();
 		}, timeout);
@@ -557,7 +556,7 @@ export class TimeoutTimer extends Disposable {
 			// timer is already set
 			return;
 		}
-		this._token = platform.setTimeout(() => {
+		this._token = setTimeout(() => {
 			this._token = -1;
 			runner();
 		}, timeout);
@@ -566,7 +565,7 @@ export class TimeoutTimer extends Disposable {
 
 export class IntervalTimer extends Disposable {
 
-	private _token: platform.IntervalToken;
+	private _token: number;
 
 	constructor() {
 		super();
@@ -580,14 +579,14 @@ export class IntervalTimer extends Disposable {
 
 	cancel(): void {
 		if (this._token !== -1) {
-			platform.clearInterval(this._token);
+			clearInterval(this._token);
 			this._token = -1;
 		}
 	}
 
 	cancelAndSet(runner: () => void, interval: number): void {
 		this.cancel();
-		this._token = platform.setInterval(() => {
+		this._token = setInterval(() => {
 			runner();
 		}, interval);
 	}
@@ -595,7 +594,7 @@ export class IntervalTimer extends Disposable {
 
 export class RunOnceScheduler {
 
-	private timeoutToken: platform.TimeoutToken;
+	private timeoutToken: number;
 	private runner: () => void;
 	private timeout: number;
 	private timeoutHandler: () => void;
@@ -620,7 +619,7 @@ export class RunOnceScheduler {
 	 */
 	cancel(): void {
 		if (this.isScheduled()) {
-			platform.clearTimeout(this.timeoutToken);
+			clearTimeout(this.timeoutToken);
 			this.timeoutToken = -1;
 		}
 	}
@@ -630,7 +629,7 @@ export class RunOnceScheduler {
 	 */
 	schedule(delay = this.timeout): void {
 		this.cancel();
-		this.timeoutToken = platform.setTimeout(this.timeoutHandler, delay);
+		this.timeoutToken = setTimeout(this.timeoutHandler, delay);
 	}
 
 	/**

@@ -9,6 +9,8 @@
 	"emptyUserSettingsHeader": "Укажите параметры здесь, чтобы перезаписать параметры по умолчанию.",
 	"emptyWorkspaceSettingsHeader": "Укажите параметры здесь, чтобы перезаписать параметры пользователей.",
 	"emptyFolderSettingsHeader": "Укажите параметры папок здесь, чтобы перезаписать параметры рабочих областей.",
+	"reportSettingsSearchIssue": "Сообщить об ошибке",
+	"newExtensionLabel": "Показать расширение «{0}»",
 	"editTtile": "Изменить",
 	"replaceDefaultValue": "Заменить в параметрах",
 	"copyDefaultValue": "Копировать в параметры",

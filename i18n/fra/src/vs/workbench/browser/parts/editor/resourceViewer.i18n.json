@@ -11,7 +11,9 @@
 	"sizeMB": "{0} Mo",
 	"sizeGB": "{0} Go",
 	"sizeTB": "{0} To",
+	"largeImageError": "La taille du fichier de l’image est trop grande (> à 1Mo) pour afficher dans l’éditeur.",
 	"resourceOpenExternalButton": " Ouvrir l'image en utilisant un programme externe ?",
 	"nativeBinaryError": "Impossible d'afficher le fichier dans l'éditeur : soit il est binaire, soit il est très volumineux, soit il utilise un encodage de texte non pris en charge.",
+	"zoom.action.fit.label": "Toute l’Image",
 	"imgMeta": "{0}x{1} {2}"
 }

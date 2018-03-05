@@ -9,6 +9,7 @@
 	"name": "扩展名",
 	"extension id": "扩展标识符",
 	"preview": "预览版",
+	"builtin": "内置",
 	"publisher": "发布服务器名称",
 	"install count": "安装计数",
 	"rating": "评级",

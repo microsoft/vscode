@@ -34,10 +34,10 @@ class SymbolEntry extends EditorQuickOpenEntry {
 	constructor(
 		private _bearing: SymbolInformation,
 		private _provider: IWorkspaceSymbolProvider,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IEnvironmentService private _environmentService: IEnvironmentService
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService
 	) {
 		super(editorService);
 	}

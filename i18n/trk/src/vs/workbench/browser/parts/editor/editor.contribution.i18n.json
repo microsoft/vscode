@@ -19,14 +19,12 @@
 	"close": "Kapat",
 	"closeOthers": "Diğerlerini Kapat",
 	"closeRight": "Sağdakileri Kapat",
-	"closeAllUnmodified": "Değiştirilmeyenleri Kapat",
 	"closeAll": "Tümünü Kapat",
 	"keepOpen": "Açık Tut",
 	"toggleInlineView": "Satır İçi Görünümü Aç/Kapat",
 	"showOpenedEditors": "Açık Düzenleyicileri Göster",
 	"keepEditor": "Düzenleyiciyi Tut",
 	"closeEditorsInGroup": "Gruptaki Tüm Düzenleyicileri Kapat",
-	"closeUnmodifiedEditors": "Gruptaki Değiştirilmemiş Düzenleyicileri Kapat",
 	"closeOtherEditors": "Diğer Düzenleyicileri Kapat",
 	"closeRightEditors": "Düzenleyicinin Sağındakileri Kapat"
 }

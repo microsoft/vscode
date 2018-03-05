@@ -342,11 +342,6 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			return;
 		}
 
-		if (this._configuration.editor.readOnly) {
-			// Cannot execute when read only
-			return;
-		}
-
 		if (opResult.shouldPushStackElementBefore) {
 			this._model.pushStackElement();
 		}
@@ -387,7 +382,12 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		const viewSelections = this._cursors.getViewSelections();
 
 		// Let the view get the event first.
-		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections)]);
+		try {
+			const eventsCollector = this._beginEmit();
+			eventsCollector.emit(new viewEvents.ViewCursorStateChangedEvent(viewSelections));
+		} finally {
+			this._endEmit();
+		}
 
 		// Only after the view has been notified, let the rest of the world know...
 		if (!oldState
@@ -429,7 +429,12 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	}
 
 	public emitCursorRevealRange(viewRange: Range, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType) {
-		this._emit([new viewEvents.ViewRevealRangeRequestEvent(viewRange, verticalType, revealHorizontal, scrollType)]);
+		try {
+			const eventsCollector = this._beginEmit();
+			eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(viewRange, verticalType, revealHorizontal, scrollType));
+		} finally {
+			this._endEmit();
+		}
 	}
 
 	// -----------------------------------------------------------------------------------------------------------
@@ -445,6 +450,12 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 		if (handlerId === H.CompositionEnd) {
 			this._isDoingComposition = false;
+			return;
+		}
+
+		if (this._configuration.editor.readOnly) {
+			// All the remaining handlers will try to edit the model,
+			// but we cannot edit when read only...
 			return;
 		}
 

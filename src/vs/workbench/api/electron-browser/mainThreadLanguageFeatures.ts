@@ -257,7 +257,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				return wireCancellationToken(token, this._proxy.$provideRenameEdits(handle, model.uri, position, newName)).then(reviveWorkspaceEditDto);
 			},
 			resolveInitialRenameValue: supportsResolveInitialValues
-				? (model: ITextModel, position: EditorPosition, token: CancellationToken): Thenable<modes.RenameInitialValue> => wireCancellationToken(token, this._proxy.$resolveInitialRenameValue(handle, model.uri, position))
+				? (model: ITextModel, position: EditorPosition, token: CancellationToken): Thenable<modes.RenameInformation> => wireCancellationToken(token, this._proxy.$resolveInitialRenameValue(handle, model.uri, position))
 				: undefined
 		});
 	}
@@ -342,6 +342,17 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					color: [colorInfo.color.red, colorInfo.color.green, colorInfo.color.blue, colorInfo.color.alpha],
 					range: colorInfo.range
 				}));
+			}
+		});
+	}
+
+	// --- folding
+
+	$registerFoldingProvider(handle: number, selector: vscode.DocumentSelector): void {
+		const proxy = this._proxy;
+		this._registrations[handle] = modes.FoldingProviderRegistry.register(toLanguageSelector(selector), <modes.FoldingProvider>{
+			provideFoldingRanges: (model, token) => {
+				return wireCancellationToken(token, proxy.$provideFoldingRanges(handle, model.uri));
 			}
 		});
 	}

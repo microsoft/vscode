@@ -12,5 +12,6 @@
 	"view": "Exibir",
 	"scmConfigurationTitle": "SCM",
 	"alwaysShowProviders": "Se deverá sempre mostrar a seção Provedor de Controle de Código Fonte.",
-	"diffDecorations": "Controla decorações do diff no editor."
+	"diffDecorations": "Controla decorações do diff no editor.",
+	"diffGutterWidth": "Controla a largura(px) das decorações diff no gutter (adicionada e modificada)."
 }

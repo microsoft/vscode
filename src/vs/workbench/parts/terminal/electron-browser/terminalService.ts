@@ -16,53 +16,59 @@ import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/qui
 import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { TERMINAL_DEFAULT_SHELL_WINDOWS } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { getTerminalDefaultShellWindows } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
+import { TerminalTab } from 'vs/workbench/parts/terminal/electron-browser/terminalTab';
+import { IChoiceService, IConfirmationService, Choice } from 'vs/platform/dialogs/common/dialogs';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 
-	constructor(
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IPanelService _panelService: IPanelService,
-		@IPartService _partService: IPartService,
-		@ILifecycleService _lifecycleService: ILifecycleService,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IQuickOpenService private _quickOpenService: IQuickOpenService,
-		@IChoiceService private _choiceService: IChoiceService,
-		@IStorageService private _storageService: IStorageService,
-		@IMessageService private _messageService: IMessageService
-	) {
-		super(_contextKeyService, _panelService, _partService, _lifecycleService);
+	protected _terminalTabs: TerminalTab[];
+	protected get _terminalInstances(): ITerminalInstance[] {
+		return this._terminalTabs.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
+	}
 
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IPanelService panelService: IPanelService,
+		@IPartService partService: IPartService,
+		@IStorageService storageService: IStorageService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
+		@IChoiceService private readonly _choiceService: IChoiceService,
+		@IConfirmationService private readonly _confirmationService: IConfirmationService
+	) {
+		super(contextKeyService, panelService, partService, lifecycleService, storageService);
+
+		this._terminalTabs = [];
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
 	}
 
 	public createInstance(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {
-		let terminalInstance = this._instantiationService.createInstance(TerminalInstance,
+		const terminalTab = this._instantiationService.createInstance(TerminalTab,
 			this._terminalFocusContextKey,
 			this._configHelper,
 			this._terminalContainer,
 			shell);
-		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
-		terminalInstance.addDisposable(terminalInstance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
-		terminalInstance.addDisposable(terminalInstance.onDataForApi(this._onInstanceData.fire, this._onInstanceData));
-		terminalInstance.addDisposable(terminalInstance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
-		this.terminalInstances.push(terminalInstance);
+		this._terminalTabs.push(terminalTab);
+		const instance = terminalTab.terminalInstances[0];
+		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
+		terminalTab.addDisposable(terminalTab.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+		this._initInstanceListeners(instance);
 		if (this.terminalInstances.length === 1) {
 			// It's the first instance so it should be made active automatically
 			this.setActiveInstanceByIndex(0);
 		}
 		this._onInstancesChanged.fire();
 		this._suggestShellChange(wasNewTerminalAction);
-		return terminalInstance;
+		return instance;
 	}
 
 	public focusFindWidget(): TPromise<void> {
@@ -115,17 +121,17 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		}
 
 		// Never suggest if the setting is non-default already (ie. they set the setting manually)
-		if (this._configHelper.config.shell.windows !== TERMINAL_DEFAULT_SHELL_WINDOWS) {
+		if (this._configHelper.config.shell.windows !== getTerminalDefaultShellWindows()) {
 			this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true);
 			return;
 		}
 
 		const message = nls.localize('terminal.integrated.chooseWindowsShellInfo', "You can change the default terminal shell by selecting the customize button.");
-		const options = [nls.localize('customize', "Customize"), nls.localize('cancel', "Cancel"), nls.localize('never again', "OK, Don't Show Again")];
-		this._choiceService.choose(Severity.Info, message, options, 1).then(choice => {
+		const options: Choice[] = [nls.localize('customize', "Customize"), { label: nls.localize('never again', "Don't Show Again") }];
+		this._choiceService.choose(Severity.Info, message, options).then(choice => {
 			switch (choice) {
-				case 0:
-					return this.selectDefaultWindowsShell().then(shell => {
+				case 0 /* Customize */:
+					this.selectDefaultWindowsShell().then(shell => {
 						if (!shell) {
 							return TPromise.as(null);
 						}
@@ -139,12 +145,10 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 						}
 						return TPromise.as(null);
 					});
-				case 1:
-					return TPromise.as(null);
-				case 2:
+					break;
+				case 1 /* Do not show again */:
 					this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true);
-				default:
-					return TPromise.as(null);
+					break;
 			}
 		});
 	}
@@ -221,7 +225,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
 		}
 
-		return this._messageService.confirm({
+		return this._confirmationService.confirm({
 			message,
 			type: 'warning',
 		}).then(confirmed => !confirmed);
@@ -230,8 +234,6 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalContainer = terminalContainer;
-		this._terminalInstances.forEach(terminalInstance => {
-			terminalInstance.attachToElement(this._terminalContainer);
-		});
+		this._terminalTabs.forEach(tab => tab.attachToElement(this._terminalContainer));
 	}
 }

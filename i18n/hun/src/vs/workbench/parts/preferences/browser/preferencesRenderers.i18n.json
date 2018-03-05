@@ -9,6 +9,8 @@
 	"emptyUserSettingsHeader": "Az ebben a fájlban elhelyezett beállítások felülírják az alapértelmezett beállításokat.",
 	"emptyWorkspaceSettingsHeader": "Az ebben a fájlban elhelyezett beállítások felülírják a felhasználói beállításokat.",
 	"emptyFolderSettingsHeader": "Az ebben a fájlban elhelyezett beállítások felülírják a munkaterületre vonatkozó beállításokat.",
+	"reportSettingsSearchIssue": "Probléma jelentése",
+	"newExtensionLabel": "\"{0}\" kiegészítő megjelenítése",
 	"editTtile": "Szerkesztés",
 	"replaceDefaultValue": "Csere a beállításokban",
 	"copyDefaultValue": "Másolás a beállításokba",

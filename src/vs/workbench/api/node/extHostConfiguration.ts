@@ -16,6 +16,9 @@ import { Configuration, ConfigurationChangeEvent, ConfigurationModel } from 'vs/
 import { WorkspaceConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
 import { StrictResourceMap } from 'vs/base/common/map';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { isObject } from 'vs/base/common/types';
+
+declare var Proxy: any; // TODO@TypeScript
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -41,14 +44,14 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	private readonly _onDidChangeConfiguration = new Emitter<vscode.ConfigurationChangeEvent>();
 	private readonly _proxy: MainThreadConfigurationShape;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
-	private _configurationScopes: Map<string, ConfigurationScope>;
+	private _configurationScopes: { [key: string]: ConfigurationScope };
 	private _configuration: Configuration;
 
 	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationInitData) {
 		this._proxy = proxy;
 		this._extHostWorkspace = extHostWorkspace;
 		this._configuration = Configuration.parse(data);
-		this._readConfigurationScopes(data.configurationScopes);
+		this._configurationScopes = data.configurationScopes;
 	}
 
 	get onDidChangeConfiguration(): Event<vscode.ConfigurationChangeEvent> {
@@ -61,9 +64,9 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	}
 
 	getConfiguration(section?: string, resource?: URI, extensionId?: string): vscode.WorkspaceConfiguration {
-		const config = deepClone(section
+		const config = section
 			? lookUp(this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace), section)
-			: this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace));
+			: this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace);
 
 		if (section) {
 			this._validateConfigurationAccess(section, resource, extensionId);
@@ -93,6 +96,32 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 				let result = lookUp(config, key);
 				if (typeof result === 'undefined') {
 					result = defaultValue;
+				} else {
+					let clonedConfig = void 0;
+					const cloneOnWriteProxy = (target: any, accessor: string): any => {
+						let clonedTarget = void 0;
+						return isObject(target) ?
+							new Proxy(target, {
+								get: (target: any, property: string) => {
+									if (clonedConfig) {
+										clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
+										return clonedTarget[property];
+									}
+									const result = target[property];
+									if (typeof property === 'string' && property.toLowerCase() !== 'tojson') {
+										return cloneOnWriteProxy(result, `${accessor}.${property}`);
+									}
+									return result;
+								},
+								set: (target: any, property: string, value: any) => {
+									clonedConfig = clonedConfig ? clonedConfig : deepClone(config);
+									clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
+									clonedTarget[property] = value;
+									return true;
+								}
+							}) : target;
+					};
+					result = cloneOnWriteProxy(result, key);
 				}
 				return result;
 			},
@@ -129,7 +158,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	}
 
 	private _validateConfigurationAccess(key: string, resource: URI, extensionId: string): void {
-		const scope = this._configurationScopes.get(key);
+		const scope = this._configurationScopes[key];
 		const extensionIdText = extensionId ? `[${extensionId}] ` : '';
 		if (ConfigurationScope.RESOURCE === scope) {
 			if (resource === void 0) {
@@ -142,18 +171,6 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 				console.warn(`${extensionIdText}Accessing a window scoped configuration for a resource is not expected. To associate '${key}' to a resource, define its scope to 'resource' in configuration contributions in 'package.json'.`);
 			}
 			return;
-		}
-	}
-
-	private _readConfigurationScopes(scopes: ConfigurationScope[]): void {
-		this._configurationScopes = new Map<string, ConfigurationScope>();
-		if (scopes.length) {
-			const defaultKeys = this._configuration.keys(this._extHostWorkspace.workspace).default;
-			if (defaultKeys.length === scopes.length) {
-				for (let i = 0; i < defaultKeys.length; i++) {
-					this._configurationScopes.set(defaultKeys[i], scopes[i]);
-				}
-			}
 		}
 	}
 

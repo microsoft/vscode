@@ -81,11 +81,10 @@ export class ColorThemeData implements IColorTheme {
 	public setCustomColors(colors: IColorCustomizations) {
 		this.customColorMap = {};
 		this.overwriteCustomColors(colors);
-		if (`[${this.settingsId}]` in colors) {
-			const themeSpecificColors = (colors[`[${this.settingsId}]`] || {}) as IColorCustomizations;
-			if (types.isObject(themeSpecificColors)) {
-				this.overwriteCustomColors(themeSpecificColors);
-			}
+
+		const themeSpecificColors = colors[`[${this.settingsId}]`] as IColorCustomizations;
+		if (types.isObject(themeSpecificColors)) {
+			this.overwriteCustomColors(themeSpecificColors);
 		}
 		if (this.themeTokenColors && this.themeTokenColors.length) {
 			updateDefaultRuleSettings(this.themeTokenColors[0], this);
@@ -103,43 +102,38 @@ export class ColorThemeData implements IColorTheme {
 
 	public setCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
 		this.customTokenColors = [];
-		let customTokenColorsWithoutThemeSpecific: ITokenColorCustomizations = {};
-		for (let key in customTokenColors) {
-			if (key[0] !== '[') {
-				customTokenColorsWithoutThemeSpecific[key] = customTokenColors[key];
-			}
-		}
-		this.addCustomTokenColors(customTokenColorsWithoutThemeSpecific);
-		if (`[${this.settingsId}]` in customTokenColors) {
-			const themeSpecificTokenColors: ITokenColorCustomizations = customTokenColors[`[${this.settingsId}]`];
-			if (types.isObject(themeSpecificTokenColors)) {
-				this.addCustomTokenColors(themeSpecificTokenColors);
-			}
+		// first add the non-theme specific settings
+		this.addCustomTokenColors(customTokenColors);
+
+		// append theme specific settings. Last rules will win.
+		const themeSpecificTokenColors = customTokenColors[`[${this.settingsId}]`] as ITokenColorCustomizations;
+		if (types.isObject(themeSpecificTokenColors)) {
+			this.addCustomTokenColors(themeSpecificTokenColors);
 		}
 	}
 
 	private addCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
-		let generalRules: ITokenColorizationRule[] = [];
-
-		Object.keys(tokenGroupToScopesMap).forEach(key => {
-			let value = customTokenColors[key];
-			if (value) {
-				let settings = typeof value === 'string' ? { foreground: value } : value;
-				let scopes = tokenGroupToScopesMap[key];
-				for (let scope of scopes) {
-					generalRules.push({
-						scope,
-						settings
-					});
-				}
-			}
-		});
-
-		const textMateRules: ITokenColorizationRule[] = customTokenColors.textMateRules || [];
-
 		// Put the general customizations such as comments, strings, etc. first so that
 		// they can be overridden by specific customizations like "string.interpolated"
-		this.customTokenColors = this.customTokenColors.concat(generalRules, textMateRules);
+		for (let tokenGroup in tokenGroupToScopesMap) {
+			let value = customTokenColors[tokenGroup];
+			if (value) {
+				let settings = typeof value === 'string' ? { foreground: value } : value;
+				let scopes = tokenGroupToScopesMap[tokenGroup];
+				for (let scope of scopes) {
+					this.customTokenColors.push({ scope, settings });
+				}
+			}
+		}
+
+		// specific customizations
+		if (Array.isArray(customTokenColors.textMateRules)) {
+			for (let rule of customTokenColors.textMateRules) {
+				if (rule.scope && rule.settings) {
+					this.customTokenColors.push(rule);
+				}
+			}
+		}
 	}
 
 	public ensureLoaded(themeService: WorkbenchThemeService): TPromise<void> {
@@ -155,13 +149,13 @@ export class ColorThemeData implements IColorTheme {
 	}
 
 	/**
-	 * Place the default settings first and add add the token-info rules
+	 * Place the default settings first and add the token-info rules
 	 */
 	private sanitizeTokenColors() {
 		let hasDefaultTokens = false;
 		let updatedTokenColors: ITokenColorizationRule[] = [updateDefaultRuleSettings({ settings: {} }, this)];
-		this.tokenColors.forEach(rule => {
-			if (rule.scope) {
+		this.themeTokenColors.forEach(rule => {
+			if (rule.scope && rule.settings) {
 				if (rule.scope === 'token.info-token') {
 					hasDefaultTokens = true;
 				}
@@ -212,6 +206,16 @@ export class ColorThemeData implements IColorTheme {
 		themeData.label = '';
 		themeData.settingsId = null;
 		themeData.isLoaded = false;
+		themeData.themeTokenColors = [{ settings: {} }];
+		return themeData;
+	}
+
+	static createLoadedEmptyTheme(id: string, settingsId: string): ColorThemeData {
+		let themeData = new ColorThemeData();
+		themeData.id = id;
+		themeData.label = '';
+		themeData.settingsId = settingsId;
+		themeData.isLoaded = true;
 		themeData.themeTokenColors = [{ settings: {} }];
 		return themeData;
 	}

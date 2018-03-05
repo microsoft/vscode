@@ -35,9 +35,11 @@
 	"panelDefaultLocation": "패널의 기본 위치를 제어합니다. 워크벤치의 아래 또는 오른쪽에 표시될 수 있습니다.",
 	"statusBarVisibility": "워크벤치 아래쪽에서 상태 표시줄의 표시 유형을 제어합니다.",
 	"activityBarVisibility": "워크벤치에서 작업 막대의 표시 유형을 제어합니다.",
+	"fontAliasing": "워크벤치에서 글꼴 앨리어싱 방식을 제어합니다.\n- 기본: 서브 픽셀 글꼴 다듬기. 대부분의 일반 디스플레이에서 가장 선명한 글꼴 제공\n- 안티앨리어싱: 서브 픽셀이 아닌 픽셀 단위에서 글꼴 다듬기. 전반적으로 더 밝은 느낌을 줄 수 있음\n- 없음: 글꼴 다듬기 사용 안 함. 텍스트 모서리가 각지게 표시됨\n- 자동: 디스플레이의 DPI에 따라 `기본` 또는 `안티앨리어싱`을 자동으로 적용합니다.",
 	"workbench.fontAliasing.default": "서브 픽셀 글꼴 다듬기. 대부분의 일반 디스플레이에서 가장 선명한 텍스트를 제공합니다. ",
 	"workbench.fontAliasing.antialiased": "서브 픽셀이 아닌 픽셀 수준에서 글꼴을 다듬습니다. 전반적으로 글꼴이 더 밝게 표시됩니다.",
 	"workbench.fontAliasing.none": "글꼴 다듬기를 사용하지 않습니다. 텍스트 가장자리가 각지게 표시됩니다.",
+	"workbench.fontAliasing.auto": "디스플레이의 DPI에 따라 `기본` 또는 `안티앨리어싱`을 자동으로 적용합니다.",
 	"enableNaturalLanguageSettingsSearch": "설정에 대한 자연어 검색 모드를 사용할지 여부를 제어합니다.",
 	"windowConfigurationTitle": "창",
 	"window.openFilesInNewWindow.on": "파일이 새 창에서 열립니다.",
@@ -76,6 +78,5 @@
 	"zenMode.hideTabs": "Zen 모드를 켜면 워크벤치 탭도 숨길지를 제어합니다.",
 	"zenMode.hideStatusBar": "Zen 모드를 켜면 워크벤치 하단에서 상태 표시줄도 숨길지를 제어합니다.",
 	"zenMode.hideActivityBar": "Zen 모드를 켜면 워크벤치의 왼쪽에 있는 작업 막대도 숨길지\n 여부를 제어합니다.",
-	"zenMode.restore": "창이 Zen 모드에서 종료된 경우 Zen 모드로 복원할지 제어합니다.",
-	"JsonSchema.locale": "사용할 UI 언어입니다."
+	"zenMode.restore": "창이 Zen 모드에서 종료된 경우 Zen 모드로 복원할지 제어합니다."
 }

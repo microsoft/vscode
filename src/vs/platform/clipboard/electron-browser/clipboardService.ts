@@ -9,6 +9,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { clipboard } from 'electron';
 import URI from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
+import { Schemas } from 'vs/base/common/network';
 
 export class ClipboardService implements IClipboardService {
 
@@ -40,7 +41,7 @@ export class ClipboardService implements IClipboardService {
 	}
 
 	public writeFiles(resources: URI[]): void {
-		const files = resources.filter(f => f.scheme === 'file');
+		const files = resources.filter(f => f.scheme === Schemas.file);
 
 		if (files.length) {
 			clipboard.writeBuffer(ClipboardService.FILE_FORMAT, this.filesToBuffer(files));
@@ -56,7 +57,7 @@ export class ClipboardService implements IClipboardService {
 	}
 
 	private filesToBuffer(resources: URI[]): Buffer {
-		return new Buffer(resources.map(r => r.fsPath).join('\n'));
+		return Buffer.from(resources.map(r => r.fsPath).join('\n'));
 	}
 
 	private bufferToFiles(buffer: Buffer): URI[] {

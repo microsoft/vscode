@@ -8,13 +8,13 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Color, ColorInformation, ColorPresentation, Range, CompletionItem, CompletionItemKind, SnippetString } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, FoldingRangeList, FoldingRange, workspace } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, Disposable } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-import { DocumentColorRequest, DocumentColorParams, ColorPresentationRequest, ColorPresentationParams } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
+import { FoldingRangesRequest } from './protocol/foldingProvider.proposed';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
@@ -26,14 +26,16 @@ interface IPackageInfo {
 	aiKey: string;
 }
 
+let telemetryReporter: TelemetryReporter | null;
+
+let foldingProviderRegistration: Disposable | undefined = void 0;
+const foldingSetting = 'html.experimental.syntaxFolding';
+
 export function activate(context: ExtensionContext) {
 	let toDispose = context.subscriptions;
 
 	let packageInfo = getPackageInfo(context);
-	let telemetryReporter: TelemetryReporter | null = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
-	if (telemetryReporter) {
-		toDispose.push(telemetryReporter);
-	}
+	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'htmlServerMain.js'));
@@ -54,7 +56,7 @@ export function activate(context: ExtensionContext) {
 	let clientOptions: LanguageClientOptions = {
 		documentSelector,
 		synchronize: {
-			configurationSection: ['html', 'css', 'javascript'], // the settings to synchronize
+			configurationSection: ['html', 'css', 'javascript', 'emmet'], // the settings to synchronize
 		},
 		initializationOptions: {
 			embeddedLanguages
@@ -68,37 +70,6 @@ export function activate(context: ExtensionContext) {
 	let disposable = client.start();
 	toDispose.push(disposable);
 	client.onReady().then(() => {
-		disposable = languages.registerColorProvider(documentSelector, {
-			provideDocumentColors(document: TextDocument): Thenable<ColorInformation[]> {
-				let params: DocumentColorParams = {
-					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document)
-				};
-				return client.sendRequest(DocumentColorRequest.type, params).then(symbols => {
-					return symbols.map(symbol => {
-						let range = client.protocol2CodeConverter.asRange(symbol.range);
-						let color = new Color(symbol.color.red, symbol.color.green, symbol.color.blue, symbol.color.alpha);
-						return new ColorInformation(range, color);
-					});
-				});
-			},
-			provideColorPresentations(color, context): Thenable<ColorPresentation[]> {
-				let params: ColorPresentationParams = {
-					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(context.document),
-					color,
-					range: client.code2ProtocolConverter.asRange(context.range)
-				};
-				return client.sendRequest(ColorPresentationRequest.type, params).then(presentations => {
-					return presentations.map(p => {
-						let presentation = new ColorPresentation(p.label);
-						presentation.textEdit = p.textEdit && client.protocol2CodeConverter.asTextEdit(p.textEdit);
-						presentation.additionalTextEdits = p.additionalTextEdits && client.protocol2CodeConverter.asTextEdits(p.additionalTextEdits);
-						return presentation;
-					});
-				});
-			}
-		});
-		toDispose.push(disposable);
-
 		let tagRequestor = (document: TextDocument, position: Position) => {
 			let param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
 			return client.sendRequest(TagCloseRequest.type, param);
@@ -112,6 +83,14 @@ export function activate(context: ExtensionContext) {
 			}
 		});
 		toDispose.push(disposable);
+
+		initFoldingProvider();
+		toDispose.push(workspace.onDidChangeConfiguration(c => {
+			if (c.affectsConfiguration(foldingSetting)) {
+				initFoldingProvider();
+			}
+		}));
+		toDispose.push({ dispose: () => foldingProviderRegistration && foldingProviderRegistration.dispose() });
 	});
 
 	languages.setLanguageConfiguration('html', {
@@ -187,6 +166,29 @@ export function activate(context: ExtensionContext) {
 			return null;
 		}
 	});
+
+	function initFoldingProvider() {
+		let enable = workspace.getConfiguration().get(foldingSetting);
+		if (enable) {
+			if (!foldingProviderRegistration) {
+				foldingProviderRegistration = languages.registerFoldingProvider(documentSelector, {
+					provideFoldingRanges(document: TextDocument) {
+						return client.sendRequest(FoldingRangesRequest.type, { textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document) }).then(res => {
+							if (res && Array.isArray(res.ranges)) {
+								return new FoldingRangeList(res.ranges.map(r => new FoldingRange(r.startLine, r.endLine, r.type)));
+							}
+							return null;
+						});
+					}
+				});
+			}
+		} else {
+			if (foldingProviderRegistration) {
+				foldingProviderRegistration.dispose();
+				foldingProviderRegistration = void 0;
+			}
+		}
+	}
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo | null {
@@ -199,4 +201,8 @@ function getPackageInfo(context: ExtensionContext): IPackageInfo | null {
 		};
 	}
 	return null;
+}
+
+export function deactivate(): Promise<any> {
+	return telemetryReporter ? telemetryReporter.dispose() : Promise.resolve(null);
 }

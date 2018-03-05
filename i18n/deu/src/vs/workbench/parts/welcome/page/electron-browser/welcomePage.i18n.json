@@ -34,7 +34,6 @@
 	"welcomePage.installedExtensionPack": "Unterstützung für {0} ist bereits installiert.",
 	"ok": "OK",
 	"details": "Details",
-	"cancel": "Abbrechen",
 	"welcomePage.buttonBackground": "Hintergrundfarbe für die Schaltflächen auf der Willkommensseite.",
 	"welcomePage.buttonHoverBackground": "Hoverhintergrundfarbe für die Schaltflächen auf der Willkommensseite."
 }

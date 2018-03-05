@@ -9,6 +9,8 @@
 	"emptyUserSettingsHeader": "Inserire le impostazioni qui per sovrascrivere quelle predefinite.",
 	"emptyWorkspaceSettingsHeader": "Inserire le impostazioni qui per sovrascrivere le impostazioni utente.",
 	"emptyFolderSettingsHeader": "Inserire le impostazioni cartella qui per sovrascrivere quelle dell'area di lavoro.",
+	"reportSettingsSearchIssue": "Segnala problema",
+	"newExtensionLabel": "Mostra l'estensione \"{0}\"",
 	"editTtile": "Modifica",
 	"replaceDefaultValue": "Sostituisci nelle impostazioni",
 	"copyDefaultValue": "Copia nelle impostazioni",

@@ -35,9 +35,12 @@
 	"panelDefaultLocation": "控制面板的預設位置。可顯示在 Workbench 的底部或是右方。",
 	"statusBarVisibility": "控制 Workbench 底端狀態列的可視性。",
 	"activityBarVisibility": "控制活動列在 workbench 中的可見度。",
+	"viewVisibility": "控制檢視標頭動作的可見度。檢視標頭動作可為總是可見，或在檢視為焦點或暫留時才可見。",
+	"fontAliasing": "控制工作台中的字型鋸齒化方法。\n- default: 子像素字型平滑化。在多數非 Retina 的顯示器上，這會使文字變得最鮮明\n- antialiased: 在像素層級上使字型平滑化，與子像素相對。能夠使字型整體顯示較亮\n- none: 停用字型平滑化。顯示的文字會帶有鋸齒狀銳利邊緣\n- auto: 根據顯示器的 DPI 自動套用 `default` 或 `antialiased`。",
 	"workbench.fontAliasing.default": "子像素字型平滑處理。在大部分非 Retina 顯示器上會顯示出最銳利的文字。",
 	"workbench.fontAliasing.antialiased": "相對於子像素，根據像素層級平滑字型。可以讓字型整體顯得較細。",
 	"workbench.fontAliasing.none": "禁用字體平滑.文字將會顯示鋸齒狀與鋒利的邊緣.",
+	"workbench.fontAliasing.auto": "根據顯示器的 DPI 自動套用 `default` 或 `antialiased`。",
 	"enableNaturalLanguageSettingsSearch": "控制是否啟用自然語言搜尋模式。",
 	"windowConfigurationTitle": "視窗",
 	"window.openFilesInNewWindow.on": "檔案會在新視窗中開啟",
@@ -73,9 +76,9 @@
 	"window.nativeTabs": "啟用 macOS Sierra 視窗索引標籤。請注意需要完全重新啟動才能套用變更，並且完成設定後原始索引標籤將會停用自訂標題列樣式。",
 	"zenModeConfigurationTitle": "Zen Mode",
 	"zenMode.fullScreen": "控制開啟 Zen Mode 是否也會將 Workbench 轉換為全螢幕模式。",
+	"zenMode.centerLayout": "控制開啟 Zen Mode 是否也會置中配置。",
 	"zenMode.hideTabs": "控制開啟 Zen Mode 是否也會隱藏 Workbench 索引標籤。",
 	"zenMode.hideStatusBar": "控制開啟 Zen Mode 是否也會隱藏 Workbench 底部的狀態列。",
 	"zenMode.hideActivityBar": "控制開啟 Zen Mode 是否也會隱藏 Workbench 左方的活動列。",
-	"zenMode.restore": "控制視窗如果在 Zen Mode 下結束，是否應還原為 Zen Mode。",
-	"JsonSchema.locale": "要使用的 UI 語言。"
+	"zenMode.restore": "控制視窗如果在 Zen Mode 下結束，是否應還原為 Zen Mode。"
 }

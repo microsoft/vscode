@@ -70,7 +70,7 @@
 	will-change: transform; /* forces tab to be drawn on a separate layer (fixes https://github.com/Microsoft/vscode/issues/18733) */
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dragged-over * {
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dragged-over div {
 	pointer-events: none; /* prevents cursor flickering (fixes https://github.com/Microsoft/vscode/issues/38753) */
 }
 

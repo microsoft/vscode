@@ -450,6 +450,8 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: LinePa
 		const chCode = lineContent.charCodeAt(charIndex);
 		if (chCode === CharCode.Tab) {
 			tmpIndent = tabSize;
+		} else if (strings.isFullWidthCharacter(chCode)) {
+			tmpIndent += 2;
 		} else {
 			tmpIndent++;
 		}
@@ -501,6 +503,8 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: LinePa
 
 		if (chCode === CharCode.Tab) {
 			tmpIndent = tabSize;
+		} else if (strings.isFullWidthCharacter(chCode)) {
+			tmpIndent += 2;
 		} else {
 			tmpIndent++;
 		}
@@ -637,6 +641,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 						_tabsCharDelta += insertSpacesCount - 1;
 						partContentCnt += insertSpacesCount;
 					} else {
+						// must be CharCode.Space
 						partContentCnt++;
 					}
 				}
@@ -735,6 +740,9 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 						break;
 
 					default:
+						if (strings.isFullWidthCharacter(charCode)) {
+							tabsCharDelta++;
+						}
 						if (renderControlCharacters && charCode < 32) {
 							sb.write1(9216 + charCode);
 							partContentCnt++;

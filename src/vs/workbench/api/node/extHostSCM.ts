@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape } from './extHost.protocol';
 import { sortedDiff } from 'vs/base/common/arrays';
@@ -256,7 +256,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				const handle = this._resourceHandlePool++;
 				this._resourceStatesMap.set(handle, r);
 
-				const sourceUri = r.resourceUri.toString();
+				const sourceUri = r.resourceUri;
 				const iconPath = getIconPath(r.decorations);
 				const lightIconPath = r.decorations && getIconPath(r.decorations.light) || iconPath;
 				const darkIconPath = r.decorations && getIconPath(r.decorations.dark) || iconPath;
@@ -282,7 +282,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				const letter = r.decorations && r.decorations.letter || undefined;
 				const color = r.decorations && r.decorations.color || undefined;
 
-				const rawResource = [handle, sourceUri, icons, tooltip, strikeThrough, faded, source, letter, color] as SCMRawResource;
+				const rawResource = [handle, <UriComponents>sourceUri, icons, tooltip, strikeThrough, faded, source, letter, color] as SCMRawResource;
 
 				return { rawResource, handle };
 			});
@@ -406,7 +406,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		private _rootUri?: vscode.Uri
 	) {
 		this._inputBox = new ExtHostSCMInputBox(_extension, this._proxy, this.handle);
-		this._proxy.$registerSourceControl(this.handle, _id, _label, _rootUri && _rootUri.toString());
+		this._proxy.$registerSourceControl(this.handle, _id, _label, _rootUri);
 	}
 
 	private updatedResourceGroups = new Set<ExtHostSourceControlResourceGroup>();
@@ -542,8 +542,9 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return inputBox;
 	}
 
-	$provideOriginalResource(sourceControlHandle: number, uriString: string): TPromise<string> {
-		this.logService.trace('ExtHostSCM#$provideOriginalResource', sourceControlHandle, uriString);
+	$provideOriginalResource(sourceControlHandle: number, uriComponents: UriComponents): TPromise<UriComponents> {
+		const uri = URI.revive(uriComponents);
+		this.logService.trace('ExtHostSCM#$provideOriginalResource', sourceControlHandle, uri.toString());
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
@@ -551,8 +552,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 			return TPromise.as(null);
 		}
 
-		return asWinJsPromise(token => sourceControl.quickDiffProvider.provideOriginalResource(URI.parse(uriString), token))
-			.then(result => result && result.toString());
+		return asWinJsPromise(token => sourceControl.quickDiffProvider.provideOriginalResource(uri, token));
 	}
 
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void> {

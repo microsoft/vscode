@@ -19,18 +19,19 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { maxBufferLen, detectMimeAndEncodingFromBuffer } from 'vs/base/node/mime';
 import { MIME_BINARY } from 'vs/base/common/mime';
 import { localize } from 'vs/nls';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse?: (tuple: [URI, IStat]) => boolean): TPromise<IFileStat> {
 	const [resource, stat] = tuple;
 	const fileStat: IFileStat = {
 		isDirectory: false,
+		isSymbolicLink: stat.type === FileType.Symlink,
 		resource: resource,
 		name: basename(resource.path),
 		mtime: stat.mtime,
@@ -85,7 +86,7 @@ export class RemoteFileService extends FileService {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IMessageService messageService: IMessageService,
+		@IChoiceService choiceService: IChoiceService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 	) {
 		super(
@@ -93,7 +94,7 @@ export class RemoteFileService extends FileService {
 			contextService,
 			environmentService,
 			lifecycleService,
-			messageService,
+			choiceService,
 			_storageService,
 			textResourceConfigurationService,
 		);

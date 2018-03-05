@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
 import * as cp from 'child_process';
 import { SpectronApplication } from '../../spectron/application';
 
@@ -31,23 +30,16 @@ export function setup() {
 			await app.workbench.saveOpenedFile();
 
 			await app.workbench.scm.refreshSCMViewlet();
-			const appJs = await app.workbench.scm.waitForChange(c => c.name === 'app.js');
-			const indexJade = await app.workbench.scm.waitForChange(c => c.name === 'index.jade');
+			await app.workbench.scm.waitForChange('app.js', 'Modified');
+			await app.workbench.scm.waitForChange('index.jade', 'Modified');
 			await app.screenCapturer.capture('changes');
-
-			assert.equal(appJs.name, 'app.js');
-			assert.equal(appJs.type, 'Modified');
-
-			assert.equal(indexJade.name, 'index.jade');
-			assert.equal(indexJade.type, 'Modified');
 		});
 
 		it('opens diff editor', async function () {
 			const app = this.app as SpectronApplication;
 
 			await app.workbench.scm.openSCMViewlet();
-			const appJs = await app.workbench.scm.waitForChange(c => c.name === 'app.js');
-			await app.workbench.scm.openChange(appJs);
+			await app.workbench.scm.openChange('app.js');
 			await app.client.waitForElement(DIFF_EDITOR_LINE_INSERT);
 		});
 
@@ -56,13 +48,13 @@ export function setup() {
 
 			await app.workbench.scm.openSCMViewlet();
 
-			const appJs = await app.workbench.scm.waitForChange(c => c.name === 'app.js' && c.type === 'Modified');
-			await app.workbench.scm.stage(appJs);
+			await app.workbench.scm.waitForChange('app.js', 'Modified');
+			await app.workbench.scm.stage('app.js');
 
-			const indexAppJs = await app.workbench.scm.waitForChange(c => c.name === 'app.js' && c.type === 'Index Modified');
-			await app.workbench.scm.unstage(indexAppJs);
+			await app.workbench.scm.waitForChange('app.js', 'Index Modified');
+			await app.workbench.scm.unstage('app.js');
 
-			await app.workbench.scm.waitForChange(c => c.name === 'app.js' && c.type === 'Modified');
+			await app.workbench.scm.waitForChange('app.js', 'Modified');
 		});
 
 		it(`stages, commits changes and verifies outgoing change`, async function () {
@@ -70,15 +62,15 @@ export function setup() {
 
 			await app.workbench.scm.openSCMViewlet();
 
-			const appJs = await app.workbench.scm.waitForChange(c => c.name === 'app.js' && c.type === 'Modified');
-			await app.workbench.scm.stage(appJs);
-			await app.workbench.scm.waitForChange(c => c.name === 'app.js' && c.type === 'Index Modified');
+			await app.workbench.scm.waitForChange('app.js', 'Modified');
+			await app.workbench.scm.stage('app.js');
+			await app.workbench.scm.waitForChange('app.js', 'Index Modified');
 
 			await app.workbench.scm.commit('first commit');
 			await app.client.waitForText(SYNC_STATUSBAR, ' 0↓ 1↑');
 
 			await app.workbench.quickopen.runCommand('Git: Stage All Changes');
-			await app.workbench.scm.waitForChange(c => c.name === 'index.jade' && c.type === 'Index Modified');
+			await app.workbench.scm.waitForChange('index.jade', 'Index Modified');
 
 			await app.workbench.scm.commit('second commit');
 			await app.client.waitForText(SYNC_STATUSBAR, ' 0↓ 2↑');

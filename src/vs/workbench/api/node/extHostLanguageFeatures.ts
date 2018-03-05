@@ -469,7 +469,7 @@ class NavigateTypeAdapter {
 }
 
 interface RenameProvider2 extends vscode.RenameProvider {
-	resolveInitialRenameValue?(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<any>;
+	resolveInitialRenameValue?(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.RenameInitialValue>;
 }
 
 class RenameAdapter {
@@ -514,7 +514,7 @@ class RenameAdapter {
 		});
 	}
 
-	resolveInitialRenameValue(resource: URI, position: IPosition): TPromise<modes.RenameInitialValue> {
+	resolveInitialRenameValue(resource: URI, position: IPosition): TPromise<modes.RenameInformation> {
 		if (typeof this._provider.resolveInitialRenameValue !== 'function') {
 			return TPromise.as(undefined);
 		}
@@ -522,10 +522,17 @@ class RenameAdapter {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 
-		return asWinJsPromise(token => this._provider.resolveInitialRenameValue(doc, pos, token)).then((value) => {
-			return <modes.RenameInitialValue>{
+		return asWinJsPromise(token => this._provider.resolveInitialRenameValue(doc, pos, token)).then(value => {
+			if (!value) {
+				return undefined;
+			}
+			if (!value.range.contains(pos)) {
+				console.warn('INVALID rename information, must contain the request-position');
+				return undefined;
+			}
+			return <modes.RenameInformation>{
 				range: TypeConverters.fromRange(value.range),
-				text: value.text
+				text: value.text || doc.getText(value.range)
 			};
 		});
 	}
@@ -581,7 +588,7 @@ class SuggestAdapter {
 			}
 
 			// the default text edit range
-			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) || new Range(pos, pos))
+			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos))
 				.with({ end: pos });
 
 			for (let i = 0; i < list.items.length; i++) {
@@ -618,7 +625,7 @@ class SuggestAdapter {
 
 			const doc = this._documents.getDocumentData(resource).document;
 			const pos = TypeConverters.toPosition(position);
-			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) || new Range(pos, pos)).with({ end: pos });
+			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos)).with({ end: pos });
 			const newSuggestion = this._convertCompletionItem(resolvedItem, pos, wordRangeBeforePos, _id, _parentId);
 			if (newSuggestion) {
 				mixin(suggestion, newSuggestion, true);
@@ -804,10 +811,29 @@ class ColorProviderAdapter {
 	}
 }
 
+class FoldingProviderAdapter {
+
+	constructor(
+		private _documents: ExtHostDocuments,
+		private _provider: vscode.FoldingProvider
+	) { }
+
+	provideFoldingRanges(resource: URI): TPromise<modes.IFoldingRangeList> {
+		const doc = this._documents.getDocumentData(resource).document;
+		return asWinJsPromise(token => this._provider.provideFoldingRanges(doc, token)).then(list => {
+			if (!Array.isArray(list.ranges)) {
+				return void 0;
+			}
+			return TypeConverters.FoldingRangeList.from(list);
+		});
+	}
+}
+
 type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
-	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter | ColorProviderAdapter;
+	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter
+	| ColorProviderAdapter | FoldingProviderAdapter;
 
 export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
@@ -1042,7 +1068,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.provideRenameEdits(URI.revive(resource), position, newName));
 	}
 
-	$resolveInitialRenameValue(handle: number, resource: URI, position: IPosition): TPromise<modes.RenameInitialValue> {
+	$resolveInitialRenameValue(handle: number, resource: URI, position: IPosition): TPromise<modes.RenameInformation> {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveInitialRenameValue(resource, position));
 	}
 
@@ -1106,6 +1132,16 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
 		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColorPresentations(URI.revive(resource), colorInfo));
+	}
+
+	registerFoldingProvider(selector: vscode.DocumentSelector, provider: vscode.FoldingProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new FoldingProviderAdapter(this._documents, provider));
+		this._proxy.$registerFoldingProvider(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$provideFoldingRanges(handle: number, resource: UriComponents): TPromise<modes.IFoldingRangeList> {
+		return this._withAdapter(handle, FoldingProviderAdapter, adapter => adapter.provideFoldingRanges(URI.revive(resource)));
 	}
 
 	// --- configuration

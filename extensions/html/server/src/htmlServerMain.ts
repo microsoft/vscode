@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector, TextDocumentPositionParams, ServerCapabilities, Position } from 'vscode-languageserver';
-import { TextDocument, Diagnostic, DocumentLink, SymbolInformation } from 'vscode-languageserver-types';
+import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector, TextDocumentPositionParams, ServerCapabilities, Position, CompletionTriggerKind } from 'vscode-languageserver';
+import { TextDocument, Diagnostic, DocumentLink, SymbolInformation, CompletionList } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
 
 import { ConfigurationRequest, ConfigurationParams } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
@@ -17,6 +17,10 @@ import { pushAll } from './utils/arrays';
 import { getDocumentContext } from './utils/documentContext';
 import uri from 'vscode-uri';
 import { formatError, runSafe } from './utils/errors';
+import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath, getEmmetCompletionParticipants } from 'vscode-emmet-helper';
+import { getPathCompletionParticipant } from './modes/pathCompletion';
+
+import { FoldingRangesRequest, FoldingProviderServerCapabilities } from './protocol/foldingProvider.proposed';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
@@ -29,6 +33,9 @@ console.log = connection.console.log.bind(connection.console);
 console.error = connection.console.error.bind(connection.console);
 
 process.on('unhandledRejection', (e: any) => {
+	connection.console.error(formatError(`Unhandled exception`, e));
+});
+process.on('uncaughtException', (e) => {
 	connection.console.error(formatError(`Unhandled exception`, e));
 });
 
@@ -69,6 +76,10 @@ function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: 
 	return Promise.resolve(void 0);
 }
 
+let emmetSettings = {};
+let currentEmmetExtensionsPath: string;
+const emmetTriggerCharacters = ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilites
 connection.onInitialize((params: InitializeParams): InitializeResult => {
@@ -102,10 +113,10 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
 	scopedSettingsSupport = hasClientCapability('workspace', 'configuration');
 	workspaceFoldersSupport = hasClientCapability('workspace', 'workspaceFolders');
-	let capabilities: ServerCapabilities & CPServerCapabilities = {
+	let capabilities: ServerCapabilities & CPServerCapabilities & FoldingProviderServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
-		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] } : undefined,
+		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: [...emmetTriggerCharacters, '.', ':', '<', '"', '=', '/'] } : undefined,
 		hoverProvider: true,
 		documentHighlightProvider: true,
 		documentRangeFormattingProvider: false,
@@ -114,7 +125,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		definitionProvider: true,
 		signatureHelpProvider: { triggerCharacters: ['('] },
 		referencesProvider: true,
-		colorProvider: true
+		colorProvider: true,
+		foldingProvider: true
 	};
 	return { capabilities };
 });
@@ -167,6 +179,12 @@ connection.onDidChangeConfiguration((change) => {
 		}
 	}
 
+	emmetSettings = globalSettings.emmet;
+	if (currentEmmetExtensionsPath !== emmetSettings['extensionsPath']) {
+		currentEmmetExtensionsPath = emmetSettings['extensionsPath'];
+		const workspaceUri = (workspaceFolders && workspaceFolders.length === 1) ? uri.parse(workspaceFolders[0].uri) : null;
+		updateEmmetExtensionsPath(currentEmmetExtensionsPath, workspaceUri ? workspaceUri.fsPath : null);
+	}
 });
 
 let pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
@@ -226,19 +244,72 @@ async function validateTextDocument(textDocument: TextDocument) {
 	}
 }
 
+let cachedCompletionList: CompletionList;
+const hexColorRegex = /^#[\d,a-f,A-F]{1,6}$/;
 connection.onCompletion(async textDocumentPosition => {
 	return runSafe(async () => {
 		let document = documents.get(textDocumentPosition.textDocument.uri);
 		let mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
-		if (mode && mode.doComplete) {
-			let doComplete = mode.doComplete;
-			if (mode.getId() !== 'html') {
-				connection.telemetry.logEvent({ key: 'html.embbedded.complete', value: { languageId: mode.getId() } });
-			}
-			let settings = await getDocumentSettings(document, () => doComplete.length > 2);
-			return doComplete(document, textDocumentPosition.position, settings);
+		if (!mode || !mode.doComplete) {
+			return { isIncomplete: true, items: [] };
 		}
-		return { isIncomplete: true, items: [] };
+
+		if (cachedCompletionList
+			&& !cachedCompletionList.isIncomplete
+			&& (mode.getId() === 'html' || mode.getId() === 'css')
+			&& textDocumentPosition.context
+			&& textDocumentPosition.context.triggerKind === CompletionTriggerKind.TriggerForIncompleteCompletions
+		) {
+			let result: CompletionList = emmetDoComplete(document, textDocumentPosition.position, mode.getId(), emmetSettings);
+			if (result && result.items) {
+				result.items.push(...cachedCompletionList.items);
+			} else {
+				result = cachedCompletionList;
+				cachedCompletionList = null;
+			}
+			return result;
+		}
+
+		if (mode.getId() !== 'html') {
+			/* __GDPR__
+				"html.embbedded.complete" : {
+					"languageId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			 */
+			connection.telemetry.logEvent({ key: 'html.embbedded.complete', value: { languageId: mode.getId() } });
+		}
+
+		cachedCompletionList = null;
+		let emmetCompletionList: CompletionList = {
+			isIncomplete: false,
+			items: []
+		};
+		let pathCompletionList: CompletionList = {
+			isIncomplete: false,
+			items: []
+		};
+
+		const emmetCompletionParticipant = getEmmetCompletionParticipants(document, textDocumentPosition.position, mode.getId(), emmetSettings, emmetCompletionList);
+		const completionParticipants = [emmetCompletionParticipant];
+		// Ideally, fix this in the Language Service side
+		// Check participants' methods before calling them
+		if (mode.getId() === 'html') {
+			const pathCompletionParticipant = getPathCompletionParticipant(document, workspaceFolders, pathCompletionList);
+			completionParticipants.push(pathCompletionParticipant);
+		}
+
+		let settings = await getDocumentSettings(document, () => mode.doComplete.length > 2);
+		let result = mode.doComplete(document, textDocumentPosition.position, settings, completionParticipants);
+		result.items = [...pathCompletionList.items, ...result.items];
+		if (emmetCompletionList && emmetCompletionList.items) {
+			cachedCompletionList = result;
+			if (emmetCompletionList.items.length && hexColorRegex.test(emmetCompletionList.items[0].label) && result.items.some(x => x.label === emmetCompletionList.items[0].label)) {
+				emmetCompletionList.items.shift();
+			}
+			return { isIncomplete: emmetCompletionList.isIncomplete || result.isIncomplete, items: [...emmetCompletionList.items, ...result.items] };
+		}
+		return result;
+
 	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`);
 });
 
@@ -341,8 +412,6 @@ connection.onDocumentLinks(documentLinkParam => {
 	}, [], `Error while document links for ${documentLinkParam.textDocument.uri}`);
 });
 
-
-
 connection.onDocumentSymbol(documentSymbolParms => {
 	return runSafe(() => {
 		let document = documents.get(documentSymbolParms.textDocument.uri);
@@ -398,6 +467,20 @@ connection.onRequest(TagCloseRequest.type, params => {
 		}
 		return null;
 	}, null, `Error while computing tag close actions for ${params.textDocument.uri}`);
+});
+
+connection.onRequest(FoldingRangesRequest.type, params => {
+	return runSafe(() => {
+		let document = documents.get(params.textDocument.uri);
+		if (document) {
+			let mode = languageModes.getMode('html');
+			if (mode && mode.getFoldingRanges) {
+				return mode.getFoldingRanges(document);
+			}
+			return null;
+		}
+		return null;
+	}, null, `Error while computing folding regions for ${params.textDocument.uri}`);
 });
 
 

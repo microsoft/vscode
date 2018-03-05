@@ -54,5 +54,9 @@
 	"emmetPreferencesFilterCommentTrigger": "必須採用縮寫以套用註解篩選的屬性名稱逗點分隔清單",
 	"emmetPreferencesFormatNoIndentTags": "陣列的標籤名稱不應向內縮排",
 	"emmetPreferencesFormatForceIndentTags": "陣列的標籤名稱應總是向內縮排",
-	"emmetPreferencesAllowCompactBoolean": "若為 true，則生成布林屬性的嚴謹表示法"
+	"emmetPreferencesAllowCompactBoolean": "若為 true，則生成布林屬性的嚴謹表示法",
+	"emmetPreferencesCssWebkitProperties": "在以 `-` 開頭的 Emmet 縮寫中使用時，會取得 'webkit' 廠商前綴的逗點分隔 CSS 屬性。設定為空白字串可避免總是取得 'webkit' 前綴。",
+	"emmetPreferencesCssMozProperties": "在以 `-` 開頭的 Emmet 縮寫中使用時，會取得 'moz' 廠商前綴的逗點分隔 CSS 屬性。設定為空白字串可避免總是取得 'moz' 前綴。",
+	"emmetPreferencesCssOProperties": "在以 `-` 開頭的 Emmet 縮寫中使用時，會取得 'o' 廠商前綴的逗點分隔 CSS 屬性。設定為空白字串可避免總是取得 'o' 前綴。",
+	"emmetPreferencesCssMsProperties": "在以 `-` 開頭的 Emmet 縮寫中使用時，會取得 'ms' 廠商前綴的逗點分隔 CSS 屬性。設定為空白字串可避免總是取得 'ms' 前綴。"
 }

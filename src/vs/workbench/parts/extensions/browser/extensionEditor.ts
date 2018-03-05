@@ -16,16 +16,15 @@ import Event, { Emitter, once, chain } from 'vs/base/common/event';
 import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import Severity from 'vs/base/common/severity';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
 import { domEvent } from 'vs/base/browser/event';
-import { append, $, addClass, removeClass, finalHandler, join } from 'vs/base/browser/dom';
+import { append, $, addClass, removeClass, finalHandler, join, toggleClass } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionManifest, IKeyBinding, IView, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManifest, IKeyBinding, IView, IExtensionTipsService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
@@ -33,12 +32,11 @@ import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/
 import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction, ReloadAction, MaliciousStatusLabelAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
-import WebView from 'vs/workbench/parts/html/browser/webview';
+import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { Webview } from 'vs/workbench/parts/html/browser/webview';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Position } from 'vs/platform/editor/common/editor';
@@ -46,7 +44,7 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -54,15 +52,12 @@ import { Color } from 'vs/base/common/color';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { assign } from 'vs/base/common/objects';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
-/**  A context key that is set when an extension editor webview not have focus. */
-export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS.toNegated();
 /**  A context key that is set when the find widget find input in extension editor webview is focused. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('extensionEditorFindWidgetInputFocused', false);
-/**  A context key that is set when the find widget find input in extension editor webview is not focused. */
-export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
 function renderBody(body: string): string {
 	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
@@ -153,12 +148,13 @@ interface ILayoutParticipant {
 
 export class ExtensionEditor extends BaseEditor {
 
-	static ID: string = 'workbench.editor.extension';
+	static readonly ID: string = 'workbench.editor.extension';
 
 	private icon: HTMLImageElement;
 	private name: HTMLElement;
 	private identifier: HTMLElement;
 	private preview: HTMLElement;
+	private builtin: HTMLElement;
 	private license: HTMLElement;
 	private publisher: HTMLElement;
 	private installCount: HTMLElement;
@@ -182,22 +178,22 @@ export class ExtensionEditor extends BaseEditor {
 	private contentDisposables: IDisposable[] = [];
 	private transientDisposables: IDisposable[] = [];
 	private disposables: IDisposable[];
-	private activeWebview: WebView;
+	private activeWebview: Webview;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IViewletService private viewletService: IViewletService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IThemeService protected themeService: IThemeService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IMessageService private messageService: IMessageService,
-		@IOpenerService private openerService: IOpenerService,
-		@IPartService private partService: IPartService,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IPartService private readonly partService: IPartService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService);
@@ -222,7 +218,12 @@ export class ExtensionEditor extends BaseEditor {
 		const title = append(details, $('.title'));
 		this.name = append(title, $('span.name.clickable', { title: localize('name', "Extension name") }));
 		this.identifier = append(title, $('span.identifier', { title: localize('extension id', "Extension identifier") }));
+
 		this.preview = append(title, $('span.preview', { title: localize('preview', "Preview") }));
+		this.preview.textContent = localize('preview', "Preview");
+
+		this.builtin = append(title, $('span.builtin'));
+		this.builtin.textContent = localize('builtin', "Built-in");
 
 		const subtitle = append(details, $('.subtitle'));
 		this.publisher = append(subtitle, $('span.publisher.clickable', { title: localize('publisher', "Publisher name") }));
@@ -285,11 +286,8 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.name.textContent = extension.displayName;
 		this.identifier.textContent = extension.id;
-		if (extension.preview) {
-			this.preview.textContent = localize('preview', "Preview");
-		} else {
-			this.preview.textContent = null;
-		}
+		this.preview.style.display = extension.preview ? 'inherit' : 'none';
+		this.builtin.style.display = extension.type === LocalExtensionType.System ? 'inherit' : 'none';
 
 		this.publisher.textContent = extension.publisherDisplayName;
 		this.description.textContent = extension.description;
@@ -315,6 +313,9 @@ export class ExtensionEditor extends BaseEditor {
 		*/
 		this.telemetryService.publicLog('extensionGallery:openExtension', assign(extension.telemetryData, recommendationsData));
 
+		toggleClass(this.name, 'clickable', !!extension.url);
+		toggleClass(this.publisher, 'clickable', !!extension.url);
+		toggleClass(this.rating, 'clickable', !!extension.url);
 		if (extension.url) {
 			this.name.onclick = finalHandler(() => window.open(extension.url));
 			this.rating.onclick = finalHandler(() => window.open(`${extension.url}#review-details`));
@@ -331,6 +332,10 @@ export class ExtensionEditor extends BaseEditor {
 				this.license.onclick = null;
 				this.license.style.display = 'none';
 			}
+		} else {
+			this.name.onclick = null;
+			this.rating.onclick = null;
+			this.publisher.onclick = null;
 		}
 
 		if (extension.repository) {
@@ -348,7 +353,6 @@ export class ExtensionEditor extends BaseEditor {
 		const ratings = this.instantiationService.createInstance(RatingsWidget, this.rating, { extension });
 		this.transientDisposables.push(ratings);
 
-		const builtinStatusAction = this.instantiationService.createInstance(BuiltinStatusLabelAction);
 		const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, true);
 		const installAction = this.instantiationService.createInstance(CombinedInstallAction);
 		const updateAction = this.instantiationService.createInstance(UpdateAction);
@@ -357,7 +361,6 @@ export class ExtensionEditor extends BaseEditor {
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 
 		installAction.extension = extension;
-		builtinStatusAction.extension = extension;
 		maliciousStatusAction.extension = extension;
 		updateAction.extension = extension;
 		enableAction.extension = extension;
@@ -365,8 +368,10 @@ export class ExtensionEditor extends BaseEditor {
 		reloadAction.extension = extension;
 
 		this.extensionActionBar.clear();
-		this.extensionActionBar.push([reloadAction, updateAction, enableAction, disableAction, installAction, builtinStatusAction, maliciousStatusAction], { icon: true, label: true });
-		this.transientDisposables.push(enableAction, updateAction, reloadAction, disableAction, installAction, builtinStatusAction, maliciousStatusAction);
+		this.extensionActionBar.push([reloadAction, updateAction, enableAction, disableAction, installAction, maliciousStatusAction], { icon: true, label: true });
+		this.transientDisposables.push(enableAction, updateAction, reloadAction, disableAction, installAction, maliciousStatusAction);
+
+		this.content.innerHTML = ''; // Clear content before setting navbar actions.
 
 		this.navbar.clear();
 		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
@@ -374,8 +379,6 @@ export class ExtensionEditor extends BaseEditor {
 		this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"));
 		this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"));
 		this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"));
-
-		this.content.innerHTML = '';
 
 		return super.setInput(input, options);
 	}
@@ -423,12 +426,10 @@ export class ExtensionEditor extends BaseEditor {
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
 				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : {};
-				this.activeWebview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.environmentService, this.contextViewService, this.contextKey, this.findInputFocusContextKey, webViewOptions, false);
+				this.activeWebview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.themeService, this.environmentService, this.contextViewService, this.contextKey, this.findInputFocusContextKey, webViewOptions);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
-
-				this.activeWebview.style(this.themeService.getTheme());
-				this.activeWebview.contents = [body];
+				this.activeWebview.contents = body;
 
 				this.activeWebview.onDidClickLink(link => {
 					// Whitelist supported schemes for links
@@ -436,7 +437,6 @@ export class ExtensionEditor extends BaseEditor {
 						this.openerService.open(link);
 					}
 				}, null, this.contentDisposables);
-				this.themeService.onThemeChange(theme => this.activeWebview.style(theme), null, this.contentDisposables);
 				this.contentDisposables.push(this.activeWebview);
 			})
 			.then(null, () => {
@@ -517,7 +517,7 @@ export class ExtensionEditor extends BaseEditor {
 				scrollableContent.scanDomNode();
 			}, error => {
 				append(this.content, $('p.nocontent')).textContent = error;
-				this.messageService.show(Severity.Error, error);
+				this.notificationService.error(error);
 			});
 		});
 	}
@@ -737,8 +737,15 @@ export class ExtensionEditor extends BaseEditor {
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('JSON Validation', "JSON Validation ({0})", contrib.length)),
-			$('ul', null, ...contrib.map(v => $('li', null, v.fileMatch)))
-		);
+			$('table', null,
+				$('tr', null,
+					$('th', null, localize('fileMatch', "File Match")),
+					$('th', null, localize('schema', "Schema"))
+				),
+				...contrib.map(v => $('tr', null,
+					$('td', null, $('code', null, v.fileMatch)),
+					$('td', null, v.url)
+				))));
 
 		append(container, details);
 		return true;
@@ -928,7 +935,7 @@ export class ExtensionEditor extends BaseEditor {
 			return;
 		}
 
-		this.messageService.show(Severity.Error, err);
+		this.notificationService.error(err);
 	}
 
 	dispose(): void {

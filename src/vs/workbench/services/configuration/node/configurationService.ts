@@ -15,7 +15,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Queue } from 'vs/base/common/async';
 import { stat, writeFile } from 'vs/base/node/pfs';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, toWorkspaceFolders, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, toWorkspaceFolders, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { FileChangesEvent } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -28,7 +28,7 @@ import { IConfigurationNode, IConfigurationRegistry, Extensions, settingsSchema,
 import { createHash } from 'crypto';
 import { getWorkspaceLabel, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import product from 'vs/platform/node/product';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -360,9 +360,9 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 
 	private updateWorkspaceAndInitializeConfiguration(workspace: Workspace): TPromise<void> {
 		const hasWorkspaceBefore = !!this.workspace;
-		let previousState;
-		let previousWorkspacePath;
-		let previousFolders;
+		let previousState: WorkbenchState;
+		let previousWorkspacePath: string;
+		let previousFolders: WorkspaceFolder[];
 
 		if (hasWorkspaceBefore) {
 			previousState = this.getWorkbenchState();
@@ -395,7 +395,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	}
 
 	private compareFolders(currentFolders: IWorkspaceFolder[], newFolders: IWorkspaceFolder[]): IWorkspaceFoldersChangeEvent {
-		const result = { added: [], removed: [], changed: [] };
+		const result = { added: [], removed: [], changed: [] } as IWorkspaceFoldersChangeEvent;
 		result.added = newFolders.filter(newFolder => !currentFolders.some(currentFolder => newFolder.uri.toString() === currentFolder.uri.toString()));
 		for (let currentIndex = 0; currentIndex < currentFolders.length; currentIndex++) {
 			let currentFolder = currentFolders[currentIndex];

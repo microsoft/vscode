@@ -48,7 +48,7 @@ export class DefineKeybindingController extends Disposable implements editorComm
 
 	constructor(
 		private _editor: ICodeEditor,
-		@IInstantiationService private _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -125,7 +125,7 @@ export class KeybindingWidgetRenderer extends Disposable {
 
 	constructor(
 		private _editor: ICodeEditor,
-		@IInstantiationService private _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this._launchWidget = this._register(this._instantiationService.createInstance(FloatingClickWidget, this._editor, NLS_LAUNCH_MESSAGE, DefineKeybindingCommand.ID));
@@ -171,7 +171,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 
 	constructor(
 		private _editor: ICodeEditor,
-		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 

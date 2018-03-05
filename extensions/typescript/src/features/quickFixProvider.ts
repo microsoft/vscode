@@ -75,6 +75,32 @@ class ApplyFixAllCodeAction implements Command {
 	}
 }
 
+/**
+ * Unique set of diagnostics keyed on diagnostic range and error code.
+ */
+class DiagnosticsSet {
+	public static from(diagnostics: vscode.Diagnostic[]) {
+		const values = new Map<string, vscode.Diagnostic>();
+		for (const diagnostic of diagnostics) {
+			values.set(DiagnosticsSet.key(diagnostic), diagnostic);
+		}
+		return new DiagnosticsSet(values);
+	}
+
+	private static key(diagnostic: vscode.Diagnostic) {
+		const { start, end } = diagnostic.range;
+		return `${diagnostic.code}-${start.line},${start.character}-${end.line},${end.character}`;
+	}
+
+	private constructor(
+		private readonly _values: Map<string, vscode.Diagnostic>
+	) { }
+
+	public get values(): Iterable<vscode.Diagnostic> {
+		return this._values.values();
+	}
+}
+
 class SupportedCodeActionProvider {
 	private _supportedCodeActions?: Thenable<Set<number>>;
 
@@ -84,7 +110,8 @@ class SupportedCodeActionProvider {
 
 	public async getFixableDiagnosticsForContext(context: vscode.CodeActionContext): Promise<vscode.Diagnostic[]> {
 		const supportedActions = await this.supportedCodeActions;
-		return context.diagnostics.filter(diagnostic => supportedActions.has(+diagnostic.code));
+		const fixableDiagnostics = DiagnosticsSet.from(context.diagnostics.filter(diagnostic => supportedActions.has(+diagnostic.code)));
+		return Array.from(fixableDiagnostics.values);
 	}
 
 	private get supportedCodeActions(): Thenable<Set<number>> {

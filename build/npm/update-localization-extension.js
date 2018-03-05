@@ -15,7 +15,6 @@ let rimraf = require('rimraf');
 function update(idOrPath) {
 	if (!idOrPath) {
 		throw new Error('Argument must be the location of the localization extension.');
-		return;
 	}
 	let locExtFolder = idOrPath;
 	if (/^\w{2}(-\w+)?$/.test(idOrPath)) {

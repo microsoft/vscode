@@ -30,7 +30,6 @@ import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { IWindowsService, IWindowService, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
-import { MessageService } from 'vs/workbench/services/message/electron-browser/messageService';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/electron-browser/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -54,13 +53,11 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ILifecycleService, LifecyclePhase, ShutdownReason, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IMessageService, IChoiceService, Severity } from 'vs/platform/message/common/message';
-import { ChoiceChannel } from 'vs/platform/message/common/messageIpc';
 import { ISearchService } from 'vs/platform/search/common/search';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CommandService } from 'vs/platform/commands/common/commandService';
+import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -92,6 +89,13 @@ import { stat } from 'fs';
 import { join } from 'path';
 import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/common/localizationsIpc';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { WorkbenchIssueService } from 'vs/workbench/services/issue/electron-browser/workbenchIssueService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
+import { ChoiceChannel } from 'vs/platform/dialogs/common/choiceIpc';
+import { IChoiceService, IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
+import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogs';
 
 /**
  * Services that we require for the Shell
@@ -111,7 +115,6 @@ export interface ICoreServices {
  */
 export class WorkbenchShell {
 	private storageService: IStorageService;
-	private messageService: MessageService;
 	private environmentService: IEnvironmentService;
 	private logService: ILogService;
 	private contextViewService: ContextViewService;
@@ -125,6 +128,7 @@ export class WorkbenchShell {
 	private themeService: WorkbenchThemeService;
 	private lifecycleService: LifecycleService;
 	private mainProcessServices: ServiceCollection;
+	private notificationService: INotificationService;
 
 	private container: HTMLElement;
 	private toUnbind: IDisposable[];
@@ -290,22 +294,26 @@ export class WorkbenchShell {
 		}
 
 		perf.mark('willReadLocalStorage');
-		const readyToSend = this.storageService.getBoolean('localStorageMetricsReadyToSend');
+		const readyToSend = this.storageService.getBoolean('localStorageMetricsReadyToSend2');
 		perf.mark('didReadLocalStorage');
 
 		if (!readyToSend) {
-			this.storageService.store('localStorageMetricsReadyToSend', true);
+			this.storageService.store('localStorageMetricsReadyToSend2', true);
 			return; // avoid logging localStorage metrics directly after the update, we prefer cold startup numbers
 		}
 
-		if (!this.storageService.getBoolean('localStorageMetricsSent')) {
+		if (!this.storageService.getBoolean('localStorageMetricsSent2')) {
 			perf.mark('willWriteLocalStorage');
-			this.storageService.store('localStorageMetricsSent', true);
+			this.storageService.store('localStorageMetricsSent2', true);
 			perf.mark('didWriteLocalStorage');
 
+			perf.mark('willStatLocalStorage');
 			stat(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage'), (error, stat) => {
+				perf.mark('didStatLocalStorage');
+
 				/* __GDPR__
 					"localStorageTimers" : {
+						"statTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"accessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"firstReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"subsequentReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -314,7 +322,8 @@ export class WorkbenchShell {
 						"size": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
-				this.telemetryService.publicLog('localStorageTimers', {
+				this.telemetryService.publicLog('localStorageTimers2', {
+					'statTime': perf.getDuration('willStatLocalStorage', 'didStatLocalStorage'),
 					'accessTime': perf.getDuration('willAccessLocalStorage', 'didAccessLocalStorage'),
 					'firstReadTime': perf.getDuration('willReadWorkspaceIdentifier', 'didReadWorkspaceIdentifier'),
 					'subsequentReadTime': perf.getDuration('willReadLocalStorage', 'didReadLocalStorage'),
@@ -341,6 +350,9 @@ export class WorkbenchShell {
 		});
 
 		const instantiationService: IInstantiationService = new InstantiationService(serviceCollection, true);
+
+		this.notificationService = new NotificationService();
+		serviceCollection.set(INotificationService, this.notificationService);
 
 		this.broadcastService = instantiationService.createInstance(BroadcastService, this.configuration.windowId);
 		serviceCollection.set(IBroadcastService, this.broadcastService);
@@ -395,9 +407,9 @@ export class WorkbenchShell {
 		}
 		serviceCollection.set(ICrashReporterService, crashReporterService);
 
-		this.messageService = instantiationService.createInstance(MessageService, container);
-		serviceCollection.set(IMessageService, this.messageService);
-		serviceCollection.set(IChoiceService, this.messageService);
+		const dialog = instantiationService.createInstance(DialogService);
+		serviceCollection.set(IChoiceService, dialog);
+		serviceCollection.set(IConfirmationService, dialog);
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
 		this.toUnbind.push(lifecycleService.onShutdown(reason => this.dispose(reason)));
@@ -444,6 +456,8 @@ export class WorkbenchShell {
 		serviceCollection.set(ITextMateService, new SyncDescriptor(TextMateService));
 
 		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
+
+		serviceCollection.set(IWorkbenchIssueService, new SyncDescriptor(WorkbenchIssueService));
 
 		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorServiceImpl));
 
@@ -502,8 +516,8 @@ export class WorkbenchShell {
 		this.logService.error(errorMsg);
 
 		// Show to user if friendly message provided
-		if (error && error.friendlyMessage && this.messageService) {
-			this.messageService.show(Severity.Error, error.friendlyMessage);
+		if (error && error.friendlyMessage && this.notificationService) {
+			this.notificationService.error(error.friendlyMessage);
 		}
 	}
 

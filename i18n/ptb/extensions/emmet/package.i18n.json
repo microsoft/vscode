@@ -54,5 +54,9 @@
 	"emmetPreferencesFilterCommentTrigger": "Uma lista separada por vírgulas de nomes de atributo que deve existir em abreviações para o filtro de comentário a ser aplicado",
 	"emmetPreferencesFormatNoIndentTags": "Uma matriz de nomes de abas que não devem ter recuo interno",
 	"emmetPreferencesFormatForceIndentTags": "Uma matriz de nomes de abas que deve sempre devem ter recuo interno",
-	"emmetPreferencesAllowCompactBoolean": "Se verdadeiro, a notação compacta de atributos booleanos são produzidos"
+	"emmetPreferencesAllowCompactBoolean": "Se verdadeiro, a notação compacta de atributos booleanos são produzidos",
+	"emmetPreferencesCssWebkitProperties": "Propriedades CSS separadas por vírgula que recebem o prefixo vendor 'webkit' quando utilizado em abreviações do Emmet que iniciam com `-`. Defina como string vazia para sempre evitar o prefixo 'webkit'.",
+	"emmetPreferencesCssMozProperties": "Propriedades CSS separadas por vírgula que recebem o prefixo vendor 'moz' quando utilizado em abreviações do Emmet que iniciam com `-`. Defina como string vazia para sempre evitar o prefixo 'moz'.",
+	"emmetPreferencesCssOProperties": "Propriedades CSS separadas por vírgula que recebem o prefixo vendor 'o' quando utilizado em abreviações do Emmet que iniciam com `-`. Defina como string vazia para sempre evitar o prefixo 'o'.",
+	"emmetPreferencesCssMsProperties": "Propriedades CSS separadas por vírgula que recebem o prefixo vendor 'ms' quando utilizado em abreviações do Emmet que iniciam com `-`. Defina como string vazia para sempre evitar o prefixo 'ms'."
 }

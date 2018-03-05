@@ -974,8 +974,8 @@ export class Builder implements IDisposable {
 	 *  Shows the current element of the builder.
 	 */
 	public show(): Builder {
-		if (this.hasClass('builder-hidden')) {
-			this.removeClass('builder-hidden');
+		if (this.hasClass('monaco-builder-hidden')) {
+			this.removeClass('monaco-builder-hidden');
 		}
 
 		this.attr('aria-hidden', 'false');
@@ -1013,8 +1013,8 @@ export class Builder implements IDisposable {
 	 *  Hides the current element of the builder.
 	 */
 	public hide(): Builder {
-		if (!this.hasClass('builder-hidden')) {
-			this.addClass('builder-hidden');
+		if (!this.hasClass('monaco-builder-hidden')) {
+			this.addClass('monaco-builder-hidden');
 		}
 		this.attr('aria-hidden', 'true');
 
@@ -1028,7 +1028,7 @@ export class Builder implements IDisposable {
 	 *  Returns true if the current element of the builder is hidden.
 	 */
 	public isHidden(): boolean {
-		return this.hasClass('builder-hidden') || this.currentElement.style.display === 'none';
+		return this.hasClass('monaco-builder-hidden') || this.currentElement.style.display === 'none';
 	}
 
 	private cancelVisibilityPromise(): void {

@@ -627,14 +627,14 @@ suite('Builder', () => {
 		b.div();
 
 		b.show();
-		assert(!b.hasClass('builder-hidden'));
+		assert(!b.hasClass('monaco-builder-hidden'));
 		assert(!b.isHidden());
 		b.hide();
 		assert(b.isHidden());
-		assert(!b.hasClass('builder-visible'));
+		assert(!b.hasClass('monaco-builder-visible'));
 		b.show();
 		b.hide();
-		assert(b.hasClass('builder-hidden'));
+		assert(b.hasClass('monaco-builder-hidden'));
 		assert(b.isHidden());
 	});
 
@@ -643,10 +643,10 @@ suite('Builder', () => {
 		b.div().hide();
 
 		b.showDelayed(20);
-		assert(b.hasClass('builder-hidden'));
+		assert(b.hasClass('monaco-builder-hidden'));
 
 		TPromise.timeout(30).then(() => {
-			assert(!b.hasClass('builder-hidden'));
+			assert(!b.hasClass('monaco-builder-hidden'));
 			done();
 		});
 	});
@@ -656,12 +656,12 @@ suite('Builder', () => {
 		b.div().hide();
 
 		b.showDelayed(20);
-		assert(b.hasClass('builder-hidden'));
+		assert(b.hasClass('monaco-builder-hidden'));
 
 		b.hide(); // Should cancel the visibility promise
 
 		TPromise.timeout(30).then(() => {
-			assert(b.hasClass('builder-hidden'));
+			assert(b.hasClass('monaco-builder-hidden'));
 			done();
 		});
 	});

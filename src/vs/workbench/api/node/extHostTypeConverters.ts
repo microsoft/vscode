@@ -586,6 +586,14 @@ export namespace ProgressLocation {
 	}
 }
 
+export namespace FoldingRangeList {
+	export function from(rangeList: vscode.FoldingRangeList): modes.IFoldingRangeList {
+		return {
+			ranges: rangeList.ranges.map(r => ({ startLineNumber: r.startLine + 1, endLineNumber: r.endLine + 1, type: r.type }))
+		};
+	}
+}
+
 export function toTextEditorOptions(options?: vscode.TextDocumentShowOptions): ITextEditorOptions {
 	if (options) {
 		return {

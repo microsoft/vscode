@@ -12,6 +12,7 @@
 	"recommendedExtensions": "Recomendado",
 	"otherRecommendedExtensions": "Outras recomendações",
 	"workspaceRecommendedExtensions": "Recomendações do Espaço de Trabalho",
+	"builtInExtensions": "Incorporado",
 	"searchExtensions": "Pesquisar Extensões na Loja",
 	"sort by installs": "Ordenar por: Quantidade de Instalações",
 	"sort by rating": "Ordenar por: Avaliação",
@@ -19,5 +20,6 @@
 	"suggestProxyError": "A Loja retornou 'ECONNREFUSED'. Por favor, verifique a configuração de 'http.proxy'.",
 	"extensions": "Extensões",
 	"outdatedExtensions": "{0} Extensões Desatualizadas",
+	"malicious warning": "Nós desinstalamos '{0}' qual foi reportado ser problemático.",
 	"reloadNow": "Recarregar Agora"
 }

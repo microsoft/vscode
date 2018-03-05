@@ -1,10 +1,13 @@
 {
   "name": "css",
-  "version": "0.1.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
+  "version": "1.0.0",
   "publisher": "vscode",
   "engines": {
     "vscode": "0.10.x"
   },
+  "icon": "icons/css.png",
   "activationEvents": [
     "onLanguage:css",
     "onLanguage:less",
@@ -713,7 +716,7 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^3.5.0",
+    "vscode-languageclient": "4.0.0-next.9",
     "vscode-nls": "^3.2.1"
   },
   "devDependencies": {

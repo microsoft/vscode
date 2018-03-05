@@ -35,9 +35,11 @@
 	"panelDefaultLocation": "Steuert die Standardposition des Panels. Dieses kann entweder unterhalb oder rechts von der Workbench angezeigt werden.",
 	"statusBarVisibility": "Steuert die Sichtbarkeit der Statusleiste im unteren Bereich der Workbench.",
 	"activityBarVisibility": "Steuert die Sichtbarkeit der Aktivitätsleiste in der Workbench.",
+	"fontAliasing": "Steuert die Schriftartaliasingmethode in der Workbench.\n - default: Subpixel-Schriftartglättung. Auf den meisten Nicht-Retina-Displays wird Text bei dieser Einstellung am schärfsten dargestellt. \n- antialiased: Glättet die Schriftart auf der Pixelebene (im Gegensatz zur Subpixelebene). Bei dieser Einstellung kann die Schriftart insgesamt heller wirken.\n- none: Deaktiviert die Schriftartglättung. Text wird mit gezackten scharfen Kanten dargestellt.\n- auto: Wendet ausgehend vom DPI der Anzeige automatisch \"default\" oder \"antialiased\" an.",
 	"workbench.fontAliasing.default": "Subpixel-Schriftartglättung. Auf den meisten Nicht-Retina-Displays wird Text bei dieser Einstellung am schärfsten dargestellt.",
 	"workbench.fontAliasing.antialiased": "Glättet die Schriftart auf der Pixelebene (im Gegensatz zur Subpixelebene). Bei dieser Einstellung kann die Schriftart insgesamt heller wirken.",
 	"workbench.fontAliasing.none": "Deaktiviert die Schriftartglättung. Text wird mit gezackten scharfen Kanten dargestellt.",
+	"workbench.fontAliasing.auto": "Wendet ausgehend vom DPI der Anzeige automatisch \"default\" oder \"antialiased\" an.",
 	"enableNaturalLanguageSettingsSearch": "Steuert, ob der Suchmodus mit natürlicher Sprache für die Einstellungen aktiviert werden soll.",
 	"windowConfigurationTitle": "Fenster",
 	"window.openFilesInNewWindow.on": "Dateien werden in einem neuen Fenster geöffnet.",
@@ -76,6 +78,5 @@
 	"zenMode.hideTabs": "Steuert, ob die Workbench-Registerkarten durch Aktivieren des Zen-Modus ebenfalls ausgeblendet werden.",
 	"zenMode.hideStatusBar": "Steuert, ob die Statusleiste im unteren Bereich der Workbench durch Aktivieren des Zen-Modus ebenfalls ausgeblendet wird.",
 	"zenMode.hideActivityBar": "Steuert, ob die Aktivitätsleiste im linken Bereich der Workbench durch Aktivieren des Zen-Modus ebenfalls ausgeblendet wird.",
-	"zenMode.restore": "Steuert, ob ein Fenster im Zen-Modus wiederhergestellt werden soll, wenn es im Zen-Modus beendet wurde.",
-	"JsonSchema.locale": "Die zu verwendende Sprache der Benutzeroberfläche."
+	"zenMode.restore": "Steuert, ob ein Fenster im Zen-Modus wiederhergestellt werden soll, wenn es im Zen-Modus beendet wurde."
 }

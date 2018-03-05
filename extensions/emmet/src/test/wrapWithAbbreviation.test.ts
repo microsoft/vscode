@@ -197,6 +197,31 @@ suite('Tests for Wrap with Abbreviations', () => {
 		});
 	});
 
+	test('Wrap with multiline abbreviation doesnt add extra spaces', () => {
+		// Issue #29898
+		const contents = `
+	hello
+	`;
+		const expectedContents = `
+	<ul>
+		<li><a href="">hello</a></li>
+	</ul>
+	`;
+
+		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+			editor.selections = [new Selection(1, 2, 1, 2)];
+			const promise = wrapWithAbbreviation({ abbreviation: 'ul>li>a' });
+			if (!promise) {
+				assert.equal(1, 2, 'Wrap returned undefined instead of promise.');
+				return Promise.resolve();
+			}
+			return promise.then(() => {
+				assert.equal(editor.document.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
 	test('Wrap individual lines with abbreviation', () => {
 		const contents = `
 	<ul class="nav main">

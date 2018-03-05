@@ -9,9 +9,9 @@
     "@emmetio/stream-reader" "^2.2.0"
     "@emmetio/stream-reader-utils" "^0.1.0"
 
-"@emmetio/extract-abbreviation@^0.1.4":
-  version "0.1.4"
-  resolved "https://registry.yarnpkg.com/@emmetio/extract-abbreviation/-/extract-abbreviation-0.1.4.tgz#f5be070db97901ecc37e5204f2ace68242cdcefa"
+"@emmetio/extract-abbreviation@0.1.6":
+  version "0.1.6"
+  resolved "https://registry.yarnpkg.com/@emmetio/extract-abbreviation/-/extract-abbreviation-0.1.6.tgz#e4a9856c1057f0aff7d443b8536477c243abe28c"
 
 "@emmetio/html-matcher@^0.3.3":
   version "0.3.3"
@@ -2052,21 +2052,21 @@ vinyl@~2.0.1:
     remove-trailing-separator "^1.0.1"
     replace-ext "^1.0.0"
 
-vscode-emmet-helper@^1.1.24:
-  version "1.1.24"
-  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-1.1.24.tgz#032d3aa3a3e30ed87b7056a902300f1e0eb4016d"
+vscode-emmet-helper@^1.2.0:
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-1.2.0.tgz#6b9311be065c9c99d5de2dae18ea0730d9cfb734"
   dependencies:
-    "@emmetio/extract-abbreviation" "^0.1.4"
+    "@emmetio/extract-abbreviation" "0.1.6"
     jsonc-parser "^1.0.0"
-    vscode-languageserver-types "^3.0.3"
-
-vscode-languageserver-types@^3.0.3:
-  version "3.3.0"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.3.0.tgz#8964dc7c2247536fbefd2d6836bf3febac80dd00"
+    vscode-languageserver-types "^3.6.0-next.1"
 
 vscode-languageserver-types@^3.5.0:
   version "3.5.0"
   resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.5.0.tgz#e48d79962f0b8e02de955e3f524908e2b19c0374"
+
+vscode-languageserver-types@^3.6.0-next.1:
+  version "3.6.0-next.1"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.6.0-next.1.tgz#98e488d3f87b666b4ee1a3d89f0023e246d358f3"
 
 vscode-nls@3.2.1:
   version "3.2.1"

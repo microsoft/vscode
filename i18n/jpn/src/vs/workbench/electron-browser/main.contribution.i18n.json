@@ -35,6 +35,7 @@
 	"panelDefaultLocation": "パネルの既定の位置を制御します。ワークベンチの下部または右のいずれかに表示できます。",
 	"statusBarVisibility": "ワークベンチの下部にステータス バーを表示するかどうかを制御します。",
 	"activityBarVisibility": "ワークベンチでのアクティビティ バーの表示をコントロールします。",
+	"viewVisibility": "ビュー ヘッダー アクションを表示するかどうかを制御します。ビュー ヘッダー アクションは常に表示されるか、パネルをフォーカスやホバーしたときのみ表示のいずれかです。",
 	"fontAliasing": "ワークベンチのフォント エイリアシング方法を制御します。\n- default: サブピクセル方式でフォントを滑らかにします。ほとんどの非 Retina ディスプレイでもっとも鮮明なテキストを提供します\n- antialiased: サブピクセルとは対照的に、ピクセルのレベルでフォントを滑らかにします。フォント全体がより細く見えます\n- none: フォントのスムージングを無効にします。テキストをぎざぎざな尖ったエッジで表示します\n- auto: ディスプレイの DPI に基づいて自動的に `default` か `antialiased` を適用します",
 	"workbench.fontAliasing.default": "サブピクセル方式でフォントを滑らかにします。ほとんどの非 Retina ディスプレイでもっとも鮮明なテキストを提供します。",
 	"workbench.fontAliasing.antialiased": "サブピクセルとは対照的に、ピクセルのレベルでフォントを滑らかにします。フォント全体がより細く見えるようになります。",
@@ -75,9 +76,9 @@
 	"window.nativeTabs": "macOS Sierra ウィンドウ タブを有効にします。この変更を適用するには完全な再起動が必要であり、ネイティブ タブでカスタムのタイトル バー スタイルが構成されていた場合はそれが無効になることに注意してください。",
 	"zenModeConfigurationTitle": "Zen Mode",
 	"zenMode.fullScreen": "Zen Mode をオンにするとワークベンチを自動的に全画面モードに切り替えるかどうかを制御します。",
+	"zenMode.centerLayout": "Zen Mode をオンにしたときにレイアウトを中央揃えにするかどうかを制御します。",
 	"zenMode.hideTabs": "Zen Mode をオンにしたときにワークベンチ タブも非表示にするかどうかを制御します。",
 	"zenMode.hideStatusBar": "Zen Mode をオンにするとワークベンチの下部にあるステータス バーを非表示にするかどうかを制御します。",
 	"zenMode.hideActivityBar": "Zen Mode をオンにするとワークベンチの左側にあるアクティビティ バーを非表示にするかを制御します。",
-	"zenMode.restore": "Zen Mode で終了したウィンドウを Zen Mode に復元するかどうかを制御します。",
-	"JsonSchema.locale": "使用する UI 言語。"
+	"zenMode.restore": "Zen Mode で終了したウィンドウを Zen Mode に復元するかどうかを制御します。"
 }

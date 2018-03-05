@@ -19,8 +19,9 @@ export interface IIconLabelCreationOptions {
 	supportDescriptionHighlights?: boolean;
 }
 
-export interface IIconLabelOptions {
+export interface IIconLabelValueOptions {
 	title?: string;
+	descriptionTitle?: string;
 	extraClasses?: string[];
 	italic?: boolean;
 	matches?: IMatch[];
@@ -65,7 +66,11 @@ class FastLabelNode {
 		}
 
 		this._title = title;
-		this._element.title = title;
+		if (this._title) {
+			this._element.title = title;
+		} else {
+			this._element.removeAttribute('title');
+		}
 	}
 
 	public set empty(empty: boolean) {
@@ -84,24 +89,26 @@ class FastLabelNode {
 
 export class IconLabel {
 	private domNode: FastLabelNode;
+	private labelDescriptionContainer: FastLabelNode;
 	private labelNode: FastLabelNode | HighlightedLabel;
 	private descriptionNode: FastLabelNode | HighlightedLabel;
+	private descriptionNodeFactory: () => FastLabelNode | HighlightedLabel;
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		this.domNode = new FastLabelNode(dom.append(container, dom.$('.monaco-icon-label')));
 
-		const labelDescriptionContainer = new FastLabelNode(dom.append(this.domNode.element, dom.$('.monaco-icon-label-description-container')));
+		this.labelDescriptionContainer = new FastLabelNode(dom.append(this.domNode.element, dom.$('.monaco-icon-label-description-container')));
 
 		if (options && options.supportHighlights) {
-			this.labelNode = new HighlightedLabel(dom.append(labelDescriptionContainer.element, dom.$('a.label-name')));
+			this.labelNode = new HighlightedLabel(dom.append(this.labelDescriptionContainer.element, dom.$('a.label-name')));
 		} else {
-			this.labelNode = new FastLabelNode(dom.append(labelDescriptionContainer.element, dom.$('a.label-name')));
+			this.labelNode = new FastLabelNode(dom.append(this.labelDescriptionContainer.element, dom.$('a.label-name')));
 		}
 
 		if (options && options.supportDescriptionHighlights) {
-			this.descriptionNode = new HighlightedLabel(dom.append(labelDescriptionContainer.element, dom.$('span.label-description')));
+			this.descriptionNodeFactory = () => new HighlightedLabel(dom.append(this.labelDescriptionContainer.element, dom.$('span.label-description')));
 		} else {
-			this.descriptionNode = new FastLabelNode(dom.append(labelDescriptionContainer.element, dom.$('span.label-description')));
+			this.descriptionNodeFactory = () => new FastLabelNode(dom.append(this.labelDescriptionContainer.element, dom.$('span.label-description')));
 		}
 	}
 
@@ -111,12 +118,11 @@ export class IconLabel {
 
 	public onClick(callback: (event: MouseEvent) => void): IDisposable {
 		return combinedDisposable([
-			dom.addDisposableListener(this.labelNode.element, dom.EventType.CLICK, (e: MouseEvent) => callback(e)),
-			dom.addDisposableListener(this.descriptionNode.element, dom.EventType.CLICK, (e: MouseEvent) => callback(e))
+			dom.addDisposableListener(this.labelDescriptionContainer.element, dom.EventType.CLICK, (e: MouseEvent) => callback(e)),
 		]);
 	}
 
-	public setValue(label?: string, description?: string, options?: IIconLabelOptions): void {
+	public setValue(label?: string, description?: string, options?: IIconLabelValueOptions): void {
 		const classes = ['monaco-icon-label'];
 		if (options) {
 			if (options.extraClasses) {
@@ -131,26 +137,39 @@ export class IconLabel {
 		this.domNode.className = classes.join(' ');
 		this.domNode.title = options && options.title ? options.title : '';
 
-		const labelNode = this.labelNode;
-		if (labelNode instanceof HighlightedLabel) {
-			labelNode.set(label || '', options ? options.matches : void 0);
+		if (this.labelNode instanceof HighlightedLabel) {
+			this.labelNode.set(label || '', options ? options.matches : void 0);
 		} else {
-			labelNode.textContent = label || '';
+			this.labelNode.textContent = label || '';
 		}
 
-		const descriptionNode = this.descriptionNode;
-		if (descriptionNode instanceof HighlightedLabel) {
-			descriptionNode.set(description || '', options ? options.descriptionMatches : void 0);
-		} else {
-			descriptionNode.textContent = description || '';
-			descriptionNode.empty = !description;
+		if (description || this.descriptionNode) {
+			if (!this.descriptionNode) {
+				this.descriptionNode = this.descriptionNodeFactory(); // description node is created lazily on demand
+			}
+
+			if (this.descriptionNode instanceof HighlightedLabel) {
+				this.descriptionNode.set(description || '', options ? options.descriptionMatches : void 0);
+				if (options && options.descriptionTitle) {
+					this.descriptionNode.element.title = options.descriptionTitle;
+				} else {
+					this.descriptionNode.element.removeAttribute('title');
+				}
+			} else {
+				this.descriptionNode.textContent = description || '';
+				this.descriptionNode.title = options && options.descriptionTitle ? options.descriptionTitle : '';
+				this.descriptionNode.empty = !description;
+			}
 		}
 	}
 
 	public dispose(): void {
 		this.domNode.dispose();
 		this.labelNode.dispose();
-		this.descriptionNode.dispose();
+
+		if (this.descriptionNode) {
+			this.descriptionNode.dispose();
+		}
 	}
 }
 

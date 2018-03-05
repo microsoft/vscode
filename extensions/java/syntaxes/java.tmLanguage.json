@@ -4,13 +4,9 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-java/commit/cf96ae95ea2e2f4cfd5e6e685e6d7db039859cc6",
-	"scopeName": "source.java",
+	"version": "https://github.com/atom/language-java/commit/5c2863da1425d61914d2e04ef31b86f8c5883c5f",
 	"name": "Java",
-	"fileTypes": [
-		"java",
-		"bsh"
-	],
+	"scopeName": "source.java",
 	"patterns": [
 		{
 			"begin": "\\b(package)\\b\\s*",
@@ -36,8 +32,12 @@
 					"name": "invalid.illegal.character_not_allowed_here.java"
 				},
 				{
-					"match": "(?<!_)_(?=\\s*(\\.|;))|[A-Z]+|\\b\\d+|-+",
+					"match": "(?<!_)_(?=\\s*(\\.|;))|\\b\\d+|-+",
 					"name": "invalid.illegal.character_not_allowed_here.java"
+				},
+				{
+					"match": "[A-Z]+",
+					"name": "invalid.deprecated.package_name_not_lowercase.java"
 				},
 				{
 					"match": "(?x)\\b(?<!\\$)\n(abstract|assert|boolean|break|byte|case|catch|char|class|\nconst|continue|default|do|double|else|enum|extends|final|\nfinally|float|for|goto|if|implements|import|instanceof|int|\ninterface|long|native|new|package|private|protected|public|\nreturn|short|static|strictfp|super|switch|syncronized|this|\nthrow|throws|transient|try|void|volatile|while|\ntrue|false|null)\\b",
@@ -533,7 +533,7 @@
 		"comments-javadoc": {
 			"patterns": [
 				{
-					"begin": "^\\s*/\\*\\*",
+					"begin": "^\\s*/\\*\\*(?!/)",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.definition.comment.java"
@@ -676,6 +676,9 @@
 							"contentName": "meta.catch.parameters.java",
 							"patterns": [
 								{
+									"include": "#comments"
+								},
+								{
 									"include": "#parameters"
 								}
 							]
@@ -772,6 +775,9 @@
 							"name": "storage.type.java"
 						}
 					}
+				},
+				{
+					"include": "#primitive-arrays"
 				},
 				{
 					"match": "[a-zA-Z$_][a-zA-Z0-9$_]*",
@@ -1389,6 +1395,12 @@
 				},
 				{
 					"include": "#variables"
+				},
+				{
+					"include": "#primitive-arrays"
+				},
+				{
+					"include": "#object-types"
 				}
 			]
 		}

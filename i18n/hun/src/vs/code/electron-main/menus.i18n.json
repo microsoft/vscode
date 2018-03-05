@@ -90,8 +90,10 @@
 	"miMarker": "&&Problémák",
 	"miAdditionalViews": "További &&nézetek",
 	"miCommandPalette": "Paran&&cskatalógus...",
+	"miOpenView": "&&Nézet megnyitása...",
 	"miToggleFullScreen": "&&Teljes képernyő be- és kikapcsolása",
 	"miToggleZenMode": "Zen mód be- és kikapcsolása",
+	"miToggleCenteredLayout": "Középre igazított elrendezés be- és kikapcsolása",
 	"miToggleMenuBar": "Menüsáv &&be- és kikapcsolása",
 	"miSplitEditor": "Szerkesztőablak k&&ettéosztása",
 	"miToggleEditorLayout": "Szerkesztőablak-csoport e&&lrendezésének váltása",
@@ -184,9 +186,7 @@
 	"miCheckingForUpdates": "Frissítések keresése...",
 	"miDownloadUpdate": "Elérhető frissítés letöltése",
 	"miDownloadingUpdate": "Frissítés letöltése...",
+	"miInstallUpdate": "Frissítés telepítése...",
 	"miInstallingUpdate": "Frissítés telepítése...",
-	"miRestartToUpdate": "Újraindítás a frissítéshez...",
-	"aboutDetail": "Verzió: {0}\nCommit: {1}\nDátum: {2}\nShell: {3}\nRendelő: {4}\nNode: {5}\nArchitektúra: {6}",
-	"okButton": "OK",
-	"copy": "&&Másolás"
+	"miRestartToUpdate": "Újraindítás a frissítéshez..."
 }

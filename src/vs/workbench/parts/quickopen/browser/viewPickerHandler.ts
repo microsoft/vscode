@@ -129,7 +129,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 			if (views.length) {
 				for (const view of views) {
 					if (this.contextKeyService.contextMatchesRules(view.when)) {
-						result.push(new ViewEntry(view.name, viewlet.name, () => this.viewletService.openViewlet(viewlet.id, true).done(viewlet => (<IViewsViewlet>viewlet).openView(view.id), errors.onUnexpectedError)));
+						result.push(new ViewEntry(view.name, viewlet.name, () => this.viewletService.openViewlet(viewlet.id, true).done(viewlet => (<IViewsViewlet>viewlet).openView(view.id, true), errors.onUnexpectedError)));
 					}
 				}
 			}

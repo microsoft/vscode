@@ -60,7 +60,7 @@ export interface ITree {
 	/**
 	 * Sets DOM focus on the tree.
 	 */
-	DOMFocus(): void;
+	domFocus(): void;
 
 	/**
 	 * Returns whether the tree has DOM focus.
@@ -70,7 +70,7 @@ export interface ITree {
 	/**
 	 * Removes DOM focus from the tree.
 	 */
-	DOMBlur(): void;
+	domBlur(): void;
 
 	/**
 	 * Refreshes an element.

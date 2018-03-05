@@ -12,6 +12,7 @@
 	"recommendedExtensions": "推荐",
 	"otherRecommendedExtensions": "其他推荐",
 	"workspaceRecommendedExtensions": "工作区推荐",
+	"builtInExtensions": "内置",
 	"searchExtensions": "在商店中搜索扩展",
 	"sort by installs": "排序依据: 安装计数",
 	"sort by rating": "排序依据: 分级",

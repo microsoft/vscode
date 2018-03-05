@@ -10,7 +10,7 @@
 	"hintn1": "{0} modifications de format effectuées à la ligne {1}",
 	"hint1n": "1 modification de format effectuée entre les lignes {0} et {1}",
 	"hintnn": "{0} modifications de format effectuées entre les lignes {1} et {2}",
-	"no.provider": "Désolé, mais il n’y a aucun formateur installé pour les fichiers '{0}'.",
+	"no.provider": "Il n’y a aucun formateur installé pour les fichiers '{0}'.",
 	"formatDocument.label": "Mettre en forme le document",
 	"formatSelection.label": "Mettre en forme la sélection"
 }

@@ -108,7 +108,7 @@ export interface IWindowsService {
 	showSaveDialog(windowId: number, options: SaveDialogOptions): TPromise<string>;
 	showOpenDialog(windowId: number, options: OpenDialogOptions): TPromise<string[]>;
 
-	reloadWindow(windowId: number): TPromise<void>;
+	reloadWindow(windowId: number, args?: ParsedArgs): TPromise<void>;
 	openDevTools(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
@@ -160,6 +160,8 @@ export interface IWindowsService {
 
 	// TODO: this is a bit backwards
 	startCrashReporter(config: CrashReporterStartOptions): TPromise<void>;
+
+	openAboutDialog(): TPromise<void>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
@@ -181,7 +183,7 @@ export interface IWindowService {
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
-	reloadWindow(): TPromise<void>;
+	reloadWindow(args?: ParsedArgs): TPromise<void>;
 	openDevTools(): TPromise<void>;
 	toggleDevTools(): TPromise<void>;
 	closeWorkspace(): TPromise<void>;

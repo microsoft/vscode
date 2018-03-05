@@ -11,7 +11,7 @@
 	"showTriggerActions": "Vai al simbolo nell'area di lavoro...",
 	"name": "Cerca",
 	"search": "Cerca",
-	"showSearchViewlet": "Mostra Cerca",
+	"showSearchViewl": "Mostra Cerca",
 	"view": "Visualizza",
 	"findInFiles": "Cerca nei file",
 	"openAnythingHandlerDescription": "Vai al file",
@@ -24,5 +24,6 @@
 	"useIgnoreFiles": "Controlla se utilizzare i file .gitignore e .ignore durante la ricerca di file",
 	"search.quickOpen.includeSymbols": "Configurare questa opzione per includere i risultati di una ricerca di simboli globale nei risultati dei file per Quick Open.",
 	"search.followSymlinks": "Controlla se seguire i collegamenti simbolici durante la ricerca.",
-	"search.smartCase": "Cerca in modo insensibile alle maiuscole/minuscole se il criterio è tutto minuscolo, altrimenti cerca in modalità sensibile a maiuscole/minuscole"
+	"search.smartCase": "Cerca in modo insensibile alle maiuscole/minuscole se il criterio è tutto minuscolo, altrimenti cerca in modalità sensibile a maiuscole/minuscole",
+	"search.globalFindClipboard": "Controlla se il viewlet di ricerca deve leggere o modificare gli appunti di ricerca condivisi in macOS"
 }

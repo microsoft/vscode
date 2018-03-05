@@ -6,7 +6,7 @@
 
 import Event from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -81,6 +81,7 @@ export interface ITerminalConfiguration {
 		windows: { [key: string]: string };
 	};
 	showExitAlert: boolean;
+	experimentalRestore: boolean;
 }
 
 export interface ITerminalConfigHelper {
@@ -144,26 +145,31 @@ export interface IShellLaunchConfig {
 export interface ITerminalService {
 	_serviceBrand: any;
 
-	activeTerminalInstanceIndex: number;
+	activeTabIndex: number;
 	configHelper: ITerminalConfigHelper;
-	onActiveInstanceChanged: Event<string>;
+	onActiveTabChanged: Event<void>;
+	onTabDisposed: Event<ITerminalTab>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
-	onInstanceData: Event<{ instance: ITerminalInstance, data: string }>;
-	onInstancesChanged: Event<string>;
+	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
+	terminalTabs: ITerminalTab[];
 
 	createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
-	getInstanceLabels(): string[];
+	getTabLabels(): string[];
 	getActiveInstance(): ITerminalInstance;
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
-	setActiveInstanceToNext(): void;
-	setActiveInstanceToPrevious(): void;
 	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
+	splitInstance(instance: ITerminalInstance): void;
+
+	getActiveTab(): ITerminalTab;
+	setActiveTabToNext(): void;
+	setActiveTabToPrevious(): void;
+	setActiveTabByIndex(tabIndex: number): void;
 
 	showPanel(focus?: boolean): TPromise<void>;
 	hidePanel(): void;
@@ -175,6 +181,31 @@ export interface ITerminalService {
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	selectDefaultWindowsShell(): TPromise<string>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
+}
+
+export const enum Direction {
+	Left = 0,
+	Right = 1,
+	Up = 2,
+	Down = 3
+}
+
+export interface ITerminalTab {
+	activeInstance: ITerminalInstance;
+	terminalInstances: ITerminalInstance[];
+	title: string;
+	onDisposed: Event<ITerminalTab>;
+	onInstancesChanged: Event<void>;
+
+	focusPreviousPane(): void;
+	focusNextPane(): void;
+	resizePane(direction: Direction): void;
+	setActiveInstanceByIndex(index: number): void;
+	attachToElement(element: HTMLElement): void;
+	setVisible(visible: boolean): void;
+	layout(width: number, height: number): void;
+	addDisposable(disposable: IDisposable): void;
+	split(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 }
 
 export interface ITerminalInstance {
@@ -199,6 +230,10 @@ export interface ITerminalInstance {
 	 */
 	onDisposed: Event<ITerminalInstance>;
 
+	onFocused: Event<ITerminalInstance>;
+
+	onProcessIdReady: Event<ITerminalInstance>;
+
 	/**
 	 * The title of the terminal. This is either title or the process currently running or an
 	 * explicit name given to the terminal instance through the extension API.
@@ -219,6 +254,18 @@ export interface ITerminalInstance {
 	 * do not override the title when the process title changes in the terminal.
 	 */
 	isTitleSetByProcess: boolean;
+
+	/**
+	 * The shell launch config used to launch the shell.
+	 */
+	shellLaunchConfig: IShellLaunchConfig;
+
+	/**
+	 * Whether to disable layout for the terminal. This is useful when the size of the terminal is
+	 * being manipulating (eg. adding a split pane) and we want the terminal to ignore particular
+	 * resize events.
+	 */
+	disableLayout: boolean;
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
@@ -390,4 +437,6 @@ export interface ITerminalInstance {
 	 * Sets the title of the terminal instance.
 	 */
 	setTitle(title: string, eventFromProcess: boolean): void;
+
+	addDisposable(disposable: IDisposable): void;
 }

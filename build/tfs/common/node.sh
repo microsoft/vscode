@@ -5,9 +5,9 @@ set -e
 mv .nvmrc nvmrc-temp # Remove for init otherwise nvm init could fail
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	export NVM_DIR=~/.nvm
-	source $(brew --prefix nvm)/nvm.sh
+	source $(brew --prefix nvm)/nvm.sh --no-use
 else
-	source $NVM_DIR/nvm.sh
+	source $NVM_DIR/nvm.sh --no-use
 fi
 mv nvmrc-temp .nvmrc
 

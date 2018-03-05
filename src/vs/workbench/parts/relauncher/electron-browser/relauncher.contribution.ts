@@ -8,18 +8,18 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IWindowsService, IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
@@ -47,7 +47,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		@IWindowService private windowService: IWindowService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private envService: IEnvironmentService,
-		@IMessageService private messageService: IMessageService,
+		@IConfirmationService private confirmationService: IConfirmationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
@@ -146,7 +146,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
 		this.windowService.isFocused().then(focused => {
 			if (focused) {
-				return this.messageService.confirm({
+				return this.confirmationService.confirm({
 					type: 'info',
 					message,
 					detail,

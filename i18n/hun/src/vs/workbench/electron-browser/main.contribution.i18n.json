@@ -35,9 +35,12 @@
 	"panelDefaultLocation": "Meghatározza a panel alapértelmezett pozícióját. A panel a munkaterület alján vagy jobb oldalán jelenhet meg.",
 	"statusBarVisibility": "Meghatározza, hogy megjelenjen-e az állapotsor a munkaterület alján.",
 	"activityBarVisibility": "Meghatározza, hogy megjelenjen-e a tevékenységsáv a munkaterületen.",
+	"viewVisibility": "Meghatározza a nézetek fejlécén található műveletek láthatóságát. A műveletek vagy mindig láthatók, vagy csak akkor jelennek meg, ha a nézeten van a fókusz vagy az egérkurzor fölötte van.",
+	"fontAliasing": "Meghatározza a munkaterületen megjelenő betűtípusok élsimítási módszerét.\n- default: Szubpixeles betűsimítás. A legtöbb nem-retina típusú kijelzőn ez adja a legélesebb szöveget.\n- antialiased: A betűket pixelek, és nem szubpixelek szintjén simítja. A betűtípus vékonyabbnak tűnhet összességében.\n- none: Letiltja a betűtípusok élsimítését. A szövegek egyenetlen, éles szélekkel jelennek meg.\n- auto: A `default` vagy `antialiased` beállítások automatikus alkalmazása a kijelzők DPI-je alapján.",
 	"workbench.fontAliasing.default": "Szubpixeles betűsimítás. A legtöbb nem-retina típusú kijelzőn ez adja a legélesebb szöveget.",
 	"workbench.fontAliasing.antialiased": "A betűket pixelek, és nem szubpixelek szintjén simítja. A betűtípus vékonyabbnak tűnhet összességében.",
 	"workbench.fontAliasing.none": "Letiltja a betűtípusok élsimítését. A szövegek egyenetlen, éles szélekkel jelennek meg.",
+	"workbench.fontAliasing.auto": " A `default` vagy `antialiased` beállítások automatikus alkalmazása a kijelzők DPI-je alapján.",
 	"enableNaturalLanguageSettingsSearch": "Meghatározza, hogy engedélyezve van-e a természetes nyelvi keresési mód a beállításoknál.",
 	"windowConfigurationTitle": "Ablak",
 	"window.openFilesInNewWindow.on": "A fájlok új ablakban nyílnak meg",
@@ -73,9 +76,9 @@
 	"window.nativeTabs": "Engedélyezi a macOS Sierra ablakfüleket. Megjegyzés: a változtatás teljes újraindítást igényel, és a natív fülek letiltják az egyedi címsorstílust, ha azok be vannak konfigurálva.",
 	"zenModeConfigurationTitle": "Zen-mód",
 	"zenMode.fullScreen": "Meghatározza, hogy zen-módban a munakterület teljes képernyős módba vált-e.",
+	"zenMode.centerLayout": "Meghatározza, hogy zen-módban középre igazított elrendezés van-e.",
 	"zenMode.hideTabs": "Meghatározza, hogy zen-módban el vannak-e rejtve a munkaterület fülei.",
 	"zenMode.hideStatusBar": "Meghatározza, hogy zen-módban el van-e rejtve a munkaterület alján található állapotsor.",
 	"zenMode.hideActivityBar": "Meghatározza, hogy zen-módban el van-e rejtve a munkaterület bal oldalán található tevékenységsáv.",
-	"zenMode.restore": "Meghatározza, hogy az ablak zen-módban induljon-e, ha kilépéskor zen-módban volt.",
-	"JsonSchema.locale": "A felhasználói felületen használt nyelv."
+	"zenMode.restore": "Meghatározza, hogy az ablak zen-módban induljon-e, ha kilépéskor zen-módban volt."
 }

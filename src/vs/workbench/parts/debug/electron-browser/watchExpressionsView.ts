@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
-import { IHighlightEvent, IActionProvider, ITree, IDataSource, IRenderer, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
+import { IActionProvider, ITree, IDataSource, IRenderer, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, IExpression, CONTEXT_WATCH_EXPRESSIONS_FOCUSED } from 'vs/workbench/parts/debug/common/debug';
@@ -20,15 +20,15 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { once } from 'vs/base/common/event';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { CopyValueAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DefaultDragAndDrop, OpenMode, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
-import { IVariableTemplateData, renderVariable, renderRenameBox, renderExpressionValue, BaseDebugController, twistiePixels, renderViewTree } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
+import { IVariableTemplateData, renderVariable, renderRenameBox, renderExpressionValue, BaseDebugController, twistiePixels, renderViewTree } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
@@ -37,6 +37,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 
 	private static readonly MEMENTO = 'watchexpressionsview.memento';
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
+	private treeContainer: HTMLElement;
 	private settings: any;
 	private needsRefresh: boolean;
 
@@ -45,9 +46,10 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('expressionsSection', "Expressions Section") }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('expressionsSection', "Expressions Section") }, keybindingService, contextMenuService, configurationService);
 		this.settings = options.viewletSettings;
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
@@ -103,19 +105,17 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		}));
 
 		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
-			if (!expression || !(expression instanceof Expression)) {
-				return;
+			if (expression instanceof Expression) {
+				this.tree.refresh(expression, false).done(null, errors.onUnexpectedError);
 			}
-
-			this.tree.refresh(expression, false).then(() => {
-				this.tree.setHighlight(expression);
-				once(this.tree.onDidChangeHighlight)((e: IHighlightEvent) => {
-					if (!e.highlight) {
-						this.debugService.getViewModel().setSelectedExpression(null);
-					}
-				});
-			}).done(null, errors.onUnexpectedError);
 		}));
+	}
+
+	layoutBody(size: number): void {
+		if (this.treeContainer) {
+			this.treeContainer.style.height = size + 'px';
+		}
+		super.layoutBody(size);
 	}
 
 	public setExpanded(expanded: boolean): void {
@@ -290,7 +290,7 @@ class WatchExpressionsRenderer implements IRenderer {
 
 	private renderWatchExpression(tree: ITree, watchExpression: IExpression, data: IWatchExpressionTemplateData): void {
 		let selectedExpression = this.debugService.getViewModel().getSelectedExpression();
-		if ((selectedExpression instanceof Expression && selectedExpression.getId() === watchExpression.getId()) || (watchExpression instanceof Expression && !watchExpression.name)) {
+		if ((selectedExpression instanceof Expression && selectedExpression.getId() === watchExpression.getId())) {
 			renderRenameBox(this.debugService, this.contextViewService, this.themeService, tree, watchExpression, data.expression, {
 				initialValue: watchExpression.name,
 				placeholder: nls.localize('watchExpressionPlaceholder', "Expression to watch"),

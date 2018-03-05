@@ -604,6 +604,8 @@ declare module 'vscode-xterm' {
 		 */
 		findPrevious(term: string): boolean;
 
+		webLinksInit(handler?: (event: MouseEvent, uri: string) => void, options?: ILinkMatcherOptions): void;
 		winptyCompatInit(): void;
+		charMeasure?: { height: number, width: number }
 	}
 }

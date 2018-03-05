@@ -20,7 +20,6 @@ import { Position as EditorPosition, IEditor, IEditorOptions } from 'vs/platform
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IPreferencesService, IPreferencesEditorModel, ISetting, getSettingsTargetName, FOLDER_SETTINGS_PATH, DEFAULT_SETTINGS_EDITOR_SETTING } from 'vs/workbench/parts/preferences/common/preferences';
@@ -40,6 +39,7 @@ import { ConfigurationTarget } from 'vs/platform/configuration/common/configurat
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { parse } from 'vs/base/common/json';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -61,7 +61,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IFileService private fileService: IFileService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -185,7 +185,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	openWorkspaceSettings(options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.messageService.show(Severity.Info, nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
+			this.notificationService.info(nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
 			return TPromise.as(null);
 		}
 		return this.doOpenSettings(ConfigurationTarget.WORKSPACE, this.workspaceSettingsResource, options, position);
@@ -197,8 +197,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void> {
 		const activeEditor = this.editorService.getActiveEditor();
-		const activeEditorInput = activeEditor.input;
-		if (activeEditorInput instanceof PreferencesEditorInput) {
+		if (activeEditor && activeEditor.input instanceof PreferencesEditorInput) {
 			return this.getOrCreateEditableSettingsEditorInput(target, this.getEditableSettingsURI(target, resource))
 				.then(toInput => {
 					const replaceWith = new PreferencesEditorInput(this.getPreferencesEditorInputName(target, resource), toInput.getDescription(), this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(target)), toInput);

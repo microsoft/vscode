@@ -23,8 +23,8 @@ export class Menu implements IMenu {
 	constructor(
 		id: MenuId,
 		startupSignal: TPromise<boolean>,
-		@ICommandService private _commandService: ICommandService,
-		@IContextKeyService private _contextKeyService: IContextKeyService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		startupSignal.then(_ => {
 			const menuItems = MenuRegistry.getMenuItems(id);

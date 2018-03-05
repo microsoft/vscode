@@ -150,7 +150,9 @@ CommandsRegistry.registerCommand({
 				}
 
 				// Add and show Files Explorer viewlet
-				return workspaceEditingService.addFolders(folders.map(folder => ({ uri: URI.file(folder) }))).then(() => viewletService.openViewlet(viewletService.getDefaultViewletId(), true));
+				return workspaceEditingService.addFolders(folders.map(folder => ({ uri: URI.file(folder) })))
+					.then(() => viewletService.openViewlet(viewletService.getDefaultViewletId(), true))
+					.then(() => void 0);
 			});
 	}
 });

@@ -19,7 +19,7 @@ import extfs = require('vs/base/node/extfs');
 import encodingLib = require('vs/base/node/encoding');
 import utils = require('vs/workbench/services/files/test/node/utils');
 import { onError } from 'vs/base/test/common/utils';
-import { TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEnvironmentService, TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -39,7 +39,7 @@ suite('FileService', () => {
 				return onError(error, done);
 			}
 
-			service = new FileService(new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))), new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), { disableWatcher: true });
+			service = new FileService(new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), { disableWatcher: true });
 			done();
 		});
 	});
@@ -136,8 +136,57 @@ suite('FileService', () => {
 		}, error => onError(error, done));
 	});
 
+	test('createFolder: creating multiple folders at once', function (done: () => void) {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
+		service.resolveFile(uri.file(testDir)).done(parent => {
+			const resource = uri.file(path.join(parent.resource.fsPath, ...multiFolderPaths));
+
+			return service.createFolder(resource).then(f => {
+				const lastFolderName = multiFolderPaths[multiFolderPaths.length - 1];
+				assert.equal(f.name, lastFolderName);
+				assert.equal(fs.existsSync(f.resource.fsPath), true);
+
+				assert.ok(event);
+				assert.equal(event.resource.fsPath, resource.fsPath);
+				assert.equal(event.operation, FileOperation.CREATE);
+				assert.equal(event.target.resource.fsPath, resource.fsPath);
+				assert.equal(event.target.isDirectory, true);
+				toDispose.dispose();
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
 	test('touchFile', function (done: () => void) {
 		service.touchFile(uri.file(path.join(testDir, 'test.txt'))).done(s => {
+			assert.equal(s.name, 'test.txt');
+			assert.equal(fs.existsSync(s.resource.fsPath), true);
+			assert.equal(fs.readFileSync(s.resource.fsPath).length, 0);
+
+			const stat = fs.statSync(s.resource.fsPath);
+
+			return TPromise.timeout(10).then(() => {
+				return service.touchFile(s.resource).done(s => {
+					const statNow = fs.statSync(s.resource.fsPath);
+					assert.ok(statNow.mtime.getTime() >= stat.mtime.getTime()); // one some OS the resolution seems to be 1s, so we use >= here
+					assert.equal(statNow.size, stat.size);
+
+					done();
+				});
+			});
+		}, error => onError(error, done));
+	});
+
+	test('touchFile - multi folder', function (done: () => void) {
+		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
+
+		service.touchFile(uri.file(path.join(testDir, ...multiFolderPaths, 'test.txt'))).done(s => {
 			assert.equal(s.name, 'test.txt');
 			assert.equal(fs.existsSync(s.resource.fsPath), true);
 			assert.equal(fs.readFileSync(s.resource.fsPath).length, 0);
@@ -179,6 +228,32 @@ suite('FileService', () => {
 		}, error => onError(error, done));
 	});
 
+	test('renameFile - multi folder', function (done: () => void) {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
+		const renameToPath = path.join(...multiFolderPaths, 'other.html');
+
+		const resource = uri.file(path.join(testDir, 'index.html'));
+		service.resolveFile(resource).done(source => {
+			return service.rename(source.resource, renameToPath).then(renamed => {
+				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
+				assert.equal(fs.existsSync(source.resource.fsPath), false);
+
+				assert.ok(event);
+				assert.equal(event.resource.fsPath, resource.fsPath);
+				assert.equal(event.operation, FileOperation.MOVE);
+				assert.equal(event.target.resource.fsPath, renamed.resource.fsPath);
+				toDispose.dispose();
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
 	test('renameFolder', function (done: () => void) {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
@@ -202,6 +277,31 @@ suite('FileService', () => {
 		});
 	});
 
+	test('renameFolder - multi folder', function (done: () => void) {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
+		const renameToPath = path.join(...multiFolderPaths);
+
+		const resource = uri.file(path.join(testDir, 'deep'));
+		service.resolveFile(resource).done(source => {
+			return service.rename(source.resource, renameToPath).then(renamed => {
+				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
+				assert.equal(fs.existsSync(source.resource.fsPath), false);
+
+				assert.ok(event);
+				assert.equal(event.resource.fsPath, resource.fsPath);
+				assert.equal(event.operation, FileOperation.MOVE);
+				assert.equal(event.target.resource.fsPath, renamed.resource.fsPath);
+				toDispose.dispose();
+
+				done();
+			});
+		});
+	});
 	test('renameFile - MIX CASE', function (done: () => void) {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
@@ -836,7 +936,7 @@ suite('FileService', () => {
 		const resource = uri.file(path.join(testDir, 'some_utf8_bom.txt'));
 
 		service.resolveContent(resource).done(c => {
-			assert.equal(encodingLib.detectEncodingByBOMFromBuffer(new Buffer(c.value), 512), null);
+			assert.equal(encodingLib.detectEncodingByBOMFromBuffer(Buffer.from(c.value), 512), null);
 
 			done();
 		}, error => onError(error, done));
@@ -910,7 +1010,7 @@ suite('FileService', () => {
 
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
-			const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))), textResourceConfigurationService, configurationService, new TestLifecycleService(), {
+			const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))), TestEnvironmentService, textResourceConfigurationService, configurationService, new TestLifecycleService(), {
 				encodingOverride,
 				disableWatcher: true
 			});
@@ -937,7 +1037,7 @@ suite('FileService', () => {
 		const _sourceDir = require.toUrl('./fixtures/service');
 		const resource = uri.file(path.join(testDir, 'index.html'));
 
-		const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))), new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), {
+		const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), {
 			disableWatcher: true
 		});
 
@@ -997,7 +1097,7 @@ suite('FileService', () => {
 	test('resolveContent - from position (with umlaut)', function (done: () => void) {
 		const resource = uri.file(path.join(testDir, 'small_umlaut.txt'));
 
-		service.resolveContent(resource, { position: new Buffer('Small File with Ü').length }).done(content => {
+		service.resolveContent(resource, { position: Buffer.from('Small File with Ü').length }).done(content => {
 			assert.equal(content.value, 'mlaut');
 			done();
 		}, error => onError(error, done));

@@ -35,7 +35,7 @@ import { FileReferences, OneReference, ReferencesModel } from './referencesModel
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { registerColor, activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import URI from 'vs/base/common/uri';
@@ -43,6 +43,7 @@ import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Location } from 'vs/editor/common/modes';
+import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 
 class DecorationsManager implements IDisposable {
 
@@ -163,7 +164,7 @@ class DecorationsManager implements IDisposable {
 class DataSource implements tree.IDataSource {
 
 	constructor(
-		@ITextModelService private _textModelResolverService: ITextModelService
+		@ITextModelService private readonly _textModelResolverService: ITextModelService
 	) {
 		//
 	}
@@ -304,7 +305,7 @@ class FileReferencesTemplate {
 
 	constructor(
 		container: HTMLElement,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@optional(IEnvironmentService) private _environmentService: IEnvironmentService,
 		@IThemeService themeService: IThemeService,
 	) {
@@ -371,8 +372,8 @@ class Renderer implements tree.IRenderer {
 	};
 
 	constructor(
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
-		@IThemeService private _themeService: IThemeService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
+		@IThemeService private readonly _themeService: IThemeService,
 		@optional(IEnvironmentService) private _environmentService: IEnvironmentService,
 	) {
 		//
@@ -535,14 +536,14 @@ export class ReferenceWidget extends PeekViewWidget {
 		public layoutData: LayoutData,
 		private _textModelResolverService: ITextModelService,
 		private _contextService: IWorkspaceContextService,
-		private _themeService: IThemeService,
+		themeService: IThemeService,
 		private _instantiationService: IInstantiationService,
 		private _environmentService: IEnvironmentService
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
 
-		this._applyTheme(_themeService.getTheme());
-		this._callOnDispose.push(_themeService.onThemeChange(this._applyTheme.bind(this)));
+		this._applyTheme(themeService.getTheme());
+		this._callOnDispose.push(themeService.onThemeChange(this._applyTheme.bind(this)));
 		this.create();
 	}
 
@@ -574,7 +575,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 
 	focus(): void {
-		this._tree.DOMFocus();
+		this._tree.domFocus();
 	}
 
 	protected _onTitleClick(e: MouseEvent): void {
@@ -634,7 +635,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// tree
 		container.div({ 'class': 'ref-tree inline' }, (div: Builder) => {
-			var controller = this._instantiationService.createInstance(Controller, {});
+			var controller = this._instantiationService.createInstance(Controller, { clickBehavior: ClickBehavior.ON_MOUSE_UP /* our controller already deals with this */ });
 			this._callOnDispose.push(controller);
 
 			var config = <tree.ITreeConfiguration>{
@@ -650,7 +651,6 @@ export class ReferenceWidget extends PeekViewWidget {
 			};
 
 			this._tree = this._instantiationService.createInstance(WorkbenchTree, div.getHTMLElement(), config, options);
-			this._callOnDispose.push(attachListStyler(this._tree, this._themeService));
 
 			ctxReferenceWidgetSearchTreeFocused.bindTo(this._tree.contextKeyService);
 

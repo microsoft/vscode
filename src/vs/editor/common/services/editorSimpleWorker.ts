@@ -21,6 +21,7 @@ import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceRepl
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import { IWordAtPosition, EndOfLineSequence } from 'vs/editor/common/model';
+import { globals } from 'vs/base/common/platform';
 
 export interface IMirrorModel {
 	readonly uri: URI;
@@ -567,8 +568,7 @@ export function create(): IRequestHandler {
 	return new EditorSimpleWorkerImpl();
 }
 
-var global: any = self;
-let isWebWorker = (typeof global.importScripts === 'function');
-if (isWebWorker) {
-	global.monaco = createMonacoBaseAPI();
+if (typeof importScripts === 'function') {
+	// Running in a web worker
+	globals.monaco = createMonacoBaseAPI();
 }

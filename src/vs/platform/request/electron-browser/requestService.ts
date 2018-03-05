@@ -19,29 +19,6 @@ export class RequestService extends NodeRequestService {
 	}
 }
 
-class ArrayBufferStream extends Readable {
-
-	private _buffer: Buffer;
-	private _offset: number;
-	private _length: number;
-
-	constructor(arraybuffer: ArrayBuffer) {
-		super();
-		this._buffer = new Buffer(new Uint8Array(arraybuffer));
-		this._offset = 0;
-		this._length = this._buffer.length;
-	}
-
-	_read(size: number) {
-		if (this._offset < this._length) {
-			this.push(this._buffer.slice(this._offset, (this._offset + size)));
-			this._offset += size;
-		} else {
-			this.push(null);
-		}
-	}
-}
-
 export const xhrRequest: IRequestFunction = (options: IRequestOptions): TPromise<IRequestContext> => {
 
 	const xhr = new XMLHttpRequest();
@@ -58,7 +35,29 @@ export const xhrRequest: IRequestFunction = (options: IRequestOptions): TPromise
 					statusCode: xhr.status,
 					headers: getResponseHeaders(xhr)
 				},
-				stream: new ArrayBufferStream(xhr.response)
+				stream: new class ArrayBufferStream extends Readable {
+
+					private _buffer: Buffer;
+					private _offset: number;
+					private _length: number;
+
+					constructor(arraybuffer: ArrayBuffer) {
+						super();
+						this._buffer = Buffer.from(new Uint8Array(arraybuffer));
+						this._offset = 0;
+						this._length = this._buffer.length;
+					}
+
+					_read(size: number) {
+						if (this._offset < this._length) {
+							this.push(this._buffer.slice(this._offset, (this._offset + size)));
+							this._offset += size;
+						} else {
+							this.push(null);
+						}
+					}
+
+				}(xhr.response)
 			});
 		};
 		xhr.ontimeout = e => reject(new Error(`XHR timeout: ${options.timeout}ms`));

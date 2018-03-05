@@ -54,5 +54,9 @@
 	"emmetPreferencesFilterCommentTrigger": "Une liste séparée par des virgules de noms d’attributs qui devraient exister en abrégé pour que le filtre de commentaire soit appliqué",
 	"emmetPreferencesFormatNoIndentTags": "Un tableau de noms de balises qui ne devraient pas être indentées",
 	"emmetPreferencesFormatForceIndentTags": "Un tableau de noms de balises qui devraient toujours être indentées",
-	"emmetPreferencesAllowCompactBoolean": "Si true, la notation compacte des attributs booléens est produite"
+	"emmetPreferencesAllowCompactBoolean": "Si true, la notation compacte des attributs booléens est produite",
+	"emmetPreferencesCssWebkitProperties": "Les propriétés css séparées par des virgules qui ont un préfixe 'webkit' vendor lorsqu’elles sont utilisées dans une abréviation emmet qui commence par '-'. Mettre une chaîne vide pour éviter le préfixe 'webkit'.",
+	"emmetPreferencesCssMozProperties": "Les propriétés css séparées par des virgules qui ont un préfixe 'moz' vendor lorsqu’elles sont utilisées dans une abréviation emmet qui commence par '-'. Mettre une chaîne vide pour éviter le préfixe 'moz'.",
+	"emmetPreferencesCssOProperties": "Les propriétés css séparées par des virgules qui ont un préfixe 'o' vendor lorsqu’elles sont utilisées dans une abréviation emmet qui commence par '-'. Mettre une chaîne vide pour éviter le préfixe 'o'.",
+	"emmetPreferencesCssMsProperties": "Les propriétés css séparées par des virgules qui ont un préfixe 'ms' vendor lorsqu’elles sont utilisées dans une abréviation emmet qui commence par '-'. Mettre une chaîne vide pour éviter le préfixe 'ms'."
 }

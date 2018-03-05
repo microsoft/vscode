@@ -59,15 +59,12 @@
 	"titleBarActiveBackground": "ウィンドウがアクティブな場合のタイトル バーの背景。現在、この色は macOS でのみサポートされているのでご注意ください。",
 	"titleBarInactiveBackground": "ウィンドウが非アクティブな場合のタイトル バーの背景。現在、この色は macOS でのみサポートされているのでご注意ください。",
 	"titleBarBorder": "タイトル バーの境界線色。現在、この色は macOS でのみサポートされているのでご注意ください。",
-	"notificationsForeground": "通知の前景色。通知はウィンドウの上部からスライド表示します。",
-	"notificationsBackground": "通知の背景色。通知はウィンドウの上部からスライド表示します。",
-	"notificationsButtonBackground": "通知ボタンの背景色。通知はウィンドウの上部からスライド表示します。",
-	"notificationsButtonHoverBackground": "ホバー時の通知ボタンの背景色。通知はウィンドウの上部からスライド表示します。",
-	"notificationsButtonForeground": "通知ボタンの前景色。通知はウィンドウの上部からスライド表示します。",
-	"notificationsInfoBackground": "情報通知の背景色。通知はウィンドウの上部からスライド表示します。",
-	"notificationsInfoForeground": "情報通知の前景色。通知はウィンドウの上部からスライド表示します。",
-	"notificationsWarningBackground": "警告通知の背景色。通知はウィンドウの上部からスライド表示します。",
-	"notificationsWarningForeground": "警告通知の前景色。通知はウィンドウの上部からスライド表示します。",
-	"notificationsErrorBackground": "エラー通知の背景色。通知はウィンドウの上部からスライド表示します。",
-	"notificationsErrorForeground": "エラー通知の前景色。通知はウィンドウの上部からスライド表示します。"
+	"notificationsCenterBorder": "通知センターの境界線色。通知はウィンドウの右下からスライド表示します。",
+	"notificationsToastBorder": "通知トーストの境界線色。通知はウィンドウの右下からスライド表示します。",
+	"notificationsForeground": "通知の前景色。通知はウィンドウの右下からスライド表示します。",
+	"notificationsBackground": "通知の背景色。通知はウィンドウの右下からスライド表示します。",
+	"notificationsLink": "通知内リンクの前景色。通知はウィンドウの右下からスライド表示します。",
+	"notificationsCenterHeaderForeground": "通知センターのヘッダーの前景色。通知はウィンドウの右下からスライド表示します。",
+	"notificationsCenterHeaderBackground": "通知センターのヘッダーの背景色。通知はウィンドウの右下からスライド表示します。",
+	"notificationsBorder": "通知センターで通知を他の通知と区切っている境界線色。通知はウィンドウの右下からスライド表示します。"
 }

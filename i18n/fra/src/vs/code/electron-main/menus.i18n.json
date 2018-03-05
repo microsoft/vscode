@@ -90,8 +90,10 @@
 	"miMarker": "&&Problèmes",
 	"miAdditionalViews": "Affic&&hages supplémentaires",
 	"miCommandPalette": "Palette de &&commandes...",
+	"miOpenView": "&&Ouvrir la vue...",
 	"miToggleFullScreen": "Plei&&n écran",
 	"miToggleZenMode": "Activer/désactiver le mode zen",
+	"miToggleCenteredLayout": "Activer/désactiver la disposition centrée",
 	"miToggleMenuBar": "Activer/désactiver la &&barre de menus",
 	"miSplitEditor": "Fractionner l'édit&&eur",
 	"miToggleEditorLayout": "Activer/désactiver la &&disposition du groupe d'éditeurs",
@@ -184,9 +186,7 @@
 	"miCheckingForUpdates": "Recherche des mises à jour...",
 	"miDownloadUpdate": "Télécharger la mise à jour disponible",
 	"miDownloadingUpdate": "Téléchargement de la mise à jour...",
+	"miInstallUpdate": "Installer la mise à jour...",
 	"miInstallingUpdate": "Installation de la mise à jour...",
-	"miRestartToUpdate": "Redémarrer pour mettre à jour...",
-	"aboutDetail": "Version {0}\nCommit {1}\nDate {2}\nShell {3}\nRenderer {4}\nNode {5}\nArchitecture {6}",
-	"okButton": "OK",
-	"copy": "&&Copier"
+	"miRestartToUpdate": "Redémarrer pour mettre à jour..."
 }

@@ -46,6 +46,7 @@ export class ExtensionManagementChannel implements IExtensionManagementChannel {
 			case 'install': return this.service.install(arg);
 			case 'installFromGallery': return this.service.installFromGallery(arg[0]);
 			case 'uninstall': return this.service.uninstall(arg[0], arg[1]);
+			case 'reinstall': return this.service.reinstall(arg[0]);
 			case 'getInstalled': return this.service.getInstalled(arg);
 			case 'updateMetadata': return this.service.updateMetadata(arg[0], arg[1]);
 			case 'getExtensionsReport': return this.service.getExtensionsReport();
@@ -82,6 +83,10 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 
 	uninstall(extension: ILocalExtension, force = false): TPromise<void> {
 		return this.channel.call('uninstall', [extension, force]);
+	}
+
+	reinstall(extension: ILocalExtension): TPromise<void> {
+		return this.channel.call('reinstall', [extension]);
 	}
 
 	getInstalled(type: LocalExtensionType = null): TPromise<ILocalExtension[]> {

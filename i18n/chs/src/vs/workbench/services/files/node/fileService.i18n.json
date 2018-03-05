@@ -9,6 +9,7 @@
 	"fileInvalidPath": "无效的文件资源({0})",
 	"fileIsDirectoryError": "文件是目录",
 	"fileNotModifiedError": "自以下时间未修改的文件:",
+	"fileTooLargeForHeapError": "文件大小超过窗口内存限制，请尝试运行 code --max-memory=[新的大小]",
 	"fileTooLargeError": "文件太大，无法打开",
 	"fileNotFoundError": "找不到文件({0})",
 	"fileBinaryError": "文件似乎是二进制文件，无法作为文档打开",

@@ -8,12 +8,14 @@
 	],
 	"openLogsFolder": "ログ フォルダーを開く",
 	"showLogs": "ログの表示...",
+	"rendererProcess": "ウィンドウ ({0})",
 	"emptyWindow": "ウィンドウ",
 	"extensionHost": "拡張機能ホスト",
 	"sharedProcess": "共有",
 	"mainProcess": "メイン",
+	"selectProcess": "プロセスのログを選択",
 	"openLogFile": "ログ ファイルを開く...",
-	"setLogLevel": "ログ レベルの設定",
+	"setLogLevel": "ログ レベルの設定...",
 	"trace": "トレース",
 	"debug": "デバッグ",
 	"info": "情報",
@@ -22,5 +24,7 @@
 	"critical": "重大",
 	"off": "オフ",
 	"selectLogLevel": "ログ レベルを選択",
-	"default": "既定"
+	"default and current": "既定と現在",
+	"default": "既定",
+	"current": "現在"
 }

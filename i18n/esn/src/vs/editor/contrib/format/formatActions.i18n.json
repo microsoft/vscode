@@ -10,7 +10,7 @@
 	"hintn1": "{0} ediciones de formato en la línea {1}",
 	"hint1n": "1 edición de formato entre las líneas {0} y {1}",
 	"hintnn": "{0} ediciones de formato entre las líneas {1} y {2}",
-	"no.provider": "Lo sentimos, pero no hay ningún formateador para los '{0}' archivos instalados.",
+	"no.provider": "No hay formateador para los archivos ' {0} ' instalados.",
 	"formatDocument.label": "Dar formato al documento",
 	"formatSelection.label": "Dar formato a la selección"
 }

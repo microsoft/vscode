@@ -660,6 +660,8 @@ export class Minimap extends ViewPart {
 		const renderMinimap = this._options.renderMinimap;
 		if (renderMinimap === RenderMinimap.None) {
 			this._shadow.setClassName('minimap-shadow-hidden');
+			this._sliderHorizontal.setWidth(0);
+			this._sliderHorizontal.setHeight(0);
 			return;
 		}
 		if (renderingCtx.scrollLeft + renderingCtx.viewportWidth >= renderingCtx.scrollWidth) {

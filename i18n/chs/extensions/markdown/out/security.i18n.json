@@ -15,5 +15,6 @@
 	"moreInfo.title": "详细信息",
 	"enableSecurityWarning.title": "在此工作区中启用预览安全警告",
 	"disableSecurityWarning.title": "在此工作区中取消预览安全警告",
+	"toggleSecurityWarning.description": "不影响内容安全级别",
 	"preview.showPreviewSecuritySelector.title": "选择此工作区中 Markdown 预览的安全设置"
 }

@@ -90,8 +90,10 @@
 	"miMarker": "問題(&&P)",
 	"miAdditionalViews": "其他檢視(&&V)",
 	"miCommandPalette": "命令選擇區(&&C)...",
+	"miOpenView": "開啟檢視(&&O)...",
 	"miToggleFullScreen": "切換全螢幕(&&F)",
 	"miToggleZenMode": "切換無干擾模式",
+	"miToggleCenteredLayout": "切換置中配置",
 	"miToggleMenuBar": "切換功能表列(&&B)",
 	"miSplitEditor": "分割編輯器(&&E)",
 	"miToggleEditorLayout": "切換編輯器群組配置(&&L)",
@@ -173,7 +175,7 @@
 	"miPrivacyStatement": "隱私權聲明(&&P)",
 	"miAbout": "關於(&&A)",
 	"miRunTask": "執行工作(&&R)",
-	"miBuildTask": " 執行建置工作(&&B)...",
+	"miBuildTask": "執行建置工作(&&B)...",
 	"miRunningTask": "顯示執行中的工作(&&G)...",
 	"miRestartTask": "重新開始執行工作(&&E)...",
 	"miTerminateTask": "終止工作(&&T)...",
@@ -186,8 +188,5 @@
 	"miDownloadingUpdate": "正在下載更新...",
 	"miInstallUpdate": "安裝更新...",
 	"miInstallingUpdate": "正在安裝更新...",
-	"miRestartToUpdate": "重新啟動以更新...",
-	"aboutDetail": "版本 {0} \n認可 {1} \n日期 {2} \nShell {3} \n轉譯器 {4} \n節點 {5} \n架構 {6}",
-	"okButton": "確定",
-	"copy": "複製(&&C)"
+	"miRestartToUpdate": "重新啟動以更新..."
 }

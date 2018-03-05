@@ -18,6 +18,7 @@
 	"RefreshAction.label": "새로 고침",
 	"CollapseDeepestExpandedLevelAction.label": "모두 축소",
 	"ClearSearchResultsAction.label": "지우기",
+	"CancelSearchAction.label": "검색 취소",
 	"FocusNextSearchResult.label": "다음 검색 결과에 포커스",
 	"FocusPreviousSearchResult.label": "이전 검색 결과에 포커스",
 	"RemoveAction.label": "해제",

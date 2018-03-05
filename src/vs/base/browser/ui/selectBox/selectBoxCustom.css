@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Require .monaco-shell for ContextView dropdown */
-
-.monaco-shell .select-box-dropdown-container {
+.monaco-select-box-dropdown-container {
 	display: none;
 }
 
-.monaco-shell .select-box-dropdown-container.visible {
+.monaco-select-box-dropdown-container.visible {
 	display: flex;
 	flex-direction: column;
 	text-align: left;
@@ -17,7 +15,7 @@
 	overflow: hidden;
 }
 
-.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container {
+.monaco-select-box-dropdown-container > .select-box-dropdown-list-container {
 	flex: 0 0 auto;
 	align-self: flex-start;
 	padding-bottom: 1px;
@@ -33,30 +31,30 @@
 	box-sizing:			border-box;
 }
 
-.monaco-shell.hc-black .select-box-dropdown-container > .select-box-dropdown-list-container {
+.hc-black .monaco-select-box-dropdown-container > .select-box-dropdown-list-container {
 	padding-bottom: 4px;
 	padding-top: 3px;
 }
 
-.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .option-text {
+.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .option-text {
 	text-overflow: ellipsis;
 	overflow: hidden;
 	padding-left: 3.5px;
 	white-space: nowrap;
 }
 
-.monaco-shell .select-box-dropdown-container > .select-box-dropdown-container-width-control {
+.monaco-select-box-dropdown-container > .select-box-dropdown-container-width-control {
 	flex: 1 1 auto;
 	align-self: flex-start;
 	opacity: 0;
 }
 
-.monaco-shell .select-box-dropdown-container > .select-box-dropdown-container-width-control > .width-control-div {
+.monaco-select-box-dropdown-container > .select-box-dropdown-container-width-control > .width-control-div {
 	overflow: hidden;
 	max-height: 0px;
 }
 
-.monaco-shell .select-box-dropdown-container > .select-box-dropdown-container-width-control > .width-control-div > .option-text-width-control {
+.monaco-select-box-dropdown-container > .select-box-dropdown-container-width-control > .width-control-div > .option-text-width-control {
 	padding-left: 4px;
 	padding-right: 8px;
 	white-space: nowrap;

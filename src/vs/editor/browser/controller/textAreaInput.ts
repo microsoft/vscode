@@ -164,6 +164,26 @@ export class TextAreaInput extends Disposable {
 			return [newState, typeInput];
 		};
 
+		const compositionDataInValid = (locale: string): boolean => {
+			// https://github.com/Microsoft/monaco-editor/issues/339
+			// Multi-part Japanese compositions reset cursor in Edge/IE, Chinese and Korean IME don't have this issue.
+			// The reason that we can't use this path for all CJK IME is IE and Edge behave differently when handling Korean IME,
+			// which breaks this path of code.
+			if (browser.isEdgeOrIE && locale === 'ja') {
+				return true;
+			}
+
+			// https://github.com/Microsoft/monaco-editor/issues/545
+			// On IE11, we can't trust composition data when typing Chinese as IE11 doesn't emit correct
+			// events when users type numbers in IME.
+			// Chinese: zh-Hans-CN, zh-Hans-SG, zh-Hant-TW, zh-Hant-HK
+			if (browser.isIE && locale.indexOf('zh-Han') === 0) {
+				return true;
+			}
+
+			return false;
+		};
+
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionupdate', (e: CompositionEvent) => {
 			if (browser.isChromev56) {
 				// See https://github.com/Microsoft/monaco-editor/issues/320
@@ -174,11 +194,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
-			if (browser.isEdgeOrIE && e.locale === 'ja') {
-				// https://github.com/Microsoft/monaco-editor/issues/339
-				// Multi-part Japanese compositions reset cursor in Edge/IE, Chinese and Korean IME don't have this issue.
-				// The reason that we can't use this path for all CJK IME is IE and Edge behave differently when handling Korean IME,
-				// which breaks this path of code.
+			if (compositionDataInValid(e.locale)) {
 				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
@@ -193,13 +209,12 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionend', (e: CompositionEvent) => {
-			if (browser.isEdgeOrIE && e.locale === 'ja') {
+			if (compositionDataInValid(e.locale)) {
 				// https://github.com/Microsoft/monaco-editor/issues/339
 				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
-			}
-			else {
+			} else {
 				const [newState, typeInput] = deduceComposition(e.data);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
@@ -404,6 +419,12 @@ export class TextAreaInput extends Disposable {
 		}
 		this._hasFocus = newHasFocus;
 
+		if (this._isDoingComposition) {
+			// textarea gets focus, so the state should be clean
+			// https://github.com/Microsoft/monaco-editor/issues/552
+			this._isDoingComposition = false;
+		}
+
 		if (this._hasFocus) {
 			if (browser.isEdge) {
 				// Edge has a bug where setting the selection range while the focus event
@@ -558,6 +579,10 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
 		if (currentIsFocused && currentSelectionStart === selectionStart && currentSelectionEnd === selectionEnd) {
 			// No change
+			// Firefox iframe bug https://github.com/Microsoft/monaco-editor/issues/643#issuecomment-367871377
+			if (browser.isFirefox && window.parent !== window) {
+				textArea.focus();
+			}
 			return;
 		}
 
@@ -567,6 +592,9 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 			// No need to focus, only need to change the selection range
 			this.setIgnoreSelectionChangeTime('setSelectionRange');
 			textArea.setSelectionRange(selectionStart, selectionEnd);
+			if (browser.isFirefox && window.parent !== window) {
+				textArea.focus();
+			}
 			return;
 		}
 

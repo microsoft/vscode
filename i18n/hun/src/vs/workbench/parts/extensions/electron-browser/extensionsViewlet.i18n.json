@@ -12,6 +12,7 @@
 	"recommendedExtensions": "Ajánlott",
 	"otherRecommendedExtensions": "További ajánlatok",
 	"workspaceRecommendedExtensions": "Ajánlott a munkaterülethez",
+	"builtInExtensions": "Beépített",
 	"searchExtensions": "Kiegészítők keresése a piactéren",
 	"sort by installs": "Rendezés a telepítések száma szerint",
 	"sort by rating": "Rendezés értékelés szerint",
@@ -19,5 +20,6 @@
 	"suggestProxyError": "A piactér 'ECONNREFUSED' hibával tért vissza. Ellenőrizze a 'http.proxy' beállítást!",
 	"extensions": "Kiegészítők",
 	"outdatedExtensions": "{0} elavult kiegészítő",
+	"malicious warning": "Eltávolítottuk a(z) '{0}' kiegészítőt, mert jelezték, hogy problémás.",
 	"reloadNow": "Újratöltés most"
 }

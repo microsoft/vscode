@@ -160,9 +160,9 @@ export class Renderer implements IRenderer {
 
 	private renderResourceElement(tree: ITree, element: Resource, templateData: IAnyResourceTemplateData) {
 		if ((<IFileResourceTemplateData>templateData).fileLabel) {
-			(<IFileResourceTemplateData>templateData).fileLabel.setFile(element.uri, { matches: element.matches });
+			(<IFileResourceTemplateData>templateData).fileLabel.setFile(element.uri, { matches: element.uriMatches });
 		} else if ((<IResourceTemplateData>templateData).resourceLabel) {
-			(<IResourceTemplateData>templateData).resourceLabel.setLabel({ name: element.name, description: element.uri.toString(), resource: element.uri }, { matches: element.matches });
+			(<IResourceTemplateData>templateData).resourceLabel.setLabel({ name: element.name, description: element.uri.toString(), resource: element.uri }, { matches: element.uriMatches });
 		}
 		templateData.count.setCount(element.markers.length);
 	}
@@ -197,10 +197,12 @@ export class Renderer implements IRenderer {
 		if (templateId === Renderer.FILE_RESOURCE_TEMPLATE_ID) {
 			(<IFileResourceTemplateData>templateData).fileLabel.dispose();
 			(<IFileResourceTemplateData>templateData).styler.dispose();
-		}
-		if (templateId === Renderer.RESOURCE_TEMPLATE_ID) {
+		} else if (templateId === Renderer.RESOURCE_TEMPLATE_ID) {
 			(<IResourceTemplateData>templateData).resourceLabel.dispose();
 			(<IResourceTemplateData>templateData).styler.dispose();
+		} else if (templateId === Renderer.MARKER_TEMPLATE_ID) {
+			(<IMarkerTemplateData>templateData).description.dispose();
+			(<IMarkerTemplateData>templateData).source.dispose();
 		}
 	}
 }

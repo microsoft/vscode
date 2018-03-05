@@ -19,13 +19,12 @@
 	"close": "Закрыть",
 	"closeOthers": "Закрыть другие",
 	"closeRight": "Закрыть справа",
-	"closeAllUnmodified": "Закрыть без изменений",
 	"closeAll": "Закрыть все",
 	"keepOpen": "Оставить открытым",
+	"toggleInlineView": "Переключить интерактивное представление",
 	"showOpenedEditors": "Показать открытые редакторы",
 	"keepEditor": "Сохранить редактор",
 	"closeEditorsInGroup": "Закрыть все редакторы в группе",
-	"closeUnmodifiedEditors": "Закрыть редакторы без изменений в группе",
 	"closeOtherEditors": "Закрыть другие редакторы",
 	"closeRightEditors": "Закрыть редакторы справа"
 }

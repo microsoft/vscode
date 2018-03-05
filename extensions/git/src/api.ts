@@ -6,7 +6,7 @@
 'use strict';
 
 import { Model } from './model';
-import { SourceControlInputBox, Uri } from 'vscode';
+import { Uri } from 'vscode';
 
 export interface InputBox {
 	value: string;

@@ -28,10 +28,10 @@ import Messages from 'vs/workbench/parts/markers/common/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { debounceEvent } from 'vs/base/common/event';
-import { SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/common/markers';
+import { SimpleFileResourceDragAndDrop } from 'vs/workbench/browser/dnd';
 
 export class MarkersPanel extends Panel {
 
@@ -101,7 +101,7 @@ export class MarkersPanel extends Panel {
 		}
 
 		if (this.markersWorkbenchService.markersModel.hasFilteredResources()) {
-			this.tree.DOMFocus();
+			this.tree.domFocus();
 			if (this.tree.getSelection().length === 0) {
 				this.tree.focusFirst();
 			}
@@ -193,7 +193,7 @@ export class MarkersPanel extends Panel {
 		this.treeContainer = dom.append(parent, dom.$('.tree-container'));
 		dom.addClass(this.treeContainer, 'show-file-icons');
 		const renderer = this.instantiationService.createInstance(Viewer.Renderer);
-		const dnd = new SimpleFileResourceDragAndDrop(obj => obj instanceof Resource ? obj.uri : void 0);
+		const dnd = this.instantiationService.createInstance(SimpleFileResourceDragAndDrop, obj => obj instanceof Resource ? obj.uri : void 0);
 		const controller = this.instantiationService.createInstance(Controller);
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new Viewer.DataSource(),

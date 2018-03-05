@@ -12,7 +12,11 @@ const gulptslint = require('gulp-tslint');
 const gulpeslint = require('gulp-eslint');
 const tsfmt = require('typescript-formatter');
 const tslint = require('tslint');
+const VinylFile = require('vinyl');
 const vfs = require('vinyl-fs');
+const path = require('path');
+const fs = require('fs');
+const pall = require('p-all');
 
 /**
  * Hygiene works by creating cascading subsets of all our files and
@@ -151,11 +155,11 @@ gulp.task('tslint', () => {
 
 	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
 		.pipe(filter(tslintFilter))
-		.pipe(gulptslint({ rulesDirectory: 'build/lib/tslint' }))
-		.pipe(gulptslint.report(options));
+		.pipe(gulptslint.default({ rulesDirectory: 'build/lib/tslint' }))
+		.pipe(gulptslint.default.report(options));
 });
 
-const hygiene = exports.hygiene = (some, options) => {
+function hygiene(some, options) {
 	options = options || {};
 	let errorCount = 0;
 
@@ -202,6 +206,11 @@ const hygiene = exports.hygiene = (some, options) => {
 			verify: true,
 			tsfmt: true,
 			// verbose: true
+			// keep checkJS happy
+			editorconfig: undefined,
+			replace: undefined,
+			tsconfig: undefined,
+			tslint: undefined
 		}).then(result => {
 			if (result.error) {
 				console.error(result.message);
@@ -214,34 +223,25 @@ const hygiene = exports.hygiene = (some, options) => {
 		});
 	});
 
-	function reportFailures(failures) {
-		failures.forEach(failure => {
-			const name = failure.name || failure.fileName;
-			const position = failure.startPosition;
-			const line = position.lineAndCharacter ? position.lineAndCharacter.line : position.line;
-			const character = position.lineAndCharacter ? position.lineAndCharacter.character : position.character;
-
-			console.error(`${name}:${line + 1}:${character + 1}:${failure.failure}`);
-		});
-	}
+	const tslintConfiguration = tslint.Configuration.findConfiguration('tslint.json', '.');
+	const tslintOptions = { fix: false, formatter: 'json' };
+	const tsLinter = new tslint.Linter(tslintOptions);
 
 	const tsl = es.through(function (file) {
-		const configuration = tslint.Configuration.findConfiguration(null, '.');
-		const options = { formatter: 'json', rulesDirectory: 'build/lib/tslint' };
 		const contents = file.contents.toString('utf8');
-		const linter = new tslint.Linter(options);
-		linter.lint(file.relative, contents, configuration.results);
-		const result = linter.getResult();
-
-		if (result.failures.length > 0) {
-			reportFailures(result.failures);
-			errorCount += result.failures.length;
-		}
-
+		tsLinter.lint(file.relative, contents, tslintConfiguration.results);
 		this.emit('data', file);
 	});
 
-	const result = vfs.src(some || all, { base: '.', follow: true, allowEmpty: true })
+	let input;
+
+	if (Array.isArray(some) || typeof some === 'string' || !some) {
+		input = vfs.src(some || all, { base: '.', follow: true, allowEmpty: true });
+	} else {
+		input = some;
+	}
+
+	const result = input
 		.pipe(filter(f => !f.stat.isDirectory()))
 		.pipe(filter(eolFilter))
 		.pipe(options.skipEOL ? es.through() : eol)
@@ -271,15 +271,62 @@ const hygiene = exports.hygiene = (some, options) => {
 			this.emit('data', data);
 		}, function () {
 			process.stdout.write('\n');
+
+			const tslintResult = tsLinter.getResult();
+			if (tslintResult.failures.length > 0) {
+				for (const failure of tslintResult.failures) {
+					const name = failure.getFileName();
+					const position = failure.getStartPosition();
+					const line = position.getLineAndCharacter().line;
+					const character = position.getLineAndCharacter().character;
+
+					console.error(`${name}:${line + 1}:${character + 1}:${failure.getFailure()}`);
+				}
+				errorCount += tslintResult.failures.length;
+			}
+
 			if (errorCount > 0) {
 				this.emit('error', 'Hygiene failed with ' + errorCount + ' errors. Check \'build/gulpfile.hygiene.js\'.');
 			} else {
 				this.emit('end');
 			}
 		}));
-};
+}
 
-gulp.task('hygiene', () => hygiene(''));
+function createGitIndexVinyls(paths) {
+	const cp = require('child_process');
+	const repositoryPath = process.cwd();
+
+	const fns = paths.map(relativePath => () => new Promise((c, e) => {
+		const fullPath = path.join(repositoryPath, relativePath);
+
+		fs.stat(fullPath, (err, stat) => {
+			if (err && err.code === 'ENOENT') { // ignore deletions
+				return c(null);
+			} else if (err) {
+				return e(err);
+			}
+
+			cp.exec(`git show :${relativePath}`, { maxBuffer: 2000 * 1024, encoding: 'buffer' }, (err, out) => {
+				if (err) {
+					return e(err);
+				}
+
+				c(new VinylFile({
+					path: fullPath,
+					base: repositoryPath,
+					contents: out,
+					stat
+				}));
+			});
+		});
+	}));
+
+	return pall(fns, { concurrency: 4 })
+		.then(r => r.filter(p => !!p));
+}
+
+gulp.task('hygiene', () => hygiene());
 
 // this allows us to run hygiene as a git pre-commit hook
 if (require.main === module) {
@@ -306,6 +353,7 @@ if (require.main === module) {
 				console.error();
 				console.error(err);
 				process.exit(1);
+				return;
 			}
 
 			const some = out
@@ -313,11 +361,17 @@ if (require.main === module) {
 				.filter(l => !!l);
 
 			if (some.length > 0) {
-				hygiene(some, { skipEOL: skipEOL }).on('error', err => {
-					console.error();
-					console.error(err);
-					process.exit(1);
-				});
+				console.log('Reading git index versions...');
+
+				createGitIndexVinyls(some)
+					.then(vinyls => new Promise((c, e) => hygiene(es.readArray(vinyls), { skipEOL: skipEOL })
+						.on('end', () => c())
+						.on('error', e)))
+					.catch(err => {
+						console.error();
+						console.error(err);
+						process.exit(1);
+					});
 			}
 		});
 	});

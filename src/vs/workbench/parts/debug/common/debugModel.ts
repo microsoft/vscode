@@ -13,14 +13,14 @@ import { generateUuid } from 'vs/base/common/uuid';
 import * as errors from 'vs/base/common/errors';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import severity from 'vs/base/common/severity';
-import { isObject, isString } from 'vs/base/common/types';
+import { isObject, isString, isUndefinedOrNull } from 'vs/base/common/types';
 import { distinct } from 'vs/base/common/arrays';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IProcess, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IModel, IReplElementSource,
-	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint, IExceptionInfo, IReplElement, ProcessState, IBreakpointsChangeEvent
+	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IReplElement, ProcessState, IBreakpointsChangeEvent, IBreakpointUpdateData
 } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -562,6 +562,10 @@ export class Process implements IProcess {
 		if (this.sources.has(source.uri.toString())) {
 			source = this.sources.get(source.uri.toString());
 			source.raw = mixin(source.raw, raw);
+			if (source.raw && raw) {
+				// Always take the latest presentation hint from adapter #42139
+				source.raw.presentationHint = raw.presentationHint;
+			}
 		} else {
 			this.sources.set(source.uri.toString(), source);
 		}
@@ -864,7 +868,7 @@ export class Model implements IModel {
 		this._onDidChangeBreakpoints.fire();
 	}
 
-	public addBreakpoints(uri: uri, rawData: IRawBreakpoint[], fireEvent = true): Breakpoint[] {
+	public addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): Breakpoint[] {
 		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, undefined, rawBp.id));
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
@@ -882,19 +886,30 @@ export class Model implements IModel {
 		this._onDidChangeBreakpoints.fire({ removed: toRemove });
 	}
 
-	public updateBreakpoints(data: { [id: string]: DebugProtocol.Breakpoint }): void {
+	public updateBreakpoints(data: { [id: string]: IBreakpointUpdateData }): void {
 		const updated: IBreakpoint[] = [];
 		this.breakpoints.forEach(bp => {
 			const bpData = data[bp.getId()];
 			if (bpData) {
-				bp.lineNumber = bpData.line ? bpData.line : bp.lineNumber;
+				if (!isUndefinedOrNull(bpData.line)) {
+					bp.lineNumber = bpData.line;
+				}
 				bp.endLineNumber = bpData.endLine;
 				bp.column = bpData.column;
 				bp.endColumn = bpData.endColumn;
-				bp.verified = bp.verified || bpData.verified;
+				if (!isUndefinedOrNull(bpData.verified)) {
+					bp.verified = bpData.verified;
+				}
 				bp.idFromAdapter = bpData.id;
 				bp.message = bpData.message;
 				bp.adapterData = bpData.source ? bpData.source.adapterData : bp.adapterData;
+
+				if (!isUndefinedOrNull(bpData.condition)) {
+					bp.condition = bpData.condition;
+				}
+				if (!isUndefinedOrNull(bpData.hitCondition)) {
+					bp.hitCondition = bpData.hitCondition;
+				}
 				updated.push(bp);
 			}
 		});
@@ -1046,10 +1061,12 @@ export class Model implements IModel {
 		return this.watchExpressions;
 	}
 
-	public addWatchExpression(process: IProcess, stackFrame: IStackFrame, name: string): void {
+	public addWatchExpression(process: IProcess, stackFrame: IStackFrame, name: string): IExpression {
 		const we = new Expression(name);
 		this.watchExpressions.push(we);
 		this._onDidChangeWatchExpressions.fire(we);
+
+		return we;
 	}
 
 	public renameWatchExpression(process: IProcess, stackFrame: IStackFrame, id: string, newName: string): void {

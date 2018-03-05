@@ -26,7 +26,6 @@
 	"workbench.action.terminal.runSelectedText": "Seçili Metni Aktif Terminalde Çalıştır",
 	"workbench.action.terminal.runActiveFile": "Aktif Dosyayı Aktif Terminalde Çalıştır",
 	"workbench.action.terminal.runActiveFile.noFile": "Sadece diskteki dosyalar terminalde çalıştırılabilir",
-	"workbench.action.terminal.switchTerminalInstance": "Terminal Örneğini Değiştir",
 	"workbench.action.terminal.scrollDown": "Aşağı Kaydır (Satır)",
 	"workbench.action.terminal.scrollDownPage": "Aşağı Kaydır (Sayfa)",
 	"workbench.action.terminal.scrollToBottom": "En Alta Kaydır",

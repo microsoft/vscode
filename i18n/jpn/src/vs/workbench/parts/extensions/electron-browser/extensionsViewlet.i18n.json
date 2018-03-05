@@ -12,6 +12,7 @@
 	"recommendedExtensions": "推奨",
 	"otherRecommendedExtensions": "その他の推奨事項",
 	"workspaceRecommendedExtensions": "ワークスペースの推奨事項",
+	"builtInExtensions": "ビルトイン",
 	"searchExtensions": "Marketplace で拡張機能を検索する",
 	"sort by installs": "並べ替え: インストール数",
 	"sort by rating": "並べ替え: 評価",
@@ -19,5 +20,6 @@
 	"suggestProxyError": "Marketplace が 'ECONNREFUSED' を返しました。'http.proxy' 設定を確認してください。",
 	"extensions": "拡張機能",
 	"outdatedExtensions": "{0} 古くなった拡張機能",
+	"malicious warning": "問題があることが報告された '{0}' をアンインストールしました。",
 	"reloadNow": "今すぐ再度読み込む"
 }

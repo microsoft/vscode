@@ -6,14 +6,12 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import * as lifecycle from 'vs/base/common/lifecycle';
-import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IDebugService, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID, ProcessState }
 	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint, Process } from 'vs/workbench/parts/debug/common/debugModel';
@@ -22,6 +20,9 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { CollapseAction } from 'vs/workbench/browser/viewlet';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -77,7 +78,8 @@ export class ConfigureAction extends AbstractDebugAction {
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IMessageService private messageService: IMessageService
+		@INotificationService private notificationService: INotificationService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
 		this.toDispose.push(debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateClass()));
@@ -85,7 +87,7 @@ export class ConfigureAction extends AbstractDebugAction {
 	}
 
 	public get tooltip(): string {
-		if (this.debugService.getConfigurationManager().selectedName) {
+		if (this.debugService.getConfigurationManager().selectedConfiguration.name) {
 			return ConfigureAction.LABEL;
 		}
 
@@ -93,17 +95,17 @@ export class ConfigureAction extends AbstractDebugAction {
 	}
 
 	private updateClass(): void {
-		this.class = this.debugService.getConfigurationManager().selectedName ? 'debug-action configure' : 'debug-action configure notification';
+		this.class = this.debugService.getConfigurationManager().selectedConfiguration.name ? 'debug-action configure' : 'debug-action configure notification';
 	}
 
 	public run(event?: any): TPromise<any> {
-		if (!this.debugService.getConfigurationManager().selectedLaunch) {
-			this.messageService.show(severity.Info, nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			this.notificationService.info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 			return TPromise.as(null);
 		}
 
 		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-		return this.debugService.getConfigurationManager().selectedLaunch.openConfigFile(sideBySide);
+		return this.debugService.getConfigurationManager().selectedConfiguration.launch.openConfigFile(sideBySide);
 	}
 }
 
@@ -124,8 +126,8 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		const launch = this.debugService.getConfigurationManager().selectedLaunch;
-		return this.debugService.startDebugging(launch ? launch.workspace : undefined, undefined, this.isNoDebug());
+		const launch = this.debugService.getConfigurationManager().selectedConfiguration.launch;
+		return this.debugService.startDebugging(launch, undefined, this.isNoDebug());
 	}
 
 	protected isNoDebug(): boolean {
@@ -134,7 +136,7 @@ export class StartAction extends AbstractDebugAction {
 
 	public static isEnabled(debugService: IDebugService, contextService: IWorkspaceContextService, configName: string) {
 		const processes = debugService.getModel().getProcesses();
-		const launch = debugService.getConfigurationManager().selectedLaunch;
+		const launch = debugService.getConfigurationManager().selectedConfiguration.launch;
 
 		if (debugService.state === State.Initializing) {
 			return false;
@@ -155,7 +157,7 @@ export class StartAction extends AbstractDebugAction {
 
 	// Disabled if the launch drop down shows the launch config that is already running.
 	protected isEnabled(state: State): boolean {
-		return StartAction.isEnabled(this.debugService, this.contextService, this.debugService.getConfigurationManager().selectedName);
+		return StartAction.isEnabled(this.debugService, this.contextService, this.debugService.getConfigurationManager().selectedConfiguration.name);
 	}
 }
 
@@ -835,5 +837,17 @@ export class ReverseContinueAction extends AbstractDebugAction {
 		const process = this.debugService.getViewModel().focusedProcess;
 		return super.isEnabled(state) && state === State.Stopped &&
 			process && process.session.capabilities.supportsStepBack;
+	}
+}
+
+export class ReplCollapseAllAction extends CollapseAction {
+	constructor(viewer: ITree, private toFocus: { focus(): void; }) {
+		super(viewer, true, undefined);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return super.run(event).then(() => {
+			this.toFocus.focus();
+		});
 	}
 }

@@ -8,8 +8,7 @@
 	],
 	"terminal.integrated.chooseWindowsShellInfo": "È possibile modificare la shell di terminale di default selezionando il pulsante Personalizza.",
 	"customize": "Personalizza",
-	"cancel": "Annulla",
-	"never again": "OK, non visualizzare più",
+	"never again": "Non visualizzare più questo messaggio",
 	"terminal.integrated.chooseWindowsShell": "Seleziona la shell di terminale preferita - è possibile modificare questa impostazione dopo",
 	"terminalService.terminalCloseConfirmationSingular": "C'è una sessione di terminale attiva. Terminarla?",
 	"terminalService.terminalCloseConfirmationPlural": "Ci sono {0} sessioni di terminale attive. Terminarle?"

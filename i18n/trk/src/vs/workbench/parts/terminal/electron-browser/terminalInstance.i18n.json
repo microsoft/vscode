@@ -10,6 +10,5 @@
 	"terminal.integrated.a11yPromptLabel": "Terminal girdisi",
 	"terminal.integrated.copySelection.noSelection": "Terminalde kopyalanacak bir seçim bulunmuyor",
 	"terminal.integrated.exitedWithCode": "Terminal işlemi şu çıkış koduyla sonlandı: {0}",
-	"terminal.integrated.waitOnExit": "Terminali kapatmak için lütfen bir tuşa basın",
-	"terminal.integrated.launchFailed": "Terminal işlem komutu `{0}{1}` başlatılamadı (çıkış kodu: {2})"
+	"terminal.integrated.waitOnExit": "Terminali kapatmak için lütfen bir tuşa basın"
 }

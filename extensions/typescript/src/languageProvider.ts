@@ -20,6 +20,7 @@ import * as fileSchemes from './utils/fileSchemes';
 import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
 
 const validateSetting = 'validate.enable';
+const foldingSetting = 'typescript.experimental.syntaxFolding';
 
 export default class LanguageProvider {
 	private readonly diagnosticsManager: DiagnosticsManager;
@@ -30,10 +31,12 @@ export default class LanguageProvider {
 
 	private _validate: boolean = true;
 
-	private _documentSelector: DocumentFilter[];
+	private _documentSelector?: DocumentFilter[];
 
 	private readonly disposables: Disposable[] = [];
 	private readonly versionDependentDisposables: Disposable[] = [];
+
+	private foldingProviderRegistration: Disposable | undefined = void 0;
 
 	constructor(
 		private readonly client: TypeScriptServiceClient,
@@ -125,6 +128,15 @@ export default class LanguageProvider {
 		this.disposables.push(languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/quickFixProvider')).default(client, this.formattingOptionsManager, commandManager, this.diagnosticsManager)));
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/refactorProvider')).default(client, this.formattingOptionsManager, commandManager)));
+
+		await this.initFoldingProvider();
+		this.disposables.push(workspace.onDidChangeConfiguration(c => {
+			if (c.affectsConfiguration(foldingSetting)) {
+				this.initFoldingProvider();
+			}
+		}));
+		this.disposables.push({ dispose: () => this.foldingProviderRegistration && this.foldingProviderRegistration.dispose() });
+
 		this.registerVersionDependentProviders();
 
 		const cachedResponse = new CachedNavTreeResponse();
@@ -144,6 +156,20 @@ export default class LanguageProvider {
 		if (!this.description.isExternal) {
 			for (const modeId of this.description.modeIds) {
 				this.disposables.push(languages.setLanguageConfiguration(modeId, languageConfigurations.jsTsLanguageConfiguration));
+			}
+		}
+	}
+
+	private async initFoldingProvider(): Promise<void> {
+		let enable = workspace.getConfiguration().get(foldingSetting, false);
+		if (enable) {
+			if (!this.foldingProviderRegistration) {
+				this.foldingProviderRegistration = languages.registerFoldingProvider(this.documentSelector, new (await import('./features/folderingProvider')).default(this.client));
+			}
+		} else {
+			if (this.foldingProviderRegistration) {
+				this.foldingProviderRegistration.dispose();
+				this.foldingProviderRegistration = void 0;
 			}
 		}
 	}

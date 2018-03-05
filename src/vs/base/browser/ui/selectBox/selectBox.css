@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .select-box {
+.monaco-select-box {
 	width: 100%;
 	height: 20px;
 }

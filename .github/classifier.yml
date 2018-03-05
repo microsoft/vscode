@@ -8,9 +8,9 @@
             assignLabel: false
         },
         color-picker: [],
-        css-less-sass: [],
+        css-less-sass: [ aeschli ],
         debug: {
-            assignees: [ weinand ],
+            assignees: [ isidorn ],
             assignLabel: false
         },
         diff-editor: [],

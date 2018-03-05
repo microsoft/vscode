@@ -24,10 +24,11 @@
 	"copyPath": "Pfad kopieren",
 	"saveAll": "Alle speichern",
 	"compareWithSaved": "Mit gespeicherter Datei vergleichen",
+	"compareWithSelected": "Mit Auswahl vergleichen",
 	"compareSource": "Für Vergleich auswählen",
+	"compareSelected": "Auswahl vergleichen",
 	"close": "Schließen",
 	"closeOthers": "Andere schließen",
-	"closeUnmodified": "Nicht geänderte schließen",
 	"closeAll": "Alle schließen",
 	"deleteFile": "Endgültig löschen"
 }

@@ -6,10 +6,11 @@
 
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
 import { TextDocument, Position, Range } from 'vscode-languageserver-types';
-import { getCSSLanguageService, Stylesheet } from 'vscode-css-languageservice';
+import { getCSSLanguageService, Stylesheet, ICompletionParticipant } from 'vscode-css-languageservice';
 import { LanguageMode, Settings } from './languageModes';
 import { HTMLDocumentRegions, CSS_STYLE_RULE } from './embeddedSupport';
 import { Color } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
+import { extractAbbreviation } from 'vscode-emmet-helper';
 
 export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>): LanguageMode {
 	let cssLanguageService = getCSSLanguageService();
@@ -27,9 +28,30 @@ export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegio
 			let embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.doValidation(embedded, cssStylesheets.get(embedded), settings && settings.css);
 		},
-		doComplete(document: TextDocument, position: Position) {
+		doComplete(document: TextDocument, position: Position, settings: Settings, registeredCompletionParticipants: ICompletionParticipant[]) {
 			let embedded = embeddedCSSDocuments.get(document);
-			return cssLanguageService.doComplete(embedded, position, cssStylesheets.get(embedded));
+			const stylesheet = cssStylesheets.get(embedded);
+
+			if (registeredCompletionParticipants) {
+				const nonEmmetCompletionParticipants = [];
+				// Css Emmet completions in html files are provided no matter where the cursor is inside the embedded css document
+				// Mimic the same here, until we solve the issue of css language service not able to parse complete embedded documents when there are errors
+				for (let i = 0; i < registeredCompletionParticipants.length; i++) {
+					if (typeof (<any>registeredCompletionParticipants[i]).getId === 'function' && (<any>registeredCompletionParticipants[i]).getId() === 'emmet') {
+						const extractedResults = extractAbbreviation(document, position, { lookAhead: false, syntax: 'css' });
+						if (extractedResults && extractedResults.abbreviation) {
+							registeredCompletionParticipants[i].onCssProperty({ propertyName: extractedResults.abbreviation, range: extractedResults.abbreviationRange });
+						}
+					} else {
+						nonEmmetCompletionParticipants.push(registeredCompletionParticipants[i]);
+					}
+				}
+				cssLanguageService.setCompletionParticipants(nonEmmetCompletionParticipants);
+			}
+			return cssLanguageService.doComplete(embedded, position, stylesheet);
+		},
+		setCompletionParticipants(registeredCompletionParticipants: ICompletionParticipant[]) {
+			cssLanguageService.setCompletionParticipants(registeredCompletionParticipants);
 		},
 		doHover(document: TextDocument, position: Position) {
 			let embedded = embeddedCSSDocuments.get(document);

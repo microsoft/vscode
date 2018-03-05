@@ -1,11 +1,12 @@
 {
-  "name": "typescript",
-  "description": "Extension to add Typescript capabilities to VSCode.",
-  "displayName": "TypeScript support for VSCode",
-  "version": "0.10.1",
-  "author": "Microsoft Corporation",
-  "license": "MIT",
+  "name": "typescript-language-features",
+  "description": "%description%",
+  "displayName": "%displayName%",
+  "version": "1.0.0",
+  "icon": "icon.png",
+  "author": "vscode",
   "publisher": "vscode",
+  "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "enableProposedApi": true,
   "engines": {
@@ -13,7 +14,7 @@
   },
   "dependencies": {
     "semver": "4.3.6",
-    "vscode-extension-telemetry": "^0.0.11",
+    "vscode-extension-telemetry": "0.0.15",
     "vscode-nls": "^3.2.1"
   },
   "devDependencies": {
@@ -21,8 +22,7 @@
     "@types/semver": "5.4.0"
   },
   "scripts": {
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json",
-    "update-grammar": "node ./build/update-grammars.js"
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json"
   },
   "activationEvents": [
     "onLanguage:javascript",
@@ -40,49 +40,6 @@
   ],
   "main": "./out/extension",
   "contributes": {
-    "languages": [
-      {
-        "id": "typescript",
-        "aliases": [
-          "TypeScript",
-          "ts",
-          "typescript"
-        ],
-        "extensions": [
-          ".ts"
-        ],
-        "configuration": "./language-configuration.json"
-      },
-      {
-        "id": "typescriptreact",
-        "aliases": [
-          "TypeScript React",
-          "tsx"
-        ],
-        "extensions": [
-          ".tsx"
-        ],
-        "configuration": "./language-configuration.json"
-      }
-    ],
-    "grammars": [
-      {
-        "language": "typescript",
-        "scopeName": "source.ts",
-        "path": "./syntaxes/TypeScript.tmLanguage.json"
-      },
-      {
-        "language": "typescriptreact",
-        "scopeName": "source.tsx",
-        "path": "./syntaxes/TypeScriptReact.tmLanguage.json",
-        "embeddedLanguages": {
-          "meta.tag.tsx": "jsx-tags",
-          "meta.tag.without-attributes.tsx": "jsx-tags",
-          "meta.tag.attributes.tsx": "typescriptreact",
-          "meta.embedded.expression.tsx": "typescriptreact"
-        }
-      }
-    ],
     "configuration": {
       "type": "object",
       "title": "%configuration.typescript%",
@@ -439,6 +396,11 @@
           "default": null,
           "description": "%typescript.locale%",
           "scope": "window"
+        },
+        "typescript.experimental.syntaxFolding": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.experimental.syntaxFolding%"
         }
       }
     },
@@ -556,38 +518,7 @@
         "language": "typescriptreact"
       }
     ],
-    "snippets": [
-      {
-        "language": "typescript",
-        "path": "./snippets/typescript.json"
-      },
-      {
-        "language": "typescriptreact",
-        "path": "./snippets/typescript.json"
-      }
-    ],
-    "jsonValidation": [
-      {
-        "fileMatch": "tsconfig.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
-      },
-      {
-        "fileMatch": "tsconfig.json",
-        "url": "./schemas/tsconfig.schema.json"
-      },
-      {
-        "fileMatch": "tsconfig.*.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
-      },
-      {
-        "fileMatch": "tsconfig.*.json",
-        "url": "./schemas/tsconfig.schema.json"
-      },
-      {
-        "fileMatch": "typings.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/typings.json"
-      }
-    ],
+
     "taskDefinitions": [
       {
         "type": "typescript",
@@ -597,7 +528,7 @@
         "properties": {
           "tsconfig": {
             "type": "string",
-            "description": "The tsconfig file that defines the TS build"
+            "description": "%taskDefinition.tsconfig.description%"
           },
           "option": {
             "type": "string"

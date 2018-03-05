@@ -14,6 +14,8 @@ import { OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/conf
 import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfigurationModel, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, IConfigurationChangeEvent, ConfigurationTarget, removeFromValueTree, toOverrides } from 'vs/platform/configuration/common/configuration';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 
+declare const Proxy: any; // TODO@TypeScript
+
 export class ConfigurationModel implements IConfigurationModel {
 
 	private isFrozen: boolean = false;
@@ -291,7 +293,8 @@ export class Configuration {
 
 	getValue(section: string, overrides: IConfigurationOverrides, workspace: Workspace): any {
 		const consolidateConfigurationModel = this.getConsolidateConfigurationModel(overrides, workspace);
-		return consolidateConfigurationModel.getValue(section);
+		const result = consolidateConfigurationModel.getValue(section);
+		return this.toReadonlyValue(result);
 	}
 
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides = {}): void {
@@ -334,7 +337,7 @@ export class Configuration {
 			workspace: workspace ? overrides.overrideIdentifier ? this._workspaceConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this._workspaceConfiguration.freeze().getValue(key) : void 0, //Check on workspace exists or not because _workspaceConfiguration is never null
 			workspaceFolder: folderConfigurationModel ? overrides.overrideIdentifier ? folderConfigurationModel.freeze().override(overrides.overrideIdentifier).getValue(key) : folderConfigurationModel.freeze().getValue(key) : void 0,
 			memory: overrides.overrideIdentifier ? memoryConfigurationModel.freeze().override(overrides.overrideIdentifier).getValue(key) : memoryConfigurationModel.freeze().getValue(key),
-			value: consolidateConfigurationModel.getValue(key)
+			value: this.toReadonlyValue(consolidateConfigurationModel.getValue(key))
 		};
 	}
 
@@ -397,14 +400,6 @@ export class Configuration {
 		return this._folderConfigurations;
 	}
 
-	private get memory(): ConfigurationModel {
-		return this._memoryConfiguration;
-	}
-
-	private get memoryByResource(): StrictResourceMap<ConfigurationModel> {
-		return this._memoryConfigurationByResource;
-	}
-
 	private getConsolidateConfigurationModel(overrides: IConfigurationOverrides, workspace: Workspace): ConfigurationModel {
 		let configurationModel = this.getConsolidatedConfigurationModelForResource(overrides, workspace);
 		return overrides.overrideIdentifier ? configurationModel.override(overrides.overrideIdentifier) : configurationModel;
@@ -429,7 +424,7 @@ export class Configuration {
 
 	private getWorkspaceConsolidatedConfiguration(): ConfigurationModel {
 		if (!this._workspaceConsolidatedConfiguration) {
-			this._workspaceConsolidatedConfiguration = this._defaultConfiguration.merge(this._userConfiguration).merge(this._workspaceConfiguration).merge(this._memoryConfiguration).freeze();
+			this._workspaceConsolidatedConfiguration = this._defaultConfiguration.merge(this._userConfiguration, this._workspaceConfiguration, this._memoryConfiguration);
 		}
 		return this._workspaceConsolidatedConfiguration;
 	}
@@ -440,7 +435,7 @@ export class Configuration {
 			const workspaceConsolidateConfiguration = this.getWorkspaceConsolidatedConfiguration();
 			const folderConfiguration = this._folderConfigurations.get(folder);
 			if (folderConfiguration) {
-				folderConsolidatedConfiguration = workspaceConsolidateConfiguration.merge(folderConfiguration).freeze();
+				folderConsolidatedConfiguration = workspaceConsolidateConfiguration.merge(folderConfiguration);
 				this._foldersConsolidatedConfigurations.set(folder, folderConsolidatedConfiguration);
 			} else {
 				folderConsolidatedConfiguration = workspaceConsolidateConfiguration;
@@ -457,6 +452,22 @@ export class Configuration {
 			}
 		}
 		return null;
+	}
+
+	private toReadonlyValue(result: any): any {
+		const readonlyProxy = (target) => {
+			return types.isObject(target) ?
+				new Proxy(target, {
+					get: (target: any, property: string) => readonlyProxy(target[property]),
+					set: (target: any, property: string, value: any) => { throw new Error(`TypeError: Cannot assign to read only property '${property}' of object`); },
+					deleteProperty: (target: any, property: string) => { throw new Error(`TypeError: Cannot delete read only property '${property}' of object`); },
+					defineProperty: (target: any, property: string) => { throw new Error(`TypeError: Cannot define property '${property}' for a readonly object`); },
+					setPrototypeOf: (target: any) => { throw new Error(`TypeError: Cannot set prototype for a readonly object`); },
+					isExtensible: () => false,
+					preventExtensions: () => true
+				}) : target;
+		};
+		return readonlyProxy(result);
 	}
 
 	toData(): IConfigurationData {

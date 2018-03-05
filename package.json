@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.21.0",
-  "distro": "865cdb37bbcd1634d4d1805aabad9148ad50bb6f",
+  "version": "1.22.0",
+  "distro": "c2f5517441bb68c5be671fd2e5f71193e7b2682f",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -43,10 +43,10 @@
     "sudo-prompt": "^8.0.0",
     "v8-inspect-profiler": "^0.0.7",
     "vscode-chokidar": "1.6.2",
-    "vscode-debugprotocol": "1.25.0",
-    "vscode-ripgrep": "0.7.1-patch.1.1",
+    "vscode-debugprotocol": "1.27.0",
+    "vscode-ripgrep": "0.7.1-patch.0.1",
     "vscode-textmate": "^3.2.0",
-    "vscode-xterm": "3.2.0-beta1",
+    "vscode-xterm": "3.2.0-beta7",
     "yauzl": "2.8.0"
   },
   "devDependencies": {
@@ -67,7 +67,6 @@
     "eslint": "^3.4.0",
     "event-stream": "^3.1.7",
     "express": "^4.13.1",
-    "flatpak-bundler": "^0.1.1",
     "glob": "^5.0.13",
     "gulp": "^3.8.9",
     "gulp-atom-electron": "1.15.1",
@@ -104,13 +103,14 @@
     "mocha": "^2.2.5",
     "object-assign": "^4.0.1",
     "optimist": "0.3.5",
+    "p-all": "^1.0.0",
     "pump": "^1.0.1",
     "queue": "3.0.6",
     "remap-istanbul": "^0.6.4",
     "rimraf": "^2.2.8",
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
-    "tslint": "^5.8.0",
+    "tslint": "^5.9.1",
     "typescript": "2.6.1",
     "typescript-formatter": "4.0.1",
     "uglify-es": "^3.0.18",

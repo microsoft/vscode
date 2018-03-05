@@ -15,7 +15,7 @@ import { Dimension, Builder } from 'vs/base/browser/builder';
 import { ArrayNavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { SideBySideEditorInput, EditorOptions, EditorInput } from 'vs/workbench/common/editor';
+import { SideBySideEditorInput, EditorOptions, EditorInput, PREFERENCES_EDITOR_ID } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IEditorControl, Position, Verbosity } from 'vs/platform/editor/common/editor';
@@ -61,9 +61,10 @@ import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
-	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
+	public static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
 
 	getTypeId(): string {
 		return PreferencesEditorInput.ID;
@@ -104,7 +105,7 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 
 export class PreferencesEditor extends BaseEditor {
 
-	public static ID: string = 'workbench.editor.preferencesEditor';
+	public static readonly ID: string = PREFERENCES_EDITOR_ID;
 
 	private defaultSettingsEditorContextKey: IContextKey<boolean>;
 	private focusSettingsContextKey: IContextKey<boolean>;
@@ -402,7 +403,8 @@ class PreferencesRenderersController extends Disposable {
 		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@ILogService private logService: ILogService
 	) {
 		super();
 	}
@@ -501,7 +503,11 @@ class PreferencesRenderersController extends Disposable {
 		filterPs.push(this.searchAllSettingsTargets(query, searchProvider, groupId, groupLabel, groupOrder));
 
 		return TPromise.join(filterPs).then(results => {
-			const [editableFilterResult, defaultFilterResult] = results;
+			let [editableFilterResult, defaultFilterResult] = results;
+
+			if (!defaultFilterResult && editableContentOnly) {
+				defaultFilterResult = this.lastFilterResult;
+			}
 
 			this.consolidateAndUpdate(defaultFilterResult, editableFilterResult);
 			if (defaultFilterResult) {
@@ -612,14 +618,15 @@ class PreferencesRenderersController extends Disposable {
 				} else {
 					/* __GDPR__
 						"defaultSettings.searchError" : {
-							"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" },
 							"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						}
 					*/
 					const message = getErrorMessage(err).trim();
-					if (message) {
-						// Empty message = any generic network error
+					if (message && message !== 'Error') {
+						// "Error" = any generic network error
 						this.telemetryService.publicLog('defaultSettings.searchError', { message, filter });
+						this.logService.info('Setting search error: ' + message);
 					}
 					return null;
 				}
@@ -967,7 +974,7 @@ class SideBySidePreferencesWidget extends Widget {
 
 export class DefaultPreferencesEditor extends BaseTextEditor {
 
-	public static ID: string = 'workbench.editor.defaultPreferences';
+	public static readonly ID: string = 'workbench.editor.defaultPreferences';
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -1143,7 +1150,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 
 class DefaultSettingsEditorContribution extends AbstractSettingsEditorContribution implements ISettingsEditorContribution {
 
-	static ID: string = 'editor.contrib.defaultsettings';
+	static readonly ID: string = 'editor.contrib.defaultsettings';
 
 	getId(): string {
 		return DefaultSettingsEditorContribution.ID;
@@ -1164,7 +1171,7 @@ class DefaultSettingsEditorContribution extends AbstractSettingsEditorContributi
 
 class SettingsEditorContribution extends AbstractSettingsEditorContribution implements ISettingsEditorContribution {
 
-	static ID: string = 'editor.contrib.settings';
+	static readonly ID: string = 'editor.contrib.settings';
 
 	constructor(editor: ICodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService,

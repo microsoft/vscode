@@ -35,9 +35,12 @@
 	"panelDefaultLocation": "Controla o local padrão do painel. Pode ser visualizado na parte inferior ou no lado direito da área de trabalho.",
 	"statusBarVisibility": "Controla a visibilidade da barra de status na parte inferior da área de trabalho.",
 	"activityBarVisibility": "Controla a visibilidade da barra de atividades na área de trabalho.",
+	"viewVisibility": "Controla a visibilidade das ações do cabeçalho de exibição. Ações de cabeçalho de exibição podem ser sempre visíveis ou somente visíveis quando a exibição tiver o foco ou quando passar o mouse.",
+	"fontAliasing": "Controla o método de aliasing da fonte na área de trabalho.\n- default: Suavização de fonte por Sub-pixel. Na maioria das telas não-retina, este fornecerá o texto mais nítido\n- antialiased: Suavização da fontes no nível do pixel, oposto ao subpixel. Pode fazer a fonte parecer mais fina/clara no geral.\n- none: Desabilita a suavização de fonte. O texto será mostrado com bordas pixeladas.\n- auto: Aplica `default` ou `antialiased` automaticamente baseado no DPI das telas.",
 	"workbench.fontAliasing.default": "Suavização de fonte subpixel. Na maioria dos monitores não-retina isto mostrará o texto mais nítido.",
 	"workbench.fontAliasing.antialiased": "Suavizar a fonte no nível do pixel, em oposição a subpixel. Pode fazer com que a fonte apareça mais clara de uma forma geral.",
 	"workbench.fontAliasing.none": "Desabilita a suavização de fonte. Texto será mostrado com bordas irregulares.",
+	"workbench.fontAliasing.auto": "Aplica `default` ou `antialiased` automaticamente, baseado no DPI das telas.",
 	"enableNaturalLanguageSettingsSearch": "Controla se deve habilitar o modo de busca de linguagem natural para as configurações.",
 	"windowConfigurationTitle": "Janela",
 	"window.openFilesInNewWindow.on": "Arquivos serão abertos em uma nova janela",
@@ -76,6 +79,5 @@
 	"zenMode.hideTabs": "Controla se a ativação do modo Zen também oculta as abas do espaço de trabalho.",
 	"zenMode.hideStatusBar": "Controla se a ativação do modo Zen também oculta a barra de status no rodapé do espaço de trabalho.",
 	"zenMode.hideActivityBar": "Controla se a ativação do modo Zen também oculta a barra de atividades à esquerda do espaço de trabalho.",
-	"zenMode.restore": "Controla se uma janela deve ser restaurada para o modo zen se ela foi finalizada no modo zen.",
-	"JsonSchema.locale": "O idioma da interface do usuário a ser usada."
+	"zenMode.restore": "Controla se uma janela deve ser restaurada para o modo zen se ela foi finalizada no modo zen."
 }

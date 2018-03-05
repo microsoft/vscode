@@ -128,6 +128,7 @@ export class ContextView {
 
 	public setContainer(container: HTMLElement): void {
 		if (this.$container) {
+			this.$container.getHTMLElement().removeChild(this.$view.getHTMLElement());
 			this.$container.off(ContextView.BUBBLE_UP_EVENTS);
 			this.$container.off(ContextView.BUBBLE_DOWN_EVENTS, true);
 			this.$container = null;

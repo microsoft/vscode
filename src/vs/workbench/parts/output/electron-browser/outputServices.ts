@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import { IOutputChannelIdentifier, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, OUTPUT_MIME, MAX_OUTPUT_LENGTH, LOG_SCHEME } from 'vs/workbench/parts/output/common/output';
+import { IOutputChannelIdentifier, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, OUTPUT_MIME, MAX_OUTPUT_LENGTH, LOG_SCHEME, LOG_MIME } from 'vs/workbench/parts/output/common/output';
 import { OutputPanel } from 'vs/workbench/parts/output/browser/outputPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -44,26 +44,25 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
 let watchingOutputDir = false;
-let callbacks = [];
+let callbacks: ((eventType: string, fileName: string) => void)[] = [];
 function watchOutputDirectory(outputDir: string, logService: ILogService, onChange: (eventType: string, fileName: string) => void): IDisposable {
 	callbacks.push(onChange);
 	if (!watchingOutputDir) {
-		try {
-			const watcher = extfs.watch(outputDir, (eventType, fileName) => {
-				for (const callback of callbacks) {
-					callback(eventType, fileName);
-				}
-			});
-			watcher.on('error', (code: number, signal: string) => logService.error(`Error watching ${outputDir}: (${code}, ${signal})`));
-			watchingOutputDir = true;
-			return toDisposable(() => {
-				callbacks = [];
+		const watcher = extfs.watch(outputDir, (eventType, fileName) => {
+			for (const callback of callbacks) {
+				callback(eventType, fileName);
+			}
+		}, (error: string) => {
+			logService.error(error);
+		});
+		watchingOutputDir = true;
+		return toDisposable(() => {
+			callbacks = [];
+			if (watcher) {
 				watcher.removeAllListeners();
 				watcher.close();
-			});
-		} catch (error) {
-			logService.error(`Error watching ${outputDir}:  (${error.toString()})`);
-		}
+			}
+		});
 	}
 	return toDisposable(() => { });
 }
@@ -135,6 +134,7 @@ abstract class AbstractFileOutputChannel extends Disposable {
 	constructor(
 		protected readonly outputChannelIdentifier: IOutputChannelIdentifier,
 		private readonly modelUri: URI,
+		private mimeType: string,
 		protected fileService: IFileService,
 		protected modelService: IModelService,
 		protected modeService: IModeService,
@@ -167,7 +167,7 @@ abstract class AbstractFileOutputChannel extends Disposable {
 		if (this.model) {
 			this.model.setValue(content);
 		} else {
-			this.model = this.modelService.createModel(content, this.modeService.getOrCreateMode(OUTPUT_MIME), this.modelUri);
+			this.model = this.modelService.createModel(content, this.modeService.getOrCreateMode(this.mimeType), this.modelUri);
 			this.onModelCreated(this.model);
 			const disposables: IDisposable[] = [];
 			disposables.push(this.model.onWillDispose(() => {
@@ -218,7 +218,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		@IModeService modeService: IModeService,
 		@ILogService logService: ILogService
 	) {
-		super({ ...outputChannelIdentifier, file: URI.file(paths.join(outputDir, `${outputChannelIdentifier.id}.log`)) }, modelUri, fileService, modelService, modeService);
+		super({ ...outputChannelIdentifier, file: URI.file(paths.join(outputDir, `${outputChannelIdentifier.id}.log`)) }, modelUri, OUTPUT_MIME, fileService, modelService, modeService);
 
 		// Use one rotating file to check for main file reset
 		this.outputWriter = new RotatingLogger(this.id, this.file.fsPath, 1024 * 1024 * 30, 1);
@@ -231,7 +231,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 
 	append(message: string): void {
 		// update end offset always as message is read
-		this.endOffset = this.endOffset + new Buffer(message).byteLength;
+		this.endOffset = this.endOffset + Buffer.from(message).byteLength;
 		if (this.loadingFromFileInProgress) {
 			this.appendedMessage += message;
 		} else {
@@ -258,7 +258,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		this.appendedMessage = '';
 		return this.loadFile()
 			.then(content => {
-				if (this.endOffset !== this.startOffset + new Buffer(content).byteLength) {
+				if (this.endOffset !== this.startOffset + Buffer.from(content).byteLength) {
 					// Queue content is not written into the file
 					// Flush it and load file again
 					this.flush();
@@ -364,7 +364,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 		@IModeService modeService: IModeService,
 		@ILogService logService: ILogService,
 	) {
-		super(outputChannelIdentifier, modelUri, fileService, modelService, modeService);
+		super(outputChannelIdentifier, modelUri, LOG_MIME, fileService, modelService, modeService);
 
 		this.fileHandler = this._register(new OutputFileListener(this.file));
 		this._register(this.fileHandler.onDidContentChange(() => this.onDidContentChange()));
@@ -374,7 +374,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 	loadModel(): TPromise<ITextModel> {
 		return this.fileService.resolveContent(this.file, { position: this.startOffset })
 			.then(content => {
-				this.endOffset = this.startOffset + new Buffer(content.value).byteLength;
+				this.endOffset = this.startOffset + Buffer.from(content.value).byteLength;
 				return this.createModel(content.value);
 			});
 	}
@@ -388,7 +388,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 			this.fileService.resolveContent(this.file, { position: this.endOffset })
 				.then(content => {
 					if (content.value) {
-						this.endOffset = this.endOffset + new Buffer(content.value).byteLength;
+						this.endOffset = this.endOffset + Buffer.from(content.value).byteLength;
 						this.appendToModel(content.value);
 					}
 					this.updateInProgress = false;
@@ -530,7 +530,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	}
 
 	private createChannel(id: string): OutputChannel {
-		const channelDisposables = [];
+		const channelDisposables: IDisposable[] = [];
 		const channel = this.instantiateChannel(id);
 		channel.onDidAppendedContent(() => {
 			if (!channel.scrollLock) {
@@ -631,7 +631,7 @@ export class LogContentProvider {
 		const id = resource.path;
 		let channel = this.channels.get(id);
 		if (!channel) {
-			const channelDisposables = [];
+			const channelDisposables: IDisposable[] = [];
 			channel = this.instantiationService.createInstance(FileOutputChannel, { id, label: '', file: resource.with({ scheme: Schemas.file }) }, resource);
 			channel.onDispose(() => dispose(channelDisposables), channelDisposables);
 			this.channels.set(id, channel);

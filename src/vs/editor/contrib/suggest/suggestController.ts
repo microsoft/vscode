@@ -77,7 +77,7 @@ class AcceptOnCharacterOracle {
 
 export class SuggestController implements IEditorContribution {
 
-	private static ID: string = 'editor.contrib.suggestController';
+	private static readonly ID: string = 'editor.contrib.suggestController';
 
 	public static get(editor: ICodeEditor): SuggestController {
 		return editor.getContribution<SuggestController>(SuggestController.ID);
@@ -90,9 +90,9 @@ export class SuggestController implements IEditorContribution {
 
 	constructor(
 		private _editor: ICodeEditor,
-		@ICommandService private _commandService: ICommandService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IInstantiationService private _instantiationService: IInstantiationService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._model = new SuggestModel(this._editor);
 		this._memory = _instantiationService.createInstance(SuggestMemories, this._editor.getConfiguration().contribInfo.suggestSelection);

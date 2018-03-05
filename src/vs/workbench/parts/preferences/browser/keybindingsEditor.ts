@@ -9,6 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { OS } from 'vs/base/common/platform';
+import { dispose } from 'vs/base/common/lifecycle';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -34,19 +35,19 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { listHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 let $ = DOM.$;
 
 export class KeybindingsEditorInput extends EditorInput {
 
-	public static ID: string = 'workbench.input.keybindings';
+	public static readonly ID: string = 'workbench.input.keybindings';
 	public readonly keybindingsModel: KeybindingsEditorModel;
 
 	constructor( @IInstantiationService instantiationService: IInstantiationService) {
@@ -73,7 +74,7 @@ export class KeybindingsEditorInput extends EditorInput {
 
 export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor {
 
-	public static ID: string = 'workbench.editor.keybindings';
+	public static readonly ID: string = 'workbench.editor.keybindings';
 
 	private keybindingsEditorModel: KeybindingsEditorModel;
 
@@ -105,7 +106,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IKeybindingEditingService private keybindingEditingService: IKeybindingEditingService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
@@ -179,14 +180,17 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.selectEntry(keybindingEntry);
 		this.showOverlayContainer();
 		return this.defineKeybindingWidget.define().then(key => {
-			this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_DEFINE, keybindingEntry.keybindingItem.command, key);
 			if (key) {
-				return this.keybindingEditingService.editKeybinding(key, keybindingEntry.keybindingItem.keybindingItem)
-					.then(() => {
-						if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
-							this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
-						}
-					});
+				const currentKey = keybindingEntry.keybindingItem.keybinding ? keybindingEntry.keybindingItem.keybinding.getUserSettingsLabel() : '';
+				if (currentKey !== key) {
+					this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_DEFINE, keybindingEntry.keybindingItem.command, key);
+					return this.keybindingEditingService.editKeybinding(key, keybindingEntry.keybindingItem.keybindingItem)
+						.then(() => {
+							if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
+								this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
+							}
+						});
+				}
 			}
 			return null;
 		}).then(() => {
@@ -574,7 +578,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	private onKeybindingEditingError(error: any): void {
-		this.messageService.show(Severity.Error, typeof error === 'string' ? error : localize('error', "Error '{0}' while editing keybinding. Please open 'keybindings.json' file and check.", `${error}`));
+		this.notificationService.error(typeof error === 'string' ? error : localize('error', "Error '{0}' while editing the keybinding. Please open 'keybindings.json' file and check for errors.", `${error}`));
 	}
 }
 
@@ -669,6 +673,7 @@ class KeybindingItemRenderer implements IRenderer<IKeybindingItemEntry, Keybindi
 	}
 
 	disposeTemplate(template: KeybindingItemTemplate): void {
+		template.actions.dispose();
 	}
 }
 
@@ -732,6 +737,10 @@ class ActionsColumn extends Column {
 			tooltip: keybinding ? localize('addKeybindingLabelWithKey', "Add Keybinding {0}", `(${keybinding.getLabel()})`) : localize('addKeybindingLabel', "Add Keybinding"),
 			run: () => this.keybindingsEditor.defineKeybinding(keybindingItemEntry)
 		};
+	}
+
+	public dispose(): void {
+		this.actionBar = dispose(this.actionBar);
 	}
 }
 

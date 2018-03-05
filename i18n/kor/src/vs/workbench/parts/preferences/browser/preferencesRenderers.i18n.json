@@ -9,6 +9,8 @@
 	"emptyUserSettingsHeader": "설정을 여기에 넣어서 기본 설정을 덮어씁니다.",
 	"emptyWorkspaceSettingsHeader": "설정을 여기에 넣어서 사용자 설정을 덮어씁니다.",
 	"emptyFolderSettingsHeader": "폴더 설정을 여기에 넣어서 작업 영역 설정을 덮어씁니다.",
+	"reportSettingsSearchIssue": "문제 보고",
+	"newExtensionLabel": "\"{0}\" 확장 표시",
 	"editTtile": "편집",
 	"replaceDefaultValue": "설정에서 바꾸기",
 	"copyDefaultValue": "설정에 복사",

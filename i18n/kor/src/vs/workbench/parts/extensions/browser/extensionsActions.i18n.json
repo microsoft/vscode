@@ -51,11 +51,10 @@
 	"OpenExtensionsFile.failed": "'.vscode' 폴더({0}) 내에 'extensions.json' 파일을 만들 수 없습니다.",
 	"configureWorkspaceRecommendedExtensions": "권장 확장 구성(작업 영역)",
 	"configureWorkspaceFolderRecommendedExtensions": "권장 확장 구성(작업 영역 폴더)",
-	"builtin": "기본 제공",
+	"malicious tooltip": "이 확장은 문제가 있다고 보고되었습니다.",
+	"malicious": "악성",
 	"disableAll": "설치된 모든 확장 사용 안 함",
 	"disableAllWorkspace": "이 작업 영역에 대해 설치된 모든 확장 사용 안 함",
-	"enableAll": "설치된 모든 확장 사용",
-	"enableAllWorkspace": "이 작업 영역에 대해 설치된 모든 확장 사용",
 	"extensionButtonProminentBackground": "눈에 잘 띄는 작업 확장의 단추 배경색입니다(예: 설치 단추).",
 	"extensionButtonProminentForeground": "눈에 잘 띄는 작업 확장의 단추 전경색입니다(예: 설치 단추).",
 	"extensionButtonProminentHoverBackground": "눈에 잘 띄는 작업 확장의 단추 배경 커서 올리기 색입니다(예: 설치 단추)."

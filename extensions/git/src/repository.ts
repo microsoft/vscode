@@ -5,8 +5,8 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType } from 'vscode';
-import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError, Submodule, DiffOptions } from './git';
+import { commands, Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType } from 'vscode';
+import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError, Submodule, DiffOptions, UpstreamRef } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
@@ -398,7 +398,7 @@ class ProgressManager {
 
 	private disposable: IDisposable = EmptyDisposable;
 
-	constructor(private repository: Repository) {
+	constructor(repository: Repository) {
 		const start = onceEvent(filterEvent(repository.onDidChangeOperations, () => repository.operations.shouldShowProgress()));
 		const end = onceEvent(filterEvent(debounceEvent(repository.onDidChangeOperations, 300), () => !repository.operations.shouldShowProgress()));
 
@@ -513,7 +513,7 @@ export class Repository implements Disposable {
 
 		const onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
 		const onRepositoryChange = filterEvent(onWorkspaceChange, uri => isDescendant(repository.root, uri.fsPath));
-		const onRelevantRepositoryChange = filterEvent(onRepositoryChange, uri => !/\/\.git\/index\.lock$/.test(uri.path));
+		const onRelevantRepositoryChange = filterEvent(onRepositoryChange, uri => !/\/\.git(\/index\.lock)?$/.test(uri.path));
 		onRelevantRepositoryChange(this.onFSChange, this, this.disposables);
 
 		const onRelevantGitChange = filterEvent(onRelevantRepositoryChange, uri => /\/\.git\//.test(uri.path));
@@ -728,22 +728,46 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async pullWithRebase(): Promise<void> {
-		await this.run(Operation.Pull, () => this.repository.pull(true));
+	async pullWithRebase(upstream?: UpstreamRef): Promise<void> {
+		let remote: string | undefined;
+		let branch: string | undefined;
+
+		if (upstream) {
+			remote = upstream.remote;
+			branch = upstream.name;
+		}
+
+		await this.run(Operation.Pull, () => this.repository.pull(true, remote, branch));
 	}
 
 	@throttle
-	async pull(rebase?: boolean, remote?: string, name?: string): Promise<void> {
-		await this.run(Operation.Pull, () => this.repository.pull(rebase, remote, name));
-	}
+	async pull(upstream?: UpstreamRef): Promise<void> {
+		let remote: string | undefined;
+		let branch: string | undefined;
 
-	@throttle
-	async push(): Promise<void> {
-		await this.run(Operation.Push, () => this.repository.push());
+		if (upstream) {
+			remote = upstream.remote;
+			branch = upstream.name;
+		}
+
+		await this.run(Operation.Pull, () => this.repository.pull(false, remote, branch));
 	}
 
 	async pullFrom(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
 		await this.run(Operation.Pull, () => this.repository.pull(rebase, remote, branch));
+	}
+
+	@throttle
+	async push(upstream?: UpstreamRef): Promise<void> {
+		let remote: string | undefined;
+		let branch: string | undefined;
+
+		if (upstream) {
+			remote = upstream.remote;
+			branch = upstream.name;
+		}
+
+		await this.run(Operation.Push, () => this.repository.push(remote, branch));
 	}
 
 	async pushTo(remote?: string, name?: string, setUpstream: boolean = false): Promise<void> {
@@ -754,26 +778,26 @@ export class Repository implements Disposable {
 		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true));
 	}
 
-	private async _sync(rebase: boolean): Promise<void> {
+	private async _sync(upstream: UpstreamRef, rebase: boolean): Promise<void> {
 		await this.run(Operation.Sync, async () => {
-			await this.repository.pull(rebase);
+			await this.repository.pull(rebase, upstream.remote, upstream.name);
 
 			const shouldPush = this.HEAD && typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true;
 
 			if (shouldPush) {
-				await this.repository.push();
+				await this.repository.push(upstream.remote, upstream.name);
 			}
 		});
 	}
 
 	@throttle
-	sync(): Promise<void> {
-		return this._sync(false);
+	sync(upstream: UpstreamRef): Promise<void> {
+		return this._sync(upstream, false);
 	}
 
 	@throttle
-	async syncRebase(): Promise<void> {
-		return this._sync(true);
+	async syncRebase(upstream: UpstreamRef): Promise<void> {
+		return this._sync(upstream, true);
 	}
 
 	async show(ref: string, filePath: string): Promise<string> {
@@ -790,15 +814,15 @@ export class Repository implements Disposable {
 	async buffer(ref: string, filePath: string): Promise<Buffer> {
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
-			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
-			const encoding = configFiles.get<string>('encoding');
+			// const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
+			// const encoding = configFiles.get<string>('encoding');
 
 			// TODO@joao: REsource config api
 			return await this.repository.buffer(`${ref}:${relativePath}`);
 		});
 	}
 
-	lstree(ref: string, filePath: string): Promise<{ mode: number, object: string, size: number }> {
+	lstree(ref: string, filePath: string): Promise<{ mode: string, object: string, size: number }> {
 		return this.run(Operation.LSTree, () => this.repository.lstree(ref, filePath));
 	}
 
@@ -954,10 +978,9 @@ export class Repository implements Disposable {
 		this.isRepositoryHuge = didHitLimit;
 
 		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
-			const ok = { title: localize('ok', "OK"), isCloseAffordance: true };
 			const neverAgain = { title: localize('neveragain', "Don't Show Again") };
 
-			window.showWarningMessage(localize('huge', "The git repository at '{0}' has too many active changes, only a subset of Git features will be enabled.", this.repository.root), ok, neverAgain).then(result => {
+			window.showWarningMessage(localize('huge', "The git repository at '{0}' has too many active changes, only a subset of Git features will be enabled.", this.repository.root), neverAgain).then(result => {
 				if (result === neverAgain) {
 					config.update('ignoreLimitWarning', true, false);
 				}
@@ -1009,10 +1032,8 @@ export class Repository implements Disposable {
 				case 'UU': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.BOTH_MODIFIED, useIcons));
 			}
 
-			let isModifiedInIndex = false;
-
 			switch (raw.x) {
-				case 'M': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons)); isModifiedInIndex = true; break;
+				case 'M': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons)); break;
 				case 'A': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_ADDED, useIcons)); break;
 				case 'D': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_DELETED, useIcons)); break;
 				case 'R': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_RENAMED, useIcons, renameUri)); break;
@@ -1041,13 +1062,9 @@ export class Repository implements Disposable {
 
 		this._sourceControl.count = count;
 
-		// set context key
-		let stateContextKey = '';
-
-		switch (this.state) {
-			case RepositoryState.Idle: stateContextKey = 'idle'; break;
-			case RepositoryState.Disposed: stateContextKey = 'norepo'; break;
-		}
+		// Disable `Discard All Changes` for "fresh" repositories
+		// https://github.com/Microsoft/vscode/issues/43066
+		commands.executeCommand('setContext', 'gitFreshRepository', !this._HEAD || !this._HEAD.commit);
 
 		this._onDidChangeStatus.fire();
 	}

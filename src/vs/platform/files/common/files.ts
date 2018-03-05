@@ -411,6 +411,11 @@ export interface IFileStat extends IBaseStat {
 	isDirectory: boolean;
 
 	/**
+	 * The resource is a symbolic link.
+	 */
+	isSymbolicLink?: boolean;
+
+	/**
 	 * The children of the file stat or undefined if none.
 	 */
 	children?: IFileStat[];
@@ -604,7 +609,8 @@ export enum FileOperationResult {
 	FILE_READ_ONLY,
 	FILE_PERMISSION_DENIED,
 	FILE_TOO_LARGE,
-	FILE_INVALID_PATH
+	FILE_INVALID_PATH,
+	FILE_EXCEED_MEMORY_LIMIT
 }
 
 export const AutoSaveConfiguration = {

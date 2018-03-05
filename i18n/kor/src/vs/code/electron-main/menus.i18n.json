@@ -90,6 +90,7 @@
 	"miMarker": "문제(&&P)",
 	"miAdditionalViews": "추가 뷰(&&V)",
 	"miCommandPalette": "명령 팔레트(&&C)...",
+	"miOpenView": "뷰 열기(&&O)...",
 	"miToggleFullScreen": "전체 화면 설정/해제(&&F)",
 	"miToggleZenMode": "Zen 모드 설정/해제",
 	"miToggleMenuBar": "메뉴 모음 설정/해제(&&B)",
@@ -184,9 +185,7 @@
 	"miCheckingForUpdates": "업데이트를 확인하는 중...",
 	"miDownloadUpdate": "사용 가능한 업데이트 다운로드",
 	"miDownloadingUpdate": "업데이트를 다운로드하는 중...",
+	"miInstallUpdate": "업데이트 설치...",
 	"miInstallingUpdate": "업데이트를 설치하는 중...",
-	"miRestartToUpdate": "다시 시작하여 업데이트...",
-	"aboutDetail": "버전 {0}\n커밋 {1}\n날짜 {2}\n셸 {3}\n렌더러 {4}\n노드 {5}\n아키텍처 {6}",
-	"okButton": "확인",
-	"copy": "복사(&&C)"
+	"miRestartToUpdate": "다시 시작하여 업데이트..."
 }

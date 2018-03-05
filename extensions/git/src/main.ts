@@ -14,21 +14,19 @@ import { CommandCenter } from './commands';
 import { GitContentProvider } from './contentProvider';
 import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
-import { toDisposable, filterEvent, mapEvent, eventToPromise } from './util';
+import { toDisposable, filterEvent, eventToPromise } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { API, createApi } from './api';
 
-async function init(context: ExtensionContext, outputChannel: OutputChannel, disposables: Disposable[]): Promise<Model> {
-	const { name, version, aiKey } = require(context.asAbsolutePath('./package.json')) as { name: string, version: string, aiKey: string };
-	const telemetryReporter: TelemetryReporter = new TelemetryReporter(name, version, aiKey);
-	disposables.push(telemetryReporter);
+let telemetryReporter: TelemetryReporter;
 
+async function init(context: ExtensionContext, outputChannel: OutputChannel, disposables: Disposable[]): Promise<Model> {
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
 	const askpass = new Askpass();
 	const env = await askpass.getEnv();
 	const git = new Git({ gitPath: info.path, version: info.version, env });
-	const model = new Model(git, context.globalState);
+	const model = new Model(git, context.globalState, outputChannel);
 	disposables.push(model);
 
 	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
@@ -38,7 +36,15 @@ async function init(context: ExtensionContext, outputChannel: OutputChannel, dis
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 
-	const onOutput = (str: string) => outputChannel.append(str);
+	const onOutput = (str: string) => {
+		const lines = str.split(/\r?\n/mg);
+
+		while (/^\s*$/.test(lines[lines.length - 1])) {
+			lines.pop();
+		}
+
+		outputChannel.appendLine(lines.join('\n'));
+	};
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
@@ -99,6 +105,9 @@ export function activate(context: ExtensionContext): API {
 	const disposables: Disposable[] = [];
 	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
 
+	const { name, version, aiKey } = require(context.asAbsolutePath('./package.json')) as { name: string, version: string, aiKey: string };
+	telemetryReporter = new TelemetryReporter(name, version, aiKey);
+
 	let activatePromise: Promise<Model | undefined>;
 
 	if (enabled) {
@@ -145,4 +154,8 @@ async function checkGitVersion(info: IGit): Promise<void> {
 	} else if (choice === neverShowAgain) {
 		await config.update('ignoreLegacyWarning', true, true);
 	}
+}
+
+export function deactivate(): Promise<any> {
+	return telemetryReporter ? telemetryReporter.dispose() : Promise.resolve(null);
 }

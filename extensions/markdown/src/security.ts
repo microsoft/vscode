@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as vscode from 'vscode';
 
-import { getMarkdownUri, MDDocumentContentProvider } from './features/previewContentProvider';
+import { MarkdownPreviewManager } from './features/previewManager';
 
 import * as nls from 'vscode-nls';
 
@@ -36,8 +35,8 @@ export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPol
 	private readonly should_disable_security_warning_key = 'preview_should_show_security_warning:';
 
 	constructor(
-		private globalState: vscode.Memento,
-		private workspaceState: vscode.Memento
+		private readonly globalState: vscode.Memento,
+		private readonly workspaceState: vscode.Memento
 	) { }
 
 	public getSecurityLevelForResource(resource: vscode.Uri): MarkdownPreviewSecurityLevel {
@@ -90,13 +89,13 @@ export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPol
 export class PreviewSecuritySelector {
 
 	public constructor(
-		private cspArbiter: ContentSecurityPolicyArbiter,
-		private contentProvider: MDDocumentContentProvider
+		private readonly cspArbiter: ContentSecurityPolicyArbiter,
+		private readonly webviewManager: MarkdownPreviewManager
 	) { }
 
 	public async showSecutitySelectorForResource(resource: vscode.Uri): Promise<void> {
 		interface PreviewSecurityPickItem extends vscode.QuickPickItem {
-			type: 'moreinfo' | 'toggle' | MarkdownPreviewSecurityLevel;
+			readonly type: 'moreinfo' | 'toggle' | MarkdownPreviewSecurityLevel;
 		}
 
 		function markActiveWhen(when: boolean): string {
@@ -144,22 +143,12 @@ export class PreviewSecuritySelector {
 			return;
 		}
 
-		const sourceUri = getMarkdownUri(resource);
 		if (selection.type === 'toggle') {
 			this.cspArbiter.setShouldDisableSecurityWarning(!this.cspArbiter.shouldDisableSecurityWarnings());
-			this.contentProvider.update(sourceUri);
 			return;
+		} else {
+			await this.cspArbiter.setSecurityLevelForResource(resource, selection.type);
 		}
-
-		await this.cspArbiter.setSecurityLevelForResource(resource, selection.type);
-
-		await vscode.commands.executeCommand('_workbench.htmlPreview.updateOptions',
-			sourceUri,
-			{
-				allowScripts: true,
-				allowSvgs: this.cspArbiter.shouldAllowSvgsForResource(resource)
-			});
-
-		this.contentProvider.update(sourceUri);
+		this.webviewManager.refresh();
 	}
 }

@@ -54,5 +54,9 @@
 	"emmetPreferencesFilterCommentTrigger": "Una lista separada por comas de nombres de atributos que debe existir en la abreviatura para el filtro de comentarios ser aplicado",
 	"emmetPreferencesFormatNoIndentTags": "Una matriz de nombres de etiqueta que no debería recibir una sangría interna",
 	"emmetPreferencesFormatForceIndentTags": "Una matriz de nombres de etiqueta que siempre debería recibir una sangría interna",
-	"emmetPreferencesAllowCompactBoolean": "Si es 'true', se produce una anotación compacta de atributos booleanos"
+	"emmetPreferencesAllowCompactBoolean": "Si es 'true', se produce una anotación compacta de atributos booleanos",
+	"emmetPreferencesCssWebkitProperties": "Propiedades CSS separadas por comas que obtienen el prefijo de proveedor 'webkit' cuando se utilizan en la abreviatura Emmet que comienza con '-'. Establecer en la cadena vacía para evitar siempre el prefijo 'webkit'.",
+	"emmetPreferencesCssMozProperties": "Propiedades CSS separadas por comas que obtienen el prefijo de proveedor 'moz' cuando se utilizan en la abreviatura Emmet que comienza con '-'. Establecer en la cadena vacía para evitar siempre el prefijo 'moz'.",
+	"emmetPreferencesCssOProperties": "Propiedades CSS separadas por comas que obtienen el prefijo de proveedor 'o' cuando se utilizan en la abreviatura Emmet que comienza con '-'. Establecer en la cadena vacía para evitar siempre el prefijo 'o'.",
+	"emmetPreferencesCssMsProperties": "Propiedades CSS separadas por comas que obtienen el prefijo de proveedor 'ms' cuando se utilizan en la abreviatura Emmet que comienza con '-'. Establecer en la cadena vacía para evitar siempre el prefijo 'ms'."
 }

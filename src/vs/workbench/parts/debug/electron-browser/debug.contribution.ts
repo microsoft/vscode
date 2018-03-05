@@ -17,7 +17,7 @@ import { ToggleViewletAction, Extensions as ViewletExtensions, ViewletRegistry, 
 import { TogglePanelAction, Extensions as PanelExtensions, PanelRegistry, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { VariablesView } from 'vs/workbench/parts/debug/electron-browser/variablesView';
-import { BreakpointsView } from 'vs/workbench/parts/debug/electron-browser/breakpointsView';
+import { BreakpointsView } from 'vs/workbench/parts/debug/browser/breakpointsView';
 import { WatchExpressionsView } from 'vs/workbench/parts/debug/electron-browser/watchExpressionsView';
 import { CallStackView } from 'vs/workbench/parts/debug/electron-browser/callStackView';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -38,9 +38,9 @@ import { DebugContentProvider } from 'vs/workbench/parts/debug/browser/debugCont
 import 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import * as debugCommands from 'vs/workbench/parts/debug/electron-browser/debugCommands';
+import { registerCommands } from 'vs/workbench/parts/debug/browser/debugCommands';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
-import { StatusBarColorProvider } from 'vs/workbench/parts/debug/electron-browser/statusbarColorProvider';
+import { StatusBarColorProvider } from 'vs/workbench/parts/debug/browser/statusbarColorProvider';
 import { ViewLocation, ViewsRegistry } from 'vs/workbench/common/views';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -50,6 +50,7 @@ import { Repl } from 'vs/workbench/parts/debug/electron-browser/repl';
 import { DebugQuickOpenHandler } from 'vs/workbench/parts/debug/browser/debugQuickOpen';
 import { DebugStatus } from 'vs/workbench/parts/debug/browser/debugStatus';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 
 class OpenDebugViewletAction extends ToggleViewletAction {
 	public static readonly ID = VIEWLET_ID;
@@ -201,17 +202,18 @@ configurationRegistry.registerConfiguration({
 		'debug.openDebug': {
 			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
 			default: 'openOnFirstSessionStart',
-			description: nls.localize('openDebug', "Controls whether debug viewlet should be open on debugging session start.")
+			description: nls.localize('openDebug', "Controls whether debug view should be open on debugging session start.")
 		},
 		'launch': {
 			type: 'object',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces"),
-			default: {}
+			default: { configurations: [], compounds: [] },
+			$ref: launchSchemaId
 		}
 	}
 });
 
-debugCommands.registerCommands();
+registerCommands();
 
 // Register Debug Status
 const statusBar = Registry.as<IStatusbarRegistry>(StatusExtensions.Statusbar);

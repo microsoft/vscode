@@ -19,7 +19,7 @@ export function readdir(path: string): TPromise<string[]> {
 }
 
 export function exists(path: string): TPromise<boolean> {
-	return new TPromise(c => fs.exists(path, c));
+	return new TPromise(c => fs.exists(path, c), () => { });
 }
 
 export function chmod(path: string, mode: number): TPromise<boolean> {
@@ -52,6 +52,10 @@ export function realpath(path: string): TPromise<string> {
 
 export function stat(path: string): TPromise<fs.Stats> {
 	return nfcall(fs.stat, path);
+}
+
+export function statLink(path: string): TPromise<{ stat: fs.Stats, isSymbolicLink: boolean }> {
+	return nfcall(extfs.statLink, path);
 }
 
 export function lstat(path: string): TPromise<fs.Stats> {
@@ -161,8 +165,14 @@ export function fileExists(path: string): TPromise<boolean> {
 /**
  * Deletes a path from disk.
  */
-const tmpDir = os.tmpdir();
-export function del(path: string, tmp = tmpDir): TPromise<void> {
+let _tmpDir: string = null;
+function getTmpDir(): string {
+	if (!_tmpDir) {
+		_tmpDir = os.tmpdir();
+	}
+	return _tmpDir;
+}
+export function del(path: string, tmp = getTmpDir()): TPromise<void> {
 	return nfcall(extfs.del, path, tmp);
 }
 

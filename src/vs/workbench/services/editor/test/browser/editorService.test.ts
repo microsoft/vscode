@@ -35,7 +35,7 @@ function toResource(path: string) {
 }
 
 function toFileResource(self: any, path: string) {
-	return URI.file(paths.join('C:\\', new Buffer(self.test.fullTitle()).toString('base64'), path));
+	return URI.file(paths.join('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
 }
 
 class TestEditorPart implements IEditorPart {

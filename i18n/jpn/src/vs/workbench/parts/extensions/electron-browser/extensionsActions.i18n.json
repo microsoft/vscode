@@ -10,6 +10,6 @@
 	"installVSIX": "VSIX からのインストール...",
 	"installFromVSIX": "VSIX からインストール",
 	"installButton": "インストール(&&I)",
-	"InstallVSIXAction.success": "拡張機能が正常にインストールされました。有効にするには再起動します。",
+	"InstallVSIXAction.success": "拡張機能が正常にインストールされました。有効にするには再読み込みしてください。",
 	"InstallVSIXAction.reloadNow": "今すぐ再度読み込む"
 }

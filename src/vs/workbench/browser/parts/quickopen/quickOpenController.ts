@@ -11,14 +11,13 @@ import nls = require('vs/nls');
 import * as browser from 'vs/base/browser/browser';
 import { Dimension, withElementById } from 'vs/base/browser/builder';
 import strings = require('vs/base/common/strings');
-import filters = require('vs/base/common/filters');
 import DOM = require('vs/base/browser/dom');
 import URI from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import types = require('vs/base/common/types');
 import { Action, IAction } from 'vs/base/common/actions';
-import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup, compareEntries, QuickOpenItemAccessorClass } from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -41,7 +40,6 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IPickOpenEntry, IFilePickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions, IShowOptions, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -55,6 +53,11 @@ import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { matchesFuzzyOcticonAware, parseOcticons, IParsedOcticons } from 'vs/base/common/octicon';
+import { IMatch } from 'vs/base/common/filters';
+import { Schemas } from 'vs/base/common/network';
+import Severity from 'vs/base/common/severity';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const HELP_PREFIX = '?';
 
@@ -102,7 +105,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -431,12 +434,10 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 							});
 						}
 
-						// Filter by value
+						// Filter by value (since we support octicons, use octicon aware fuzzy matching)
 						else {
 							entries.forEach(entry => {
-								const labelHighlights = filters.matchesFuzzy(value, entry.getLabel());
-								const descriptionHighlights = options.matchOnDescription && filters.matchesFuzzy(value, entry.getDescription());
-								const detailHighlights = options.matchOnDetail && entry.getDetail() && filters.matchesFuzzy(value, entry.getDetail());
+								const { labelHighlights, descriptionHighlights, detailHighlights } = entry.matchesFuzzy(value, options);
 
 								if (entry.shouldAlwaysShow() || labelHighlights || descriptionHighlights || detailHighlights) {
 									entry.setHighlights(labelHighlights, descriptionHighlights, detailHighlights);
@@ -798,7 +799,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}, (error: any) => {
 			resultPromiseDone = true;
 			errors.onUnexpectedError(error);
-			this.messageService.show(Severity.Error, types.isString(error) ? new Error(error) : error);
+			this.notificationService.error(types.isString(error) ? new Error(error) : error);
 		});
 	}
 
@@ -1025,6 +1026,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 	private description: string;
 	private detail: string;
 	private tooltip: string;
+	private descriptionTooltip: string;
 	private hasSeparator: boolean;
 	private separatorLabel: string;
 	private alwaysShow: boolean;
@@ -1033,6 +1035,9 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 	private _action: IAction;
 	private removed: boolean;
 	private payload: any;
+	private labelOcticons: IParsedOcticons;
+	private descriptionOcticons: IParsedOcticons;
+	private detailOcticons: IParsedOcticons;
 
 	constructor(
 		item: IPickOpenEntry,
@@ -1047,6 +1052,8 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 		this.description = item.description;
 		this.detail = item.detail;
 		this.tooltip = item.tooltip;
+		this.descriptionOcticons = item.description ? parseOcticons(item.description) : void 0;
+		this.descriptionTooltip = this.descriptionOcticons ? this.descriptionOcticons.text : void 0;
 		this.hasSeparator = item.separator && item.separator.border;
 		this.separatorLabel = item.separator && item.separator.label;
 		this.alwaysShow = item.alwaysShow;
@@ -1056,6 +1063,23 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 		const fileItem = <IFilePickOpenEntry>item;
 		this.resource = fileItem.resource;
 		this.fileKind = fileItem.fileKind;
+	}
+
+	public matchesFuzzy(query: string, options: IInternalPickOptions): { labelHighlights: IMatch[], descriptionHighlights: IMatch[], detailHighlights: IMatch[] } {
+		if (!this.labelOcticons) {
+			this.labelOcticons = parseOcticons(this.getLabel()); // parse on demand
+		}
+
+		const detail = this.getDetail();
+		if (detail && options.matchOnDetail && !this.detailOcticons) {
+			this.detailOcticons = parseOcticons(detail); // parse on demand
+		}
+
+		return {
+			labelHighlights: matchesFuzzyOcticonAware(query, this.labelOcticons),
+			descriptionHighlights: options.matchOnDescription && this.descriptionOcticons ? matchesFuzzyOcticonAware(query, this.descriptionOcticons) : void 0,
+			detailHighlights: options.matchOnDetail && this.detailOcticons ? matchesFuzzyOcticonAware(query, this.detailOcticons) : void 0
+		};
 	}
 
 	public getPayload(): any {
@@ -1081,7 +1105,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 		return this._index;
 	}
 
-	public getLabelOptions(): IIconLabelOptions {
+	public getLabelOptions(): IIconLabelValueOptions {
 		return {
 			extraClasses: this.resource ? getIconClasses(this.modelService, this.modeService, this.resource, this.fileKind) : []
 		};
@@ -1101,6 +1125,10 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 
 	public getTooltip(): string {
 		return this.tooltip;
+	}
+
+	public getDescriptionTooltip(): string {
+		return this.descriptionTooltip;
 	}
 
 	public showBorder(): boolean {
@@ -1282,7 +1310,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		return this.label;
 	}
 
-	public getLabelOptions(): IIconLabelOptions {
+	public getLabelOptions(): IIconLabelValueOptions {
 		return {
 			extraClasses: getIconClasses(this.modelService, this.modeService, this.resource)
 		};
@@ -1327,7 +1355,7 @@ function resourceForEditorHistory(input: EditorInput, fileService: IFileService)
 
 	// For the editor history we only prefer resources that are either untitled or
 	// can be handled by the file service which indicates they are editable resources.
-	if (resource && (fileService.canHandleResource(resource) || resource.scheme === 'untitled')) {
+	if (resource && (fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 		return resource;
 	}
 

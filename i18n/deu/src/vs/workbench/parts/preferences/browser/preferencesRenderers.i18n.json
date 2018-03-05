@@ -9,6 +9,8 @@
 	"emptyUserSettingsHeader": "Platzieren Sie Ihre Einstellungen hier, um die Standardeinstellungen zu überschreiben.",
 	"emptyWorkspaceSettingsHeader": "Platzieren Sie Ihre Einstellungen hier, um die Benutzereinstellungen zu überschreiben.",
 	"emptyFolderSettingsHeader": "Platzieren Sie Ihre Ordnereinstellungen hier, um die Einstellungen in den Arbeitsbereichseinstellungen zu überschreiben.",
+	"reportSettingsSearchIssue": "Problem melden",
+	"newExtensionLabel": "Erweiterung \"{0}\" anzeigen",
 	"editTtile": "Bearbeiten",
 	"replaceDefaultValue": "In Einstellungen ersetzen",
 	"copyDefaultValue": "In Einstellungen kopieren",

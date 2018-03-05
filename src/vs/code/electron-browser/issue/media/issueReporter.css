@@ -30,13 +30,16 @@ td {
 	border-top: 1px solid #e9ecef;
 }
 
-.section {
-	margin-bottom: 1.5em;
+.block-settingsSearchResults-details {
+	padding-bottom: .5rem;
 }
 
-#similar-issues {
-	margin-left: 10%;
-	display: block;
+.block-settingsSearchResults-details > div {
+	padding: .5rem .75rem;
+}
+
+.section {
+	margin-bottom: 1.5em;
 }
 
 /**
@@ -52,10 +55,6 @@ input[type="text"], textarea {
 	background-color: #fff;
 	border-radius: .25rem;
 	border: 1px solid #ced4da;
-}
-
-.inline-form-control {
-	display: inline-block !important;
 }
 
 textarea {
@@ -104,18 +103,17 @@ textarea {
 html {
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
 	color: #CCCCCC;
+	height: 100%;
 }
 
 body {
 	margin: 0;
+	overflow: scroll;
+	height: 100%;
 }
 
 .hidden {
 	display: none;
-}
-
-#block-container {
-	margin-top: 1em;
 }
 
 .block .block-info {
@@ -126,7 +124,7 @@ body {
 	overflow-wrap: break-word;
 }
 pre {
-	margin: 0;
+	margin: 10px 20px;
 }
 pre code {
 	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
@@ -144,11 +142,32 @@ button:disabled {
 	max-width: 85vw;
 	margin-left: auto;
 	margin-right: auto;
-	margin-top: 2em;
+	padding-top: 2em;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.description-section {
+	flex-grow: 1;
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+}
+
+textarea {
+	flex-grow: 1;
+	min-height: 150px;
+}
+
+.block-info-text {
+	display: flex;
+	flex-grow: 1;
 }
 
 #github-submit-btn {
-	float: right;
+	flex-shrink: 0;
+	margin-left: auto;
 	margin-top: 10px;
 	margin-bottom: 10px;
 }
@@ -206,6 +225,7 @@ summary {
 	border: 1px solid transparent;
 	padding: 0 10px;
 	margin-bottom: 5px;
+	cursor: pointer;
 }
 
 .validation-error {
@@ -215,16 +235,12 @@ summary {
 
 .include-data {
 	display: inline-block;
-	position: relative;
 }
 
 .include-data > .caption {
 	display: inline-block;
 	font-size: 12px;
-	position: absolute;
-	width: 80px;
-	top: 2px;
-	left: 30px;
+	cursor: pointer;
 }
 
 .sendData {
@@ -236,6 +252,7 @@ input[type="checkbox"] {
 	display: inline-block;
 	margin-top: 0;
 	vertical-align: middle;
+	cursor: pointer;
 }
 
 input:disabled {
@@ -253,9 +270,14 @@ input:disabled {
 	margin-top: .5em;
 }
 
+a, .workbenchCommand {
+	cursor: pointer;
+	border: 1px solid transparent;
+}
+
 .workbenchCommand:disabled {
 	color: #868e96;
-	cursor: pointer;
+	cursor: default
 }
 
 .block-extensions .block-info {
@@ -271,6 +293,7 @@ input, select, textarea {
 
 a {
 	color: #CCCCCC;
+	text-decoration: none;
 }
 
 .invalid-input {
@@ -286,53 +309,107 @@ button {
 	color: #fff;
 }
 
-#issue-type-label {
-	width: 95px;
+.section .input-group .validation-error {
+	margin-left: 13%;
 }
 
-#issue-type {
-	width: calc(100% - 100px);
-}
-
-#issue-title-label {
-	width: 80px;
+.section .inline-form-control, .section .inline-label {
 	display: inline-block;
 }
 
-#issue-title {
-	width: calc(100% - 85px);
+.section .inline-label {
+	width: 95px;
 }
 
+.section .inline-form-control {
+	width: calc(100% - 100px);
+}
+
+#issue-type {
+	cursor: pointer;
+}
+
+#similar-issues {
+	margin-left: 12%;
+	display: block;
+}
 
 @media (max-width: 950px) {
-	#issue-type-label {
+	.section .inline-label {
 		width: 12%;
 	}
 
-	#issue-type {
+	.section .inline-form-control  {
 		width: calc(88% - 5px);
-	}
-
-	#issue-title-label {
-		width: 10%;
-		display: inline-block
-	}
-
-	#issue-title {
-		width: calc(90% - 5px);
 	}
 }
 
 @media (max-width: 620px) {
-	#issue-title-label, #issue-type-label {
+	.section .inline-label {
 		display: none !important;
 	}
 
-	#issue-type, #issue-title {
+	.inline-form-control {
 		width: 100%;
 	}
 
-	#similar-issues {
+	#similar-issues, .section .input-group .validation-error {
 		margin-left: 0;
 	}
+}
+
+::-webkit-scrollbar {
+	width: 14px;
+}
+
+::-webkit-scrollbar-thumb {
+	min-height: 20px;
+}
+
+::-webkit-scrollbar-corner {
+	display: none;
+}
+
+.issues-container {
+	margin-left: 1.5em;
+	margin-top: .5em;
+	height: 92px;
+	overflow-y: auto;
+}
+
+.issues-container > .issue {
+	padding: 4px 0;
+}
+
+.issues-container > .issue > .issue-link {
+	display: inline-block;
+	width: calc(100% - 82px);
+	vertical-align: top;
+	overflow: hidden;
+	padding-top: 3px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.issues-container > .issue > .issue-state {
+	display: inline-block;
+	width: 77px;
+	padding: 3px 6px;
+	margin-right: 5px;
+	color: #CCCCCC;
+	background-color: #3c3c3c;
+	border-radius: .25rem;
+}
+
+.issues-container > .issue > .issue-state .octicon {
+	vertical-align: top;
+	width: 16px;
+}
+
+.issues-container > .issue .label {
+	margin-left: 5px;
+	display: inline-block;
+	width: 44px;
+	text-overflow: ellipsis;
+	overflow: hidden;
 }

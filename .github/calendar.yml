@@ -1,5 +1,8 @@
 {
-  '2018-01-30T00:00Z': 'endgame',
-  # '2018-02-07T20:00Z': 'release',
-  # '2018-02-10T20:00Z': 'development',
+  '2018-01-29 18:00, US/Pacific':    'endgame',
+  '2018-02-07 12:00, US/Pacific':    'release', # 1.20.0
+  '2018-02-12 12:00, US/Pacific':    'development',
+  '2018-02-14 16:00, Europe/Zurich': 'release', # 1.20.1
+  '2018-02-19 16:00, Europe/Zurich': 'development',
+  '2018-02-26 18:00, US/Pacific':    'endgame',
 }

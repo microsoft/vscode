@@ -8,12 +8,14 @@
 	],
 	"openLogsFolder": "Ouvrir le dossier des journaux",
 	"showLogs": "Afficher les journaux...",
+	"rendererProcess": "Fenêtre ({0})",
 	"emptyWindow": "Fenêtre",
 	"extensionHost": "Hôte d'extension",
 	"sharedProcess": "Partagé",
 	"mainProcess": "Principal",
+	"selectProcess": "Sélectionnez le journal pour les processus",
 	"openLogFile": "Ouvrir le fichier de log...",
-	"setLogLevel": "Définir le niveau de journalisation (log)",
+	"setLogLevel": "Définir le niveau de journalisation (log) ...",
 	"trace": "Trace",
 	"debug": "Déboguer",
 	"info": "Informations",
@@ -22,5 +24,7 @@
 	"critical": "Critique",
 	"off": "Désactivé",
 	"selectLogLevel": "Sélectionner le niveau de journalisation (log)",
-	"default": "Par défaut"
+	"default and current": "Par défaut & actuel",
+	"default": "Par défaut",
+	"current": "Actuel"
 }

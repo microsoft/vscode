@@ -1,11 +1,14 @@
 {
   "name": "json",
-  "version": "0.1.0",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
   "publisher": "vscode",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
     "vscode": "0.10.x"
   },
+  "icon": "icons/json.png",
   "activationEvents": [
     "onLanguage:json",
     "onLanguage:jsonc"
@@ -150,6 +153,11 @@
           "default": true,
           "description": "%json.colorDecorators.enable.desc%",
           "deprecationMessage": "%json.colorDecorators.enable.deprecationMessage%"
+        },
+        "json.experimental.syntaxFolding": {
+          "type": "boolean",
+          "default": false,
+          "description": "%json.experimental.syntaxFolding%"
         }
       }
     },
@@ -162,8 +170,8 @@
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.0.11",
-    "vscode-languageclient": "^3.5.0",
+    "vscode-extension-telemetry": "0.0.15",
+    "vscode-languageclient": "^4.0.0",
     "vscode-nls": "^3.2.1"
   },
   "devDependencies": {

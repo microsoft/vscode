@@ -78,13 +78,13 @@
 	background: url('continue-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {
 	border: none;
 	margin-top: 0px;
 	cursor: pointer;
 }
 
-.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .select-box {
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .monaco-select-box {
 	opacity: 0.7;
 	font-style: italic;
 	cursor: initial;
@@ -348,7 +348,11 @@
 
 /* Breakpoints */
 
-.debug-viewlet .debug-breakpoints .monaco-list-row {
+.debug-viewlet .debug-breakpoints .monaco-list-row .breakpoint {
+	padding-left: 2px;
+}
+
+.debug-viewlet .debug-breakpoints .breakpoint.exception {
 	padding-left: 20px;
 }
 
@@ -361,6 +365,11 @@
 
 .debug-viewlet .debug-breakpoints .breakpoint input {
 	flex-shrink: 0;
+}
+
+.debug-viewlet .debug-breakpoints .breakpoint > .icon {
+	width: 18px;
+	height: 18px;
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {

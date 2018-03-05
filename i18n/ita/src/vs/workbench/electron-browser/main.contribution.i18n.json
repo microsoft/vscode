@@ -35,9 +35,11 @@
 	"panelDefaultLocation": "Controlla la posizione predefinita del pannello. Può essere mostrato nella parte inferiore o a destra del banco di lavoro.",
 	"statusBarVisibility": "Controlla la visibilità della barra di stato nella parte inferiore del workbench.",
 	"activityBarVisibility": "Controlla la visibilità della barra attività nel workbench.",
+	"fontAliasing": "Controlla il metodo di aliasing dei caratteri nell'area di lavoro.\n- default: anti-aliasing dei caratteri a livello di sub-pixel. Nella maggior parte delle visualizzazioni non retina consentirà di ottenere un testo con il massimo contrasto.\n- antialiased: anti-aliasing dei caratteri a livello di pixel, invece che a livello di sub-pixel. Consente di visualizzare i caratteri più chiari.\n- none: disabilita l'anti-aliasing dei caratteri. Il testo verrà visualizzato con contorni irregolari.\n- auto: applica automaticamente `default` o `antialiased` in base al valore DPI degli schermi.",
 	"workbench.fontAliasing.default": "Anti-aliasing dei caratteri a livello di sub-pixel. Nella maggior parte delle visualizzazioni non retina consentirà di ottenere un testo con il massimo contrasto.",
 	"workbench.fontAliasing.antialiased": "Anti-aliasing dei caratteri a livello di pixel, invece che a livello di sub-pixel. Consente di visualizzare i caratteri più chiari.",
 	"workbench.fontAliasing.none": "Disabilita l'anti-aliasing dei caratteri. Il testo verrà visualizzato con contorni irregolari. ",
+	"workbench.fontAliasing.auto": "Applica automaticamente `default` o `antialiased` in base al valore DPI degli schermi.",
 	"enableNaturalLanguageSettingsSearch": "Controlla se abilitare la modalità di ricerca in linguaggio naturale per le impostazioni.",
 	"windowConfigurationTitle": "Finestra",
 	"window.openFilesInNewWindow.on": "I file verranno aperti in una nuova finestra",
@@ -76,6 +78,5 @@
 	"zenMode.hideTabs": "Controlla se attivando la modalità Zen vengono nascoste anche le schede del workbench.",
 	"zenMode.hideStatusBar": "Controlla se attivando la modalità Zen viene nascosta anche la barra di stato nella parte inferiore del workbench.",
 	"zenMode.hideActivityBar": "Controlla se attivando la modalità Zen viene nascosta anche la barra di stato alla sinistra del workbench",
-	"zenMode.restore": "Controlla se una finestra deve essere ripristinata nella modalità Zen se è stata chiusa in questa modalità.",
-	"JsonSchema.locale": "Linguaggio dell'interfaccia utente da usare."
+	"zenMode.restore": "Controlla se una finestra deve essere ripristinata nella modalità Zen se è stata chiusa in questa modalità."
 }

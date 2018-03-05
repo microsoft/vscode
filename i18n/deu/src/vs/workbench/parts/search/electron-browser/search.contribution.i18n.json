@@ -11,7 +11,7 @@
 	"showTriggerActions": "Zu Symbol im Arbeitsbereich wechseln...",
 	"name": "Suchen",
 	"search": "Suchen",
-	"showSearchViewlet": "Suche anzeigen",
+	"showSearchViewl": "Suche anzeigen",
 	"view": "Anzeigen",
 	"findInFiles": "In Dateien suchen",
 	"openAnythingHandlerDescription": "Zu Datei wechseln",
@@ -23,5 +23,7 @@
 	"useRipgrep": "Steuert, ob \"ripgrep\" in der Text- und Dateisuche verwendet wird.",
 	"useIgnoreFiles": "Steuert, ob bei der Suche nach Dateien GITIGNORE- und IGNORE-Dateien verwendet werden.",
 	"search.quickOpen.includeSymbols": "Konfigurieren Sie diese Option, um Ergebnisse aus einer globalen Symbolsuche in die Dateiergebnisse für Quick Open einzuschließen.",
-	"search.followSymlinks": "Steuert, ob Symlinks während der Suche gefolgt werden."
+	"search.followSymlinks": "Steuert, ob Symlinks während der Suche gefolgt werden.",
+	"search.smartCase": "Sucht ohne Berücksichtigung von Groß-/Kleinschreibung, wenn das Muster kleingeschrieben ist, andernfalls wird mit Berücksichtigung von Groß-/Kleinschreibung gesucht.",
+	"search.globalFindClipboard": "Steuert, ob das Viewlet zum Suchen die freigegebene Suchzwischenablage auf macOS lesen oder verändern soll"
 }

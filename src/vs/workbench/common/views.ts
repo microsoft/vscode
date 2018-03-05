@@ -11,12 +11,15 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITreeViewDataProvider } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { IViewlet } from 'vs/workbench/common/viewlet';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export class ViewLocation {
 
-	static readonly Explorer = new ViewLocation('explorer');
-	static readonly Debug = new ViewLocation('debug');
-	static readonly Extensions = new ViewLocation('extensions');
+	static readonly Explorer = new ViewLocation('workbench.view.explorer');
+	static readonly Debug = new ViewLocation('workbench.view.debug');
+	static readonly Extensions = new ViewLocation('workbench.view.extensions');
 
 	constructor(private _id: string) {
 	}
@@ -27,8 +30,8 @@ export class ViewLocation {
 
 	static getContributedViewLocation(value: string): ViewLocation {
 		switch (value) {
-			case ViewLocation.Explorer.id: return ViewLocation.Explorer;
-			case ViewLocation.Debug.id: return ViewLocation.Debug;
+			case 'explorer': return ViewLocation.Explorer;
+			case 'debug': return ViewLocation.Debug;
 		}
 		return void 0;
 	}
@@ -62,19 +65,15 @@ export interface IViewsRegistry {
 
 	readonly onViewsDeregistered: Event<IViewDescriptor[]>;
 
-	readonly onTreeViewDataProviderRegistered: Event<string>;
-
 	registerViews(views: IViewDescriptor[]): void;
 
 	deregisterViews(ids: string[], location: ViewLocation): void;
 
-	registerTreeViewDataProvider(id: string, factory: ITreeViewDataProvider): void;
-
-	deregisterTreeViewDataProviders(): void;
-
 	getViews(loc: ViewLocation): IViewDescriptor[];
 
-	getTreeViewDataProvider(id: string): ITreeViewDataProvider;
+	getAllViews(): IViewDescriptor[];
+
+	getView(id: string): IViewDescriptor;
 
 }
 
@@ -86,11 +85,8 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 	private _onViewsDeregistered: Emitter<IViewDescriptor[]> = new Emitter<IViewDescriptor[]>();
 	readonly onViewsDeregistered: Event<IViewDescriptor[]> = this._onViewsDeregistered.event;
 
-	private _onTreeViewDataProviderRegistered: Emitter<string> = new Emitter<string>();
-	readonly onTreeViewDataProviderRegistered: Event<string> = this._onTreeViewDataProviderRegistered.event;
-
+	private _viewLocations: ViewLocation[] = [];
 	private _views: Map<ViewLocation, IViewDescriptor[]> = new Map<ViewLocation, IViewDescriptor[]>();
-	private _treeViewDataPoviders: Map<string, ITreeViewDataProvider> = new Map<string, ITreeViewDataProvider>();
 
 	registerViews(viewDescriptors: IViewDescriptor[]): void {
 		if (viewDescriptors.length) {
@@ -99,9 +95,10 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 				if (!views) {
 					views = [];
 					this._views.set(viewDescriptor.location, views);
+					this._viewLocations.push(viewDescriptor.location);
 				}
 				if (views.some(v => v.id === viewDescriptor.id)) {
-					throw new Error(localize('duplicateId', "A view with id `{0}` is already registered in the location `{1}`", viewDescriptor.id, viewDescriptor.location.id));
+					throw new Error(localize('duplicateId', "A view with id '{0}' is already registered in the location '{1}'", viewDescriptor.id, viewDescriptor.location.id));
 				}
 				views.push(viewDescriptor);
 			}
@@ -119,46 +116,81 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 		const viewsToDeregister = views.filter(view => ids.indexOf(view.id) !== -1);
 
 		if (viewsToDeregister.length) {
-			this._views.set(location, views.filter(view => ids.indexOf(view.id) === -1));
+			const remaningViews = views.filter(view => ids.indexOf(view.id) === -1);
+			if (remaningViews.length) {
+				this._views.set(location, remaningViews);
+			} else {
+				this._views.delete(location);
+				this._viewLocations.splice(this._viewLocations.indexOf(location), 1);
+			}
 		}
 
 		this._onViewsDeregistered.fire(viewsToDeregister);
-	}
-
-	registerTreeViewDataProvider(id: string, factory: ITreeViewDataProvider) {
-		if (!this.isDataProviderRegistered(id)) {
-			// TODO: throw error
-		}
-		this._treeViewDataPoviders.set(id, factory);
-		this._onTreeViewDataProviderRegistered.fire(id);
-	}
-
-	deregisterTreeViewDataProviders(): void {
-		this._treeViewDataPoviders.clear();
 	}
 
 	getViews(loc: ViewLocation): IViewDescriptor[] {
 		return this._views.get(loc) || [];
 	}
 
-	getTreeViewDataProvider(id: string): ITreeViewDataProvider {
-		return this._treeViewDataPoviders.get(id);
+	getAllViews(): IViewDescriptor[] {
+		const result: IViewDescriptor[] = [];
+		this._views.forEach(views => result.push(...views));
+		return result;
 	}
 
-	private isDataProviderRegistered(id: string): boolean {
-		let registered = false;
-		this._views.forEach(views => registered = registered || views.some(view => view.id === id));
-		return registered;
+	getView(id: string): IViewDescriptor {
+		for (const viewLocation of this._viewLocations) {
+			const viewDescriptor = (this._views.get(viewLocation) || []).filter(v => v.id === id)[0];
+			if (viewDescriptor) {
+				return viewDescriptor;
+			}
+		}
+		return null;
 	}
 };
 
 export interface IViewsViewlet extends IViewlet {
 
-	openView(id: string): void;
+	openView(id: string, focus?: boolean): TPromise<void>;
 
 }
 
-// Custom view
+// Custom views
+
+export interface ITreeViewer extends IDisposable {
+
+	dataProvider: ITreeViewDataProvider;
+
+	refresh(treeItems?: ITreeItem[]): TPromise<void>;
+
+	setVisibility(visible: boolean): void;
+
+	focus(): void;
+
+	layout(height: number): void;
+
+	show(container: HTMLElement);
+
+	getOptimalWidth(): number;
+
+	reveal(item: ITreeItem, parentChain: ITreeItem[], options: { select?: boolean }): TPromise<void>;
+}
+
+export interface ICustomViewDescriptor extends IViewDescriptor {
+
+	treeView?: boolean;
+
+}
+
+export const ICustomViewsService = createDecorator<ICustomViewsService>('customViewsService');
+
+export interface ICustomViewsService {
+	_serviceBrand: any;
+
+	getTreeViewer(id: string): ITreeViewer;
+
+	openView(id: string, focus?: boolean): TPromise<void>;
+}
 
 export type TreeViewItemHandleArg = {
 	$treeViewId: string,
@@ -177,13 +209,19 @@ export interface ITreeItem {
 
 	parentHandle: string;
 
+	collapsibleState: TreeItemCollapsibleState;
+
 	label?: string;
 
 	icon?: string;
 
 	iconDark?: string;
 
+	themeIcon?: ThemeIcon;
+
 	resourceUri?: UriComponents;
+
+	tooltip?: string;
 
 	contextValue?: string;
 
@@ -191,7 +229,6 @@ export interface ITreeItem {
 
 	children?: ITreeItem[];
 
-	collapsibleState?: TreeItemCollapsibleState;
 }
 
 export interface ITreeViewDataProvider {
@@ -200,7 +237,5 @@ export interface ITreeViewDataProvider {
 
 	onDispose: Event<void>;
 
-	getElements(): TPromise<ITreeItem[]>;
-
-	getChildren(element: ITreeItem): TPromise<ITreeItem[]>;
+	getChildren(element?: ITreeItem): TPromise<ITreeItem[]>;
 }

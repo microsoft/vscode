@@ -11,7 +11,7 @@
 	"showTriggerActions": "前往工作區中的符號...",
 	"name": "搜尋",
 	"search": "搜尋",
-	"showSearchViewlet": "顯示搜尋",
+	"showSearchViewl": "顯示搜尋",
 	"view": "檢視",
 	"findInFiles": "在檔案中尋找",
 	"openAnythingHandlerDescription": "前往檔案",
@@ -24,5 +24,6 @@
 	"useIgnoreFiles": "控制在搜尋檔案時，是否要使用 .gitignore 及 .ignore 檔案。 ",
 	"search.quickOpen.includeSymbols": "設定以將全域符號搜尋的結果納入 Quick Open 的檔案結果中。",
 	"search.followSymlinks": "控制是否要在搜尋時遵循 symlink。",
-	"search.smartCase": "如果搜尋式為全部小寫，則用不分大小寫的搜尋，否則用分大小寫的搜尋"
+	"search.smartCase": "如果搜尋式為全部小寫，則用不分大小寫的搜尋，否則用分大小寫的搜尋",
+	"search.globalFindClipboard": "控制 Search Viewlet 是否應讀取或修改 macOS 上的共用尋找剪貼簿"
 }

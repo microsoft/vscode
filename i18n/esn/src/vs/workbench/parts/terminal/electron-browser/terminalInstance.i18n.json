@@ -8,9 +8,7 @@
 	],
 	"terminal.integrated.a11yBlankLine": "Línea en blanco",
 	"terminal.integrated.a11yPromptLabel": "Entrada de terminal",
-	"terminal.integrated.a11yTooMuchOutput": "Demasiado salida para anunciar, navegar a las filas manualmente para leer",
 	"terminal.integrated.copySelection.noSelection": "El terminal no tiene ninguna selección para copiar",
 	"terminal.integrated.exitedWithCode": "El proceso del terminal finalizó con el código de salida: {0}",
-	"terminal.integrated.waitOnExit": "Presione cualquier tecla para cerrar el terminar",
-	"terminal.integrated.launchFailed": "No se pudo iniciar el comando de proceso terminal \"{0}{1}\" (código de salida: {2})"
+	"terminal.integrated.waitOnExit": "Presione cualquier tecla para cerrar el terminar"
 }

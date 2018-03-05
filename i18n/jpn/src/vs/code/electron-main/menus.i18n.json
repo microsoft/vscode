@@ -93,6 +93,7 @@
 	"miOpenView": "ビューを開く... &&O",
 	"miToggleFullScreen": "全画面表示の切り替え(&&F)",
 	"miToggleZenMode": "Zen Mode の切り替え",
+	"miToggleCenteredLayout": "中央揃えレイアウトの切り替え",
 	"miToggleMenuBar": "メニュー バーの切り替え(&&B)",
 	"miSplitEditor": "エディターを分割(&&E)",
 	"miToggleEditorLayout": "エディター グループ レイアウトの切り替え(&&L)",
@@ -187,8 +188,5 @@
 	"miDownloadingUpdate": "更新をダウンロードしています...",
 	"miInstallUpdate": "更新プログラムのインストール...",
 	"miInstallingUpdate": "更新プログラムをインストールしています...",
-	"miRestartToUpdate": "再起動して更新...",
-	"aboutDetail": "バージョン {0}\nコミット {1}\n日付 {2}\nシェル {3}\nレンダラー {4}\nNode {5}\nアーキテクチャ {6}",
-	"okButton": "OK",
-	"copy": "コピー (&&C)"
+	"miRestartToUpdate": "再起動して更新..."
 }

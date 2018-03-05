@@ -24,10 +24,11 @@
 	"copyPath": "경로 복사",
 	"saveAll": "모두 저장",
 	"compareWithSaved": "저장된 항목과 비교",
+	"compareWithSelected": "선택한 항목과 비교",
 	"compareSource": "비교를 위해 선택",
+	"compareSelected": "선택 항목 비교",
 	"close": "닫기",
 	"closeOthers": "기타 항목 닫기",
-	"closeUnmodified": "미수정 항목 닫기",
 	"closeAll": "모두 닫기",
 	"deleteFile": "영구히 삭제"
 }

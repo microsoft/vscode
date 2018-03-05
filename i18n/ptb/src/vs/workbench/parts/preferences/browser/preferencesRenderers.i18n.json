@@ -9,6 +9,8 @@
 	"emptyUserSettingsHeader": "Coloque as suas configurações aqui para substituir as configurações padrão.",
 	"emptyWorkspaceSettingsHeader": "Coloque as suas configurações aqui para substituir as configurações de usuário.",
 	"emptyFolderSettingsHeader": "Coloque as suas configurações de pasta aqui para substituir aqueles das configurações do espaço de trabalho.",
+	"reportSettingsSearchIssue": "Reportar Problema",
+	"newExtensionLabel": "Mostrar Extensão \"{0}\"",
 	"editTtile": "Editar",
 	"replaceDefaultValue": "Substituir nas Configurações",
 	"copyDefaultValue": "Copiar para Configurações",

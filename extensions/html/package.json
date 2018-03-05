@@ -1,11 +1,14 @@
 {
   "name": "html",
-  "version": "0.1.0",
+  "displayName": "%displayName%",
+	"description": "%description%",
+  "version": "1.0.0",
   "publisher": "vscode",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
     "vscode": "0.10.x"
   },
+  "icon": "icons/html.png",
   "activationEvents": [
     "onLanguage:html",
     "onLanguage:handlebars",
@@ -16,7 +19,7 @@
   "scripts": {
     "compile": "gulp compile-extension:html-client && gulp compile-extension:html-server",
     "postinstall": "cd server && yarn install",
-    "update-grammar": "node ../../build/npm/update-grammar.js textmate/html.tmbundle Syntaxes/HTML.plist ./syntaxes/html.json",
+    "update-grammar": "node ../../build/npm/update-grammar.js textmate/html.tmbundle Syntaxes/HTML.plist ./syntaxes/html.tmLanguage.json",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
   "contributes": {
@@ -57,7 +60,7 @@
       {
         "language": "html",
         "scopeName": "text.html.basic",
-        "path": "./syntaxes/html.json",
+        "path": "./syntaxes/html.tmLanguage.json",
         "embeddedLanguages": {
           "text.html": "html",
           "source.css": "css",
@@ -73,10 +76,12 @@
         "end": "^\\s*<!--\\s*#endregion\\b\\s*(.*?)-->/"
       }
     },
-		"snippets": [{
-			"language": "html",
-			"path": "./snippets/html.snippets.json"
-		}],
+    "snippets": [
+      {
+        "language": "html",
+        "path": "./snippets/html.snippets.json"
+      }
+    ],
     "configuration": {
       "id": "html",
       "order": 20,
@@ -209,6 +214,11 @@
           "default": true,
           "description": "%html.autoClosingTags%"
         },
+        "html.experimental.syntaxFolding": {
+          "type": "boolean",
+          "default": false,
+          "description": "%html.experimental.syntaxFolding%"
+        },
         "html.trace.server": {
           "type": "string",
           "scope": "window",
@@ -224,8 +234,8 @@
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.0.11",
-    "vscode-languageclient": "^3.5.0",
+    "vscode-extension-telemetry": "0.0.15",
+    "vscode-languageclient": "4.0.0-next.9",
     "vscode-nls": "^3.2.1"
   },
   "devDependencies": {

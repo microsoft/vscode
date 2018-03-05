@@ -68,7 +68,7 @@
 	font-size: 13px;
 }
 
-.monaco-workbench > .part > .content  .progress-container {
+.monaco-workbench > .part > .content  .monaco-progress-container {
 	position: absolute;
 	left: 0;
 	top: 33px; /* at the bottom of the 35px height title container */
@@ -76,6 +76,6 @@
 	height: 2px;
 }
 
-.monaco-workbench > .part > .content  .progress-container .progress-bit {
+.monaco-workbench > .part > .content  .monaco-progress-container .progress-bit {
 	height: 2px;
 }

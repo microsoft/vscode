@@ -8,13 +8,12 @@ import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction } from 'vs/workbench/parts/terminal/common/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IQuickOpenService, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
@@ -25,6 +24,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -62,8 +62,7 @@ export class KillTerminalAction extends Action {
 		id: string, label: string,
 		@ITerminalService private terminalService: ITerminalService
 	) {
-		super(id, label);
-		this.class = 'terminal-action kill';
+		super(id, label, 'terminal-action kill');
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -89,8 +88,7 @@ export class QuickKillTerminalAction extends Action {
 		@ITerminalService private terminalService: ITerminalService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
-		super(id, label);
-		this.class = 'terminal-action kill';
+		super(id, label, 'terminal-action kill');
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -99,9 +97,9 @@ export class QuickKillTerminalAction extends Action {
 		if (terminal) {
 			terminal.dispose();
 		}
-		if (this.terminalService.terminalInstances.length > 0 && this.terminalService.activeTerminalInstanceIndex !== terminalIndex) {
-			this.terminalService.setActiveInstanceByIndex(Math.min(terminalIndex, this.terminalService.terminalInstances.length - 1));
-		}
+		// if (this.terminalService.terminalInstances.length > 0 && this.terminalService.activeTerminalInstanceIndex !== terminalIndex) {
+		// 	this.terminalService.setActiveInstanceByIndex(Math.min(terminalIndex, this.terminalService.terminalInstances.length - 1));
+		// }
 		return TPromise.timeout(50).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 	}
 }
@@ -157,7 +155,7 @@ export abstract class BaseSendTextTerminalAction extends Action {
 		id: string,
 		label: string,
 		private _text: string,
-		@ITerminalService private _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -239,12 +237,18 @@ export class CreateNewTerminalAction extends Action {
 		@ICommandService private commandService: ICommandService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
-		super(id, label);
-		this.class = 'terminal-action new';
+		super(id, label, 'terminal-action new');
 	}
 
 	public run(event?: any): TPromise<any> {
 		const folders = this.workspaceContextService.getWorkspace().folders;
+		if (event instanceof MouseEvent && (event.altKey || event.ctrlKey)) {
+			const activeInstance = this.terminalService.getActiveInstance();
+			if (activeInstance) {
+				this.terminalService.splitInstance(activeInstance);
+				return TPromise.as(null);
+			}
+		}
 
 		let instancePromise: TPromise<ITerminalInstance>;
 		if (folders.length <= 1) {
@@ -296,6 +300,135 @@ export class CreateNewInActiveWorkspaceTerminalAction extends Action {
 	}
 }
 
+export class SplitTerminalAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.split';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.split', "Split Terminal");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
+		super(id, label, 'terminal-action split');
+	}
+
+	public run(event?: any): TPromise<any> {
+		const instance = this._terminalService.getActiveInstance();
+		if (!instance) {
+			return TPromise.as(void 0);
+		}
+		this._terminalService.splitInstance(instance);
+		return this._terminalService.showPanel(true);
+	}
+}
+
+export class FocusPreviousPaneTerminalAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.focusPreviousPane';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusPreviousPane', "Focus Previous Pane");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const tab = this._terminalService.getActiveTab();
+		if (!tab) {
+			return TPromise.as(void 0);
+		}
+		tab.focusPreviousPane();
+		return this._terminalService.showPanel(true);
+	}
+}
+
+export class FocusNextPaneTerminalAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.focusNextPane';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusNextPane', "Focus Next Pane");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const tab = this._terminalService.getActiveTab();
+		if (!tab) {
+			return TPromise.as(void 0);
+		}
+		tab.focusNextPane();
+		return this._terminalService.showPanel(true);
+	}
+}
+
+export abstract class BaseFocusDirectionTerminalAction extends Action {
+	constructor(
+		id: string, label: string,
+		private _direction: Direction,
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const tab = this._terminalService.getActiveTab();
+		if (tab) {
+			tab.resizePane(this._direction);
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class ResizePaneLeftTerminalAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.resizePaneLeft';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.resizePaneLeft', "Resize Pane Left");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService readonly terminalService: ITerminalService
+	) {
+		super(id, label, Direction.Left, terminalService);
+	}
+}
+
+export class ResizePaneRightTerminalAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.resizePaneRight';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.resizePaneRight', "Resize Pane Right");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService readonly terminalService: ITerminalService
+	) {
+		super(id, label, Direction.Right, terminalService);
+	}
+}
+
+export class ResizePaneUpTerminalAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.resizePaneUp';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.resizePaneUp', "Resize Pane Up");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService readonly terminalService: ITerminalService
+	) {
+		super(id, label, Direction.Up, terminalService);
+	}
+}
+
+export class ResizePaneDownTerminalAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.resizePaneDown';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.resizePaneDown', "Resize Pane Down");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService readonly terminalService: ITerminalService
+	) {
+		super(id, label, Direction.Down, terminalService);
+	}
+}
+
 export class FocusActiveTerminalAction extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.focus';
@@ -331,7 +464,7 @@ export class FocusNextTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		this.terminalService.setActiveInstanceToNext();
+		this.terminalService.setActiveTabToNext();
 		return this.terminalService.showPanel(true);
 	}
 }
@@ -349,10 +482,11 @@ export class FocusPreviousTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		this.terminalService.setActiveInstanceToPrevious();
+		this.terminalService.setActiveTabToPrevious();
 		return this.terminalService.showPanel(true);
 	}
 }
+
 export class TerminalPasteAction extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.paste';
@@ -435,7 +569,7 @@ export class RunActiveFileInTerminalAction extends Action {
 		id: string, label: string,
 		@ICodeEditorService private codeEditorService: ICodeEditorService,
 		@ITerminalService private terminalService: ITerminalService,
-		@IMessageService private messageService: IMessageService
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(id, label);
 	}
@@ -451,7 +585,7 @@ export class RunActiveFileInTerminalAction extends Action {
 		}
 		const uri = editor.getModel().uri;
 		if (uri.scheme !== 'file') {
-			this.messageService.show(Severity.Warning, nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
+			this.notificationService.warn(nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
 			return TPromise.as(void 0);
 		}
 		instance.sendText(uri.fsPath, true);
@@ -459,30 +593,29 @@ export class RunActiveFileInTerminalAction extends Action {
 	}
 }
 
-export class SwitchTerminalInstanceAction extends Action {
+export class SwitchTerminalAction extends Action {
 
-	public static readonly ID = 'workbench.action.terminal.switchTerminalInstance';
-	public static readonly LABEL = nls.localize('workbench.action.terminal.switchTerminalInstance', "Switch Terminal Instance");
+	public static readonly ID = 'workbench.action.terminal.switchTerminal';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.switchTerminal', "Switch Terminal");
 
 	constructor(
 		id: string, label: string,
 		@ITerminalService private terminalService: ITerminalService
 	) {
-		super(SwitchTerminalInstanceAction.ID, SwitchTerminalInstanceAction.LABEL);
-		this.class = 'terminal-action switch-terminal-instance';
+		super(SwitchTerminalAction.ID, SwitchTerminalAction.LABEL, 'terminal-action switch-terminal');
 	}
 
 	public run(item?: string): TPromise<any> {
 		if (!item || !item.split) {
 			return TPromise.as(null);
 		}
-		const selectedTerminalIndex = parseInt(item.split(':')[0], 10) - 1;
-		this.terminalService.setActiveInstanceByIndex(selectedTerminalIndex);
+		const selectedTabIndex = parseInt(item.split(':')[0], 10) - 1;
+		this.terminalService.setActiveTabByIndex(selectedTabIndex);
 		return this.terminalService.showPanel(true);
 	}
 }
 
-export class SwitchTerminalInstanceActionItem extends SelectActionItem {
+export class SwitchTerminalActionItem extends SelectActionItem {
 
 	constructor(
 		action: IAction,
@@ -490,16 +623,16 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, terminalService.getInstanceLabels(), terminalService.activeTerminalInstanceIndex, contextViewService);
+		super(null, action, terminalService.getTabLabels(), terminalService.activeTabIndex, contextViewService);
 
 		this.toDispose.push(terminalService.onInstancesChanged(this._updateItems, this));
-		this.toDispose.push(terminalService.onActiveInstanceChanged(this._updateItems, this));
+		this.toDispose.push(terminalService.onActiveTabChanged(this._updateItems, this));
 		this.toDispose.push(terminalService.onInstanceTitleChanged(this._updateItems, this));
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 	}
 
 	private _updateItems(): void {
-		this.setOptions(this.terminalService.getInstanceLabels(), this.terminalService.activeTerminalInstanceIndex);
+		this.setOptions(this.terminalService.getTabLabels(), this.terminalService.activeTabIndex);
 	}
 }
 

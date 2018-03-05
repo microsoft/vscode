@@ -6,9 +6,10 @@
 
 'use strict';
 
-
 (function () {
 	const unloadedStyles = [];
+
+	const settings = JSON.parse(document.getElementById('vscode-markdown-preview-data').getAttribute('data-settings'));
 
 	const onStyleLoadError = (event) => {
 		const source = event.target.dataset.source;
@@ -27,10 +28,13 @@
 		if (!unloadedStyles.length) {
 			return;
 		}
-		const args = [unloadedStyles];
 		window.parent.postMessage({
-			command: 'did-click-link',
-			data: `command:_markdown.onPreviewStyleLoadError?${encodeURIComponent(JSON.stringify(args))}`
-		}, 'file://');
+			type: 'command',
+			source: settings.source,
+			body: {
+				command: '_markdown.onPreviewStyleLoadError',
+				args: [unloadedStyles]
+			}
+		}, '*');
 	});
 }());

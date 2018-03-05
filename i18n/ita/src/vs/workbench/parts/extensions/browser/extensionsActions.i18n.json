@@ -51,11 +51,10 @@
 	"OpenExtensionsFile.failed": "Non è possibile creare il file 'extensions.json' all'interno della cartella '.vscode' ({0}).",
 	"configureWorkspaceRecommendedExtensions": "Configura estensioni consigliate (area di lavoro)",
 	"configureWorkspaceFolderRecommendedExtensions": "Configura estensioni consigliate (cartella dell'area di lavoro)",
-	"builtin": "Predefinita",
+	"malicious tooltip": "Questa estensione è stata segnalata come problematica.",
+	"malicious": "Dannosa",
 	"disableAll": "Disabilita tutte le estensioni installate",
 	"disableAllWorkspace": "Disabilita tutte le estensioni installate per questa area di lavoro",
-	"enableAll": "Abilita tutte le estensioni installate",
-	"enableAllWorkspace": "Abilita tutte le estensioni installate per questa area di lavoro",
 	"extensionButtonProminentBackground": "Colore di sfondo delle azioni di estensioni che si distinguono (es. pulsante Installa).",
 	"extensionButtonProminentForeground": "Colore primo piano di pulsanti per azioni di estensioni che si distinguono (es. pulsante Installa).",
 	"extensionButtonProminentHoverBackground": "Colore di sfondo al passaggio del mouse dei pulsanti per azioni di estensione che si distinguono (es. pulsante Installa)."

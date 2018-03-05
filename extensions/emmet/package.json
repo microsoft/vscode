@@ -1,12 +1,13 @@
 {
     "name": "emmet",
-    "displayName": "emmet",
-    "description": "Emmet support for VS Code",
-    "version": "0.0.1",
+    "displayName": "Emmet",
+    "description": "%description%",
+    "version": "1.0.0",
     "publisher": "vscode",
     "engines": {
         "vscode": "^1.13.0"
     },
+    "icon": "images/icon.png",
     "categories": [
         "Other"
     ],
@@ -337,7 +338,7 @@
         "@emmetio/html-matcher": "^0.3.3",
         "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
         "@emmetio/math-expression": "^0.1.1",
-        "vscode-emmet-helper": "^1.1.24",
+        "vscode-emmet-helper": "^1.2.0",
         "vscode-languageserver-types": "^3.5.0",
         "image-size": "^0.5.2",
         "vscode-nls": "3.2.1"
