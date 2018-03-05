@@ -83,8 +83,7 @@ export class MarkdownContentProvider {
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
 				${csp}
 				<meta id="vscode-markdown-preview-data" data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}" data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}">
-				<script src="${this.extensionResourcePath('csp.js')}" nonce="${nonce}"></script>
-				<script src="${this.extensionResourcePath('loading.js')}" nonce="${nonce}"></script>
+				<script src="${this.extensionResourcePath('pre.js')}" nonce="${nonce}"></script>
 				${this.getStyles(sourceUri, nonce, config)}
 				<base href="${markdownDocument.uri.with({ scheme: 'vscode-workspace-resource' }).toString(true)}">
 			</head>
@@ -165,7 +164,7 @@ export class MarkdownContentProvider {
 	}
 
 	private getScripts(nonce: string): string {
-		const scripts = [this.extensionResourcePath('bundle.js')].concat(this.extraScripts.map(resource => resource.toString()));
+		const scripts = [this.extensionResourcePath('index.js')].concat(this.extraScripts.map(resource => resource.toString()));
 		return scripts
 			.map(source => `<script async src="${source}" nonce="${nonce}" charset="UTF-8"></script>`)
 			.join('\n');

@@ -5,7 +5,10 @@
 const path = require('path');
 
 module.exports = {
-	entry: './preview-src/index.ts',
+	entry: {
+		index: './preview-src/index.ts',
+		pre: './preview-src/pre.ts'
+	},
 	module: {
 		rules: [
 			{
@@ -20,7 +23,7 @@ module.exports = {
 	},
 	devtool: 'inline-source-map',
 	output: {
-		filename: 'bundle.js',
+		filename: '[name].js',
 		path: path.resolve(__dirname, 'media')
 	}
 };
