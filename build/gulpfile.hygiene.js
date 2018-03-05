@@ -33,56 +33,55 @@ const all = [
 	'extensions/**/*',
 	'scripts/**/*',
 	'src/**/*',
-	'test/**/*'
-];
-
-const eolFilter = [
-	'**',
-	'!ThirdPartyNotices.txt',
-	'!LICENSE.txt',
-	'!extensions/**/out/**',
-	'!test/smoke/out/**',
-	'!**/node_modules/**',
-	'!**/fixtures/**',
-	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot}',
-	'!build/{lib,tslintRules}/**/*.js',
-	'!build/monaco/**',
-	'!build/win32/**',
-	'!build/**/*.sh',
-	'!build/tfs/**/*.js',
-	'!**/Dockerfile'
+	'test/**/*',
+	'!**/node_modules/**'
 ];
 
 const indentationFilter = [
 	'**',
+
+	// except specific files
 	'!ThirdPartyNotices.txt',
-	'!**/*.md',
-	'!**/*.ps1',
-	'!**/*.template',
-	'!**/*.yaml',
-	'!**/*.yml',
-	'!**/yarn.lock',
-	'!**/lib/**',
-	'!extensions/**/*.d.ts',
-	'!src/typings/**/*.d.ts',
-	'!src/vs/*/**/*.d.ts',
-	'!**/*.d.ts.recipe',
+	'!LICENSE.txt',
+	'!src/vs/nls.js',
+	'!src/vs/css.js',
+	'!src/vs/loader.js',
+	'!src/vs/base/common/marked/raw.marked.js',
+	'!src/vs/base/common/winjs.base.raw.js',
+	'!src/vs/base/node/terminateProcess.sh',
+	'!src/vs/base/node/ps-win.ps1',
 	'!test/assert.js',
+
+	// except specific folders
+	'!test/smoke/out/**',
+	'!extensions/vscode-api-tests/testWorkspace/**',
+	'!extensions/vscode-api-tests/testWorkspace2/**',
+	'!build/monaco/**',
+	'!build/win32/**',
+
+	// except multiple specific files
 	'!**/package.json',
+	'!**/yarn.lock',
+
+	// except multiple specific folders
 	'!**/octicons/**',
-	'!**/vs/base/common/marked/raw.marked.js',
-	'!**/vs/base/common/winjs.base.raw.js',
-	'!**/vs/base/node/terminateProcess.sh',
-	'!**/vs/base/node/ps-win.ps1',
-	'!**/vs/nls.js',
-	'!**/vs/css.js',
-	'!**/vs/loader.js',
+	'!**/fixtures/**',
+	'!**/lib/**',
+	'!extensions/**/out/**',
 	'!extensions/**/snippets/**',
 	'!extensions/**/syntaxes/**',
 	'!extensions/**/themes/**',
 	'!extensions/**/colorize-fixtures/**',
-	'!extensions/vscode-api-tests/testWorkspace/**',
-	'!extensions/vscode-api-tests/testWorkspace2/**'
+
+	// except specific file types
+	'!src/vs/*/**/*.d.ts',
+	'!src/typings/**/*.d.ts',
+	'!extensions/**/*.d.ts',
+	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,template,yaml,yml,d.ts.recipe}',
+	'!build/{lib,tslintRules}/**/*.js',
+	'!build/**/*.sh',
+	'!build/tfs/**/*.js',
+	'!**/Dockerfile'
 ];
 
 const copyrightFilter = [
@@ -135,12 +134,12 @@ const tslintFilter = [
 	'!extensions/html/server/lib/jquery.d.ts'
 ];
 
-const copyrightHeader = [
+const copyrightHeaderLines = [
 	'/*---------------------------------------------------------------------------------------------',
 	' *  Copyright (c) Microsoft Corporation. All rights reserved.',
 	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
 	' *--------------------------------------------------------------------------------------------*/'
-].join('\n');
+];
 
 gulp.task('eslint', () => {
 	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
@@ -159,23 +158,14 @@ gulp.task('tslint', () => {
 		.pipe(gulptslint.default.report(options));
 });
 
-function hygiene(some, options) {
-	options = options || {};
+function hygiene(some) {
 	let errorCount = 0;
 
-	const eol = es.through(function (file) {
-		if (/\r\n?/g.test(file.contents.toString('utf8'))) {
-			console.error(file.relative + ': Bad EOL found');
-			errorCount++;
-		}
-
-		this.emit('data', file);
-	});
-
 	const indentation = es.through(function (file) {
-		file.contents
-			.toString('utf8')
-			.split(/\r\n|\r|\n/)
+		const lines = file.contents.toString('utf8').split(/\r\n|\r|\n/);
+		file.__lines = lines;
+
+		lines
 			.forEach((line, i) => {
 				if (/^\s*$/.test(line)) {
 					// empty or whitespace lines are OK
@@ -193,9 +183,14 @@ function hygiene(some, options) {
 	});
 
 	const copyrights = es.through(function (file) {
-		if (file.contents.toString('utf8').indexOf(copyrightHeader) !== 0) {
-			console.error(file.relative + ': Missing or bad copyright statement');
-			errorCount++;
+		const lines = file.__lines;
+
+		for (let i = 0; i < copyrightHeaderLines.length; i++) {
+			if (lines[i] !== copyrightHeaderLines[i]) {
+				console.error(file.relative + ': Missing or bad copyright statement');
+				errorCount++;
+				break;
+			}
 		}
 
 		this.emit('data', file);
@@ -243,8 +238,6 @@ function hygiene(some, options) {
 
 	const result = input
 		.pipe(filter(f => !f.stat.isDirectory()))
-		.pipe(filter(eolFilter))
-		.pipe(options.skipEOL ? es.through() : eol)
 		.pipe(filter(indentationFilter))
 		.pipe(indentation)
 		.pipe(filter(copyrightFilter))
@@ -337,17 +330,13 @@ if (require.main === module) {
 		process.exit(1);
 	});
 
-	cp.exec('git config core.autocrlf', (err, out) => {
-		const skipEOL = out.trim() === 'true';
-
-		if (process.argv.length > 2) {
-			return hygiene(process.argv.slice(2), { skipEOL: skipEOL }).on('error', err => {
-				console.error();
-				console.error(err);
-				process.exit(1);
-			});
-		}
-
+	if (process.argv.length > 2) {
+		hygiene(process.argv.slice(2)).on('error', err => {
+			console.error();
+			console.error(err);
+			process.exit(1);
+		});
+	} else {
 		cp.exec('git diff --cached --name-only', { maxBuffer: 2000 * 1024 }, (err, out) => {
 			if (err) {
 				console.error();
@@ -364,7 +353,7 @@ if (require.main === module) {
 				console.log('Reading git index versions...');
 
 				createGitIndexVinyls(some)
-					.then(vinyls => new Promise((c, e) => hygiene(es.readArray(vinyls), { skipEOL: skipEOL })
+					.then(vinyls => new Promise((c, e) => hygiene(es.readArray(vinyls))
 						.on('end', () => c())
 						.on('error', e)))
 					.catch(err => {
@@ -374,5 +363,5 @@ if (require.main === module) {
 					});
 			}
 		});
-	});
+	}
 }
