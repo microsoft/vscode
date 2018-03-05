@@ -5,6 +5,7 @@
 
 import { getSettings } from './settings';
 import { postCommand, postMessage } from './messaging';
+import { onceDocumentLoaded } from './events';
 
 // From https://remysharp.com/2010/07/21/throttling-function-calls
 function throttle(fn: (x: any) => any, threshhold: any, scope?: any) {
@@ -182,7 +183,7 @@ var scrollDisabled = true;
 const marker = new ActiveLineMarker();
 const settings = getSettings();
 
-function onLoad() {
+onceDocumentLoaded(() => {
 	if (settings.scrollPreviewWithEditor) {
 		setTimeout(() => {
 			const initialLine = +settings.line;
@@ -192,7 +193,7 @@ function onLoad() {
 			}
 		}, 0);
 	}
-}
+});
 
 const onUpdateView = (() => {
 	const doScroll = throttle((line: number) => {
@@ -207,14 +208,6 @@ const onUpdateView = (() => {
 		}
 	};
 })();
-
-
-if (document.readyState === 'loading' || document.readyState === 'uninitialized') {
-	document.addEventListener('DOMContentLoaded', onLoad);
-} else {
-	onLoad();
-}
-
 
 window.addEventListener('resize', () => {
 	scrollDisabled = true;
