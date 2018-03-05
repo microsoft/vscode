@@ -19,7 +19,7 @@ import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IChoiceService, Choice } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
-import { ILogService } from '../../../../platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 
 function ignore<T>(code: string, value: T = null): (err: any) => TPromise<T> {
 	return err => err.code === code ? TPromise.as<T>(value) : TPromise.wrapError<T>(err);

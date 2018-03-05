@@ -24,7 +24,7 @@ import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { isWindows } from 'vs/base/common/platform';
-import { ILogService } from '../../log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class WindowsService implements IWindowsService, IDisposable {
 

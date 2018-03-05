@@ -20,8 +20,8 @@ import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector }
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { editorWidgetBackground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder, darken } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const FEEDBACK_VISIBLE_CONFIG = 'workbench.statusBar.feedback.visible';
 

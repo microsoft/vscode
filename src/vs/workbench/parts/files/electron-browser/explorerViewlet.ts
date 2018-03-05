@@ -35,7 +35,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { ViewletPanel } from '../../../browser/parts/views/panelViewlet';
+import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
