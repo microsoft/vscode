@@ -2,12 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { getSettings } from './settings';
 import { postCommand } from './messaging';
 
 const unloadedStyles: string[] = [];
-
-const settings = getSettings();
 
 const onStyleLoadError = (event: any) => {
 	const source = event.target.dataset.source;

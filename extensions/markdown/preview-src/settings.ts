@@ -7,12 +7,19 @@ export interface PreviewSettings {
 	source: string;
 	line: number;
 	lineCount: number;
-	scrollPreviewWithEditor: boolean;
+	scrollPreviewWithEditor?: boolean;
 	scrollEditorWithPreview: boolean;
 	disableSecurityWarnings: boolean;
 	doubleClickToSwitchToEditor: boolean;
 }
 
 export function getSettings(): PreviewSettings {
-	return JSON.parse(document.getElementById('vscode-markdown-preview-data').getAttribute('data-settings'));
+	const element = document.getElementById('vscode-markdown-preview-data');
+	if (element) {
+		const data = element.getAttribute('data-settings');
+		if (data) {
+			return JSON.parse(data);
+		}
+	}
+	throw new Error('Could not load settings');
 }

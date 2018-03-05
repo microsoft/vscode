@@ -10,7 +10,7 @@ import { postCommand, postMessage } from './messaging';
 function throttle(fn: (x: any) => any, threshhold: any, scope?: any) {
 	threshhold = threshhold || (threshhold = 250);
 	var last: any, deferTimer: any;
-	return function (...x: any[]) {
+	return function (this: any, ...x: any[]) {
 		var context = scope || this;
 
 		var now = +new Date,
@@ -71,7 +71,7 @@ function getElementsForSourceLine(targetLine: number): { previous: CodeLineEleme
 	let previous = lines[0] || null;
 	for (const entry of lines) {
 		if (entry.line === lineNumber) {
-			return { previous: entry, next: null };
+			return { previous: entry, next: undefined };
 		}
 		else if (entry.line > lineNumber) {
 			return { previous, next: entry };
@@ -163,14 +163,14 @@ class ActiveLineMarker {
 		this._current = before;
 	}
 
-	_unmarkActiveElement(element: HTMLElement) {
+	_unmarkActiveElement(element: HTMLElement | undefined) {
 		if (!element) {
 			return;
 		}
 		element.className = element.className.replace(/\bcode-active-line\b/g, '');
 	}
 
-	_markActiveElement(element: HTMLElement) {
+	_markActiveElement(element: HTMLElement | undefined) {
 		if (!element) {
 			return;
 		}
@@ -250,7 +250,7 @@ document.addEventListener('dblclick', event => {
 
 	const offset = event.pageY;
 	const line = getEditorLineNumberForPageOffset(offset);
-	if (!isNaN(line)) {
+	if (typeof line === 'number' && !isNaN(line)) {
 		postMessage('didClick', { line });
 	}
 });
@@ -259,8 +259,6 @@ document.addEventListener('click', event => {
 	if (!event) {
 		return;
 	}
-
-	const baseElement = document.getElementsByTagName('base')[0];
 
 	let node: any = event.target;
 	while (node) {
@@ -287,7 +285,7 @@ if (settings.scrollEditorWithPreview) {
 			scrollDisabled = false;
 		} else {
 			const line = getEditorLineNumberForPageOffset(window.scrollY);
-			if (!isNaN(line)) {
+			if (typeof line === 'number' && !isNaN(line)) {
 				postMessage('revealLine', { line });
 			}
 		}
