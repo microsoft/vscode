@@ -5,7 +5,6 @@
 
 'use strict';
 
-import 'vs/css!./gotoError';
 import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
