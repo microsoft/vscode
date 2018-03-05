@@ -16,6 +16,9 @@ import { Configuration, ConfigurationChangeEvent, ConfigurationModel } from 'vs/
 import { WorkspaceConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
 import { StrictResourceMap } from 'vs/base/common/map';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { isObject } from 'vs/base/common/types';
+
+declare var Proxy: any; // TODO@TypeScript
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -61,9 +64,9 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	}
 
 	getConfiguration(section?: string, resource?: URI, extensionId?: string): vscode.WorkspaceConfiguration {
-		const config = deepClone(section
+		const config = section
 			? lookUp(this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace), section)
-			: this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace));
+			: this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace);
 
 		if (section) {
 			this._validateConfigurationAccess(section, resource, extensionId);
@@ -93,6 +96,32 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 				let result = lookUp(config, key);
 				if (typeof result === 'undefined') {
 					result = defaultValue;
+				} else {
+					let clonedConfig = void 0;
+					const cloneOnWriteProxy = (target: any, accessor: string): any => {
+						let clonedTarget = void 0;
+						return isObject(target) ?
+							new Proxy(target, {
+								get: (target: any, property: string) => {
+									if (clonedConfig) {
+										clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
+										return clonedTarget[property];
+									}
+									const result = target[property];
+									if (typeof property === 'string' && property.toLowerCase() !== 'tojson') {
+										return cloneOnWriteProxy(result, `${accessor}.${property}`);
+									}
+									return result;
+								},
+								set: (target: any, property: string, value: any) => {
+									clonedConfig = clonedConfig ? clonedConfig : deepClone(config);
+									clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
+									clonedTarget[property] = value;
+									return true;
+								}
+							}) : target;
+					};
+					result = cloneOnWriteProxy(result, key);
 				}
 				return result;
 			},

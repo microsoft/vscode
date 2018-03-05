@@ -107,30 +107,65 @@ suite('ExtHostConfiguration', function () {
 
 		let testObject = all.getConfiguration();
 		let actual = testObject.get('farboo');
+		actual['nested']['config1'] = 41;
+		assert.equal(41, actual['nested']['config1']);
 		actual['farboo1'] = 'newValue';
 		assert.equal('newValue', actual['farboo1']);
 
 		testObject = all.getConfiguration();
-		testObject['farboo']['farboo1'] = 'newValue';
-		assert.equal('newValue', testObject['farboo']['farboo1']);
+		actual = testObject.get('farboo');
+		assert.equal(actual['nested']['config1'], 42);
+		assert.equal(actual['farboo1'], undefined);
 
 		testObject = all.getConfiguration();
-		testObject['farboo']['farboo1'] = 'newValue';
-		assert.equal('newValue', testObject.get('farboo')['farboo1']);
+		actual = testObject.get('farboo');
+		assert.equal(actual['config0'], true);
+		actual['config0'] = false;
+		assert.equal(actual['config0'], false);
+
+		testObject = all.getConfiguration();
+		actual = testObject.get('farboo');
+		assert.equal(actual['config0'], true);
 
 		testObject = all.getConfiguration();
 		actual = testObject.inspect('farboo');
 		actual['value'] = 'effectiveValue';
 		assert.equal('effectiveValue', actual['value']);
+	});
 
-		testObject = all.getConfiguration();
-		actual = testObject.get('farboo');
-		assert.equal(undefined, actual['farboo1']);
+	test('cannot modify returned configuration', function () {
 
-		testObject = all.getConfiguration();
-		testObject['farboo']['farboo1'] = 'newValue';
-		testObject = all.getConfiguration();
-		assert.equal(undefined, testObject['farboo']['farboo1']);
+		const all = createExtHostConfiguration({
+			'farboo': {
+				'config0': true,
+				'nested': {
+					'config1': 42,
+					'config2': 'Das Pferd frisst kein Reis.'
+				},
+				'config4': ''
+			}
+		});
+
+		let testObject = all.getConfiguration();
+
+		try {
+			testObject['get'] = null;
+			assert.fail('This should be readonly');
+		} catch (e) {
+		}
+
+		try {
+			testObject['farboo']['config0'] = false;
+			assert.fail('This should be readonly');
+		} catch (e) {
+			console.log(e);
+		}
+
+		try {
+			testObject['farboo']['farboo1'] = 'hello';
+			assert.fail('This should be readonly');
+		} catch (e) {
+		}
 	});
 
 	test('inspect in no workspace context', function () {
