@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getSettings } from './settings';
+import { getStrings } from './strings';
 import { postCommand } from './messaging';
-
-const strings = JSON.parse(document.getElementById('vscode-markdown-preview-data').getAttribute('data-strings'));
-const settings = getSettings();
 
 /**
  * Shows an alert when there is a content security policy violation.
@@ -28,6 +26,9 @@ export class CspAlerter {
 	}
 
 	private showCspWarning() {
+		const strings = getStrings();
+		const settings = getSettings();
+
 		if (this.didShow || settings.disableSecurityWarnings) {
 			return;
 		}
