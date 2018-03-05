@@ -339,7 +339,8 @@ class DOMFocusController<T> implements IDisposable {
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.map(e => new StandardKeyboardEvent(e));
 
-		onKeyDown.filter(e => e.keyCode === KeyCode.Tab).on(this.onTab, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.Tab && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey)
+			.on(this.onTab, this, this.disposables);
 	}
 
 	private onTab(e: StandardKeyboardEvent): void {
