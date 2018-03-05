@@ -71,6 +71,10 @@ export class NotificationsCenter extends Themable {
 	}
 
 	public show(): void {
+		if (this.model.notifications.length === 0) {
+			return; // currently not supporting to show empty (https://github.com/Microsoft/vscode/issues/44509)
+		}
+
 		if (this._isVisible) {
 			this.notificationsList.show(true /* focus */);
 
