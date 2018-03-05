@@ -45,7 +45,7 @@
 	margin-left: 5px;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-item a:not([disabled]):not(.disabled) {
+.monaco-workbench > .part.statusbar > .statusbar-item a {
 	cursor: pointer;
 	display: inline-block;
 	height: 100%;
@@ -57,7 +57,7 @@
 }
 
 .monaco-workbench > .part.statusbar > .statusbar-entry > span,
-.monaco-workbench > .part.statusbar > .statusbar-entry > a:not([disabled]) {
+.monaco-workbench > .part.statusbar > .statusbar-entry > a {
 	padding: 0 5px 0 5px;
 	white-space: pre; /* gives some degree of styling */
 }
@@ -67,6 +67,6 @@
 	font-size: 14px;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-item a:hover:not([disabled]):not(.disabled) {
+.monaco-workbench > .part.statusbar > .statusbar-item a:hover {
 	text-decoration: none;
 }

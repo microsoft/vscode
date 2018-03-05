@@ -245,16 +245,16 @@ const nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Tab Moves Focus");
 const nlsScreenReaderDetected = nls.localize('screenReaderDetected', "Screen Reader Optimized");
 const nlsScreenReaderDetectedTitle = nls.localize('screenReaderDetectedExtra', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to \"off\".");
 
-function _setDisplay(el: HTMLElement, desiredValue: string): void {
+function setDisplay(el: HTMLElement, desiredValue: string): void {
 	if (el.style.display !== desiredValue) {
 		el.style.display = desiredValue;
 	}
 }
 function show(el: HTMLElement): void {
-	_setDisplay(el, '');
+	setDisplay(el, '');
 }
 function hide(el: HTMLElement): void {
-	_setDisplay(el, 'none');
+	setDisplay(el, 'none');
 }
 
 export class EditorStatus implements IStatusbarItem {

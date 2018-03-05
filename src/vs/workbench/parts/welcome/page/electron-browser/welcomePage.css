@@ -124,7 +124,7 @@
 	white-space: nowrap;
 }
 
-.monaco-workbench > .part.editor > .content .welcomePage .splash .showOnStartup input[type=checkbox] {
+.monaco-workbench > .part.editor > .content .welcomePage .splash .showOnStartup > .checkbox {
 	vertical-align: bottom;
 }
 
