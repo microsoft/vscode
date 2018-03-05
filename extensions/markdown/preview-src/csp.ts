@@ -9,33 +9,40 @@ import { postCommand } from './messaging';
 const strings = JSON.parse(document.getElementById('vscode-markdown-preview-data').getAttribute('data-strings'));
 const settings = getSettings();
 
-let didShow = false;
+/**
+ * Shows an alert when there is a content security policy violation.
+ */
+export class CspAlerter {
+	private didShow = false;
 
-const showCspWarning = () => {
-	if (didShow || settings.disableSecurityWarnings) {
-		return;
+	constructor() {
+		document.addEventListener('securitypolicyviolation', () => {
+			this.showCspWarning();
+		});
+
+		window.addEventListener('message', (event) => {
+			if (event && event.data && event.data.name === 'vscode-did-block-svg') {
+				this.showCspWarning();
+			}
+		});
 	}
-	didShow = true;
 
-	const notification = document.createElement('a');
-	notification.innerText = strings.cspAlertMessageText;
-	notification.setAttribute('id', 'code-csp-warning');
-	notification.setAttribute('title', strings.cspAlertMessageTitle);
+	private showCspWarning() {
+		if (this.didShow || settings.disableSecurityWarnings) {
+			return;
+		}
+		this.didShow = true;
 
-	notification.setAttribute('role', 'button');
-	notification.setAttribute('aria-label', strings.cspAlertMessageLabel);
-	notification.onclick = () => {
-		postCommand('markdown.showPreviewSecuritySelector', [settings.source]);
-	};
-	document.body.appendChild(notification);
-};
+		const notification = document.createElement('a');
+		notification.innerText = strings.cspAlertMessageText;
+		notification.setAttribute('id', 'code-csp-warning');
+		notification.setAttribute('title', strings.cspAlertMessageTitle);
 
-document.addEventListener('securitypolicyviolation', () => {
-	showCspWarning();
-});
-
-window.addEventListener('message', (event) => {
-	if (event && event.data && event.data.name === 'vscode-did-block-svg') {
-		showCspWarning();
+		notification.setAttribute('role', 'button');
+		notification.setAttribute('aria-label', strings.cspAlertMessageLabel);
+		notification.onclick = () => {
+			postCommand('markdown.showPreviewSecuritySelector', [settings.source]);
+		};
+		document.body.appendChild(notification);
 	}
-});
+}

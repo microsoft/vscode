@@ -3,5 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './csp';
 import './loading';
+import { CspAlerter } from './csp';
+
+// tslint:disable-next-line:no-unused-expression
+new CspAlerter();
