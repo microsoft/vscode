@@ -329,21 +329,22 @@ export class InputBox extends Widget {
 	}
 
 	public validate(): boolean {
-		let result: IMessage = null;
+		let errorMsg: IMessage = null;
 
 		if (this.validation) {
-			result = this.validation(this.value);
+			errorMsg = this.validation(this.value);
 
-			if (!result) {
+			if (errorMsg) {
+				this.inputElement.setAttribute('aria-invalid', 'true');
+				this.showMessage(errorMsg);
+			}
+			else if (this.inputElement.hasAttribute('aria-invalid')) {
 				this.inputElement.removeAttribute('aria-invalid');
 				this.hideMessage();
-			} else {
-				this.inputElement.setAttribute('aria-invalid', 'true');
-				this.showMessage(result);
 			}
 		}
 
-		return !result;
+		return !errorMsg;
 	}
 
 	private stylesForType(type: MessageType): { border: Color; background: Color } {
