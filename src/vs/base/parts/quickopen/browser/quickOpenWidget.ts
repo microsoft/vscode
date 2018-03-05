@@ -327,7 +327,7 @@ export class QuickOpenWidget implements IModelProvider {
 		})
 
 			// Widget Attributes
-			.addClass('quick-open-widget')
+			.addClass('monaco-quick-open-widget')
 			.build(this.container);
 
 		// Support layout
@@ -447,7 +447,7 @@ export class QuickOpenWidget implements IModelProvider {
 			// Transition into quick navigate mode if not yet done
 			if (!this.quickNavigateConfiguration && quickNavigate) {
 				this.quickNavigateConfiguration = quickNavigate;
-				this.tree.DOMFocus();
+				this.tree.domFocus();
 			}
 
 			// Navigate
@@ -558,7 +558,7 @@ export class QuickOpenWidget implements IModelProvider {
 		if (this.quickNavigateConfiguration) {
 			this.inputContainer.hide();
 			this.builder.show();
-			this.tree.DOMFocus();
+			this.tree.domFocus();
 		}
 
 		// Otherwise use normal UI
@@ -783,7 +783,7 @@ export class QuickOpenWidget implements IModelProvider {
 
 		// Clear Focus
 		if (this.tree.isDOMFocused()) {
-			this.tree.DOMBlur();
+			this.tree.domBlur();
 		} else if (this.inputBox.hasFocus()) {
 			this.inputBox.blur();
 		}

@@ -485,10 +485,10 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 	$show(handle: WebviewHandle, column: Position): void {
 		const webviewInput = this.getWebview(handle);
 		if (webviewInput.position === column) {
-			return;
+			this._editorService.openEditor(webviewInput, { preserveFocus: true }, column);
+		} else {
+			this._editorGroupService.moveEditor(webviewInput, webviewInput.position, column, { preserveFocus: true });
 		}
-
-		this._editorGroupService.moveEditor(webviewInput, webviewInput.position, column, { preserveFocus: true });
 	}
 
 	async $sendMessage(handle: WebviewHandle, message: any): Promise<boolean> {

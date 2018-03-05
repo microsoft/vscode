@@ -142,7 +142,7 @@ export function activate(context: vscode.ExtensionContext) {
  */
 const languageMappingForCompletionProviders: Map<string, string> = new Map<string, string>();
 const completionProvidersMapping: Map<string, vscode.Disposable> = new Map<string, vscode.Disposable>();
-const languagesToSkipCompletionProviders = ['html', 'css', 'scss', 'less'];
+const languagesToSkipCompletionProviders = ['html'];
 
 function registerCompletionProviders(context: vscode.ExtensionContext) {
 	let completionProvider = new DefaultCompletionItemProvider();

@@ -25,7 +25,7 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		this.toDispose = [];
 
 		this.selectElement = document.createElement('select');
-		this.selectElement.className = 'select-box';
+		this.selectElement.className = 'monaco-select-box';
 
 		this._onDidSelect = new Emitter<ISelectData>();
 

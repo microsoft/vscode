@@ -69,7 +69,7 @@ async function readFile(file: string): Promise<string> {
 
 interface NpmTaskDefinition extends vscode.TaskDefinition {
 	script: string;
-	file?: string;
+	path?: string;
 }
 
 const buildNames: string[] = ['build', 'compile', 'watch'];
@@ -208,8 +208,8 @@ function createTask(script: string, cmd: string, folder: vscode.WorkspaceFolder,
 
 	function getRelativePath(folder: vscode.WorkspaceFolder, packageJsonUri: vscode.Uri): string {
 		let rootUri = folder.uri;
-		let absolutePath = packageJsonUri.fsPath;
-		return absolutePath.substring(rootUri.fsPath.length + 1, absolutePath.length - 'package.json'.length);
+		let absolutePath = packageJsonUri.path.substring(0, packageJsonUri.path.length - 'package.json'.length);
+		return absolutePath.substring(rootUri.path.length + 1);
 	}
 
 	let kind: NpmTaskDefinition = {
@@ -218,7 +218,7 @@ function createTask(script: string, cmd: string, folder: vscode.WorkspaceFolder,
 	};
 	let relativePackageJson = getRelativePath(folder, packageJsonUri);
 	if (relativePackageJson.length) {
-		kind.file = getRelativePath(folder, packageJsonUri);
+		kind.path = getRelativePath(folder, packageJsonUri);
 	}
 	let taskName = getTaskName(script, relativePackageJson);
 	let cwd = path.dirname(packageJsonUri.fsPath);

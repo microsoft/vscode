@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/73687e96144eff4db45a9a00655bfe87c73b023d",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/07f55fa7c0dcdbfeb21b8970255e96dd9c00b6bb",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -1787,7 +1787,7 @@
 							"name": "punctuation.definition.string.end.markdown"
 						}
 					},
-					"match": "^(?x:\n  \\s*\t\t\t\t\t\t# Leading whitespace\n  (\\[)(.+?)(\\])(:)\t\t# Reference name\n  [ \\t]*\t\t\t\t\t# Optional whitespace\n  (<?)(\\S+?)(>?)\t\t\t# The url\n  [ \\t]*\t\t\t\t\t# Optional whitespace\n  (?:\n      ((\\().+?(\\)))\t\t# Match title in quotes…\n    | ((\").+?(\"))\t\t# or in parens.\n  )?\t\t\t\t\t\t# Title is optional\n  \\s*\t\t\t\t\t\t# Optional whitespace\n  $\n)\n",
+					"match": "(?x)\n  \\s*            # Leading whitespace\n  (\\[)(.+?)(\\])(:)    # Reference name\n  [ \\t]*          # Optional whitespace\n  (<?)(\\S+?)(>?)      # The url\n  [ \\t]*          # Optional whitespace\n  (?:\n      ((\\().+?(\\)))    # Match title in quotes…\n    | ((\").+?(\"))    # or in parens.\n  )?            # Title is optional\n  \\s*            # Optional whitespace\n  $\n",
 					"name": "meta.link.reference.def.markdown"
 				},
 				"list_paragraph": {
@@ -1933,7 +1933,7 @@
 					"name": "meta.other.valid-ampersand.markdown"
 				},
 				"bold": {
-					"begin": "(?x)\n (\\*\\*|__)(?=\\S)\t\t\t\t\t\t\t\t# Open\n (?=\n   (\n     <[^>]*+>\t\t\t\t\t\t\t# HTML tags\n     | (?<raw>`+)([^`]|(?!(?<!`)\\k<raw>(?!`))`)*+\\k<raw>\n                       # Raw\n     | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+\t\t\t# Escapes\n     | \\[\n     (\n         (?<square>\t\t\t\t\t# Named group\n           [^\\[\\]\\\\]\t\t\t\t# Match most chars\n           | \\\\.\t\t\t\t\t\t# Escaped chars\n           | \\[ \\g<square>*+ \\]\t\t# Nested brackets\n         )*+\n       \\]\n       (\n         (\t\t\t\t\t\t\t# Reference Link\n           [ ]?\t\t\t\t\t# Optional space\n           \\[[^\\]]*+\\]\t\t\t\t# Ref name\n         )\n         | (\t\t\t\t\t\t\t# Inline Link\n           \\(\t\t\t\t\t\t# Opening paren\n             [ \\t]*+\t\t\t\t# Optional whitespace\n             <?(.*?)>?\t\t\t# URL\n             [ \\t]*+\t\t\t\t# Optional whitespace\n             (\t\t\t\t\t# Optional Title\n               (?<title>['\"])\n               (.*?)\n               \\k<title>\n             )?\n           \\)\n         )\n       )\n     )\n     | (?!(?<=\\S)\\1).\t\t\t\t\t\t# Everything besides\n                       # style closer\n   )++\n   (?<=\\S)\\1\t\t\t\t\t\t\t\t# Close\n )\n",
+					"begin": "(?x)\n (\\*\\*|__)(?=\\S)                # Open\n (?=\n   (\n     <[^>]*+>              # HTML tags\n     | (?<raw>`+)([^`]|(?!(?<!`)\\k<raw>(?!`))`)*+\\k<raw>\n                       # Raw\n     | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+      # Escapes\n     | \\[\n     (\n         (?<square>          # Named group\n           [^\\[\\]\\\\]        # Match most chars\n           | \\\\.            # Escaped chars\n           | \\[ \\g<square>*+ \\]    # Nested brackets\n         )*+\n       \\]\n       (\n         (              # Reference Link\n           [ ]?          # Optional space\n           \\[[^\\]]*+\\]        # Ref name\n         )\n         | (              # Inline Link\n           \\(            # Opening paren\n             [ \\t]*+        # Optional whitespace\n             <?(.*?)>?      # URL\n             [ \\t]*+        # Optional whitespace\n             (          # Optional Title\n               (?<title>['\"])\n               (.*?)\n               \\k<title>\n             )?\n           \\)\n         )\n       )\n     )\n     | (?!(?<=\\S)\\1).            # Everything besides\n                       # style closer\n   )++\n   (?<=\\S)\\1                # Close\n )\n",
 					"captures": {
 						"1": {
 							"name": "punctuation.definition.bold.markdown"
@@ -2047,7 +2047,7 @@
 							"name": "punctuation.definition.metadata.markdown"
 						}
 					},
-					"match": "(?x:\n  (\\!\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])\n                # Match the link text.\n  (\\()\t\t\t\t\t\t# Opening paren for url\n    (<?)(\\S+?)(>?)\t\t\t# The url\n    [ \\t]*\t\t\t\t\t# Optional whitespace\n    (?:\n        ((\\().+?(\\)))\t\t# Match title in parens…\n      | ((\").+?(\"))\t\t# or in quotes.\n    )?\t\t\t\t\t\t# Title is optional\n    \\s*\t\t\t\t\t\t# Optional whitespace\n  (\\))\n)\n",
+					"match": "(?x)\n  (\\!\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])\n                # Match the link text.\n  (\\()            # Opening paren for url\n    (<?)(\\S+?)(>?)      # The url\n    [ \\t]*          # Optional whitespace\n    (?:\n        ((\\().+?(\\)))    # Match title in parens…\n      | ((\").+?(\"))    # or in quotes.\n    )?            # Title is optional\n    \\s*            # Optional whitespace\n  (\\))\n",
 					"name": "meta.image.inline.markdown"
 				},
 				"image-ref": {
@@ -2075,7 +2075,7 @@
 					"name": "meta.image.reference.markdown"
 				},
 				"italic": {
-					"begin": "(?x) (\\*\\b|\\b_)(?=\\S)\t\t\t\t\t\t\t\t# Open\n  (?=\n    (\n      <[^>]*+>\t\t\t\t\t\t\t# HTML tags\n      | (?<raw>`+)([^`]|(?!(?<!`)\\k<raw>(?!`))`)*+\\k<raw>\n                        # Raw\n      | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+\t\t\t# Escapes\n      | \\[\n      (\n          (?<square>\t\t\t\t\t# Named group\n            [^\\[\\]\\\\]\t\t\t\t# Match most chars\n            | \\\\.\t\t\t\t\t\t# Escaped chars\n            | \\[ \\g<square>*+ \\]\t\t# Nested brackets\n          )*+\n        \\]\n        (\n          (\t\t\t\t\t\t\t# Reference Link\n            [ ]?\t\t\t\t\t# Optional space\n            \\[[^\\]]*+\\]\t\t\t\t# Ref name\n          )\n          | (\t\t\t\t\t\t\t# Inline Link\n            \\(\t\t\t\t\t\t# Opening paren\n              [ \\t]*+\t\t\t\t# Optional whtiespace\n              <?(.*?)>?\t\t\t# URL\n              [ \\t]*+\t\t\t\t# Optional whtiespace\n              (\t\t\t\t\t# Optional Title\n                (?<title>['\"])\n                (.*?)\n                \\k<title>\n              )?\n            \\)\n          )\n        )\n      )\n      | \\1\\1\t\t\t\t\t\t\t\t# Must be bold closer\n      | (?!(?<=\\S)\\1).\t\t\t\t\t\t# Everything besides\n                        # style closer\n    )++\n    (?<=\\S)\\1\t\t\t\t\t\t\t\t# Close\n  )\n",
+					"begin": "(?x) (\\*\\b|\\b_)(?=\\S)                # Open\n  (?=\n    (\n      <[^>]*+>              # HTML tags\n      | (?<raw>`+)([^`]|(?!(?<!`)\\k<raw>(?!`))`)*+\\k<raw>\n                        # Raw\n      | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+      # Escapes\n      | \\[\n      (\n          (?<square>          # Named group\n            [^\\[\\]\\\\]        # Match most chars\n            | \\\\.            # Escaped chars\n            | \\[ \\g<square>*+ \\]    # Nested brackets\n          )*+\n        \\]\n        (\n          (              # Reference Link\n            [ ]?          # Optional space\n            \\[[^\\]]*+\\]        # Ref name\n          )\n          | (              # Inline Link\n            \\(            # Opening paren\n              [ \\t]*+        # Optional whtiespace\n              <?(.*?)>?      # URL\n              [ \\t]*+        # Optional whtiespace\n              (          # Optional Title\n                (?<title>['\"])\n                (.*?)\n                \\k<title>\n              )?\n            \\)\n          )\n        )\n      )\n      | \\1\\1                # Must be bold closer\n      | (?!(?<=\\S)\\1).            # Everything besides\n                        # style closer\n    )++\n    (?<=\\S)\\1                # Close\n  )\n",
 					"captures": {
 						"1": {
 							"name": "punctuation.definition.italic.markdown"
@@ -2207,7 +2207,7 @@
 							"name": "punctuation.definition.metadata.markdown"
 						}
 					},
-					"match": "(?x:\n    (\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])\n                  # Match the link text.\n    (\\()\t\t\t\t\t\t# Opening paren for url\n      (<?)(.*?)(>?)\t\t\t# The url\n      [ \\t]*\t\t\t\t\t# Optional whitespace\n      (?:\n          ((\\().+?(\\)))\t\t# Match title in parens…\n        | ((\").+?(\"))\t\t# or in quotes.\n      )?\t\t\t\t\t\t# Title is optional\n      \\s*\t\t\t\t\t\t# Optional whitespace\n    (\\))\n  )\n",
+					"match": "(?x)\n  (\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])\n                # Match the link text.\n  (\\()            # Opening paren for url\n    (<?)(.*?)(>?)      # The url\n    [ \\t]*          # Optional whitespace\n    (?:\n        ((\\().+?(\\)))    # Match title in parens…\n      | ((\").+?(\"))    # or in quotes.\n    )?            # Title is optional\n    \\s*            # Optional whitespace\n  (\\))\n",
 					"name": "meta.link.inline.markdown"
 				},
 				"link-ref": {

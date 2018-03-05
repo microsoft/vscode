@@ -103,19 +103,17 @@ textarea {
 html {
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
 	color: #CCCCCC;
+	height: 100%;
 }
 
 body {
 	margin: 0;
 	overflow: scroll;
+	height: 100%;
 }
 
 .hidden {
 	display: none;
-}
-
-#block-container {
-	margin-top: 1em;
 }
 
 .block .block-info {
@@ -144,11 +142,32 @@ button:disabled {
 	max-width: 85vw;
 	margin-left: auto;
 	margin-right: auto;
-	margin-top: 2em;
+	padding-top: 2em;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.description-section {
+	flex-grow: 1;
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+}
+
+textarea {
+	flex-grow: 1;
+	min-height: 150px;
+}
+
+.block-info-text {
+	display: flex;
+	flex-grow: 1;
 }
 
 #github-submit-btn {
-	float: right;
+	flex-shrink: 0;
+	margin-left: auto;
 	margin-top: 10px;
 	margin-bottom: 10px;
 }
@@ -206,6 +225,7 @@ summary {
 	border: 1px solid transparent;
 	padding: 0 10px;
 	margin-bottom: 5px;
+	cursor: pointer;
 }
 
 .validation-error {
@@ -250,8 +270,9 @@ input:disabled {
 	margin-top: .5em;
 }
 
-.workbenchCommand {
+a, .workbenchCommand {
 	cursor: pointer;
+	border: 1px solid transparent;
 }
 
 .workbenchCommand:disabled {
@@ -352,7 +373,7 @@ button {
 .issues-container {
 	margin-left: 1.5em;
 	margin-top: .5em;
-	height: 108px;
+	height: 92px;
 	overflow-y: auto;
 }
 
@@ -367,17 +388,28 @@ button {
 	overflow: hidden;
 	padding-top: 3px;
 	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .issues-container > .issue > .issue-state {
+	display: inline-block;
+	width: 77px;
 	padding: 3px 6px;
 	margin-right: 5px;
 	color: #CCCCCC;
 	background-color: #3c3c3c;
 	border-radius: .25rem;
-	display: inline-block;
 }
 
 .issues-container > .issue > .issue-state .octicon {
-	padding-right: 5px;
+	vertical-align: top;
+	width: 16px;
+}
+
+.issues-container > .issue .label {
+	margin-left: 5px;
+	display: inline-block;
+	width: 44px;
+	text-overflow: ellipsis;
+	overflow: hidden;
 }

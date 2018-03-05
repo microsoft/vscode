@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-.progress-container {
+.monaco-progress-container {
 	width: 100%;
 	height: 5px;
 }
 
-.progress-container .progress-bit {
+.monaco-progress-container .progress-bit {
 	width: 2%;
 	height: 5px;
 	position: absolute;
@@ -15,11 +15,11 @@
 	display: none;
 }
 
-.progress-container.active .progress-bit {
+.monaco-progress-container.active .progress-bit {
 	display: inherit;
 }
 
-.progress-container.discrete .progress-bit {
+.monaco-progress-container.discrete .progress-bit {
 	left: 0;
 	transition: width 100ms linear;
 	-webkit-transition: width 100ms linear;
@@ -28,11 +28,11 @@
 	-ms-transition: width 100ms linear;
 }
 
-.progress-container.discrete.done .progress-bit {
+.monaco-progress-container.discrete.done .progress-bit {
 	width: 100%;
 }
 
-.progress-container.infinite .progress-bit {
+.monaco-progress-container.infinite .progress-bit {
 	animation-name: progress;
 	animation-duration: 4s;
 	animation-iteration-count: infinite;
@@ -55,5 +55,3 @@
 @-ms-keyframes progress { from { left: 0; width: 2%; }	50% { left: 50%; width: 5%; } to { left: 98%; width: 2%; } }
 @-webkit-keyframes progress { from { left: 0; width: 2%; }	50% { left: 50%; width: 5%; } to { left: 98%; width: 2%; } }
 @-moz-keyframes progress { from { left: 0; width: 2%; }	50% { left: 50%; width: 5%; } to { left: 98%; width: 2%; } }
-
-

@@ -37,7 +37,7 @@ export interface LanguageMode {
 	getId(): string;
 	configure?: (options: Settings) => void;
 	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
-	doComplete?: (document: TextDocument, position: Position, settings?: Settings) => CompletionList | null;
+	doComplete?: (document: TextDocument, position: Position, settings?: Settings, registeredCompletionParticipants?: any[]) => CompletionList | null;
 	setCompletionParticipants?: (registeredCompletionParticipants: any[]) => void;
 	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem | null;
 	doHover?: (document: TextDocument, position: Position) => Hover | null;

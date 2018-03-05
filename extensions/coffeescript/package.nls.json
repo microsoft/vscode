@@ -1,4 +1,4 @@
 {
 	"displayName": "CoffeeScript Language Basics",
-	"description": "Provides Syntax highlighting, Folding, Bracket matching and Snippets in CoffeeScript files"
+	"description": "Provides snippets, syntax highlighting, bracket matching and folding in CoffeeScript files."
 }

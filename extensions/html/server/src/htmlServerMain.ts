@@ -271,6 +271,11 @@ connection.onCompletion(async textDocumentPosition => {
 		}
 
 		if (mode.getId() !== 'html') {
+			/* __GDPR__
+				"html.embbedded.complete" : {
+					"languageId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			 */
 			connection.telemetry.logEvent({ key: 'html.embbedded.complete', value: { languageId: mode.getId() } });
 		}
 
@@ -284,21 +289,17 @@ connection.onCompletion(async textDocumentPosition => {
 			items: []
 		};
 
-		if (mode.setCompletionParticipants) {
-			const emmetCompletionParticipant = getEmmetCompletionParticipants(document, textDocumentPosition.position, mode.getId(), emmetSettings, emmetCompletionList);
+		const emmetCompletionParticipant = getEmmetCompletionParticipants(document, textDocumentPosition.position, mode.getId(), emmetSettings, emmetCompletionList);
+		const completionParticipants = [emmetCompletionParticipant];
+		// Ideally, fix this in the Language Service side
+		// Check participants' methods before calling them
+		if (mode.getId() === 'html') {
 			const pathCompletionParticipant = getPathCompletionParticipant(document, workspaceFolders, pathCompletionList);
-
-			// Ideally, fix this in the Language Service side
-			// Check participants' methods before calling them
-			if (mode.getId() === 'html') {
-				mode.setCompletionParticipants([emmetCompletionParticipant, pathCompletionParticipant]);
-			} else {
-				mode.setCompletionParticipants([emmetCompletionParticipant]);
-			}
+			completionParticipants.push(pathCompletionParticipant);
 		}
 
 		let settings = await getDocumentSettings(document, () => mode.doComplete.length > 2);
-		let result = mode.doComplete(document, textDocumentPosition.position, settings);
+		let result = mode.doComplete(document, textDocumentPosition.position, settings, completionParticipants);
 		result.items = [...pathCompletionList.items, ...result.items];
 		if (emmetCompletionList && emmetCompletionList.items) {
 			cachedCompletionList = result;

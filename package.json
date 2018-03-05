@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.21.0",
-  "distro": "7f8f68ef352dd1d67eab042b06bd9274c02f79f5",
+  "version": "1.22.0",
+  "distro": "c2f5517441bb68c5be671fd2e5f71193e7b2682f",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -67,7 +67,6 @@
     "eslint": "^3.4.0",
     "event-stream": "^3.1.7",
     "express": "^4.13.1",
-    "flatpak-bundler": "^0.1.1",
     "glob": "^5.0.13",
     "gulp": "^3.8.9",
     "gulp-atom-electron": "1.15.1",

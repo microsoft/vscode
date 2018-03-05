@@ -197,8 +197,10 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 		const versionNow = model.getVersionId();
 		const { tabSize, insertSpaces } = model.getOptions();
 
+		const timeout = this._configurationService.getValue('editor.formatOnSaveTimeout', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() });
+
 		return new Promise<ISingleEditOperation[]>((resolve, reject) => {
-			setTimeout(reject, 750);
+			setTimeout(reject, timeout);
 			getDocumentFormattingEdits(model, { tabSize, insertSpaces })
 				.then(edits => this._editorWorkerService.computeMoreMinimalEdits(model.uri, edits))
 				.then(resolve, err => {

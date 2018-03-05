@@ -36,6 +36,7 @@ import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/ex
 import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extensionLifecycle';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
@@ -244,15 +245,18 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	reinstall(extension: ILocalExtension): TPromise<void> {
 		if (!this.galleryService.isEnabled()) {
-			return TPromise.wrapError(new Error('Marketplace is not enabled'));
+			return TPromise.wrapError(new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled")));
 		}
 		return this.findGalleryExtension(extension)
 			.then(galleryExtension => {
 				if (galleryExtension) {
-					return this.removeUninstalledExtension(extension)
-						.then(() => this.installFromGallery(galleryExtension));
+					return this.uninstallExtension(extension)
+						.then(() => this.removeUninstalledExtension(extension)
+							.then(
+							() => this.installFromGallery(galleryExtension),
+							e => TPromise.wrapError(new Error(nls.localize('removeError', "Error while removing the extension: {0}. Please Quit and Start VS Code before trying again.", toErrorMessage(e))))));
 				}
-				return TPromise.wrapError(new Error('Only Market place Extensions can be reinstalled'));
+				return TPromise.wrapError(new Error(nls.localize('Not Market place extension', "Only Market place Extensions can be reinstalled")));
 			});
 	}
 
@@ -744,7 +748,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			.then(uninstalled => this.scanExtensions(this.extensionsPath, LocalExtensionType.User) // All user extensions
 				.then(extensions => {
 					const toRemove: ILocalExtension[] = extensions.filter(e => uninstalled[e.identifier.id]);
-					return TPromise.join(toRemove.map(e => this.removeUninstalledExtension(e)));
+					return TPromise.join(toRemove.map(e => this.extensionLifecycle.uninstall(e).then(() => this.removeUninstalledExtension(e))));
 				})
 			).then(() => null);
 	}
@@ -763,15 +767,14 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private removeUninstalledExtension(extension: ILocalExtension): TPromise<void> {
-		return this.extensionLifecycle.uninstall(extension)
-			.then(() => this.removeExtension(extension, 'uninstalled'))
+		return this.removeExtension(extension, 'uninstalled')
 			.then(() => this.withUninstalledExtensions(uninstalled => delete uninstalled[extension.identifier.id]))
 			.then(() => null);
 	}
 
 	private removeExtension(extension: ILocalExtension, type: string): TPromise<void> {
-		this.logService.trace(extension.identifier.id, 'Deleting from disk', type);
-		return pfs.rimraf(extension.path).then(() => this.logService.info(extension.identifier.id, 'Deleted from disk'));
+		this.logService.trace(`Deleting ${type} extension from disk`, extension.identifier.id);
+		return pfs.rimraf(extension.path).then(() => this.logService.info('Deleted from disk', extension.identifier.id));
 	}
 
 	private isUninstalled(id: string): TPromise<boolean> {

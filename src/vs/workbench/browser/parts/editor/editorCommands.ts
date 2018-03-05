@@ -269,7 +269,7 @@ function registerEditorCommands() {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: void 0,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_U),
-		handler: (accessor, resource: URI, context: IEditorCommandsContext) => {
+		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const model = editorGroupService.getStacksModel();
 			const editorService = accessor.get(IWorkbenchEditorService);
@@ -299,7 +299,7 @@ function registerEditorCommands() {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: void 0,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_W),
-		handler: (accessor, resource: URI, context: IEditorCommandsContext) => {
+		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService));
@@ -324,7 +324,7 @@ function registerEditorCommands() {
 		when: void 0,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
-		handler: (accessor, resource: URI, context: IEditorCommandsContext) => {
+		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 
@@ -373,7 +373,7 @@ function registerEditorCommands() {
 		when: void 0,
 		primary: void 0,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_T },
-		handler: (accessor, resource: URI, context: IEditorCommandsContext) => {
+		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService));

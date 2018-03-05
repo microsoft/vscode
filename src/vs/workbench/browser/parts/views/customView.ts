@@ -198,7 +198,7 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 			}
 
 			// Pass Focus to Viewer
-			this.tree.DOMFocus();
+			this.tree.domFocus();
 		}
 	}
 
@@ -541,7 +541,7 @@ class TreeController extends WorkbenchTreeController {
 
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
-					tree.DOMFocus();
+					tree.domFocus();
 				}
 			},
 

@@ -160,9 +160,9 @@ export class Renderer implements IRenderer {
 
 	private renderResourceElement(tree: ITree, element: Resource, templateData: IAnyResourceTemplateData) {
 		if ((<IFileResourceTemplateData>templateData).fileLabel) {
-			(<IFileResourceTemplateData>templateData).fileLabel.setFile(element.uri, { matches: element.matches });
+			(<IFileResourceTemplateData>templateData).fileLabel.setFile(element.uri, { matches: element.uriMatches });
 		} else if ((<IResourceTemplateData>templateData).resourceLabel) {
-			(<IResourceTemplateData>templateData).resourceLabel.setLabel({ name: element.name, description: element.uri.toString(), resource: element.uri }, { matches: element.matches });
+			(<IResourceTemplateData>templateData).resourceLabel.setLabel({ name: element.name, description: element.uri.toString(), resource: element.uri }, { matches: element.uriMatches });
 		}
 		templateData.count.setCount(element.markers.length);
 	}

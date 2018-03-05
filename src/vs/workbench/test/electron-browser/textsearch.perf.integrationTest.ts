@@ -34,7 +34,7 @@ import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 
 import Event, * as event from 'vs/base/common/event';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { ILogService, NullLogService } from '../../../platform/log/common/log';
+import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 
 declare var __dirname: string;
 

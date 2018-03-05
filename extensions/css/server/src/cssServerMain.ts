@@ -5,26 +5,24 @@
 'use strict';
 
 import {
-	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, CompletionTriggerKind
+	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities
 } from 'vscode-languageserver';
 
-import { TextDocument, CompletionList } from 'vscode-languageserver-types';
+import { TextDocument } from 'vscode-languageserver-types';
 
 import { ConfigurationRequest } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
 import { WorkspaceFolder } from 'vscode-languageserver-protocol/lib/protocol.workspaceFolders.proposed';
 import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
-import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, ICompletionParticipant } from 'vscode-css-languageservice';
+import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { formatError, runSafe } from './utils/errors';
-import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath, getEmmetCompletionParticipants } from 'vscode-emmet-helper';
 import uri from 'vscode-uri';
 
 export interface Settings {
 	css: LanguageSettings;
 	less: LanguageSettings;
 	scss: LanguageSettings;
-	emmet: { [key: string]: any };
 }
 
 // Create a connection for the server.
@@ -54,9 +52,6 @@ connection.onShutdown(() => {
 
 let scopedSettingsSupport = false;
 let workspaceFolders: WorkspaceFolder[] | undefined;
-let emmetSettings = {};
-let currentEmmetExtensionsPath: string;
-const emmetTriggerCharacters = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
@@ -82,7 +77,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	let capabilities: ServerCapabilities & CPServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
-		completionProvider: snippetSupport ? { resolveProvider: false, triggerCharacters: emmetTriggerCharacters } : undefined,
+		completionProvider: snippetSupport ? { resolveProvider: false } : undefined,
 		hoverProvider: true,
 		documentSymbolProvider: true,
 		referencesProvider: true,
@@ -141,13 +136,6 @@ function updateConfiguration(settings: Settings) {
 	documentSettings = {};
 	// Revalidate any open text documents
 	documents.all().forEach(triggerValidation);
-
-	emmetSettings = settings.emmet;
-	if (currentEmmetExtensionsPath !== emmetSettings['extensionsPath']) {
-		currentEmmetExtensionsPath = emmetSettings['extensionsPath'];
-		const workspaceUri = (workspaceFolders && workspaceFolders.length === 1) ? uri.parse(workspaceFolders[0].uri) : null;
-		updateEmmetExtensionsPath(currentEmmetExtensionsPath, workspaceUri ? workspaceUri.fsPath : null);
-	}
 }
 
 let pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
@@ -193,43 +181,10 @@ function validateTextDocument(textDocument: TextDocument): void {
 	});
 }
 
-let cachedCompletionList: CompletionList;
-const hexColorRegex = /^#[\d,a-f,A-F]{1,6}$/;
 connection.onCompletion(textDocumentPosition => {
 	return runSafe(() => {
 		let document = documents.get(textDocumentPosition.textDocument.uri);
-		if (cachedCompletionList
-			&& !cachedCompletionList.isIncomplete
-			&& textDocumentPosition.context
-			&& textDocumentPosition.context.triggerKind === CompletionTriggerKind.TriggerForIncompleteCompletions
-		) {
-			let result: CompletionList = emmetDoComplete(document, textDocumentPosition.position, document.languageId, emmetSettings);
-			if (result && result.items) {
-				result.items.push(...cachedCompletionList.items);
-			} else {
-				result = cachedCompletionList;
-				cachedCompletionList = null;
-			}
-			return result;
-		}
-
-		cachedCompletionList = null;
-		let emmetCompletionList: CompletionList = {
-			isIncomplete: false,
-			items: []
-		};
-		const emmetCompletionParticipant: ICompletionParticipant = getEmmetCompletionParticipants(document, textDocumentPosition.position, document.languageId, emmetSettings, emmetCompletionList);
-		getLanguageService(document).setCompletionParticipants([emmetCompletionParticipant]);
-
-		const result = getLanguageService(document).doComplete(document, textDocumentPosition.position, stylesheets.get(document))!; /* TODO: remove ! once LS has null annotations */
-		if (emmetCompletionList && emmetCompletionList.items) {
-			cachedCompletionList = result;
-			if (emmetCompletionList.items.length && hexColorRegex.test(emmetCompletionList.items[0].label) && result.items.some(x => x.label === emmetCompletionList.items[0].label)) {
-				emmetCompletionList.items.shift();
-			}
-			return { isIncomplete: emmetCompletionList.isIncomplete || result.isIncomplete, items: [...emmetCompletionList.items, ...result.items] };
-		}
-		return result;
+		return getLanguageService(document).doComplete(document, textDocumentPosition.position, stylesheets.get(document))!; /* TODO: remove ! once LS has null annotations */
 	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`);
 });
 
