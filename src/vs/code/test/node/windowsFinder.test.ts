@@ -149,18 +149,6 @@ suite('WindowsFinder', () => {
 		})), path.join(fixturesFolder, 'vscode_folder', 'nested_vscode_folder'));
 	});
 
-	test('VSCode folder in home folder needs settings.json', () => {
-		// Because ~/.vscode/extensions is used for extensions, ~/.vscode is not enough as a hint.
-		assert.equal(findBestWindowOrFolderForFile(options({
-			filePath: path.join(fixturesFolder, 'vscode_folder', 'file.txt'),
-			userHome: path.join(fixturesFolder, 'vscode_folder')
-		})), null);
-		assert.equal(findBestWindowOrFolderForFile(options({
-			filePath: path.join(fixturesFolder, 'vscode_home_folder', 'file.txt'),
-			userHome: path.join(fixturesFolder, 'vscode_home_folder')
-		})), path.join(fixturesFolder, 'vscode_home_folder'));
-	});
-
 	test('Workspace folder wins', () => {
 		const window = { lastFocusTime: 1, openedWorkspace: testWorkspace };
 		assert.equal(findBestWindowOrFolderForFile(options({
