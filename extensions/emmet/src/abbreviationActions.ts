@@ -10,6 +10,12 @@ import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages,
 const trimRegex = /[\u00a0]*[\d|#|\-|\*|\u2022]+\.?/;
 const hexColorRegex = /^#\d+$/;
 
+const inlineElements = ['a', 'abbr', 'acronym', 'applet', 'b', 'basefont', 'bdo',
+	'big', 'br', 'button', 'cite', 'code', 'del', 'dfn', 'em', 'font', 'i',
+	'iframe', 'img', 'input', 'ins', 'kbd', 'label', 'map', 'object', 'q',
+	's', 'samp', 'select', 'small', 'span', 'strike', 'strong', 'sub', 'sup',
+	'textarea', 'tt', 'u', 'var'];
+
 interface ExpandAbbreviationInput {
 	syntax: string;
 	abbreviation: string;
@@ -18,8 +24,9 @@ interface ExpandAbbreviationInput {
 	filter?: string;
 }
 
-interface RangeAndContent {
-	range: vscode.Range;
+interface RangesAndContent {
+	currentRange: vscode.Range;
+	originalRange: vscode.Range;
 	content: string;
 }
 
@@ -40,8 +47,7 @@ export function wrapWithAbbreviation(args: any) {
 
 	// Fetch general information for the succesive expansions. i.e. the ranges to replace and its contents
 	let expandAbbrList: ExpandAbbreviationInput[] = [];
-	let rangesToReplace: RangeAndContent[] = [];
-	let originalRangesToReplace: RangeAndContent[] = [];
+	let rangesToReplace: RangesAndContent[] = [];
 
 	editor.selections.forEach(selection => {
 		let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
@@ -63,8 +69,7 @@ export function wrapWithAbbreviation(args: any) {
 			rangeToReplace = new vscode.Range(rangeToReplace.start.line, rangeToReplace.start.character + preceedingWhiteSpace, rangeToReplace.end.line, rangeToReplace.end.character);
 		}
 		let textToReplace = editor.document.getText(rangeToReplace);
-		rangesToReplace.push({ range: rangeToReplace, content: textToReplace });
-		originalRangesToReplace.push({ range: rangeToReplace, content: textToReplace });
+		rangesToReplace.push({ currentRange: rangeToReplace, originalRange: rangeToReplace, content: textToReplace });
 	});
 
 	let abbreviationPromise;
@@ -89,7 +94,7 @@ export function wrapWithAbbreviation(args: any) {
 		if (!inputAbbreviation || !inputAbbreviation.trim() || !helper.isAbbreviationValid(syntax, inputAbbreviation)) {
 			let returnPromise: Thenable<any> = Promise.resolve();
 			if (previewMade) {
-				returnPromise = revertPreview(editor, rangesToReplace, originalRangesToReplace).then(() => { return false; });
+				returnPromise = revertPreview(editor, rangesToReplace).then(() => { return false; });
 			}
 			return returnPromise;
 		}
@@ -106,28 +111,28 @@ export function wrapWithAbbreviation(args: any) {
 		let revertPromise: Thenable<any> = Promise.resolve();
 		if (definitive) {
 			if (previewMade) {
-				revertPromise = revertPreview(editor, rangesToReplace, originalRangesToReplace);
+				revertPromise = revertPreview(editor, rangesToReplace);
 			}
-			originalRangesToReplace.forEach(rangeAndContent => {
-				let rangeToReplace = rangeAndContent.range;
-				expandAbbrList.push({ syntax: syntax || '', abbreviation, rangeToReplace, textToWrap: ['\n\t$TM_SELECTED_TEXT\n'], filter });
+			rangesToReplace.forEach(rangesAndContent => {
+				let rangeToReplace = rangesAndContent.originalRange;
+				let textToWrap = rangeToReplace.isSingleLine ? ['$TM_SELECTED_TEXT'] : ['\n\t$TM_SELECTED_TEXT\n'];
+				expandAbbrList.push({ syntax: syntax || '', abbreviation, rangeToReplace, textToWrap, filter });
 			});
 			return revertPromise.then(() => {
 				return expandAbbreviationInRange(editor, expandAbbrList, true).then(() => { return Promise.resolve(); });
 			});
 		} else {
-			rangesToReplace.forEach(rangeAndContent => {
-				let rangeToReplace = rangeAndContent.range;
-				let match = rangeAndContent.content.match(/\n[\s]*/g);
-				let textToWrap = match ? ['\n\t' + rangeAndContent.content.split(match[match.length - 1]).join('\n\t') + '\n'] : ['\n\t' + rangeAndContent.content + '\n'];
-				expandAbbrList.push({ syntax: syntax || '', abbreviation, rangeToReplace, textToWrap, filter });
+			rangesToReplace.forEach(rangesAndContent => {
+				let match = rangesAndContent.content.match(/\n[\s]*/g);
+				let textToWrap = match ? ['\n\t' + rangesAndContent.content.split(match[match.length - 1]).join('\n\t') + '\n'] : [rangesAndContent.content];
+				expandAbbrList.push({ syntax: syntax || '', abbreviation, rangeToReplace: rangesAndContent.originalRange, textToWrap, filter });
 			});
 		}
 
 		return Promise.resolve().then(() => {
 			return applyPreview(editor, expandAbbrList, rangesToReplace).then(ranges => {
 				for (let i = 0; i < ranges.length; i++) {
-					rangesToReplace[i].range = ranges[i];
+					rangesToReplace[i].currentRange = ranges[i];
 				}
 				previewMade = true;
 				return previewMade;
@@ -146,7 +151,7 @@ export function wrapWithAbbreviation(args: any) {
 			Promise.resolve().then(() => {
 				let revertPromise: Thenable<any> = Promise.resolve();
 				if (previewMade) {
-					revertPromise = revertPreview(editor, rangesToReplace, originalRangesToReplace);
+					revertPromise = revertPreview(editor, rangesToReplace);
 				}
 				return revertPromise;
 			});
@@ -154,16 +159,16 @@ export function wrapWithAbbreviation(args: any) {
 	});
 }
 
-function revertPreview(editor: vscode.TextEditor, rangesToReplace: RangeAndContent[], originalRangesToReplace: RangeAndContent[]): Thenable<any> {
+function revertPreview(editor: vscode.TextEditor, rangesToReplace: RangesAndContent[]): Thenable<any> {
 	return editor.edit(builder => {
 		for (let i = 0; i < rangesToReplace.length; i++) {
-			builder.replace(rangesToReplace[i].range, originalRangesToReplace[i].content);
-			rangesToReplace[i].range = originalRangesToReplace[i].range;
+			builder.replace(rangesToReplace[i].currentRange, rangesToReplace[i].content);
+			rangesToReplace[i].currentRange = rangesToReplace[i].originalRange;
 		}
 	}, { undoStopBefore: false, undoStopAfter: false });
 }
 
-function applyPreview(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], rangesToReplace: RangeAndContent[]): Thenable<vscode.Range[]> {
+function applyPreview(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], rangesToReplace: RangesAndContent[]): Thenable<vscode.Range[]> {
 	// editor is the editor
 	// expandabbrlist is as usual
 	// rangestoreplace is an array of {range to replace, originalcontent}
@@ -175,7 +180,7 @@ function applyPreview(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviat
 	if (expandedText) {
 		return editor.edit(builder => {
 			for (let i = 0; i < rangesToReplace.length; i++) {
-				let thisRange = rangesToReplace[i].range;
+				let thisRange = rangesToReplace[i].currentRange;
 				let indentPrefix = '';
 				let preceedingText = editor.document.getText(new vscode.Range(new vscode.Position(thisRange.start.line, 0), thisRange.start));
 				// If there is only whitespace before the text to wrap, take that as prefix. If not, take as much whitespace as there is before text appears.
@@ -566,17 +571,29 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 
 	try {
 		// Expand the abbreviation
-		let expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
+		let expandedText;
 
 		if (input.textToWrap) {
+			let parsedAbbr = helper.parseAbbreviation(input.abbreviation, expandOptions);
+			if (input.rangeToReplace.isSingleLine && input.textToWrap.length === 1) {
+
+				// Fetch rightmost element in the parsed abbreviation (i.e the element that will contain the wrapped text).
+				let wrappingNode = parsedAbbr;
+				while (wrappingNode && wrappingNode.children && wrappingNode.children.length > 0) {
+					wrappingNode = wrappingNode.children[wrappingNode.children.length - 1];
+				}
+
+				// If wrapping with a block element, insert newline in the text to wrap.
+				if (wrappingNode && inlineElements.indexOf(wrappingNode.name) === -1) {
+					wrappingNode.value = '\n\t' + wrappingNode.value + '\n';
+				}
+			}
+			expandedText = helper.expandAbbreviation(parsedAbbr, expandOptions);
 			// All $anyword would have been escaped by the emmet helper.
 			// Remove the escaping backslash from $TM_SELECTED_TEXT so that VS Code Snippet controller can treat it as a variable
 			expandedText = expandedText.replace('\\$TM_SELECTED_TEXT', '$TM_SELECTED_TEXT');
-
-			// If the expanded text is single line then we dont need the \t and \n we added to $TM_SELECTED_TEXT earlier
-			if (input.textToWrap.length === 1 && expandedText.indexOf('\n') === -1) {
-				expandedText = expandedText.replace(/\s*\$TM_SELECTED_TEXT\s*/, '$TM_SELECTED_TEXT');
-			}
+		} else {
+			expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
 		}
 
 		return expandedText;
