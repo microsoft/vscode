@@ -36,25 +36,6 @@ export class WebviewInput extends EditorInput {
 	private _webviewDisposables: IDisposable[] = [];
 	private _position: Position;
 
-
-	public static create(
-		resource: URI,
-		name: string,
-		position: Position,
-		options: vscode.WebviewOptions,
-		html: string,
-		events: WebviewEvents,
-		partService: IPartService
-	): WebviewInput {
-		const id = WebviewInput.handlePool++;
-		const webviewContainer = document.createElement('div');
-		webviewContainer.id = `webview-${id}`;
-
-		partService.getContainer(Parts.EDITOR_PART).appendChild(webviewContainer);
-
-		return new WebviewInput(resource, name, position, options, html, events, webviewContainer, undefined);
-	}
-
 	constructor(
 		resource: URI,
 		name: string,
@@ -62,8 +43,7 @@ export class WebviewInput extends EditorInput {
 		options: vscode.WebviewOptions,
 		html: string,
 		events: WebviewEvents,
-		container: HTMLElement,
-		webview: Webview | undefined
+		partService: IPartService
 	) {
 		super();
 		this._resource = resource;
@@ -73,8 +53,11 @@ export class WebviewInput extends EditorInput {
 		this._html = html;
 		this._events = events;
 
-		this._container = container;
-		this._webview = webview;
+		const id = WebviewInput.handlePool++;
+		this._container = document.createElement('div');
+		this._container.id = `webview-${id}`;
+
+		partService.getContainer(Parts.EDITOR_PART).appendChild(this._container);
 	}
 
 	public getTypeId(): string {
