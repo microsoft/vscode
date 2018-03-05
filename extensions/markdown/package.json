@@ -270,7 +270,9 @@
 		]
 	},
 	"scripts": {
-		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown ./tsconfig.json"
+		"vscode:prepublish": "npm run build-ext && npm run build-preview",
+		"build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown ./tsconfig.json",
+		"build-preview": "webpack --mode development"
 	},
 	"dependencies": {
 		"highlight.js": "9.5.0",
@@ -283,6 +285,10 @@
 		"@types/highlight.js": "9.1.10",
 		"@types/markdown-it": "0.0.2",
 		"@types/node": "7.0.43",
-		"vscode": "^1.1.10"
+		"ts-loader": "^4.0.1",
+		"typescript": "^2.7.2",
+		"vscode": "^1.1.10",
+		"webpack": "^4.1.0",
+		"webpack-cli": "^2.0.10"
 	}
 }

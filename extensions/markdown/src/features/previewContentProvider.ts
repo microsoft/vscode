@@ -165,7 +165,7 @@ export class MarkdownContentProvider {
 	}
 
 	private getScripts(nonce: string): string {
-		const scripts = [this.extensionResourcePath('main.js')].concat(this.extraScripts.map(resource => resource.toString()));
+		const scripts = [this.extensionResourcePath('bundle.js')].concat(this.extraScripts.map(resource => resource.toString()));
 		return scripts
 			.map(source => `<script async src="${source}" nonce="${nonce}" charset="UTF-8"></script>`)
 			.join('\n');
