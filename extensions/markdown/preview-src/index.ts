@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getSettings } from './settings';
+
+
 // From https://remysharp.com/2010/07/21/throttling-function-calls
 function throttle(fn: (x: any) => any, threshhold: any, scope?: any) {
 	threshhold = threshhold || (threshhold = 250);
@@ -195,7 +198,7 @@ class ActiveLineMarker {
 
 var scrollDisabled = true;
 const marker = new ActiveLineMarker();
-const settings = JSON.parse(document.getElementById('vscode-markdown-preview-data').getAttribute('data-settings'));
+const settings = getSettings();
 
 function onLoad() {
 	if (settings.scrollPreviewWithEditor) {

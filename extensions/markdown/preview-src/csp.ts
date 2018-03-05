@@ -3,45 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-(function () {
-	const settings = JSON.parse(document.getElementById('vscode-markdown-preview-data').getAttribute('data-settings'));
-	const strings = JSON.parse(document.getElementById('vscode-markdown-preview-data').getAttribute('data-strings'));
+import { getSettings } from './settings';
 
-	let didShow = false;
+const strings = JSON.parse(document.getElementById('vscode-markdown-preview-data').getAttribute('data-strings'));
+const settings = getSettings();
 
-	const showCspWarning = () => {
-		if (didShow || settings.disableSecurityWarnings) {
-			return;
-		}
-		didShow = true;
+let didShow = false;
 
-		const notification = document.createElement('a');
-		notification.innerText = strings.cspAlertMessageText;
-		notification.setAttribute('id', 'code-csp-warning');
-		notification.setAttribute('title', strings.cspAlertMessageTitle);
+const showCspWarning = () => {
+	if (didShow || settings.disableSecurityWarnings) {
+		return;
+	}
+	didShow = true;
 
-		notification.setAttribute('role', 'button');
-		notification.setAttribute('aria-label', strings.cspAlertMessageLabel);
-		notification.onclick = () => {
-			window.parent.postMessage({
-				type: 'command',
-				source: settings.source,
-				body: {
-					command: 'markdown.showPreviewSecuritySelector',
-					args: [settings.source]
-				}
-			}, '*');
-		};
-		document.body.appendChild(notification);
+	const notification = document.createElement('a');
+	notification.innerText = strings.cspAlertMessageText;
+	notification.setAttribute('id', 'code-csp-warning');
+	notification.setAttribute('title', strings.cspAlertMessageTitle);
+
+	notification.setAttribute('role', 'button');
+	notification.setAttribute('aria-label', strings.cspAlertMessageLabel);
+	notification.onclick = () => {
+		window.parent.postMessage({
+			type: 'command',
+			source: settings.source,
+			body: {
+				command: 'markdown.showPreviewSecuritySelector',
+				args: [settings.source]
+			}
+		}, '*');
 	};
+	document.body.appendChild(notification);
+};
 
-	document.addEventListener('securitypolicyviolation', () => {
+document.addEventListener('securitypolicyviolation', () => {
+	showCspWarning();
+});
+
+window.addEventListener('message', (event) => {
+	if (event && event.data && event.data.name === 'vscode-did-block-svg') {
 		showCspWarning();
-	});
-
-	window.addEventListener('message', (event) => {
-		if (event && event.data && event.data.name === 'vscode-did-block-svg') {
-			showCspWarning();
-		}
-	});
-}());
+	}
+});
