@@ -50,7 +50,8 @@ const eolFilter = [
 	'!build/win32/**',
 	'!build/**/*.sh',
 	'!build/tfs/**/*.js',
-	'!**/Dockerfile'
+	'!**/Dockerfile',
+	'!extensions/markdown/media/*.js'
 ];
 
 const indentationFilter = [
@@ -81,6 +82,7 @@ const indentationFilter = [
 	'!extensions/**/syntaxes/**',
 	'!extensions/**/themes/**',
 	'!extensions/**/colorize-fixtures/**',
+	'!extensions/markdown/media/*.js',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**'
 ];
@@ -105,6 +107,7 @@ const copyrightFilter = [
 	'!resources/linux/snap/snapcraft.yaml',
 	'!resources/win32/bin/code.js',
 	'!extensions/markdown/media/tomorrow.css',
+	'!extensions/markdown/media/*.js',
 	'!extensions/html/server/src/modes/typescript/*'
 ];
 
