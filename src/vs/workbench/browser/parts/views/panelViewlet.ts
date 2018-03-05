@@ -270,7 +270,6 @@ export class PanelViewlet extends Viewlet {
 		this.panelview.addPanel(panel, size, index);
 
 		this.updateViewHeaders();
-		this.updateTitleArea();
 	}
 
 	removePanel(panel: ViewletPanel): void {
@@ -289,7 +288,6 @@ export class PanelViewlet extends Viewlet {
 		panelItem.disposable.dispose();
 
 		this.updateViewHeaders();
-		this.updateTitleArea();
 	}
 
 	movePanel(from: ViewletPanel, to: ViewletPanel): void {
