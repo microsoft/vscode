@@ -122,12 +122,6 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		super.dispose();
 	}
 
-	protected getViewState() {
-		return {
-			scrollYPercentage: this.scrollYPercentage
-		};
-	}
-
 	public clearInput(): void {
 		if (this.input instanceof ReleaseNotesInput) {
 			this.saveViewState(this.input.version, {

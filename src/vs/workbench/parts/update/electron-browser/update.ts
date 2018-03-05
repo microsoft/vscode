@@ -45,7 +45,7 @@ const NotNowAction = new Action(
 
 const releaseNotesCache: { [version: string]: TPromise<string>; } = Object.create(null);
 
-export function loadReleaseNotes(accessor: ServicesAccessor, version: string): TPromise<string> {
+function loadReleaseNotes(accessor: ServicesAccessor, version: string): TPromise<string> {
 	const requestService = accessor.get(IRequestService);
 	const keybindingService = accessor.get(IKeybindingService);
 	const match = /^(\d+\.\d+)\./.exec(version);
