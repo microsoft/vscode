@@ -13,13 +13,21 @@ export interface PreviewSettings {
 	doubleClickToSwitchToEditor: boolean;
 }
 
+let cachedSettings: PreviewSettings | undefined = undefined;
+
 export function getSettings(): PreviewSettings {
+	if (cachedSettings) {
+		return cachedSettings;
+	}
+
 	const element = document.getElementById('vscode-markdown-preview-data');
 	if (element) {
 		const data = element.getAttribute('data-settings');
 		if (data) {
-			return JSON.parse(data);
+			cachedSettings = JSON.parse(data);
+			return cachedSettings!;
 		}
 	}
+
 	throw new Error('Could not load settings');
 }
