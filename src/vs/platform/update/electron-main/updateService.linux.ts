@@ -40,12 +40,12 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		return true;
 	}
 
-	protected doCheckForUpdates(explicit: boolean): void {
+	protected doCheckForUpdates(context: any): void {
 		if (!this.url) {
 			return;
 		}
 
-		this.setState(State.CheckingForUpdates(explicit));
+		this.setState(State.CheckingForUpdates(context));
 
 		this.requestService.request({ url: this.url })
 			.then<IUpdate>(asJson)
@@ -56,7 +56,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 							}
 						*/
-					this.telemetryService.publicLog('update:notAvailable', { explicit });
+					this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
 
 					this.setState(State.Idle);
 				} else {
@@ -71,7 +71,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 					"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 					*/
-				this.telemetryService.publicLog('update:notAvailable', { explicit });
+				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
 				this.setState(State.Idle);
 			});
 	}
