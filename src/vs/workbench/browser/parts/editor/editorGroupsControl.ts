@@ -1050,7 +1050,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			registerSashListeners(this.centeredEditorSashLeft);
 			registerSashListeners(this.centeredEditorSashRight);
 			this.centeredEditorSashLeft.hide();
-			console.log('hiding');
 			this.centeredEditorSashRight.hide();
 
 			this.centeredEditorActive = false;
@@ -2142,7 +2141,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		const id = this.visibleEditors[Position.ONE] ? this.visibleEditors[Position.ONE].getId() : undefined;
 		const doCentering = this.layoutVertically && this.stacks.groups.length === 1 && this.partService.isEditorLayoutCentered() && id !== PREFERENCES_EDITOR_ID && id !== TEXT_DIFF_EDITOR_ID;
 		if (doCentering && !this.centeredEditorActive) {
-			console.log('showing');
 			this.centeredEditorSashLeft.show();
 			this.centeredEditorSashRight.show();
 
@@ -2151,7 +2149,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 				this.resetCenteredEditor(false);
 			}
 		} else if (!doCentering && this.centeredEditorActive) {
-			console.log('hiding');
 			this.centeredEditorSashLeft.hide();
 			this.centeredEditorSashRight.hide();
 		}
@@ -2159,7 +2156,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		this.silos[Position.ONE].setClass('centered', doCentering);
 
 		if (this.centeredEditorActive) {
-			console.log('layouting');
 			this.centeredEditorSashLeft.layout();
 			this.centeredEditorSashRight.layout();
 		}
