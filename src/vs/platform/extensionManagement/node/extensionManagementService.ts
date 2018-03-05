@@ -256,7 +256,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 							() => this.installFromGallery(galleryExtension),
 							e => TPromise.wrapError(new Error(nls.localize('removeError', "Error while removing the extension: {0}. Please Quit and Start VS Code before trying again.", toErrorMessage(e))))));
 				}
-				return TPromise.wrapError(new Error(nls.localize('Not Market place extension', "Only Market place Extensions can be reinstalled")));
+				return TPromise.wrapError(new Error(nls.localize('Not a Marketplace extension', "Only Marketplace Extensions can be reinstalled")));
 			});
 	}
 
