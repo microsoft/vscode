@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { getSettings } from './settings';
+import { postCommand } from './messaging';
 
 const unloadedStyles: string[] = [];
 
@@ -25,12 +26,5 @@ window.addEventListener('load', () => {
 	if (!unloadedStyles.length) {
 		return;
 	}
-	window.parent.postMessage({
-		type: 'command',
-		source: settings.source,
-		body: {
-			command: '_markdown.onPreviewStyleLoadError',
-			args: [unloadedStyles]
-		}
-	}, '*');
+	postCommand('_markdown.onPreviewStyleLoadError', [unloadedStyles]);
 });

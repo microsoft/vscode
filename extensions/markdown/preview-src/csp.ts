@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getSettings } from './settings';
+import { postCommand } from './messaging';
 
 const strings = JSON.parse(document.getElementById('vscode-markdown-preview-data').getAttribute('data-strings'));
 const settings = getSettings();
@@ -24,14 +25,7 @@ const showCspWarning = () => {
 	notification.setAttribute('role', 'button');
 	notification.setAttribute('aria-label', strings.cspAlertMessageLabel);
 	notification.onclick = () => {
-		window.parent.postMessage({
-			type: 'command',
-			source: settings.source,
-			body: {
-				command: 'markdown.showPreviewSecuritySelector',
-				args: [settings.source]
-			}
-		}, '*');
+		postCommand('markdown.showPreviewSecuritySelector', [settings.source]);
 	};
 	document.body.appendChild(notification);
 };

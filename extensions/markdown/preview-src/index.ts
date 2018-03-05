@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getSettings } from './settings';
-
+import { postCommand, postMessage } from './messaging';
 
 // From https://remysharp.com/2010/07/21/throttling-function-calls
 function throttle(fn: (x: any) => any, threshhold: any, scope?: any) {
@@ -35,24 +35,6 @@ function clamp(min: number, max: number, value: number) {
 
 function clampLine(line: number) {
 	return clamp(0, settings.lineCount - 1, line);
-}
-
-/**
- * Post a message to the markdown extension
- */
-function postMessage(type: string, body: object) {
-	window.parent.postMessage({
-		type,
-		source: settings.source,
-		body
-	}, '*');
-}
-
-/**
- * Post a command to be executed to the markdown extension
- */
-function postCommand(command: string, args: any[]) {
-	postMessage('command', { command, args });
 }
 
 
