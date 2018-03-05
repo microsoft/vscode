@@ -9,7 +9,7 @@ import * as types from 'vs/base/common/types';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { IMarker, MarkerStatistics } from 'vs/platform/markers/common/markers';
+import { IMarker } from 'vs/platform/markers/common/markers';
 import { IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy } from 'vs/base/common/filters';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import { Schemas } from 'vs/base/common/network';
@@ -24,9 +24,12 @@ export class Resource {
 	private _name: string = null;
 	private _path: string = null;
 
-	constructor(public uri: URI, public markers: Marker[],
-		public statistics: MarkerStatistics,
-		public matches: IMatch[] = []) {
+	constructor(
+		readonly uri: URI,
+		readonly uriMatches: IMatch[] = [],
+		readonly markers: Marker[],
+	) {
+		markers.sort(Marker.compare);
 	}
 
 	public get path(): string {
@@ -42,12 +45,29 @@ export class Resource {
 		}
 		return this._name;
 	}
+
+	static compare(a: Resource, b: Resource): number {
+		let [firstMarkerOfA] = a.markers;
+		let [firstMarkerOfB] = b.markers;
+		let res = 0;
+		if (firstMarkerOfA && firstMarkerOfB) {
+			res = Severity.compare(firstMarkerOfA.marker.severity, firstMarkerOfB.marker.severity);
+		}
+		if (res === 0) {
+			res = a.path.localeCompare(b.path) || a.name.localeCompare(b.name);
+		}
+		return res;
+	}
 }
 
 export class Marker {
-	constructor(public id: string, public marker: IMarker,
-		public labelMatches: IMatch[] = [],
-		public sourceMatches: IMatch[] = []) { }
+
+	constructor(
+		readonly id: string,
+		readonly marker: IMarker,
+		readonly labelMatches: IMatch[] = [],
+		readonly sourceMatches: IMatch[] = []
+	) { }
 
 	public get resource(): URI {
 		return this.marker.resource;
@@ -68,6 +88,10 @@ export class Marker {
 		].join('\n');
 	}
 
+	static compare(a: Marker, b: Marker): number {
+		return Severity.compare(a.marker.severity, b.marker.severity)
+			|| Range.compareRangesUsingStarts(a.marker, b.marker);
+	}
 }
 
 export class FilterOptions {
@@ -171,10 +195,6 @@ export class MarkersModel {
 		return count;
 	}
 
-	public get nonFilteredResources(): Resource[] {
-		return this._nonFilteredResources;
-	}
-
 	public getBulkUpdater(): BulkUpdater {
 		return {
 			add: (resourceUri: URI, markers: IMarker[]) => {
@@ -189,19 +209,16 @@ export class MarkersModel {
 	public update(filterOptions: FilterOptions): void;
 	public update(resourceUri: URI, markers: IMarker[]): void;
 	public update(markers: IMarker[]): void;
-	public update(arg1?: any, arg2?: any) {
+	public update(arg1?: FilterOptions | URI | IMarker[], arg2?: IMarker[]) {
 		if (arg1 instanceof FilterOptions) {
 			this._filterOptions = arg1;
 		}
-
 		if (arg1 instanceof URI) {
 			this.updateResource(arg1, arg2);
 		}
-
 		if (types.isArray(arg1)) {
 			this.updateMarkers(arg1);
 		}
-
 		this.refresh();
 	}
 
@@ -252,7 +269,7 @@ export class MarkersModel {
 			}
 		}
 		const matches = this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, paths.basename(uri.fsPath)) : [];
-		return new Resource(uri, markers, this.getStatistics(values), matches || []);
+		return new Resource(uri, matches || [], markers);
 	}
 
 	private toMarker(marker: IMarker, index: number, uri: string): Marker {
@@ -283,27 +300,6 @@ export class MarkersModel {
 		return false;
 	}
 
-	private getStatistics(markers: IMarker[]): MarkerStatistics {
-		let errors = 0, warnings = 0, infos = 0, unknowns = 0;
-		for (const marker of markers) {
-			switch (marker.severity) {
-				case Severity.Error:
-					errors++;
-					break;
-				case Severity.Warning:
-					warnings++;
-					break;
-				case Severity.Info:
-					infos++;
-					break;
-				default:
-					unknowns++;
-					break;
-			}
-		}
-		return { errors, warnings, infos, unknowns };
-	}
-
 	public dispose(): void {
 		this.markersByResource.clear();
 		this._filteredResources = [];
@@ -324,28 +320,11 @@ export class MarkersModel {
 
 	public static compare(a: any, b: any): number {
 		if (a instanceof Resource && b instanceof Resource) {
-			return MarkersModel.compareResources(a, b);
+			return Resource.compare(a, b);
 		}
 		if (a instanceof Marker && b instanceof Marker) {
-			return MarkersModel.compareMarkers(a, b);
+			return Marker.compare(a, b);
 		}
 		return 0;
-	}
-
-	private static compareResources(a: Resource, b: Resource): number {
-		if (a.statistics.errors === 0 && b.statistics.errors > 0) {
-			return 1;
-		}
-		if (b.statistics.errors === 0 && a.statistics.errors > 0) {
-			return -1;
-		}
-		return a.path.localeCompare(b.path) || a.name.localeCompare(b.name);
-	}
-
-	private static compareMarkers(a: Marker, b: Marker): number {
-		if (a.marker.severity === b.marker.severity) {
-			return Range.compareRangesUsingStarts(a.marker, b.marker);
-		}
-		return a.marker.severity > b.marker.severity ? -1 : 1;
 	}
 }
