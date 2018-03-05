@@ -1,7 +1,7 @@
 {
 	"compilerOptions": {
 		"outDir": "./dist/",
-		"module": "es6",
+		"module": "commonjs",
 		"target": "es6",
 		"jsx": "react",
 		"sourceMap": true,

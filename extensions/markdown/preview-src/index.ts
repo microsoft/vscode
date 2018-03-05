@@ -8,30 +8,7 @@ import { postCommand, postMessage } from './messaging';
 import { onceDocumentLoaded } from './events';
 import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine } from './scroll-sync';
 import { ActiveLineMarker } from './activeLineMarker';
-
-// From https://remysharp.com/2010/07/21/throttling-function-calls
-function throttle(fn: (x: any) => any, threshhold: any, scope?: any) {
-	threshhold = threshhold || (threshhold = 250);
-	var last: any, deferTimer: any;
-	return function (this: any, ...x: any[]) {
-		var context = scope || this;
-
-		var now = +new Date,
-			args = arguments;
-		if (last && now < last + threshhold) {
-			// hold on to it
-			clearTimeout(deferTimer);
-			deferTimer = setTimeout(function () {
-				last = now;
-				fn.apply(context, args);
-			}, threshhold + last - now);
-		} else {
-			last = now;
-			fn.apply(context, args);
-		}
-	};
-}
-
+import throttle = require('lodash.throttle');
 
 var scrollDisabled = true;
 const marker = new ActiveLineMarker();
