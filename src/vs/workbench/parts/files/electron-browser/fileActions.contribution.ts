@@ -175,7 +175,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: 'navigation',
 	order: 10,
 	command: openToSideCommand,
-	when: ContextKeyExpr.and(ResourceContextKey.HasResource, ResourceContextKey.IsFile)
+	when: ResourceContextKey.IsFile
 });
 
 const revealInOsCommand = {
