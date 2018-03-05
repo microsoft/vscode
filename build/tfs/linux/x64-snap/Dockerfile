@@ -34,7 +34,7 @@ RUN apt-get install -y build-essential \
 
 # Xvfb
 # Thanks https://medium.com/@griggheo/running-headless-selenium-webdriver-tests-in-docker-containers-342fdbabf756
-ADD ../x64/xvfb.init /etc/init.d/xvfb
+ADD ./xvfb.init /etc/init.d/xvfb
 RUN chmod +x /etc/init.d/xvfb
 RUN update-rc.d xvfb defaults
 
