@@ -33,6 +33,7 @@ import { OS } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 const NotNowAction = new Action(
 	'update.later',
@@ -299,7 +300,8 @@ export class UpdateContribution implements IGlobalActivity {
 		@IChoiceService private choiceService: IChoiceService,
 		@IUpdateService private updateService: IUpdateService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IActivityService private activityService: IActivityService
+		@IActivityService private activityService: IActivityService,
+		@IWindowService private windowService: IWindowService
 	) {
 		this.state = updateService.state;
 
@@ -327,7 +329,7 @@ export class UpdateContribution implements IGlobalActivity {
 	private onUpdateStateChange(state: UpdateState): void {
 		switch (state.type) {
 			case StateType.Idle:
-				if (this.state.type === StateType.CheckingForUpdates && this.state.explicit) {
+				if (this.state.type === StateType.CheckingForUpdates && this.state.context && this.state.context.windowId === this.windowService.getCurrentWindowId()) {
 					this.onUpdateNotAvailable();
 				}
 				break;
@@ -492,8 +494,9 @@ export class UpdateContribution implements IGlobalActivity {
 				return null;
 
 			case StateType.Idle:
+				const windowId = this.windowService.getCurrentWindowId();
 				return new Action('update.check', nls.localize('checkForUpdates', "Check for Updates..."), undefined, true, () =>
-					this.updateService.checkForUpdates(true));
+					this.updateService.checkForUpdates({ windowId }));
 
 			case StateType.CheckingForUpdates:
 				return new Action('update.checking', nls.localize('checkingForUpdates', "Checking For Updates..."), undefined, false);
