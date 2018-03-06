@@ -43,7 +43,7 @@ export function wrapWithAbbreviation(args: any) {
 		return;
 	}
 
-	let previewMade = false;
+	let inPreview = false;
 
 	// Fetch general information for the succesive expansions. i.e. the ranges to replace and its contents
 	let rangesToReplace: PreviewRangesWithContent[] = [];
@@ -75,9 +75,9 @@ export function wrapWithAbbreviation(args: any) {
 	function inputChanged(value: string): string {
 		if (value !== currentValue) {
 			currentValue = value;
-			makeChanges(value, previewMade, false).then((out) => {
+			makeChanges(value, inPreview, false).then((out) => {
 				if (typeof out === 'boolean') {
-					previewMade = out;
+					inPreview = out;
 				}
 			});
 		}
@@ -87,26 +87,26 @@ export function wrapWithAbbreviation(args: any) {
 	abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation', validateInput: inputChanged });
 	const helper = getEmmetHelper();
 
-	function makeChanges(inputAbbreviation: string | undefined, previewMade?: boolean, definitive?: boolean): Thenable<any> {
+	function makeChanges(inputAbbreviation: string | undefined, inPreview: boolean, definitive: boolean): Thenable<boolean> {
 		if (!inputAbbreviation || !inputAbbreviation.trim() || !helper.isAbbreviationValid(syntax, inputAbbreviation)) {
-			return previewMade ? revertPreview(editor, rangesToReplace) : Promise.resolve();
+			return inPreview ? revertPreview(editor, rangesToReplace).then(() => { return false; }) : Promise.resolve(inPreview);
 		}
 
 		let extractedResults = helper.extractAbbreviationFromText(inputAbbreviation);
 		if (!extractedResults) {
-			return Promise.resolve(previewMade);
+			return Promise.resolve(inPreview);
 		}
 
 		let { abbreviation, filter } = extractedResults;
 		if (definitive) {
-			const revertPromise = previewMade ? revertPreview(editor, rangesToReplace) : Promise.resolve();
+			const revertPromise = inPreview ? revertPreview(editor, rangesToReplace) : Promise.resolve();
 			return revertPromise.then(() => {
 				const expandAbbrList: ExpandAbbreviationInput[] = rangesToReplace.map(rangesAndContent => {
 					let rangeToReplace = rangesAndContent.originalRange;
 					let textToWrap = rangeToReplace.isSingleLine ? ['$TM_SELECTED_TEXT'] : ['\n\t$TM_SELECTED_TEXT\n'];
 					return { syntax, abbreviation, rangeToReplace, textToWrap, filter };
 				});
-				return expandAbbreviationInRange(editor, expandAbbrList, true).then(() => { return Promise.resolve(); });
+				return expandAbbreviationInRange(editor, expandAbbrList, true).then(() => { return inPreview; });
 			});
 		}
 
@@ -121,7 +121,7 @@ export function wrapWithAbbreviation(args: any) {
 
 	// On inputBox closing
 	return abbreviationPromise.then(inputAbbreviation => {
-		return makeChanges(inputAbbreviation, previewMade, true);
+		return makeChanges(inputAbbreviation, inPreview, true);
 	});
 }
 
