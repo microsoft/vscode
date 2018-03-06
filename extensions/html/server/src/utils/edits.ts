@@ -4,29 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TextDocument, TextEdit, Position } from 'vscode-languageserver-types';
+import { TextDocument, TextEdit } from 'vscode-languageserver-types';
+import { mergeSort } from './arrays';
 
 export function applyEdits(document: TextDocument, edits: TextEdit[]): string {
 	let text = document.getText();
-	let sortedEdits = edits.sort((a, b) => {
-		let startDiff = comparePositions(a.range.start, b.range.start);
-		if (startDiff === 0) {
-			return comparePositions(a.range.end, b.range.end);
+	let sortedEdits = mergeSort(edits, (a, b) => {
+		let diff = a.range.start.line - b.range.start.line;
+		if (diff === 0) {
+			return a.range.start.character - b.range.start.character;
 		}
-		return startDiff;
+		return 0;
 	});
-	sortedEdits.forEach(e => {
+	let lastModifiedOffset = text.length;
+	for (let i = sortedEdits.length - 1; i >= 0; i--) {
+		let e = sortedEdits[i];
 		let startOffset = document.offsetAt(e.range.start);
 		let endOffset = document.offsetAt(e.range.end);
-		text = text.substring(0, startOffset) + e.newText + text.substring(endOffset, text.length);
-	});
-	return text;
-}
-
-function comparePositions(p1: Position, p2: Position) {
-	let diff = p2.line - p1.line;
-	if (diff === 0) {
-		return p2.character - p1.character;
+		if (endOffset <= lastModifiedOffset) {
+			text = text.substring(0, startOffset) + e.newText + text.substring(endOffset, text.length);
+		} else {
+			throw new Error('Ovelapping edit');
+		}
+		lastModifiedOffset = startOffset;
 	}
-	return diff;
+	return text;
 }
