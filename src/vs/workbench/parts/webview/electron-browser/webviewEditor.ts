@@ -29,7 +29,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 	private editorFrame: HTMLElement;
 	private content: HTMLElement;
-	private webviewContent: HTMLElement;
+	private webviewContent: HTMLElement | undefined;
 	private _onDidFocusWebview: Emitter<void>;
 	private _webviewFocusTracker?: DOM.IFocusTracker;
 	private _webviewFocusListenerDisposable?: IDisposable;
@@ -56,7 +56,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 	private doUpdateContainer() {
 		const webviewContainer = this.input && (this.input as WebviewInput).container;
-		if (webviewContainer) {
+		if (webviewContainer && webviewContainer.parentElement) {
 			const frameRect = this.editorFrame.getBoundingClientRect();
 			const containerRect = webviewContainer.parentElement.getBoundingClientRect();
 
@@ -164,7 +164,11 @@ export class WebviewEditor extends BaseWebviewEditor {
 			localResourceRoots: (input && input.options.localResourceRoots) || this._contextService.getWorkspace().folders.map(x => x.uri)
 		};
 		input.setHtml(input.html);
-		this.webviewContent.style.visibility = 'visible';
+
+		if (this.webviewContent) {
+			this.webviewContent.style.visibility = 'visible';
+		}
+
 		this.doUpdateContainer();
 	}
 
