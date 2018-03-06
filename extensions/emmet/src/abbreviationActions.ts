@@ -95,6 +95,8 @@ export function wrapWithAbbreviation(args: any) {
 		let extractedResults = helper.extractAbbreviationFromText(inputAbbreviation);
 		if (!extractedResults) {
 			return Promise.resolve(inPreview);
+		} else if (extractedResults.abbreviation !== inputAbbreviation) {
+			// Not clear what should we do in this case. Warn the user? How?
 		}
 
 		let { abbreviation, filter } = extractedResults;
@@ -144,28 +146,31 @@ function applyPreview(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviat
 			for (let i = 0; i < rangesToReplace.length; i++) {
 				if (i) {
 					expandedText = expandAbbr(expandAbbrList[i]);
+					if (!expandedText) {
+						continue;
+					}
 				}
-				let thisRange = rangesToReplace[i].previewRange;
-				let indentPrefix = '';
-				let preceedingText = editor.document.getText(new vscode.Range(new vscode.Position(thisRange.start.line, 0), thisRange.start));
-				// If there is only whitespace before the text to wrap, take that as prefix. If not, take as much whitespace as there is before text appears.
-				if (!preceedingText.match(/[^\s]/)) {
-					indentPrefix = preceedingText;
-				} else {
-					indentPrefix = (preceedingText.match(/(^[\s]*)/) || ['', ''])[1];
-				}
+				let oldPreviewRange = rangesToReplace[i].previewRange;
+				let preceedingText = editor.document.getText(new vscode.Range(new vscode.Position(oldPreviewRange.start.line, 0), oldPreviewRange.start));
+				let indentPrefix = (preceedingText.match(/^(\s*)/) || ['', ''])[1];
 
 				let newText = expandedText || '';
-				newText = newText.replace(/\n/g, '\n' + indentPrefix).replace(/\$\{[\d]*\}/g, '|');
+				newText = newText.replace(/\n/g, '\n' + indentPrefix).replace(/\$\{[\d]*\}/g, '|'); // Removing Tabstops
+				newText = newText.replace(/\$\{[\d]*(:[^}]*)?\}/g, (match) => {		// Replacing Placeholders
+					return match.replace(/^\$\{[\d]*:/, '').replace('}', '');
+				});
 				let newTextLines = (newText.match(/\n/g) || []).length + 1;
-				let currentTextLines = thisRange.end.line - thisRange.start.line + 1;
-				builder.replace(thisRange, newText);
-				rangesToReplace[i].previewRange = new vscode.Range(thisRange.start.line + linesInserted, thisRange.start.character, thisRange.start.line + linesInserted + newTextLines - 1, 1000);	// TODO: fix 1000! Count characters in the resulting text?
+				let currentTextLines = oldPreviewRange.end.line - oldPreviewRange.start.line + 1;
+				builder.replace(oldPreviewRange, newText);
+				let lastLineEnd = newTextLines > 1 ? newText.substring(newText.lastIndexOf('\n') + 1).length : newText.length + oldPreviewRange.start.character;
+				rangesToReplace[i].previewRange = new vscode.Range(oldPreviewRange.start.line + linesInserted, oldPreviewRange.start.character, oldPreviewRange.start.line + linesInserted + newTextLines - 1, lastLineEnd);
 				linesInserted += newTextLines - currentTextLines;
 			}
 		}, { undoStopBefore: false, undoStopAfter: false });
+	} else {
+		// Failed to expand text. We already showed an error inside expandAbbr.
 	}
-	return Promise.resolve([]);
+	return Promise.resolve();
 }
 
 export function wrapIndividualLinesWithAbbreviation(args: any) {
