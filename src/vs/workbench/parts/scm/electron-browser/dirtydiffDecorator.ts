@@ -764,7 +764,7 @@ export class DirtyDiffController implements IEditorContribution {
 	}
 
 	dispose(): void {
-		return;
+		this.disposables = dispose(this.disposables);
 	}
 }
 
