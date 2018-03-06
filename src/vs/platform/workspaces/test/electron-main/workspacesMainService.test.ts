@@ -15,7 +15,7 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { WorkspacesMainService, IStoredWorkspace } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { WORKSPACE_EXTENSION, IWorkspaceSavedEvent, IWorkspaceIdentifier, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
-import { ConsoleLogMainService } from 'vs/platform/log/common/log';
+import { NullLogService } from 'vs/platform/log/common/log';
 import URI from 'vs/base/common/uri';
 import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
 import { isWindows } from 'vs/base/common/platform';
@@ -50,7 +50,7 @@ suite('WorkspacesMainService', () => {
 	}
 
 	const environmentService = new TestEnvironmentService(parseArgs(process.argv), process.execPath);
-	const logService = new ConsoleLogMainService();
+	const logService = new NullLogService();
 
 	let service: TestWorkspacesMainService;
 

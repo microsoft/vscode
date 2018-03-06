@@ -37,6 +37,7 @@ import { isNumber } from 'vs/base/common/types';
 import { IChoiceService, Choice } from 'vs/platform/dialogs/common/dialogs';
 import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { INotificationService } from '../../../../platform/notification/common/notification';
 
 interface IExtensionsContent {
 	recommendations: string[];
@@ -81,7 +82,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IRequestService private requestService: IRequestService,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private viewletService: IViewletService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		super();
 
@@ -310,10 +312,12 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				}
 
 				if (countBadRecommendations > 0) {
-					console.log('The below ' +
+					this.notificationService.warn(
+						'The below ' +
 						countBadRecommendations +
 						' extension(s) in workspace recommendations have issues:\n' +
-						badRecommendationsString);
+						badRecommendationsString
+					);
 				}
 
 				return validRecommendations;
