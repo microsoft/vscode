@@ -716,6 +716,9 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private scanExtension(folderName: string, root: string, type: LocalExtensionType): TPromise<ILocalExtension> {
+		if (type === LocalExtensionType.User && folderName.indexOf('.') === 0) { // Do not consider user exension folder starting with `.`
+			return TPromise.as(null);
+		}
 		const extensionPath = path.join(root, folderName);
 		return pfs.readdir(extensionPath)
 			.then(children => readManifest(extensionPath)
