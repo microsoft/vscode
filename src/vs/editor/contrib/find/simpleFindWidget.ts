@@ -33,8 +33,7 @@ export abstract class SimpleFindWidget extends Widget {
 	private _updateHistoryDelayer: Delayer<void>;
 
 	constructor(
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		private animate: boolean = true
+		@IContextViewService private readonly _contextViewService: IContextViewService
 	) {
 		super();
 
@@ -66,7 +65,7 @@ export abstract class SimpleFindWidget extends Widget {
 			}
 		}));
 
-		let prevBtn = new SimpleButton({
+		const prevBtn = new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL,
 			className: 'previous',
 			onTrigger: () => {
@@ -75,7 +74,7 @@ export abstract class SimpleFindWidget extends Widget {
 			onKeyDown: (e) => { }
 		});
 
-		let nextBtn = new SimpleButton({
+		const nextBtn = new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL,
 			className: 'next',
 			onTrigger: () => {
@@ -84,7 +83,7 @@ export abstract class SimpleFindWidget extends Widget {
 			onKeyDown: (e) => { }
 		});
 
-		let closeBtn = new SimpleButton({
+		const closeBtn = new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL,
 			className: 'close-fw',
 			onTrigger: () => {
@@ -172,11 +171,7 @@ export abstract class SimpleFindWidget extends Widget {
 		setTimeout(() => {
 			dom.addClass(this._innerDomNode, 'visible');
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
-			if (!this.animate) {
-				dom.addClass(this._innerDomNode, 'noanimation');
-			}
 			setTimeout(() => {
-				dom.removeClass(this._innerDomNode, 'noanimation');
 				this._findInput.select();
 			}, 200);
 		}, 0);

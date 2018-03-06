@@ -382,12 +382,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			setTimeout(() => {
 				dom.addClass(this._domNode, 'visible');
 				this._domNode.setAttribute('aria-hidden', 'false');
-				if (!animate) {
-					dom.addClass(this._domNode, 'noanimation');
-					setTimeout(() => {
-						dom.removeClass(this._domNode, 'noanimation');
-					}, 200);
-				}
 			}, 0);
 			this._codeEditor.layoutOverlayWidget(this);
 
