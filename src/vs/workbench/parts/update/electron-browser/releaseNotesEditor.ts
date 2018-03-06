@@ -31,8 +31,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 
 function renderBody(
 	body: string,
-	css: string,
-	scrollProgress: number = 0
+	css: string
 ): string {
 	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
 	return `<!DOCTYPE html>
@@ -48,84 +47,30 @@ function renderBody(
 		</html>`;
 }
 
-
-const releaseNotesCache: { [version: string]: TPromise<string>; } = Object.create(null);
-
-function loadReleaseNotes(accessor: ServicesAccessor, version: string): TPromise<string> {
-	const requestService = accessor.get(IRequestService);
-	const keybindingService = accessor.get(IKeybindingService);
-	const match = /^(\d+\.\d+)\./.exec(version);
-
-	if (!match) {
-		return TPromise.wrapError<string>(new Error('not found'));
-	}
-
-	const versionLabel = match[1].replace(/\./g, '_');
-	const baseUrl = 'https://code.visualstudio.com/raw';
-	const url = `${baseUrl}/v${versionLabel}.md`;
-	const unassigned = nls.localize('unassigned', "unassigned");
-
-	const patchKeybindings = (text: string): string => {
-		const kb = (match: string, kb: string) => {
-			const keybinding = keybindingService.lookupKeybinding(kb);
-
-			if (!keybinding) {
-				return unassigned;
-			}
-
-			return keybinding.getLabel();
-		};
-
-		const kbstyle = (match: string, kb: string) => {
-			const keybinding = KeybindingIO.readKeybinding(kb, OS);
-
-			if (!keybinding) {
-				return unassigned;
-			}
-
-			const resolvedKeybindings = keybindingService.resolveKeybinding(keybinding);
-
-			if (resolvedKeybindings.length === 0) {
-				return unassigned;
-			}
-
-			return resolvedKeybindings[0].getLabel();
-		};
-
-		return text
-			.replace(/kb\(([a-z.\d\-]+)\)/gi, kb)
-			.replace(/kbstyle\(([^\)]+)\)/gi, kbstyle);
-	};
-
-	if (!releaseNotesCache[version]) {
-		releaseNotesCache[version] = requestService.request({ url })
-			.then(asText)
-			.then(text => patchKeybindings(text));
-	}
-
-	return releaseNotesCache[version];
-}
-
 export class ReleaseNotesManager {
 
-	private _currentReleaseNotes: WebviewInput | undefined;
+	private _releaseNotesCache: { [version: string]: TPromise<string>; } = Object.create(null);
+
+	private _currentReleaseNotes: WebviewInput | undefined = undefined;
 
 	public constructor(
-		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
 		@IEditorGroupService private readonly _editorGroupService: IEditorGroupService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IModeService private readonly _modeService: IModeService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IPartService private readonly _partService: IPartService,
+		@IRequestService private readonly _requestService: IRequestService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
 	) { }
 
 	public async show(
 		accessor: ServicesAccessor,
 		version: string
 	): TPromise<boolean> {
-		const releaseNoteText = await loadReleaseNotes(accessor, version);
+		const releaseNoteText = await this.loadReleaseNotes(version);
 		const html = await this.renderBody(releaseNoteText);
 		const title = nls.localize('releaseNotesInputName', "Release Notes: {0}", version);
 
@@ -148,6 +93,60 @@ export class ReleaseNotesManager {
 		}
 
 		return true;
+	}
+
+	private loadReleaseNotes(
+		version: string
+	): TPromise<string> {
+		const match = /^(\d+\.\d+)\./.exec(version);
+		if (!match) {
+			return TPromise.wrapError<string>(new Error('not found'));
+		}
+
+		const versionLabel = match[1].replace(/\./g, '_');
+		const baseUrl = 'https://code.visualstudio.com/raw';
+		const url = `${baseUrl}/v${versionLabel}.md`;
+		const unassigned = nls.localize('unassigned', "unassigned");
+
+		const patchKeybindings = (text: string): string => {
+			const kb = (match: string, kb: string) => {
+				const keybinding = this._keybindingService.lookupKeybinding(kb);
+
+				if (!keybinding) {
+					return unassigned;
+				}
+
+				return keybinding.getLabel();
+			};
+
+			const kbstyle = (match: string, kb: string) => {
+				const keybinding = KeybindingIO.readKeybinding(kb, OS);
+
+				if (!keybinding) {
+					return unassigned;
+				}
+
+				const resolvedKeybindings = this._keybindingService.resolveKeybinding(keybinding);
+
+				if (resolvedKeybindings.length === 0) {
+					return unassigned;
+				}
+
+				return resolvedKeybindings[0].getLabel();
+			};
+
+			return text
+				.replace(/kb\(([a-z.\d\-]+)\)/gi, kb)
+				.replace(/kbstyle\(([^\)]+)\)/gi, kbstyle);
+		};
+
+		if (!this._releaseNotesCache[version]) {
+			this._releaseNotesCache[version] = this._requestService.request({ url })
+				.then(asText)
+				.then(text => patchKeybindings(text));
+		}
+
+		return this._releaseNotesCache[version];
 	}
 
 	private onDidClickLink(uri: URI) {
