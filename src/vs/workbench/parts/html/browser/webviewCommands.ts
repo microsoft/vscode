@@ -12,28 +12,20 @@ import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { BaseWebviewEditor } from './webviewEditor';
 
-export class ShowWebViewEditorFindWidgetAction extends Action {
+export class ShowWebViewEditorFindWidgetCommand extends Command {
 	public static readonly ID = 'editor.action.webvieweditor.showFind';
-	public static readonly LABEL = nls.localize('editor.action.webvieweditor.showFind', "Focus Find Widget");
 
-	public constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private workbenchEditorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const webViewEditor = this.getWebViewEditor();
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const webViewEditor = this.getWebViewEditor(accessor);
 		if (webViewEditor) {
 			webViewEditor.showFind();
 		}
 		return null;
 	}
 
-	private getWebViewEditor(): BaseWebviewEditor {
-		const activeEditor = this.workbenchEditorService.getActiveEditor() as BaseWebviewEditor;
+	private getWebViewEditor(accessor: ServicesAccessor): BaseWebviewEditor {
+		const workbenchEditorService = accessor.get(IWorkbenchEditorService);
+		const activeEditor = workbenchEditorService.getActiveEditor() as BaseWebviewEditor;
 		if (activeEditor.isWebviewEditor) {
 			return activeEditor;
 		}
