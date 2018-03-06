@@ -23,20 +23,21 @@ const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next mat
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 
 export abstract class SimpleFindWidget extends Widget {
-	protected _findInput: FindInput;
-	protected _domNode: HTMLElement;
-	protected _innerDomNode: HTMLElement;
-	protected _isVisible: boolean;
-	protected _focusTracker: dom.IFocusTracker;
-	protected _findInputFocusTracker: dom.IFocusTracker;
-	protected _findHistory: HistoryNavigator<string>;
-	protected _updateHistoryDelayer: Delayer<void>;
+	private _findInput: FindInput;
+	private _domNode: HTMLElement;
+	private _innerDomNode: HTMLElement;
+	private _isVisible: boolean;
+	private _focusTracker: dom.IFocusTracker;
+	private _findInputFocusTracker: dom.IFocusTracker;
+	private _findHistory: HistoryNavigator<string>;
+	private _updateHistoryDelayer: Delayer<void>;
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		private animate: boolean = true
 	) {
 		super();
+
 		this._findInput = this._register(new FindInput(null, this._contextViewService, {
 			label: NLS_FIND_INPUT_LABEL,
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
@@ -136,8 +137,8 @@ export abstract class SimpleFindWidget extends Widget {
 		return this._findInput.getValue();
 	}
 
-	public updateTheme(theme?: ITheme): void {
-		let inputStyles = {
+	public updateTheme(theme: ITheme): void {
+		const inputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
 			inputBackground: theme.getColor(inputBackground),
 			inputForeground: theme.getColor(inputForeground),
