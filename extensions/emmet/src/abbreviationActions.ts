@@ -108,7 +108,7 @@ export function wrapWithAbbreviation(args: any) {
 					let textToWrap = rangeToReplace.isSingleLine ? ['$TM_SELECTED_TEXT'] : ['\n\t$TM_SELECTED_TEXT\n'];
 					return { syntax, abbreviation, rangeToReplace, textToWrap, filter };
 				});
-				return expandAbbreviationInRange(editor, expandAbbrList, true).then(() => { return inPreview; });
+				return expandAbbreviationInRange(editor, expandAbbrList, true).then(() => { return true; });
 			});
 		}
 
@@ -136,41 +136,41 @@ function revertPreview(editor: vscode.TextEditor, rangesToReplace: PreviewRanges
 	}, { undoStopBefore: false, undoStopAfter: false });
 }
 
-function applyPreview(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], rangesToReplace: PreviewRangesWithContent[]): Thenable<any> {
-	const anyExpandAbbrInput = expandAbbrList[0];
-	let expandedText = expandAbbr(anyExpandAbbrInput);
-	let linesInserted = 0;
+function applyPreview(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], rangesToReplace: PreviewRangesWithContent[]): Thenable<boolean> {
+	let totalLinesInserted = 0;
 
-	if (expandedText) {
-		return editor.edit(builder => {
-			for (let i = 0; i < rangesToReplace.length; i++) {
-				if (i) {
-					expandedText = expandAbbr(expandAbbrList[i]);
-					if (!expandedText) {
-						continue;
-					}
-				}
-				let oldPreviewRange = rangesToReplace[i].previewRange;
-				let preceedingText = editor.document.getText(new vscode.Range(new vscode.Position(oldPreviewRange.start.line, 0), oldPreviewRange.start));
-				let indentPrefix = (preceedingText.match(/^(\s*)/) || ['', ''])[1];
-
-				let newText = expandedText || '';
-				newText = newText.replace(/\n/g, '\n' + indentPrefix).replace(/\$\{[\d]*\}/g, '|'); // Removing Tabstops
-				newText = newText.replace(/\$\{[\d]*(:[^}]*)?\}/g, (match) => {		// Replacing Placeholders
-					return match.replace(/^\$\{[\d]*:/, '').replace('}', '');
-				});
-				let newTextLines = (newText.match(/\n/g) || []).length + 1;
-				let currentTextLines = oldPreviewRange.end.line - oldPreviewRange.start.line + 1;
-				builder.replace(oldPreviewRange, newText);
-				let lastLineEnd = newTextLines > 1 ? newText.substring(newText.lastIndexOf('\n') + 1).length : newText.length + oldPreviewRange.start.character;
-				rangesToReplace[i].previewRange = new vscode.Range(oldPreviewRange.start.line + linesInserted, oldPreviewRange.start.character, oldPreviewRange.start.line + linesInserted + newTextLines - 1, lastLineEnd);
-				linesInserted += newTextLines - currentTextLines;
+	return editor.edit(builder => {
+		for (let i = 0; i < rangesToReplace.length; i++) {
+			const expandedText = expandAbbr(expandAbbrList[i]) || '';
+			if (!expandedText) {
+				// Failed to expand text. We already showed an error inside expandAbbr.
+				break;
 			}
-		}, { undoStopBefore: false, undoStopAfter: false });
-	} else {
-		// Failed to expand text. We already showed an error inside expandAbbr.
-	}
-	return Promise.resolve();
+
+			const oldPreviewRange = rangesToReplace[i].previewRange;
+			const preceedingText = editor.document.getText(new vscode.Range(oldPreviewRange.start.line, 0, oldPreviewRange.start.line, oldPreviewRange.start.character));
+			const indentPrefix = (preceedingText.match(/^(\s*)/) || ['', ''])[1];
+
+			let newText = expandedText.replace(/\n/g, '\n' + indentPrefix); // Adding indentation on each line of expanded text
+			newText = newText.replace(/\$\{[\d]*\}/g, '|'); // Removing Tabstops
+			newText = newText.replace(/\$\{[\d]*(:[^}]*)?\}/g, (match) => {		// Replacing Placeholders
+				return match.replace(/^\$\{[\d]*:/, '').replace('}', '');
+			});
+			builder.replace(oldPreviewRange, newText);
+
+			const expandedTextLines = newText.split('\n');
+			const oldPreviewLines = oldPreviewRange.end.line - oldPreviewRange.start.line + 1;
+			const newLinesInserted = expandedTextLines.length - oldPreviewLines;
+
+			let lastLineEnd = expandedTextLines[expandedTextLines.length - 1].length;
+			if (expandedTextLines.length === 1) {
+				lastLineEnd += oldPreviewRange.start.character;
+			}
+
+			rangesToReplace[i].previewRange = new vscode.Range(oldPreviewRange.start.line + totalLinesInserted, oldPreviewRange.start.character, oldPreviewRange.end.line + totalLinesInserted + newLinesInserted, lastLineEnd);
+			totalLinesInserted += newLinesInserted;
+		}
+	}, { undoStopBefore: false, undoStopAfter: false });
 }
 
 export function wrapIndividualLinesWithAbbreviation(args: any) {
