@@ -208,11 +208,7 @@ function hygiene(some) {
 			tslint: undefined
 		}).then(result => {
 			if (result.error) {
-				fs.writeFileSync('C:\\Users\\joao\\Desktop\\src.txt', result.src);
-				fs.writeFileSync('C:\\Users\\joao\\Desktop\\dest.txt', result.dest);
-
-
-				console.error(result.src, result.message);
+				console.error(result.message);
 				errorCount++;
 			}
 			cb(null, file);
