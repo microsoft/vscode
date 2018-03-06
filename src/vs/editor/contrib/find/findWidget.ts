@@ -65,10 +65,10 @@ const FIND_REPLACE_AREA_HEIGHT = 64; // The height of Find Widget when Replace I
 
 
 export class FindWidgetViewZone implements IViewZone {
-	public afterLineNumber: number;
+	public readonly afterLineNumber: number;
 	public heightInPx: number;
-	public suppressMouseDown: boolean;
-	public domNode: HTMLElement;
+	public readonly suppressMouseDown: boolean;
+	public readonly domNode: HTMLElement;
 
 	constructor(afterLineNumber: number) {
 		this.afterLineNumber = afterLineNumber;
@@ -82,11 +82,11 @@ export class FindWidgetViewZone implements IViewZone {
 
 export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSashLayoutProvider {
 	private static readonly ID = 'editor.contrib.findWidget';
-	private _codeEditor: ICodeEditor;
+	private readonly _codeEditor: ICodeEditor;
 	private _state: FindReplaceState;
 	private _controller: IFindController;
-	private _contextViewProvider: IContextViewProvider;
-	private _keybindingService: IKeybindingService;
+	private readonly _contextViewProvider: IContextViewProvider;
+	private readonly _keybindingService: IKeybindingService;
 
 	private _domNode: HTMLElement;
 	private _findInput: FindInput;
@@ -901,19 +901,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 }
 
 interface ISimpleCheckboxOpts {
-	parent: HTMLElement;
-	title: string;
-	onChange: () => void;
+	readonly parent: HTMLElement;
+	readonly title: string;
+	readonly onChange: () => void;
 }
 
 class SimpleCheckbox extends Widget {
 
 	private static _COUNTER = 0;
 
-	private _opts: ISimpleCheckboxOpts;
-	private _domNode: HTMLElement;
-	private _checkbox: HTMLInputElement;
-	private _label: HTMLLabelElement;
+	private readonly _opts: ISimpleCheckboxOpts;
+	private readonly _domNode: HTMLElement;
+	private readonly _checkbox: HTMLInputElement;
+	private readonly _label: HTMLLabelElement;
 
 	constructor(opts: ISimpleCheckboxOpts) {
 		super();
@@ -990,8 +990,8 @@ export interface ISimpleButtonOpts {
 
 export class SimpleButton extends Widget {
 
-	private _opts: ISimpleButtonOpts;
-	private _domNode: HTMLElement;
+	private readonly _opts: ISimpleButtonOpts;
+	private readonly _domNode: HTMLElement;
 
 	constructor(opts: ISimpleButtonOpts) {
 		super();
@@ -1008,6 +1008,7 @@ export class SimpleButton extends Widget {
 			this._opts.onTrigger();
 			e.preventDefault();
 		});
+
 		this.onkeydown(this._domNode, (e) => {
 			if (e.equals(KeyCode.Space) || e.equals(KeyCode.Enter)) {
 				this._opts.onTrigger();
