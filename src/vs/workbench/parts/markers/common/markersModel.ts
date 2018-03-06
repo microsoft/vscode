@@ -127,6 +127,7 @@ export class FilterOptions {
 
 export class MarkersModel {
 
+	private _cachedSortedResources: Resource[];
 	private _markersByResource: Map<string, Resource>;
 	private _filterOptions: FilterOptions;
 
@@ -155,7 +156,10 @@ export class MarkersModel {
 	}
 
 	public get resources(): Resource[] {
-		return values(this._markersByResource);
+		if (!this._cachedSortedResources) {
+			this._cachedSortedResources = values(this._markersByResource).sort(Resource.compare);
+		}
+		return this._cachedSortedResources;
 	}
 
 	public forEachFilteredResource(callback: (resource: Resource) => any) {
@@ -201,6 +205,7 @@ export class MarkersModel {
 				this._markersByResource.set(resource.toString(), this.createResource(resource, markers));
 			}
 		});
+		this._cachedSortedResources = undefined;
 	}
 
 	public updateFilterOptions(filterOptions: FilterOptions): void {
@@ -238,19 +243,20 @@ export class MarkersModel {
 
 	private createResource(uri: URI, rawMarkers: IMarker[]): Resource {
 
-		const markers: Marker[] = [];
-		const resource = new Resource(uri, markers);
-
-		resource.filteredMarkersCount = 0;
-		resource.uriMatches = this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, paths.basename(uri.fsPath)) : [];
-
+		let markers: Marker[] = [];
+		let filteredCount = 0;
 		for (let i = 0; i < rawMarkers.length; i++) {
 			let marker = this.createMarker(rawMarkers[i], i, uri.toString());
 			markers.push(marker);
 			if (marker.isSelected) {
-				resource.filteredMarkersCount += 1;
+				filteredCount += 1;
 			}
 		}
+
+		const resource = new Resource(uri, markers);
+		resource.filteredMarkersCount = filteredCount;
+		resource.uriMatches = this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, paths.basename(uri.fsPath)) : [];
+
 		return resource;
 	}
 
@@ -304,15 +310,5 @@ export class MarkersModel {
 			}
 		}
 		return Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
-	}
-
-	public static compare(a: any, b: any): number {
-		if (a instanceof Resource && b instanceof Resource) {
-			return Resource.compare(a, b);
-		}
-		if (a instanceof Marker && b instanceof Marker) {
-			return Marker.compare(a, b);
-		}
-		return 0;
 	}
 }

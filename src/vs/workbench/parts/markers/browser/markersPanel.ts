@@ -200,7 +200,6 @@ export class MarkersPanel extends Panel {
 			filter: new Viewer.DataFilter(),
 			renderer,
 			controller,
-			sorter: new Viewer.Sorter(),
 			accessibilityProvider: new Viewer.MarkersTreeAccessibilityProvider(),
 			dnd
 		}, {

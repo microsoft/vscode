@@ -7,7 +7,7 @@
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import * as network from 'vs/base/common/network';
-import { IDataSource, ITree, IRenderer, IAccessibilityProvider, ISorter, IFilter } from 'vs/base/parts/tree/browser/tree';
+import { IDataSource, ITree, IRenderer, IAccessibilityProvider, IFilter } from 'vs/base/parts/tree/browser/tree';
 import Severity from 'vs/base/common/severity';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
@@ -230,13 +230,5 @@ export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider 
 		}
 		return null;
 	}
-
 }
 
-export class Sorter implements ISorter {
-
-	public compare(tree: ITree, element: any, otherElement: any): number {
-		return MarkersModel.compare(element, otherElement);
-	}
-
-}
