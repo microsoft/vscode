@@ -38,7 +38,7 @@ export function wrapWithAbbreviation(args: any) {
 	const editor = vscode.window.activeTextEditor;
 	let rootNode = parseDocument(editor.document, false);
 
-	const syntax = getSyntaxFromArgs({ language: editor.document.languageId });
+	const syntax = getSyntaxFromArgs({ language: editor.document.languageId }) || '';
 	if (!syntax) {
 		return;
 	}
@@ -46,7 +46,6 @@ export function wrapWithAbbreviation(args: any) {
 	let previewMade = false;
 
 	// Fetch general information for the succesive expansions. i.e. the ranges to replace and its contents
-	let expandAbbrList: ExpandAbbreviationInput[] = [];
 	let rangesToReplace: PreviewRangesWithContent[] = [];
 
 	editor.selections.sort((a: vscode.Selection, b: vscode.Selection) => { return a.start.line - b.start.line; }).forEach(selection => {
@@ -90,45 +89,34 @@ export function wrapWithAbbreviation(args: any) {
 
 	function makeChanges(inputAbbreviation: string | undefined, previewMade?: boolean, definitive?: boolean): Thenable<any> {
 		if (!inputAbbreviation || !inputAbbreviation.trim() || !helper.isAbbreviationValid(syntax, inputAbbreviation)) {
-			return previewMade ? revertPreview(editor, rangesToReplace).then(() => { return false; }) : Promise.resolve();
+			return previewMade ? revertPreview(editor, rangesToReplace) : Promise.resolve();
 		}
 
 		let extractedResults = helper.extractAbbreviationFromText(inputAbbreviation);
 		if (!extractedResults) {
 			return Promise.resolve(previewMade);
 		}
+
 		let { abbreviation, filter } = extractedResults;
-
-		expandAbbrList = [];
-
-		// we need to apply the previewchanges and get the new ranges
-		let revertPromise: Thenable<any> = Promise.resolve();
 		if (definitive) {
-			if (previewMade) {
-				revertPromise = revertPreview(editor, rangesToReplace);
-			}
+			const revertPromise = previewMade ? revertPreview(editor, rangesToReplace) : Promise.resolve();
 			return revertPromise.then(() => {
-				rangesToReplace.forEach(rangesAndContent => {
+				const expandAbbrList: ExpandAbbreviationInput[] = rangesToReplace.map(rangesAndContent => {
 					let rangeToReplace = rangesAndContent.originalRange;
 					let textToWrap = rangeToReplace.isSingleLine ? ['$TM_SELECTED_TEXT'] : ['\n\t$TM_SELECTED_TEXT\n'];
-					expandAbbrList.push({ syntax: syntax || '', abbreviation, rangeToReplace, textToWrap, filter });
+					return { syntax, abbreviation, rangeToReplace, textToWrap, filter };
 				});
 				return expandAbbreviationInRange(editor, expandAbbrList, true).then(() => { return Promise.resolve(); });
 			});
-		} else {
-			rangesToReplace.forEach(rangesAndContent => {
-				let match = rangesAndContent.originalContent.match(/\n[\s]*/g);
-				let textToWrap = match ? ['\n\t' + rangesAndContent.originalContent.split(match[match.length - 1]).join('\n\t') + '\n'] : [rangesAndContent.originalContent];
-				expandAbbrList.push({ syntax: syntax || '', abbreviation, rangeToReplace: rangesAndContent.originalRange, textToWrap, filter });
-			});
 		}
 
-		return Promise.resolve().then(() => {
-			return applyPreview(editor, expandAbbrList, rangesToReplace).then(() => {
-				return true;
-			});
+		const expandAbbrList: ExpandAbbreviationInput[] = rangesToReplace.map(rangesAndContent => {
+			let match = rangesAndContent.originalContent.match(/\n[\s]*/g);
+			let textToWrap = match ? ['\n\t' + rangesAndContent.originalContent.split(match[match.length - 1]).join('\n\t') + '\n'] : [rangesAndContent.originalContent];
+			return { syntax, abbreviation, rangeToReplace: rangesAndContent.originalRange, textToWrap, filter };
 		});
 
+		return applyPreview(editor, expandAbbrList, rangesToReplace);
 	}
 
 	// On inputBox closing
