@@ -196,9 +196,10 @@ function hygiene(some) {
 		this.emit('data', file);
 	});
 
+	const endl = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? '\r\n' : '\n';
 	const formatting = es.map(function (file, cb) {
 		tsfmt.processString(file.path, file.contents.toString('utf8'), {
-			verify: true,
+			verify: false,
 			tsfmt: true,
 			// verbose: true
 			// keep checkJS happy
@@ -207,8 +208,15 @@ function hygiene(some) {
 			tsconfig: undefined,
 			tslint: undefined
 		}).then(result => {
-			if (result.error) {
-				console.error(result.message);
+			let original = result.src;
+			let formatted = result.dest;
+
+			if (endl === '\n') {
+				formatted = formatted.replace(/\r\n/gm, '\n');
+			}
+
+			if (original !== formatted) {
+				console.error('File not formatted:', file.relative);
 				errorCount++;
 			}
 			cb(null, file);
