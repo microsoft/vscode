@@ -141,7 +141,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		this.extensionLifecycle = this._register(new ExtensionsLifecycle(this.logService));
 	}
 
-	install(zipPath: string): TPromise<void> {
+	install(zipPath: string): TPromise<ILocalExtension> {
 		zipPath = path.resolve(zipPath);
 
 		return validateLocalExtension(zipPath)
@@ -159,7 +159,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 									metadata => this.installFromZipPath(identifier, zipPath, metadata, manifest),
 									error => this.installFromZipPath(identifier, zipPath, null, manifest))
 									.then(
-									() => this.logService.info('Successfully installed the extension:', identifier.id),
+									local => { this.logService.info('Successfully installed the extension:', identifier.id); return local; },
 									e => {
 										this.logService.error('Failed to install the extension:', identifier.id, e.message);
 										return TPromise.wrapError(e);
@@ -208,7 +208,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			});
 	}
 
-	private installFromZipPath(identifier: IExtensionIdentifier, zipPath: string, metadata: IGalleryMetadata, manifest: IExtensionManifest): TPromise<void> {
+	private installFromZipPath(identifier: IExtensionIdentifier, zipPath: string, metadata: IGalleryMetadata, manifest: IExtensionManifest): TPromise<ILocalExtension> {
 		return this.installExtension({ zipPath, id: identifier.id, metadata })
 			.then(local => {
 				if (this.galleryService.isEnabled() && local.manifest.extensionDependencies && local.manifest.extensionDependencies.length) {
@@ -222,12 +222,12 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				return local;
 			})
 			.then(
-			local => this._onDidInstallExtension.fire({ identifier, zipPath, local }),
+			local => { this._onDidInstallExtension.fire({ identifier, zipPath, local }); return local; },
 			error => { this._onDidInstallExtension.fire({ identifier, zipPath, error }); return TPromise.wrapError(error); }
 			);
 	}
 
-	installFromGallery(extension: IGalleryExtension): TPromise<void> {
+	installFromGallery(extension: IGalleryExtension): TPromise<ILocalExtension> {
 		this.onInstallExtensions([extension]);
 		return this.collectExtensionsToInstall(extension)
 			.then(
@@ -237,13 +237,14 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				}
 				return this.downloadAndInstallExtensions(extensionsToInstall)
 					.then(
-					locals => this.onDidInstallExtensions(extensionsToInstall, locals, []),
+					locals => this.onDidInstallExtensions(extensionsToInstall, locals, [])
+						.then(() => locals.filter(l => areSameExtensions({ id: getGalleryExtensionIdFromLocal(l), uuid: l.identifier.uuid }, extension.identifier)[0])),
 					errors => this.onDidInstallExtensions(extensionsToInstall, [], errors));
 			},
 			error => this.onDidInstallExtensions([extension], [], [error]));
 	}
 
-	reinstall(extension: ILocalExtension): TPromise<void> {
+	reinstall(extension: ILocalExtension): TPromise<ILocalExtension> {
 		if (!this.galleryService.isEnabled()) {
 			return TPromise.wrapError(new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled")));
 		}

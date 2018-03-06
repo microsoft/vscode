@@ -17,8 +17,8 @@ import * as platform from 'vs/base/common/platform';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution, ActivationTimes, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
 import { USER_MANIFEST_CACHE_FILE, BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER } from 'vs/platform/extensions/common/extensions';
-import { IExtensionEnablementService, IExtensionIdentifier, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, BetterMergeId, BetterMergeDisabledNowKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IExtensionEnablementService, IExtensionIdentifier, EnablementState, IExtensionManagementService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions, BetterMergeId, BetterMergeDisabledNowKey, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionScanner, ILog, ExtensionScannerInput, IExtensionResolver, IExtensionReference, Translations } from 'vs/workbench/services/extensions/node/extensionPoints';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
@@ -150,7 +150,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		@IExtensionEnablementService private readonly _extensionEnablementService: IExtensionEnablementService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWindowService private readonly _windowService: IWindowService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
 	) {
 		super();
 		this._registry = null;
@@ -500,7 +501,11 @@ export class ExtensionService extends Disposable implements IExtensionService {
 						});
 
 						if (extensionsToDisable.length) {
-							return TPromise.join(extensionsToDisable.map(e => this._extensionEnablementService.setEnablement(e, EnablementState.Disabled)))
+							return this.extensionManagementService.getInstalled(LocalExtensionType.User)
+								.then(installed => {
+									const toDisable = installed.filter(i => extensionsToDisable.some(e => areSameExtensions({ id: getGalleryExtensionIdFromLocal(i) }, e)));
+									return TPromise.join(toDisable.map(e => this._extensionEnablementService.setEnablement(e, EnablementState.Disabled)));
+								})
 								.then(() => {
 									this._storageService.store(BetterMergeDisabledNowKey, true);
 									return runtimeExtensions;

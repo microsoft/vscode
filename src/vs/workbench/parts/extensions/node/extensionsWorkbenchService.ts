@@ -589,7 +589,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				location: ProgressLocation.Extensions,
 				title: nls.localize('installingVSIXExtension', 'Installing extension from VSIX...'),
 				tooltip: `${extension}`
-			}, () => this.extensionService.install(extension));
+			}, () => this.extensionService.install(extension).then(() => null));
 		}
 
 		if (!(extension instanceof Extension)) {
@@ -611,7 +611,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			location: ProgressLocation.Extensions,
 			title: nls.localize('installingMarketPlaceExtension', 'Installing extension from Marketplace....'),
 			tooltip: `${extension.id}`
-		}, () => this.extensionService.installFromGallery(gallery));
+		}, () => this.extensionService.installFromGallery(gallery).then(() => null));
 	}
 
 	setEnablement(extension: IExtension, enablementState: EnablementState): TPromise<void> {
@@ -670,7 +670,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
 			tooltip: `${local.identifier.id}`
-		}, () => this.extensionService.reinstall(local));
+		}, () => this.extensionService.reinstall(local).then(() => null));
 	}
 
 	private promptAndSetEnablement(extension: IExtension, enablementState: EnablementState, enable: boolean): TPromise<any> {
