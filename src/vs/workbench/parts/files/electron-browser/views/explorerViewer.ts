@@ -286,18 +286,23 @@ export class FileRenderer implements IRenderer {
 		inputBox.focus();
 
 		const done = once((commit: boolean, blur: boolean) => {
+			const dispose = () => {
+				lifecycle.dispose(toDispose);
+				container.removeChild(label.element);
+			};
 			tree.clearHighlight();
 
 			if (commit && inputBox.value) {
-				editableData.action.run({ value: inputBox.value });
+				editableData.action.run({ value: inputBox.value })
+					.then(dispose);
+			} else {
+				dispose();
 			}
 
 			setTimeout(() => {
 				if (!blur) { // https://github.com/Microsoft/vscode/issues/20269
 					tree.domFocus();
 				}
-				lifecycle.dispose(toDispose);
-				container.removeChild(label.element);
 			}, 0);
 		});
 
