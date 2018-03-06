@@ -164,6 +164,7 @@ function applyPreview(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviat
 
 			let lastLineEnd = expandedTextLines[expandedTextLines.length - 1].length;
 			if (expandedTextLines.length === 1) {
+				// If the expandedText is single line, add the length of preceeding whitespace as it will not be included in line length.
 				lastLineEnd += oldPreviewRange.start.character;
 			}
 
