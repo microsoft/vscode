@@ -35,7 +35,7 @@ export class LineStarts {
 	) { }
 }
 
-export function createLineStartsFast(str: string, readonly: boolean = true): Uint32Array | number[] {
+export function createLineStartsFast(str: string, readonly: boolean = true): Uint32Array | Uint16Array | number[] {
 	let r: number[] = [0], rLength = 1;
 
 	for (let i = 0, len = str.length; i < len; i++) {

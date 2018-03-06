@@ -25,7 +25,7 @@ function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
 	) >>> 0;
 }
 
-const EMPTY_LINE_TOKENS = new Uint32Array(0);
+const EMPTY_LINE_TOKENS = (new Uint32Array(0)).buffer;
 
 class ModelLineTokens {
 	_state: IState;
