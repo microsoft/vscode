@@ -519,7 +519,6 @@
 		"activityBarBadge.background": "#705697",
 		"titleBar.activeBackground": "#c4b7d7",
 		"button.background": "#705697",
-		"notification.background": "#442e66",
 		"editorGroup.dropBackground": "#C9D0D988",
 		"inputValidation.infoBorder": "#4ec1e5",
 		"inputValidation.infoBackground": "#f2fcff",
