@@ -1,17 +1,1 @@
-<?xml version="1.0" encoding="utf-8"?>
-<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-	 viewBox="0 0 16 16" style="enable-background:new 0 0 16 16;" xml:space="preserve">
-<style type="text/css">
-	.st0{fill:#CC1100;}
-	.st1{fill:#FFFFFF;}
-</style>
-<g>
-	<g>
-		<circle class="st0" cx="8" cy="8" r="5"/>
-	</g>
-</g>
-<g>
-	<rect x="7.3" y="10.2" class="st1" width="1.5" height="1.5"/>
-	<rect x="7.3" y="4.4" class="st1" width="1.5" height="4.4"/>
-</g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><defs><style>.icon-canvas-transparent,.icon-vs-out{fill:#252526;}.icon-canvas-transparent{opacity:0;}.icon-vs-red{fill:#ff4635;}</style></defs><title>breakpoint-unsupported</title><g id="canvas"><path class="icon-canvas-transparent" d="M16,0V16H0V0Z"/></g><g id="outline" style="display: none;"><path class="icon-vs-out" d="M14,8A6,6,0,1,1,8,2,6.007,6.007,0,0,1,14,8Z"/></g><g id="iconBg"><path class="icon-vs-red" d="M8,3a5,5,0,1,0,5,5A5,5,0,0,0,8,3Zm1,9H7V10H9ZM9,9H7V4H9Z"/></g></svg>
