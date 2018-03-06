@@ -205,6 +205,10 @@ export class WebviewEditor extends BaseWebviewEditor {
 			});
 		input.webview = this._webview;
 
+		if (input.options.tryRestoreScrollPosition) {
+			this._webview.initialScrollProgress = input.scrollYPercentage;
+		}
+
 		this.content.setAttribute('aria-flowto', this.webviewContent.id);
 
 		this.doUpdateContainer();

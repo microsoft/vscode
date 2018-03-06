@@ -7,31 +7,32 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { Builder } from 'vs/base/browser/builder';
-import { append, $ } from 'vs/base/browser/dom';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ReleaseNotesInput } from './releaseNotesInput';
-import { EditorOptions } from 'vs/workbench/common/editor';
-import { Webview } from 'vs/workbench/parts/html/browser/webview';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import { WebviewEditor } from 'vs/workbench/parts/html/browser/webviewEditor';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMode, TokenizationRegistry } from 'vs/editor/common/modes';
+import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IRequestService } from 'vs/platform/request/node/request';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { WebviewInput } from 'vs/workbench/parts/webview/electron-browser/webviewInput';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
+import URI from 'vs/base/common/uri';
+import { asText } from 'vs/base/node/request';
+import * as nls from 'vs/nls';
+import { OS } from 'vs/base/common/platform';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 function renderBody(
 	body: string,
-	css: string
+	css: string,
+	scrollProgress: number = 0
 ): string {
 	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
 	return `<!DOCTYPE html>
@@ -47,97 +48,112 @@ function renderBody(
 		</html>`;
 }
 
-export class ReleaseNotesEditor extends WebviewEditor {
 
-	static readonly ID: string = 'workbench.editor.releaseNotes';
+const releaseNotesCache: { [version: string]: TPromise<string>; } = Object.create(null);
 
-	private contentDisposables: IDisposable[] = [];
-	private scrollYPercentage: number = 0;
+function loadReleaseNotes(accessor: ServicesAccessor, version: string): TPromise<string> {
+	const requestService = accessor.get(IRequestService);
+	const keybindingService = accessor.get(IKeybindingService);
+	const match = /^(\d+\.\d+)\./.exec(version);
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService storageService: IStorageService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService protected readonly themeService: IThemeService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IModeService private readonly modeService: IModeService,
-		@IPartService private readonly partService: IPartService,
-		@IContextViewService private readonly _contextViewService: IContextViewService
-	) {
-		super(ReleaseNotesEditor.ID, telemetryService, themeService, storageService, contextKeyService);
+	if (!match) {
+		return TPromise.wrapError<string>(new Error('not found'));
 	}
 
-	createEditor(parent: Builder): void {
-		const container = parent.getHTMLElement();
-		this.content = append(container, $('.release-notes', { 'style': 'height: 100%; position: relative; overflow: hidden;' }));
-	}
+	const versionLabel = match[1].replace(/\./g, '_');
+	const baseUrl = 'https://code.visualstudio.com/raw';
+	const url = `${baseUrl}/v${versionLabel}.md`;
+	const unassigned = nls.localize('unassigned', "unassigned");
 
-	async setInput(input: ReleaseNotesInput, options: EditorOptions): TPromise<void> {
-		if (this.input && this.input.matches(input)) {
-			return undefined;
-		}
+	const patchKeybindings = (text: string): string => {
+		const kb = (match: string, kb: string) => {
+			const keybinding = keybindingService.lookupKeybinding(kb);
 
-		const { text } = input;
-
-		this.contentDisposables = dispose(this.contentDisposables);
-		this.content.innerHTML = '';
-
-		await super.setInput(input, options);
-
-		const body = await this.renderBody(text);
-		this._webview = new Webview(
-			this.content,
-			this.partService.getContainer(Parts.EDITOR_PART),
-			this.themeService,
-			this.environmentService,
-			this._contextViewService,
-			this.contextKey,
-			this.findInputFocusContextKey,
-			{});
-
-		if (this.input && this.input instanceof ReleaseNotesInput) {
-			const state = this.loadViewState(this.input.version);
-			if (state) {
-				this._webview.initialScrollProgress = state.scrollYPercentage;
+			if (!keybinding) {
+				return unassigned;
 			}
-		}
 
-		this._webview.contents = body;
+			return keybinding.getLabel();
+		};
 
-		this._webview.onDidClickLink(link => {
-			addGAParameters(this.telemetryService, this.environmentService, link, 'ReleaseNotes')
-				.then(updated => this.openerService.open(updated))
-				.then(null, onUnexpectedError);
-		}, null, this.contentDisposables);
-		this._webview.onDidScroll(event => {
-			this.scrollYPercentage = event.scrollYPercentage;
-		}, null, this.contentDisposables);
-		this.contentDisposables.push(this._webview);
-		this.contentDisposables.push(toDisposable(() => this._webview = null));
+		const kbstyle = (match: string, kb: string) => {
+			const keybinding = KeybindingIO.readKeybinding(kb, OS);
+
+			if (!keybinding) {
+				return unassigned;
+			}
+
+			const resolvedKeybindings = keybindingService.resolveKeybinding(keybinding);
+
+			if (resolvedKeybindings.length === 0) {
+				return unassigned;
+			}
+
+			return resolvedKeybindings[0].getLabel();
+		};
+
+		return text
+			.replace(/kb\(([a-z.\d\-]+)\)/gi, kb)
+			.replace(/kbstyle\(([^\)]+)\)/gi, kbstyle);
+	};
+
+	if (!releaseNotesCache[version]) {
+		releaseNotesCache[version] = requestService.request({ url })
+			.then(asText)
+			.then(text => patchKeybindings(text));
 	}
 
-	dispose(): void {
-		this.contentDisposables = dispose(this.contentDisposables);
-		super.dispose();
+	return releaseNotesCache[version];
+}
+
+export class ReleaseNotesManager {
+
+	private _currentReleaseNotes: WebviewInput | undefined;
+
+	public constructor(
+		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
+		@IEditorGroupService private readonly _editorGroupService: IEditorGroupService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IModeService private readonly _modeService: IModeService,
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IPartService private readonly _partService: IPartService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+	) { }
+
+	public async show(
+		accessor: ServicesAccessor,
+		version: string
+	): TPromise<boolean> {
+		const releaseNoteText = await loadReleaseNotes(accessor, version);
+		const html = await this.renderBody(releaseNoteText);
+		const title = nls.localize('releaseNotesInputName', "Release Notes: {0}", version);
+
+		if (this._currentReleaseNotes) {
+			this._currentReleaseNotes.setName(title);
+			this._currentReleaseNotes.setHtml(html);
+			const activeEditor = this._editorService.getActiveEditor();
+			if (activeEditor && activeEditor.position !== this._currentReleaseNotes.position) {
+				this._editorGroupService.moveEditor(this._currentReleaseNotes, this._currentReleaseNotes.position, activeEditor.position, { preserveFocus: true });
+			} else {
+				this._editorService.openEditor(this._currentReleaseNotes, { preserveFocus: true });
+			}
+		} else {
+			const uri = URI.parse('release-notes:' + version);
+			this._currentReleaseNotes = this._instantiationService.createInstance(WebviewInput, uri, title, { tryRestoreScrollPosition: true }, html, {
+				onDidClickLink: uri => this.onDidClickLink(uri),
+				onDispose: () => { this._currentReleaseNotes = undefined; }
+			}, this._partService);
+			await this._editorService.openEditor(this._currentReleaseNotes, { pinned: true });
+		}
+
+		return true;
 	}
 
-	public clearInput(): void {
-		if (this.input instanceof ReleaseNotesInput) {
-			this.saveViewState(this.input.version, {
-				scrollYPercentage: this.scrollYPercentage
-			});
-		}
-		super.clearInput();
-	}
-
-	public shutdown(): void {
-		if (this.input instanceof ReleaseNotesInput) {
-			this.saveViewState(this.input.version, {
-				scrollYPercentage: this.scrollYPercentage
-			});
-		}
-		super.shutdown();
+	private onDidClickLink(uri: URI) {
+		addGAParameters(this._telemetryService, this._environmentService, uri, 'ReleaseNotes')
+			.then(updated => this._openerService.open(updated))
+			.then(null, onUnexpectedError);
 	}
 
 	private async renderBody(text: string) {
@@ -156,8 +172,8 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		const result: TPromise<IMode>[] = [];
 		const renderer = new marked.Renderer();
 		renderer.code = (code, lang) => {
-			const modeId = this.modeService.getModeIdForLanguageName(lang);
-			result.push(this.modeService.getOrCreateMode(modeId));
+			const modeId = this._modeService.getModeIdForLanguageName(lang);
+			result.push(this._modeService.getOrCreateMode(modeId));
 			return '';
 		};
 
@@ -165,7 +181,7 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		await TPromise.join(result);
 
 		renderer.code = (code, lang) => {
-			const modeId = this.modeService.getModeIdForLanguageName(lang);
+			const modeId = this._modeService.getModeIdForLanguageName(lang);
 			return `<code>${tokenizeToString(code, modeId)}</code>`;
 		};
 		return renderer;

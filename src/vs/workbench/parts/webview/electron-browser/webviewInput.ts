@@ -8,17 +8,21 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { EditorInput, EditorModel } from 'vs/workbench/common/editor';
-import { IEditorModel, Position } from 'vs/platform/editor/common/editor';
+import { IEditorModel, Position, IEditorInput } from 'vs/platform/editor/common/editor';
 import { Webview } from 'vs/workbench/parts/html/browser/webview';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
 
 export interface WebviewEvents {
-	onMessage(message: any): void;
-	onDidChangePosition(newPosition: Position): void;
-	onDispose(): void;
-	onDidClickLink(link: URI, options: vscode.WebviewOptions): void;
+	onMessage?(message: any): void;
+	onDidChangePosition?(newPosition: Position): void;
+	onDispose?(): void;
+	onDidClickLink?(link: URI, options: vscode.WebviewOptions): void;
+}
+
+export interface WebviewInputOptions extends vscode.WebviewOptions {
+	tryRestoreScrollPosition?: boolean;
 }
 
 export class WebviewInput extends EditorInput {
@@ -26,7 +30,7 @@ export class WebviewInput extends EditorInput {
 
 	private readonly _resource: URI;
 	private _name: string;
-	private _options: vscode.WebviewOptions;
+	private _options: WebviewInputOptions;
 	private _html: string;
 	private _currentWebviewHtml: string = '';
 	private _events: WebviewEvents | undefined;
@@ -34,13 +38,13 @@ export class WebviewInput extends EditorInput {
 	private _webview: Webview | undefined;
 	private _webviewOwner: any;
 	private _webviewDisposables: IDisposable[] = [];
-	private _position: Position;
+	private _position?: Position;
+	private _scrollYPercentage: number = 0;
 
 	constructor(
 		resource: URI,
 		name: string,
-		position: Position,
-		options: vscode.WebviewOptions,
+		options: WebviewInputOptions,
 		html: string,
 		events: WebviewEvents,
 		partService: IPartService
@@ -48,7 +52,6 @@ export class WebviewInput extends EditorInput {
 		super();
 		this._resource = resource;
 		this._name = name;
-		this._position = position;
 		this._options = options;
 		this._html = html;
 		this._events = events;
@@ -93,7 +96,11 @@ export class WebviewInput extends EditorInput {
 		this._onDidChangeLabel.fire();
 	}
 
-	public get position(): Position {
+	matches(other: IEditorInput): boolean {
+		return other && other instanceof WebviewInput && other.getResource().fsPath === this.getResource().fsPath;
+	}
+
+	public get position(): Position | undefined {
 		return this._position;
 	}
 
@@ -114,11 +121,11 @@ export class WebviewInput extends EditorInput {
 		}
 	}
 
-	public get options(): vscode.WebviewOptions {
+	public get options(): WebviewInputOptions {
 		return this._options;
 	}
 
-	public set options(value: vscode.WebviewOptions) {
+	public set options(value: WebviewInputOptions) {
 		this._options = value;
 	}
 
@@ -144,16 +151,24 @@ export class WebviewInput extends EditorInput {
 		this._webview = value;
 
 		this._webview.onDidClickLink(link => {
-			if (this._events) {
+			if (this._events && this._events.onDidClickLink) {
 				this._events.onDidClickLink(link, this._options);
 			}
 		}, null, this._webviewDisposables);
 
 		this._webview.onMessage(message => {
-			if (this._events) {
+			if (this._events && this._events.onMessage) {
 				this._events.onMessage(message);
 			}
 		}, null, this._webviewDisposables);
+
+		this._webview.onDidScroll(message => {
+			this._scrollYPercentage = message.scrollYPercentage;
+		}, null, this._webviewDisposables);
+	}
+
+	public get scrollYPercentage() {
+		return this._scrollYPercentage;
 	}
 
 	public claimWebview(owner: any) {
@@ -187,7 +202,7 @@ export class WebviewInput extends EditorInput {
 	}
 
 	public onDidChangePosition(position: Position) {
-		if (this._events) {
+		if (this._events && this._events.onDidChangePosition) {
 			this._events.onDidChangePosition(position);
 		}
 		this._position = position;
