@@ -37,7 +37,6 @@ export class Webview {
 	private _contents: string = '';
 
 	constructor(
-		private readonly parent: HTMLElement,
 		private readonly _styleElement: Element,
 		private readonly _themeService: IThemeService,
 		private readonly _environmentService: IEnvironmentService,
@@ -180,11 +179,11 @@ export class Webview {
 
 		this.style(this._themeService.getTheme());
 		this._themeService.onThemeChange(this.style, this, this._disposables);
+	}
 
-		if (parent) {
-			parent.appendChild(this._webviewFindWidget.getDomNode());
-			parent.appendChild(this._webview);
-		}
+	public mountTo(parent: HTMLElement) {
+		parent.appendChild(this._webviewFindWidget.getDomNode());
+		parent.appendChild(this._webview);
 	}
 
 	public notifyFindWidgetFocusChanged(isFocused: boolean) {
@@ -293,9 +292,12 @@ export class Webview {
 			}
 
 			contents.setZoomFactor(factor);
+			if (!this._webview || !this._webview.parentElement) {
+				return;
+			}
 
-			const width = this.parent.clientWidth;
-			const height = this.parent.clientHeight;
+			const width = this._webview.parentElement.clientWidth;
+			const height = this._webview.parentElement.clientHeight;
 			contents.setSize({
 				normal: {
 					width: Math.floor(width * factor),

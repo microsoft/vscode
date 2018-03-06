@@ -93,7 +93,6 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 			}
 
 			this._webview = new Webview(
-				this.content,
 				this.partService.getContainer(Parts.EDITOR_PART),
 				this.themeService,
 				this._environmentService,
@@ -104,6 +103,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 					...webviewOptions,
 					useSameOriginForRoot: true
 				});
+			this._webview.mountTo(this.content);
 
 			if (this.input && this.input instanceof HtmlInput) {
 				const state = this.loadViewState(this.input.getResource());

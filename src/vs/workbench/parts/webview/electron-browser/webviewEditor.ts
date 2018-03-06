@@ -191,7 +191,6 @@ export class WebviewEditor extends BaseWebviewEditor {
 		this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 
 		this._webview = new Webview(
-			this.webviewContent,
 			this._partService.getContainer(Parts.EDITOR_PART),
 			this.themeService,
 			this._environmentService,
@@ -202,6 +201,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 				enableWrappedPostMessage: true,
 				useSameOriginForRoot: false
 			});
+		this._webview.mountTo(this.webviewContent);
 		input.webview = this._webview;
 
 		if (input.options.tryRestoreScrollPosition) {
