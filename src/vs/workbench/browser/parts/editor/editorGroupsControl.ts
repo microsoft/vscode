@@ -24,18 +24,18 @@ import { IEditorGroupService, IEditorTabOptions, GroupArrangement, GroupOrientat
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_GROUP_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BORDER } from 'vs/workbench/common/theme';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { ResourcesDropHandler, LocalSelectionTransfer, DraggedEditorIdentifier } from 'vs/workbench/browser/dnd';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -454,13 +454,9 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			this.visibleEditorFocusTrackerDisposable[position].dispose();
 		}
 
-		// Track focus on editor container
-		const focusTracker = DOM.trackFocus(editor.getFocusContainer().getHTMLElement());
-		const listenerDispose = focusTracker.onDidFocus(() => {
+		this.visibleEditorFocusTrackerDisposable[position] = editor.onDidFocus(() => {
 			this.onFocusGained(editor);
 		});
-
-		this.visibleEditorFocusTrackerDisposable[position] = combinedDisposable([focusTracker, listenerDispose]);
 	}
 
 	private onFocusGained(editor: BaseEditor): void {
@@ -1128,6 +1124,15 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			return options;
 		}
 
+		const isCopyDrag = (draggedEditor: IEditorIdentifier, e: DragEvent) => {
+			if (draggedEditor && draggedEditor.editor instanceof EditorInput) {
+				if (!draggedEditor.editor.supportsSplitEditor()) {
+					return false;
+				}
+			}
+			return (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
+		};
+
 		function onDrop(e: DragEvent, position: Position, splitTo?: Position): void {
 			$this.updateFromDragAndDrop(node, false);
 			cleanUp();
@@ -1141,7 +1146,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			// Check for transfer from title control
 			if ($this.transfer.hasData(DraggedEditorIdentifier.prototype)) {
 				const draggedEditor = $this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
-				const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
+				const isCopy = isCopyDrag(draggedEditor, e);
 
 				// Copy editor to new location
 				if (isCopy) {
@@ -1193,8 +1198,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		function positionOverlay(e: DragEvent, groups: number, position: Position): void {
 			const target = <HTMLElement>e.target;
 			const overlayIsSplit = typeof overlay.getProperty(splitToPropertyKey) === 'number';
-			const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 			const draggedEditor = $this.transfer.hasData(DraggedEditorIdentifier.prototype) ? $this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
+			const isCopy = isCopyDrag(draggedEditor, e);
 
 			const overlaySize = $this.layoutVertically ? target.clientWidth : target.clientHeight;
 			const splitThreshold = overlayIsSplit ? overlaySize / 5 : overlaySize / 10;

@@ -835,6 +835,12 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	setSelection(indexes: number[]): void {
+		for (const index of indexes) {
+			if (index < 0 || index >= this.length) {
+				throw new Error(`Invalid index ${index}`);
+			}
+		}
+
 		indexes = indexes.sort(numericSort);
 		this.selection.set(indexes);
 	}
@@ -865,6 +871,12 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	setFocus(indexes: number[]): void {
+		for (const index of indexes) {
+			if (index < 0 || index >= this.length) {
+				throw new Error(`Invalid index ${index}`);
+			}
+		}
+
 		indexes = indexes.sort(numericSort);
 		this.focus.set(indexes);
 	}
@@ -948,6 +960,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	reveal(index: number, relativeTop?: number): void {
+		if (index < 0 || index >= this.length) {
+			throw new Error(`Invalid index ${index}`);
+		}
+
 		const scrollTop = this.view.getScrollTop();
 		const elementTop = this.view.elementTop(index);
 		const elementHeight = this.view.elementHeight(index);
@@ -973,6 +989,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	 * Returns `null` if the element isn't *entirely* in the visible viewport.
 	 */
 	getRelativeTop(index: number): number | null {
+		if (index < 0 || index >= this.length) {
+			throw new Error(`Invalid index ${index}`);
+		}
+
 		const scrollTop = this.view.getScrollTop();
 		const elementTop = this.view.elementTop(index);
 		const elementHeight = this.view.elementHeight(index);
@@ -999,10 +1019,22 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	open(indexes: number[], browserEvent?: UIEvent): void {
+		for (const index of indexes) {
+			if (index < 0 || index >= this.length) {
+				throw new Error(`Invalid index ${index}`);
+			}
+		}
+
 		this._onOpen.fire({ indexes, elements: indexes.map(i => this.view.element(i)), browserEvent });
 	}
 
 	pin(indexes: number[]): void {
+		for (const index of indexes) {
+			if (index < 0 || index >= this.length) {
+				throw new Error(`Invalid index ${index}`);
+			}
+		}
+
 		this._onPin.fire(indexes);
 	}
 

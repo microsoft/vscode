@@ -409,11 +409,13 @@ export class MainThreadDocumentsAndEditors {
 	}
 
 	private _toTextEditorAddData(textEditor: MainThreadTextEditor): ITextEditorAddData {
+		const props = textEditor.getProperties();
 		return {
 			id: textEditor.getId(),
 			documentUri: textEditor.getModel().uri,
-			options: textEditor.getConfiguration(),
-			selections: textEditor.getSelections(),
+			options: props.options,
+			selections: props.selections,
+			visibleRanges: props.visibleRanges,
 			editorPosition: this._findEditorPosition(textEditor)
 		};
 	}

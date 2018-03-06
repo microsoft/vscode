@@ -187,8 +187,5 @@
 	"miDownloadingUpdate": "Das Update wird heruntergeladen...",
 	"miInstallUpdate": "Update installieren …",
 	"miInstallingUpdate": "Update wird installiert...",
-	"miRestartToUpdate": "Zum Aktualisieren neu starten...",
-	"aboutDetail": "\nVersion {0}\nCommit {1}\nDatum {2}\nShell {3}\nRenderer {4}\nNode {5}\nArchitektur {6}",
-	"okButton": "OK",
-	"copy": "&&Kopieren"
+	"miRestartToUpdate": "Zum Aktualisieren neu starten..."
 }

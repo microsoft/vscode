@@ -155,8 +155,8 @@ export class QuickOpenWidget implements IModelProvider {
 				}
 			})
 				.on(DOM.EventType.CONTEXT_MENU, (e: Event) => DOM.EventHelper.stop(e, true)) // Do this to fix an issue on Mac where the menu goes into the way
-				.on(DOM.EventType.FOCUS, (e: Event) => this.gainingFocus(), null, true)
-				.on(DOM.EventType.BLUR, (e: Event) => this.loosingFocus(e), null, true);
+				.on(DOM.EventType.FOCUS, (e: FocusEvent) => this.gainingFocus(), null, true)
+				.on(DOM.EventType.BLUR, (e: FocusEvent) => this.loosingFocus(e), null, true);
 
 			// Progress Bar
 			this.progressBar = new ProgressBar(div.clone(), { progressBarBackground: this.styles.progressBarBackground });
@@ -942,12 +942,12 @@ export class QuickOpenWidget implements IModelProvider {
 		this.isLoosingFocus = false;
 	}
 
-	private loosingFocus(e: Event): void {
+	private loosingFocus(e: FocusEvent): void {
 		if (!this.isVisible()) {
 			return;
 		}
 
-		const relatedTarget = (<any>e).relatedTarget;
+		const relatedTarget = e.relatedTarget as HTMLElement;
 		if (!this.quickNavigateConfiguration && DOM.isAncestor(relatedTarget, this.builder.getHTMLElement())) {
 			return; // user clicked somewhere into quick open widget, do not close thereby
 		}

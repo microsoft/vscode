@@ -61,7 +61,7 @@ export class IssueReporterModel {
 
 	serialize(): string {
 		return `
-Issue Type: ${this.getIssueTypeTitle()}
+Issue Type: <b>${this.getIssueTypeTitle()}</b>
 
 ${this._data.issueDescription}
 

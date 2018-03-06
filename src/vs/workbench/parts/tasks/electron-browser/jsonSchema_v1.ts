@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
-import { ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
+import { ProblemMatcherRegistry } from 'vs/workbench/parts/tasks/common/problemMatcher';
 
 import commonSchema from './jsonSchemaCommon';
 

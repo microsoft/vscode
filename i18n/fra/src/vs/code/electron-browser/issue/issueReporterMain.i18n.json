@@ -8,11 +8,10 @@
 	],
 	"previewOnGitHub": "Prévisualiser sur GitHub",
 	"similarIssues": "Problèmes similaires",
+	"open": "Ouvrir",
 	"noResults": "Résultats introuvables",
-	"rateLimited": "Limite de fréquence d’appel à l'API dépassée",
+	"featureRequest": "Demande de fonctionnalité",
 	"stepsToReproduce": "Étapes à reproduire",
-	"bugDescription": "Comment avez-vous rencontré ce problème ? Quelles étapes devez-vous effectuer pour reproduire efficacement le problème ? Qu'attendiez-vous qu'il se produise et qu'est-il réellement arrivé ?",
-	"performanceIssueDesciption": "Quand ce problème de performance est-il arrivé ? Par exemple, s'est-il produit au démarrage ou après une série d’actions spécifiques ? Tous les détails que vous pouvez fournir peuvent aider notre investigation.",
 	"description": "Description",
 	"disabledExtensions": "Les extensions sont désactivées"
 }

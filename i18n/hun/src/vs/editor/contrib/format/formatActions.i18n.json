@@ -10,7 +10,7 @@
 	"hintn1": "{0} formázást végzett a(z) {1}. sorban",
 	"hint1n": "Egy formázást végzett a(z) {0}. és {1}. sorok között",
 	"hintnn": "{0} formázást végzett a(z) {1}. és {2}. sorok között",
-	"no.provider": "Sajnáljuk, de nincs formázó telepítve a(z) '{0}' típusú fájlokhoz.",
+	"no.provider": "Nincs formázó telepítve a(z) '{0}' típusú fájlokhoz.",
 	"formatDocument.label": "Dokumentum formázása",
 	"formatSelection.label": "Kijelölt tartalom formázása"
 }

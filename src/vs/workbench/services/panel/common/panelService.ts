@@ -37,4 +37,10 @@ export interface IPanelService {
 	 * Returns all enabled panels
 	 */
 	getPanels(): IPanelIdentifier[];
+
+	/**
+	 * Enables or disables a panel. Disabled panels are completly hidden from UI.
+	 * By default all panels are enabled.
+	 */
+	setPanelEnablement(id: string, enabled: boolean): void;
 }

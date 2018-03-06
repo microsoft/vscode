@@ -231,7 +231,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 
 	append(message: string): void {
 		// update end offset always as message is read
-		this.endOffset = this.endOffset + new Buffer(message).byteLength;
+		this.endOffset = this.endOffset + Buffer.from(message).byteLength;
 		if (this.loadingFromFileInProgress) {
 			this.appendedMessage += message;
 		} else {
@@ -258,7 +258,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		this.appendedMessage = '';
 		return this.loadFile()
 			.then(content => {
-				if (this.endOffset !== this.startOffset + new Buffer(content).byteLength) {
+				if (this.endOffset !== this.startOffset + Buffer.from(content).byteLength) {
 					// Queue content is not written into the file
 					// Flush it and load file again
 					this.flush();
@@ -374,7 +374,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 	loadModel(): TPromise<ITextModel> {
 		return this.fileService.resolveContent(this.file, { position: this.startOffset })
 			.then(content => {
-				this.endOffset = this.startOffset + new Buffer(content.value).byteLength;
+				this.endOffset = this.startOffset + Buffer.from(content.value).byteLength;
 				return this.createModel(content.value);
 			});
 	}
@@ -388,7 +388,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 			this.fileService.resolveContent(this.file, { position: this.endOffset })
 				.then(content => {
 					if (content.value) {
-						this.endOffset = this.endOffset + new Buffer(content.value).byteLength;
+						this.endOffset = this.endOffset + Buffer.from(content.value).byteLength;
 						this.appendToModel(content.value);
 					}
 					this.updateInProgress = false;

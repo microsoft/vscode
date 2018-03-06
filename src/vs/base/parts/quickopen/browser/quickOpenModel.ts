@@ -410,8 +410,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		};
 	}
 
-	public renderElement(entry: QuickOpenEntry, templateId: string, templateData: any, styles: IQuickOpenStyles): void {
-		const data: IQuickOpenEntryTemplateData = templateData;
+	public renderElement(entry: QuickOpenEntry, templateId: string, data: IQuickOpenEntryGroupTemplateData, styles: IQuickOpenStyles): void {
 
 		// Action Bar
 		if (this.actionProvider.hasActions(null, entry)) {
@@ -440,7 +439,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		// Entry group
 		if (entry instanceof QuickOpenEntryGroup) {
 			const group = <QuickOpenEntryGroup>entry;
-			const groupData = <IQuickOpenEntryGroupTemplateData>templateData;
+			const groupData = data;
 
 			// Border
 			if (group.showBorder()) {
@@ -481,7 +480,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		}
 	}
 
-	public disposeTemplate(templateId: string, templateData: any): void {
+	public disposeTemplate(templateId: string, templateData: IQuickOpenEntryGroupTemplateData): void {
 		const data = templateData as IQuickOpenEntryGroupTemplateData;
 		data.actionBar.dispose();
 		data.actionBar = null;

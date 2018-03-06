@@ -26,7 +26,7 @@ async function init(context: ExtensionContext, outputChannel: OutputChannel, dis
 	const askpass = new Askpass();
 	const env = await askpass.getEnv();
 	const git = new Git({ gitPath: info.path, version: info.version, env });
-	const model = new Model(git, context.globalState);
+	const model = new Model(git, context.globalState, outputChannel);
 	disposables.push(model);
 
 	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
@@ -36,7 +36,15 @@ async function init(context: ExtensionContext, outputChannel: OutputChannel, dis
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 
-	const onOutput = (str: string) => outputChannel.append(str);
+	const onOutput = (str: string) => {
+		const lines = str.split(/\r?\n/mg);
+
+		while (/^\s*$/.test(lines[lines.length - 1])) {
+			lines.pop();
+		}
+
+		outputChannel.appendLine(lines.join('\n'));
+	};
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 

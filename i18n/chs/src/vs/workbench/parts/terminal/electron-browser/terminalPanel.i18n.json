@@ -9,5 +9,6 @@
 	"copy": "复制",
 	"paste": "粘贴",
 	"selectAll": "全选",
-	"clear": "清除"
+	"clear": "清除",
+	"split": "拆分"
 }

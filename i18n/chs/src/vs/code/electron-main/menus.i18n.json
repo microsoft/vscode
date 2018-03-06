@@ -93,6 +93,7 @@
 	"miOpenView": "打开视图(&&O)...",
 	"miToggleFullScreen": "切换全屏(&&F)",
 	"miToggleZenMode": "切换 Zen 模式",
+	"miToggleCenteredLayout": "切换居中布局",
 	"miToggleMenuBar": "切换菜单栏(&&B)",
 	"miSplitEditor": "拆分编辑器(&&E)",
 	"miToggleEditorLayout": "切换编辑器组布局(&&L)",
@@ -187,8 +188,5 @@
 	"miDownloadingUpdate": "正在下载更新...",
 	"miInstallUpdate": "安装更新...",
 	"miInstallingUpdate": "正在安装更新...",
-	"miRestartToUpdate": "重启以更新...",
-	"aboutDetail": "版本 {0}\n提交 {1}\n日期 {2}\nShell {3}\n渲染器 {4}\nNode {5}\n架构 {6}",
-	"okButton": "确定",
-	"copy": "复制(&&C)"
+	"miRestartToUpdate": "重启以更新..."
 }

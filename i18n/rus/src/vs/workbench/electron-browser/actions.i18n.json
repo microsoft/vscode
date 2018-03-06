@@ -30,7 +30,6 @@
 	"remove": "Удалить из последних открытых",
 	"openRecent": "Открыть последние...",
 	"quickOpenRecent": "Быстро открыть последние...",
-	"closeMessages": "Закрыть уведомления",
 	"reportIssueInEnglish": "Сообщить об ошибке",
 	"reportPerformanceIssue": "Сообщать о проблемах производительности",
 	"keybindingsReference": "Справочник по сочетаниям клавиш",
@@ -49,9 +48,5 @@
 	"moveWindowTabToNewWindow": "Переместить вкладку окна в новое окно",
 	"mergeAllWindowTabs": "Объединить все окна",
 	"toggleWindowTabsBar": "Переключить панель вкладок окна",
-	"configureLocale": "Настроить язык",
-	"displayLanguage": "Определяет язык интерфейса VSCode.",
-	"doc": "Список поддерживаемых языков см. в {0}.",
-	"restart": "Для изменения значения требуется перезапуск VSCode.",
-	"fail.createSettings": "Невозможно создать \"{0}\" ({1})."
+	"about": "О программе {0}"
 }

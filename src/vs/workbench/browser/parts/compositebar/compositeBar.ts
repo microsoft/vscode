@@ -198,6 +198,7 @@ export class CompositeBar implements ICompositeBar {
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),
 			animated: false,
 		});
+		this.toDispose.push(this.compositeSwitcherBar);
 
 		// Contextmenu for composites
 		this.toDispose.push(dom.addDisposableListener(parent, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {

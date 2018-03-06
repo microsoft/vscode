@@ -10,6 +10,5 @@
 	"yes": "是",
 	"no": "否",
 	"betterMergeDisabled": "现已内置 Better Merge 扩展。此扩展已被安装并禁用，且能被卸载。",
-	"uninstall": "卸载",
-	"later": "稍后"
+	"uninstall": "卸载"
 }

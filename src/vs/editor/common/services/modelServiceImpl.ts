@@ -24,11 +24,10 @@ import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { IModelLanguageChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
-import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { overviewRulerWarning, overviewRulerError, overviewRulerInfo } from 'vs/editor/common/view/editorColorRegistry';
-import { ITextModel, IModelDeltaDecoration, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, DefaultEndOfLine, ITextModelCreationOptions, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBufferFactory, ITextBuffer } from 'vs/editor/common/model';
+import { ITextModel, IModelDeltaDecoration, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, DefaultEndOfLine, ITextModelCreationOptions, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBufferFactory, ITextBuffer, EndOfLinePreference } from 'vs/editor/common/model';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -393,94 +392,54 @@ export class ModelServiceImpl implements IModelService {
 		);
 	}
 
+	private static _commonPrefix(a: ILineSequence, aLen: number, aDelta: number, b: ILineSequence, bLen: number, bDelta: number): number {
+		const maxResult = Math.min(aLen, bLen);
+
+		let result = 0;
+		for (let i = 0; i < maxResult && a.getLineContent(aDelta + i) === b.getLineContent(bDelta + i); i++) {
+			result++;
+		}
+		return result;
+	}
+
+	private static _commonSuffix(a: ILineSequence, aLen: number, aDelta: number, b: ILineSequence, bLen: number, bDelta: number): number {
+		const maxResult = Math.min(aLen, bLen);
+
+		let result = 0;
+		for (let i = 0; i < maxResult && a.getLineContent(aDelta + aLen - i) === b.getLineContent(bDelta + bLen - i); i++) {
+			result++;
+		}
+		return result;
+	}
+
 	/**
 	 * Compute edits to bring `model` to the state of `textSource`.
 	 */
 	public static _computeEdits(model: ITextModel, textBuffer: ITextBuffer): IIdentifiedSingleEditOperation[] {
-		const modelLineSequence = new class implements ISequence {
-			public getLength(): number {
-				return model.getLineCount();
-			}
-			public getElementHash(index: number): string {
-				return model.getLineContent(index + 1);
-			}
-		};
-		const textSourceLineSequence = new class implements ISequence {
-			public getLength(): number {
-				return textBuffer.getLineCount();
-			}
-			public getElementHash(index: number): string {
-				return textBuffer.getLineContent(index + 1);
-			}
-		};
-
-		const diffResult = new LcsDiff(modelLineSequence, textSourceLineSequence).ComputeDiff(false);
-
-		let edits: IIdentifiedSingleEditOperation[] = [], editsLen = 0;
 		const modelLineCount = model.getLineCount();
-		for (let i = 0, len = diffResult.length; i < len; i++) {
-			const diff = diffResult[i];
-			const originalStart = diff.originalStart;
-			const originalLength = diff.originalLength;
-			const modifiedStart = diff.modifiedStart;
-			const modifiedLength = diff.modifiedLength;
+		const textBufferLineCount = textBuffer.getLineCount();
+		const commonPrefix = this._commonPrefix(model, modelLineCount, 1, textBuffer, textBufferLineCount, 1);
 
-			let lines: string[] = [];
-			for (let j = 0; j < modifiedLength; j++) {
-				lines[j] = textBuffer.getLineContent(modifiedStart + j + 1);
-			}
-			let text = lines.join('\n');
-
-			let range: Range;
-			if (originalLength === 0) {
-				// insertion
-
-				if (originalStart === modelLineCount) {
-					// insert at the end
-					const maxLineColumn = model.getLineMaxColumn(modelLineCount);
-					range = new Range(
-						modelLineCount, maxLineColumn,
-						modelLineCount, maxLineColumn
-					);
-					text = '\n' + text;
-				} else {
-					// insert
-					range = new Range(
-						originalStart + 1, 1,
-						originalStart + 1, 1
-					);
-					text = text + '\n';
-				}
-
-			} else if (modifiedLength === 0) {
-				// deletion
-
-				if (originalStart + originalLength >= modelLineCount) {
-					// delete at the end
-					range = new Range(
-						originalStart, model.getLineMaxColumn(originalStart),
-						originalStart + originalLength, model.getLineMaxColumn(originalStart + originalLength)
-					);
-				} else {
-					// delete
-					range = new Range(
-						originalStart + 1, 1,
-						originalStart + originalLength + 1, 1
-					);
-				}
-
-			} else {
-				// modification
-				range = new Range(
-					originalStart + 1, 1,
-					originalStart + originalLength, model.getLineMaxColumn(originalStart + originalLength)
-				);
-			}
-
-			edits[editsLen++] = EditOperation.replace(range, text);
+		if (modelLineCount === textBufferLineCount && commonPrefix === modelLineCount) {
+			// equality case
+			return [];
 		}
 
-		return edits;
+		const commonSuffix = this._commonSuffix(model, modelLineCount - commonPrefix, commonPrefix, textBuffer, textBufferLineCount - commonPrefix, commonPrefix);
+
+		let oldRange: Range, newRange: Range;
+		if (commonSuffix > 0) {
+			oldRange = new Range(commonPrefix + 1, 1, modelLineCount - commonSuffix + 1, 1);
+			newRange = new Range(commonPrefix + 1, 1, textBufferLineCount - commonSuffix + 1, 1);
+		} else if (commonPrefix > 0) {
+			oldRange = new Range(commonPrefix, model.getLineMaxColumn(commonPrefix), modelLineCount, model.getLineMaxColumn(modelLineCount));
+			newRange = new Range(commonPrefix, 1 + textBuffer.getLineLength(commonPrefix), textBufferLineCount, 1 + textBuffer.getLineLength(textBufferLineCount));
+		} else {
+			oldRange = new Range(1, 1, modelLineCount, model.getLineMaxColumn(modelLineCount));
+			newRange = new Range(1, 1, textBufferLineCount, 1 + textBuffer.getLineLength(textBufferLineCount));
+		}
+
+		return [EditOperation.replace(oldRange, textBuffer.getValueInRange(newRange, EndOfLinePreference.TextDefined))];
 	}
 
 	public createModel(value: string | ITextBufferFactory, modeOrPromise: TPromise<IMode> | IMode, resource: URI): ITextModel {
@@ -581,4 +540,8 @@ export class ModelServiceImpl implements IModelService {
 		ModelServiceImpl._setModelOptionsForModel(model, newOptions, oldOptions);
 		this._onModelModeChanged.fire({ model, oldModeId });
 	}
+}
+
+export interface ILineSequence {
+	getLineContent(lineNumber: number): string;
 }

@@ -62,8 +62,7 @@ export class KillTerminalAction extends Action {
 		id: string, label: string,
 		@ITerminalService private terminalService: ITerminalService
 	) {
-		super(id, label);
-		this.class = 'terminal-action kill';
+		super(id, label, 'terminal-action kill');
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -89,8 +88,7 @@ export class QuickKillTerminalAction extends Action {
 		@ITerminalService private terminalService: ITerminalService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
-		super(id, label);
-		this.class = 'terminal-action kill';
+		super(id, label, 'terminal-action kill');
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -239,12 +237,18 @@ export class CreateNewTerminalAction extends Action {
 		@ICommandService private commandService: ICommandService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
-		super(id, label);
-		this.class = 'terminal-action new';
+		super(id, label, 'terminal-action new');
 	}
 
 	public run(event?: any): TPromise<any> {
 		const folders = this.workspaceContextService.getWorkspace().folders;
+		if (event instanceof MouseEvent && (event.altKey || event.ctrlKey)) {
+			const activeInstance = this.terminalService.getActiveInstance();
+			if (activeInstance) {
+				this.terminalService.splitInstance(activeInstance);
+				return TPromise.as(null);
+			}
+		}
 
 		let instancePromise: TPromise<ITerminalInstance>;
 		if (folders.length <= 1) {
@@ -304,7 +308,7 @@ export class SplitTerminalAction extends Action {
 		id: string, label: string,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
-		super(id, label);
+		super(id, label, 'terminal-action split');
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -598,8 +602,7 @@ export class SwitchTerminalAction extends Action {
 		id: string, label: string,
 		@ITerminalService private terminalService: ITerminalService
 	) {
-		super(SwitchTerminalAction.ID, SwitchTerminalAction.LABEL);
-		this.class = 'terminal-action switch-terminal';
+		super(SwitchTerminalAction.ID, SwitchTerminalAction.LABEL, 'terminal-action switch-terminal');
 	}
 
 	public run(item?: string): TPromise<any> {

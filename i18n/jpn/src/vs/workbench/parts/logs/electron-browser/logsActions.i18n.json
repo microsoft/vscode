@@ -15,7 +15,7 @@
 	"mainProcess": "メイン",
 	"selectProcess": "プロセスのログを選択",
 	"openLogFile": "ログ ファイルを開く...",
-	"setLogLevel": "ログ レベルの設定",
+	"setLogLevel": "ログ レベルの設定...",
 	"trace": "トレース",
 	"debug": "デバッグ",
 	"info": "情報",

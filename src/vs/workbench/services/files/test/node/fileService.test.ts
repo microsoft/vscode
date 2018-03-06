@@ -936,7 +936,7 @@ suite('FileService', () => {
 		const resource = uri.file(path.join(testDir, 'some_utf8_bom.txt'));
 
 		service.resolveContent(resource).done(c => {
-			assert.equal(encodingLib.detectEncodingByBOMFromBuffer(new Buffer(c.value), 512), null);
+			assert.equal(encodingLib.detectEncodingByBOMFromBuffer(Buffer.from(c.value), 512), null);
 
 			done();
 		}, error => onError(error, done));
@@ -1097,7 +1097,7 @@ suite('FileService', () => {
 	test('resolveContent - from position (with umlaut)', function (done: () => void) {
 		const resource = uri.file(path.join(testDir, 'small_umlaut.txt'));
 
-		service.resolveContent(resource, { position: new Buffer('Small File with Ü').length }).done(content => {
+		service.resolveContent(resource, { position: Buffer.from('Small File with Ü').length }).done(content => {
 			assert.equal(content.value, 'mlaut');
 			done();
 		}, error => onError(error, done));

@@ -1,8 +1,9 @@
 {
   "name": "jake",
   "publisher": "vscode",
-  "description": "Extension to add Jake capabilities to VSCode.",
-  "displayName": "Jake support for VSCode",
+  "description": "%description%",
+  "displayName": "%displayName%",
+  "icon": "images/cowboy_hat.png",
   "version": "0.0.1",
   "engines": {
     "vscode": "*"
@@ -49,11 +50,11 @@
         "properties": {
           "task": {
             "type": "string",
-            "description": "The Jake task to customize"
+            "description": "%jake.taskDefinition.type.description%"
           },
           "file": {
             "type": "string",
-            "description": "The Jake file that provides the task. Can be omitted."
+            "description": "%jake.taskDefinition.file.description%"
           }
         }
       }

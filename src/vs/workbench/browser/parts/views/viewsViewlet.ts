@@ -12,7 +12,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { firstIndex } from 'vs/base/common/arrays';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ViewsRegistry, ViewLocation, IViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
@@ -260,14 +260,19 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 			.then(() => void 0);
 	}
 
-	openView(id: string): void {
-		this.focus();
+	openView(id: string, focus?: boolean): TPromise<void> {
+		if (focus) {
+			this.focus();
+		}
 		const view = this.getView(id);
 		if (view) {
 			view.setExpanded(true);
-			view.focus();
+			if (focus) {
+				view.focus();
+			}
+			return TPromise.as(null);
 		} else {
-			this.toggleViewVisibility(id);
+			return this.toggleViewVisibility(id, focus);
 		}
 	}
 
@@ -294,19 +299,19 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		super.shutdown();
 	}
 
-	toggleViewVisibility(id: string): void {
+	toggleViewVisibility(id: string, focus?: boolean): TPromise<void> {
 		let viewState = this.viewsStates.get(id);
 		if (!viewState) {
-			return;
+			return TPromise.as(null);
 		}
 
 		viewState.isHidden = !!this.getView(id);
-		this.updateViews()
+		return this.updateViews()
 			.then(() => {
 				this._onDidChangeViewVisibilityState.fire(id);
 				if (!viewState.isHidden) {
-					this.openView(id);
-				} else {
+					this.openView(id, focus);
+				} else if (focus) {
 					this.focus();
 				}
 			});

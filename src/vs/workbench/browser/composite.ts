@@ -14,6 +14,8 @@ import { IEditorControl } from 'vs/platform/editor/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import DOM = require('vs/base/browser/dom');
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
@@ -27,6 +29,10 @@ import { IConstructorSignature0, IInstantiationService } from 'vs/platform/insta
  */
 export abstract class Composite extends Component implements IComposite {
 	private _onTitleAreaUpdate: Emitter<void>;
+	private _onDidFocus: Emitter<void>;
+
+	private _focusTracker?: DOM.IFocusTracker;
+	private _focusListenerDisposable?: IDisposable;
 
 	private visible: boolean;
 	private parent: Builder;
@@ -45,6 +51,7 @@ export abstract class Composite extends Component implements IComposite {
 
 		this.visible = false;
 		this._onTitleAreaUpdate = new Emitter<void>();
+		this._onDidFocus = new Emitter<void>();
 	}
 
 	public getTitle(): string {
@@ -85,8 +92,12 @@ export abstract class Composite extends Component implements IComposite {
 		return this.parent;
 	}
 
-	public getFocusContainer(): Builder {
-		return this.getContainer();
+	public get onDidFocus(): Event<any> {
+		this._focusTracker = DOM.trackFocus(this.getContainer().getHTMLElement());
+		this._focusListenerDisposable = this._focusTracker.onDidFocus(() => {
+			this._onDidFocus.fire();
+		});
+		return this._onDidFocus.event;
 	}
 
 	/**
@@ -189,6 +200,15 @@ export abstract class Composite extends Component implements IComposite {
 
 	public dispose(): void {
 		this._onTitleAreaUpdate.dispose();
+		this._onDidFocus.dispose();
+
+		if (this._focusTracker) {
+			this._focusTracker.dispose();
+		}
+
+		if (this._focusListenerDisposable) {
+			this._focusListenerDisposable.dispose();
+		}
 
 		super.dispose();
 	}
@@ -203,6 +223,7 @@ export abstract class CompositeDescriptor<T extends Composite> {
 	public cssClass: string;
 	public order: number;
 	public keybindingId: string;
+	public enabled: boolean;
 
 	private ctor: IConstructorSignature0<T>;
 
@@ -212,6 +233,7 @@ export abstract class CompositeDescriptor<T extends Composite> {
 		this.name = name;
 		this.cssClass = cssClass;
 		this.order = order;
+		this.enabled = true;
 		this.keybindingId = keybindingId;
 	}
 

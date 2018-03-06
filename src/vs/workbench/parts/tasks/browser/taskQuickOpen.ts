@@ -12,7 +12,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 import { CustomTask, ContributedTask } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 import * as base from './quickOpen';
 

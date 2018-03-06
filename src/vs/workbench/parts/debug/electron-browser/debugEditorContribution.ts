@@ -469,7 +469,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private static BREAKPOINT_HELPER_DECORATION: IModelDecorationOptions = {
-		glyphMarginClassName: 'debug-breakpoint-hint-glyph',
+		glyphMarginClassName: 'debug-breakpoint-hint',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 

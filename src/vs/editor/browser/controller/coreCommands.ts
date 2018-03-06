@@ -1699,44 +1699,6 @@ class EditorOrNativeTextInputCommand extends Command {
 	}
 }
 
-registerCommand(new EditorOrNativeTextInputCommand({
-	editorHandler: CoreNavigationCommands.SelectAll,
-	inputHandler: 'selectAll',
-	id: 'editor.action.selectAll',
-	precondition: null,
-	kbOpts: {
-		weight: CORE_WEIGHT,
-		kbExpr: null,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_A
-	}
-}));
-
-registerCommand(new EditorOrNativeTextInputCommand({
-	editorHandler: H.Undo,
-	inputHandler: 'undo',
-	id: H.Undo,
-	precondition: EditorContextKeys.writable,
-	kbOpts: {
-		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.textFocus,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
-	}
-}));
-
-registerCommand(new EditorOrNativeTextInputCommand({
-	editorHandler: H.Redo,
-	inputHandler: 'redo',
-	id: H.Redo,
-	precondition: EditorContextKeys.writable,
-	kbOpts: {
-		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.textFocus,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
-		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
-	}
-}));
-
 /**
  * A command that will invoke a command on the focused editor.
  */
@@ -1761,6 +1723,46 @@ class EditorHandlerCommand extends Command {
 		editor.trigger('keyboard', this._handlerId, args);
 	}
 }
+
+registerCommand(new EditorOrNativeTextInputCommand({
+	editorHandler: CoreNavigationCommands.SelectAll,
+	inputHandler: 'selectAll',
+	id: 'editor.action.selectAll',
+	precondition: null,
+	kbOpts: {
+		weight: CORE_WEIGHT,
+		kbExpr: null,
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_A
+	}
+}));
+
+registerCommand(new EditorOrNativeTextInputCommand({
+	editorHandler: H.Undo,
+	inputHandler: 'undo',
+	id: H.Undo,
+	precondition: EditorContextKeys.writable,
+	kbOpts: {
+		weight: CORE_WEIGHT,
+		kbExpr: EditorContextKeys.textFocus,
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
+	}
+}));
+registerCommand(new EditorHandlerCommand('default:' + H.Undo, H.Undo));
+
+registerCommand(new EditorOrNativeTextInputCommand({
+	editorHandler: H.Redo,
+	inputHandler: 'redo',
+	id: H.Redo,
+	precondition: EditorContextKeys.writable,
+	kbOpts: {
+		weight: CORE_WEIGHT,
+		kbExpr: EditorContextKeys.textFocus,
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
+		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
+	}
+}));
+registerCommand(new EditorHandlerCommand('default:' + H.Redo, H.Redo));
 
 function registerOverwritableCommand(handlerId: string): void {
 	registerCommand(new EditorHandlerCommand('default:' + handlerId, handlerId));

@@ -5,7 +5,6 @@
 
 'use strict';
 
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import Event, { Emitter, once } from 'vs/base/common/event';
@@ -184,7 +183,7 @@ export class NotificationsModel implements INotificationsModel {
 
 export interface INotificationViewItem {
 	readonly severity: Severity;
-	readonly message: IMarkdownString;
+	readonly message: INotificationMessage;
 	readonly source: string;
 	readonly actions: INotificationActions;
 	readonly progress: INotificationViewItemProgress;
@@ -320,9 +319,26 @@ export class NotificationViewItemProgress implements INotificationViewItemProgre
 	}
 }
 
+export interface IMessageLink {
+	name: string;
+	href: string;
+	offset: number;
+	length: number;
+}
+
+export interface INotificationMessage {
+	raw: string;
+	value: string;
+	links: IMessageLink[];
+}
+
 export class NotificationViewItem implements INotificationViewItem {
 
 	private static MAX_MESSAGE_LENGTH = 1000;
+
+	// Example link: "Some message with [link text](http://link.href)."
+	// RegEx: [, anything not ], ], (, http:|https:, //, no whitespace)
+	private static LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/[^\)\s]+)\)/gi;
 
 	private _expanded: boolean;
 	private toDispose: IDisposable[];
@@ -346,13 +362,9 @@ export class NotificationViewItem implements INotificationViewItem {
 			severity = Severity.Info;
 		}
 
-		const message = NotificationViewItem.toMarkdownString(notification.message);
+		const message = NotificationViewItem.parseNotificationMessage(notification.message);
 		if (!message) {
 			return null; // we need a message to show
-		}
-
-		if (message.value.length > NotificationViewItem.MAX_MESSAGE_LENGTH) {
-			message.value = `${message.value.substr(0, NotificationViewItem.MAX_MESSAGE_LENGTH)}...`;
 		}
 
 		let actions: INotificationActions;
@@ -365,21 +377,42 @@ export class NotificationViewItem implements INotificationViewItem {
 		return new NotificationViewItem(severity, message, notification.source, actions);
 	}
 
-	private static toMarkdownString(input: NotificationMessage): IMarkdownString {
-		let message: IMarkdownString;
+	private static parseNotificationMessage(input: NotificationMessage): INotificationMessage {
+		let message: string;
 
 		if (input instanceof Error) {
-			message = { value: toErrorMessage(input, false), isTrusted: false };
+			message = toErrorMessage(input, false);
 		} else if (typeof input === 'string') {
-			message = { value: input, isTrusted: false };
-		} else if (input.value && typeof input.value === 'string') {
 			message = input;
 		}
 
-		return message;
+		if (!message) {
+			return null; // we need a message to show
+		}
+
+		const raw = message;
+
+		// Make sure message is in the limits
+		if (message.length > NotificationViewItem.MAX_MESSAGE_LENGTH) {
+			message = `${message.substr(0, NotificationViewItem.MAX_MESSAGE_LENGTH)}...`;
+		}
+
+		// Remove newlines from messages as we do not support that and it makes link parsing hard
+		message = message.replace(/(\r\n|\n|\r)/gm, ' ').trim();
+
+		// Parse Links
+		const links: IMessageLink[] = [];
+		message.replace(NotificationViewItem.LINK_REGEX, (matchString: string, name: string, href: string, offset: number) => {
+			links.push({ name, href, offset, length: matchString.length });
+
+			return matchString;
+		});
+
+
+		return { raw, value: message, links };
 	}
 
-	private constructor(private _severity: Severity, private _message: IMarkdownString, private _source: string, actions?: INotificationActions) {
+	private constructor(private _severity: Severity, private _message: INotificationMessage, private _source: string, actions?: INotificationActions) {
 		this.toDispose = [];
 
 		this.setActions(actions);
@@ -452,7 +485,7 @@ export class NotificationViewItem implements INotificationViewItem {
 		return this._progress;
 	}
 
-	public get message(): IMarkdownString {
+	public get message(): INotificationMessage {
 		return this._message;
 	}
 
@@ -470,7 +503,7 @@ export class NotificationViewItem implements INotificationViewItem {
 	}
 
 	public updateMessage(input: NotificationMessage): void {
-		const message = NotificationViewItem.toMarkdownString(input);
+		const message = NotificationViewItem.parseNotificationMessage(input);
 		if (!message) {
 			return;
 		}

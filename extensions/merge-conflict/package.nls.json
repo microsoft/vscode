@@ -1,4 +1,6 @@
 {
+	"displayName": "Merge Conflict",
+	"description": "Coloring and commands for inline merge conflicts.",
 	"command.category": "Merge Conflict",
 	"command.accept.all-current": "Accept All Current",
 	"command.accept.all-incoming": "Accept All Incoming",

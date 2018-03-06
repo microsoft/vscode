@@ -9,5 +9,6 @@
 	"copy": "Másolás",
 	"paste": "Beillesztés",
 	"selectAll": "Összes kijelölése",
-	"clear": "Törlés"
+	"clear": "Törlés",
+	"split": "Kettéosztás"
 }

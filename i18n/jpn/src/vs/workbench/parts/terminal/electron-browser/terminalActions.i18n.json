@@ -26,7 +26,6 @@
 	"workbench.action.terminal.runSelectedText": "アクティブなターミナルで選択したテキストを実行",
 	"workbench.action.terminal.runActiveFile": "アクティブなファイルをアクティブなターミナルで実行",
 	"workbench.action.terminal.runActiveFile.noFile": "ターミナルで実行できるのは、ディスク上のファイルのみです",
-	"workbench.action.terminal.switchTerminalInstance": "ターミナル インスタンスの切り替え",
 	"workbench.action.terminal.scrollDown": "下にスクロール (行)",
 	"workbench.action.terminal.scrollDownPage": "スクロール ダウン (ページ)",
 	"workbench.action.terminal.scrollToBottom": "一番下にスクロール",

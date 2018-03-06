@@ -11,7 +11,6 @@
 	"showCommands.label": "コマンド パレット...",
 	"entryAriaLabelWithKey": "{0}、{1}、コマンド",
 	"entryAriaLabel": "{0}、コマンド",
-	"canNotRun": "コマンド '{0}' はここからは実行できません。",
 	"actionNotEnabled": "コマンド '{0}' は現在のコンテキストでは無効です。",
 	"recentlyUsed": "最近使用したもの",
 	"morecCommands": "その他のコマンド",

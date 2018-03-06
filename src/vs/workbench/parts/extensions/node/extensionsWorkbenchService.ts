@@ -218,6 +218,14 @@ class Extension implements IExtension {
 			return readFile(uri.fsPath, 'utf8');
 		}
 
+		if (this.type === LocalExtensionType.System) {
+			return TPromise.as(`# ${this.displayName || this.name}
+**Notice** This is a an extension that is bundled with Visual Studio Code.
+
+${this.description}
+`);
+		}
+
 		return TPromise.wrapError<string>(new Error('not available'));
 	}
 
@@ -957,15 +965,14 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 					return this.open(extension).then(() => {
 						const message = nls.localize('installConfirmation', "Would you like to install the '{0}' extension?", extension.displayName, extension.publisher);
 						const options = [
-							nls.localize('install', "Install"),
-							nls.localize('cancel', "Cancel")
+							nls.localize('install', "Install")
 						];
 						return this.choiceService.choose(Severity.Info, message, options).then(value => {
-							if (value !== 0) {
-								return TPromise.as(null);
+							if (value === 0) {
+								return this.install(extension);
 							}
 
-							return this.install(extension);
+							return TPromise.as(null);
 						});
 					});
 				});

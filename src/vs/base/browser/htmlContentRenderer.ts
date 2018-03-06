@@ -9,9 +9,8 @@ import * as DOM from 'vs/base/browser/dom';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { escape } from 'vs/base/common/strings';
 import { removeMarkdownEscapes, IMarkdownString } from 'vs/base/common/htmlContent';
-import { marked, MarkedRenderer, MarkedOptions } from 'vs/base/common/marked/marked';
+import { marked, MarkedOptions } from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { assign } from 'vs/base/common/objects';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IContentActionHandler {
@@ -25,7 +24,6 @@ export interface RenderOptions {
 	actionHandler?: IContentActionHandler;
 	codeBlockRenderer?: (modeId: string, value: string) => Thenable<string>;
 	codeBlockRenderCallback?: () => void;
-	joinRendererConfiguration?: (renderer: MarkedRenderer) => MarkedOptions;
 }
 
 function createElement(options: RenderOptions): HTMLElement {
@@ -165,13 +163,6 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 		sanitize: true,
 		renderer
 	};
-
-	if (options.joinRendererConfiguration) {
-		const additionalMarkedOptions = options.joinRendererConfiguration(renderer);
-		if (additionalMarkedOptions) {
-			assign(markedOptions, additionalMarkedOptions);
-		}
-	}
 
 	element.innerHTML = marked(markdown.value, markedOptions);
 	signalInnerHTML();

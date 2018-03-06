@@ -44,9 +44,9 @@
     "v8-inspect-profiler": "^0.0.7",
     "vscode-chokidar": "1.6.2",
     "vscode-debugprotocol": "1.26.0",
-    "vscode-ripgrep": "^0.7.1-patch.1.5",
+    "vscode-ripgrep": "0.7.1-patch.0.1",
     "vscode-textmate": "^3.2.0",
-    "vscode-xterm": "3.2.0-beta4",
+    "vscode-xterm": "3.2.0-beta7",
     "yauzl": "2.8.0"
   },
   "devDependencies": {
@@ -110,7 +110,7 @@
     "rimraf": "^2.2.8",
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
-    "tslint": "^5.8.0",
+    "tslint": "^5.9.1",
     "typescript": "2.6.1",
     "typescript-formatter": "4.0.1",
     "uglify-es": "^3.0.18",

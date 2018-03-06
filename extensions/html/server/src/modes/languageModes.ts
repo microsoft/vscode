@@ -20,6 +20,8 @@ import { getHTMLMode } from './htmlMode';
 
 export { ColorInformation, ColorPresentation, Color };
 
+import { FoldingRangeList } from '../protocol/foldingProvider.proposed';
+
 export interface Settings {
 	css?: any;
 	html?: any;
@@ -49,6 +51,7 @@ export interface LanguageMode {
 	findDocumentColors?: (document: TextDocument) => ColorInformation[];
 	getColorPresentations?: (document: TextDocument, color: Color, range: Range) => ColorPresentation[];
 	doAutoClose?: (document: TextDocument, position: Position) => string | null;
+	getFoldingRanges?: (document: TextDocument) => FoldingRangeList | null;
 	onDocumentRemoved(document: TextDocument): void;
 	dispose(): void;
 }

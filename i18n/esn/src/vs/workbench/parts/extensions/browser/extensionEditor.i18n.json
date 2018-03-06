@@ -9,6 +9,7 @@
 	"name": "Nombre de la extensión",
 	"extension id": "Identificador de la extensión",
 	"preview": "Vista Previa",
+	"builtin": "Integrada",
 	"publisher": "Nombre del editor",
 	"install count": "Número de instalaciones",
 	"rating": "Clasificación",

@@ -10,7 +10,7 @@ import { Action } from 'vs/base/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { INavigator } from 'vs/base/common/iterator';
-import { SearchView } from 'vs/workbench/parts/search/browser/searchViewlet';
+import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 import { Match, FileMatch, FileMatchOrMatch, FolderMatch, RenderableMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
@@ -23,7 +23,7 @@ import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/commo
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { VIEW_ID } from 'vs/platform/search/common/search';
 
-export function isSearchViewletFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
+export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	let searchView = getSearchView(viewletService, panelService);
 	let activeElement = document.activeElement;
 	return searchView && activeElement && DOM.isAncestor(activeElement, searchView.getContainer().getHTMLElement());
@@ -83,7 +83,7 @@ export class ShowNextSearchIncludeAction extends Action {
 
 	public static readonly ID = 'search.history.showNextIncludePattern';
 	public static readonly LABEL = nls.localize('nextSearchIncludePattern', "Show Next Search Include Pattern");
-	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.PatternIncludesFocusedKey);
+	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.PatternIncludesFocusedKey);
 
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,
@@ -105,7 +105,7 @@ export class ShowPreviousSearchIncludeAction extends Action {
 
 	public static readonly ID = 'search.history.showPreviousIncludePattern';
 	public static readonly LABEL = nls.localize('previousSearchIncludePattern', "Show Previous Search Include Pattern");
-	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.PatternIncludesFocusedKey);
+	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.PatternIncludesFocusedKey);
 
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,
@@ -127,7 +127,7 @@ export class ShowNextSearchExcludeAction extends Action {
 
 	public static readonly ID = 'search.history.showNextExcludePattern';
 	public static readonly LABEL = nls.localize('nextSearchExcludePattern', "Show Next Search Exclude Pattern");
-	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.PatternExcludesFocusedKey);
+	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.PatternExcludesFocusedKey);
 
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,
@@ -149,7 +149,7 @@ export class ShowPreviousSearchExcludeAction extends Action {
 
 	public static readonly ID = 'search.history.showPreviousExcludePattern';
 	public static readonly LABEL = nls.localize('previousSearchExcludePattern', "Show Previous Search Exclude Pattern");
-	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.PatternExcludesFocusedKey);
+	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.PatternExcludesFocusedKey);
 
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,
@@ -171,7 +171,7 @@ export class ShowNextSearchTermAction extends Action {
 
 	public static readonly ID = 'search.history.showNext';
 	public static readonly LABEL = nls.localize('nextSearchTerm', "Show Next Search Term");
-	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocusedKey);
+	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.SearchInputBoxFocusedKey);
 
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,
@@ -193,7 +193,7 @@ export class ShowPreviousSearchTermAction extends Action {
 
 	public static readonly ID = 'search.history.showPrevious';
 	public static readonly LABEL = nls.localize('previousSearchTerm', "Show Previous Search Term");
-	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocusedKey);
+	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.SearchInputBoxFocusedKey);
 
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,

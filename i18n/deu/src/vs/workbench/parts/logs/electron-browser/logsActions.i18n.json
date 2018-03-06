@@ -15,7 +15,6 @@
 	"mainProcess": "Haupt",
 	"selectProcess": "Protokoll für Prozess auswählen",
 	"openLogFile": "Protokolldatei öffnen …",
-	"setLogLevel": "Protokollstufe festlegen",
 	"trace": "Nachverfolgen",
 	"debug": "Debuggen",
 	"info": "Info",

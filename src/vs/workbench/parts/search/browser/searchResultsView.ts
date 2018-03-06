@@ -16,7 +16,7 @@ import { ITree, IDataSource, ISorter, IAccessibilityProvider, IFilter, IRenderer
 import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel, FolderMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Range } from 'vs/editor/common/core/range';
-import { SearchView } from 'vs/workbench/parts/search/browser/searchViewlet';
+import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 import { RemoveAction, ReplaceAllAction, ReplaceAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
@@ -303,10 +303,16 @@ export class SearchRenderer extends Disposable implements IRenderer {
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
 		if (SearchRenderer.FOLDER_MATCH_TEMPLATE_ID === templateId) {
-			(<IFolderMatchTemplate>templateData).label.dispose();
-		}
-		if (SearchRenderer.FILE_MATCH_TEMPLATE_ID === templateId) {
-			(<IFileMatchTemplate>templateData).label.dispose();
+			const template = <IFolderMatchTemplate>templateData;
+			template.label.dispose();
+			template.actions.dispose();
+		} else if (SearchRenderer.FILE_MATCH_TEMPLATE_ID === templateId) {
+			const template = <IFileMatchTemplate>templateData;
+			template.label.dispose();
+			template.actions.dispose();
+		} else if (SearchRenderer.MATCH_TEMPLATE_ID === templateId) {
+			const template = <IMatchTemplate>templateData;
+			template.actions.dispose();
 		}
 	}
 }

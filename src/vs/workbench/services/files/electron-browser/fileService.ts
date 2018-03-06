@@ -21,7 +21,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import Event, { Emitter } from 'vs/base/common/event';
 import { shell } from 'electron';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
 import { Schemas } from 'vs/base/common/network';
 import { Severity } from 'vs/platform/notification/common/notification';
@@ -122,7 +122,7 @@ export class FileService implements IFileService {
 			});
 		}
 
-		// Detect if we run into ENOSPC issues (TODO@ben remove with new watcher impl)
+		// Detect if we run into ENOSPC issues
 		if (msg.indexOf(FileService.ENOSPC_ERROR) >= 0 && !this.storageService.getBoolean(FileService.ENOSPC_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
 			const choices: Choice[] = [nls.localize('learnMore', "Instructions"), { label: nls.localize('neverShowAgain', "Don't Show Again") }];
 			this.choiceService.choose(Severity.Warning, nls.localize('enospcError', "{0} is running out of file handles. Please follow the instructions link to resolve this issue.", product.nameLong), choices).then(choice => {
@@ -238,7 +238,7 @@ export class FileService implements IFileService {
 		const absolutePath = resource.fsPath;
 		const result = shell.moveItemToTrash(absolutePath);
 		if (!result) {
-			return TPromise.wrapError<void>(new Error(nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
+			return TPromise.wrapError<void>(new Error(isWindows ? nls.localize('binFailed', "Failed to move '{0}' to the recycle bin", paths.basename(absolutePath)) : nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
 		}
 
 		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));

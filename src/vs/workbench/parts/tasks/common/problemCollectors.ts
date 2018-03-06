@@ -11,7 +11,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
-import { ILineMatcher, createLineMatcher, ProblemMatcher, ProblemMatch, ApplyToKind, WatchingPattern, getResource } from 'vs/platform/markers/common/problemMatcher';
+import { ILineMatcher, createLineMatcher, ProblemMatcher, ProblemMatch, ApplyToKind, WatchingPattern, getResource } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
 
 export enum ProblemCollectorEventKind {

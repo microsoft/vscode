@@ -20,7 +20,6 @@
 	"showSameKeybindings": "Afficher les mêmes raccourcis clavier",
 	"copyLabel": "Copier",
 	"copyCommandLabel": "Copier la Commande",
-	"error": "Erreur '{0}' durant la modification de la combinaison de touches. Ouvrez le fichier 'keybindings.json', puis effectuez la vérification.",
 	"command": "Commande",
 	"keybinding": "Combinaison de touches",
 	"source": "Source",

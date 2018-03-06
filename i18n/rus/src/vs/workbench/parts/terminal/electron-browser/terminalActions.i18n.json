@@ -26,7 +26,6 @@
 	"workbench.action.terminal.runSelectedText": "Запуск выбранного текста в активном терминале",
 	"workbench.action.terminal.runActiveFile": "Запуск активного файла в активном терминале",
 	"workbench.action.terminal.runActiveFile.noFile": "Только файлы на диске можно запустить в терминале",
-	"workbench.action.terminal.switchTerminalInstance": "Переключить экземпляр терминала",
 	"workbench.action.terminal.scrollDown": "Прокрутить вниз (построчно)",
 	"workbench.action.terminal.scrollDownPage": "Прокрутить вниз (на страницу)",
 	"workbench.action.terminal.scrollToBottom": "Прокрутить до нижней границы",

@@ -176,11 +176,7 @@ export class ContextKeyChangeEvent implements IContextKeyChangeEvent {
 	private _keys: string[] = [];
 
 	collect(oneOrManyKeys: string | string[]): void {
-		if (Array.isArray(oneOrManyKeys)) {
-			this._keys = this._keys.concat(oneOrManyKeys);
-		} else {
-			this._keys.push(oneOrManyKeys);
-		}
+		this._keys = this._keys.concat(oneOrManyKeys);
 	}
 
 	affectsSome(keys: Set<string>): boolean {

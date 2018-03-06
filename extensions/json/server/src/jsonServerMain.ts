@@ -7,7 +7,7 @@
 import {
 	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentIdentifier
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities
 } from 'vscode-languageserver';
 
 import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
@@ -21,6 +21,8 @@ import { formatError, runSafe, runSafeAsync } from './utils/errors';
 import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { createScanner, SyntaxKind } from 'jsonc-parser';
+
+import { FoldingRangeType, FoldingRangesRequest, FoldingRange, FoldingRangeList, FoldingProviderServerCapabilities } from './protocol/foldingProvider.proposed';
 
 interface ISchemaAssociations {
 	[pattern: string]: string[];
@@ -36,57 +38,6 @@ namespace VSCodeContentRequest {
 
 namespace SchemaContentChangeNotification {
 	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
-}
-
-interface FoldingRangeList {
-	/**
-	 * The folding ranges.
-	 */
-	ranges: FoldingRange[];
-}
-
-export enum FoldingRangeType {
-	/**
-	 * Folding range for a comment
-	 */
-	Comment = 'comment',
-	/**
-	 * Folding range for a imports or includes
-	 */
-	Imports = 'imports',
-	/**
-	 * Folding range for a region (e.g. `#region`)
-	 */
-	Region = 'region'
-}
-
-interface FoldingRange {
-
-	/**
-	 * The start line number
-	 */
-	startLine: number;
-
-	/**
-	 * The end line number
-	 */
-	endLine: number;
-
-	/**
-	 * The actual color value for this color range.
-	 */
-	type?: FoldingRangeType | string;
-}
-
-interface FoldingRangeRequest {
-	/**
-	 * The text document.
-	 */
-	textDocument: TextDocumentIdentifier;
-}
-
-namespace FoldingRangesRequest {
-	export const type: RequestType<FoldingRangeRequest, FoldingRangeList | null, any, any> = new RequestType('textDocument/foldingRanges');
 }
 
 // Create a connection for the server
@@ -123,14 +74,15 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 
 	clientSnippetSupport = hasClientCapability('textDocument', 'completion', 'completionItem', 'snippetSupport');
 	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
-	let capabilities: ServerCapabilities & CPServerCapabilities = {
+	let capabilities: ServerCapabilities & CPServerCapabilities & FoldingProviderServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
 		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : void 0,
 		hoverProvider: true,
 		documentSymbolProvider: true,
 		documentRangeFormattingProvider: false,
-		colorProvider: true
+		colorProvider: true,
+		foldingProvider: true
 	};
 
 	return { capabilities };
@@ -418,8 +370,8 @@ connection.onRequest(FoldingRangesRequest.type, params => {
 						let startLine = document.positionAt(scanner.getTokenOffset()).line;
 						let range = { startLine, endLine: startLine, type: token === SyntaxKind.OpenBraceToken ? 'object' : 'array' };
 						stack.push(range);
-					}
 						break;
+					}
 					case SyntaxKind.CloseBraceToken:
 					case SyntaxKind.CloseBracketToken: {
 						let type = token === SyntaxKind.CloseBraceToken ? 'object' : 'array';
@@ -432,8 +384,9 @@ connection.onRequest(FoldingRangesRequest.type, params => {
 								prevStart = range.startLine;
 							}
 						}
-					}
 						break;
+					}
+
 					case SyntaxKind.BlockCommentTrivia: {
 						let startLine = document.positionAt(scanner.getTokenOffset()).line;
 						let endLine = document.positionAt(scanner.getTokenOffset() + scanner.getTokenLength()).line;
@@ -441,8 +394,9 @@ connection.onRequest(FoldingRangesRequest.type, params => {
 							ranges.push({ startLine, endLine, type: FoldingRangeType.Comment });
 							prevStart = startLine;
 						}
-					}
 						break;
+					}
+
 					case SyntaxKind.LineCommentTrivia: {
 						let text = document.getText().substr(scanner.getTokenOffset(), scanner.getTokenLength());
 						let m = text.match(/^\/\/\s*#(region\b)|(endregion\b)/);
@@ -467,8 +421,9 @@ connection.onRequest(FoldingRangesRequest.type, params => {
 								}
 							}
 						}
-					}
 						break;
+					}
+
 				}
 				token = scanner.scan();
 			}

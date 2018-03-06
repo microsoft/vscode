@@ -8,6 +8,5 @@
 	],
 	"no result": "Nessun risultato.",
 	"aria": "Correttamente rinominato '{0}' in '{1}'. Sommario: {2}",
-	"rename.failed": "L'esecuzione dell'operazione di ridenominazione non è riuscita.",
 	"rename.label": "Rinomina simbolo"
 }
