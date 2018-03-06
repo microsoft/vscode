@@ -48,7 +48,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule(showPreviousFindTermCommand
 
 
 const hideCommand = new HideWebViewEditorFindCommand({
-	id: 'editor.action.webvieweditor.hideFind',
+	id: HideWebViewEditorFindCommand.Id,
 	precondition: ContextKeyExpr.and(
 		KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS,
 		KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE),
