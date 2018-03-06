@@ -456,7 +456,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 		return ExtensionService._scanInstalledExtensions(this._windowService, this._choiceService, this._environmentService, log)
 			.then(({ system, user, development }) => {
-				this._extensionEnablementService.migrateToIdentifiers(user); // TODO: @sandy Remove it after couple of milestones
 				return this._extensionEnablementService.getDisabledExtensions()
 					.then(disabledExtensions => {
 						let result: { [extensionId: string]: IExtensionDescription; } = {};

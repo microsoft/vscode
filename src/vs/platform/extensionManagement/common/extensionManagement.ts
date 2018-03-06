@@ -308,7 +308,7 @@ export interface IExtensionEnablementService {
 	/**
 	 * Returns the enablement state for the given extension
 	 */
-	getEnablementState(identifier: IExtensionIdentifier): EnablementState;
+	getEnablementState(extension: ILocalExtension): EnablementState;
 
 	/**
 	 * Returns `true` if the enablement can be changed.
@@ -318,7 +318,7 @@ export interface IExtensionEnablementService {
 	/**
 	 * Returns `true` if the given extension identifier is enabled.
 	 */
-	isEnabled(identifier: IExtensionIdentifier): boolean;
+	isEnabled(extension: ILocalExtension): boolean;
 
 	/**
 	 * Enable or disable the given extension.
@@ -334,8 +334,6 @@ export interface IExtensionEnablementService {
 	 * TODO: @Sandy. Use setEnablement(extension: ILocalExtension, state: EnablementState): TPromise<boolean>. Use one model for extension management and runtime
 	 */
 	setEnablement(identifier: IExtensionIdentifier, state: EnablementState): TPromise<boolean>;
-
-	migrateToIdentifiers(installed: IExtensionIdentifier[]): void;
 }
 
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');

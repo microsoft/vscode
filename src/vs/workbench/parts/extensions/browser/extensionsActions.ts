@@ -926,7 +926,7 @@ export class ReloadAction extends Action {
 	private computeReloadState(runningExtensions: IExtensionDescription[]): void {
 		const isInstalled = this.extensionsWorkbenchService.local.some(e => e.id === this.extension.id);
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
-		const isDisabled = !this.extensionEnablementService.isEnabled({ id: this.extension.id, uuid: this.extension.uuid });
+		const isDisabled = this.extension.local ? !this.extensionEnablementService.isEnabled(this.extension.local) : false;
 
 		const filteredExtensions = runningExtensions.filter(e => areSameExtensions(e, this.extension));
 		const isExtensionRunning = filteredExtensions.length > 0;
