@@ -14,8 +14,6 @@ import { OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/conf
 import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfigurationModel, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, IConfigurationChangeEvent, ConfigurationTarget, removeFromValueTree, toOverrides } from 'vs/platform/configuration/common/configuration';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 
-declare const Proxy: any; // TODO@TypeScript
-
 export class ConfigurationModel implements IConfigurationModel {
 
 	private isFrozen: boolean = false;
@@ -288,13 +286,13 @@ export class Configuration {
 		private _workspaceConfiguration: ConfigurationModel = new ConfigurationModel(),
 		private _folderConfigurations: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>(),
 		private _memoryConfiguration: ConfigurationModel = new ConfigurationModel(),
-		private _memoryConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>()) {
+		private _memoryConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>(),
+		private _freeze: boolean = true) {
 	}
 
 	getValue(section: string, overrides: IConfigurationOverrides, workspace: Workspace): any {
 		const consolidateConfigurationModel = this.getConsolidateConfigurationModel(overrides, workspace);
-		const result = consolidateConfigurationModel.getValue(section);
-		return this.toReadonlyValue(result);
+		return consolidateConfigurationModel.getValue(section);
 	}
 
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides = {}): void {
@@ -337,7 +335,7 @@ export class Configuration {
 			workspace: workspace ? overrides.overrideIdentifier ? this._workspaceConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this._workspaceConfiguration.freeze().getValue(key) : void 0, //Check on workspace exists or not because _workspaceConfiguration is never null
 			workspaceFolder: folderConfigurationModel ? overrides.overrideIdentifier ? folderConfigurationModel.freeze().override(overrides.overrideIdentifier).getValue(key) : folderConfigurationModel.freeze().getValue(key) : void 0,
 			memory: overrides.overrideIdentifier ? memoryConfigurationModel.freeze().override(overrides.overrideIdentifier).getValue(key) : memoryConfigurationModel.freeze().getValue(key),
-			value: this.toReadonlyValue(consolidateConfigurationModel.getValue(key))
+			value: consolidateConfigurationModel.getValue(key)
 		};
 	}
 
@@ -425,6 +423,9 @@ export class Configuration {
 	private getWorkspaceConsolidatedConfiguration(): ConfigurationModel {
 		if (!this._workspaceConsolidatedConfiguration) {
 			this._workspaceConsolidatedConfiguration = this._defaultConfiguration.merge(this._userConfiguration, this._workspaceConfiguration, this._memoryConfiguration);
+			if (this._freeze) {
+				this._workspaceConfiguration = this._workspaceConfiguration.freeze();
+			}
 		}
 		return this._workspaceConsolidatedConfiguration;
 	}
@@ -436,6 +437,9 @@ export class Configuration {
 			const folderConfiguration = this._folderConfigurations.get(folder);
 			if (folderConfiguration) {
 				folderConsolidatedConfiguration = workspaceConsolidateConfiguration.merge(folderConfiguration);
+				if (this._freeze) {
+					folderConsolidatedConfiguration = folderConsolidatedConfiguration.freeze();
+				}
 				this._foldersConsolidatedConfigurations.set(folder, folderConsolidatedConfiguration);
 			} else {
 				folderConsolidatedConfiguration = workspaceConsolidateConfiguration;
@@ -452,22 +456,6 @@ export class Configuration {
 			}
 		}
 		return null;
-	}
-
-	private toReadonlyValue(result: any): any {
-		const readonlyProxy = (target) => {
-			return types.isObject(target) ?
-				new Proxy(target, {
-					get: (target: any, property: string) => readonlyProxy(target[property]),
-					set: (target: any, property: string, value: any) => { throw new Error(`TypeError: Cannot assign to read only property '${property}' of object`); },
-					deleteProperty: (target: any, property: string) => { throw new Error(`TypeError: Cannot delete read only property '${property}' of object`); },
-					defineProperty: (target: any, property: string) => { throw new Error(`TypeError: Cannot define property '${property}' for a readonly object`); },
-					setPrototypeOf: (target: any) => { throw new Error(`TypeError: Cannot set prototype for a readonly object`); },
-					isExtensible: () => false,
-					preventExtensions: () => true
-				}) : target;
-		};
-		return readonlyProxy(result);
 	}
 
 	toData(): IConfigurationData {
@@ -511,21 +499,6 @@ export class Configuration {
 			addKeys(this.folders.get(resource).keys);
 		}
 		return all;
-	}
-
-	public static parse(data: IConfigurationData): Configuration {
-		const defaultConfiguration = Configuration.parseConfigurationModel(data.defaults);
-		const userConfiguration = Configuration.parseConfigurationModel(data.user);
-		const workspaceConfiguration = Configuration.parseConfigurationModel(data.workspace);
-		const folders: StrictResourceMap<ConfigurationModel> = Object.keys(data.folders).reduce((result, key) => {
-			result.set(URI.parse(key), Configuration.parseConfigurationModel(data.folders[key]));
-			return result;
-		}, new StrictResourceMap<ConfigurationModel>());
-		return new Configuration(defaultConfiguration, userConfiguration, workspaceConfiguration, folders);
-	}
-
-	private static parseConfigurationModel(model: IConfigurationModel): ConfigurationModel {
-		return new ConfigurationModel(model.contents, model.keys, model.overrides).freeze();
 	}
 }
 
