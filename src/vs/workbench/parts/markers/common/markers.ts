@@ -42,24 +42,23 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 	}
 
 	filter(filter: string): void {
-		this.markersModel.update(new FilterOptions(filter));
+		this.markersModel.updateFilterOptions(new FilterOptions(filter));
 		this.refreshBadge();
 	}
 
 	private onMarkerChanged(resources: URI[]): void {
-		const bulkUpdater = this.markersModel.getBulkUpdater();
-		for (const resource of resources) {
-			bulkUpdater.add(resource, this.markerService.read({ resource }));
-		}
-		bulkUpdater.done();
+		this.markersModel.updateMarkers(updater => {
+			for (const resource of resources) {
+				updater(resource, this.markerService.read({ resource }));
+			}
+		});
 		this.refreshBadge();
 		this._onDidChangeMarkersForResources.fire(resources);
 	}
 
 	private refreshBadge(): void {
-		const total = this.markersModel.total();
-		const count = this.markersModel.count();
-		const message = total === count ? localize('totalProblems', 'Total {0} Problems', total) : localize('filteredProblems', 'Showing {0} of {1} Problems', count, total);
-		this.activityService.showActivity(Constants.MARKERS_PANEL_ID, new NumberBadge(count, () => message));
+		const { total, filtered } = this.markersModel.stats();
+		const message = total === filtered ? localize('totalProblems', 'Total {0} Problems', total) : localize('filteredProblems', 'Showing {0} of {1} Problems', filtered, total);
+		this.activityService.showActivity(Constants.MARKERS_PANEL_ID, new NumberBadge(filtered, () => message));
 	}
 }
