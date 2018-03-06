@@ -311,7 +311,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					});
 				}
 
-				if (countBadRecommendations > 0) {
+				if (countBadRecommendations > 0 && this.notificationService) {
 					this.notificationService.warn(
 						'The below ' +
 						countBadRecommendations +
