@@ -204,9 +204,9 @@ export class Webview {
 
 		if (this._webview.parentElement) {
 			this._webview.parentElement.removeChild(this._webview);
-			const findWidgetDomNode = this._webviewFindWidget.getDomNode();
-			findWidgetDomNode.parentElement.removeChild(findWidgetDomNode);
 		}
+
+		this._webviewFindWidget.dispose();
 	}
 
 	private readonly _onDidClickLink = new Emitter<URI>();
@@ -331,7 +331,7 @@ export class Webview {
 			this._environmentService.extensionDevelopmentPath
 		]);
 		registerFileProtocol(contents, 'vscode-workspace-resource', () =>
-			this._options.localResourceRoots.map(uri => uri.fsPath)
+			(this._options.localResourceRoots || []).map(uri => uri.fsPath)
 		);
 	}
 
