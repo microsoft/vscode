@@ -418,6 +418,9 @@ export class ExtHostApiCommands {
 					if (codeAction.edit) {
 						ret.edit = typeConverters.WorkspaceEdit.to(codeAction.edit);
 					}
+					if (codeAction.command) {
+						ret.command = this._commands.converter.fromInternal(codeAction.command);
+					}
 					return ret;
 				}
 			});
