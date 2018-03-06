@@ -10,7 +10,7 @@ import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { WebviewEditor } from './webviewEditor';
+import { BaseWebviewEditor } from './webviewEditor';
 
 export class ShowWebViewEditorFindWidgetAction extends Action {
 	public static readonly ID = 'editor.action.webvieweditor.showFind';
@@ -32,8 +32,8 @@ export class ShowWebViewEditorFindWidgetAction extends Action {
 		return null;
 	}
 
-	private getWebViewEditor(): WebviewEditor {
-		const activeEditor = this.workbenchEditorService.getActiveEditor() as WebviewEditor;
+	private getWebViewEditor(): BaseWebviewEditor {
+		const activeEditor = this.workbenchEditorService.getActiveEditor() as BaseWebviewEditor;
 		if (activeEditor.isWebviewEditor) {
 			return activeEditor;
 		}
@@ -49,8 +49,8 @@ export class HideWebViewEditorFindCommand extends Command {
 		}
 	}
 
-	private getWebViewEditor(accessor: ServicesAccessor): WebviewEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as WebviewEditor;
+	private getWebViewEditor(accessor: ServicesAccessor): BaseWebviewEditor {
+		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as BaseWebviewEditor;
 		if (activeEditor.isWebviewEditor) {
 			return activeEditor;
 		}
@@ -74,8 +74,8 @@ export class ShowWebViewEditorFindTermCommand extends Command {
 		}
 	}
 
-	private getWebViewEditor(accessor: ServicesAccessor): WebviewEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as WebviewEditor;
+	private getWebViewEditor(accessor: ServicesAccessor): BaseWebviewEditor {
+		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as BaseWebviewEditor;
 		if (activeEditor.isWebviewEditor) {
 			return activeEditor;
 		}
@@ -131,6 +131,6 @@ export class ReloadWebviewAction extends Action {
 	private getVisibleWebviews() {
 		return this.workbenchEditorService.getVisibleEditors()
 			.filter(c => c && (c as any).isWebviewEditor)
-			.map(e => e as WebviewEditor);
+			.map(e => e as BaseWebviewEditor);
 	}
 }

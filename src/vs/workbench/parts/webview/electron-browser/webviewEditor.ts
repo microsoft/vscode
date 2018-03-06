@@ -9,14 +9,13 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, } from 'vs/base/common/lifecycle';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { Position } from 'vs/platform/editor/common/editor';
-import { WebviewEditor as BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/parts/html/browser/webviewEditor';
+import { BaseWebviewEditor as BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/parts/html/browser/webviewEditor';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { Webview } from 'vs/workbench/parts/html/browser/webview';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -36,7 +35,6 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IPartService private readonly _partService: IPartService,
@@ -44,7 +42,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
 	) {
-		super(WebviewEditor.ID, telemetryService, themeService, storageService, _contextKeyService);
+		super(WebviewEditor.ID, telemetryService, themeService, _contextKeyService);
 
 		this._onDidFocusWebview = new Emitter<void>();
 	}

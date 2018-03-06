@@ -5,7 +5,6 @@
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 
 import { IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
@@ -13,8 +12,6 @@ import { Webview } from './webview';
 import { Builder } from 'vs/base/browser/builder';
 import { Dimension } from 'vs/workbench/services/part/common/partService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import URI from 'vs/base/common/uri';
-import { Scope } from 'vs/workbench/common/memento';
 
 /**  A context key that is set when a webview editor has focus. */
 export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS = new RawContextKey<boolean>('webviewEditorFocus', false);
@@ -23,14 +20,11 @@ export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED = new Ra
 /**  A context key that is set when the find widget in a webview is visible. */
 export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('webviewFindWidgetVisible', false);
 
-export interface HtmlPreviewEditorViewState {
-	scrollYPercentage: number;
-}
 
 /**
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class WebviewEditor extends BaseEditor {
+export abstract class BaseWebviewEditor extends BaseEditor {
 
 	protected _webview: Webview;
 	protected content: HTMLElement;
@@ -42,7 +36,6 @@ export abstract class WebviewEditor extends BaseEditor {
 		id: string,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
-		private readonly storageService: IStorageService,
 		contextKeyService: IContextKeyService,
 	) {
 		super(id, telemetryService, themeService);
@@ -102,39 +95,4 @@ export abstract class WebviewEditor extends BaseEditor {
 	}
 
 	protected abstract createEditor(parent: Builder): void;
-
-	private get viewStateStorageKey(): string {
-		return this.getId() + '.editorViewState';
-	}
-
-	protected saveViewState(resource: URI | string, editorViewState: HtmlPreviewEditorViewState): void {
-		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		let editorViewStateMemento: { [key: string]: { [position: number]: HtmlPreviewEditorViewState } } = memento[this.viewStateStorageKey];
-		if (!editorViewStateMemento) {
-			editorViewStateMemento = Object.create(null);
-			memento[this.viewStateStorageKey] = editorViewStateMemento;
-		}
-
-		let fileViewState = editorViewStateMemento[resource.toString()];
-		if (!fileViewState) {
-			fileViewState = Object.create(null);
-			editorViewStateMemento[resource.toString()] = fileViewState;
-		}
-
-		if (typeof this.position === 'number') {
-			fileViewState[this.position] = editorViewState;
-		}
-	}
-
-	protected loadViewState(resource: URI | string): HtmlPreviewEditorViewState | null {
-		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		const editorViewStateMemento: { [key: string]: { [position: number]: HtmlPreviewEditorViewState } } = memento[this.viewStateStorageKey];
-		if (editorViewStateMemento) {
-			const fileViewState = editorViewStateMemento[resource.toString()];
-			if (fileViewState) {
-				return fileViewState[this.position];
-			}
-		}
-		return null;
-	}
 }

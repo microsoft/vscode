@@ -24,14 +24,19 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 import { Webview, WebviewOptions } from './webview';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { WebviewEditor } from './webviewEditor';
+import { BaseWebviewEditor } from './webviewEditor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import URI from 'vs/base/common/uri';
+import { Scope } from 'vs/workbench/common/memento';
 
+export interface HtmlPreviewEditorViewState {
+	scrollYPercentage: number;
+}
 
 /**
  * An implementation of editor for showing HTML content in an IFrame by leveraging the HTML input.
  */
-export class HtmlPreviewPart extends WebviewEditor {
+export class HtmlPreviewPart extends BaseWebviewEditor {
 
 	static readonly ID: string = 'workbench.editor.htmlPreviewPart';
 	static class: string = 'htmlPreviewPart';
@@ -48,15 +53,15 @@ export class HtmlPreviewPart extends WebviewEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IPartService private readonly partService: IPartService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService
+		@IStorageService private readonly _storageService: IStorageService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
 	) {
-		super(HtmlPreviewPart.ID, telemetryService, themeService, storageService, contextKeyService);
+		super(HtmlPreviewPart.ID, telemetryService, themeService, contextKeyService);
 	}
 
 	dispose(): void {
@@ -240,5 +245,41 @@ export class HtmlPreviewPart extends WebviewEditor {
 				return undefined;
 			});
 		});
+	}
+
+
+	private get viewStateStorageKey(): string {
+		return this.getId() + '.editorViewState';
+	}
+
+	protected saveViewState(resource: URI | string, editorViewState: HtmlPreviewEditorViewState): void {
+		const memento = this.getMemento(this._storageService, Scope.WORKSPACE);
+		let editorViewStateMemento: { [key: string]: { [position: number]: HtmlPreviewEditorViewState } } = memento[this.viewStateStorageKey];
+		if (!editorViewStateMemento) {
+			editorViewStateMemento = Object.create(null);
+			memento[this.viewStateStorageKey] = editorViewStateMemento;
+		}
+
+		let fileViewState = editorViewStateMemento[resource.toString()];
+		if (!fileViewState) {
+			fileViewState = Object.create(null);
+			editorViewStateMemento[resource.toString()] = fileViewState;
+		}
+
+		if (typeof this.position === 'number') {
+			fileViewState[this.position] = editorViewState;
+		}
+	}
+
+	protected loadViewState(resource: URI | string): HtmlPreviewEditorViewState | null {
+		const memento = this.getMemento(this._storageService, Scope.WORKSPACE);
+		const editorViewStateMemento: { [key: string]: { [position: number]: HtmlPreviewEditorViewState } } = memento[this.viewStateStorageKey];
+		if (editorViewStateMemento) {
+			const fileViewState = editorViewStateMemento[resource.toString()];
+			if (fileViewState) {
+				return fileViewState[this.position];
+			}
+		}
+		return null;
 	}
 }
