@@ -400,6 +400,35 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+	test('vscode.executeCodeActionProvider results seem to be missing their `command` property #45124', function () {
+		disposables.push(extHost.registerCodeActionProvider(defaultSelector, {
+			provideCodeActions(document, range): vscode.CodeAction[] {
+				return [{
+					command: {
+						arguments: [document, range],
+						command: 'command',
+						title: 'command_title',
+					},
+					kind: types.CodeActionKind.Empty.append('foo'),
+					title: 'title',
+				}];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, new types.Range(0, 0, 1, 1)).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+				assert.ok(first.command);
+				assert.equal(first.command.command, 'command');
+				assert.equal(first.command.title, 'command_title');
+				assert.equal(first.kind.value, 'foo');
+				assert.equal(first.title, 'title');
+
+			});
+		});
+	});
+
 	// --- code lens
 
 	test('CodeLens, back and forth', function () {
