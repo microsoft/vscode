@@ -58,8 +58,13 @@ class Settings {
 		this.themeType = theme.type;
 
 		const minimapEnabled = config.editor.viewInfo.minimap.enabled;
+		const minimapSide = config.editor.viewInfo.minimap.side;
 		const backgroundColor = (minimapEnabled ? TokenizationRegistry.getDefaultBackground() : null);
-		this.backgroundColor = (backgroundColor ? Color.Format.CSS.formatHex(backgroundColor) : null);
+		if (backgroundColor === null || minimapSide === 'left') {
+			this.backgroundColor = null;
+		} else {
+			this.backgroundColor = Color.Format.CSS.formatHex(backgroundColor);
+		}
 
 		const position = config.editor.layoutInfo.overviewRuler;
 		this.top = position.top;
