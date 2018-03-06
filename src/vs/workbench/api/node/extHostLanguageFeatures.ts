@@ -469,7 +469,7 @@ class NavigateTypeAdapter {
 }
 
 interface RenameProvider2 extends vscode.RenameProvider {
-	resolveInitialRenameValue?(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<any>;
+	resolveInitialRenameValue?(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.RenameInitialValue>;
 }
 
 class RenameAdapter {
@@ -514,7 +514,7 @@ class RenameAdapter {
 		});
 	}
 
-	resolveInitialRenameValue(resource: URI, position: IPosition): TPromise<modes.RenameInitialValue> {
+	resolveInitialRenameValue(resource: URI, position: IPosition): TPromise<modes.RenameInformation> {
 		if (typeof this._provider.resolveInitialRenameValue !== 'function') {
 			return TPromise.as(undefined);
 		}
@@ -522,10 +522,17 @@ class RenameAdapter {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 
-		return asWinJsPromise(token => this._provider.resolveInitialRenameValue(doc, pos, token)).then((value) => {
-			return <modes.RenameInitialValue>{
+		return asWinJsPromise(token => this._provider.resolveInitialRenameValue(doc, pos, token)).then(value => {
+			if (!value) {
+				return undefined;
+			}
+			if (!value.range.contains(pos)) {
+				console.warn('INVALID rename information, must contain the request-position');
+				return undefined;
+			}
+			return <modes.RenameInformation>{
 				range: TypeConverters.fromRange(value.range),
-				text: value.text
+				text: value.text || doc.getText(value.range)
 			};
 		});
 	}
@@ -1061,7 +1068,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.provideRenameEdits(URI.revive(resource), position, newName));
 	}
 
-	$resolveInitialRenameValue(handle: number, resource: URI, position: IPosition): TPromise<modes.RenameInitialValue> {
+	$resolveInitialRenameValue(handle: number, resource: URI, position: IPosition): TPromise<modes.RenameInformation> {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveInitialRenameValue(resource, position));
 	}
 

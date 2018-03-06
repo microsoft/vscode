@@ -8,10 +8,11 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
 import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { Terminal as XTermTerminal } from 'vscode-xterm';
+import WindowsProcessTreeType = require('windows-process-tree');
 
 const SHELL_EXECUTABLES = ['cmd.exe', 'powershell.exe', 'bash.exe'];
 
-let windowsProcessTree;
+let windowsProcessTree: typeof WindowsProcessTreeType;
 
 export class WindowsShellHelper {
 	private _onCheckShell: Emitter<TPromise<string>>;
@@ -28,34 +29,38 @@ export class WindowsShellHelper {
 			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform.platform}`);
 		}
 
-		if (!windowsProcessTree) {
-			windowsProcessTree = require.__$__nodeRequire('windows-process-tree');
-		}
-
 		this._isDisposed = false;
-		this._onCheckShell = new Emitter<TPromise<string>>();
-		// The debounce is necessary to prevent multiple processes from spawning when
-		// the enter key or output is spammed
-		debounceEvent(this._onCheckShell.event, (l, e) => e, 150, true)(() => {
-			setTimeout(() => {
-				this.checkShell();
-			}, 50);
-		});
 
-		// We want to fire a new check for the shell on a linefeed, but only
-		// when parsing has finished which is indicated by the cursormove event.
-		// If this is done on every linefeed, parsing ends up taking
-		// significantly longer due to resetting timers. Note that this is
-		// private API.
-		this._xterm.on('linefeed', () => this._newLineFeed = true);
-		this._xterm.on('cursormove', () => {
-			if (this._newLineFeed) {
-				this._onCheckShell.fire();
+		(import('windows-process-tree')).then(mod => {
+			if (this._isDisposed) {
+				return;
 			}
-		});
 
-		// Fire a new check for the shell when any key is pressed.
-		this._xterm.on('keypress', () => this._onCheckShell.fire());
+			windowsProcessTree = mod;
+			this._onCheckShell = new Emitter<TPromise<string>>();
+			// The debounce is necessary to prevent multiple processes from spawning when
+			// the enter key or output is spammed
+			debounceEvent(this._onCheckShell.event, (l, e) => e, 150, true)(() => {
+				setTimeout(() => {
+					this.checkShell();
+				}, 50);
+			});
+
+			// We want to fire a new check for the shell on a linefeed, but only
+			// when parsing has finished which is indicated by the cursormove event.
+			// If this is done on every linefeed, parsing ends up taking
+			// significantly longer due to resetting timers. Note that this is
+			// private API.
+			this._xterm.on('linefeed', () => this._newLineFeed = true);
+			this._xterm.on('cursormove', () => {
+				if (this._newLineFeed) {
+					this._onCheckShell.fire();
+				}
+			});
+
+			// Fire a new check for the shell when any key is pressed.
+			this._xterm.on('keypress', () => this._onCheckShell.fire());
+		});
 	}
 
 	private checkShell(): void {

@@ -299,7 +299,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			}
 
 			// Pass Focus to Viewer
-			this.explorerViewer.DOMFocus();
+			this.explorerViewer.domFocus();
 			keepFocus = true;
 		}
 
@@ -580,7 +580,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 						// Ensure viewer has keyboard focus if event originates from viewer
 						if (restoreFocus) {
-							this.explorerViewer.DOMFocus();
+							this.explorerViewer.domFocus();
 						}
 					}, errors.onUnexpectedError);
 				}
@@ -729,7 +729,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}
 
 		// Focus
-		this.explorerViewer.DOMFocus();
+		this.explorerViewer.domFocus();
 
 		// Find resource to focus from active editor input if set
 		let resourceToFocus: URI;

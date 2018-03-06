@@ -20,11 +20,11 @@
 	box-sizing:	border-box;
 }
 
-.monaco-workbench .monaco-action-bar .select-box {
+.monaco-workbench .monaco-action-bar .monaco-select-box {
 	margin-top: 8px; /* Center the select box */
 }
 
-.monaco-workbench.windows .monaco-action-bar .select-box {
+.monaco-workbench.windows .monaco-action-bar .monaco-select-box {
 	margin-top: 7px; /* Center the select box */
 }
 

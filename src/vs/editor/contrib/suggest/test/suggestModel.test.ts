@@ -21,6 +21,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
@@ -614,6 +615,26 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				model.getValue(),
 				'bar; import { foo, bar } from "./b"'
 			);
+		});
+	});
+
+	test('Completion unexpectedly triggers on second keypress of an edit group in a snippet #43523', function () {
+
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, alwaysSomethingSupport));
+
+		return withOracle((model, editor) => {
+			return assertEvent(model.onDidSuggest, () => {
+				editor.setValue('d');
+				editor.setSelection(new Selection(1, 1, 1, 2));
+				editor.trigger('keyboard', Handler.Type, { text: 'e' });
+
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 1);
+				const [first] = event.completionModel.items;
+
+				assert.equal(first.support, alwaysSomethingSupport);
+			});
 		});
 	});
 });

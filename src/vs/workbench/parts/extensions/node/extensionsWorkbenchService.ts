@@ -419,7 +419,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			this.installed = result.map(local => {
 				const extension = installedById[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, local, null, this.telemetryService);
 				extension.local = local;
-				extension.enablementState = this.extensionEnablementService.getEnablementState({ id: extension.id, uuid: extension.uuid });
+				extension.enablementState = this.extensionEnablementService.getEnablementState(local);
 				return extension;
 			});
 
@@ -589,7 +589,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				location: ProgressLocation.Extensions,
 				title: nls.localize('installingVSIXExtension', 'Installing extension from VSIX...'),
 				tooltip: `${extension}`
-			}, () => this.extensionService.install(extension));
+			}, () => this.extensionService.install(extension).then(() => null));
 		}
 
 		if (!(extension instanceof Extension)) {
@@ -611,7 +611,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			location: ProgressLocation.Extensions,
 			title: nls.localize('installingMarketPlaceExtension', 'Installing extension from Marketplace....'),
 			tooltip: `${extension.id}`
-		}, () => this.extensionService.installFromGallery(gallery));
+		}, () => this.extensionService.installFromGallery(gallery).then(() => null));
 	}
 
 	setEnablement(extension: IExtension, enablementState: EnablementState): TPromise<void> {
@@ -670,7 +670,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
 			tooltip: `${local.identifier.id}`
-		}, () => this.extensionService.reinstall(local));
+		}, () => this.extensionService.reinstall(local).then(() => null));
 	}
 
 	private promptAndSetEnablement(extension: IExtension, enablementState: EnablementState, enable: boolean): TPromise<any> {
@@ -890,10 +890,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		this._onChange.fire();
 	}
 
-	private onEnablementChanged(extensionIdentifier: IExtensionIdentifier) {
-		const [extension] = this.local.filter(e => areSameExtensions(e, extensionIdentifier));
+	private onEnablementChanged(identifier: IExtensionIdentifier) {
+		const [extension] = this.local.filter(e => areSameExtensions(e, identifier));
 		if (extension) {
-			const enablementState = this.extensionEnablementService.getEnablementState({ id: extension.id, uuid: extension.uuid });
+			const enablementState = this.extensionEnablementService.getEnablementState(extension.local);
 			if (enablementState !== extension.enablementState) {
 				extension.enablementState = enablementState;
 				this._onChange.fire();

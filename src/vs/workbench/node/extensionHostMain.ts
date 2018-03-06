@@ -101,6 +101,7 @@ export class ExtensionHostMain {
 		this._extensionService = new ExtHostExtensionService(initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._extHostLogService, environmentService);
 
 		// error forwarding and stack trace scanning
+		Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
 		const extensionErrors = new WeakMap<Error, IExtensionDescription>();
 		this._extensionService.getExtensionPathIndex().then(map => {
 			(<any>Error).prepareStackTrace = (error: Error, stackTrace: errors.V8CallSite[]) => {

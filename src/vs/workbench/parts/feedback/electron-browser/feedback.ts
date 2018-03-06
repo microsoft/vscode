@@ -18,9 +18,10 @@ import * as errors from 'vs/base/common/errors';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { editorWidgetBackground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder, darken } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const FEEDBACK_VISIBLE_CONFIG = 'workbench.statusBar.feedback.visible';
 
@@ -37,6 +38,7 @@ export interface IFeedbackService {
 export interface IFeedbackDropdownOptions {
 	contextViewProvider: IContextViewService;
 	feedbackService?: IFeedbackService;
+	onFeedbackVisibilityChange?: (visible: boolean) => void;
 }
 
 enum FormEvent {
@@ -69,7 +71,7 @@ export class FeedbackDropdown extends Dropdown {
 
 	constructor(
 		container: HTMLElement,
-		options: IFeedbackDropdownOptions,
+		private options: IFeedbackDropdownOptions,
 		@ICommandService private commandService: ICommandService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IIntegrityService private integrityService: IIntegrityService,
@@ -112,6 +114,17 @@ export class FeedbackDropdown extends Dropdown {
 		this.requestFeatureLink = product.sendASmile.requestFeatureUrl;
 	}
 
+	protected getAnchor(): HTMLElement | IAnchor {
+		const res = dom.getDomNodePagePosition(this.element.getHTMLElement());
+
+		return {
+			x: res.left,
+			y: res.top - 9, /* above the status bar */
+			width: res.width,
+			height: res.height
+		} as IAnchor;
+	}
+
 	protected renderContents(container: HTMLElement): IDisposable {
 		const $form = $('form.feedback-form').attr({
 			action: 'javascript:void(0);'
@@ -123,7 +136,27 @@ export class FeedbackDropdown extends Dropdown {
 
 		$('h2.title').text(nls.localize("label.sendASmile", "Tweet us your feedback.")).appendTo($form);
 
-		this.invoke($('div.cancel').attr('tabindex', '0'), () => {
+		const cancelBtn = $('div.cancel').attr('tabindex', '0');
+		cancelBtn.on(dom.EventType.MOUSE_OVER, () => {
+			const theme = this.themeService.getTheme();
+			let darkenFactor: number;
+			switch (theme.type) {
+				case 'light':
+					darkenFactor = 0.1;
+					break;
+				case 'dark':
+					darkenFactor = 0.2;
+					break;
+			}
+
+			if (darkenFactor) {
+				cancelBtn.getHTMLElement().style.backgroundColor = darken(theme.getColor(editorWidgetBackground), darkenFactor)(theme).toString();
+			}
+		});
+		cancelBtn.on(dom.EventType.MOUSE_OUT, () => {
+			cancelBtn.getHTMLElement().style.backgroundColor = null;
+		});
+		this.invoke(cancelBtn, () => {
 			this.hide();
 		}).appendTo($form);
 
@@ -213,7 +246,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		$('label').attr('for', 'hide-button').text(nls.localize('showFeedback', "Show Feedback Smiley in Status Bar")).appendTo($hideButtonContainer);
 
-		this.sendButton = this.invoke($('input.send').type('submit').attr('disabled', '').value(nls.localize('tweet', "Tweet")).appendTo($buttons), () => {
+		this.sendButton = this.invoke($('input.send').type('button').attr('disabled', '').value(nls.localize('tweet', "Tweet")).appendTo($buttons), () => {
 			if (this.isSendingFeedback) {
 				return;
 			}
@@ -223,7 +256,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.toDispose.push(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
 			$form.style('background-color', colors.editorWidgetBackground);
-			$form.style('box-shadow', colors.widgetShadow ? `0 5px 8px ${colors.widgetShadow}` : null);
+			$form.style('box-shadow', colors.widgetShadow ? `0 0 8px ${colors.widgetShadow}` : null);
 
 			if (this.feedbackDescriptionInput) {
 				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground;
@@ -291,6 +324,20 @@ export class FeedbackDropdown extends Dropdown {
 		});
 
 		return element;
+	}
+
+	public show(): void {
+		super.show();
+
+		if (this.options.onFeedbackVisibilityChange) {
+			this.options.onFeedbackVisibilityChange(true);
+		}
+	}
+
+	protected onHide(): void {
+		if (this.options.onFeedbackVisibilityChange) {
+			this.options.onFeedbackVisibilityChange(false);
+		}
 	}
 
 	public hide(): void {

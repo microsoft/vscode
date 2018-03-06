@@ -251,7 +251,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		// The panel is minimized
-		if (!height) {
+		if (!this._isVisible) {
 			return TerminalInstance._lastKnownDimensions;
 		}
 

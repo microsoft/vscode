@@ -271,6 +271,11 @@ connection.onCompletion(async textDocumentPosition => {
 		}
 
 		if (mode.getId() !== 'html') {
+			/* __GDPR__
+				"html.embbedded.complete" : {
+					"languageId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			 */
 			connection.telemetry.logEvent({ key: 'html.embbedded.complete', value: { languageId: mode.getId() } });
 		}
 

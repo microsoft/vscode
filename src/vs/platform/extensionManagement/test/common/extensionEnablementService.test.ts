@@ -98,13 +98,13 @@ suite('ExtensionEnablementService Test', () => {
 
 	test('test state of globally disabled extension', () => {
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Disabled)
-			.then(() => assert.equal(testObject.getEnablementState({ id: 'pub.a' }), EnablementState.Disabled));
+			.then(() => assert.equal(testObject.getEnablementState(aLocalExtension('pub.a')), EnablementState.Disabled));
 	});
 
 	test('test state of globally enabled extension', () => {
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Disabled)
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Enabled))
-			.then(() => assert.equal(testObject.getEnablementState({ id: 'pub.a' }), EnablementState.Enabled));
+			.then(() => assert.equal(testObject.getEnablementState(aLocalExtension('pub.a')), EnablementState.Enabled));
 	});
 
 	test('test disable an extension for workspace', () => {
@@ -126,59 +126,59 @@ suite('ExtensionEnablementService Test', () => {
 
 	test('test state of workspace disabled extension', () => {
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceDisabled)
-			.then(() => assert.equal(testObject.getEnablementState({ id: 'pub.a' }), EnablementState.WorkspaceDisabled));
+			.then(() => assert.equal(testObject.getEnablementState(aLocalExtension('pub.a')), EnablementState.WorkspaceDisabled));
 	});
 
 	test('test state of workspace and globally disabled extension', () => {
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Disabled)
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceDisabled))
-			.then(() => assert.equal(testObject.getEnablementState({ id: 'pub.a' }), EnablementState.WorkspaceDisabled));
+			.then(() => assert.equal(testObject.getEnablementState(aLocalExtension('pub.a')), EnablementState.WorkspaceDisabled));
 	});
 
 	test('test state of workspace enabled extension', () => {
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceDisabled)
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceEnabled))
-			.then(() => assert.equal(testObject.getEnablementState({ id: 'pub.a' }), EnablementState.WorkspaceEnabled));
+			.then(() => assert.equal(testObject.getEnablementState(aLocalExtension('pub.a')), EnablementState.WorkspaceEnabled));
 	});
 
 	test('test state of globally disabled and workspace enabled extension', () => {
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Disabled)
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceDisabled))
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceEnabled))
-			.then(() => assert.equal(testObject.getEnablementState({ id: 'pub.a' }), EnablementState.WorkspaceEnabled));
+			.then(() => assert.equal(testObject.getEnablementState(aLocalExtension('pub.a')), EnablementState.WorkspaceEnabled));
 	});
 
 	test('test state of an extension when disabled for workspace from workspace enabled', () => {
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceDisabled)
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceEnabled))
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceDisabled))
-			.then(() => assert.equal(testObject.getEnablementState({ id: 'pub.a' }), EnablementState.WorkspaceDisabled));
+			.then(() => assert.equal(testObject.getEnablementState(aLocalExtension('pub.a')), EnablementState.WorkspaceDisabled));
 	});
 
 	test('test state of an extension when disabled globally from workspace enabled', () => {
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceDisabled)
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceEnabled))
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Disabled))
-			.then(() => assert.equal(testObject.getEnablementState({ id: 'pub.a' }), EnablementState.Disabled));
+			.then(() => assert.equal(testObject.getEnablementState(aLocalExtension('pub.a')), EnablementState.Disabled));
 	});
 
 	test('test state of an extension when disabled globally from workspace disabled', () => {
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceDisabled)
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Disabled))
-			.then(() => assert.equal(testObject.getEnablementState({ id: 'pub.a' }), EnablementState.Disabled));
+			.then(() => assert.equal(testObject.getEnablementState(aLocalExtension('pub.a')), EnablementState.Disabled));
 	});
 
 	test('test state of an extension when enabled globally from workspace enabled', () => {
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceDisabled)
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceEnabled))
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Enabled))
-			.then(() => assert.equal(testObject.getEnablementState({ id: 'pub.a' }), EnablementState.Enabled));
+			.then(() => assert.equal(testObject.getEnablementState(aLocalExtension('pub.a')), EnablementState.Enabled));
 	});
 
 	test('test state of an extension when enabled globally from workspace disabled', () => {
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceDisabled)
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Enabled))
-			.then(() => assert.equal(testObject.getEnablementState({ id: 'pub.a' }), EnablementState.Enabled));
+			.then(() => assert.equal(testObject.getEnablementState(aLocalExtension('pub.a')), EnablementState.Enabled));
 	});
 
 	test('test disable an extension for workspace and then globally', () => {
@@ -311,18 +311,18 @@ suite('ExtensionEnablementService Test', () => {
 
 	test('test isEnabled return false extension is disabled globally', () => {
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Disabled)
-			.then(() => assert.ok(!testObject.isEnabled({ id: 'pub.a' })));
+			.then(() => assert.ok(!testObject.isEnabled(aLocalExtension('pub.a'))));
 	});
 
 	test('test isEnabled return false extension is disabled in workspace', () => {
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceDisabled)
-			.then(() => assert.ok(!testObject.isEnabled({ id: 'pub.a' })));
+			.then(() => assert.ok(!testObject.isEnabled(aLocalExtension('pub.a'))));
 	});
 
 	test('test isEnabled return true extension is not disabled', () => {
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceDisabled)
 			.then(() => testObject.setEnablement(aLocalExtension('pub.c'), EnablementState.Disabled))
-			.then(() => assert.ok(testObject.isEnabled({ id: 'pub.b' })));
+			.then(() => assert.ok(testObject.isEnabled(aLocalExtension('pub.b'))));
 	});
 
 	test('test canChangeEnablement return false for language packs', () => {

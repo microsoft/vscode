@@ -89,8 +89,7 @@ export class CrashReporterService implements ICrashReporterService {
 		this.telemetryService.getTelemetryInfo()
 			.then(info => {
 				assign(this.options.extra, {
-					vscode_sessionId: info.sessionId,
-					vscode_machineId: info.machineId
+					vscode_sessionId: info.sessionId
 				});
 
 				// start crash reporter right here

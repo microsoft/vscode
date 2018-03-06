@@ -135,6 +135,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/parts/webview",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/parts/welcome",
 			"project": "vscode-workbench"
 		},

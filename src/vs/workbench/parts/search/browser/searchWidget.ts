@@ -31,8 +31,8 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ISearchConfigurationProperties } from '../../../../platform/search/common/search';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { ISearchConfigurationProperties } from 'vs/platform/search/common/search';
 
 export interface ISearchWidgetOptions {
 	value?: string;

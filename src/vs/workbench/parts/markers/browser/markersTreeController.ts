@@ -66,7 +66,7 @@ export class Controller extends WorkbenchTreeController {
 
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
-					tree.DOMFocus();
+					tree.domFocus();
 				}
 			}
 		});

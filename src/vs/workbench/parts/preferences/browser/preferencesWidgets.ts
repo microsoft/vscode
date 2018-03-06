@@ -324,7 +324,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		this.labelElement = DOM.$('.action-title');
 		this.detailsElement = DOM.$('.action-details');
 		this.dropDownElement = DOM.$('.dropdown-icon.octicon.octicon-triangle-down.hide');
-		this.anchorElement = DOM.$('a.action-label', {
+		this.anchorElement = DOM.$('a.action-label.folder-settings', {
 			role: 'button',
 			'aria-haspopup': 'true',
 			'tabindex': '0'

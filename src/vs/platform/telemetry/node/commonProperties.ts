@@ -15,7 +15,7 @@ export function resolveCommonProperties(commit: string, version: string, machine
 	result['common.machineId'] = machineId;
 	// __GDPR__COMMON__ "sessionID" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['sessionID'] = uuid.generateUuid() + Date.now();
-	// __GDPR__COMMON__ "commitHash" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// __GDPR__COMMON__ "commitHash" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['commitHash'] = commit;
 	// __GDPR__COMMON__ "version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['version'] = version;
@@ -25,9 +25,9 @@ export function resolveCommonProperties(commit: string, version: string, machine
 	result['common.osVersion'] = result['common.platformVersion']; // TODO: Drop this after the move to Nova
 	// __GDPR__COMMON__ "common.platform" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.platform'] = Platform.Platform[Platform.platform];
-	// __GDPR__COMMON__ "common.nodePlatform" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// __GDPR__COMMON__ "common.nodePlatform" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['common.nodePlatform'] = process.platform;
-	// __GDPR__COMMON__ "common.nodeArch" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// __GDPR__COMMON__ "common.nodeArch" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['common.nodeArch'] = process.arch;
 
 	// dynamic properties which value differs on each call

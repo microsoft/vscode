@@ -117,7 +117,7 @@
 
 /* Debug status */
 /* A very precise css rule to overwrite the display set in statusbar.css */
-.monaco-workbench > .part.statusbar > .statusbar-item > .debug-statusbar-item > a:not([disabled]):not(.disabled) {
+.monaco-workbench > .part.statusbar > .statusbar-item > .debug-statusbar-item > a {
 	display: flex;
 	padding: 0 5px 0 5px;
 }

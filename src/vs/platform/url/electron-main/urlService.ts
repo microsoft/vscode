@@ -10,7 +10,7 @@ import { IURLService } from 'vs/platform/url/common/url';
 import product from 'vs/platform/node/product';
 import { app } from 'electron';
 import URI from 'vs/base/common/uri';
-import { ILogService } from '../../log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class URLService implements IURLService {
 

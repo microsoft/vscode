@@ -377,7 +377,7 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 			viewer.collapseDeepestExpandedLevel();
 			viewer.clearSelection();
 			viewer.clearFocus();
-			viewer.DOMFocus();
+			viewer.domFocus();
 			viewer.focusFirst();
 		}
 		return TPromise.as(null);
@@ -548,7 +548,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 			elementToRefresh = parent.count() === 0 ? parent.parent() : parent;
 		}
 
-		this.viewer.DOMFocus();
+		this.viewer.domFocus();
 		return this.viewer.refresh(elementToRefresh);
 	}
 
@@ -567,7 +567,7 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 			if (nextFocusElement) {
 				this.viewer.setFocus(nextFocusElement);
 			}
-			this.viewer.DOMFocus();
+			this.viewer.domFocus();
 			this.viewlet.open(this.fileMatch, true);
 		});
 	}
@@ -588,7 +588,7 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 		if (nextFocusElement) {
 			this.viewer.setFocus(nextFocusElement);
 		}
-		this.viewer.DOMFocus();
+		this.viewer.domFocus();
 	}
 }
 
@@ -610,7 +610,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 				this.viewer.setFocus(elementToFocus);
 			}
 			let elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
-			this.viewer.DOMFocus();
+			this.viewer.domFocus();
 			if (!elementToShowReplacePreview || this.hasToOpenFile()) {
 				this.viewlet.open(this.element, true);
 			} else {

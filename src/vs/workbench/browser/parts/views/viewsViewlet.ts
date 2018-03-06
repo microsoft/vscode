@@ -161,7 +161,7 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 		}
 
 		// Pass Focus to Viewer
-		this.tree.DOMFocus();
+		this.tree.domFocus();
 	}
 
 	dispose(): void {

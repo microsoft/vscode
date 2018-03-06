@@ -61,7 +61,7 @@ export class StatusBar {
 			case StatusBarElement.LANGUAGE_STATUS:
 				return `${this.mainSelector} ${this.rightSelector} .editor-status-mode`;
 			case StatusBarElement.FEEDBACK_ICON:
-				return `${this.mainSelector} ${this.rightSelector} .dropdown.send-feedback`;
+				return `${this.mainSelector} ${this.rightSelector} .monaco-dropdown.send-feedback`;
 			default:
 				throw new Error(element);
 		}

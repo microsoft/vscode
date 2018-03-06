@@ -13,6 +13,7 @@ import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IDebugService, State, IDebugConfiguration } from 'vs/workbench/parts/debug/common/debug';
 import { Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { STATUS_BAR_DEBUGGING_FOREGROUND, isStatusbarInDebugMode } from 'vs/workbench/parts/debug/browser/statusbarColorProvider';
 
 const $ = dom.$;
 
@@ -61,7 +62,11 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 	protected updateStyles(): void {
 		super.updateStyles();
 		if (this.icon) {
-			this.icon.style.backgroundColor = this.getColor(STATUS_BAR_FOREGROUND);
+			if (isStatusbarInDebugMode(this.debugService)) {
+				this.icon.style.backgroundColor = this.getColor(STATUS_BAR_DEBUGGING_FOREGROUND);
+			} else {
+				this.icon.style.backgroundColor = this.getColor(STATUS_BAR_FOREGROUND);
+			}
 		}
 	}
 

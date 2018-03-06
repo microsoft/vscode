@@ -76,7 +76,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
-import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ITheme, ICssStyleCollector, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
@@ -643,6 +643,31 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		.monaco-shell input[type="search"]:focus,
 		.monaco-shell input[type="checkbox"]:focus {
 			outline-color: ${focusOutline};
+		}
+		`);
+	}
+
+	// High Contrast theme overwrites for outline
+	if (theme.type === HIGH_CONTRAST) {
+		collector.addRule(`
+		.monaco-shell.hc-black [tabindex="0"]:focus,
+		.monaco-shell.hc-black .synthetic-focus,
+		.monaco-shell.hc-black select:focus,
+		.monaco-shell.hc-black input[type="button"]:focus,
+		.monaco-shell.hc-black input[type="text"]:focus,
+		.monaco-shell.hc-black textarea:focus,
+		.monaco-shell.hc-black input[type="checkbox"]:focus {
+			outline-style: solid;
+			outline-width: 1px;
+		}
+
+		.monaco-shell.hc-black .monaco-tree.focused.no-focused-item:focus:before {
+			outline-width: 1px;
+			outline-offset: -2px;
+		}
+
+		.monaco-shell.hc-black .synthetic-focus input {
+			background: transparent; /* Search input focus fix when in high contrast */
 		}
 		`);
 	}
