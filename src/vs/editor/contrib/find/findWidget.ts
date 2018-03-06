@@ -720,8 +720,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			className: 'previous',
 			onTrigger: () => {
 				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, onUnexpectedError);
-			},
-			onKeyDown: (e) => { }
+			}
 		}));
 
 		// Next button
@@ -730,8 +729,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			className: 'next',
 			onTrigger: () => {
 				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, onUnexpectedError);
-			},
-			onKeyDown: (e) => { }
+			}
 		}));
 
 		let findPart = document.createElement('div');
@@ -822,8 +820,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			className: 'replace-all',
 			onTrigger: () => {
 				this._controller.replaceAll();
-			},
-			onKeyDown: (e) => { }
+			}
 		}));
 
 		let replacePart = document.createElement('div');
@@ -852,8 +849,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					this._replaceInputBox.width = this._findInput.inputBox.width;
 				}
 				this._showViewZone();
-			},
-			onKeyDown: (e) => { }
+			}
 		}));
 		this._toggleReplaceBtn.toggleClass('expand', this._isReplaceVisible);
 		this._toggleReplaceBtn.toggleClass('collapse', !this._isReplaceVisible);
@@ -986,10 +982,10 @@ class SimpleCheckbox extends Widget {
 }
 
 export interface ISimpleButtonOpts {
-	label: string;
-	className: string;
-	onTrigger: () => void;
-	onKeyDown: (e: IKeyboardEvent) => void;
+	readonly label: string;
+	readonly className: string;
+	readonly onTrigger: () => void;
+	readonly onKeyDown?: (e: IKeyboardEvent) => void;
 }
 
 export class SimpleButton extends Widget {
@@ -1018,7 +1014,9 @@ export class SimpleButton extends Widget {
 				e.preventDefault();
 				return;
 			}
-			this._opts.onKeyDown(e);
+			if (this._opts.onKeyDown) {
+				this._opts.onKeyDown(e);
+			}
 		});
 	}
 

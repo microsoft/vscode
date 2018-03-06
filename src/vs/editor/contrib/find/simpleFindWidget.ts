@@ -70,8 +70,7 @@ export abstract class SimpleFindWidget extends Widget {
 			className: 'previous',
 			onTrigger: () => {
 				this.find(true);
-			},
-			onKeyDown: (e) => { }
+			}
 		});
 
 		const nextBtn = new SimpleButton({
@@ -79,8 +78,7 @@ export abstract class SimpleFindWidget extends Widget {
 			className: 'next',
 			onTrigger: () => {
 				this.find(false);
-			},
-			onKeyDown: (e) => { }
+			}
 		});
 
 		const closeBtn = new SimpleButton({
@@ -88,8 +86,7 @@ export abstract class SimpleFindWidget extends Widget {
 			className: 'close-fw',
 			onTrigger: () => {
 				this.hide();
-			},
-			onKeyDown: (e) => { }
+			}
 		});
 
 		this._innerDomNode = document.createElement('div');
@@ -197,14 +194,14 @@ export abstract class SimpleFindWidget extends Widget {
 	}
 
 	public showNextFindTerm() {
-		let next = this._findHistory.next();
+		const next = this._findHistory.next();
 		if (next) {
 			this._findInput.setValue(next);
 		}
 	}
 
 	public showPreviousFindTerm() {
-		let previous = this._findHistory.previous();
+		const previous = this._findHistory.previous();
 		if (previous) {
 			this._findInput.setValue(previous);
 		}
@@ -218,7 +215,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .simple-find-part { background-color: ${findWidgetBGColor} !important; }`);
 	}
 
-	let widgetShadowColor = theme.getColor(widgetShadow);
+	const widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
 		collector.addRule(`.monaco-workbench .simple-find-part { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
 	}
