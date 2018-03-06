@@ -48,6 +48,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 	private _modelChangeSubscription = EmptyDisposable;
 	private _themeChangeSubscription = EmptyDisposable;
 
+	private content: HTMLElement;
 	private scrollYPercentage: number = 0;
 
 	constructor(
