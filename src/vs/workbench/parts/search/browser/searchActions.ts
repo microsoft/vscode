@@ -19,7 +19,7 @@ import { ResolvedKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { OS } from 'vs/base/common/platform';
-import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { VIEW_ID } from 'vs/platform/search/common/search';
 
