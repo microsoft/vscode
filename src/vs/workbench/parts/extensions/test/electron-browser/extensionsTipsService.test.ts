@@ -46,7 +46,6 @@ import product from 'vs/platform/node/product';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const mockExtensionGallery: IGalleryExtension[] = [
@@ -222,12 +221,15 @@ suite('ExtensionsTipsService Test', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, extensionsWorkbenchService);
 
 		prompted = false;
-		instantiationService.stub(IChoiceService, {
-			choose: () => {
+
+		class TestNotificationService2 extends TestNotificationService {
+			public prompt() {
 				prompted = true;
 				return TPromise.as(3);
 			}
-		});
+		}
+
+		instantiationService.stub(INotificationService, new TestNotificationService2());
 
 		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: false, showRecommendationsOnlyOnDemand: false });
 		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, store: () => { } });

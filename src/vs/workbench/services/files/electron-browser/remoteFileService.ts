@@ -25,7 +25,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { maxBufferLen, detectMimeAndEncodingFromBuffer } from 'vs/base/node/mime';
 import { MIME_BINARY } from 'vs/base/common/mime';
 import { localize } from 'vs/nls';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse?: (tuple: [URI, IStat]) => boolean): TPromise<IFileStat> {
 	const [resource, stat] = tuple;
@@ -86,7 +86,7 @@ export class RemoteFileService extends FileService {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IChoiceService choiceService: IChoiceService,
+		@INotificationService notificationService: INotificationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 	) {
 		super(
@@ -94,7 +94,7 @@ export class RemoteFileService extends FileService {
 			contextService,
 			environmentService,
 			lifecycleService,
-			choiceService,
+			notificationService,
 			_storageService,
 			textResourceConfigurationService,
 		);

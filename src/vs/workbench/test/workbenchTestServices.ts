@@ -62,8 +62,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
-import { IChoiceService, IConfirmation, IConfirmationResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotificationHandle, INotification, NoOpNotification } from 'vs/platform/notification/common/notification';
+import { IConfirmation, IConfirmationResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService, INotificationHandle, INotification, NoOpNotification, PromptOption } from 'vs/platform/notification/common/notification';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -263,11 +263,6 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IThemeService, new TestThemeService());
 	instantiationService.stub(IHashService, new TestHashService());
-	instantiationService.stub(IChoiceService, {
-		choose: (severity, message, options): TPromise<number> => {
-			return TPromise.as(0);
-		}
-	} as IChoiceService);
 
 	return instantiationService;
 }
@@ -330,6 +325,10 @@ export class TestNotificationService implements INotificationService {
 
 	public notify(notification: INotification): INotificationHandle {
 		return TestNotificationService.NO_OP;
+	}
+
+	public prompt(severity: Severity, message: string, choices: PromptOption[]): TPromise<number> {
+		return TPromise.as(0);
 	}
 }
 

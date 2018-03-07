@@ -35,7 +35,8 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IProgressService2 } from 'vs/platform/progress/common/progress';
 import { ProgressService2 } from 'vs/workbench/services/progress/browser/progressService2';
-import { IChoiceService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 suite('ExtensionsWorkbenchService Test', () => {
 
@@ -76,7 +77,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 		instantiationService.stub(IExtensionTipsService, ExtensionTipsService);
 		instantiationService.stub(IExtensionTipsService, 'getKeymapRecommendations', () => []);
 
-		instantiationService.stub(IChoiceService, { choose: () => null });
+		instantiationService.stub(INotificationService, { prompt: () => null });
 		instantiationService.stub(IDialogService, { show: () => TPromise.as(0) });
 	});
 
@@ -85,7 +86,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getExtensionsReport', []);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
 		instantiationService.stub(IDialogService, { show: () => TPromise.as(0) });
-		instantiationService.stubPromise(IChoiceService, 'choose', 0);
+		instantiationService.stubPromise(INotificationService, 'prompt', 0);
 		(<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).reset();
 	});
 

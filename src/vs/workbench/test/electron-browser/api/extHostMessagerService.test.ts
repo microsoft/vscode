@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import { MainThreadMessageService } from 'vs/workbench/api/electron-browser/mainThreadMessageService';
 import { TPromise as Promise, TPromise } from 'vs/base/common/winjs.base';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotification, NoOpNotification, INotificationHandle } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, NoOpNotification, INotificationHandle, PromptOption, Severity } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const emptyDialogService = new class implements IDialogService {
@@ -45,6 +45,9 @@ const emptyNotificationService = new class implements INotificationService {
 	error(...args: any[]): never {
 		throw new Error('not implemented');
 	}
+	prompt(severity: Severity, message: string, choices: PromptOption[]): TPromise<number> {
+		throw new Error('not implemented');
+	}
 };
 
 class EmptyNotificationService implements INotificationService {
@@ -66,6 +69,9 @@ class EmptyNotificationService implements INotificationService {
 		throw new Error('Method not implemented.');
 	}
 	error(message: any): void {
+		throw new Error('Method not implemented.');
+	}
+	prompt(severity: Severity, message: string, choices: PromptOption[]): Promise<number, any> {
 		throw new Error('Method not implemented.');
 	}
 }

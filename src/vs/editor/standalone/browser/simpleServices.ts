@@ -38,7 +38,7 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { OS } from 'vs/base/common/platform';
 import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { INotificationService, INotification, INotificationHandle, NoOpNotification } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle, NoOpNotification, PromptOption } from 'vs/platform/notification/common/notification';
 import { IConfirmation, IConfirmationResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IPosition, Position as Pos } from 'vs/editor/common/core/position';
 
@@ -295,6 +295,10 @@ export class SimpleNotificationService implements INotificationService {
 		}
 
 		return SimpleNotificationService.NO_OP;
+	}
+
+	public prompt(severity: Severity, message: string, choices: PromptOption[]): TPromise<number> {
+		return TPromise.as(0);
 	}
 }
 

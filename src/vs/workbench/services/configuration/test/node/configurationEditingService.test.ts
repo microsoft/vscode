@@ -34,7 +34,7 @@ import { TextModelResolverService } from 'vs/workbench/services/textmodelResolve
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { mkdirp } from 'vs/base/node/pfs';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -176,7 +176,7 @@ suite('ConfigurationEditingService', () => {
 	test('do not notify error', () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		const target = sinon.stub();
-		instantiationService.stubPromise(IChoiceService, 'choose', target);
+		instantiationService.stubPromise(INotificationService, 'prompt', target);
 		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true })
 			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
 			(error: ConfigurationEditingError) => {

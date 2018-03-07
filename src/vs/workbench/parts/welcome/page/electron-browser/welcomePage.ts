@@ -39,7 +39,6 @@ import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifi
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 used();
 
@@ -227,7 +226,6 @@ class WelcomePage {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@INotificationService private notificationService: INotificationService,
-		@IChoiceService private choiceService: IChoiceService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
@@ -429,7 +427,7 @@ class WelcomePage {
 						});
 				});
 
-			this.choiceService.choose(Severity.Info, strings.reloadAfterInstall.replace('{0}', extensionSuggestion.name), [localize('ok', "OK"), localize('details', "Details")]).then(choice => {
+			this.notificationService.prompt(Severity.Info, strings.reloadAfterInstall.replace('{0}', extensionSuggestion.name), [localize('ok', "OK"), localize('details', "Details")]).then(choice => {
 				switch (choice) {
 					case 0 /* OK */:
 						const messageDelay = TPromise.timeout(300);

@@ -35,7 +35,7 @@ import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensions
 import product from 'vs/platform/node/product';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IChoiceService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 interface IExtensionStateProvider<T> {
@@ -370,9 +370,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@INotificationService private notificationService: INotificationService,
 		@IDialogService private dialogService: IDialogService,
-		@IChoiceService private choiceService: IChoiceService,
+		@INotificationService private notificationService: INotificationService,
 		@IURLService urlService: IURLService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IWindowService private windowService: IWindowService,
@@ -1001,7 +1000,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 						const options = [
 							nls.localize('install', "Install")
 						];
-						return this.choiceService.choose(Severity.Info, message, options).then(value => {
+						return this.notificationService.prompt(Severity.Info, message, options).then(value => {
 							if (value === 0) {
 								return this.install(extension);
 							}
