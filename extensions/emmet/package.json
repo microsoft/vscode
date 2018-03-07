@@ -199,6 +199,11 @@
                             "type": "string",
                             "default": null,
                             "description": "%emmetPreferencesCssMsProperties%"
+                        },
+                        "fuzzySearchMinScore": {
+                            "type": "number",
+                            "default": 0.3,
+                            "description": "%emmetPreferencesFuzzySearchMinScore%"
                         }
                     }
                 },
