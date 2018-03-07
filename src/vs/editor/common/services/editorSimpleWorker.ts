@@ -294,8 +294,8 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 export abstract class BaseEditorSimpleWorker {
 	private _foreignModule: any;
 
-	constructor() {
-		this._foreignModule = null;
+	constructor(foreignModule: any) {
+		this._foreignModule = foreignModule;
 	}
 
 	protected abstract _getModel(uri: string): ICommonModel;
@@ -474,6 +474,16 @@ export abstract class BaseEditorSimpleWorker {
 	// ---- BEGIN foreign module support --------------------------------------------------------------------------
 
 	public loadForeignModule(moduleId: string, createData: any): TPromise<string[]> {
+		if (this._foreignModule) {
+			// static foreing module
+			let methods: string[] = [];
+			for (let prop in this._foreignModule) {
+				if (typeof this._foreignModule[prop] === 'function') {
+					methods.push(prop);
+				}
+			}
+			return TPromise.as(methods);
+		}
 		return new TPromise<any>((c, e) => {
 			// Use the global require to be sure to get the global config
 			(<any>self).require([moduleId], (foreignModule: { create: (ctx: IWorkerContext, createData: any) => any; }) => {
@@ -521,8 +531,8 @@ export class EditorSimpleWorkerImpl extends BaseEditorSimpleWorker implements IR
 
 	private _models: { [uri: string]: MirrorModel; };
 
-	constructor() {
-		super();
+	constructor(foreignModule: any) {
+		super(foreignModule);
 		this._models = Object.create(null);
 	}
 
@@ -565,7 +575,7 @@ export class EditorSimpleWorkerImpl extends BaseEditorSimpleWorker implements IR
  * @internal
  */
 export function create(): IRequestHandler {
-	return new EditorSimpleWorkerImpl();
+	return new EditorSimpleWorkerImpl(null);
 }
 
 if (typeof importScripts === 'function') {

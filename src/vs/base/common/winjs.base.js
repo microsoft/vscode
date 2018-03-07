@@ -5,6 +5,8 @@
  * All Rights Reserved.
  * Licensed under the MIT License.
  */
+var __winjs_exports;
+
 (function() {
 
 var _modules = Object.create(null);//{};
@@ -2067,14 +2069,22 @@ _winjs("WinJS/Promise", ["WinJS/Core/_Base","WinJS/Promise/_StateMachine"], func
     return _StateMachine.Promise;
 });
 
-var exported = _modules["WinJS/Core/_WinJS"];
-exported.TPromise = exported.Promise;
-exported.PPromise = exported.Promise;
+__winjs_exports = _modules["WinJS/Core/_WinJS"];
+__winjs_exports.TPromise = __winjs_exports.Promise;
+__winjs_exports.PPromise = __winjs_exports.Promise;
 
+// ESM-comment-begin
 if (typeof exports === 'undefined' && typeof define === 'function' && define.amd) {
-    define([], exported);
+    define([], __winjs_exports);
 } else {
-    module.exports = exported;
+    module.exports = __winjs_exports;
 }
+// ESM-comment-end
 
 })();
+
+// ESM-uncomment-begin
+// export var Promise = __winjs_exports.Promise;
+// export var TPromise = __winjs_exports.TPromise;
+// export var PPromise = __winjs_exports.PPromise;
+// ESM-uncomment-end

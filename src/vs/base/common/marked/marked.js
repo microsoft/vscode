@@ -4,9 +4,9 @@
  * https://github.com/chjj/marked
  */
 
-// TODO MonacoChange: we have our own way of defining modules
-// ;(function() {
-// END MonacoChange
+var __marked_exports;
+
+(function() {
 
 /**
  * Block-Level Grammar
@@ -1370,21 +1370,27 @@ marked.inlineLexer = InlineLexer.output;
 
 marked.parse = marked;
 
-// TODO MonacoChange: we have our own way of defining modules
+__marked_exports = marked;
+
+}).call(this);
+
+// ESM-comment-begin
 define([], function() {
   return {
-    marked: marked
+    marked: __marked_exports
   };
 });
-//if (typeof module !== 'undefined' && typeof exports === 'object') {
-//  module.exports = marked;
-//} else if (typeof define === 'function' && define.amd) {
-//  define(function() { return marked; });
-//} else {
-//  this.marked = marked;
-//}
-//
-//}).call(function() {
-//  return this || (typeof window !== 'undefined' ? window : global);
-//}());
-// END MonacoChange
+// ESM-comment-end
+
+// ESM-uncomment-begin
+// export var marked = __marked_exports;
+// export var Parser = __marked_exports.Parser;
+// export var parser = __marked_exports.parser;
+// export var Renderer = __marked_exports.Renderer;
+// export var TextRenderer = __marked_exports.TextRenderer;
+// export var Lexer = __marked_exports.Lexer;
+// export var lexer = __marked_exports.lexer;
+// export var InlineLexer = __marked_exports.InlineLexer;
+// export var inlineLexer = __marked_exports.inlineLexer;
+// export var parse = __marked_exports.parse;
+// ESM-uncomment-end
