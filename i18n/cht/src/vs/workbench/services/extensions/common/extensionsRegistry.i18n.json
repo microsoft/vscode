@@ -30,5 +30,6 @@
 	"vscode.extension.badges.description": "徽章描述。",
 	"vscode.extension.extensionDependencies": "其它擴充功能的相依性。擴充功能的識別碼一律為 ${publisher}.${name}。例如: vscode.csharp。",
 	"vscode.extension.scripts.prepublish": "在封裝作為 VS Code 擴充功能發行前所執行的指令碼。",
+	"vscode.extension.scripts.uninstall": "VS Code 延伸模組的解除安裝勾點。當延伸模組完全從 VS Code 解除安裝時，會在延伸模組解除安裝並重新啟動 (關機並啟動) 時執行的程式碼。僅支援 Node 指令碼。",
 	"vscode.extension.icon": "128 x 128 像素圖示的路徑。"
 }

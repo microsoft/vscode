@@ -39,6 +39,8 @@
 	"importFiles": "Dosya İçe Aktar",
 	"confirmOverwrite": "Hedef klasörde aynı ada sahip bir dosya veya klasör zaten var. Değiştirmek istiyor musunuz?",
 	"replaceButtonLabel": "&&Değiştir",
+	"fileIsAncestor": "Yapıştırılacak dosya hedef klasörün atalarından biridir",
+	"fileDeleted": "Yapıştırılacak dosya bu arada silindi veya taşındı",
 	"duplicateFile": "Çoğalt",
 	"globalCompareFile": "Aktif Dosyayı Karşılaştır...",
 	"openFileToCompare": "Bir başka dosya ile karşılaştırmak için ilk olarak bir dosya açın.",

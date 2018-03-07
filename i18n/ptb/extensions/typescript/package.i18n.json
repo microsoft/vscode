@@ -56,5 +56,6 @@
 	"typescript.locale": "Define a localidade usada para relatar erros TypeScript. Requer TypeScript > = 2.6.0. Padrão 'null' usa a localidade do VS Code para erros TypeScript.",
 	"javascript.implicitProjectConfig.experimentalDecorators": "Ativar/desativar 'experimentalDecorators' para arquivos JavaScript que não fazem parte de um projeto. Os arquivos existentes de jsconfig.json ou tsconfig.json substituem essa configuração. Requer TypeScript >= 2.3.1.",
 	"typescript.autoImportSuggestions.enabled": "Ativar/desativar sugestões de importação automática. Requer TypeScript >= 2.6.1",
-	"typescript.experimental.syntaxFolding": "Habilita/Desabilita a sintaxe dos marcadores de pastas ativas."
+	"typescript.experimental.syntaxFolding": "Habilita/Desabilita a sintaxe dos marcadores de pastas ativas.",
+	"taskDefinition.tsconfig.description": "O arquivo tsconfig que define a compilação de TS."
 }

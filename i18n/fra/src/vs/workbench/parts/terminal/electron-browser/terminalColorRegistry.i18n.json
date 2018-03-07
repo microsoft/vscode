@@ -11,6 +11,6 @@
 	"terminalCursor.foreground": "La couleur de premier plan du curseur du terminal.",
 	"terminalCursor.background": "La couleur d’arrière-plan du curseur terminal. Permet de personnaliser la couleur d’un caractère recouvert par un curseur de bloc.",
 	"terminal.selectionBackground": "La couleur d’arrière-plan de sélection du terminal.",
-	"terminal.border": "La couleur de bordure qui sépare les multiples terminaux. Ceci est par défaut à panel.border",
+	"terminal.border": "Couleur de bordure qui sépare les volets de fractionnement dans le terminal. La valeur par défaut est panel.border.",
 	"terminal.ansiColor": "Couleur ansi '{0}' dans le terminal."
 }

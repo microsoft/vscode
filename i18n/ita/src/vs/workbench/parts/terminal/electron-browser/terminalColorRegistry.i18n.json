@@ -11,5 +11,6 @@
 	"terminalCursor.foreground": "Colore di primo piano del cursore del terminale.",
 	"terminalCursor.background": "Colore di sfondo del cursore del terminale. Permette di personalizzare il colore di un carattere quando sovrapposto da un blocco cursore.",
 	"terminal.selectionBackground": "Colore di sfondo di selezione del terminale.",
+	"terminal.border": "Colore del bordo che separa i riquadri divisi all'interno del terminale. L'impostazione predefinita è panel.border.",
 	"terminal.ansiColor": "'{0}' colori ANSI nel terminale. "
 }

@@ -46,6 +46,8 @@
 	"defaultLight": "Açık Varsayılan",
 	"defaultHC": "Yüksek Karşıtlık Varsayılan",
 	"JSON Validation": "JSON Doğrulama ({0})",
+	"fileMatch": "Dosya Eşleşmesi",
+	"schema": "Şema",
 	"commands": "Komutlar ({0})",
 	"command name": "Adı",
 	"keyboard shortcuts": "Klavye Kısayolları",

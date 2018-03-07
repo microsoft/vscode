@@ -12,5 +12,7 @@
 	"configuration.validate.run": "决定 linter 是在保存时还是输入时运行。",
 	"configuration.title": "PHP",
 	"commands.categroy.php": "PHP",
-	"command.untrustValidationExecutable": "禁止 PHP 验证程序(定义为工作区设置)"
+	"command.untrustValidationExecutable": "禁止 PHP 验证程序(定义为工作区设置)",
+	"displayName": "PHP 语言功能",
+	"description": "为 PHP 文件提供 IntelliSense、lint 和语言基础功能。"
 }

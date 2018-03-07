@@ -46,6 +46,8 @@
 	"defaultLight": "ライト テーマの既定値",
 	"defaultHC": "ハイ コントラストの既定値",
 	"JSON Validation": "JSON 検証 ({0})",
+	"fileMatch": "対象ファイル",
+	"schema": "スキーマ",
 	"commands": "コマンド ({0})",
 	"command name": "名前",
 	"keyboard shortcuts": "キーボード ショートカット",

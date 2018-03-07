@@ -12,5 +12,7 @@
 	"configuration.validate.run": "リンターを保存時に実行するか、入力時に実行するか。",
 	"configuration.title": "PHP",
 	"commands.categroy.php": "PHP",
-	"command.untrustValidationExecutable": "PHP の検証を無効にします (ワークスペース設定として定義)。"
+	"command.untrustValidationExecutable": "PHP の検証を無効にします (ワークスペース設定として定義)。",
+	"displayName": "PHP 言語機能",
+	"description": "PHP ファイルの IntelliSense、リンティング、および基本言語サポートを提供します。"
 }
