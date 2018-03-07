@@ -30,6 +30,7 @@
 	"removeAll.occurrences.files.confirmation.message": "Заменить вхождения ({0}) на \"{2}\" в следующем числе файлов: {1}?",
 	"replaceAll.occurrences.files.confirmation.message": "Заменить вхождения ({0}) в следующем числе файлов: {1}?",
 	"treeAriaLabel": "Результаты поиска",
+	"searchPathNotFoundError": "Путь поиска не найден: {0}",
 	"searchMaxResultsWarning": "Результирующий набор включает только подмножество всех соответствий. Чтобы уменьшить число результатов, сузьте условия поиска.",
 	"searchCanceled": "Поиск был отменен до того, как были найдены какие-либо результаты — ",
 	"noResultsIncludesExcludes": "Не найдено результатов в \"{0}\", исключая \"{1}\", — ",

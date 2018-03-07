@@ -737,7 +737,7 @@ class PipelineRenderer<T> implements IRenderer<T, any> {
 		let i = 0;
 
 		for (const renderer of this.renderers) {
-			renderer.disposeTemplate(templateData[i]);
+			renderer.disposeTemplate(templateData[i++]);
 		}
 	}
 }

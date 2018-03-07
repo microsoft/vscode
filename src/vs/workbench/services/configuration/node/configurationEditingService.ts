@@ -30,7 +30,6 @@ import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as Config
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModel } from 'vs/editor/common/model';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 export enum ConfigurationEditingErrorCode {
@@ -127,7 +126,6 @@ export class ConfigurationEditingService {
 		@IFileService private fileService: IFileService,
 		@ITextModelService private textModelResolverService: ITextModelService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IChoiceService private choiceService: IChoiceService,
 		@INotificationService private notificationService: INotificationService,
 		@ICommandService private commandService: ICommandService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
@@ -194,14 +192,14 @@ export class ConfigurationEditingService {
 			: operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY ? nls.localize('openLaunchConfiguration', "Open Launch Configuration")
 				: null;
 		if (openStandAloneConfigurationActionLabel) {
-			this.choiceService.choose(Severity.Error, error.message, [openStandAloneConfigurationActionLabel])
+			this.notificationService.prompt(Severity.Error, error.message, [openStandAloneConfigurationActionLabel])
 				.then(option => {
 					if (option === 0) {
 						this.openFile(operation.resource);
 					}
 				});
 		} else {
-			this.choiceService.choose(Severity.Error, error.message, [nls.localize('open', "Open Settings")])
+			this.notificationService.prompt(Severity.Error, error.message, [nls.localize('open', "Open Settings")])
 				.then(option => {
 					if (option === 0) {
 						this.openSettings(operation);
@@ -215,7 +213,7 @@ export class ConfigurationEditingService {
 			: operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY ? nls.localize('openLaunchConfiguration', "Open Launch Configuration")
 				: null;
 		if (openStandAloneConfigurationActionLabel) {
-			this.choiceService.choose(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save and Retry"), openStandAloneConfigurationActionLabel])
+			this.notificationService.prompt(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save and Retry"), openStandAloneConfigurationActionLabel])
 				.then(option => {
 					switch (option) {
 						case 0 /* Save & Retry */:
@@ -228,7 +226,7 @@ export class ConfigurationEditingService {
 					}
 				});
 		} else {
-			this.choiceService.choose(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save and Retry"), nls.localize('open', "Open Settings")])
+			this.notificationService.prompt(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save and Retry"), nls.localize('open', "Open Settings")])
 				.then(option => {
 					switch (option) {
 						case 0 /* Save and Retry */:

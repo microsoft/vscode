@@ -12,5 +12,7 @@
 	"configuration.validate.run": "Запускается ли анализатор кода при сохранении или при печати.",
 	"configuration.title": "PHP",
 	"commands.categroy.php": "PHP",
-	"command.untrustValidationExecutable": "Запретить исполняемый файл проверки PHP (определяется как параметр рабочей области)"
+	"command.untrustValidationExecutable": "Запретить исполняемый файл проверки PHP (определяется как параметр рабочей области)",
+	"displayName": "Функции языка PHP",
+	"description": "Предоставляет IntelliSense, функции жанров и основные функции языка для файлов PHP."
 }

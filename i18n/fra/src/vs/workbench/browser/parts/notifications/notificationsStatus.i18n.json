@@ -8,5 +8,7 @@
 	],
 	"hideNotifications": "Masquer les notifications",
 	"zeroNotifications": "Aucune notification",
-	"noNotifications": "Aucune nouvelle notification"
+	"noNotifications": "Aucune nouvelle notification",
+	"oneNotification": "1 nouvelle notification",
+	"notifications": "{0} nouvelles notifications"
 }

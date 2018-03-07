@@ -10,6 +10,10 @@
 	"functionBreakpointsNotSupported": "Fonksiyon kesme noktaları bu hata ayıklama türü tarafından desteklenmiyor",
 	"functionBreakpointPlaceholder": "Mola verilecek fonksiyon",
 	"functionBreakPointInputAriaLabel": "Fonksiyon kesme noktasını girin",
+	"breakpointDisabledHover": "Devre dışı bırakılmış kesme noktası",
+	"breakpointUnverifieddHover": "Doğrulanmamış kesme noktası",
+	"functionBreakpointUnsupported": "Fonksiyon kesme noktaları bu hata ayıklama türü tarafından desteklenmiyor",
 	"breakpointDirtydHover": "Doğrulanmamış Kesme Noktası Dosya düzenlendi, lütfen hata ayıklama oturumunu yeniden başlatın.",
-	"conditionalBreakpointUnsupported": "Koşullu kesme noktaları bu hata ayıklama türü tarafından desteklenmiyor"
+	"conditionalBreakpointUnsupported": "Koşullu kesme noktaları bu hata ayıklama türü tarafından desteklenmiyor",
+	"hitBreakpointUnsupported": "Koşullu kesme noktalarına isabet etme bu hata ayıklama türü tarafından desteklenmiyor"
 }

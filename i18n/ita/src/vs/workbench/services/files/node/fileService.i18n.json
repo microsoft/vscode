@@ -9,6 +9,7 @@
 	"fileInvalidPath": "Risorsa del file non valida ({0})",
 	"fileIsDirectoryError": "Il File è una Directory",
 	"fileNotModifiedError": "File non modificato dal giorno",
+	"fileTooLargeForHeapError": "Le dimensioni del file superano il limite di memoria della finestra. Provare a eseguire il codice --max-memory=NEWSIZE",
 	"fileTooLargeError": "File troppo grande per essere aperto",
 	"fileNotFoundError": "Il file non è stato trovato ({0})",
 	"fileBinaryError": "Il file sembra essere binario e non può essere aperto come file di testo",

@@ -41,7 +41,6 @@ import product from 'vs/platform/node/product';
 import * as strings from 'vs/base/common/strings';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 let _SystemExtensionsRoot: string = null;
 function getSystemExtensionsRoot(): string {
@@ -144,7 +143,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IChoiceService private readonly _choiceService: IChoiceService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionEnablementService private readonly _extensionEnablementService: IExtensionEnablementService,
@@ -280,7 +278,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			message = nls.localize('extensionHostProcess.unresponsiveCrash', "Extension host terminated because it was not responsive.");
 		}
 
-		this._choiceService.choose(Severity.Error, message, [nls.localize('devTools', "Developer Tools"), nls.localize('restart', "Restart Extension Host")]).then(choice => {
+		this._notificationService.prompt(Severity.Error, message, [nls.localize('devTools', "Developer Tools"), nls.localize('restart', "Restart Extension Host")]).then(choice => {
 			switch (choice) {
 				case 0 /* Open Dev Tools */:
 					this._windowService.openDevTools();
@@ -455,7 +453,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			this._logOrShowMessage(severity, this._isDev ? messageWithSource2(source, message) : message);
 		});
 
-		return ExtensionService._scanInstalledExtensions(this._windowService, this._choiceService, this._environmentService, log)
+		return ExtensionService._scanInstalledExtensions(this._windowService, this._notificationService, this._environmentService, log)
 			.then(({ system, user, development }) => {
 				return this._extensionEnablementService.getDisabledExtensions()
 					.then(disabledExtensions => {
@@ -547,7 +545,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
-	private static async _validateExtensionsCache(windowService: IWindowService, choiceService: IChoiceService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput): TPromise<void> {
+	private static async _validateExtensionsCache(windowService: IWindowService, notificationService: INotificationService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput): TPromise<void> {
 		const cacheFolder = path.join(environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
@@ -572,7 +570,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			console.error(err);
 		}
 
-		choiceService.choose(Severity.Error, nls.localize('extensionCache.invalid', "Extensions have been modified on disk. Please reload the window."), [nls.localize('reloadWindow', "Reload Window")]).then(choice => {
+		notificationService.prompt(Severity.Error, nls.localize('extensionCache.invalid', "Extensions have been modified on disk. Please reload the window."), [nls.localize('reloadWindow', "Reload Window")]).then(choice => {
 			if (choice === 0) {
 				windowService.reloadWindow();
 			}
@@ -610,7 +608,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
-	private static async _scanExtensionsWithCache(windowService: IWindowService, choiceService: IChoiceService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput, log: ILog): TPromise<IExtensionDescription[]> {
+	private static async _scanExtensionsWithCache(windowService: IWindowService, notificationService: INotificationService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput, log: ILog): TPromise<IExtensionDescription[]> {
 		if (input.devMode) {
 			// Do not cache when running out of sources...
 			return ExtensionScanner.scanExtensions(input, log);
@@ -628,7 +626,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			// Validate the cache asynchronously after 5s
 			setTimeout(async () => {
 				try {
-					await this._validateExtensionsCache(windowService, choiceService, environmentService, cacheKey, input);
+					await this._validateExtensionsCache(windowService, notificationService, environmentService, cacheKey, input);
 				} catch (err) {
 					errors.onUnexpectedError(err);
 				}
@@ -650,7 +648,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		return result;
 	}
 
-	private static _scanInstalledExtensions(windowService: IWindowService, choiceService: IChoiceService, environmentService: IEnvironmentService, log: ILog): TPromise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
+	private static _scanInstalledExtensions(windowService: IWindowService, notificationService: INotificationService, environmentService: IEnvironmentService, log: ILog): TPromise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
 
 		const translationConfig: TPromise<Translations> = platform.translationsConfigFile
 			? pfs.readFile(platform.translationsConfigFile, 'utf8').then((content) => {
@@ -672,7 +670,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 			const builtinExtensions = this._scanExtensionsWithCache(
 				windowService,
-				choiceService,
+				notificationService,
 				environmentService,
 				BUILTIN_MANIFEST_CACHE_FILE,
 				new ExtensionScannerInput(version, commit, locale, devMode, getSystemExtensionsRoot(), true, translations),
@@ -726,7 +724,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 					? TPromise.as([])
 					: this._scanExtensionsWithCache(
 						windowService,
-						choiceService,
+						notificationService,
 						environmentService,
 						USER_MANIFEST_CACHE_FILE,
 						new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionsPath, false, translations),

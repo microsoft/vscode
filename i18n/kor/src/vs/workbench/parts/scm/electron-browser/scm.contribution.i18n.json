@@ -12,5 +12,6 @@
 	"view": "보기",
 	"scmConfigurationTitle": "SCM",
 	"alwaysShowProviders": "소스 제어 공급자 부분을 항상 표시할지의 여부",
-	"diffDecorations": "편집기에서 차이점 장식을 제어합니다."
+	"diffDecorations": "편집기에서 차이점 장식을 제어합니다.",
+	"diffGutterWidth": "여백에서 차이점 장식의 너비(px)를 제어합니다(추가 및 수정됨)."
 }

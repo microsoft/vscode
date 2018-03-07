@@ -79,6 +79,8 @@
 	"hoverBackground": "Düzenleyici bağlantı vurgusunun arka plan rengi.",
 	"hoverBorder": "Düzenleyici bağlantı vurgusunun kenarlık rengi.",
 	"activeLinkForeground": "Aktif bağlantıların rengi.",
+	"diffEditorInserted": "Eklenmiş metin için arka plan rengi. Altta yer alan süslemeleri gizlememek için renk opak olmamalıdır.",
+	"diffEditorRemoved": "Kaldırılmış metin için arka plan rengi. Altta yer alan süslemeleri gizlememek için renk opak olmamalıdır.",
 	"diffEditorInsertedOutline": "Eklenen metnin ana hat rengi.",
 	"diffEditorRemovedOutline": "Çıkarılan metnin ana hat rengi.",
 	"mergeCurrentHeaderBackground": "Satır içi birleştirme çakışmalarında \"mevcut olan\" üstbilgisi arka planı. Altta yer alan süslemeleri gizlememek için renk opak olmamalıdır.",

@@ -24,8 +24,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
 import { Schemas } from 'vs/base/common/network';
-import { Severity } from 'vs/platform/notification/common/notification';
-import { IChoiceService, Choice } from 'vs/platform/dialogs/common/dialogs';
+import { Severity, INotificationService, PromptOption } from 'vs/platform/notification/common/notification';
 
 export class FileService implements IFileService {
 
@@ -50,7 +49,7 @@ export class FileService implements IFileService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IChoiceService private choiceService: IChoiceService,
+		@INotificationService private notificationService: INotificationService,
 		@IStorageService private storageService: IStorageService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
 	) {
@@ -109,8 +108,8 @@ export class FileService implements IFileService {
 
 		// Detect if we run < .NET Framework 4.5 (TODO@ben remove with new watcher impl)
 		if (msg.indexOf(FileService.NET_VERSION_ERROR) >= 0 && !this.storageService.getBoolean(FileService.NET_VERSION_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
-			const choices: Choice[] = [nls.localize('installNet', "Download .NET Framework 4.5"), { label: nls.localize('neverShowAgain', "Don't Show Again") }];
-			this.choiceService.choose(Severity.Warning, nls.localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."), choices).then(choice => {
+			const choices: PromptOption[] = [nls.localize('installNet', "Download .NET Framework 4.5"), { label: nls.localize('neverShowAgain', "Don't Show Again") }];
+			this.notificationService.prompt(Severity.Warning, nls.localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."), choices).then(choice => {
 				switch (choice) {
 					case 0 /* Read More */:
 						window.open('https://go.microsoft.com/fwlink/?LinkId=786533');
@@ -124,8 +123,8 @@ export class FileService implements IFileService {
 
 		// Detect if we run into ENOSPC issues
 		if (msg.indexOf(FileService.ENOSPC_ERROR) >= 0 && !this.storageService.getBoolean(FileService.ENOSPC_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
-			const choices: Choice[] = [nls.localize('learnMore', "Instructions"), { label: nls.localize('neverShowAgain', "Don't Show Again") }];
-			this.choiceService.choose(Severity.Warning, nls.localize('enospcError', "{0} is running out of file handles. Please follow the instructions link to resolve this issue.", product.nameLong), choices).then(choice => {
+			const choices: PromptOption[] = [nls.localize('learnMore', "Instructions"), { label: nls.localize('neverShowAgain', "Don't Show Again") }];
+			this.notificationService.prompt(Severity.Warning, nls.localize('enospcError', "{0} is running out of file handles. Please follow the instructions link to resolve this issue.", product.nameLong), choices).then(choice => {
 				switch (choice) {
 					case 0 /* Read More */:
 						window.open('https://go.microsoft.com/fwlink/?linkid=867693');

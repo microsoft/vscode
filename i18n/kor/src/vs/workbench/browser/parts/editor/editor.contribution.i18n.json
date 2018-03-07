@@ -19,12 +19,14 @@
 	"close": "닫기",
 	"closeOthers": "기타 항목 닫기",
 	"closeRight": "오른쪽에 있는 항목 닫기",
+	"closeAllSaved": "저장된 항목 닫기",
 	"closeAll": "모두 닫기",
 	"keepOpen": "열린 상태 유지",
 	"toggleInlineView": "인라인 뷰 설정/해제",
 	"showOpenedEditors": "열려 있는 편집기 표시",
 	"keepEditor": "편집기 유지",
 	"closeEditorsInGroup": "그룹의 모든 편집기 닫기",
+	"closeSavedEditors": "그룹에서 저장된 편집기 닫기",
 	"closeOtherEditors": "다른 편집기 닫기",
 	"closeRightEditors": "오른쪽에 있는 편집기 닫기"
 }

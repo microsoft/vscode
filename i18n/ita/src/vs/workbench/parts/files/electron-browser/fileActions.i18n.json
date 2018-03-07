@@ -39,6 +39,8 @@
 	"importFiles": "Importa file",
 	"confirmOverwrite": "Nella cartella di destinazione esiste già un file o una cartella con lo stesso nome. Sovrascrivere?",
 	"replaceButtonLabel": "&&Sostituisci",
+	"fileIsAncestor": "Il file da incollare è un predecessore della cartella di destinazione",
+	"fileDeleted": "Il file da incollare è stato eliminato o spostato nel frattempo",
 	"duplicateFile": "Duplicato",
 	"globalCompareFile": "Confronta file attivo con...",
 	"openFileToCompare": "Aprire prima un file per confrontarlo con un altro file.",

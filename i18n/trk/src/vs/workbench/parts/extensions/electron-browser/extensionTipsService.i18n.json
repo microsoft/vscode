@@ -8,6 +8,8 @@
 	],
 	"neverShowAgain": "Tekrar Gösterme",
 	"searchMarketplace": "Marketi Ara",
+	"showLanguagePackExtensions": "Markette VS Code'un '{0}' diline çevrilmesine yardımcı olabilecek eklentiler bulunuyor",
+	"dynamicWorkspaceRecommendation": "Bu eklenti {0} deposundaki kullanıcılar arasında popüler olduğu için ilginizi çekebilir.",
 	"exeBasedRecommendation": "Bu eklenti, sizde {0} kurulu olduğu için tavsiye ediliyor.",
 	"fileBasedRecommendation": "Bu eklenti yakınlarda açtığınız dosyalara dayanarak tavsiye ediliyor.",
 	"workspaceRecommendation": "Bu eklenti geçerli çalışma alanı kullanıcıları tarafından tavsiye ediliyor.",

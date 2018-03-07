@@ -30,6 +30,7 @@
 	"removeAll.occurrences.files.confirmation.message": "Sostituire {0} occorrenze in {1} file con '{2}'?",
 	"replaceAll.occurrences.files.confirmation.message": "Sostituire {0} occorrenze in {1} file?",
 	"treeAriaLabel": "Risultati ricerca",
+	"searchPathNotFoundError": "Percorso di ricerca non trovato: {0}",
 	"searchMaxResultsWarning": "Il set di risultati contiene solo un subset di tutte le corrispondenze. Eseguire una ricerca più specifica per ridurre il numero di risultati.",
 	"searchCanceled": "La ricerca è stata annullata prima della visualizzazione dei risultati - ",
 	"noResultsIncludesExcludes": "Non sono stati trovati risultati in '{0}' escludendo '{1}' - ",

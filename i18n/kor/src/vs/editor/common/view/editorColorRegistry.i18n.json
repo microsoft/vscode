@@ -15,6 +15,7 @@
 	"editorWhitespaces": "편집기의 공백 문자 색입니다.",
 	"editorIndentGuides": "편집기 들여쓰기 안내선 색입니다.",
 	"editorLineNumbers": "편집기 줄 번호 색입니다.",
+	"editorActiveLineNumber": "편집기 활성 영역 줄번호 색상",
 	"editorRuler": "편집기 눈금의 색상입니다.",
 	"editorCodeLensForeground": "편집기 코드 렌즈의 전경색입니다.",
 	"editorBracketMatchBackground": "일치하는 브래킷 뒤의 배경색입니다.",

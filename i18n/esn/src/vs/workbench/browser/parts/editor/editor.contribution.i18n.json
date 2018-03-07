@@ -19,12 +19,14 @@
 	"close": "Cerrar",
 	"closeOthers": "Cerrar otros",
 	"closeRight": "Cerrar a la derecha",
+	"closeAllSaved": "Cerrar guardados",
 	"closeAll": "Cerrar todo",
 	"keepOpen": "Mantener abierto",
 	"toggleInlineView": "Cambiar vista en línea",
 	"showOpenedEditors": "Mostrar editores abiertos",
 	"keepEditor": "Mantener editor",
 	"closeEditorsInGroup": "Cerrar todos los editores del grupo",
+	"closeSavedEditors": "Cerrar los editores guardados del grupo",
 	"closeOtherEditors": "Cerrar otros editores",
 	"closeRightEditors": "Cerrar los editores a la derecha"
 }

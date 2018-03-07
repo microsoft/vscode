@@ -52,7 +52,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { getGalleryExtensionIdFromLocal, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 
@@ -488,7 +487,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 		@IExtensionManagementService private extensionsManagementService: IExtensionManagementService,
 		@IWindowService private windowService: IWindowService,
 		@ILogService private logService: ILogService,
-		@IChoiceService private choiceService: IChoiceService
+		@INotificationService private notificationService: INotificationService
 	) {
 		this.loopCheckForMaliciousExtensions();
 	}
@@ -509,7 +508,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 
 				if (maliciousExtensions.length) {
 					return TPromise.join(maliciousExtensions.map(e => this.extensionsManagementService.uninstall(e, true).then(() => {
-						return this.choiceService.choose(Severity.Warning, localize('malicious warning', "We have uninstalled '{0}' which was reported to be problematic.", getGalleryExtensionIdFromLocal(e)), [localize('reloadNow', "Reload Now")]).then(choice => {
+						return this.notificationService.prompt(Severity.Warning, localize('malicious warning', "We have uninstalled '{0}' which was reported to be problematic.", getGalleryExtensionIdFromLocal(e)), [localize('reloadNow', "Reload Now")]).then(choice => {
 							if (choice === 0) {
 								return this.windowService.reloadWindow();
 							}

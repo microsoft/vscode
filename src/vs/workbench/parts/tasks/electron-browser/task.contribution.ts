@@ -46,7 +46,7 @@ import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platfo
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IDialogService, IChoiceService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -472,8 +472,7 @@ class TaskService implements ITaskService {
 		@IOpenerService private openerService: IOpenerService,
 		@IWindowService private readonly _windowService: IWindowService,
 		@IDialogService private dialogService: IDialogService,
-		@INotificationService private notificationService: INotificationService,
-		@IChoiceService private choiceService: IChoiceService
+		@INotificationService private notificationService: INotificationService
 	) {
 		this._configHasErrors = false;
 		this._workspaceTasksPromise = undefined;
@@ -491,7 +490,7 @@ class TaskService implements ITaskService {
 			let folderSetup = this.computeWorkspaceFolderSetup();
 			if (this.executionEngine !== folderSetup[2]) {
 				if (this._taskSystem && this._taskSystem.getActiveTasks().length > 0) {
-					this.choiceService.choose(Severity.Info, nls.localize(
+					this.notificationService.prompt(Severity.Info, nls.localize(
 						'TaskSystem.noHotSwap',
 						'Changing the task execution engine with an active task running requires to reload the Window'
 					), [nls.localize('reloadWindow', "Reload Window")]).then(choice => {

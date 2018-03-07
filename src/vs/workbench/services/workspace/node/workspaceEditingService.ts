@@ -27,7 +27,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
 import { isLinux } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
@@ -42,7 +41,6 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IStorageService private storageService: IStorageService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IBackupFileService private backupFileService: IBackupFileService,
-		@IChoiceService private choiceService: IChoiceService,
 		@INotificationService private notificationService: INotificationService,
 		@ICommandService private commandService: ICommandService
 	) {
@@ -176,7 +174,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private askToOpenWorkspaceConfigurationFile(message: string): TPromise<void> {
-		return this.choiceService.choose(Severity.Error, message, [nls.localize('openWorkspaceConfigurationFile', "Open Workspace Configuration")])
+		return this.notificationService.prompt(Severity.Error, message, [nls.localize('openWorkspaceConfigurationFile', "Open Workspace Configuration")])
 			.then(option => {
 				if (option === 0) {
 					this.commandService.executeCommand('workbench.action.openWorkspaceConfigFile');

@@ -58,8 +58,7 @@ import { DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { rtrim } from 'vs/base/common/strings';
-import { IDialogService, IConfirmationResult, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
-import { getConfirmMessage } from 'vs/workbench/services/dialogs/electron-browser/dialogs';
+import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class FileDataSource implements IDataSource {

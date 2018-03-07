@@ -39,6 +39,8 @@
 	"importFiles": "Importar archivos",
 	"confirmOverwrite": "Ya existe un archivo o carpeta con el mismo nombre en la carpeta de destino. ¿Quiere reemplazarlo?",
 	"replaceButtonLabel": "&&Reemplazar",
+	"fileIsAncestor": "El archivo que se va a pegar es un antecesor de la carpeta de destino",
+	"fileDeleted": "El archivo que se iba a pegar se ha eliminado o movido mientras tanto",
 	"duplicateFile": "Duplicado",
 	"globalCompareFile": "Comparar archivo activo con...",
 	"openFileToCompare": "Abrir un archivo antes para compararlo con otro archivo.",

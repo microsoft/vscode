@@ -8,6 +8,5 @@
 	],
 	"preview.securityMessage.text": "このドキュメントで一部のコンテンツが無効になっています",
 	"preview.securityMessage.title": "安全でない可能性があるか保護されていないコンテンツは、マークダウン プレビューで無効化されています。保護されていないコンテンツやスクリプトを有効にするには、マークダウン プレビューのセキュリティ設定を変更してください",
-	"preview.securityMessage.label": "セキュリティが無効なコンテンツの警告",
-	"previewTitle": "プレビュー {0}"
+	"preview.securityMessage.label": "セキュリティが無効なコンテンツの警告"
 }

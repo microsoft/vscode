@@ -39,5 +39,6 @@
 		}
 	],
 	"typescript.tsdk": "node_modules/typescript/lib",
-	"npm.exclude": "**/extensions/**"
+	"npm.exclude": "**/extensions/**",
+	"emmet.excludeLanguages": []
 }

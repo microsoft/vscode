@@ -8,6 +8,8 @@
 	],
 	"neverShowAgain": "다시 표시 안 함",
 	"searchMarketplace": "Marketplace 검색",
+	"showLanguagePackExtensions": "Marketplace에 VS Code를 '{0}' 로캘로 지역화하는 데 유용한 확장이 있습니다.",
+	"dynamicWorkspaceRecommendation": "이 확장은 {0} 리포지토리의 사용자들에게 인기가 있으므로 관심을 가질 만합니다.",
 	"exeBasedRecommendation": "{0}이(가) 설치되어 있으므로 이 확장을 권장합니다.",
 	"fileBasedRecommendation": "최근에 연 파일을 기반으로 확장이 권장됩니다.",
 	"workspaceRecommendation": "이 확장은 현재 작업 영역 사용자가 권장합니다.",

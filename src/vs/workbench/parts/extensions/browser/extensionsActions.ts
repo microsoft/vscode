@@ -44,7 +44,6 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
@@ -1881,7 +1880,7 @@ export class InstallVSIXAction extends Action {
 		id = InstallVSIXAction.ID,
 		label = InstallVSIXAction.LABEL,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IChoiceService private choiceService: IChoiceService,
+		@INotificationService private notificationService: INotificationService,
 		@IWindowService private windowsService: IWindowService
 	) {
 		super(id, label, 'extension-action install-vsix', true);
@@ -1899,7 +1898,7 @@ export class InstallVSIXAction extends Action {
 			}
 
 			return TPromise.join(result.map(vsix => this.extensionsWorkbenchService.install(vsix))).then(() => {
-				return this.choiceService.choose(Severity.Info, localize('InstallVSIXAction.success', "Successfully installed the extension. Reload to enable it."), [localize('InstallVSIXAction.reloadNow', "Reload Now")]).then(choice => {
+				return this.notificationService.prompt(Severity.Info, localize('InstallVSIXAction.success', "Successfully installed the extension. Reload to enable it."), [localize('InstallVSIXAction.reloadNow', "Reload Now")]).then(choice => {
 					if (choice === 0) {
 						return this.windowsService.reloadWindow();
 					}

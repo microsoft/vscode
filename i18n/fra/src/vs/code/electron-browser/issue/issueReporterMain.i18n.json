@@ -23,6 +23,6 @@
 	"featureRequestDescription": "Veuillez décrire la fonctionnalité que vous voulez voir. Nous supportons la syntaxe GitHub Markdown. Vous pourrez modifier votre problème et ajouter des captures d’écran lorsque nous la prévisualiserons sur GitHub.",
 	"expectedResults": "Résultats attendus",
 	"settingsSearchResultsDescription": "Veuillez lister les résultats que vous vous attendiez à voir quand vous avez cherché cette requête. Nous supportons la syntaxe GitHub Markdown. Vous pourrez modifier votre question et ajouter des captures d’écran lorsque nous la prévisualiserons sur GitHub.",
-	"urlLengthError": "Les données dépassent la longueur limite de {0} caractères. La longueur des données est {1}.",
+	"pasteData": "Nous avons écrit les données nécessaires dans votre presse-papiers, car elles étaient trop volumineuses à envoyer. Veuillez les coller.",
 	"disabledExtensions": "Les extensions sont désactivées"
 }

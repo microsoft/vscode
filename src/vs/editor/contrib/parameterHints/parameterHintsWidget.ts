@@ -507,8 +507,11 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		this.renderDisposeables = dispose(this.renderDisposeables);
-		this.model.dispose();
-		this.model = null;
+
+		if (this.model) {
+			this.model.dispose();
+			this.model = null;
+		}
 	}
 }
 

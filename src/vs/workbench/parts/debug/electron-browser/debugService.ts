@@ -51,10 +51,11 @@ import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-br
 import { IRemoteConsoleLog, parse, getFirstFrame } from 'vs/base/node/console';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { TaskEvent, TaskEventKind } from 'vs/workbench/parts/tasks/common/tasks';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IAction, Action } from 'vs/base/common/actions';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -83,6 +84,7 @@ export class DebugService implements debug.IDebugService {
 	private launchJsonChanged: boolean;
 	private firstSessionStart: boolean;
 	private previousState: debug.State;
+	private fetchThreadsSchedulers: Map<string, RunOnceScheduler>;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -91,7 +93,7 @@ export class DebugService implements debug.IDebugService {
 		@IViewletService private viewletService: IViewletService,
 		@IPanelService private panelService: IPanelService,
 		@INotificationService private notificationService: INotificationService,
-		@IChoiceService private choiceService: IChoiceService,
+		@IDialogService private dialogService: IDialogService,
 		@IPartService private partService: IPartService,
 		@IWindowService private windowService: IWindowService,
 		@IBroadcastService private broadcastService: IBroadcastService,
@@ -115,6 +117,7 @@ export class DebugService implements debug.IDebugService {
 		this._onDidCustomEvent = new Emitter<debug.DebugEvent>();
 		this.sessionStates = new Map<string, debug.State>();
 		this.allProcesses = new Map<string, debug.IProcess>();
+		this.fetchThreadsSchedulers = new Map<string, RunOnceScheduler>();
 
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
 		this.toDispose.push(this.configurationManager);
@@ -302,7 +305,18 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidThread(event => {
 			if (event.body.reason === 'started') {
-				this.fetchThreads(session).done(undefined, errors.onUnexpectedError);
+				// debounce to reduce threadsRequest frequency and improve performance
+				let scheduler = this.fetchThreadsSchedulers.get(session.getId());
+				if (!scheduler) {
+					scheduler = new RunOnceScheduler(() => {
+						this.fetchThreads(session).done(undefined, errors.onUnexpectedError);
+					}, 100);
+					this.fetchThreadsSchedulers.set(session.getId(), scheduler);
+					this.toDisposeOnSessionEnd.get(session.getId()).push(scheduler);
+				}
+				if (!scheduler.isScheduled()) {
+					scheduler.schedule();
+				}
 			} else if (event.body.reason === 'exited') {
 				this.model.clearThreads(session.getId(), true, event.body.threadId);
 			}
@@ -972,7 +986,7 @@ export class DebugService implements debug.IDebugService {
 	private showError(message: string, actions: IAction[] = []): TPromise<any> {
 		const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
 		actions.push(configureAction);
-		return this.choiceService.choose(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), actions.length, true).then(choice => {
+		return this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length }).then(choice => {
 			if (choice < actions.length) {
 				return actions[choice].run();
 			}
