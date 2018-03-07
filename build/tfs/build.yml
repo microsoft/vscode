@@ -1,0 +1,76 @@
+variables:
+  VSCODE_BUILD_VERBOSE: true
+  System.Debug: true
+
+phases:
+- phase: Windows
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "8.9.1"
+
+  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+    inputs:
+      versionSpec: "1.3.2"
+
+  - powershell: |
+      yarn
+      .\node_modules\.bin\gulp electron
+      .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit
+      npm run compile
+    name: build
+
+  - powershell: |
+      .\scripts\test.bat --build --reporter spec
+      .\scripts\test-integration.bat
+    name: test
+
+- phase: Linux
+  - script: |
+      apt-get update
+      apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 libgconf-2-4 dbus xvfb
+      cp build/tfs/linux/x64/xvfb.init /etc/init.d/xvfb
+      chmod +x /etc/init.d/xvfb
+      update-rc.d xvfb defaults
+      ln -sf /bin/dbus-daemon /usr/bin/dbus-daemon
+      service xvfb start
+      service dbus start
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "8.9.1"
+  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+    inputs:
+      versionSpec: "1.3.2"
+  - script: |
+      yarn
+      npm run gulp -- electron-x64
+  - script: |
+      npm run gulp -- hygiene
+      ./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
+      npm run gulp -- vscode-linux-x64-min
+    name: build
+  - script: |
+      DISPLAY=:10 ./scripts/test.sh --build --reporter spec
+    name: test
+
+- phase: macOS
+  queue: Hosted macOS Preview
+  steps:
+
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "8.9.1"
+  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+    inputs:
+      versionSpec: "1.3.2"
+  - script: |
+      yarn
+      npm run gulp -- electron-x64
+  - script: |
+      npm run gulp -- hygiene
+      ./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
+      npm run gulp -- vscode-darwin-min
+    name: build
+  - script: |
+      ./scripts/test.sh --build --reporter spec
+      ./scripts/test-integration.sh
+    name: test
