@@ -17,7 +17,7 @@ const optimist = require('optimist')
 	.describe('build', 'run with build output (out-build)').boolean('build')
 	.describe('coverage', 'generate coverage report').boolean('coverage')
 	.describe('debug', 'open dev tools, keep window open, reuse app data').string('debug')
-	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', process.platform === 'win32' ? 'dot' : 'spec')
+	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', process.platform === 'win32' ? 'list' : 'spec')
 	.describe('help', 'show the help').alias('help', 'h');
 
 const argv = optimist.argv;
@@ -113,7 +113,7 @@ app.on('ready', () => {
 		Reporter = require(reporterPath);
 	} catch (err) {
 		console.warn(`could not load reporter: ${argv.reporter}`);
-		Reporter = process.platform === 'win32' ? mocha.reporters.Dot : mocha.reporters.Spec;
+		Reporter = process.platform === 'win32' ? mocha.reporters.List : mocha.reporters.Spec;
 	}
 
 	const runner = new IPCRunner();

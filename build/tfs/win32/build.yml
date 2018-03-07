@@ -22,7 +22,6 @@ steps:
   name: build
 
 - powershell: |
-    node --version
-    .\scripts\test.bat
+    .\scripts\test.bat --build --reporter list
     .\scripts\test-integration.bat
   name: test
