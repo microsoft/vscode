@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.htmlPreviewPart {
-	overflow: hidden;
+export function onceDocumentLoaded(f: () => void) {
+	if (document.readyState === 'loading' || document.readyState === 'uninitialized') {
+		document.addEventListener('DOMContentLoaded', f);
+	} else {
+		f();
+	}
 }

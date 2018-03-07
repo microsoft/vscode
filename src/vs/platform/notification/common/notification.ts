@@ -44,7 +44,7 @@ export interface INotification {
 	 * close automatically when invoking a secondary action.
 	 *
 	 * **Note:** If your intent is to show a message with actions to the user, consider
-	 * the `IChoiceService` and `IConfirmationService` instead which are optimized for
+	 * the `IChoiceService` or `IDialogService` instead which are optimized for
 	 * this usecase and much easier to use!
 	 */
 	actions?: INotificationActions;
@@ -129,7 +129,7 @@ export interface INotificationService {
 	 * can be used to control the notification afterwards.
 	 *
 	 * **Note:** If your intent is to show a message with actions to the user, consider
-	 * the `IChoiceService` and `IConfirmationService` instead which are optimized for
+	 * the `IChoiceService` or `IDialogService` instead which are optimized for
 	 * this usecase and much easier to use!
 	 */
 	notify(notification: INotification): INotificationHandle;

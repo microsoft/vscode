@@ -309,7 +309,7 @@ export function sameNodes(node1: Node, node2: Node): boolean {
 export function getEmmetConfiguration(syntax: string) {
 	const emmetConfig = vscode.workspace.getConfiguration('emmet');
 	const syntaxProfiles = Object.assign({}, emmetConfig['syntaxProfiles'] || {});
-
+	const preferences = Object.assign({}, emmetConfig['preferences'] || {});
 	// jsx, xml and xsl syntaxes need to have self closing tags unless otherwise configured by user
 	if (syntax === 'jsx' || syntax === 'xml' || syntax === 'xsl') {
 		syntaxProfiles[syntax] = syntaxProfiles[syntax] || {};
@@ -322,7 +322,7 @@ export function getEmmetConfiguration(syntax: string) {
 	}
 
 	return {
-		preferences: emmetConfig['preferences'],
+		preferences,
 		showExpandedAbbreviation: emmetConfig['showExpandedAbbreviation'],
 		showAbbreviationSuggestions: emmetConfig['showAbbreviationSuggestions'],
 		syntaxProfiles,

@@ -24,7 +24,7 @@ class MockOcticonLabel {
 }
 
 var mock: typeof octiconLabel = {
-	render: render,
+	renderOcticons: render,
 	OcticonLabel: <any>MockOcticonLabel
 };
 export = mock;

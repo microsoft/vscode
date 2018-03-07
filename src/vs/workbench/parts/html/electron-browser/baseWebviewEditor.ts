@@ -5,14 +5,12 @@
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { BaseWebviewEditor } from 'vs/workbench/browser/parts/editor/webviewEditor';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 
 import { IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 import { Webview } from './webview';
-import { Builder } from 'vs/base/browser/builder';
 import { Dimension } from 'vs/workbench/services/part/common/partService';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 
 /**  A context key that is set when a webview editor has focus. */
 export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS = new RawContextKey<boolean>('webviewEditorFocus', false);
@@ -21,14 +19,13 @@ export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED = new Ra
 /**  A context key that is set when the find widget in a webview is visible. */
 export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('webviewFindWidgetVisible', false);
 
+
 /**
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class WebviewEditor extends BaseWebviewEditor {
+export abstract class BaseWebviewEditor extends BaseEditor {
 
-	protected _webviewFocusContextKey: IContextKey<boolean>;
-	protected _webview: Webview;
-	protected content: HTMLElement;
+	protected _webview: Webview | undefined;
 	protected contextKey: IContextKey<boolean>;
 	protected findWidgetVisible: IContextKey<boolean>;
 	protected findInputFocusContextKey: IContextKey<boolean>;
@@ -37,10 +34,9 @@ export abstract class WebviewEditor extends BaseWebviewEditor {
 		id: string,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
-		storageService: IStorageService,
 		contextKeyService: IContextKeyService,
 	) {
-		super(id, telemetryService, themeService, storageService);
+		super(id, telemetryService, themeService);
 		if (contextKeyService) {
 			this.contextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS.bindTo(contextKeyService);
 			this.findInputFocusContextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(contextKeyService);
@@ -95,7 +91,4 @@ export abstract class WebviewEditor extends BaseWebviewEditor {
 			this._webview.focus();
 		}
 	}
-
-	protected abstract createEditor(parent: Builder): void;
 }
-

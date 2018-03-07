@@ -139,7 +139,7 @@ export class MarkersPanel extends Panel {
 					"source" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
-			this.telemetryService.publicLog('problems.marker.opened', { source: marker.marker.source });
+			this.telemetryService.publicLog('problems.marker.opened', { source: marker.raw.source });
 			this.editorService.openEditor({
 				resource: marker.resource,
 				options: {
@@ -197,9 +197,9 @@ export class MarkersPanel extends Panel {
 		const controller = this.instantiationService.createInstance(Controller);
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new Viewer.DataSource(),
+			filter: new Viewer.DataFilter(),
 			renderer,
 			controller,
-			sorter: new Viewer.Sorter(),
 			accessibilityProvider: new Viewer.MarkersTreeAccessibilityProvider(),
 			dnd
 		}, {
@@ -294,13 +294,12 @@ export class MarkersPanel extends Panel {
 	}
 
 	private autoExpand(): void {
-		for (const resource of this.markersWorkbenchService.markersModel.filteredResources) {
-			const resourceUri = resource.uri.toString();
-			if (!this.autoExpanded.has(resourceUri)) {
+		this.markersWorkbenchService.markersModel.forEachFilteredResource(resource => {
+			if (!this.autoExpanded.has(resource.uri.toString())) {
 				this.tree.expand(resource).done(null, errors.onUnexpectedError);
-				this.autoExpanded.add(resourceUri);
+				this.autoExpanded.add(resource.uri.toString());
 			}
-		}
+		});
 	}
 
 	private autoReveal(focus: boolean = false): void {
@@ -332,20 +331,22 @@ export class MarkersPanel extends Panel {
 	}
 
 	private getResourceForCurrentActiveResource(): Resource {
+		let res: Resource = null;
 		if (this.currentActiveResource) {
-			let resources = this.markersWorkbenchService.markersModel.filteredResources.filter((resource): boolean => {
-				return this.currentActiveResource.toString() === resource.uri.toString();
+			this.markersWorkbenchService.markersModel.forEachFilteredResource(resource => {
+				if (!res && resource.uri.toString() === this.currentActiveResource.toString()) {
+					res = resource;
+				}
 			});
-			return resources.length > 0 ? resources[0] : null;
 		}
-		return null;
+		return res;
 	}
 
 	private hasSelectedMarkerFor(resource: Resource): boolean {
 		let selectedElement = this.tree.getSelection();
 		if (selectedElement && selectedElement.length > 0) {
 			if (selectedElement[0] instanceof Marker) {
-				if (resource.uri.toString() === selectedElement[0].marker.resource.toString()) {
+				if (resource.uri.toString() === (<Marker>selectedElement[0]).raw.resource.toString()) {
 					return true;
 				}
 			}

@@ -10,30 +10,22 @@ import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { WebviewEditor } from './webviewEditor';
+import { BaseWebviewEditor } from './baseWebviewEditor';
 
-export class ShowWebViewEditorFindWidgetAction extends Action {
+export class ShowWebViewEditorFindWidgetCommand extends Command {
 	public static readonly ID = 'editor.action.webvieweditor.showFind';
-	public static readonly LABEL = nls.localize('editor.action.webvieweditor.showFind', "Focus Find Widget");
 
-	public constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private workbenchEditorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const webViewEditor = this.getWebViewEditor();
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const webViewEditor = this.getWebViewEditor(accessor);
 		if (webViewEditor) {
 			webViewEditor.showFind();
 		}
 		return null;
 	}
 
-	private getWebViewEditor(): WebviewEditor {
-		const activeEditor = this.workbenchEditorService.getActiveEditor() as WebviewEditor;
+	private getWebViewEditor(accessor: ServicesAccessor): BaseWebviewEditor {
+		const workbenchEditorService = accessor.get(IWorkbenchEditorService);
+		const activeEditor = workbenchEditorService.getActiveEditor() as BaseWebviewEditor;
 		if (activeEditor.isWebviewEditor) {
 			return activeEditor;
 		}
@@ -42,6 +34,8 @@ export class ShowWebViewEditorFindWidgetAction extends Action {
 }
 
 export class HideWebViewEditorFindCommand extends Command {
+	public static readonly Id = 'editor.action.webvieweditor.hideFind';
+
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 		const webViewEditor = this.getWebViewEditor(accessor);
 		if (webViewEditor) {
@@ -49,8 +43,8 @@ export class HideWebViewEditorFindCommand extends Command {
 		}
 	}
 
-	private getWebViewEditor(accessor: ServicesAccessor): WebviewEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as WebviewEditor;
+	private getWebViewEditor(accessor: ServicesAccessor): BaseWebviewEditor {
+		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as BaseWebviewEditor;
 		if (activeEditor.isWebviewEditor) {
 			return activeEditor;
 		}
@@ -59,6 +53,8 @@ export class HideWebViewEditorFindCommand extends Command {
 }
 
 export class ShowWebViewEditorFindTermCommand extends Command {
+	public static readonly Id = 'editor.action.webvieweditor.showPreviousFindTerm';
+
 	constructor(opts: ICommandOptions, private _next: boolean) {
 		super(opts);
 	}
@@ -74,8 +70,8 @@ export class ShowWebViewEditorFindTermCommand extends Command {
 		}
 	}
 
-	private getWebViewEditor(accessor: ServicesAccessor): WebviewEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as WebviewEditor;
+	private getWebViewEditor(accessor: ServicesAccessor): BaseWebviewEditor {
+		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as BaseWebviewEditor;
 		if (activeEditor.isWebviewEditor) {
 			return activeEditor;
 		}
@@ -83,10 +79,9 @@ export class ShowWebViewEditorFindTermCommand extends Command {
 	}
 }
 
-
 export class OpenWebviewDeveloperToolsAction extends Action {
 	static readonly ID = 'workbench.action.webview.openDeveloperTools';
-	static LABEL = nls.localize('openToolsLabel', "Open Webview Developer Tools");
+	static readonly LABEL = nls.localize('openToolsLabel', "Open Webview Developer Tools");
 
 	public constructor(
 		id: string,
@@ -108,10 +103,9 @@ export class OpenWebviewDeveloperToolsAction extends Action {
 	}
 }
 
-
 export class ReloadWebviewAction extends Action {
 	static readonly ID = 'workbench.action.webview.reloadWebviewAction';
-	static LABEL = nls.localize('refreshWebviewLabel', "Reload Webviews");
+	static readonly LABEL = nls.localize('refreshWebviewLabel', "Reload Webviews");
 
 	public constructor(
 		id: string,
@@ -131,6 +125,6 @@ export class ReloadWebviewAction extends Action {
 	private getVisibleWebviews() {
 		return this.workbenchEditorService.getVisibleEditors()
 			.filter(c => c && (c as any).isWebviewEditor)
-			.map(e => e as WebviewEditor);
+			.map(e => e as BaseWebviewEditor);
 	}
 }

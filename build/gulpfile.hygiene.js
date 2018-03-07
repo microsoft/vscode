@@ -81,7 +81,8 @@ const indentationFilter = [
 	'!build/{lib,tslintRules}/**/*.js',
 	'!build/**/*.sh',
 	'!build/tfs/**/*.js',
-	'!**/Dockerfile'
+	'!**/Dockerfile',
+	'!extensions/markdown/media/*.js'
 ];
 
 const copyrightFilter = [

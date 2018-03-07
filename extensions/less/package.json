@@ -26,6 +26,7 @@
 				"name": "lessc",
 				"label": "Lessc compiler",
 				"owner": "lessc",
+				"source": "less",
 				"fileLocation": "absolute",
 				"pattern": {
 					"regexp": "(.*)\\sin\\s(.*)\\son line\\s(\\d+),\\scolumn\\s(\\d+)",

@@ -11,7 +11,7 @@ import { IRequestOptions, IRequestContext, IRequestFunction, request } from 'vs/
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { IRequestService, IHTTPConfiguration } from 'vs/platform/request/node/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from '../../log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 
 /**
  * This service exposes the `request` API, while using the global

@@ -12,7 +12,7 @@ import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { BaseActionItem, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { IContextViewProvider, IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { EventHelper, EventType } from 'vs/base/browser/dom';
@@ -33,6 +33,7 @@ export class BaseDropdown extends ActionRunner {
 	private $boxContainer: Builder;
 	private $label: Builder;
 	private $contents: Builder;
+	private visible: boolean;
 
 	constructor(container: HTMLElement, options: IBaseDropdownOptions) {
 		super();
@@ -58,7 +59,11 @@ export class BaseDropdown extends ActionRunner {
 				return; // prevent multiple clicks to open multiple context menus (https://github.com/Microsoft/vscode/issues/41363)
 			}
 
-			this.show();
+			if (this.visible) {
+				this.hide();
+			} else {
+				this.show();
+			}
 		}).appendTo(this.$el);
 
 		let cleanupFn = labelRenderer(this.$label.getHTMLElement());
@@ -87,11 +92,11 @@ export class BaseDropdown extends ActionRunner {
 	}
 
 	public show(): void {
-		// noop
+		this.visible = true;
 	}
 
 	public hide(): void {
-		// noop
+		this.visible = false;
 	}
 
 	protected onEvent(e: Event, activeElement: HTMLElement): void {
@@ -135,10 +140,12 @@ export class Dropdown extends BaseDropdown {
 	}
 
 	public show(): void {
+		super.show();
+
 		this.element.addClass('active');
 
 		this.contextViewProvider.showContextView({
-			getAnchor: () => this.element.getHTMLElement(),
+			getAnchor: () => this.getAnchor(),
 
 			render: (container) => {
 				return this.renderContents(container);
@@ -148,13 +155,21 @@ export class Dropdown extends BaseDropdown {
 				this.onEvent(e, activeElement);
 			},
 
-			onHide: () => {
-				this.element.removeClass('active');
-			}
+			onHide: () => this.onHide()
 		});
 	}
 
+	protected getAnchor(): HTMLElement | IAnchor {
+		return this.element.getHTMLElement();
+	}
+
+	protected onHide(): void {
+		this.element.removeClass('active');
+	}
+
 	public hide(): void {
+		super.hide();
+
 		if (this.contextViewProvider) {
 			this.contextViewProvider.hideContextView();
 		}
@@ -217,6 +232,8 @@ export class DropdownMenu extends BaseDropdown {
 	}
 
 	public show(): void {
+		super.show();
+
 		this.element.addClass('active');
 
 		this._contextMenuProvider.showContextMenu({
@@ -232,7 +249,7 @@ export class DropdownMenu extends BaseDropdown {
 	}
 
 	public hide(): void {
-		// noop
+		super.hide();
 	}
 }
 

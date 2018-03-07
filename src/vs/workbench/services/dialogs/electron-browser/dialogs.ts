@@ -13,7 +13,7 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IConfirmationService, IChoiceService, IConfirmation, IConfirmationResult, Choice } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IChoiceService, IConfirmation, IConfirmationResult, Choice } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
 import { once } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
@@ -34,7 +34,7 @@ interface IMassagedMessageBoxOptions {
 	buttonIndexMap: number[];
 }
 
-export class DialogService implements IChoiceService, IConfirmationService {
+export class DialogService implements IChoiceService, IDialogService {
 
 	public _serviceBrand: any;
 
@@ -44,7 +44,7 @@ export class DialogService implements IChoiceService, IConfirmationService {
 	) {
 	}
 
-	public confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
 
 		return this.windowService.showMessageBox(options).then(result => {
@@ -53,12 +53,6 @@ export class DialogService implements IChoiceService, IConfirmationService {
 				checkboxChecked: result.checkboxChecked
 			} as IConfirmationResult;
 		});
-	}
-
-	public confirm(confirmation: IConfirmation): TPromise<boolean> {
-		const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
-
-		return this.windowService.showMessageBox(options).then(result => buttonIndexMap[result.button] === 0 ? true : false);
 	}
 
 	private getConfirmOptions(confirmation: IConfirmation): Electron.MessageBoxOptions {

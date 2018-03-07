@@ -266,11 +266,14 @@ export class PanelViewlet extends Viewlet {
 		const disposable = combinedDisposable([onDidFocus, styler, onDidChange]);
 		const panelItem: IViewletPanelItem = { panel, disposable };
 
+		const wasSingleView = this.isSingleView();
 		this.panelItems.splice(index, 0, panelItem);
 		this.panelview.addPanel(panel, size, index);
 
 		this.updateViewHeaders();
-		this.updateTitleArea();
+		if (this.isSingleView() !== wasSingleView) {
+			this.updateTitleArea();
+		}
 	}
 
 	removePanel(panel: ViewletPanel): void {
@@ -284,12 +287,15 @@ export class PanelViewlet extends Viewlet {
 			this.lastFocusedPanel = undefined;
 		}
 
+		const wasSingleView = this.isSingleView();
 		this.panelview.removePanel(panel);
 		const [panelItem] = this.panelItems.splice(index, 1);
 		panelItem.disposable.dispose();
 
 		this.updateViewHeaders();
-		this.updateTitleArea();
+		if (wasSingleView !== this.isSingleView()) {
+			this.updateTitleArea();
+		}
 	}
 
 	movePanel(from: ViewletPanel, to: ViewletPanel): void {

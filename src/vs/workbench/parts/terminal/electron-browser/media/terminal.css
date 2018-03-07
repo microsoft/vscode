@@ -33,10 +33,10 @@
 	bottom: 2px; /* Matches padding-bottom on .terminal-outer-container */
 	top: 0;
 }
-.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view.first .terminal-wrapper {
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:first-child .terminal-wrapper {
 	margin-left: 20px;
 }
-.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view.last .terminal-wrapper {
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:last-child .terminal-wrapper {
 	margin-right: 20px;
 }
 
@@ -52,7 +52,7 @@
 .monaco-workbench .panel.integrated-terminal .xterm-viewport {
 	margin-right: -10px;
 }
-.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view.last .xterm-viewport {
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:last-child .xterm-viewport {
 	margin-right: -20px;
 }
 
@@ -111,7 +111,7 @@
 	left: 0;
 	user-select: none;
 }
-.monaco-workbench .panel.integrated-terminal .monaco-split-view2.vertical .split-view-view:not(.last) .xterm {
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.vertical .split-view-view:not(:last-child) .xterm {
 	/* When vertical and NOT the bottom terminal, align to the top instead to prevent the output jumping around erratically */
 	top: 0;
 	bottom: auto;
@@ -161,8 +161,8 @@
 .vs-dark .monaco-workbench .terminal-action.split, .hc-black .monaco-workbench .terminal-action.split { background: url('split-inverse.svg') center center no-repeat; }
 .vs-dark .monaco-workbench .panel.right .terminal-action.split, .hc-black .monaco-workbench .panel.right .terminal-action.split { background: url('split-horizontal-inverse.svg') center center no-repeat; }
 
-.vs-dark .monaco-workbench.mac .panel.integrated-terminal .terminal:not(.enable-mouse-events),
-.hc-black .monaco-workbench.mac .panel.integrated-terminal .terminal:not(.enable-mouse-events) {
+.vs-dark .monaco-workbench.mac .panel.integrated-terminal .terminal-outer-container:not(.alt-active) .terminal:not(.enable-mouse-events),
+.hc-black .monaco-workbench.mac .panel.integrated-terminal .terminal-outer-container:not(.alt-active) .terminal:not(.enable-mouse-events) {
 	cursor: -webkit-image-set(url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAQAAAC1+jfqAAAAL0lEQVQoz2NgCD3x//9/BhBYBWdhgFVAiVW4JBFKGIa4AqD0//9D3pt4I4tAdAMAHTQ/j5Zom30AAAAASUVORK5CYII=') 1x, url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAQAAADZc7J/AAAAz0lEQVRIx2NgYGBY/R8I/vx5eelX3n82IJ9FxGf6tksvf/8FiTMQAcAGQMDvSwu09abffY8QYSAScNk45G198eX//yev73/4///701eh//kZSARckrNBRvz//+8+6ZohwCzjGNjdgQxkAg7B9WADeBjIBqtJCbhRA0YNoIkBSNmaPEMoNmA0FkYNoFKhapJ6FGyAH3nauaSmPfwI0v/3OukVi0CIZ+F25KrtYcx/CTIy0e+rC7R1Z4KMICVTQQ14feVXIbR695u14+Ir4gwAAD49E54wc1kWAAAAAElFTkSuQmCC') 2x) 5 8, text;
 }
 

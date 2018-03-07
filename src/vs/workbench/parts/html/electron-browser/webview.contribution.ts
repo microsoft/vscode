@@ -9,21 +9,23 @@ import { ContextKeyExpr, } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './webviewEditor';
+import { KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ShowWebViewEditorFindWidgetAction, ShowWebViewEditorFindTermCommand, HideWebViewEditorFindCommand, OpenWebviewDeveloperToolsAction, ReloadWebviewAction } from './webviewCommands';
+import { ShowWebViewEditorFindTermCommand, HideWebViewEditorFindCommand, OpenWebviewDeveloperToolsAction, ReloadWebviewAction, ShowWebViewEditorFindWidgetCommand } from './webviewCommands';
 
-
-const category = 'Webview';
 const webviewDeveloperCategory = nls.localize('developer', "Developer");
 
 const actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowWebViewEditorFindWidgetAction, ShowWebViewEditorFindWidgetAction.ID, ShowWebViewEditorFindWidgetAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_F
-}, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS),
-	'Webview: Focus Find Widget', category);
+const showNextFindWdigetCommand = new ShowWebViewEditorFindWidgetCommand({
+	id: ShowWebViewEditorFindWidgetCommand.ID,
+	precondition: KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS,
+	kbOpts: {
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+	}
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule(showNextFindWdigetCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 
 
 const showNextFindTermCommand = new ShowWebViewEditorFindTermCommand({
@@ -46,7 +48,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule(showPreviousFindTermCommand
 
 
 const hideCommand = new HideWebViewEditorFindCommand({
-	id: 'editor.action.webvieweditor.hideFind',
+	id: HideWebViewEditorFindCommand.Id,
 	precondition: ContextKeyExpr.and(
 		KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS,
 		KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE),

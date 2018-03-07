@@ -36,7 +36,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 
-
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
 	private openEditorsVisibleContextKey: IContextKey<boolean>;

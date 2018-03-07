@@ -22,7 +22,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { getTerminalDefaultShellWindows } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 import { TerminalTab } from 'vs/workbench/parts/terminal/electron-browser/terminalTab';
-import { IChoiceService, IConfirmationService, Choice } from 'vs/platform/dialogs/common/dialogs';
+import { IChoiceService, IDialogService, Choice } from 'vs/platform/dialogs/common/dialogs';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
@@ -43,7 +43,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
 		@IChoiceService private readonly _choiceService: IChoiceService,
-		@IConfirmationService private readonly _confirmationService: IConfirmationService
+		@IDialogService private readonly _dialogService: IDialogService
 	) {
 		super(contextKeyService, panelService, partService, lifecycleService, storageService);
 
@@ -225,10 +225,10 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
 		}
 
-		return this._confirmationService.confirm({
+		return this._dialogService.confirm({
 			message,
 			type: 'warning',
-		}).then(confirmed => !confirmed);
+		}).then(res => !res.confirmed);
 	}
 
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {

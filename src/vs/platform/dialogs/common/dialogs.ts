@@ -22,25 +22,30 @@ export interface IConfirmation {
 }
 
 export interface IConfirmationResult {
+
+	/**
+	 * Will be true if the dialog was confirmed with the primary button
+	 * pressed.
+	 */
 	confirmed: boolean;
+
+	/**
+	 * This will only be defined if the confirmation was created
+	 * with the checkox option defined.
+	 */
 	checkboxChecked?: boolean;
 }
 
-export const IConfirmationService = createDecorator<IConfirmationService>('confirmationService');
+export const IDialogService = createDecorator<IDialogService>('dialogService');
 
-export interface IConfirmationService {
+export interface IDialogService {
 
 	_serviceBrand: any;
 
 	/**
 	 * Ask the user for confirmation with a modal dialog.
 	 */
-	confirm(confirmation: IConfirmation): TPromise<boolean>;
-
-	/**
-	 * Ask the user for confirmation with a checkbox in a modal dialog.
-	 */
-	confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult>;
+	confirm(confirmation: IConfirmation): TPromise<IConfirmationResult>;
 }
 
 export const IChoiceService = createDecorator<IChoiceService>('choiceService');
