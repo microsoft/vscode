@@ -23,5 +23,4 @@ steps:
 
 - powershell: |
     .\scripts\test.bat
-    .\scripts\test-integration.bat
   name: test
