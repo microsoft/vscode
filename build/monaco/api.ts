@@ -370,10 +370,14 @@ export function run(out: string, inputFiles: { [file: string]: string; }): IMona
 	let currentContent = fs.readFileSync(DECLARATION_PATH).toString();
 	log('Finished monaco.d.ts generation');
 
+	const one = currentContent.replace(/\r\n/gm, '\n');
+	const other = result.replace(/\r\n/gm, '\n');
+	const isTheSame = one === other;
+
 	return {
 		content: result,
 		filePath: DECLARATION_PATH,
-		isTheSame: currentContent === result
+		isTheSame
 	};
 }
 

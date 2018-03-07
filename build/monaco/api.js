@@ -314,10 +314,13 @@ function run(out, inputFiles) {
     var result = generateDeclarationFile(out, inputFiles, recipe);
     var currentContent = fs.readFileSync(DECLARATION_PATH).toString();
     log('Finished monaco.d.ts generation');
+    var one = currentContent.replace(/\r\n/gm, '\n');
+    var other = result.replace(/\r\n/gm, '\n');
+    var isTheSame = one === other;
     return {
         content: result,
         filePath: DECLARATION_PATH,
-        isTheSame: currentContent === result
+        isTheSame: isTheSame
     };
 }
 exports.run = run;
