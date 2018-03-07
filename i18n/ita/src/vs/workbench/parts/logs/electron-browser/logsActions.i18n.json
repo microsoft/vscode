@@ -15,6 +15,7 @@
 	"mainProcess": "Principale",
 	"selectProcess": "Seleziona log per il processo",
 	"openLogFile": "Apri file di Log...",
+	"setLogLevel": "Imposta livello log...",
 	"trace": "Analisi",
 	"debug": "Debug",
 	"info": "Informazioni",

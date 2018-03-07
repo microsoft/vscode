@@ -8,6 +8,7 @@
 	],
 	"neverShowAgain": "不要再顯示",
 	"searchMarketplace": "搜尋市集",
+	"showLanguagePackExtensions": "Marketplace 的延伸模組能夠協助將 VS Code 當地語系化為 '{0}' 地區設定",
 	"dynamicWorkspaceRecommendation": "此擴充功能可能會讓您感興趣，因為它在 {0} 儲存庫的使用者中很熱門。",
 	"exeBasedRecommendation": "因為您已安裝 {0}，所以建議您使用此延伸模組。",
 	"fileBasedRecommendation": "根據您最近開啟的檔案，建議您使用此延伸模組。",

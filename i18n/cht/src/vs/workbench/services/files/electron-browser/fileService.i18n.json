@@ -11,5 +11,6 @@
 	"netVersionError": "需要 Microsoft .NET Framework 4.5。請連入此連結進行安裝。",
 	"learnMore": "說明",
 	"enospcError": "{0} 已超出檔案處理。請按照說明連結解決此問題。",
+	"binFailed": "無法將 '{0}' 移至資源回收筒",
 	"trashFailed": "無法將 '{0}' 移動至垃圾"
 }

@@ -52,8 +52,8 @@ import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISplice } from 'vs/base/common/sequence';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { createStyleSheet } from '../../../../base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { createStyleSheet } from 'vs/base/browser/dom';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -764,7 +764,7 @@ export class DirtyDiffController implements IEditorContribution {
 	}
 
 	dispose(): void {
-		return;
+		this.disposables = dispose(this.disposables);
 	}
 }
 
@@ -952,7 +952,7 @@ export class DirtyDiffModel {
 		onDidChange(this.triggerDiff, this, disposables);
 
 		const onDidRemoveThis = filterEvent(this.scmService.onDidRemoveRepository, r => r === repository);
-		onDidRemoveThis(() => dispose(disposables));
+		onDidRemoveThis(() => dispose(disposables), null, disposables);
 
 		this.triggerDiff();
 	}
@@ -1005,6 +1005,10 @@ export class DirtyDiffModel {
 
 		this._originalURIPromise = this.getOriginalResource()
 			.then(originalUri => {
+				if (!this._editorModel) { // disposed
+					return null;
+				}
+
 				if (!originalUri) {
 					this._originalModel = null;
 					return null;
@@ -1012,6 +1016,10 @@ export class DirtyDiffModel {
 
 				return this.textModelResolverService.createModelReference(originalUri)
 					.then(ref => {
+						if (!this._editorModel) { // disposed
+							return null;
+						}
+
 						this._originalModel = ref.object.textEditorModel;
 
 						this.disposables.push(ref);

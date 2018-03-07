@@ -20,14 +20,14 @@ import { Color } from 'vs/base/common/color';
 import { ICheckboxStyles } from 'vs/base/browser/ui/checkbox/checkbox';
 
 export interface IFindInputOptions extends IFindInputStyles {
-	placeholder?: string;
-	width?: number;
-	validation?: IInputValidator;
-	label: string;
+	readonly placeholder?: string;
+	readonly width?: number;
+	readonly validation?: IInputValidator;
+	readonly label: string;
 
-	appendCaseSensitiveLabel?: string;
-	appendWholeWordsLabel?: string;
-	appendRegexLabel?: string;
+	readonly appendCaseSensitiveLabel?: string;
+	readonly appendWholeWordsLabel?: string;
+	readonly appendRegexLabel?: string;
 }
 
 export interface IFindInputStyles extends IInputBoxStyles {
@@ -38,7 +38,7 @@ const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
 
 export class FindInput extends Widget {
 
-	static OPTION_CHANGE: string = 'optionChange';
+	static readonly OPTION_CHANGE: string = 'optionChange';
 
 	private contextViewProvider: IContextViewProvider;
 	private width: number;

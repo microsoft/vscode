@@ -48,9 +48,9 @@ https-proxy-agent@2.1.1:
     agent-base "^4.1.0"
     debug "^3.1.0"
 
-jsonc-parser@^1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-1.0.1.tgz#7f8f296414e6e7c4a33b9e4914fc8c47e4421675"
+jsonc-parser@^1.0.2:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-1.0.2.tgz#3fe86c0237db206fe5693872d93eec3bc3b05055"
 
 ms@2.0.0:
   version "2.0.0"
@@ -64,35 +64,35 @@ request-light@^0.2.2:
     https-proxy-agent "2.1.1"
     vscode-nls "^2.0.2"
 
-vscode-json-languageservice@^3.0.7:
-  version "3.0.7"
-  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-3.0.7.tgz#dc00117d51d4a7ac3bde9204afa701f962f00736"
+vscode-json-languageservice@^3.0.8:
+  version "3.0.8"
+  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-3.0.8.tgz#0f585c2a0e75de224c89a4ee516bbf1be15699aa"
   dependencies:
-    jsonc-parser "^1.0.1"
-    vscode-languageserver-types "^3.6.0-next.1"
-    vscode-nls "^2.0.2"
+    jsonc-parser "^1.0.2"
+    vscode-languageserver-types "^3.6.0"
+    vscode-nls "^3.2.1"
     vscode-uri "^1.0.1"
 
-vscode-jsonrpc@^3.6.0-next.1:
-  version "3.6.0-next.1"
-  resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.6.0-next.1.tgz#3cb463dffe5842d6aec16718ca9252708cd6aabe"
+vscode-jsonrpc@^3.6.0:
+  version "3.6.0"
+  resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.6.0.tgz#848d56995d5168950d84feb5d9c237ae5c6a02d4"
 
-vscode-languageserver-protocol@^3.6.0-next.3:
-  version "3.6.0-next.4"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.6.0-next.4.tgz#5b9940e4d6afafd5b63f9731dbd3a9bcc65b3719"
+vscode-languageserver-protocol@^3.6.0:
+  version "3.6.0"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.6.0.tgz#579642cdcccf74b0cd771c33daa3239acb40d040"
   dependencies:
-    vscode-jsonrpc "^3.6.0-next.1"
-    vscode-languageserver-types "^3.6.0-next.1"
+    vscode-jsonrpc "^3.6.0"
+    vscode-languageserver-types "^3.6.0"
 
-vscode-languageserver-types@^3.6.0-next.1:
-  version "3.6.0-next.1"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.6.0-next.1.tgz#98e488d3f87b666b4ee1a3d89f0023e246d358f3"
+vscode-languageserver-types@^3.6.0:
+  version "3.6.0"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.6.0.tgz#0bba63b0fa82a714394a4478f55a596ee4ed7d0a"
 
-vscode-languageserver@4.0.0-next.3:
-  version "4.0.0-next.3"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver/-/vscode-languageserver-4.0.0-next.3.tgz#89a9ce5078e3a86a78e3551c3766194ce4295611"
+vscode-languageserver@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver/-/vscode-languageserver-4.0.0.tgz#8b792f0d6d10acfe363d02371ed4ce53d08af88a"
   dependencies:
-    vscode-languageserver-protocol "^3.6.0-next.3"
+    vscode-languageserver-protocol "^3.6.0"
     vscode-uri "^1.0.1"
 
 vscode-nls@^2.0.2:

@@ -361,7 +361,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	private isAuto: boolean;
 	private loadingTimeout: number;
 	private currentSuggestionDetails: TPromise<void>;
-	private focusedItemIndex: number;
 	private focusedItem: ICompletionItem;
 	private ignoreFocusEvents = false;
 	private completionModel: CompletionModel;
@@ -591,28 +590,12 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.suggestionSupportsAutoAccept.set(!item.suggestion.noAutoAccept);
 
-		const oldFocus = this.focusedItem;
-		const oldFocusIndex = this.focusedItemIndex;
-		this.focusedItemIndex = index;
 		this.focusedItem = item;
-
-		if (oldFocus) {
-			this.ignoreFocusEvents = true;
-			this.list.splice(oldFocusIndex, 1, [oldFocus]);
-			this.ignoreFocusEvents = false;
-		}
 
 		this.list.reveal(index);
 
 		this.currentSuggestionDetails = item.resolve()
 			.then(() => {
-				this.ignoreFocusEvents = true;
-				this.list.splice(index, 1, [item]);
-				this.ignoreFocusEvents = false;
-
-				this.list.setFocus([index]);
-				this.list.reveal(index);
-
 				if (this.expandDocsSettingFromStorage()) {
 					this.showDetails();
 				} else {
@@ -738,7 +721,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.telemetryService.publicLog('suggestWidget', { ...stats, ...this.editor.getTelemetryData() });
 
 			this.focusedItem = null;
-			this.focusedItemIndex = null;
 			this.list.splice(0, this.list.length, this.completionModel.items);
 
 			if (isFrozen) {

@@ -15,6 +15,7 @@
 	"editorWhitespaces": "Цвет пробелов в редакторе.",
 	"editorIndentGuides": "Цвет направляющих для отступов редактора.",
 	"editorLineNumbers": "Цвет номеров строк редактора.",
+	"editorActiveLineNumber": "Цвет номера активной строки редактора",
 	"editorRuler": "Цвет линейки редактора.",
 	"editorCodeLensForeground": "Цвет переднего плана элемента CodeLens в редакторе",
 	"editorBracketMatchBackground": "Цвет фона парных скобок",

@@ -30,5 +30,6 @@
 	"vscode.extension.badges.description": "Eine Beschreibung für den Badge.",
 	"vscode.extension.extensionDependencies": "Abhängigkeiten von anderen Erweiterungen. Der Bezeichner einer Erweiterung ist immer ${publisher}.${name}, beispielsweise \"vscode.csharp\".",
 	"vscode.extension.scripts.prepublish": "Ein Skript, das ausgeführt wird, bevor das Paket als VS Code-Extension veröffentlicht wird.",
+	"vscode.extension.scripts.uninstall": "Uninstall-Hook für VS Code-Erweiterung: Skript, das ausgeführt wird, wenn die Erweiterung vollständig aus VS Code deinstalliert wurde. Dies ist der Fall, wenn VS Code nach der Deinstallation der Erweiterung neu gestartet wurde (Herunterfahren und Starten). Nur Node-Skripts werden unterstützt. ",
 	"vscode.extension.icon": "Der Pfad zu einem 128x128-Pixel-Symbol."
 }

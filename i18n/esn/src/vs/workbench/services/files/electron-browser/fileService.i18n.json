@@ -10,5 +10,7 @@
 	"neverShowAgain": "No volver a mostrar",
 	"netVersionError": "Requiere Microsoft .NET Framework 4.5. Siga el vínculo para instalarlo.",
 	"learnMore": "Instrucciones",
+	"enospcError": "{0} está a punto de agotar los identificadores de archivo. Por favor siga el enlace de instrucciones para resolver este problema.",
+	"binFailed": "No se pudo mover \"{0}\" a la papelera de reciclaje",
 	"trashFailed": "No se pudo mover '{0}' a la papelera"
 }

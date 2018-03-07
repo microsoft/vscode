@@ -12,6 +12,7 @@
 	"entryAriaLabelWithKey": "{0}, {1}, команды",
 	"entryAriaLabel": "{0}, команды",
 	"actionNotEnabled": "Команда {0} не разрешена в текущем контексте.",
+	"canNotRun": "При выполнении команды \"{0}\" произошла ошибка.",
 	"recentlyUsed": "недавно использованные",
 	"morecCommands": "другие команды",
 	"cat.title": "{0}: {1}",

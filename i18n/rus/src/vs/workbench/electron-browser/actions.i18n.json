@@ -18,6 +18,7 @@
 	"zoomReset": "Сбросить масштаб",
 	"appPerf": "Производительность запуска",
 	"reloadWindow": "Перезагрузить окно",
+	"reloadWindowWithExntesionsDisabled": "Перезагрузить окно с отключенными расширениями",
 	"switchWindowPlaceHolder": "Выберите окно, в которое нужно переключиться",
 	"current": "Текущее окно",
 	"close": "Закрыть окно",
@@ -48,5 +49,6 @@
 	"moveWindowTabToNewWindow": "Переместить вкладку окна в новое окно",
 	"mergeAllWindowTabs": "Объединить все окна",
 	"toggleWindowTabsBar": "Переключить панель вкладок окна",
-	"about": "О программе {0}"
+	"about": "О программе {0}",
+	"inspect context keys": "Проверить ключи контекста"
 }

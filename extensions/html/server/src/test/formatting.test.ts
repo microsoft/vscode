@@ -46,8 +46,8 @@ suite('HTML Embedded Formatting', () => {
 	}
 
 	function assertFormatWithFixture(fixtureName: string, expectedPath: string, options?: any, formatOptions?: FormattingOptions): void {
-		let input = fs.readFileSync(path.join(__dirname, 'fixtures', 'inputs', fixtureName)).toString();
-		let expected = fs.readFileSync(path.join(__dirname, 'fixtures', 'expected', expectedPath)).toString();
+		let input = fs.readFileSync(path.join(__dirname, 'fixtures', 'inputs', fixtureName)).toString().replace(/\r\n/mg, '\n');
+		let expected = fs.readFileSync(path.join(__dirname, 'fixtures', 'expected', expectedPath)).toString().replace(/\r\n/mg, '\n');
 		assertFormat(input, expected, options, formatOptions, expectedPath);
 	}
 

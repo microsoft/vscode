@@ -9,6 +9,7 @@
 	"JsonSchema.locale": "Die zu verwendende Sprache der Benutzeroberfläche.",
 	"vscode.extension.contributes.localizations": "Trägt Lokalisierungen zum Editor bei",
 	"vscode.extension.contributes.localizations.languageId": "ID der Sprache, in die Anzeigezeichenfolgen übersetzt werden.",
+	"vscode.extension.contributes.localizations.languageName": "Englischer Name der Sprache.",
 	"vscode.extension.contributes.localizations.languageNameLocalized": "Name der Sprache in beigetragener Sprache.",
 	"vscode.extension.contributes.localizations.translations": "Liste der Übersetzungen, die der Sprache zugeordnet sind.",
 	"vscode.extension.contributes.localizations.translations.id": "ID von VS Code oder der Erweiterung, für die diese Übersetzung beigetragen wird. Die ID von VS Code ist immer \"vscode\", und die ID einer Erweiterung muss im Format \"publisherId.extensionName\" vorliegen.",

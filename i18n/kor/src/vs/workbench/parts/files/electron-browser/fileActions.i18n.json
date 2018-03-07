@@ -39,6 +39,8 @@
 	"importFiles": "파일 가져오기",
 	"confirmOverwrite": "이름이 같은 파일 또는 폴더가 대상 폴더에 이미 있습니다. 덮어쓸까요?",
 	"replaceButtonLabel": "바꾸기(&&R)",
+	"fileIsAncestor": "붙여 넣을 파일이 대상 폴더의 상위 항목입니다.",
+	"fileDeleted": "그동안 붙여 넣을 파일이 삭제되거나 이동되었습니다.",
 	"duplicateFile": "중복",
 	"globalCompareFile": "활성 파일을 다음과 비교...",
 	"openFileToCompare": "첫 번째 파일을 열어서 다른 파일과 비교합니다.",

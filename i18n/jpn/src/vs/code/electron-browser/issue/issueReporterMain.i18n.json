@@ -23,6 +23,6 @@
 	"featureRequestDescription": "見てみたいその機能についての詳細を入力してください。GitHub-flavored Markdown に対応しています。GitHub 上で確認するときに問題を編集してスクリーンショットを追加できます。",
 	"expectedResults": "期待された結果",
 	"settingsSearchResultsDescription": "このクエリで検索したときに、表示されることを期待していた結果をリストしてください。GitHub-flavored Markdown に対応しています。GitHub 上で確認するときに問題を編集してスクリーンショットを追加できます。",
-	"urlLengthError": "{0} 文字の長さ制限を超えました。このデータの長さは {1} です。",
+	"pasteData": "必要なデータが送信するには大きすぎたため、クリップボードに書き込みました。貼り付けてください。",
 	"disabledExtensions": "拡張機能が無効化されています"
 }

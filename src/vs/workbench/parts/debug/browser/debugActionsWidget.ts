@@ -29,6 +29,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const $ = builder.$;
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
@@ -51,6 +52,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	private actionBar: ActionBar;
 	private allActions: AbstractDebugAction[];
 	private activeActions: AbstractDebugAction[];
+	private updateScheduler: RunOnceScheduler;
 
 	private isVisible: boolean;
 	private isBuilt: boolean;
@@ -88,6 +90,21 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			}
 		});
 
+		this.updateScheduler = new RunOnceScheduler(() => {
+			const state = this.debugService.state;
+			if (state === State.Inactive || state === State.Initializing || this.configurationService.getValue<IDebugConfiguration>('debug').hideActionBar) {
+				return this.hide();
+			}
+
+			const actions = this.getActions();
+			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id)) {
+				this.actionBar.clear();
+				this.actionBar.push(actions, { icon: true, label: false });
+				this.activeActions = actions;
+			}
+			this.show();
+		}, 20);
+
 		this.updateStyles();
 
 		this.toUnbind.push(this.actionBar);
@@ -98,7 +115,8 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.debugService.onDidChangeState(state => this.update(state)));
+		this.toUnbind.push(this.debugService.onDidChangeState(() => this.updateScheduler.schedule()));
+		this.toUnbind.push(this.debugService.getViewModel().onDidFocusProcess(() => this.updateScheduler.schedule()));
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onDidConfigurationChange(e)));
 		this.toUnbind.push(this.actionBar.actionRunner.onDidRun((e: IRunEvent) => {
 			// check for error
@@ -200,22 +218,8 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 	private onDidConfigurationChange(event: IConfigurationChangeEvent): void {
 		if (event.affectsConfiguration('debug.hideActionBar')) {
-			this.update(this.debugService.state);
+			this.updateScheduler.schedule();
 		}
-	}
-
-	private update(state: State): void {
-		if (state === State.Inactive || state === State.Initializing || this.configurationService.getValue<IDebugConfiguration>('debug').hideActionBar) {
-			return this.hide();
-		}
-
-		const actions = this.getActions();
-		if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id)) {
-			this.actionBar.clear();
-			this.actionBar.push(actions, { icon: true, label: false });
-			this.activeActions = actions;
-		}
-		this.show();
 	}
 
 	private show(): void {

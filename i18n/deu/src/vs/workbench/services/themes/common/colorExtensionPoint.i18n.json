@@ -13,6 +13,7 @@
 	"contributes.defaults.light": "Die Standardfarbe für helle Themen. Entweder eine Farbe als Hex-Code (#RRGGBB[AA]) oder der Bezeichner einer verwendbaren Farbe, der eine Standardeinstellung bereitstellt.",
 	"contributes.defaults.dark": "Die Standardfarbe für dunkle Themen. Entweder eine Farbe als Hex-Code (#RRGGBB[AA]) oder der Bezeichner einer verwendbaren Farbe, der eine Standardeinstellung bereitstellt.",
 	"contributes.defaults.highContrast": "Die Standardfarbe für Themen mit hohem Kontrast. Entweder eine Farbe als Hex-Code (#RRGGBB[AA]) oder der Bezeichner einer verwendbaren Farbe, der eine Standardeinstellung bereitstellt.",
+	"invalid.colorConfiguration": "\"configuration.colors\" muss ein Array sein.",
 	"invalid.default.colorType": "{0} muss entweder eine Farbe als Hex-Code (#RRGGBB[AA] oder #RGB[A]) sein oder der Bezeichner einer verwendbaren Farbe, der eine Standardeinstellung bereitstellt.",
 	"invalid.id": "\"configuration.colors.id\" muss definiert und nicht leer sein",
 	"invalid.id.format": "\"configuration.colors.id\" muss auf das Wort[.word]* folgen",

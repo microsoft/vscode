@@ -378,9 +378,12 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	}
 
 	private renderSelectDropDown(container: HTMLElement): IDisposable {
-		dom.append(container, this.selectDropDownContainer);
+		container.appendChild(this.selectDropDownContainer);
+
 		this.layoutSelectDropDown();
-		return null;
+		return {
+			dispose: () => container.removeChild(this.selectDropDownContainer) // remove to take out the CSS rules we add
+		};
 	}
 
 	private layoutSelectDropDown() {

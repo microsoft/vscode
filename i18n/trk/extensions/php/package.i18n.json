@@ -12,5 +12,7 @@
 	"configuration.validate.run": "Doğrulayıcının kayıt esnasında mı tuşlama esnasında mı çalışacağı.",
 	"configuration.title": "PHP",
 	"commands.categroy.php": "PHP",
-	"command.untrustValidationExecutable": "PHP doğrulama yürütülebilir dosyasına izin verme (çalışma alanı ayarı olarak tanımlanır)"
+	"command.untrustValidationExecutable": "PHP doğrulama yürütülebilir dosyasına izin verme (çalışma alanı ayarı olarak tanımlanır)",
+	"displayName": "PHP Dil Özellikleri",
+	"description": "PHP dosyaları için gelişmiş kod tamamlama(IntelliSense), doğrulama ve dil temelleri sağlar."
 }

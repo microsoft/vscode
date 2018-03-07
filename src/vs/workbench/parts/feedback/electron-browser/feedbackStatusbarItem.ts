@@ -7,7 +7,7 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { FeedbackDropdown, IFeedback, IFeedbackService, FEEDBACK_VISIBLE_CONFIG } from 'vs/workbench/parts/feedback/electron-browser/feedback';
+import { FeedbackDropdown, IFeedback, IFeedbackService, FEEDBACK_VISIBLE_CONFIG, IFeedbackDropdownOptions } from 'vs/workbench/parts/feedback/electron-browser/feedback';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import product from 'vs/platform/node/product';
@@ -16,7 +16,7 @@ import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector }
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { clearNode, EventHelper } from 'vs/base/browser/dom';
+import { clearNode, EventHelper, addClass, removeClass } from 'vs/base/browser/dom';
 import { $ } from 'vs/base/browser/builder';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -130,8 +130,15 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 			if (!this.dropdown) {
 				this.dropdown = this.instantiationService.createInstance(FeedbackDropdown, this.container, {
 					contextViewProvider: this.contextViewService,
-					feedbackService: this.instantiationService.createInstance(TwitterFeedbackService)
-				});
+					feedbackService: this.instantiationService.createInstance(TwitterFeedbackService),
+					onFeedbackVisibilityChange: visible => {
+						if (visible) {
+							addClass(this.container, 'has-beak');
+						} else {
+							removeClass(this.container, 'has-beak');
+						}
+					}
+				} as IFeedbackDropdownOptions);
 				this.toUnbind.push(this.dropdown);
 
 				this.updateStyles();

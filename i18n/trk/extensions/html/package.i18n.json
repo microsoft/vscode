@@ -29,5 +29,6 @@
 	"html.trace.server.desc": "VS Code ve HTML dil sunucusu arasındaki iletişimi izler.",
 	"html.validate.scripts": "Yerleşik HTML dili desteğinin HTML5 gömülü betikleri doğrulayıp doğrulamayacağını yapılandırır.",
 	"html.validate.styles": "Yerleşik HTML dili desteğinin HTML5 gömülü stilleri doğrulayıp doğrulamayacağını yapılandırır.",
+	"html.experimental.syntaxFolding": "Sözdimine duyarlı katlama işaretleyicilerini etkinleştirin/devre dışı bırakın.",
 	"html.autoClosingTags": "HTML etiketlerinin otomatik kapatılmasını etkinleştirin/devre dışı bırakın"
 }

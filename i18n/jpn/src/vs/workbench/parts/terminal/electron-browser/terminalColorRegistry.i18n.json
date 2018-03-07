@@ -11,6 +11,6 @@
 	"terminalCursor.foreground": "ターミナルのカーソル前景色。",
 	"terminalCursor.background": "ターミナルのカーソルの背景色。ブロックカーソルで重ねた文字の色をカスタマイズできます。",
 	"terminal.selectionBackground": "ターミナルの選択範囲の背景色。",
-	"terminal.border": "複数のターミナルを区切る境界の色。デフォルトは panel.border です。",
+	"terminal.border": "ターミナル内の分割パネルを区切る境界線色。デフォルトは panel.border です。",
 	"terminal.ansiColor": "ターミナルの '{0}' ANSI カラー。"
 }

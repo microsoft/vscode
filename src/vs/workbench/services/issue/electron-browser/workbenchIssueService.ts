@@ -11,7 +11,6 @@ import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IExtensionManagementService, IExtensionEnablementService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { webFrame } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
@@ -29,7 +28,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 
 	openReporter(dataOverrides: Partial<IssueReporterData> = {}): TPromise<void> {
 		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled({ id: getGalleryExtensionIdFromLocal(extension) }));
+			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension));
 			const theme = this.themeService.getTheme();
 			const issueReporterData: IssueReporterData = assign(
 				{

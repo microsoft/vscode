@@ -30,8 +30,8 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { getConfirmMessage } from 'vs/workbench/services/dialogs/electron-browser/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 
 export class TextFileService extends AbstractTextFileService {
 

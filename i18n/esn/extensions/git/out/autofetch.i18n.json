@@ -8,5 +8,6 @@
 	],
 	"yes": "Sí",
 	"no": "No",
-	"not now": "Preguntarme luego"
+	"not now": "Preguntarme luego",
+	"suggest auto fetch": "¿Te gustaría que Code [ejecute 'git fetch' periódicamente]({0})?"
 }

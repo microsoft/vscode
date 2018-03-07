@@ -19,12 +19,14 @@
 	"close": "關閉",
 	"closeOthers": "關閉其他",
 	"closeRight": "關到右側",
+	"closeAllSaved": "關閉已儲存項目",
 	"closeAll": "全部關閉",
 	"keepOpen": "保持開啟",
 	"toggleInlineView": "切換至內嵌檢視",
 	"showOpenedEditors": "顯示開啟的編輯器",
 	"keepEditor": "保留編輯器",
 	"closeEditorsInGroup": "關閉群組中的所有編輯器",
+	"closeSavedEditors": "關閉群組中的已儲存編輯器",
 	"closeOtherEditors": "關閉其他編輯器",
 	"closeRightEditors": "將編輯器關到右側"
 }
