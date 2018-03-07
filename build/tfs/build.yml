@@ -17,6 +17,7 @@ phases:
   - powershell: |
       yarn
       .\node_modules\.bin\gulp electron
+      npm run gulp -- hygiene
       .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit
       npm run compile
     name: build
