@@ -6,14 +6,6 @@ variables:
 
 steps:
 
-- powershell: |
-    Get-ChildItem -Recurse -Exclude .git | ForEach-Object { Remove-Item -Recurse -Path $_.FullName -Force }
-
-- script: |
-    git config --global core.autocrlf false
-    git config --global core.safescrlf true
-    git checkout -f master
-
 - task: NodeTool@0
   inputs:
     versionSpec: "8.9.1"

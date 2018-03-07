@@ -4,14 +4,6 @@ variables:
 
 steps:
 
-- task: NodeTool@0
-  inputs:
-    versionSpec: "8.9.1"
-
-- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-  inputs:
-    versionSpec: "1.3.2"
-
 - script: |
     apt-get update
     apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 libgconf-2-4 dbus xvfb
@@ -21,6 +13,14 @@ steps:
     ln -sf /bin/dbus-daemon /usr/bin/dbus-daemon
     service xvfb start
     service dbus start
+
+- task: NodeTool@0
+  inputs:
+    versionSpec: "8.9.1"
+
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.3.2"
 
 - script: |
     yarn
