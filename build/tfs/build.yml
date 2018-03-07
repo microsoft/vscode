@@ -58,7 +58,7 @@ phases:
     name: build
   - script: |
       DISPLAY=:10 ./scripts/test.sh
-      DISPLAY=:10 ./scripts/test-integration.sh
+      # DISPLAY=:10 ./scripts/test-integration.sh
     name: test
 
 - phase: macOS
