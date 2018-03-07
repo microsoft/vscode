@@ -35,6 +35,8 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { mkdirp } from 'vs/base/node/pfs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -105,6 +107,7 @@ suite('ConfigurationEditingService', () => {
 			instantiationService.stub(IFileService, new FileService(workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), { disableWatcher: true }));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+			instantiationService.stub(ICommandService, CommandService);
 			testObject = instantiationService.createInstance(ConfigurationEditingService);
 		});
 	}
@@ -176,7 +179,7 @@ suite('ConfigurationEditingService', () => {
 	test('do not notify error', () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		const target = sinon.stub();
-		instantiationService.stubPromise(INotificationService, 'prompt', target);
+		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: null, notify: null, error: null, info: null, warn: null });
 		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true })
 			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
 			(error: ConfigurationEditingError) => {
