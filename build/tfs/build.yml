@@ -21,7 +21,7 @@ phases:
       npm run compile
     name: build
   - script: |
-      .\scripts\test.bat --build --reporter spec
+      .\scripts\test.bat
       # .\scripts\test-integration.bat
     name: test
 
@@ -56,7 +56,7 @@ phases:
       npm run gulp -- vscode-linux-x64-min
     name: build
   - script: |
-      DISPLAY=:10 ./scripts/test.sh --build --reporter spec
+      DISPLAY=:10 ./scripts/test.sh
     name: test
 
 - phase: macOS
@@ -81,6 +81,6 @@ phases:
       npm run gulp -- vscode-darwin-min
     name: build
   - script: |
-      ./scripts/test.sh --build --reporter spec
+      ./scripts/test.sh
       # ./scripts/test-integration.sh
     name: test
