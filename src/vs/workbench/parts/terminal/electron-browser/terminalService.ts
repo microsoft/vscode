@@ -22,8 +22,8 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { getTerminalDefaultShellWindows } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 import { TerminalTab } from 'vs/workbench/parts/terminal/electron-browser/terminalTab';
-import { IDialogService, Choice } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService, PromptOption } from 'vs/platform/notification/common/notification';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
@@ -128,7 +128,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		}
 
 		const message = nls.localize('terminal.integrated.chooseWindowsShellInfo', "You can change the default terminal shell by selecting the customize button.");
-		const options: Choice[] = [nls.localize('customize', "Customize"), { label: nls.localize('never again', "Don't Show Again") }];
+		const options: PromptOption[] = [nls.localize('customize', "Customize"), { label: nls.localize('never again', "Don't Show Again") }];
 		this._notificationService.prompt(Severity.Info, message, options).then(choice => {
 			switch (choice) {
 				case 0 /* Customize */:

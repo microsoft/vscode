@@ -10,14 +10,9 @@ import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IDialogService, IChoiceService, IConfirmation, IConfirmationResult, Choice } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
-import { once } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
-import { basename } from 'vs/base/common/paths';
+import { IDialogService, IConfirmation, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 
 interface IMassagedMessageBoxOptions {
 
@@ -34,13 +29,12 @@ interface IMassagedMessageBoxOptions {
 	buttonIndexMap: number[];
 }
 
-export class DialogService implements IChoiceService, IDialogService {
+export class DialogService implements IDialogService {
 
 	public _serviceBrand: any;
 
 	constructor(
-		@IWindowService private windowService: IWindowService,
-		@INotificationService private notificationService: INotificationService
+		@IWindowService private windowService: IWindowService
 	) {
 	}
 
@@ -101,60 +95,6 @@ export class DialogService implements IChoiceService, IDialogService {
 		return this.windowService.showMessageBox(options).then(result => buttonIndexMap[result.button]);
 	}
 
-	public choose(severity: Severity, message: string, choices: Choice[]): TPromise<number> {
-		let handle: INotificationHandle;
-
-		const promise = new TPromise<number>((c, e) => {
-
-			// Complete promise with index of action that was picked
-			const callback = (index: number, closeNotification: boolean) => () => {
-				c(index);
-
-				if (closeNotification) {
-					handle.dispose();
-				}
-
-				return TPromise.as(void 0);
-			};
-
-			// Convert choices into primary/secondary actions
-			const actions: INotificationActions = {
-				primary: [],
-				secondary: []
-			};
-
-			choices.forEach((choice, index) => {
-				let isPrimary = true;
-				let label: string;
-				let closeNotification = false;
-
-				if (typeof choice === 'string') {
-					label = choice;
-				} else {
-					isPrimary = false;
-					label = choice.label;
-					closeNotification = !choice.keepOpen;
-				}
-
-				const action = new Action(`workbench.dialog.choice.${index}`, label, null, true, callback(index, closeNotification));
-				if (isPrimary) {
-					actions.primary.push(action);
-				} else {
-					actions.secondary.push(action);
-				}
-			});
-
-			// Show notification with actions
-			handle = this.notificationService.notify({ severity, message, actions });
-
-			// Cancel promise when notification gets disposed
-			once(handle.onDidDispose)(() => promise.cancel());
-
-		}, () => handle.dispose());
-
-		return promise;
-	}
-
 	private massageMessageBoxOptions(options: Electron.MessageBoxOptions): IMassagedMessageBoxOptions {
 		let buttonIndexMap = options.buttons.map((button, index) => index);
 
@@ -197,22 +137,4 @@ export class DialogService implements IChoiceService, IDialogService {
 
 		return { options, buttonIndexMap };
 	}
-}
-
-const MAX_CONFIRM_FILES = 10;
-export function getConfirmMessage(start: string, resourcesToConfirm: URI[]): string {
-	const message = [start];
-	message.push('');
-	message.push(...resourcesToConfirm.slice(0, MAX_CONFIRM_FILES).map(r => basename(r.fsPath)));
-
-	if (resourcesToConfirm.length > MAX_CONFIRM_FILES) {
-		if (resourcesToConfirm.length - MAX_CONFIRM_FILES === 1) {
-			message.push(nls.localize('moreFile', "...1 additional file not shown"));
-		} else {
-			message.push(nls.localize('moreFiles', "...{0} additional files not shown", resourcesToConfirm.length - MAX_CONFIRM_FILES));
-		}
-	}
-
-	message.push('');
-	return message.join('\n');
 }

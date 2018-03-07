@@ -13,7 +13,7 @@ import { INotificationService, INotification, NoOpNotification, INotificationHan
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const emptyDialogService = new class implements IDialogService {
-	_serviceBrand: 'choiceService';
+	_serviceBrand: 'dialogService';
 	show(severity, message, options): never {
 		throw new Error('not implemented');
 	}
@@ -91,7 +91,7 @@ suite('ExtHostMessageService', function () {
 	});
 
 	suite('modal', () => {
-		test('calls choice service', () => {
+		test('calls dialog service', () => {
 			const service = new MainThreadMessageService(null, emptyNotificationService, emptyCommandService, {
 				show(severity, message, options) {
 					assert.equal(severity, 1);

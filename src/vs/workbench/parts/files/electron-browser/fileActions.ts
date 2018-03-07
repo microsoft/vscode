@@ -51,8 +51,7 @@ import { IListService, ListWidget } from 'vs/platform/list/browser/listService';
 import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { distinctParents, basenameOrAuthority } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
-import { IDialogService, IConfirmationResult, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
-import { getConfirmMessage } from 'vs/workbench/services/dialogs/electron-browser/dialogs';
+import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 export interface IEditableData {
