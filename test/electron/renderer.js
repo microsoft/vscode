@@ -187,6 +187,9 @@ function loadTests(opts) {
 
 function serializeSuite(suite) {
 	return {
+		root: suite.root,
+		suites: suite.suites.map(serializeSuite),
+		tests: suite.tests.map(serializeRunnable),
 		title: suite.title,
 		fullTitle: suite.fullTitle(),
 		timeout: suite.timeout(),

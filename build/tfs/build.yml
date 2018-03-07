@@ -22,9 +22,12 @@ phases:
       npm run compile
     name: build
   - powershell: |
-      .\scripts\test.bat
+      .\scripts\test.bat --tfs
       .\scripts\test-integration.bat
     name: test
+  - task: PublishTestResults@2
+    inputs:
+    testResultsFiles: '.build\tests\unit-test-results.xml'
 
 - phase: Linux
   queue: Hosted Linux Preview
@@ -57,9 +60,12 @@ phases:
       npm run compile
     name: build
   - script: |
-      DISPLAY=:10 ./scripts/test.sh
+      DISPLAY=:10 ./scripts/test.sh --tfs
       # DISPLAY=:10 ./scripts/test-integration.sh
     name: test
+  - task: PublishTestResults@2
+    inputs:
+    testResultsFiles: '.build/tests/unit-test-results.xml'
 
 - phase: macOS
   queue: Hosted macOS Preview
@@ -83,6 +89,9 @@ phases:
       npm run compile
     name: build
   - script: |
-      ./scripts/test.sh
+      ./scripts/test.sh --tfs
       ./scripts/test-integration.sh
     name: test
+  - task: PublishTestResults@2
+    inputs:
+    testResultsFiles: '.build/tests/unit-test-results.xml'
