@@ -23,6 +23,7 @@ phases:
     name: build
   - powershell: |
       .\scripts\test.bat
+      .\scripts\test-integration.bat
     name: test
 
 - phase: Linux
@@ -57,6 +58,7 @@ phases:
     name: build
   - script: |
       DISPLAY=:10 ./scripts/test.sh
+      DISPLAY=:10 ./scripts/test-integration.sh
     name: test
 
 - phase: macOS
@@ -82,4 +84,5 @@ phases:
     name: build
   - script: |
       ./scripts/test.sh
+      ./scripts/test-integration.sh
     name: test
