@@ -14,13 +14,13 @@ phases:
   - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
     inputs:
       versionSpec: "1.3.2"
-  - script: |
+  - powershell: |
       yarn
       .\node_modules\.bin\gulp electron
       .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit
       npm run compile
     name: build
-  - script: |
+  - powershell: |
       .\scripts\test.bat
     name: test
 
