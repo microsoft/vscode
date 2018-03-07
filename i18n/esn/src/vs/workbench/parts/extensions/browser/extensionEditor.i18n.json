@@ -46,6 +46,8 @@
 	"defaultLight": "Claro por defecto",
 	"defaultHC": "Contraste alto por defecto",
 	"JSON Validation": "Validación JSON ({0})",
+	"fileMatch": "Coincidencia de archivo",
+	"schema": "Esquema",
 	"commands": "Comandos ({0})",
 	"command name": "Nombre",
 	"keyboard shortcuts": "Métodos abreviados de teclado",

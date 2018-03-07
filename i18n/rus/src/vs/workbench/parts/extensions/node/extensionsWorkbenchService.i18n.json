@@ -10,6 +10,7 @@
 	"malicious": "Это расширение помечено как проблемное.",
 	"installingMarketPlaceExtension": "Установка расширения из Marketplace...",
 	"uninstallingExtension": "Удаление расширения...",
+	"enableDependeciesConfirmation": "При включении \"{0}\" также будут включены его зависимости. Вы действительно хотите продолжить?",
 	"enable": "Да",
 	"doNotEnable": "Нет",
 	"disableDependeciesConfirmation": "Отключить только \"{0}\" или вместе с зависимостями?",

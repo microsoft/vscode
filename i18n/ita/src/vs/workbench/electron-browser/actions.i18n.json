@@ -18,6 +18,7 @@
 	"zoomReset": "Reimposta zoom",
 	"appPerf": "Prestazioni all'avvio",
 	"reloadWindow": "Ricarica finestra",
+	"reloadWindowWithExntesionsDisabled": "Ricarica la finestra con le estensioni disabilitate",
 	"switchWindowPlaceHolder": "Selezionare una finestra a cui passare",
 	"current": "Finestra corrente",
 	"close": "Chiudi finestra",
@@ -48,5 +49,6 @@
 	"moveWindowTabToNewWindow": "Sposta scheda della finestra in una nuova finestra",
 	"mergeAllWindowTabs": "Unisci tutte le finestre",
 	"toggleWindowTabsBar": "Attiva/Disattiva barra delle schede delle finestre",
-	"about": "Informazioni su {0}"
+	"about": "Informazioni su {0}",
+	"inspect context keys": "Esamina le chiavi di contesto"
 }

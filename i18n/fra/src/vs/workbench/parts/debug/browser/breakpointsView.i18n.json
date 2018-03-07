@@ -10,6 +10,8 @@
 	"functionBreakpointsNotSupported": "Les points d'arrêt de fonction ne sont pas pris en charge par ce type de débogage",
 	"functionBreakpointPlaceholder": "Fonction où effectuer un point d'arrêt",
 	"functionBreakPointInputAriaLabel": "Point d'arrêt sur fonction de type",
+	"breakpointDisabledHover": "Point d'arrêt désactivé",
+	"breakpointUnverifieddHover": "Point d'arrêt non vérifié",
 	"functionBreakpointUnsupported": "Les points d'arrêt de fonction ne sont pas pris en charge par ce type de débogage",
 	"breakpointDirtydHover": "Point d'arrêt non vérifié. Fichier modifié. Redémarrez la session de débogage.",
 	"conditionalBreakpointUnsupported": "Les points d'arrêt conditionnels ne sont pas pris en charge par ce type de débogage",

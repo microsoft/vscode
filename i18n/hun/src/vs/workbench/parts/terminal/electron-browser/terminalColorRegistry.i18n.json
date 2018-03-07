@@ -11,6 +11,6 @@
 	"terminalCursor.foreground": "A terminál kurzorának előtérszíne.",
 	"terminalCursor.background": "A terminál kurzorának háttérszíne. Lehetővé teszik az olyan karakterek színének módosítását, amelyek fölött egy blokk-típusú kurzor áll.",
 	"terminal.selectionBackground": "A terminálban kijelölt tartalom háttérszíne.",
-	"terminal.border": "Több terminált elválasztó keret színe. Alapértelmezett értéke megegyezik a panel.border értékével.",
+	"terminal.border": "A terminálokat elválasztó keret színe. Alapértelmezett értéke megegyezik a panel.border értékével.",
 	"terminal.ansiColor": "'{0}' ANSI-szín a terminálban."
 }

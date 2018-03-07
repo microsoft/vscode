@@ -16,6 +16,7 @@
 	"64bitisavailable": "Elérhető a {0} 64-bites Windowsra készült változata! További információhoz kattintson [ide]({1})!",
 	"updateIsReady": "Új {0}-frissítés érhető el.",
 	"noUpdatesAvailable": "Jelenleg nincs elérhető frissítés.",
+	"ok": "OK",
 	"download now": "Letöltés most",
 	"thereIsUpdateAvailable": "Van elérhető frissítés.",
 	"installUpdate": "Frissítés telepítése",

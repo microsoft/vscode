@@ -25,5 +25,6 @@
 	"search.quickOpen.includeSymbols": "Konfigurieren Sie diese Option, um Ergebnisse aus einer globalen Symbolsuche in die Dateiergebnisse für Quick Open einzuschließen.",
 	"search.followSymlinks": "Steuert, ob Symlinks während der Suche gefolgt werden.",
 	"search.smartCase": "Sucht ohne Berücksichtigung von Groß-/Kleinschreibung, wenn das Muster kleingeschrieben ist, andernfalls wird mit Berücksichtigung von Groß-/Kleinschreibung gesucht.",
-	"search.globalFindClipboard": "Steuert, ob das Viewlet zum Suchen die freigegebene Suchzwischenablage auf macOS lesen oder verändern soll"
+	"search.globalFindClipboard": "Steuert, ob die Suchansicht die freigegebene Suchzwischenablage auf macOS lesen oder verändern soll",
+	"search.location": "Vorschau: Steuert, ob die Suche als Ansicht in der Seitenleiste oder als Bedienfeld im Bereich des Bedienfelds für horizontales Layout angezeigt wird. In der nächsten Version wird das horizontale Layout im Bedienfeld verbessert und dies keine Vorschau mehr sein."
 }

@@ -23,6 +23,6 @@
 	"featureRequestDescription": "请描述您希望能够使用的功能。我们支持 GitHub 版的 Markdown。您将能在 GitHub 上预览时编辑问题并添加截图。",
 	"expectedResults": "预期结果",
 	"settingsSearchResultsDescription": "请列出您在搜索此项时希望看到的结果。我们支持 GitHub 版的 Markdown。您将能在 GitHub 上预览时编辑问题并添加截图。",
-	"urlLengthError": "数据超过了 {0} 个字符的长度限制。当前数据长度为 {1}。",
+	"pasteData": "所需的数据太大，无法直接发送。我们已经将其写入剪贴板，请粘贴。",
 	"disabledExtensions": "扩展已禁用"
 }

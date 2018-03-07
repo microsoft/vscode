@@ -18,6 +18,7 @@
 	"zoomReset": "重設縮放",
 	"appPerf": "啟動效能",
 	"reloadWindow": "重新載入視窗",
+	"reloadWindowWithExntesionsDisabled": "停用延伸模組並重新載入視窗",
 	"switchWindowPlaceHolder": "選取要切換的視窗",
 	"current": "目前視窗",
 	"close": "關閉視窗",

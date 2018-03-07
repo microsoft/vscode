@@ -46,6 +46,8 @@
 	"defaultLight": "Светлая по умолчанию",
 	"defaultHC": "С высоким контрастом по умолчанию",
 	"JSON Validation": "Проверка JSON ({0})",
+	"fileMatch": "Сопоставление файла",
+	"schema": "Схема",
 	"commands": "Команды ({0})",
 	"command name": "Имя",
 	"keyboard shortcuts": "Сочетания клавиш",

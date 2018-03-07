@@ -30,5 +30,6 @@
 	"vscode.extension.badges.description": "徽章说明。",
 	"vscode.extension.extensionDependencies": "其他扩展的依赖关系。扩展的标识符始终是 ${publisher}.${name}。例如: vscode.csharp。",
 	"vscode.extension.scripts.prepublish": "包作为 VS Code 扩展发布前执行的脚本。",
+	"vscode.extension.scripts.uninstall": "VS Code 扩展的卸载钩子。在扩展从 VS Code 卸载且 VS Code 重启 (关闭后开启) 后执行的脚本。仅支持 Node 脚本。",
 	"vscode.extension.icon": "128 x 128 像素图标的路径。"
 }

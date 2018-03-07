@@ -30,6 +30,7 @@
 	"removeAll.occurrences.files.confirmation.message": "{1} dosyadaki {0} tekralama '{2}' ile değiştirilsin mi?",
 	"replaceAll.occurrences.files.confirmation.message": "{1} dosyadaki {0} tekrarlama değiştirilsin mi?",
 	"treeAriaLabel": "Arama Sonuçları",
+	"searchPathNotFoundError": "Arama yolu bulunamadı: {0}",
 	"searchMaxResultsWarning": "Sonuç kümesi yalnızca tüm eşleşmelerin bir alt kümesini içerir. Lütfen sonuçları daraltmak için aramanızda daha fazla ayrıntı belirtin.",
 	"searchCanceled": "Arama, hiçbir sonuç bulunamadan iptal edildi - ",
 	"noResultsIncludesExcludes": "'{0}' içinde '{1}' hariç tutularak sonuç bulunamadı - ",

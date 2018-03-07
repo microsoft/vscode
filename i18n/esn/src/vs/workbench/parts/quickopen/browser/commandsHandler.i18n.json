@@ -12,6 +12,7 @@
 	"entryAriaLabelWithKey": "{0}, {1}, comandos",
 	"entryAriaLabel": "{0}, comandos",
 	"actionNotEnabled": "El comando '{0}' no está habilitado en el contexto actual.",
+	"canNotRun": "El comando \"{0}\" dio error.",
 	"recentlyUsed": "usado recientemente",
 	"morecCommands": "otros comandos",
 	"cat.title": "{0}: {1}",

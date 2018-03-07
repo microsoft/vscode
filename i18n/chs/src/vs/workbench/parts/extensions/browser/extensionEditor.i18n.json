@@ -46,6 +46,8 @@
 	"defaultLight": "浅色默认",
 	"defaultHC": "高对比度默认",
 	"JSON Validation": "JSON 验证({0})",
+	"fileMatch": "匹配文件",
+	"schema": "结构",
 	"commands": "命令({0})",
 	"command name": "名称",
 	"keyboard shortcuts": "键盘快捷方式",

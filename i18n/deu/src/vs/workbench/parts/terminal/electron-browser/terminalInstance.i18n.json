@@ -8,7 +8,9 @@
 	],
 	"terminal.integrated.a11yBlankLine": "Leere Zeile",
 	"terminal.integrated.a11yPromptLabel": "Terminaleingabe",
+	"terminal.integrated.a11yTooMuchOutput": "Zu viele Ausgaben zum Anzeigen, navigieren Sie manuell zu den Zeilen, um sie zu lesen",
 	"terminal.integrated.copySelection.noSelection": "Das Terminal enthält keine Auswahl zum Kopieren.",
 	"terminal.integrated.exitedWithCode": "Der Terminalprozess wurde mit folgendem Exitcode beendet: {0}",
-	"terminal.integrated.waitOnExit": "Betätigen Sie eine beliebige Taste, um das Terminal zu schließen."
+	"terminal.integrated.waitOnExit": "Betätigen Sie eine beliebige Taste, um das Terminal zu schließen.",
+	"terminal.integrated.launchFailed": "Fehler beim Starten des Terminalprozessbefehls \"{0}{1}\" (Exitcode: {2})."
 }

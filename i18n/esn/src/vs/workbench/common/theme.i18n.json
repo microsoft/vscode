@@ -58,5 +58,13 @@
 	"titleBarInactiveForeground": "Color de primer plano de la barra de título cuando la ventana está inactiva. Tenga en cuenta que, actualmente, este color solo se admite en macOS.",
 	"titleBarActiveBackground": "Fondo de la barra de título cuando la ventana está activa. Tenga en cuenta que, actualmente, este color solo se admite en macOS.",
 	"titleBarInactiveBackground": "Color de fondo de la barra de título cuando la ventana está inactiva. Tenga en cuenta que, actualmente, este color solo se admite en macOS.",
-	"titleBarBorder": "Color de borde de la barra de título. Tenga en cuenta que, actualmente, este color se admite solo en macOS."
+	"titleBarBorder": "Color de borde de la barra de título. Tenga en cuenta que, actualmente, este color se admite solo en macOS.",
+	"notificationCenterBorder": "Color del borde del centro de notificaciones. Las notificaciones se deslizan desde la parte inferior derecha de la ventana.",
+	"notificationToastBorder": "Color del borde de las notificaciones del sistema. Las notificaciones se deslizan desde la parte inferior derecha de la ventana.",
+	"notificationsForeground": "Color de primer plano de las notificaciones. Las notificaciones se deslizan desde la parte inferior derecha de la ventana.",
+	"notificationsBackground": "Color de fondo de las notificaciones. Las notificaciones se deslizan desde la parte inferior derecha de la ventana.",
+	"notificationsLink": "Color de primer plano de los vínculos de las notificaciones. Las notificaciones se deslizan desde la parte inferior derecha de la ventana.",
+	"notificationCenterHeaderForeground": "Color de primer plano del encabezado del centro de notificaciones. Las notificaciones se deslizan desde la parte inferior derecha de la ventana.",
+	"notificationCenterHeaderBackground": "Color de fondo del encabezado del centro de notificaciones. Las notificaciones se deslizan desde la parte inferior derecha de la ventana.",
+	"notificationsBorder": "Color de borde que separa las notificaciones en el centro de notificaciones. Las notificaciones se deslizan desde la parte inferior derecha de la ventana."
 }

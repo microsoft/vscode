@@ -8,7 +8,9 @@
 	],
 	"terminal.integrated.a11yBlankLine": "빈 줄",
 	"terminal.integrated.a11yPromptLabel": "터미널 입력",
+	"terminal.integrated.a11yTooMuchOutput": "발표할 출력이 너무 많음, 읽을 행으로 수동 이동",
 	"terminal.integrated.copySelection.noSelection": "터미널에 복사할 선택 항목이 없음",
 	"terminal.integrated.exitedWithCode": "터미널 프로세스가 종료 코드 {0}(으)로 종료되었습니다.",
-	"terminal.integrated.waitOnExit": "터미널을 닫으려면 아무 키나 누르세요."
+	"terminal.integrated.waitOnExit": "터미널을 닫으려면 아무 키나 누르세요.",
+	"terminal.integrated.launchFailed": "터미널 프로세스 명령 '{0}{1}'을(를) 실행하지 못했습니다(종료 코드: {2})."
 }

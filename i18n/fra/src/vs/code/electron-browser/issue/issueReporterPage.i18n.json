@@ -10,6 +10,7 @@
 	"issueTypeLabel": "Ceci est un ",
 	"issueTitleLabel": "Titre",
 	"issueTitleRequired": "Veuillez s’il vous plaît entrer un titre.",
+	"titleLengthValidation": "Le titre est trop long.",
 	"systemInfo": "Mes infos système",
 	"sendData": "Envoyer mes données",
 	"processes": "Processus en cours d’exécution",
@@ -20,7 +21,10 @@
 	"tryDisablingExtensions": "Le problème est-il reproductible lorsque les extensions sont désactivées?",
 	"yes": "Oui",
 	"no": "Non",
+	"disableExtensionsLabelText": "Essayez de reproduire le problème après {0}.",
 	"disableExtensions": "en désactivant toutes les extensions et en rechargeant la fenêtre",
+	"showRunningExtensionsLabelText": "Si vous pensez que c'est un problème d'extension, {0} pour reporter le problème de l'extension.",
+	"showRunningExtensions": "Afficher toutes les extensions en cours d'exécution",
 	"details": "Veuillez saisir les détails ",
 	"loadingData": "Chargement des données..."
 }

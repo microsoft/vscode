@@ -8,6 +8,8 @@
 	],
 	"neverShowAgain": "Nicht mehr anzeigen",
 	"searchMarketplace": "Marketplace durchsuchen",
+	"showLanguagePackExtensions": "Der Marketplace enthält Erweiterungen, die beim Lokalisieren von VS Code in die Sprache \"{0}\" behilflich sein können.",
+	"dynamicWorkspaceRecommendation": "Diese Erweiterung ist für Sie möglicherweise interessant, da sie von vielen anderen Benutzern des Repositorys {0} verwendet wird.",
 	"exeBasedRecommendation": "Diese Erweiterung wird empfohlen, da Sie {0} installiert haben.",
 	"fileBasedRecommendation": "Ausgehend von den kürzlich geöffneten Dateien wird diese Erweiterung empfohlen.",
 	"workspaceRecommendation": "Diese Erweiterung wird von Benutzern des aktuellen Arbeitsbereichs empfohlen.",

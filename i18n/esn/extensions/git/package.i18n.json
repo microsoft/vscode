@@ -75,6 +75,7 @@
 	"config.decorations.enabled": "Controla si Git contribuye los colores y distintivos al explorador y a los editores abiertos.",
 	"config.promptToSaveFilesBeforeCommit": "Controla si Git debe comprobar los archivos no guardados antes de confirmar las actualizaciones. ",
 	"config.showInlineOpenFileAction": "Controla si se debe mostrar una acción de archivo abierto en la vista de cambios en Git",
+	"config.inputValidation": "Controla cuándo mostrar el mensaje de validación de entrada en el contador de entrada.",
 	"config.detectSubmodules": "Controla si se detectan automáticamente los submódulos Git. ",
 	"colors.modified": "Color para recursos modificados.",
 	"colors.deleted": "Color para los recursos eliminados.",
