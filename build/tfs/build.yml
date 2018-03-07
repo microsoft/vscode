@@ -22,7 +22,6 @@ phases:
     name: build
   - script: |
       .\scripts\test.bat
-      # .\scripts\test-integration.bat
     name: test
 
 - phase: Linux
@@ -82,5 +81,4 @@ phases:
     name: build
   - script: |
       ./scripts/test.sh
-      # ./scripts/test-integration.sh
     name: test
