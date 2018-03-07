@@ -29,6 +29,7 @@
 	"compareSelected": "선택 항목 비교",
 	"close": "닫기",
 	"closeOthers": "기타 항목 닫기",
+	"closeSaved": "저장된 항목 닫기",
 	"closeAll": "모두 닫기",
 	"deleteFile": "영구히 삭제"
 }

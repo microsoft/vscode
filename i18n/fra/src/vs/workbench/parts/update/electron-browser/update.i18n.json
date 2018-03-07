@@ -16,6 +16,7 @@
 	"64bitisavailable": "{0} pour Windows 64 bits est maintenant disponible ! Cliquez [ici]({0}) pour en savoir plus.",
 	"updateIsReady": "Nouvelle mise à jour de {0} disponible.",
 	"noUpdatesAvailable": "Aucune mise à jour n'est disponible actuellement.",
+	"ok": "OK",
 	"download now": "Télécharger maintenant",
 	"thereIsUpdateAvailable": "Une mise à jour est disponible.",
 	"installUpdate": "Installer la mise à jour",

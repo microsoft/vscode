@@ -11,5 +11,8 @@
 	"config.npm.autoDetect": "npm スクリプトの自動検出をオンにするかオフにするかを制御します。既定はオンです。",
 	"config.npm.runSilent": "`--silent` オプションを使用して npm コマンドを実行する。",
 	"config.npm.packageManager": "スクリプトを実行するために使用するパッケージ マネージャー。",
-	"npm.parseError": "npmタスク検出: ファイル {0} の解析に失敗しました"
+	"config.npm.exclude": "自動スクリプト検出から除外するフォルダーの glob パターンを構成します。",
+	"npm.parseError": "npmタスク検出: ファイル {0} の解析に失敗しました",
+	"taskdef.script": "カスタマイズする npm スクリプト。",
+	"taskdef.path": "スクリプトを提供する package.json ファイルのフォルダーへのパス。省略をすることができます。"
 }

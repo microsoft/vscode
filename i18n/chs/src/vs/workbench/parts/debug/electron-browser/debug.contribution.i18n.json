@@ -26,6 +26,6 @@
 	"always": "始终在状态栏中显示调试",
 	"onFirstSessionStart": "仅于第一次启动调试后在状态栏中显示调试",
 	"showInStatusBar": "控制何时显示调试状态栏",
-	"openDebug": "控制是否在调试会话开始时打开调试侧边栏面板。",
+	"openDebug": "控制是否在调试会话开始时打开调试视图。",
 	"launch": "全局的调试启动配置。应用作跨工作区共享的 \"launch.json\" 的替代。"
 }

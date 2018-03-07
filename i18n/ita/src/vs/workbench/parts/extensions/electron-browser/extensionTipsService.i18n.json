@@ -8,6 +8,8 @@
 	],
 	"neverShowAgain": "Non visualizzare più questo messaggio",
 	"searchMarketplace": "Cerca nel Marketplace",
+	"showLanguagePackExtensions": "Nel Marketplace sono disponibili estensioni che consentono di localizzare VS Code nelle impostazioni locali '{0}'",
+	"dynamicWorkspaceRecommendation": "Questa estensione potrebbe essere interessante perché viene usata da altri utenti del repository {0}.",
 	"exeBasedRecommendation": "Questa estensione è consigliata perché avete installato {0}.",
 	"fileBasedRecommendation": "Questa estensione è raccomandata in base ai file aperti di recente.",
 	"workspaceRecommendation": "Questa estensione è consigliata dagli utenti dell'area di lavoro corrente.",

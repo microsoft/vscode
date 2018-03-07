@@ -56,5 +56,6 @@
 	"typescript.locale": "Définit les paramètres locaux utilisés pour signaler les erreurs TypeScript . Nécessite TypeScript >= 2.6.0. Par défaut 'null' utilise les paramètres locaux de VS Code pour les erreurs TypeScript.",
 	"javascript.implicitProjectConfig.experimentalDecorators": "Activer/désactiver 'experimentalDecorators' pour les fichiers JavaScript qui ne font pas partie d'un projet. Les fichiers jsconfig.json ou tsconfig.json existants remplacent ce paramètre. Nécessite TypeScript >=2.3.1.",
 	"typescript.autoImportSuggestions.enabled": "Activer/désactiver les suggestions d'import automatiques. Nécessite TypeScript >= 2.6.1.",
-	"typescript.experimental.syntaxFolding": "Active/désactive les marqueurs de réduction en fonction de la syntaxe."
+	"typescript.experimental.syntaxFolding": "Active/désactive les marqueurs de réduction en fonction de la syntaxe.",
+	"taskDefinition.tsconfig.description": "Fichier tsconfig qui définit la build TS."
 }

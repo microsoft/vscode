@@ -9,5 +9,8 @@
 	"installNet": ".NET Framework 4.5'i İndir",
 	"neverShowAgain": "Tekrar Gösterme",
 	"netVersionError": "Microsoft .NET Framework 4.5 gerekli. Yüklemek için bağlantıyı izleyin.",
+	"learnMore": "Talimatlar",
+	"enospcError": "{0} için dosya işleçleri bitiyor. Bu sorunu çözmek için lütfen yönerge bağlantısını izleyin.",
+	"binFailed": "'{0}' geri dönüşüm kutusuna taşınamadı",
 	"trashFailed": "'{0}' çöpe taşınamadı"
 }

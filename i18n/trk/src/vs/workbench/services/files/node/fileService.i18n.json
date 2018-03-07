@@ -9,6 +9,7 @@
 	"fileInvalidPath": "Geçersiz dosya kaynağı ({0})",
 	"fileIsDirectoryError": "Dosya bir dizindir",
 	"fileNotModifiedError": "Dosya şu tarihten beri değiştirilmemiş:",
+	"fileTooLargeForHeapError": "Dosya boyutu pencere bellek sınırını aşıyor, lütfen code --max-memory=YENIBOYUT komutunu çalıştırın",
 	"fileTooLargeError": "Dosya, açmak için çok büyük",
 	"fileNotFoundError": "Dosya bulunamadı ({0})",
 	"fileBinaryError": "Dosya ikili olarak görünüyor ve metin olarak açılamıyor",

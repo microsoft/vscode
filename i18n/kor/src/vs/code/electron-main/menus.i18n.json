@@ -93,6 +93,7 @@
 	"miOpenView": "뷰 열기(&&O)...",
 	"miToggleFullScreen": "전체 화면 설정/해제(&&F)",
 	"miToggleZenMode": "Zen 모드 설정/해제",
+	"miToggleCenteredLayout": "가운데 맞춤된 레이아웃 설정/해제",
 	"miToggleMenuBar": "메뉴 모음 설정/해제(&&B)",
 	"miSplitEditor": "편집기 분할(&&E)",
 	"miToggleEditorLayout": "편집기 그룹 레이아웃 설정/해제(&&L)",

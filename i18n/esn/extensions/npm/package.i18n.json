@@ -11,5 +11,8 @@
 	"config.npm.autoDetect": "Controla si la detección automática de scripts npm está activada o desactivada. Por defecto está activada.",
 	"config.npm.runSilent": "Ejecutar comandos de npm con la opción '--silent'",
 	"config.npm.packageManager": "El administrador de paquetes utilizado para ejecutar secuencias de comandos. ",
-	"npm.parseError": "Detección de tareas de nueva gestión pública: no se pudo analizar el archivo {0}"
+	"config.npm.exclude": "Configura patrones globales para carpetas que deben excluirse de la detección automática de scripts. ",
+	"npm.parseError": "Detección de tareas de nueva gestión pública: no se pudo analizar el archivo {0}",
+	"taskdef.script": "Script npm que debe personalizarse.",
+	"taskdef.path": "Ruta de acceso a la carpeta del archivo package.json que proporciona el script. Se puede omitir."
 }

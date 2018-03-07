@@ -8,7 +8,5 @@
 	],
 	"preview.securityMessage.text": "A tartalom egy része le van tiltva az aktuális dokumentumban",
 	"preview.securityMessage.title": "Potencionálisan veszélyes vagy nem biztonságos tartalom lett letiltva a markdown-előnézetben. Módosítsa a markdown-előnézet biztonsági beállításait a nem biztonságos tartalmak vagy parancsfájlok engedélyezéséhez!",
-	"preview.securityMessage.label": "Biztonsági figyelmeztetés: tartalom le van tiltva",
-	"pinnedPreviewTitle": "[Előnézet] {0}",
-	"previewTitle": "{0} előnézete"
+	"preview.securityMessage.label": "Biztonsági figyelmeztetés: tartalom le van tiltva"
 }

@@ -10,5 +10,5 @@
 	"displayName": "适用于 VSCode 的 Jake 支持",
 	"jake.taskDefinition.type.description": "要自定义的 Jake 任务。",
 	"jake.taskDefinition.file.description": "提供任务的 Jake 文件。可以省略。",
-	"config.jake.autoDetect": "控制自动检测 Jake 任务是否打开。默认开启。"
+	"config.jake.autoDetect": "控制是否自动检测 Jake 任务。默认开启。"
 }

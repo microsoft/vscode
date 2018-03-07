@@ -10,6 +10,7 @@
 	"issueTypeLabel": "Isso é um",
 	"issueTitleLabel": "Título",
 	"issueTitleRequired": "Por favor, digite um título.",
+	"titleLengthValidation": "O título é muito longo.",
 	"systemInfo": "Minhas Informações do Sistema",
 	"sendData": "Enviar meus dados",
 	"processes": "Processos Atualmente em Execução",

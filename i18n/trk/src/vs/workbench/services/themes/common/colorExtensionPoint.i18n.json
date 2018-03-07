@@ -13,6 +13,7 @@
 	"contributes.defaults.light": "Açık temaların varsayılan rengi. Ya hex biçiminde bir renk değeri (#RRGGBB[AA]) ya da varsayılanı sağlayan bir tema olarak kullanılabilir rengin tanımlayıcısı olabilir.",
 	"contributes.defaults.dark": "Koyu temaların varsayılan rengi. Ya hex biçiminde bir renk değeri (#RRGGBB[AA]) ya da varsayılanı sağlayan bir tema olarak kullanılabilir rengin tanımlayıcısı olabilir.",
 	"contributes.defaults.highContrast": "Yüksek karşıtlık temalarının varsayılan rengi. Ya hex biçiminde bir renk değeri (#RRGGBB[AA]) ya da varsayılanı sağlayan bir tema olarak kullanılabilir rengin tanımlayıcısı olabilir.",
+	"invalid.colorConfiguration": "'configuration.colors' bir dizi olmalıdır",
 	"invalid.default.colorType": "{0}, ya hex biçiminde bir renk değeri (#RRGGBB[AA] veya #RGB[A]) ya da varsayılanı sağlayan bir tema olarak kullanılabilir rengin tanımlayıcısı olabilir.",
 	"invalid.id": "'configuration.colors.id' tanımlanmalı ve boş olmamalıdır",
 	"invalid.id.format": "'configuration.colors.id' sözcük[.sözcük]* şeklinde olmalıdır",
