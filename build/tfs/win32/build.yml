@@ -23,5 +23,5 @@ steps:
 
 - script: |
     .\scripts\test.bat --build --reporter spec
-    .\scripts\test-integration.bat
+    # .\scripts\test-integration.bat
   name: test
