@@ -24,7 +24,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 import { Webview, WebviewOptions } from './webview';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { BaseWebviewEditor } from './webviewEditor';
+import { BaseWebviewEditor } from './baseWebviewEditor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import URI from 'vs/base/common/uri';
 import { Scope } from 'vs/workbench/common/memento';
