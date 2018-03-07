@@ -361,7 +361,10 @@ suite('WorkspacesMainService', () => {
 		});
 	});
 
-	test('deleteUntitledWorkspaceSync (untitled)', done => {
+	test('deleteUntitledWorkspaceSync (untitled)', function (done) {
+		// seems to be slow
+		this.timeout(10000);
+
 		return createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
 			assert.ok(fs.existsSync(workspace.configPath));
 
@@ -373,7 +376,10 @@ suite('WorkspacesMainService', () => {
 		});
 	});
 
-	test('deleteUntitledWorkspaceSync (saved)', done => {
+	test('deleteUntitledWorkspaceSync (saved)', function (done) {
+		// seems to be slow
+		this.timeout(10000);
+
 		return createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
 			const workspaceConfigPath = path.join(os.tmpdir(), `myworkspace.${Date.now()}.${WORKSPACE_EXTENSION}`);
 

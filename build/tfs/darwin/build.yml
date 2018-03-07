@@ -23,6 +23,6 @@ steps:
   name: build
 
 - script: |
-    ./scripts/test.sh --build --reporter dot
+    ./scripts/test.sh --build --reporter spec
     ./scripts/test-integration.sh
   name: test

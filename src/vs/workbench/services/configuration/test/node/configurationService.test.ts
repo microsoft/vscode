@@ -192,7 +192,10 @@ suite('WorkspaceContextService - Workspace', () => {
 			});
 	});
 
-	test('add folders (at specific index)', () => {
+	test('add folders (at specific index)', function () {
+		// seems to be slow
+		this.timeout(10000);
+
 		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
 		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }], 0)
 			.then(() => {
@@ -206,7 +209,10 @@ suite('WorkspaceContextService - Workspace', () => {
 			});
 	});
 
-	test('add folders (at specific wrong index)', () => {
+	test('add folders (at specific wrong index)', function () {
+		// seems to be slow
+		this.timeout(10000);
+
 		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
 		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }], 10)
 			.then(() => {
