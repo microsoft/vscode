@@ -22,6 +22,6 @@ steps:
   name: build
 
 - powershell: |
-    .\scripts\test.bat --build --reporter list
+    .\scripts\test.bat --build --reporter dot
     .\scripts\test-integration.bat
   name: test
