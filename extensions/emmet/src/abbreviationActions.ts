@@ -28,6 +28,7 @@ interface PreviewRangesWithContent {
 	previewRange: vscode.Range;
 	originalRange: vscode.Range;
 	originalContent: string;
+	textToWrapInPreview: string[];
 }
 
 export function wrapWithAbbreviation(args: any) {
@@ -62,11 +63,16 @@ export function wrapWithAbbreviation(args: any) {
 
 		const firstLineOfSelection = editor.document.lineAt(rangeToReplace.start).text.substr(rangeToReplace.start.character);
 		const matches = firstLineOfSelection.match(/^(\s*)/);
-		const preceedingWhiteSpace = matches ? matches[1].length : 0;
+		const extraWhiteSpaceSelected = matches ? matches[1].length : 0;
 
-		rangeToReplace = new vscode.Range(rangeToReplace.start.line, rangeToReplace.start.character + preceedingWhiteSpace, rangeToReplace.end.line, rangeToReplace.end.character);
+		rangeToReplace = new vscode.Range(rangeToReplace.start.line, rangeToReplace.start.character + extraWhiteSpaceSelected, rangeToReplace.end.line, rangeToReplace.end.character);
+
+		const wholeFirstLine = editor.document.lineAt(rangeToReplace.start).text;
+		const otherMatches = wholeFirstLine.match(/^(\s*)/);
+		const preceedingWhiteSpace = otherMatches ? otherMatches[1] : '';
 		let textToReplace = editor.document.getText(rangeToReplace);
-		rangesToReplace.push({ previewRange: rangeToReplace, originalRange: rangeToReplace, originalContent: textToReplace });
+		let textToWrapInPreview = rangeToReplace.isSingleLine ? [textToReplace] : ['\n\t' + textToReplace.split('\n' + preceedingWhiteSpace).join('\n\t') + '\n'];
+		rangesToReplace.push({ previewRange: rangeToReplace, originalRange: rangeToReplace, originalContent: textToReplace, textToWrapInPreview });
 	});
 
 	let abbreviationPromise;
@@ -113,9 +119,7 @@ export function wrapWithAbbreviation(args: any) {
 		}
 
 		const expandAbbrList: ExpandAbbreviationInput[] = rangesToReplace.map(rangesAndContent => {
-			let match = rangesAndContent.originalContent.match(/\n[\s]*/g);
-			let textToWrap = match ? ['\n\t' + rangesAndContent.originalContent.split(match[match.length - 1]).join('\n\t') + '\n'] : [rangesAndContent.originalContent];
-			return { syntax, abbreviation, rangeToReplace: rangesAndContent.originalRange, textToWrap, filter };
+			return { syntax, abbreviation, rangeToReplace: rangesAndContent.originalRange, textToWrap: rangesAndContent.textToWrapInPreview, filter };
 		});
 
 		return applyPreview(editor, expandAbbrList, rangesToReplace);
