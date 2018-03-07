@@ -225,8 +225,8 @@ arrify@^1.0.0:
   resolved "https://registry.yarnpkg.com/arrify/-/arrify-1.0.1.tgz#898508da2226f380df904728456849c1501a4b0d"
 
 asap@~2.0.3:
-  version "2.0.5"
-  resolved "https://registry.yarnpkg.com/asap/-/asap-2.0.5.tgz#522765b50c3510490e52d7dcfe085ef9ba96958f"
+  version "2.0.6"
+  resolved "https://registry.yarnpkg.com/asap/-/asap-2.0.6.tgz#e50347611d7e690943208bbdafebcbc2fb866d46"
 
 asar@^0.14.0:
   version "0.14.0"
@@ -3817,9 +3817,9 @@ nan@2.5.1:
   version "2.5.1"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.5.1.tgz#d5b01691253326a97a2bbee9e61c55d8d60351e2"
 
-nan@^2.0.0, nan@^2.6.2:
-  version "2.6.2"
-  resolved "https://registry.yarnpkg.com/nan/-/nan-2.6.2.tgz#e4ff34e6c95fdfb5aecc08de6596f43605a7db45"
+nan@^2.0.0:
+  version "2.9.2"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.9.2.tgz#f564d75f5f8f36a6d9456cca7a6c4fe488ab7866"
 
 nan@^2.0.9, nan@^2.3.0:
   version "2.4.0"
@@ -3828,6 +3828,10 @@ nan@^2.0.9, nan@^2.3.0:
 nan@^2.1.0:
   version "2.7.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.7.0.tgz#d95bf721ec877e08db276ed3fc6eb78f9083ad46"
+
+nan@^2.6.2:
+  version "2.6.2"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.6.2.tgz#e4ff34e6c95fdfb5aecc08de6596f43605a7db45"
 
 nan@^2.8.0:
   version "2.8.0"
@@ -3932,16 +3936,6 @@ npm-run-path@^2.0.0:
   resolved "https://registry.yarnpkg.com/npm-run-path/-/npm-run-path-2.0.2.tgz#35a9232dfa35d7067b4cb2ddf2357b1871536c5f"
   dependencies:
     path-key "^2.0.0"
-
-nsfw@1.0.16:
-  version "1.0.16"
-  resolved "https://registry.yarnpkg.com/nsfw/-/nsfw-1.0.16.tgz#78ba3e7f513b53d160c221b9018e0baf108614cc"
-  dependencies:
-    fs-extra "^0.26.5"
-    lodash.isinteger "^4.0.4"
-    lodash.isundefined "^3.0.1"
-    nan "^2.0.0"
-    promisify-node "^0.3.0"
 
 nth-check@~1.0.1:
   version "1.0.1"
@@ -5980,6 +5974,16 @@ vscode-nls-dev@3.0.7:
     vinyl "^2.1.0"
     xml2js "^0.4.19"
     yargs "^10.1.1"
+
+vscode-nsfw@1.0.17:
+  version "1.0.17"
+  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-1.0.17.tgz#da3820f26aea3a7e95cadc54bd9e5dae3d47e474"
+  dependencies:
+    fs-extra "^0.26.5"
+    lodash.isinteger "^4.0.4"
+    lodash.isundefined "^3.0.1"
+    nan "^2.0.0"
+    promisify-node "^0.3.0"
 
 vscode-ripgrep@0.7.1-patch.0.1:
   version "0.7.1-patch.0.1"
