@@ -228,7 +228,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		return this._confirmationService.confirm({
 			message,
 			type: 'warning',
-		}).then(confirmed => !confirmed);
+		}).then(res => !res.confirmed);
 	}
 
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {

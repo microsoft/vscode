@@ -44,7 +44,7 @@ export class DialogService implements IChoiceService, IConfirmationService {
 	) {
 	}
 
-	public confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
 
 		return this.windowService.showMessageBox(options).then(result => {
@@ -53,12 +53,6 @@ export class DialogService implements IChoiceService, IConfirmationService {
 				checkboxChecked: result.checkboxChecked
 			} as IConfirmationResult;
 		});
-	}
-
-	public confirm(confirmation: IConfirmation): TPromise<boolean> {
-		const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
-
-		return this.windowService.showMessageBox(options).then(result => buttonIndexMap[result.button] === 0 ? true : false);
 	}
 
 	private getConfirmOptions(confirmation: IConfirmation): Electron.MessageBoxOptions {

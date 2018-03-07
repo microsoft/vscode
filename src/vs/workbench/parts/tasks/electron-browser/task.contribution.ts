@@ -46,7 +46,7 @@ import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platfo
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IConfirmationService, IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmationService, IChoiceService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -1621,9 +1621,9 @@ class TaskService implements ITaskService {
 			return false;
 		}
 
-		let terminatePromise: TPromise<boolean>;
+		let terminatePromise: TPromise<IConfirmationResult>;
 		if (this._taskSystem.canAutoTerminate()) {
-			terminatePromise = TPromise.wrap(true);
+			terminatePromise = TPromise.wrap({ confirmed: true });
 		} else {
 			terminatePromise = this.confirmationService.confirm({
 				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
@@ -1632,8 +1632,8 @@ class TaskService implements ITaskService {
 			});
 		}
 
-		return terminatePromise.then(terminate => {
-			if (terminate) {
+		return terminatePromise.then(res => {
+			if (res.confirmed) {
 				return this._taskSystem.terminateAll().then((responses) => {
 					let success = true;
 					let code: number = undefined;
@@ -1654,7 +1654,7 @@ class TaskService implements ITaskService {
 							message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
 							primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
 							type: 'info'
-						}).then(confirmed => !confirmed);
+						}).then(res => !res.confirmed);
 					}
 					return true; // veto
 				}, (err) => {

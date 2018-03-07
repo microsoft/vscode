@@ -151,8 +151,8 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 					message,
 					detail,
 					primaryButton
-				}).then(confirm => {
-					if (confirm) {
+				}).then(res => {
+					if (res.confirmed) {
 						confirmed();
 					}
 				});

@@ -889,7 +889,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			if (folders.length > 0) {
 
 				// If we are in no-workspace context, ask for confirmation to create a workspace
-				let confirmedPromise = TPromise.wrap(true);
+				let confirmedPromise: TPromise<IConfirmationResult> = TPromise.wrap({ confirmed: true });
 				if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
 					confirmedPromise = this.confirmationService.confirm({
 						message: folders.length > 1 ? nls.localize('dropFolders', "Do you want to add the folders to the workspace?") : nls.localize('dropFolder', "Do you want to add the folder to the workspace?"),
@@ -898,8 +898,8 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					});
 				}
 
-				return confirmedPromise.then(confirmed => {
-					if (confirmed) {
+				return confirmedPromise.then(res => {
+					if (res.confirmed) {
 						return this.workspaceEditingService.addFolders(folders);
 					}
 
@@ -927,7 +927,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		// Handle confirm setting
 		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
 		if (confirmDragAndDrop) {
-			confirmPromise = this.confirmationService.confirmWithCheckbox({
+			confirmPromise = this.confirmationService.confirm({
 				message: sources.length > 1 ? getConfirmMessage(nls.localize('confirmMultiMove', "Are you sure you want to move the following {0} files?", sources.length), sources.map(s => s.resource))
 					: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", sources[0].name),
 				checkbox: {
@@ -940,16 +940,16 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			confirmPromise = TPromise.as({ confirmed: true } as IConfirmationResult);
 		}
 
-		return confirmPromise.then(confirmation => {
+		return confirmPromise.then(res => {
 
 			// Check for confirmation checkbox
 			let updateConfirmSettingsPromise: TPromise<void> = TPromise.as(void 0);
-			if (confirmation.confirmed && confirmation.checkboxChecked === true) {
+			if (res.confirmed && res.checkboxChecked === true) {
 				updateConfirmSettingsPromise = this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false, ConfigurationTarget.USER);
 			}
 
 			return updateConfirmSettingsPromise.then(() => {
-				if (confirmation.confirmed) {
+				if (res.confirmed) {
 					return TPromise.join(sources.map(source => this.doHandleExplorerDrop(tree, source, target, isCopy))).then(() => void 0);
 				}
 
@@ -1053,8 +1053,8 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 							};
 
 							// Move with overwrite if the user confirms
-							return this.confirmationService.confirm(confirm).then(confirmed => {
-								if (confirmed) {
+							return this.confirmationService.confirm(confirm).then(res => {
+								if (res.confirmed) {
 									const targetDirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, targetResource, !isLinux /* ignorecase */));
 
 									// Make sure to revert all dirty in target first to be able to overwrite properly

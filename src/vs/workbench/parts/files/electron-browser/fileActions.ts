@@ -616,8 +616,8 @@ class BaseDeleteFileAction extends BaseFileAction {
 				type: 'warning',
 				detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
 				primaryButton
-			}).then(confirmed => {
-				if (!confirmed) {
+			}).then(res => {
+				if (!res.confirmed) {
 					return false;
 				}
 
@@ -644,7 +644,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 				const message = distinctElements.length > 1 ? getConfirmMessage(nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource))
 					: distinctElements[0].isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name)
 						: nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name);
-				confirmDeletePromise = this.confirmationService.confirmWithCheckbox({
+				confirmDeletePromise = this.confirmationService.confirm({
 					message,
 					detail: isWindows ? nls.localize('undoBin', "You can restore from the Recycle Bin.") : nls.localize('undoTrash', "You can restore from the Trash."),
 					primaryButton,
@@ -660,7 +660,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 				const message = distinctElements.length > 1 ? getConfirmMessage(nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource))
 					: distinctElements[0].isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name)
 						: nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name);
-				confirmDeletePromise = this.confirmationService.confirmWithCheckbox({
+				confirmDeletePromise = this.confirmationService.confirm({
 					message,
 					detail: nls.localize('irreversible', "This action is irreversible!"),
 					primaryButton,
@@ -708,12 +708,12 @@ class BaseDeleteFileAction extends BaseFileAction {
 							detail: detailMessage,
 							type: 'warning',
 							primaryButton
-						}).then(confirmed => {
+						}).then(res => {
 
 							// Focus back to tree
 							this.tree.domFocus();
 
-							if (confirmed) {
+							if (res.confirmed) {
 								if (this.useTrash) {
 									this.useTrash = false; // Delete Permanently
 								}
@@ -787,7 +787,7 @@ export class ImportFileAction extends BaseFileAction {
 						targetNames[isLinux ? child.name : child.name.toLowerCase()] = child;
 					});
 
-					let overwritePromise = TPromise.as(true);
+					let overwritePromise: TPromise<IConfirmationResult> = TPromise.as({ confirmed: true });
 					if (resources.some(resource => {
 						return !!targetNames[isLinux ? paths.basename(resource.fsPath) : paths.basename(resource.fsPath).toLowerCase()];
 					})) {
@@ -801,8 +801,8 @@ export class ImportFileAction extends BaseFileAction {
 						overwritePromise = this.confirmationService.confirm(confirm);
 					}
 
-					return overwritePromise.then(overwrite => {
-						if (!overwrite) {
+					return overwritePromise.then(res => {
+						if (!res.confirmed) {
 							return void 0;
 						}
 

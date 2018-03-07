@@ -65,8 +65,8 @@ class StartupProfiler implements IWorkbenchContribution {
 				detail: localize('prof.detail', "Please create an issue and manually attach the following files:\n{0}", profileFiles),
 				primaryButton: localize('prof.restartAndFileIssue', "Create Issue and Restart"),
 				secondaryButton: localize('prof.restart', "Restart")
-			}).then(primaryButton => {
-				if (primaryButton) {
+			}).then(res => {
+				if (res.confirmed) {
 					const action = this._instantiationService.createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
 					TPromise.join<any>([
 						this._windowsService.showItemInFolder(join(dir, files[0])),

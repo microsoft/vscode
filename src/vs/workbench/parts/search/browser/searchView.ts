@@ -400,8 +400,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			type: 'question'
 		};
 
-		this.confirmationService.confirm(confirmation).then(confirmed => {
-			if (confirmed) {
+		this.confirmationService.confirm(confirmation).then(res => {
+			if (res.confirmed) {
 				this.searchWidget.setReplaceAllActionState(false);
 				this.viewModel.searchResult.replaceAll(progressRunner).then(() => {
 					progressRunner.done();

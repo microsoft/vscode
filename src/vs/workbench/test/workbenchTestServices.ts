@@ -337,11 +337,7 @@ export class TestConfirmationService implements IConfirmationService {
 
 	public _serviceBrand: any;
 
-	public confirm(confirmation: IConfirmation): TPromise<boolean> {
-		return TPromise.wrap(false);
-	}
-
-	public confirmWithCheckbox(confirmation: IConfirmation): Promise<IConfirmationResult> {
+	public confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		return TPromise.as({ confirmed: false });
 	}
 }

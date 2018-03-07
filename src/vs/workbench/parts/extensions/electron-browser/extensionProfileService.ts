@@ -81,8 +81,8 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", product.nameLong),
 				primaryButton: nls.localize('restart3', "Restart"),
 				secondaryButton: nls.localize('cancel', "Cancel")
-			}).then(restart => {
-				if (restart) {
+			}).then(res => {
+				if (res.confirmed) {
 					this._windowsService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
 				}
 			});
