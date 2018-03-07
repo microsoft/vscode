@@ -52,7 +52,7 @@ phases:
   - script: |
       npm run gulp -- hygiene
       ./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
-      npm run gulp -- vscode-linux-x64-min
+      npm run compile
     name: build
   - script: |
       DISPLAY=:10 ./scripts/test.sh
@@ -77,7 +77,7 @@ phases:
   - script: |
       npm run gulp -- hygiene
       ./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
-      npm run gulp -- vscode-darwin-min
+      npm run compile
     name: build
   - script: |
       ./scripts/test.sh
