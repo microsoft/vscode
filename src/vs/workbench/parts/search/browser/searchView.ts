@@ -56,7 +56,7 @@ import { isDiffEditor, isCodeEditor, ICodeEditor } from 'vs/editor/browser/edito
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { SimpleFileResourceDragAndDrop } from 'vs/workbench/browser/dnd';
-import { IConfirmation, IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IViewlet } from 'vs/workbench/common/viewlet';
@@ -113,7 +113,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IProgressService private progressService: IProgressService,
 		@INotificationService private notificationService: INotificationService,
-		@IConfirmationService private confirmationService: IConfirmationService,
+		@IDialogService private dialogService: IDialogService,
 		@IStorageService private storageService: IStorageService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -400,7 +400,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			type: 'question'
 		};
 
-		this.confirmationService.confirm(confirmation).then(res => {
+		this.dialogService.confirm(confirmation).then(res => {
 			if (res.confirmed) {
 				this.searchWidget.setReplaceAllActionState(false);
 				this.viewModel.searchResult.replaceAll(progressRunner).then(() => {

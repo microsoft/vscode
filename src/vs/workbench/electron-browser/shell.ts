@@ -94,7 +94,7 @@ import { WorkbenchIssueService } from 'vs/workbench/services/issue/electron-brow
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
 import { ChoiceChannel } from 'vs/platform/dialogs/common/choiceIpc';
-import { IChoiceService, IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
+import { IChoiceService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogs';
 
 /**
@@ -409,7 +409,7 @@ export class WorkbenchShell {
 
 		const dialog = instantiationService.createInstance(DialogService);
 		serviceCollection.set(IChoiceService, dialog);
-		serviceCollection.set(IConfirmationService, dialog);
+		serviceCollection.set(IDialogService, dialog);
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
 		this.toUnbind.push(lifecycleService.onShutdown(reason => this.dispose(reason)));

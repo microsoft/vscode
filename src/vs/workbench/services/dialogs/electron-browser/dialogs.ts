@@ -13,7 +13,7 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IConfirmationService, IChoiceService, IConfirmation, IConfirmationResult, Choice } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IChoiceService, IConfirmation, IConfirmationResult, Choice } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
 import { once } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
@@ -34,7 +34,7 @@ interface IMassagedMessageBoxOptions {
 	buttonIndexMap: number[];
 }
 
-export class DialogService implements IChoiceService, IConfirmationService {
+export class DialogService implements IChoiceService, IDialogService {
 
 	public _serviceBrand: any;
 

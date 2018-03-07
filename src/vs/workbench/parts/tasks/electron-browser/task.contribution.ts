@@ -46,7 +46,7 @@ import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platfo
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IConfirmationService, IChoiceService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IChoiceService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -471,7 +471,7 @@ class TaskService implements ITaskService {
 		@IProgressService2 private progressService: IProgressService2,
 		@IOpenerService private openerService: IOpenerService,
 		@IWindowService private readonly _windowService: IWindowService,
-		@IConfirmationService private confirmationService: IConfirmationService,
+		@IDialogService private dialogService: IDialogService,
 		@INotificationService private notificationService: INotificationService,
 		@IChoiceService private choiceService: IChoiceService
 	) {
@@ -1625,7 +1625,7 @@ class TaskService implements ITaskService {
 		if (this._taskSystem.canAutoTerminate()) {
 			terminatePromise = TPromise.wrap({ confirmed: true });
 		} else {
-			terminatePromise = this.confirmationService.confirm({
+			terminatePromise = this.dialogService.confirm({
 				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
 				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
 				type: 'question'
@@ -1650,7 +1650,7 @@ class TaskService implements ITaskService {
 						this.disposeTaskSystemListeners();
 						return false; // no veto
 					} else if (code && code === TerminateResponseCode.ProcessNotFound) {
-						return this.confirmationService.confirm({
+						return this.dialogService.confirm({
 							message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
 							primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
 							type: 'info'

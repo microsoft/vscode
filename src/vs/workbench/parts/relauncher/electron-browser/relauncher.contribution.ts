@@ -19,7 +19,7 @@ import URI from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
@@ -47,7 +47,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		@IWindowService private windowService: IWindowService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private envService: IEnvironmentService,
-		@IConfirmationService private confirmationService: IConfirmationService,
+		@IDialogService private dialogService: IDialogService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
@@ -146,7 +146,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
 		this.windowService.isFocused().then(focused => {
 			if (focused) {
-				return this.confirmationService.confirm({
+				return this.dialogService.confirm({
 					type: 'info',
 					message,
 					detail,

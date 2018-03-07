@@ -18,13 +18,13 @@ import { join, dirname } from 'path';
 import { localize } from 'vs/nls';
 import { readdir, del, readFile } from 'vs/base/node/pfs';
 import { basename } from 'vs/base/common/paths';
-import { IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 class StartupProfiler implements IWorkbenchContribution {
 
 	constructor(
 		@IWindowsService private readonly _windowsService: IWindowsService,
-		@IConfirmationService private readonly _confirmationService: IConfirmationService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -59,7 +59,7 @@ class StartupProfiler implements IWorkbenchContribution {
 		}).then(files => {
 			const profileFiles = files.reduce((prev, cur) => `${prev}${join(dir, cur)}\n`, '\n');
 
-			return this._confirmationService.confirm({
+			return this._dialogService.confirm({
 				type: 'info',
 				message: localize('prof.message', "Successfully created profiles."),
 				detail: localize('prof.detail', "Please create an issue and manually attach the following files:\n{0}", profileFiles),
@@ -73,7 +73,7 @@ class StartupProfiler implements IWorkbenchContribution {
 						action.run(`:warning: Make sure to **attach** these files from your *home*-directory: :warning:\n${files.map(file => `-\`${file}\``).join('\n')}`)
 					]).then(() => {
 						// keep window stable until restart is selected
-						return this._confirmationService.confirm({
+						return this._dialogService.confirm({
 							type: 'info',
 							message: localize('prof.thanks', "Thanks for helping us."),
 							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._environmentService.appNameLong),

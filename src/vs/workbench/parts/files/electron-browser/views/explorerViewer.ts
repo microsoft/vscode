@@ -58,7 +58,7 @@ import { DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { rtrim } from 'vs/base/common/strings';
-import { IConfirmationService, IConfirmationResult, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmationResult, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { getConfirmMessage } from 'vs/workbench/services/dialogs/electron-browser/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
@@ -714,7 +714,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 	constructor(
 		@INotificationService private notificationService: INotificationService,
-		@IConfirmationService private confirmationService: IConfirmationService,
+		@IDialogService private dialogService: IDialogService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -891,7 +891,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				// If we are in no-workspace context, ask for confirmation to create a workspace
 				let confirmedPromise: TPromise<IConfirmationResult> = TPromise.wrap({ confirmed: true });
 				if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
-					confirmedPromise = this.confirmationService.confirm({
+					confirmedPromise = this.dialogService.confirm({
 						message: folders.length > 1 ? nls.localize('dropFolders', "Do you want to add the folders to the workspace?") : nls.localize('dropFolder', "Do you want to add the folder to the workspace?"),
 						type: 'question',
 						primaryButton: folders.length > 1 ? nls.localize('addFolders', "&&Add Folders") : nls.localize('addFolder', "&&Add Folder")
@@ -927,7 +927,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		// Handle confirm setting
 		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
 		if (confirmDragAndDrop) {
-			confirmPromise = this.confirmationService.confirm({
+			confirmPromise = this.dialogService.confirm({
 				message: sources.length > 1 ? getConfirmMessage(nls.localize('confirmMultiMove', "Are you sure you want to move the following {0} files?", sources.length), sources.map(s => s.resource))
 					: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", sources[0].name),
 				checkbox: {
@@ -1053,7 +1053,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 							};
 
 							// Move with overwrite if the user confirms
-							return this.confirmationService.confirm(confirm).then(res => {
+							return this.dialogService.confirm(confirm).then(res => {
 								if (res.confirmed) {
 									const targetDirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, targetResource, !isLinux /* ignorecase */));
 

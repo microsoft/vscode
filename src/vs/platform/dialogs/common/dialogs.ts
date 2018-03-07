@@ -25,7 +25,7 @@ export interface IConfirmationResult {
 
 	/**
 	 * Will be true if the dialog was confirmed with the primary button
-	 * pressed. 
+	 * pressed.
 	 */
 	confirmed: boolean;
 
@@ -36,9 +36,9 @@ export interface IConfirmationResult {
 	checkboxChecked?: boolean;
 }
 
-export const IConfirmationService = createDecorator<IConfirmationService>('confirmationService');
+export const IDialogService = createDecorator<IDialogService>('dialogService');
 
-export interface IConfirmationService {
+export interface IDialogService {
 
 	_serviceBrand: any;
 
