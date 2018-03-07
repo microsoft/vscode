@@ -140,17 +140,18 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 			for (const bpd of delta.changed) {
 				let bp = this._breakpoints.get(bpd.id);
 				if (bp) {
-					if (bpd.type === 'function') {
+					if (bp instanceof FunctionBreakpoint && bpd.type === 'function') {
 						const fbp = <any>bp;
 						fbp.enabled = bpd.enabled;
 						fbp.condition = bpd.condition;
 						fbp.hitCondition = bpd.hitCondition;
 						fbp.functionName = bpd.functionName;
-					} else {
+					} else if (bp instanceof SourceBreakpoint && bpd.type === 'source') {
 						const sbp = <any>bp;
 						sbp.enabled = bpd.enabled;
 						sbp.condition = bpd.condition;
 						sbp.hitCondition = bpd.hitCondition;
+						sbp.location = new Location(URI.revive(bpd.uri), new Position(bpd.line, bpd.character));
 					}
 					c.push(bp);
 				}
