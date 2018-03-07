@@ -27,7 +27,7 @@ phases:
     name: test
   - task: PublishTestResults@2
     inputs:
-    testResultsFiles: '.build\tests\unit-test-results.xml'
+      testResultsFiles: '.build\tests\unit-test-results.xml'
 
 - phase: Linux
   queue: Hosted Linux Preview
@@ -65,7 +65,7 @@ phases:
     name: test
   - task: PublishTestResults@2
     inputs:
-    testResultsFiles: '.build/tests/unit-test-results.xml'
+      testResultsFiles: '.build/tests/unit-test-results.xml'
 
 - phase: macOS
   queue: Hosted macOS Preview
@@ -94,4 +94,4 @@ phases:
     name: test
   - task: PublishTestResults@2
     inputs:
-    testResultsFiles: '.build/tests/unit-test-results.xml'
+      testResultsFiles: '.build/tests/unit-test-results.xml'
