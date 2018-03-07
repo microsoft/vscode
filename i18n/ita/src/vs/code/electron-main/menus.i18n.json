@@ -93,6 +93,7 @@
 	"miOpenView": "&&Apri visualizzazione...",
 	"miToggleFullScreen": "Attiva/Disattiva sc&&hermo intero",
 	"miToggleZenMode": "Attiva/Disattiva modalità Zen",
+	"miToggleCenteredLayout": "Attiva/Disattiva layout centrato",
 	"miToggleMenuBar": "Attiva/Disattiva &&barra dei menu",
 	"miSplitEditor": "Dividi &&editor",
 	"miToggleEditorLayout": "Attiva/Disattiva &&layout gruppi dell'editor",

@@ -16,6 +16,7 @@
 	"64bitisavailable": "Windows 64 位版的 {0} 已经发布! 单击[这里]({1})了解更多信息。",
 	"updateIsReady": "有新的 {0} 的更新可用。",
 	"noUpdatesAvailable": "当前没有可用的更新。",
+	"ok": "确定",
 	"download now": "立即下载",
 	"thereIsUpdateAvailable": "存在可用更新。",
 	"installUpdate": "安装更新",

@@ -10,6 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import Event, { Emitter } from 'vs/base/common/event';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export import Severity = Severity;
 
@@ -44,7 +45,7 @@ export interface INotification {
 	 * close automatically when invoking a secondary action.
 	 *
 	 * **Note:** If your intent is to show a message with actions to the user, consider
-	 * the `IChoiceService` and `IConfirmationService` instead which are optimized for
+	 * the `INotificationService.prompt()` method instead which are optimized for
 	 * this usecase and much easier to use!
 	 */
 	actions?: INotificationActions;
@@ -120,6 +121,32 @@ export interface INotificationHandle extends IDisposable {
 	updateActions(actions?: INotificationActions): void;
 }
 
+
+/**
+ * Primary choices show up as buttons in the notification below the message.
+ */
+export type PrimaryPromptChoice = string;
+
+/**
+ * Secondary choices show up under the gear icon in the header of the notification.
+ */
+export interface SecondaryPromptChoice {
+	label: string;
+
+	/**
+	 * Wether to keep the notification open after the secondary choice was selected
+	 * by the user. By default, will close the notification upon click.
+	 */
+	keepOpen?: boolean;
+}
+
+export type PromptOption = PrimaryPromptChoice | SecondaryPromptChoice;
+
+/**
+ * A service to bring up notifications and non-modal prompts.
+ *
+ * Note: use the `IDialogService` for a modal way to ask the user for input.
+ */
 export interface INotificationService {
 
 	_serviceBrand: any;
@@ -129,8 +156,10 @@ export interface INotificationService {
 	 * can be used to control the notification afterwards.
 	 *
 	 * **Note:** If your intent is to show a message with actions to the user, consider
-	 * the `IChoiceService` and `IConfirmationService` instead which are optimized for
+	 * the `INotificationService.prompt()` method instead which are optimized for
 	 * this usecase and much easier to use!
+	 *
+	 * @returns a handle on the notification to e.g. hide it or update message, buttons, etc.
 	 */
 	notify(notification: INotification): INotificationHandle;
 
@@ -151,6 +180,15 @@ export interface INotificationService {
 	 * method if you need more control over the notification.
 	 */
 	error(message: NotificationMessage | NotificationMessage[]): void;
+
+	/**
+	 * Shows a prompt in the notification area with the provided choices. The prompt
+	 * is non-modal. If you want to show a modal dialog instead, use `IDialogService`.
+	 *
+	 * @returns a promise that will resolve to the index of the choice that was picked.
+	 * The promise can be cancelled to hide the notification prompt.
+	 */
+	prompt(severity: Severity, message: string, choices: PromptOption[]): TPromise<number>;
 }
 
 export class NoOpNotification implements INotificationHandle {

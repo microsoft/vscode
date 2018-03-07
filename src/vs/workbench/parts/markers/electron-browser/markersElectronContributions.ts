@@ -64,7 +64,7 @@ function copyMessage(panelService: IPanelService) {
 	if (activePanel instanceof MarkersPanel) {
 		const element = (<MarkersPanel>activePanel).getFocusElement();
 		if (element instanceof Marker) {
-			clipboard.writeText(element.marker.message);
+			clipboard.writeText(element.raw.message);
 		}
 	}
 }

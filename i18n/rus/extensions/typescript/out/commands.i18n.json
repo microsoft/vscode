@@ -9,6 +9,8 @@
 	"typescript.projectConfigNoWorkspace": "Откройте папку в VS Code, чтобы использовать проект JavaScript или TypeScript.",
 	"typescript.projectConfigUnsupportedFile": "Не удалось определить проект TypeScript или JavaScript. Неподдерживаемый тип файла",
 	"typescript.projectConfigCouldNotGetInfo": "Не удалось определить проект TypeScript или JavaScript.",
+	"typescript.noTypeScriptProjectConfig": "Файл не является частью проекта TypeScript. Дополнительные сведения см. [здесь]({0}).",
+	"typescript.noJavaScriptProjectConfig": "Файл не является частью проекта JavaScript. Дополнительные сведения см. [здесь]({0}).",
 	"typescript.configureTsconfigQuickPick": "Настроить tsconfig.json",
 	"typescript.configureJsconfigQuickPick": "Настроить jsconfig.json"
 }

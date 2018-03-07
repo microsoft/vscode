@@ -71,14 +71,6 @@
 	font-size: 13px;
 }
 
-.monaco-editor .find-widget.visible.noanimation {
-	-webkit-transition: none;
-	-o-transition: none;
-	-moz-transition: none;
-	-ms-transition: none;
-	transition: none;
-}
-
 .monaco-editor .find-widget > .find-part,
 .monaco-editor .find-widget > .replace-part {
 	margin: 4px 0 0 17px;

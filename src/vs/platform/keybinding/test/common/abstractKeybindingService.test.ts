@@ -138,6 +138,9 @@ suite('AbstractKeybindingService', () => {
 				error: (message: any) => {
 					showMessageCalls.push({ sev: Severity.Error, message });
 					return new NoOpNotification();
+				},
+				prompt: () => {
+					return TPromise.as(0);
 				}
 			};
 

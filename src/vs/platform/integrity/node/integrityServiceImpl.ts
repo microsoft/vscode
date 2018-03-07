@@ -14,7 +14,7 @@ import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IChoiceService, Choice } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService, PromptOption } from 'vs/platform/notification/common/notification';
 
 interface IStorageData {
 	dontShowPrompt: boolean;
@@ -62,7 +62,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	private _isPurePromise: Thenable<IntegrityTestResult>;
 
 	constructor(
-		@IChoiceService private choiceService: IChoiceService,
+		@INotificationService private notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
@@ -86,9 +86,9 @@ export class IntegrityServiceImpl implements IIntegrityService {
 			return;
 		}
 
-		const choices: Choice[] = [nls.localize('integrity.moreInformation', "More Information"), { label: nls.localize('integrity.dontShowAgain', "Don't Show Again") }];
+		const choices: PromptOption[] = [nls.localize('integrity.moreInformation', "More Information"), { label: nls.localize('integrity.dontShowAgain', "Don't Show Again") }];
 
-		this.choiceService.choose(Severity.Warning, nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", product.nameShort), choices).then(choice => {
+		this.notificationService.prompt(Severity.Warning, nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", product.nameShort), choices).then(choice => {
 			switch (choice) {
 				case 0 /* More Information */:
 					const uri = URI.parse(product.checksumFailMoreInfoUrl);

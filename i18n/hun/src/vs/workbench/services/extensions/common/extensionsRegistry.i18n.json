@@ -30,6 +30,6 @@
 	"vscode.extension.badges.description": "A jelvény leírása.",
 	"vscode.extension.extensionDependencies": "Más kiegészítők, melyek függőségei ennek a kiegészítőnek. A kiegészítők azonosítója mindig ${publisher}.${name} formájú. Például: vscode.csharp.",
 	"vscode.extension.scripts.prepublish": "A VS Code kiegészítő publikálása előtt végrehajtott parancsfájl.",
-	"vscode.extension.scripts.uninstall": "Parancsfájl, ami akkor fut le, miután a kiegészítőt eltávolítják a VS Code-ból (a VS Code újraindítása után). Csak Node-parancsfájlok használhatók.",
+	"vscode.extension.scripts.uninstall": "Eltávolítási illesztőpont VS Code kiegészítők számára. Parancsfájl, ami a VS Code újraindítása (leállása és elindítása) esetén fut le a kiegészítő teljes eltávolítása után. Csak Node-parancsfájlok használhatók.",
 	"vscode.extension.icon": "Egy 128x128 pixeles ikon elérési útja."
 }

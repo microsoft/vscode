@@ -23,6 +23,6 @@
 	"featureRequestDescription": "Nós suportamos Markdown no padrão GitHub. Você poderá editar o seu problema e adicionar capturas de tela quando nós o pré-visualizarmos no GitHub. ",
 	"expectedResults": "Resultado Esperado",
 	"settingsSearchResultsDescription": "Nós suportamos Markdown no padrão GitHub. Você poderá editar o seu problema e adicionar capturas de tela quando nós o pré-visualizarmos no GitHub. ",
-	"urlLengthError": "Os dados excedem o limite de tamanho de {0} caracteres. O tamanho de dados é {1}.",
+	"pasteData": "Nós escrevemos os dados necessários em sua área de transferência porque era muito grande para ser enviado. Por favor, Cole.",
 	"disabledExtensions": "Extensões estão desabilitadas"
 }

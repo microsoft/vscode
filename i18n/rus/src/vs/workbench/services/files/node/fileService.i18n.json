@@ -9,6 +9,7 @@
 	"fileInvalidPath": "Недопустимый ресурс файла ({0})",
 	"fileIsDirectoryError": "Файл является каталогом",
 	"fileNotModifiedError": "undefined",
+	"fileTooLargeForHeapError": "Размер файла превышает объем памяти окна, попробуйте выполнить код с параметром --max-memory=новый_объем_памяти",
 	"fileTooLargeError": "Не удается открыть файл, так как он имеет слишком большой размер",
 	"fileNotFoundError": "Файл не найден ({0})",
 	"fileBinaryError": "Похоже, файл является двоичным, и его нельзя открыть как текстовый.",

@@ -7,7 +7,7 @@
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import * as network from 'vs/base/common/network';
-import { IDataSource, ITree, IRenderer, IAccessibilityProvider, ISorter } from 'vs/base/parts/tree/browser/tree';
+import { IDataSource, ITree, IRenderer, IAccessibilityProvider, IFilter } from 'vs/base/parts/tree/browser/tree';
 import Severity from 'vs/base/common/severity';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
@@ -41,7 +41,7 @@ interface IMarkerTemplateData {
 }
 
 export class DataSource implements IDataSource {
-	public getId(tree: ITree, element: any): string {
+	public getId(tree: ITree, element: MarkersModel | Resource | Marker): string {
 		if (element instanceof MarkersModel) {
 			return 'root';
 		}
@@ -49,7 +49,7 @@ export class DataSource implements IDataSource {
 			return element.uri.toString();
 		}
 		if (element instanceof Marker) {
-			return (<Marker>element).id;
+			return element.id;
 		}
 		return '';
 	}
@@ -58,18 +58,30 @@ export class DataSource implements IDataSource {
 		return element instanceof MarkersModel || element instanceof Resource;
 	}
 
-	public getChildren(tree: ITree, element: any): Promise {
+	public getChildren(tree: ITree, element: MarkersModel | Resource): Promise {
 		if (element instanceof MarkersModel) {
-			return TPromise.as((<MarkersModel>element).filteredResources);
+			return Promise.as(element.resources);
 		}
 		if (element instanceof Resource) {
-			return TPromise.as(element.markers);
+			return Promise.as(element.markers);
 		}
 		return null;
 	}
 
 	public getParent(tree: ITree, element: any): Promise {
 		return TPromise.as(null);
+	}
+}
+
+export class DataFilter implements IFilter {
+	public isVisible(tree: ITree, element: Resource | Marker | any): boolean {
+		if (element instanceof Resource) {
+			return element.filteredMarkersCount > 0;
+		}
+		if (element instanceof Marker) {
+			return element.isSelected;
+		}
+		return true;
 	}
 }
 
@@ -164,13 +176,13 @@ export class Renderer implements IRenderer {
 		} else if ((<IResourceTemplateData>templateData).resourceLabel) {
 			(<IResourceTemplateData>templateData).resourceLabel.setLabel({ name: element.name, description: element.uri.toString(), resource: element.uri }, { matches: element.uriMatches });
 		}
-		templateData.count.setCount(element.markers.length);
+		templateData.count.setCount(element.filteredMarkersCount);
 	}
 
 	private renderMarkerElement(tree: ITree, element: Marker, templateData: IMarkerTemplateData) {
-		let marker = element.marker;
+		let marker = element.raw;
 		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(marker);
-		templateData.description.set(marker.message, element.labelMatches);
+		templateData.description.set(marker.message, element.messageMatches);
 		templateData.description.element.title = marker.message;
 
 		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
@@ -211,20 +223,12 @@ export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider 
 
 	public getAriaLabel(tree: ITree, element: any): string {
 		if (element instanceof Resource) {
-			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.name, element.markers.length);
+			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.name, element.filteredMarkersCount);
 		}
 		if (element instanceof Marker) {
-			return Messages.MARKERS_TREE_ARIA_LABEL_MARKER(element.marker);
+			return Messages.MARKERS_TREE_ARIA_LABEL_MARKER(element.raw);
 		}
 		return null;
 	}
-
 }
 
-export class Sorter implements ISorter {
-
-	public compare(tree: ITree, element: any, otherElement: any): number {
-		return MarkersModel.compare(element, otherElement);
-	}
-
-}

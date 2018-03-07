@@ -5,7 +5,6 @@
 'use strict';
 
 import * as paths from 'vs/base/common/paths';
-import * as types from 'vs/base/common/types';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
@@ -13,20 +12,19 @@ import { IMarker } from 'vs/platform/markers/common/markers';
 import { IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy } from 'vs/base/common/filters';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import { Schemas } from 'vs/base/common/network';
-
-export interface BulkUpdater {
-	add(resource: URI, markers: IMarker[]): void;
-	done(): void;
-}
+import { groupBy, isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { values } from 'vs/base/common/map';
 
 export class Resource {
 
 	private _name: string = null;
 	private _path: string = null;
 
+	filteredMarkersCount: number = 0;
+	uriMatches: IMatch[] = [];
+
 	constructor(
 		readonly uri: URI,
-		readonly uriMatches: IMatch[] = [],
 		readonly markers: Marker[],
 	) {
 		markers.sort(Marker.compare);
@@ -51,7 +49,7 @@ export class Resource {
 		let [firstMarkerOfB] = b.markers;
 		let res = 0;
 		if (firstMarkerOfA && firstMarkerOfB) {
-			res = Severity.compare(firstMarkerOfA.marker.severity, firstMarkerOfB.marker.severity);
+			res = Severity.compare(firstMarkerOfA.raw.severity, firstMarkerOfB.raw.severity);
 		}
 		if (res === 0) {
 			res = a.path.localeCompare(b.path) || a.name.localeCompare(b.name);
@@ -62,85 +60,63 @@ export class Resource {
 
 export class Marker {
 
+	isSelected: boolean = false;
+	messageMatches: IMatch[] = [];
+	sourceMatches: IMatch[] = [];
+
 	constructor(
 		readonly id: string,
-		readonly marker: IMarker,
-		readonly labelMatches: IMatch[] = [],
-		readonly sourceMatches: IMatch[] = []
+		readonly raw: IMarker,
 	) { }
 
 	public get resource(): URI {
-		return this.marker.resource;
+		return this.raw.resource;
 	}
 
 	public get range(): IRange {
-		return this.marker;
+		return this.raw;
 	}
 
 	public toString(): string {
 		return [
-			`file: '${this.marker.resource}'`,
-			`severity: '${Severity.toString(this.marker.severity)}'`,
-			`message: '${this.marker.message}'`,
-			`at: '${this.marker.startLineNumber},${this.marker.startColumn}'`,
-			`source: '${this.marker.source ? this.marker.source : ''}'`,
-			`code: '${this.marker.code ? this.marker.code : ''}'`
+			`file: '${this.raw.resource}'`,
+			`severity: '${Severity.toString(this.raw.severity)}'`,
+			`message: '${this.raw.message}'`,
+			`at: '${this.raw.startLineNumber},${this.raw.startColumn}'`,
+			`source: '${this.raw.source ? this.raw.source : ''}'`,
+			`code: '${this.raw.code ? this.raw.code : ''}'`
 		].join('\n');
 	}
 
 	static compare(a: Marker, b: Marker): number {
-		return Severity.compare(a.marker.severity, b.marker.severity)
-			|| Range.compareRangesUsingStarts(a.marker, b.marker);
+		return Severity.compare(a.raw.severity, b.raw.severity)
+			|| Range.compareRangesUsingStarts(a.raw, b.raw);
 	}
 }
 
 export class FilterOptions {
 
-	static _filter: IFilter = or(matchesPrefix, matchesContiguousSubString);
-	static _fuzzyFilter: IFilter = or(matchesPrefix, matchesContiguousSubString, matchesFuzzy);
+	static readonly _filter: IFilter = or(matchesPrefix, matchesContiguousSubString);
+	static readonly _fuzzyFilter: IFilter = or(matchesPrefix, matchesContiguousSubString, matchesFuzzy);
 
-	private _filterErrors: boolean = false;
-	private _filterWarnings: boolean = false;
-	private _filterInfos: boolean = false;
-	private _filter: string = '';
-	private _completeFilter: string = '';
+	readonly filterErrors: boolean = false;
+	readonly filterWarnings: boolean = false;
+	readonly filterInfos: boolean = false;
+	readonly filter: string = '';
+	readonly completeFilter: string = '';
 
 	constructor(filter: string = '') {
 		if (filter) {
-			this.parse(filter);
+			this.completeFilter = filter;
+			this.filter = filter.trim();
+			this.filterErrors = this.matches(this.filter, Messages.MARKERS_PANEL_FILTER_ERRORS);
+			this.filterWarnings = this.matches(this.filter, Messages.MARKERS_PANEL_FILTER_WARNINGS);
+			this.filterInfos = this.matches(this.filter, Messages.MARKERS_PANEL_FILTER_INFOS);
 		}
 	}
 
-	public get filterErrors(): boolean {
-		return this._filterErrors;
-	}
-
-	public get filterWarnings(): boolean {
-		return this._filterWarnings;
-	}
-
-	public get filterInfos(): boolean {
-		return this._filterInfos;
-	}
-
-	public get filter(): string {
-		return this._filter;
-	}
-
-	public get completeFilter(): string {
-		return this._completeFilter;
-	}
-
 	public hasFilters(): boolean {
-		return !!this._filter;
-	}
-
-	private parse(filter: string) {
-		this._completeFilter = filter;
-		this._filter = filter.trim();
-		this._filterErrors = this.matches(this._filter, Messages.MARKERS_PANEL_FILTER_ERRORS);
-		this._filterWarnings = this.matches(this._filter, Messages.MARKERS_PANEL_FILTER_WARNINGS);
-		this._filterInfos = this.matches(this._filter, Messages.MARKERS_PANEL_FILTER_INFOS);
+		return !!this.filter;
 	}
 
 	private matches(prefix: string, word: string): boolean {
@@ -151,134 +127,154 @@ export class FilterOptions {
 
 export class MarkersModel {
 
-	private markersByResource: Map<string, IMarker[]>;
-
-	private _filteredResources: Resource[];
-	private _nonFilteredResources: Resource[];
+	private _cachedSortedResources: Resource[];
+	private _markersByResource: Map<string, Resource>;
 	private _filterOptions: FilterOptions;
 
 	constructor(markers: IMarker[] = []) {
-		this.markersByResource = new Map<string, IMarker[]>();
+		this._markersByResource = new Map<string, Resource>();
 		this._filterOptions = new FilterOptions();
-		this.update(markers);
+
+		for (const group of groupBy(markers, MarkersModel._compareMarkersByUri)) {
+			const resource = this.createResource(group[0].resource, group);
+			this._markersByResource.set(resource.uri.toString(), resource);
+		}
+	}
+
+	private static _compareMarkersByUri(a: IMarker, b: IMarker) {
+		if (a.resource.toString() < b.resource.toString()) {
+			return -1;
+		} else if (a.resource.toString() > b.resource.toString()) {
+			return 1;
+		} else {
+			return 0;
+		}
 	}
 
 	public get filterOptions(): FilterOptions {
 		return this._filterOptions;
 	}
 
-	public get filteredResources(): Resource[] {
-		return this._filteredResources;
+	public get resources(): Resource[] {
+		if (!this._cachedSortedResources) {
+			this._cachedSortedResources = values(this._markersByResource).sort(Resource.compare);
+		}
+		return this._cachedSortedResources;
+	}
+
+	public forEachFilteredResource(callback: (resource: Resource) => any) {
+		this._markersByResource.forEach(resource => {
+			if (resource.filteredMarkersCount > 0) {
+				callback(resource);
+			}
+		});
 	}
 
 	public hasFilteredResources(): boolean {
-		return this.filteredResources.length > 0;
+		let res = false;
+		this._markersByResource.forEach(resource => {
+			res = res || resource.filteredMarkersCount > 0;
+		});
+		return res;
 	}
 
 	public hasResources(): boolean {
-		return this.markersByResource.size > 0;
+		return this._markersByResource.size > 0;
 	}
 
 	public hasResource(resource: URI): boolean {
-		return this.markersByResource.has(resource.toString());
+		return this._markersByResource.has(resource.toString());
 	}
 
-	public total(): number {
+	public stats(): { total: number, filtered: number } {
 		let total = 0;
-		this.markersByResource.forEach(markers => total = total + markers.length);
-		return total;
+		let filtered = 0;
+		this._markersByResource.forEach(resource => {
+			total += resource.markers.length;
+			filtered += resource.filteredMarkersCount;
+		});
+		return { total, filtered };
+
 	}
 
-	public count(): number {
-		let count = 0;
-		this.filteredResources.forEach(resource => count = count + resource.markers.length);
-		return count;
-	}
-
-	public getBulkUpdater(): BulkUpdater {
-		return {
-			add: (resourceUri: URI, markers: IMarker[]) => {
-				this.updateResource(resourceUri, markers);
-			},
-			done: () => {
-				this.refresh();
-			}
-		};
-	}
-
-	public update(filterOptions: FilterOptions): void;
-	public update(resourceUri: URI, markers: IMarker[]): void;
-	public update(markers: IMarker[]): void;
-	public update(arg1?: FilterOptions | URI | IMarker[], arg2?: IMarker[]) {
-		if (arg1 instanceof FilterOptions) {
-			this._filterOptions = arg1;
-		}
-		if (arg1 instanceof URI) {
-			this.updateResource(arg1, arg2);
-		}
-		if (types.isArray(arg1)) {
-			this.updateMarkers(arg1);
-		}
-		this.refresh();
-	}
-
-	private refresh(): void {
-		this.refreshResources();
-	}
-
-	private refreshResources(): void {
-		this._nonFilteredResources = [];
-		this._filteredResources = [];
-		this.markersByResource.forEach((values, uri) => {
-			const filteredResource = this.toFilteredResource(URI.parse(uri), values);
-			if (filteredResource.markers.length) {
-				this._filteredResources.push(filteredResource);
+	public updateMarkers(callback: (updater: (resource: URI, markers: IMarker[]) => any) => void): void {
+		callback((resource, markers) => {
+			if (isFalsyOrEmpty(markers)) {
+				this._markersByResource.delete(resource.toString());
 			} else {
-				this._nonFilteredResources.push(filteredResource);
+				this._markersByResource.set(resource.toString(), this.createResource(resource, markers));
 			}
 		});
+		this._cachedSortedResources = undefined;
 	}
 
-	private updateResource(resourceUri: URI, markers: IMarker[]) {
-		if (this.markersByResource.has(resourceUri.toString())) {
-			this.markersByResource.delete(resourceUri.toString());
+	public updateFilterOptions(filterOptions: FilterOptions): void {
+		this._filterOptions = filterOptions;
+		if (!this._filterOptions.hasFilters()) {
+			// reset all filters/matches
+			this._markersByResource.forEach(resource => {
+				resource.filteredMarkersCount = resource.markers.length;
+				resource.uriMatches = [];
+
+				for (const marker of resource.markers) {
+					marker.isSelected = true;
+					marker.messageMatches = [];
+					marker.sourceMatches = [];
+				}
+			});
+		} else {
+			// update properly
+			this._markersByResource.forEach(resource => {
+
+				resource.uriMatches = this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, paths.basename(resource.uri.fsPath)) : [];
+				resource.filteredMarkersCount = 0;
+
+				for (const marker of resource.markers) {
+					marker.messageMatches = this._filterOptions.hasFilters() ? FilterOptions._fuzzyFilter(this._filterOptions.filter, marker.raw.message) : [];
+					marker.sourceMatches = marker.raw.source && this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, marker.raw.source) : [];
+					marker.isSelected = this.filterMarker(marker.raw);
+					if (marker.isSelected) {
+						resource.filteredMarkersCount += 1;
+					}
+				}
+			});
 		}
-		if (markers.length > 0) {
-			this.markersByResource.set(resourceUri.toString(), markers);
-		}
 	}
 
-	private updateMarkers(markers: IMarker[]) {
-		markers.forEach((marker: IMarker) => {
-			let uri: URI = marker.resource;
-			let markers: IMarker[] = this.markersByResource.get(uri.toString());
-			if (!markers) {
-				markers = [];
-				this.markersByResource.set(uri.toString(), markers);
-			}
-			markers.push(marker);
-		});
-	}
+	private createResource(uri: URI, rawMarkers: IMarker[]): Resource {
 
-	private toFilteredResource(uri: URI, values: IMarker[]) {
 		let markers: Marker[] = [];
-		for (let i = 0; i < values.length; i++) {
-			const m = values[i];
-			if (uri.scheme !== Schemas.walkThrough && uri.scheme !== Schemas.walkThroughSnippet && (!this._filterOptions.hasFilters() || this.filterMarker(m))) {
-				markers.push(this.toMarker(m, i, uri.toString()));
+		let filteredCount = 0;
+		for (let i = 0; i < rawMarkers.length; i++) {
+			let marker = this.createMarker(rawMarkers[i], i, uri.toString());
+			markers.push(marker);
+			if (marker.isSelected) {
+				filteredCount += 1;
 			}
 		}
-		const matches = this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, paths.basename(uri.fsPath)) : [];
-		return new Resource(uri, matches || [], markers);
+
+		const resource = new Resource(uri, markers);
+		resource.filteredMarkersCount = filteredCount;
+		resource.uriMatches = this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, paths.basename(uri.fsPath)) : [];
+
+		return resource;
 	}
 
-	private toMarker(marker: IMarker, index: number, uri: string): Marker {
-		const labelMatches = this._filterOptions.hasFilters() ? FilterOptions._fuzzyFilter(this._filterOptions.filter, marker.message) : [];
-		const sourceMatches = marker.source && this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, marker.source) : [];
-		return new Marker(uri + index, marker, labelMatches || [], sourceMatches || []);
+	private createMarker(marker: IMarker, index: number, uri: string): Marker {
+		const res = new Marker(uri + index, marker);
+		res.messageMatches = this._filterOptions.hasFilters() ? FilterOptions._fuzzyFilter(this._filterOptions.filter, marker.message) : [];
+		res.sourceMatches = marker.source && this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, marker.source) : [];
+		res.isSelected = this.filterMarker(marker);
+		return res;
 	}
 
 	private filterMarker(marker: IMarker): boolean {
+		if (!this._filterOptions.hasFilters()) {
+			return true;
+		}
+		if (marker.resource.scheme === Schemas.walkThrough || marker.resource.scheme === Schemas.walkThroughSnippet) {
+			return false;
+		}
 		if (this._filterOptions.filterErrors && Severity.Error === marker.severity) {
 			return true;
 		}
@@ -301,9 +297,7 @@ export class MarkersModel {
 	}
 
 	public dispose(): void {
-		this.markersByResource.clear();
-		this._filteredResources = [];
-		this._nonFilteredResources = [];
+		this._markersByResource.clear();
 	}
 
 	public getMessage(): string {
@@ -316,15 +310,5 @@ export class MarkersModel {
 			}
 		}
 		return Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
-	}
-
-	public static compare(a: any, b: any): number {
-		if (a instanceof Resource && b instanceof Resource) {
-			return Resource.compare(a, b);
-		}
-		if (a instanceof Marker && b instanceof Marker) {
-			return Marker.compare(a, b);
-		}
-		return 0;
 	}
 }

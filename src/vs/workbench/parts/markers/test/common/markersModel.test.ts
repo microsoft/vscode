@@ -11,6 +11,25 @@ import Severity from 'vs/base/common/severity';
 import { IMarker } from 'vs/platform/markers/common/markers';
 import { MarkersModel, Marker, Resource } from 'vs/workbench/parts/markers/common/markersModel';
 
+class TestMarkersModel extends MarkersModel {
+
+	get filteredResources(): Resource[] {
+		let res: Resource[] = [];
+		this.forEachFilteredResource(resource => res.push(resource));
+		return res;
+	}
+
+	static compare(a: any, b: any): number {
+		if (a instanceof Resource && b instanceof Resource) {
+			return Resource.compare(a, b);
+		}
+		if (a instanceof Marker && b instanceof Marker) {
+			return Marker.compare(a, b);
+		}
+		return 0;
+	}
+}
+
 suite('MarkersModel Test', () => {
 
 	test('getFilteredResource return markers grouped by resource', function () {
@@ -20,7 +39,7 @@ suite('MarkersModel Test', () => {
 		let marker4 = aMarker('res3');
 		let marker5 = aMarker('res4');
 		let marker6 = aMarker('res2');
-		let testObject = new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
+		let testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
 
 		let actuals = testObject.filteredResources;
 
@@ -52,9 +71,9 @@ suite('MarkersModel Test', () => {
 		let marker4 = aMarker('b/res3');
 		let marker5 = aMarker('res4');
 		let marker6 = aMarker('c/res2', Severity.Info);
-		let testObject = new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
+		let testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
 
-		let actuals = testObject.filteredResources.sort(MarkersModel.compare);
+		let actuals = testObject.filteredResources.sort(TestMarkersModel.compare);
 
 		assert.equal(5, actuals.length);
 		assert.ok(compareResource(actuals[0], 'a/res2'));
@@ -71,9 +90,9 @@ suite('MarkersModel Test', () => {
 		let marker4 = aMarker('b/res3');
 		let marker5 = aMarker('res4');
 		let marker6 = aMarker('c/res2');
-		let testObject = new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
+		let testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
 
-		let actuals = testObject.filteredResources.sort(MarkersModel.compare);
+		let actuals = testObject.filteredResources.sort(TestMarkersModel.compare);
 
 		assert.equal(5, actuals.length);
 		assert.ok(compareResource(actuals[0], 'a/res1'));
@@ -99,25 +118,25 @@ suite('MarkersModel Test', () => {
 		let marker13 = aWarningWithRange(5);
 		let marker14 = anErrorWithRange(4);
 		let marker15 = anErrorWithRange(8, 2, 8, 4);
-		let testObject = new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6, marker7, marker8, marker9, marker10, marker11, marker12, marker13, marker14, marker15]);
+		let testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6, marker7, marker8, marker9, marker10, marker11, marker12, marker13, marker14, marker15]);
 
-		let actuals = testObject.filteredResources[0].markers.sort(MarkersModel.compare);
+		let actuals = testObject.filteredResources[0].markers.sort(TestMarkersModel.compare);
 
-		assert.equal(actuals[0].marker, marker6);
-		assert.equal(actuals[1].marker, marker14);
-		assert.equal(actuals[2].marker, marker7);
-		assert.equal(actuals[3].marker, marker9);
-		assert.equal(actuals[4].marker, marker11);
-		assert.equal(actuals[5].marker, marker3);
-		assert.equal(actuals[6].marker, marker15);
-		assert.equal(actuals[7].marker, marker10);
-		assert.equal(actuals[8].marker, marker2);
-		assert.equal(actuals[9].marker, marker13);
-		assert.equal(actuals[10].marker, marker1);
-		assert.equal(actuals[11].marker, marker8);
-		assert.equal(actuals[12].marker, marker5);
-		assert.equal(actuals[13].marker, marker12);
-		assert.equal(actuals[14].marker, marker4);
+		assert.equal(actuals[0].raw, marker6);
+		assert.equal(actuals[1].raw, marker14);
+		assert.equal(actuals[2].raw, marker7);
+		assert.equal(actuals[3].raw, marker9);
+		assert.equal(actuals[4].raw, marker11);
+		assert.equal(actuals[5].raw, marker3);
+		assert.equal(actuals[6].raw, marker15);
+		assert.equal(actuals[7].raw, marker10);
+		assert.equal(actuals[8].raw, marker2);
+		assert.equal(actuals[9].raw, marker13);
+		assert.equal(actuals[10].raw, marker1);
+		assert.equal(actuals[11].raw, marker8);
+		assert.equal(actuals[12].raw, marker5);
+		assert.equal(actuals[13].raw, marker12);
+		assert.equal(actuals[14].raw, marker4);
 	});
 
 	test('toString()', function () {
@@ -131,7 +150,7 @@ suite('MarkersModel Test', () => {
 
 	function hasMarker(markers: Marker[], marker: IMarker): boolean {
 		return markers.filter((m): boolean => {
-			return m.marker === marker;
+			return m.raw === marker;
 		}).length === 1;
 	}
 

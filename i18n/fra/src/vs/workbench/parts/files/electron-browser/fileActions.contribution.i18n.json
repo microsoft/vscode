@@ -29,6 +29,7 @@
 	"compareSelected": "Comparer le sélectionné",
 	"close": "Fermer",
 	"closeOthers": "Fermer les autres",
+	"closeSaved": "Fermer la version sauvegardée",
 	"closeAll": "Tout fermer",
 	"deleteFile": "Supprimer définitivement"
 }

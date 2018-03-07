@@ -7,7 +7,6 @@
 		"preserveConstEnums": true,
 		"sourceMap": false,
 		"experimentalDecorators": true,
-		"newLine": "LF",
 		// enable JavaScript type checking for the language service
 		// use the tsconfig.build.json for compiling wich disable JavaScript
 		// type checking so that JavaScript file are not transpiled

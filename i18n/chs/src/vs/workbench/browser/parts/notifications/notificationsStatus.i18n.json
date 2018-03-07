@@ -8,5 +8,7 @@
 	],
 	"hideNotifications": "隐藏通知",
 	"zeroNotifications": "没有通知",
-	"noNotifications": "没有新通知"
+	"noNotifications": "没有新通知",
+	"oneNotification": "1 条新通知",
+	"notifications": "{0} 条新通知"
 }

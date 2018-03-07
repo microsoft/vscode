@@ -20,8 +20,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { BetterMergeDisabledNowKey, BetterMergeId, areSameExtensions, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
-import { Severity } from 'vs/platform/notification/common/notification';
+import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 
 export interface IExtensionStatus {
 	identifier: IExtensionIdentifier;
@@ -37,8 +36,8 @@ export class KeymapExtensions implements IWorkbenchContribution {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
-		@IChoiceService private choiceService: IChoiceService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 	) {
 		this.disposables.push(
@@ -70,7 +69,7 @@ export class KeymapExtensions implements IWorkbenchContribution {
 			localize('yes', "Yes"),
 			localize('no', "No")
 		];
-		return this.choiceService.choose(Severity.Info, message, options)
+		return this.notificationService.prompt(Severity.Info, message, options)
 			.then(value => {
 				const confirmed = value === 0;
 				const telemetryData: { [key: string]: any; } = {
@@ -149,7 +148,7 @@ export class BetterMergeDisabled implements IWorkbenchContribution {
 
 	constructor(
 		@IStorageService storageService: IStorageService,
-		@IChoiceService choiceService: IChoiceService,
+		@INotificationService notificationService: INotificationService,
 		@IExtensionService extensionService: IExtensionService,
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -158,7 +157,7 @@ export class BetterMergeDisabled implements IWorkbenchContribution {
 			if (storageService.getBoolean(BetterMergeDisabledNowKey, StorageScope.GLOBAL, false)) {
 				storageService.remove(BetterMergeDisabledNowKey, StorageScope.GLOBAL);
 
-				choiceService.choose(Severity.Info, localize('betterMergeDisabled', "The Better Merge extension is now built-in, the installed extension was disabled and can be uninstalled."), [localize('uninstall', "Uninstall")]).then(choice => {
+				notificationService.prompt(Severity.Info, localize('betterMergeDisabled', "The Better Merge extension is now built-in, the installed extension was disabled and can be uninstalled."), [localize('uninstall', "Uninstall")]).then(choice => {
 					if (choice === 0) {
 						extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
 							return Promise.all(extensions.filter(e => stripVersion(e.identifier.id) === BetterMergeId)

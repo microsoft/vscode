@@ -22,6 +22,7 @@
 	"menus.editorTabContext": "El menú contextual de pestañas del editor",
 	"menus.debugCallstackContext": "El menú contextual de la pila de llamadas de depuración",
 	"menus.scmTitle": "El menú del título Control de código fuente",
+	"menus.scmSourceControl": "El menú de control de código fuente",
 	"menus.resourceGroupContext": "El menú contextual del grupo de recursos de Control de código fuente",
 	"menus.resourceStateContext": "El menú contextual de estado de recursos de Control de código fuente",
 	"view.viewTitle": "El menú de título de vista contribuida",

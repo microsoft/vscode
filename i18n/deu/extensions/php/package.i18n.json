@@ -12,5 +12,7 @@
 	"configuration.validate.run": "Gibt an, ob der Linter beim Speichern oder bei der Eingabe ausgeführt wird.",
 	"configuration.title": "PHP",
 	"commands.categroy.php": "PHP",
-	"command.untrustValidationExecutable": "Ausführbare Datei für PHP-Überprüfung nicht zulassen (als Arbeitsbereicheinstellung definiert)"
+	"command.untrustValidationExecutable": "Ausführbare Datei für PHP-Überprüfung nicht zulassen (als Arbeitsbereicheinstellung definiert)",
+	"displayName": "PHP-Sprachfeatures",
+	"description": "Bietet IntelliSense, Bereinigen und Sprachgrundlagen für PHP-Dateien."
 }

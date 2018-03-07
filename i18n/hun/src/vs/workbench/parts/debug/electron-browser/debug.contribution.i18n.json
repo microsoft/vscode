@@ -26,6 +26,6 @@
 	"always": "Mindig jelenjen meg a hibakeresés az állapotsoron",
 	"onFirstSessionStart": "A hibakeresés csak akkor jelenjen meg az állapotsoron, miután először el lett indítva a hibakeresés",
 	"showInStatusBar": "Meghatározza, hogy megjelenjen-e a hibakeresési állapotsáv",
-	"openDebug": "Meghatározza, hogy megnyíljon-e a hibakeresési panel a hibakeresési munkamenet indulásakor.",
+	"openDebug": "Meghatározza, hogy megnyíljon-e a hibakeresési modul a hibakeresési munkamenet indulásakor.",
 	"launch": "Globális hibakeresés indítási konfiguráció. Használható a 'launch.json' alternatívájaként, ami meg van osztva több munkaterület között"
 }

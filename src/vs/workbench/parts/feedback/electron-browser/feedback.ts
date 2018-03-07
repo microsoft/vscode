@@ -246,7 +246,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		$('label').attr('for', 'hide-button').text(nls.localize('showFeedback', "Show Feedback Smiley in Status Bar")).appendTo($hideButtonContainer);
 
-		this.sendButton = this.invoke($('input.send').type('submit').attr('disabled', '').value(nls.localize('tweet', "Tweet")).appendTo($buttons), () => {
+		this.sendButton = this.invoke($('input.send').type('button').attr('disabled', '').value(nls.localize('tweet', "Tweet")).appendTo($buttons), () => {
 			if (this.isSendingFeedback) {
 				return;
 			}

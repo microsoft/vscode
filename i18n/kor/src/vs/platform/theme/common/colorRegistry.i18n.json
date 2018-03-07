@@ -79,6 +79,8 @@
 	"hoverBackground": "편집기 호버의 배경색.",
 	"hoverBorder": "편집기 호버의 테두리 색입니다.",
 	"activeLinkForeground": "활성 링크의 색입니다.",
+	"diffEditorInserted": "글자 배경색이 삽입되었습니다. 해당 색상은 적용된 꾸밈을 가리지 않기 위해 불투명해서는 안됩니다.",
+	"diffEditorRemoved": "글자 배경색이 제거되었습니다. 해당 색상은 적용된 꾸밈을 가리지 않기 위해 불투명해서는 안됩니다.",
 	"diffEditorInsertedOutline": "삽입된 텍스트의 윤곽선 색입니다.",
 	"diffEditorRemovedOutline": "제거된 텍스트의 윤곽선 색입니다.",
 	"mergeCurrentHeaderBackground": "인라인 병합 충돌의 현재 헤더 배경입니다. 색상은 밑의 꾸밈을 가리지 않도록 반드시 불투명이 아니어야 합니다.",

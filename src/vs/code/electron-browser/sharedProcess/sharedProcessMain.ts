@@ -41,8 +41,8 @@ import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { LocalizationsChannel } from 'vs/platform/localizations/common/localizationsIpc';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
-import { ChoiceChannelClient } from 'vs/platform/dialogs/common/choiceIpc';
+import { DialogChannelClient } from 'vs/platform/dialogs/common/dialogIpc';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -102,13 +102,13 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	services.set(IWindowsService, windowsService);
 
 	const activeWindowManager = new ActiveWindowManager(windowsService);
-	const choiceChannel = server.getChannel('choice', {
+	const dialogChannel = server.getChannel('dialog', {
 		route: () => {
-			logService.info('Routing choice request to the client', activeWindowManager.activeClientId);
+			logService.info('Routing dialog request to the client', activeWindowManager.activeClientId);
 			return activeWindowManager.activeClientId;
 		}
 	});
-	services.set(IChoiceService, new ChoiceChannelClient(choiceChannel));
+	services.set(IDialogService, new DialogChannelClient(dialogChannel));
 
 	const instantiationService = new InstantiationService(services);
 

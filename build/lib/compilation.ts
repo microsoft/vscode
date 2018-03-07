@@ -30,6 +30,7 @@ if (process.env['VSCODE_NO_SOURCEMAP']) { // To be used by developers in a hurry
 }
 options.rootDir = rootDir;
 options.sourceRoot = util.toFileUri(rootDir);
+options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 'CRLF' : 'LF';
 
 function createCompile(build: boolean, emitError?: boolean): (token?: util.ICancellationToken) => NodeJS.ReadWriteStream {
 	const opts = _.clone(options);

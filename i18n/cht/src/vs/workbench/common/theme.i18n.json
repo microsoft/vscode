@@ -59,7 +59,12 @@
 	"titleBarActiveBackground": "作用中視窗之標題列的背景。請注意，目前只有 macOS 支援此色彩。",
 	"titleBarInactiveBackground": "非作用中視窗之標題列的背景。請注意，目前只有 macOS 支援此色彩。",
 	"titleBarBorder": "標題列框線色彩。請注意，目前只有 macOS 支援此色彩。",
+	"notificationCenterBorder": "通知中央邊框色彩。通知會從視窗右下角滑入。",
+	"notificationToastBorder": "通知快顯通知邊框色彩。通知會從視窗右下角滑入。",
 	"notificationsForeground": "通知的前景顏色。通知從視窗的右下方滑入。",
 	"notificationsBackground": "通知的背景顏色。通知從視窗的右下方滑入。",
-	"notificationsLink": "通知的連結前景顏色。通知從視窗的右下方滑入。"
+	"notificationsLink": "通知的連結前景顏色。通知從視窗的右下方滑入。",
+	"notificationCenterHeaderForeground": "通知中心標題前景色彩。通知會從視窗右下角滑入。",
+	"notificationCenterHeaderBackground": "通知中心標題背景色彩。通知會從視窗右下角滑入。",
+	"notificationsBorder": "通知中心中，與其他通知分開的通知邊框色彩。通知會從視窗右下角滑入。"
 }

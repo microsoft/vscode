@@ -23,7 +23,7 @@
 
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content {
 	line-height: 18px;
-	-webkit-user-select: text;
+	user-select: text;
 	/* Wrap words but also do not trim whitespace #6275 */
 	word-wrap: break-word;
 	white-space: pre-wrap;

@@ -78,7 +78,7 @@ const vscodeResources = [
 	'out-build/vs/workbench/electron-browser/bootstrap/**',
 	'out-build/vs/workbench/parts/debug/**/*.json',
 	'out-build/vs/workbench/parts/execution/**/*.scpt',
-	'out-build/vs/workbench/parts/html/browser/webview-pre.js',
+	'out-build/vs/workbench/parts/html/electron-browser/webview-pre.js',
 	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/parts/tasks/**/*.json',
 	'out-build/vs/workbench/parts/terminal/electron-browser/terminalProcess.js',
@@ -307,7 +307,7 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('gc-signals', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
 			.pipe(util.cleanNodeModule('keytar', ['binding.gyp', 'build/**', 'src/**', 'script/**', 'node_modules/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('node-pty', ['binding.gyp', 'build/**', 'src/**', 'tools/**'], ['build/Release/*.exe', 'build/Release/*.dll', 'build/Release/*.node']))
-			.pipe(util.cleanNodeModule('nsfw', ['binding.gyp', 'build/**', 'src/**', 'openpa/**', 'includes/**'], ['**/*.node', '**/*.a']))
+			.pipe(util.cleanNodeModule('vscode-nsfw', ['binding.gyp', 'build/**', 'src/**', 'openpa/**', 'includes/**'], ['**/*.node', '**/*.a']))
 			.pipe(util.cleanNodeModule('vsda', ['binding.gyp', 'README.md', 'build/**', '*.bat', '*.sh', '*.cpp', '*.h'], ['build/Release/vsda.node']))
 			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), ['**/*.node', '**/vscode-ripgrep/bin/*', '**/node-pty/build/Release/*'], 'app/node_modules.asar'));
 

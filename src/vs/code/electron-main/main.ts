@@ -48,8 +48,8 @@ import { printDiagnostics } from 'vs/code/electron-main/diagnostics';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
-import { ChoiceCliService } from 'vs/platform/dialogs/node/choiceCli';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
 	const services = new ServiceCollection();
@@ -73,7 +73,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IURLService, new SyncDescriptor(URLService, args['open-url'] ? args._urls : []));
 	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
-	services.set(IChoiceService, new SyncDescriptor(ChoiceCliService));
+	services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
 
 	return new InstantiationService(services, true);
 }

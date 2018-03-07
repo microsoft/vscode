@@ -83,8 +83,7 @@ export class MarkdownContentProvider {
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
 				${csp}
 				<meta id="vscode-markdown-preview-data" data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}" data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}">
-				<script src="${this.extensionResourcePath('csp.js')}" nonce="${nonce}"></script>
-				<script src="${this.extensionResourcePath('loading.js')}" nonce="${nonce}"></script>
+				<script src="${this.extensionResourcePath('pre.js')}" nonce="${nonce}"></script>
 				${this.getStyles(sourceUri, nonce, config)}
 				<base href="${markdownDocument.uri.with({ scheme: 'vscode-workspace-resource' }).toString(true)}">
 			</head>
@@ -165,7 +164,7 @@ export class MarkdownContentProvider {
 	}
 
 	private getScripts(nonce: string): string {
-		const scripts = [this.extensionResourcePath('main.js')].concat(this.extraScripts.map(resource => resource.toString()));
+		const scripts = [this.extensionResourcePath('index.js')].concat(this.extraScripts.map(resource => resource.toString()));
 		return scripts
 			.map(source => `<script async src="${source}" nonce="${nonce}" charset="UTF-8"></script>`)
 			.join('\n');
@@ -174,14 +173,14 @@ export class MarkdownContentProvider {
 	private getCspForResource(resource: vscode.Uri, nonce: string): string {
 		switch (this.cspArbiter.getSecurityLevelForResource(resource)) {
 			case MarkdownPreviewSecurityLevel.AllowInsecureContent:
-				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-workspace-resource: vscode-extension-resource: http: https: data:; media-src vscode-workspace-resource: vscode-extension-resource: http: https: data:; script-src 'nonce-${nonce}'; style-src vscode-workspace-resource: 'unsafe-inline' http: https: data: vscode-extension-resource:; font-src vscode-workspace-resource: vscode-workspace-resource: http: https: data:;">`;
+				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-workspace-resource: vscode-extension-resource: http: https: data:; media-src vscode-workspace-resource: vscode-extension-resource: http: https: data:; script-src 'nonce-${nonce}'; style-src vscode-workspace-resource: 'unsafe-inline' http: https: data: vscode-extension-resource:; font-src vscode-workspace-resource: vscode-extension-resource: http: https: data:;">`;
 
 			case MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent:
 				return '';
 
 			case MarkdownPreviewSecurityLevel.Strict:
 			default:
-				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-workspace-resource: vscode-extension-resource: https: data:; media-src vscode-workspace-resource: vscode-extension-resource: https: data:; script-src 'nonce-${nonce}'; style-src vscode-workspace-resource: 'unsafe-inline' https: data: vscode-extension-resource:; font-src vscode-workspace-resource: vscode-workspace-resource: https: data:;">`;
+				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-workspace-resource: vscode-extension-resource: https: data:; media-src vscode-workspace-resource: vscode-extension-resource: https: data:; script-src 'nonce-${nonce}'; style-src vscode-workspace-resource: 'unsafe-inline' https: data: vscode-extension-resource:; font-src vscode-workspace-resource: vscode-extension-resource: https: data:;">`;
 		}
 	}
 }

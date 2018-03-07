@@ -46,7 +46,7 @@ import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platfo
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IConfirmationService, IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -471,9 +471,8 @@ class TaskService implements ITaskService {
 		@IProgressService2 private progressService: IProgressService2,
 		@IOpenerService private openerService: IOpenerService,
 		@IWindowService private readonly _windowService: IWindowService,
-		@IConfirmationService private confirmationService: IConfirmationService,
-		@INotificationService private notificationService: INotificationService,
-		@IChoiceService private choiceService: IChoiceService
+		@IDialogService private dialogService: IDialogService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		this._configHasErrors = false;
 		this._workspaceTasksPromise = undefined;
@@ -491,7 +490,7 @@ class TaskService implements ITaskService {
 			let folderSetup = this.computeWorkspaceFolderSetup();
 			if (this.executionEngine !== folderSetup[2]) {
 				if (this._taskSystem && this._taskSystem.getActiveTasks().length > 0) {
-					this.choiceService.choose(Severity.Info, nls.localize(
+					this.notificationService.prompt(Severity.Info, nls.localize(
 						'TaskSystem.noHotSwap',
 						'Changing the task execution engine with an active task running requires to reload the Window'
 					), [nls.localize('reloadWindow', "Reload Window")]).then(choice => {
@@ -1621,19 +1620,19 @@ class TaskService implements ITaskService {
 			return false;
 		}
 
-		let terminatePromise: TPromise<boolean>;
+		let terminatePromise: TPromise<IConfirmationResult>;
 		if (this._taskSystem.canAutoTerminate()) {
-			terminatePromise = TPromise.wrap(true);
+			terminatePromise = TPromise.wrap({ confirmed: true });
 		} else {
-			terminatePromise = this.confirmationService.confirm({
+			terminatePromise = this.dialogService.confirm({
 				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
 				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
 				type: 'question'
 			});
 		}
 
-		return terminatePromise.then(terminate => {
-			if (terminate) {
+		return terminatePromise.then(res => {
+			if (res.confirmed) {
 				return this._taskSystem.terminateAll().then((responses) => {
 					let success = true;
 					let code: number = undefined;
@@ -1650,11 +1649,11 @@ class TaskService implements ITaskService {
 						this.disposeTaskSystemListeners();
 						return false; // no veto
 					} else if (code && code === TerminateResponseCode.ProcessNotFound) {
-						return this.confirmationService.confirm({
+						return this.dialogService.confirm({
 							message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
 							primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
 							type: 'info'
-						}).then(confirmed => !confirmed);
+						}).then(res => !res.confirmed);
 					}
 					return true; // veto
 				}, (err) => {

@@ -8,7 +8,7 @@ import * as paths from 'vs/base/common/paths';
 import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as watcher from 'vs/workbench/services/files/node/watcher/common';
-import * as nsfw from 'nsfw';
+import * as nsfw from 'vscode-nsfw';
 import { IWatcherService, IWatcherRequest } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
 import { TPromise, ProgressCallback, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import { ThrottledDelayer } from 'vs/base/common/async';

@@ -39,6 +39,8 @@
 	"importFiles": "Dateien importieren",
 	"confirmOverwrite": "Im Zielordner ist bereits eine Datei oder ein Ordner mit dem gleichen Namen vorhanden. Möchten Sie sie bzw. ihn ersetzen?",
 	"replaceButtonLabel": "&&Ersetzen",
+	"fileIsAncestor": "Die einzufügende Datei ist ein Vorgänger des Zielordners",
+	"fileDeleted": "Die einzufügende Datei wurde zwischenzeitlich gelöscht oder verschoben.",
 	"duplicateFile": "Duplikat",
 	"globalCompareFile": "Aktive Datei vergleichen mit...",
 	"openFileToCompare": "Zuerst eine Datei öffnen, um diese mit einer anderen Datei zu vergleichen",

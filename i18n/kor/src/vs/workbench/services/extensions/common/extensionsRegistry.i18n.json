@@ -30,5 +30,6 @@
 	"vscode.extension.badges.description": "배지 설명입니다.",
 	"vscode.extension.extensionDependencies": "다른 확장에 대한 종속성입니다. 확장 식별자는 항상 ${publisher}.${name}입니다(예: vscode.csharp).",
 	"vscode.extension.scripts.prepublish": "패키지가 VS Code 확장 형태로 게시되기 전에 스크립트가 실행되었습니다.",
+	"vscode.extension.scripts.uninstall": "VS Code 확장에 대한 후크를 제거합니다. 확장이 VS Code에서 완전히 제거될 때 즉, 확장이 제거된 후 VS Code가 다시 시작할 때(종료하고 시작) 실행되는 스크립트입니다. 노드 스크립트만 지원됩니다.",
 	"vscode.extension.icon": "128x128 픽셀 아이콘의 경로입니다."
 }
