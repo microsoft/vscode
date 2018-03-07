@@ -47,7 +47,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from '../../../../../platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
