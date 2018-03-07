@@ -93,32 +93,15 @@ export class DialogService implements IChoiceService, IDialogService {
 		return opts;
 	}
 
-	public choose(severity: Severity, message: string, choices: Choice[], cancelId?: number, modal: boolean = false): TPromise<number> {
-		if (modal) {
-			return this.doChooseWithDialog(severity, message, choices, cancelId);
-		}
-
-		return this.doChooseWithNotification(severity, message, choices);
-	}
-
-	private doChooseWithDialog(severity: Severity, message: string, choices: Choice[], cancelId?: number): TPromise<number> {
+	public show(severity: Severity, message: string, buttons: string[], cancelId?: number): TPromise<number> {
 		const type: 'none' | 'info' | 'error' | 'question' | 'warning' = severity === Severity.Info ? 'question' : severity === Severity.Error ? 'error' : severity === Severity.Warning ? 'warning' : 'none';
 
-		const stringChoices: string[] = [];
-		choices.forEach(choice => {
-			if (typeof choice === 'string') {
-				stringChoices.push(choice);
-			} else {
-				stringChoices.push(choice.label);
-			}
-		});
-
-		const { options, buttonIndexMap } = this.massageMessageBoxOptions({ message, buttons: stringChoices, type, cancelId });
+		const { options, buttonIndexMap } = this.massageMessageBoxOptions({ message, buttons, type, cancelId });
 
 		return this.windowService.showMessageBox(options).then(result => buttonIndexMap[result.button]);
 	}
 
-	private doChooseWithNotification(severity: Severity, message: string, choices: Choice[]): TPromise<number> {
+	public choose(severity: Severity, message: string, choices: Choice[]): TPromise<number> {
 		let handle: INotificationHandle;
 
 		const promise = new TPromise<number>((c, e) => {

@@ -10,7 +10,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { MainThreadMessageServiceShape, MainContext, IExtHostContext, MainThreadMessageOptions } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { once } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -24,7 +24,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		extHostContext: IExtHostContext,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IChoiceService private readonly _choiceService: IChoiceService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService
 	) {
 		//
@@ -101,7 +101,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 	private _showModalMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> {
 		let cancelId: number | undefined = void 0;
 
-		const options = commands.map((command, index) => {
+		const buttons = commands.map((command, index) => {
 			if (command.isCloseAffordance === true) {
 				cancelId = index;
 			}
@@ -110,16 +110,16 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		});
 
 		if (cancelId === void 0) {
-			if (options.length > 0) {
-				options.push(nls.localize('cancel', "Cancel"));
+			if (buttons.length > 0) {
+				buttons.push(nls.localize('cancel', "Cancel"));
 			} else {
-				options.push(nls.localize('ok', "OK"));
+				buttons.push(nls.localize('ok', "OK"));
 			}
 
-			cancelId = options.length - 1;
+			cancelId = buttons.length - 1;
 		}
 
-		return this._choiceService.choose(severity, message, options, cancelId, true)
+		return this._dialogService.show(severity, message, buttons, cancelId)
 			.then(result => result === commands.length ? undefined : commands[result].handle);
 	}
 }

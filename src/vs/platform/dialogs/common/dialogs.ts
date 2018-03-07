@@ -46,6 +46,15 @@ export interface IDialogService {
 	 * Ask the user for confirmation with a modal dialog.
 	 */
 	confirm(confirmation: IConfirmation): TPromise<IConfirmationResult>;
+
+	/**
+	 * Present a modal dialog to the user.
+	 *
+	 * @returns A promise with the selected choice index. If the user refused to choose,
+	 * then a promise with index of `cancelId` option is returned. If there is no such
+	 * option then promise with index `0` is returned.
+	 */
+	show(severity: Severity, message: string, buttons: string[], cancelId?: number): TPromise<number>;
 }
 
 export const IChoiceService = createDecorator<IChoiceService>('choiceService');
@@ -75,15 +84,9 @@ export interface IChoiceService {
 	 * appear less choices appear when the `modal` option is set to `false`. In that case,
 	 * the choices prominent.
 	 *
-	 * @param when `modal` is true, this will block the user until chooses.
-	 *
 	 * @returns A promise with the selected choice index. The promise is cancellable
 	 * which hides the message. The promise can return an error, meaning that
 	 * the user refused to choose.
-	 *
-	 * When `modal` is true and user refused to choose, then promise with index of
-	 * `Cancel` option is returned. If there is no such option then promise with
-	 * `0` index is returned.
 	 */
-	choose(severity: Severity, message: string, choices: Choice[], cancelId?: number, modal?: boolean): TPromise<number>;
+	choose(severity: Severity, message: string, choices: Choice[]): TPromise<number>;
 }

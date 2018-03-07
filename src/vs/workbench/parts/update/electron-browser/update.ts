@@ -26,7 +26,7 @@ import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/pla
 import * as semver from 'semver';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
 
@@ -239,7 +239,7 @@ export class UpdateContribution implements IGlobalActivity {
 		@ICommandService private commandService: ICommandService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@INotificationService private notificationService: INotificationService,
-		@IChoiceService private choiceService: IChoiceService,
+		@IDialogService private dialogService: IDialogService,
 		@IUpdateService private updateService: IUpdateService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IActivityService private activityService: IActivityService,
@@ -313,12 +313,11 @@ export class UpdateContribution implements IGlobalActivity {
 	}
 
 	private onUpdateNotAvailable(): void {
-		this.choiceService.choose(
+		this.dialogService.show(
 			severity.Info,
 			nls.localize('noUpdatesAvailable', "There are currently no updates available."),
 			[nls.localize('ok', "OK")],
-			0,
-			true
+			0
 		);
 	}
 

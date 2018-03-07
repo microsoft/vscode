@@ -17,7 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IChoiceService, Choice } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -47,7 +47,7 @@ class InstallAction extends Action {
 		id: string,
 		label: string,
 		@INotificationService private notificationService: INotificationService,
-		@IChoiceService private choiceService: IChoiceService,
+		@IDialogService private dialogService: IDialogService,
 		@ILogService private logService: ILogService
 	) {
 		super(id, label);
@@ -103,9 +103,9 @@ class InstallAction extends Action {
 
 	private createBinFolder(): TPromise<void> {
 		return new TPromise<void>((c, e) => {
-			const choices: Choice[] = [nls.localize('ok', "OK"), nls.localize('cancel2', "Cancel")];
+			const buttons = [nls.localize('ok', "OK"), nls.localize('cancel2', "Cancel")];
 
-			this.choiceService.choose(Severity.Info, nls.localize('warnEscalation', "Code will now prompt with 'osascript' for Administrator privileges to install the shell command."), choices, 1, true).then(choice => {
+			this.dialogService.show(Severity.Info, nls.localize('warnEscalation', "Code will now prompt with 'osascript' for Administrator privileges to install the shell command."), buttons, 1).then(choice => {
 				switch (choice) {
 					case 0 /* OK */:
 						const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && chown \\" & (do shell script (\\"whoami\\")) & \\" /usr/local/bin\\" with administrator privileges"';

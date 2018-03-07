@@ -257,6 +257,10 @@ export class SimpleDialogService implements IDialogService {
 
 		return TPromise.wrap(window.confirm(messageText));
 	}
+
+	public show(severity: Severity, message: string, buttons: string[], cancelId?: number): TPromise<number> {
+		return TPromise.as(0);
+	}
 }
 
 export class SimpleNotificationService implements INotificationService {

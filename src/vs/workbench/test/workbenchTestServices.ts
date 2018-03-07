@@ -264,8 +264,8 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IThemeService, new TestThemeService());
 	instantiationService.stub(IHashService, new TestHashService());
 	instantiationService.stub(IChoiceService, {
-		choose: (severity, message, options, cancelId): TPromise<number> => {
-			return TPromise.as(cancelId);
+		choose: (severity, message, options): TPromise<number> => {
+			return TPromise.as(0);
 		}
 	} as IChoiceService);
 
@@ -339,6 +339,10 @@ export class TestDialogService implements IDialogService {
 
 	public confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		return TPromise.as({ confirmed: false });
+	}
+
+	public show(severity: Severity, message: string, buttons: string[], cancelId?: number): Promise<number, any> {
+		return TPromise.as(0);
 	}
 }
 

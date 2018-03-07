@@ -35,7 +35,7 @@ import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensions
 import product from 'vs/platform/node/product';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { IChoiceService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 interface IExtensionStateProvider<T> {
@@ -371,6 +371,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@INotificationService private notificationService: INotificationService,
+		@IDialogService private dialogService: IDialogService,
 		@IChoiceService private choiceService: IChoiceService,
 		@IURLService urlService: IURLService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
@@ -687,11 +688,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	private promptForDependenciesAndEnable(extension: IExtension, dependencies: IExtension[], enablementState: EnablementState, enable: boolean): TPromise<any> {
 		const message = nls.localize('enableDependeciesConfirmation', "Enabling '{0}' also enables its dependencies. Would you like to continue?", extension.displayName);
-		const options = [
+		const buttons = [
 			nls.localize('enable', "Yes"),
 			nls.localize('doNotEnable', "No")
 		];
-		return this.choiceService.choose(Severity.Info, message, options, 1, true)
+		return this.dialogService.show(Severity.Info, message, buttons, 1)
 			.then<void>(value => {
 				if (value === 0) {
 					return this.checkAndSetEnablement(extension, dependencies, enablementState, enable);
@@ -702,12 +703,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	private promptForDependenciesAndDisable(extension: IExtension, dependencies: IExtension[], enablementState: EnablementState, enable: boolean): TPromise<void> {
 		const message = nls.localize('disableDependeciesConfirmation', "Would you like to disable '{0}' only or its dependencies also?", extension.displayName);
-		const options = [
+		const buttons = [
 			nls.localize('disableOnly', "Only"),
 			nls.localize('disableAll', "All"),
 			nls.localize('cancel', "Cancel")
 		];
-		return this.choiceService.choose(Severity.Info, message, options, 2, true)
+		return this.dialogService.show(Severity.Info, message, buttons, 2)
 			.then<void>(value => {
 				if (value === 0) {
 					return this.checkAndSetEnablement(extension, [], enablementState, enable);

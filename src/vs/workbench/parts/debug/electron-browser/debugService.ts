@@ -51,7 +51,7 @@ import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-br
 import { IRemoteConsoleLog, parse, getFirstFrame } from 'vs/base/node/console';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { TaskEvent, TaskEventKind } from 'vs/workbench/parts/tasks/common/tasks';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IAction, Action } from 'vs/base/common/actions';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
@@ -91,7 +91,7 @@ export class DebugService implements debug.IDebugService {
 		@IViewletService private viewletService: IViewletService,
 		@IPanelService private panelService: IPanelService,
 		@INotificationService private notificationService: INotificationService,
-		@IChoiceService private choiceService: IChoiceService,
+		@IDialogService private dialogService: IDialogService,
 		@IPartService private partService: IPartService,
 		@IWindowService private windowService: IWindowService,
 		@IBroadcastService private broadcastService: IBroadcastService,
@@ -972,7 +972,7 @@ export class DebugService implements debug.IDebugService {
 	private showError(message: string, actions: IAction[] = []): TPromise<any> {
 		const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
 		actions.push(configureAction);
-		return this.choiceService.choose(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), actions.length, true).then(choice => {
+		return this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), actions.length).then(choice => {
 			if (choice < actions.length) {
 				return actions[choice].run();
 			}
