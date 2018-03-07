@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
@@ -67,7 +67,6 @@ export class DialogService implements IDialogService {
 			title: confirmation.title,
 			message: confirmation.message,
 			buttons,
-			defaultId: 0,
 			cancelId: 1
 		};
 
@@ -88,12 +87,10 @@ export class DialogService implements IDialogService {
 	}
 
 	public show(severity: Severity, message: string, buttons: string[], dialogOptions?: IDialogOptions): TPromise<number> {
-		const type: 'none' | 'info' | 'error' | 'question' | 'warning' = severity === Severity.Info ? 'question' : severity === Severity.Error ? 'error' : severity === Severity.Warning ? 'warning' : 'none';
-
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
 			message,
 			buttons,
-			type,
+			type: (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none',
 			cancelId: dialogOptions ? dialogOptions.cancelId : void 0,
 			detail: dialogOptions ? dialogOptions.detail : void 0
 		});
@@ -103,41 +100,42 @@ export class DialogService implements IDialogService {
 
 	private massageMessageBoxOptions(options: Electron.MessageBoxOptions): IMassagedMessageBoxOptions {
 		let buttonIndexMap = options.buttons.map((button, index) => index);
-
-		options.buttons = options.buttons.map(button => mnemonicButtonLabel(button));
+		let buttons = options.buttons.map(button => mnemonicButtonLabel(button));
+		let cancelId = options.cancelId;
 
 		// Linux: order of buttons is reverse
 		// macOS: also reverse, but the OS handles this for us!
 		if (isLinux) {
-			options.buttons = options.buttons.reverse();
+			buttons = buttons.reverse();
 			buttonIndexMap = buttonIndexMap.reverse();
 		}
 
-		// Default Button
-		if (options.defaultId !== void 0) {
-			options.defaultId = buttonIndexMap[options.defaultId];
-		} else if (isLinux) {
-			options.defaultId = buttonIndexMap[0];
-		}
+		// Default Button (always first one)
+		options.defaultId = buttonIndexMap[0];
 
 		// Cancel Button
-		if (options.cancelId !== void 0) {
+		if (typeof cancelId === 'number') {
 
-			// macOS: the cancel button should always be to the left of the primary action
+			// Ensure the cancelId is the correct one from our mapping
+			cancelId = buttonIndexMap[cancelId];
+
+			// macOS/Linux: the cancel button should always be to the left of the primary action
 			// if we see more than 2 buttons, move the cancel one to the left of the primary
-			if (isMacintosh && options.buttons.length > 2 && options.cancelId !== 1) {
-				const cancelButton = options.buttons[options.cancelId];
-				options.buttons.splice(options.cancelId, 1);
-				options.buttons.splice(1, 0, cancelButton);
+			if (!isWindows && buttons.length > 2 && cancelId !== 1) {
+				const cancelButton = buttons[cancelId];
+				buttons.splice(cancelId, 1);
+				buttons.splice(1, 0, cancelButton);
 
-				const cancelButtonIndex = buttonIndexMap[options.cancelId];
-				buttonIndexMap.splice(cancelButtonIndex, 1);
+				const cancelButtonIndex = buttonIndexMap[cancelId];
+				buttonIndexMap.splice(cancelId, 1);
 				buttonIndexMap.splice(1, 0, cancelButtonIndex);
-			}
 
-			options.cancelId = buttonIndexMap[options.cancelId];
+				cancelId = 1;
+			}
 		}
 
+		options.buttons = buttons;
+		options.cancelId = cancelId;
 		options.noLink = true;
 		options.title = options.title || product.nameLong;
 
