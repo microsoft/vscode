@@ -14,14 +14,14 @@ steps:
   inputs:
     versionSpec: "1.3.2"
 
-- powershell: |
+- script: |
     yarn
     .\node_modules\.bin\gulp electron
     .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit
     npm run compile
   name: build
 
-- powershell: |
+- script: |
     .\scripts\test.bat --build --reporter spec
     .\scripts\test-integration.bat
   name: test
