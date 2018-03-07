@@ -119,7 +119,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			cancelId = buttons.length - 1;
 		}
 
-		return this._dialogService.show(severity, message, buttons, cancelId)
+		return this._dialogService.show(severity, message, buttons, { cancelId })
 			.then(result => result === commands.length ? undefined : commands[result].handle);
 	}
 }

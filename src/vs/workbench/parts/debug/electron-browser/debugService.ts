@@ -986,7 +986,7 @@ export class DebugService implements debug.IDebugService {
 	private showError(message: string, actions: IAction[] = []): TPromise<any> {
 		const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
 		actions.push(configureAction);
-		return this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), actions.length).then(choice => {
+		return this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length }).then(choice => {
 			if (choice < actions.length) {
 				return actions[choice].run();
 			}

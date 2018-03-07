@@ -194,7 +194,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 						nls.localize('override', "Override"),
 						nls.localize('cancel', "Cancel")
 					];
-					return this.dialogService.show(Severity.Info, message, buttons, 1)
+					return this.dialogService.show(Severity.Info, message, buttons, { cancelId: 1 })
 						.then<boolean>(value => {
 							if (value === 0) {
 								return this.uninstall(newer, true).then(() => true);
@@ -545,7 +545,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			nls.localize('cancel', "Cancel")
 		];
 		this.logService.info('Requesting for confirmation to uninstall extension with dependencies', extension.identifier.id);
-		return this.dialogService.show(Severity.Info, message, buttons, 2)
+		return this.dialogService.show(Severity.Info, message, buttons, { cancelId: 2 })
 			.then<void>(value => {
 				if (value === 0) {
 					return this.uninstallWithDependencies(extension, [], installed);
@@ -570,7 +570,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			nls.localize('cancel', "Cancel")
 		];
 		this.logService.info('Requesting for confirmation to uninstall extension', extension.identifier.id);
-		return this.dialogService.show(Severity.Info, message, buttons, 1)
+		return this.dialogService.show(Severity.Info, message, buttons, { cancelId: 1 })
 			.then<void>(value => {
 				if (value === 0) {
 					return this.uninstallWithDependencies(extension, [], installed);

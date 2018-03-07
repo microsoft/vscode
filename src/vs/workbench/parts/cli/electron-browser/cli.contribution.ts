@@ -105,7 +105,7 @@ class InstallAction extends Action {
 		return new TPromise<void>((c, e) => {
 			const buttons = [nls.localize('ok', "OK"), nls.localize('cancel2', "Cancel")];
 
-			this.dialogService.show(Severity.Info, nls.localize('warnEscalation', "Code will now prompt with 'osascript' for Administrator privileges to install the shell command."), buttons, 1).then(choice => {
+			this.dialogService.show(Severity.Info, nls.localize('warnEscalation', "Code will now prompt with 'osascript' for Administrator privileges to install the shell command."), buttons, { cancelId: 1 }).then(choice => {
 				switch (choice) {
 					case 0 /* OK */:
 						const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && chown \\" & (do shell script (\\"whoami\\")) & \\" /usr/local/bin\\" with administrator privileges"';

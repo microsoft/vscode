@@ -62,7 +62,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
-import { IConfirmation, IConfirmationResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, INotificationHandle, INotification, NoOpNotification, PromptOption } from 'vs/platform/notification/common/notification';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
@@ -340,7 +340,7 @@ export class TestDialogService implements IDialogService {
 		return TPromise.as({ confirmed: false });
 	}
 
-	public show(severity: Severity, message: string, buttons: string[], cancelId?: number): Promise<number, any> {
+	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<number, any> {
 		return TPromise.as(0);
 	}
 }

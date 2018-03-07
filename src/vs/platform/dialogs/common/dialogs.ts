@@ -41,6 +41,11 @@ export interface IConfirmationResult {
 
 export const IDialogService = createDecorator<IDialogService>('dialogService');
 
+export interface IDialogOptions {
+	cancelId?: number;
+	detail?: string;
+}
+
 /**
  * A service to bring up modal dialogs.
  *
@@ -63,7 +68,7 @@ export interface IDialogService {
 	 * then a promise with index of `cancelId` option is returned. If there is no such
 	 * option then promise with index `0` is returned.
 	 */
-	show(severity: Severity, message: string, buttons: string[], cancelId?: number): TPromise<number>;
+	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): TPromise<number>;
 }
 
 const MAX_CONFIRM_FILES = 10;

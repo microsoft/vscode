@@ -12,7 +12,7 @@ import Severity from 'vs/base/common/severity';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IDialogService, IConfirmation, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 
 interface IMassagedMessageBoxOptions {
 
@@ -87,10 +87,16 @@ export class DialogService implements IDialogService {
 		return opts;
 	}
 
-	public show(severity: Severity, message: string, buttons: string[], cancelId?: number): TPromise<number> {
+	public show(severity: Severity, message: string, buttons: string[], dialogOptions?: IDialogOptions): TPromise<number> {
 		const type: 'none' | 'info' | 'error' | 'question' | 'warning' = severity === Severity.Info ? 'question' : severity === Severity.Error ? 'error' : severity === Severity.Warning ? 'warning' : 'none';
 
-		const { options, buttonIndexMap } = this.massageMessageBoxOptions({ message, buttons, type, cancelId });
+		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
+			message,
+			buttons,
+			type,
+			cancelId: dialogOptions ? dialogOptions.cancelId : void 0,
+			detail: dialogOptions ? dialogOptions.detail : void 0
+		});
 
 		return this.windowService.showMessageBox(options).then(result => buttonIndexMap[result.button]);
 	}

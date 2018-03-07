@@ -316,8 +316,7 @@ export class UpdateContribution implements IGlobalActivity {
 		this.dialogService.show(
 			severity.Info,
 			nls.localize('noUpdatesAvailable', "There are currently no updates available."),
-			[nls.localize('ok', "OK")],
-			0
+			[nls.localize('ok', "OK")]
 		);
 	}
 

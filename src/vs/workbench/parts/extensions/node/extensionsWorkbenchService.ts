@@ -691,7 +691,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			nls.localize('enable', "Yes"),
 			nls.localize('doNotEnable', "No")
 		];
-		return this.dialogService.show(Severity.Info, message, buttons, 1)
+		return this.dialogService.show(Severity.Info, message, buttons, { cancelId: 1 })
 			.then<void>(value => {
 				if (value === 0) {
 					return this.checkAndSetEnablement(extension, dependencies, enablementState, enable);
@@ -707,7 +707,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			nls.localize('disableAll', "All"),
 			nls.localize('cancel', "Cancel")
 		];
-		return this.dialogService.show(Severity.Info, message, buttons, 2)
+		return this.dialogService.show(Severity.Info, message, buttons, { cancelId: 2 })
 			.then<void>(value => {
 				if (value === 0) {
 					return this.checkAndSetEnablement(extension, [], enablementState, enable);

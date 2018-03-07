@@ -14,7 +14,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const emptyDialogService = new class implements IDialogService {
 	_serviceBrand: 'dialogService';
-	show(severity, message, options): never {
+	show(severity, message, buttons): never {
 		throw new Error('not implemented');
 	}
 
@@ -93,11 +93,11 @@ suite('ExtHostMessageService', function () {
 	suite('modal', () => {
 		test('calls dialog service', () => {
 			const service = new MainThreadMessageService(null, emptyNotificationService, emptyCommandService, {
-				show(severity, message, options) {
+				show(severity, message, buttons) {
 					assert.equal(severity, 1);
 					assert.equal(message, 'h');
-					assert.equal(options.length, 2);
-					assert.equal(options[1], 'Cancel');
+					assert.equal(buttons.length, 2);
+					assert.equal(buttons[1], 'Cancel');
 					return Promise.as(0);
 				}
 			} as IDialogService, null);
@@ -109,7 +109,7 @@ suite('ExtHostMessageService', function () {
 
 		test('returns undefined when cancelled', () => {
 			const service = new MainThreadMessageService(null, emptyNotificationService, emptyCommandService, {
-				show(severity, message, options) {
+				show(severity, message, buttons) {
 					return Promise.as(1);
 				}
 			} as IDialogService, null);
@@ -121,8 +121,8 @@ suite('ExtHostMessageService', function () {
 
 		test('hides Cancel button when not needed', () => {
 			const service = new MainThreadMessageService(null, emptyNotificationService, emptyCommandService, {
-				show(severity, message, options) {
-					assert.equal(options.length, 1);
+				show(severity, message, buttons) {
+					assert.equal(buttons.length, 1);
 					return Promise.as(0);
 				}
 			} as IDialogService, null);
