@@ -26,7 +26,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -86,8 +85,8 @@ export class TextFileService extends AbstractTextFileService {
 			: getConfirmMessage(nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", resourcesToConfirm.length), resourcesToConfirm);
 
 		const buttons: string[] = [
-			resourcesToConfirm.length > 1 ? mnemonicButtonLabel(nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All")) : mnemonicButtonLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
-			mnemonicButtonLabel(nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save")),
+			resourcesToConfirm.length > 1 ? nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All") : nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+			nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
 			nls.localize('cancel', "Cancel")
 		];
 
