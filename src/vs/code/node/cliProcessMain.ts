@@ -37,7 +37,7 @@ import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { DialogCLIService } from 'vs/platform/dialogs/node/dialogService';
+import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -219,7 +219,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 			services.set(IRequestService, new SyncDescriptor(RequestService));
 			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
-			services.set(IDialogService, new SyncDescriptor(DialogCLIService));
+			services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
 
 			if (isBuilt && !extensionDevelopmentPath && !envService.args['disable-telemetry'] && product.enableTelemetry) {
 				const appenders: AppInsightsAppender[] = [];

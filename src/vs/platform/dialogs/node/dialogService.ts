@@ -9,7 +9,7 @@ import { IDialogService, IConfirmation, IConfirmationResult } from 'vs/platform/
 import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 
-export class DialogCLIService implements IDialogService {
+export class CommandLineDialogService implements IDialogService {
 
 	_serviceBrand: any;
 

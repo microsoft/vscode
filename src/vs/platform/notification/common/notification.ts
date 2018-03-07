@@ -142,6 +142,11 @@ export interface SecondaryPromptChoice {
 
 export type PromptOption = PrimaryPromptChoice | SecondaryPromptChoice;
 
+/**
+ * A service to bring up notifications and non-modal prompts.
+ *
+ * Note: use the `IDialogService` for a modal way to ask the user for input.
+ */
 export interface INotificationService {
 
 	_serviceBrand: any;

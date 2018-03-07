@@ -68,7 +68,7 @@ export class NotificationService implements INotificationService {
 	public prompt(severity: Severity, message: string, choices: PromptOption[]): TPromise<number> {
 		let handle: INotificationHandle;
 
-		const promise = new TPromise<number>((c, e) => {
+		const promise = new TPromise<number>(c => {
 
 			// Complete promise with index of action that was picked
 			const callback = (index: number, closeNotification: boolean) => () => {

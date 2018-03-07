@@ -41,6 +41,12 @@ export interface IConfirmationResult {
 
 export const IDialogService = createDecorator<IDialogService>('dialogService');
 
+/**
+ * A service to bring up modal dialogs.
+ *
+ * Note: use the `INotificationService.prompt()` method for a non-modal way to ask
+ * the user for input.
+ */
 export interface IDialogService {
 
 	_serviceBrand: any;

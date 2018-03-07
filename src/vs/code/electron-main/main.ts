@@ -49,7 +49,7 @@ import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { DialogCLIService } from 'vs/platform/dialogs/node/dialogService';
+import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
 	const services = new ServiceCollection();
@@ -73,7 +73,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IURLService, new SyncDescriptor(URLService, args['open-url'] ? args._urls : []));
 	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
-	services.set(IDialogService, new SyncDescriptor(DialogCLIService));
+	services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
 
 	return new InstantiationService(services, true);
 }
