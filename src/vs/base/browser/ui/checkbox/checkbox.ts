@@ -15,11 +15,11 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Color } from 'vs/base/common/color';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
-	actionClassName: string;
-	title: string;
-	isChecked: boolean;
-	onChange: (viaKeyboard: boolean) => void;
-	onKeyDown?: (e: IKeyboardEvent) => void;
+	readonly actionClassName: string;
+	readonly title: string;
+	readonly isChecked: boolean;
+	readonly onChange: (viaKeyboard: boolean) => void;
+	readonly onKeyDown?: (e: IKeyboardEvent) => void;
 }
 
 export interface ICheckboxStyles {
@@ -32,8 +32,8 @@ const defaultOpts = {
 
 export class Checkbox extends Widget {
 
-	private _opts: ICheckboxOpts;
-	public domNode: HTMLElement;
+	private readonly _opts: ICheckboxOpts;
+	public readonly domNode: HTMLElement;
 
 	private _checked: boolean;
 

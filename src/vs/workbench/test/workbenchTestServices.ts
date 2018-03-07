@@ -62,7 +62,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
-import { IChoiceService, IConfirmation, IConfirmationResult, IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
+import { IChoiceService, IConfirmation, IConfirmationResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, INotificationHandle, INotification, NoOpNotification } from 'vs/platform/notification/common/notification';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
@@ -333,15 +333,11 @@ export class TestNotificationService implements INotificationService {
 	}
 }
 
-export class TestConfirmationService implements IConfirmationService {
+export class TestDialogService implements IDialogService {
 
 	public _serviceBrand: any;
 
-	public confirm(confirmation: IConfirmation): TPromise<boolean> {
-		return TPromise.wrap(false);
-	}
-
-	public confirmWithCheckbox(confirmation: IConfirmation): Promise<IConfirmationResult> {
+	public confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		return TPromise.as({ confirmed: false });
 	}
 }

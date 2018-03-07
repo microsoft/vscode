@@ -14,20 +14,20 @@ function expand(text: string): string {
 	});
 }
 
-export function render(label: string): string {
+export function renderOcticons(label: string): string {
 	return expand(escape(label));
 }
 
 export class OcticonLabel {
 
-	private _container: HTMLElement;
+	private readonly _container: HTMLElement;
 
 	constructor(container: HTMLElement) {
 		this._container = container;
 	}
 
 	set text(text: string) {
-		this._container.innerHTML = render(text || '');
+		this._container.innerHTML = renderOcticons(text || '');
 	}
 
 	set title(title: string) {

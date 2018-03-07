@@ -25,7 +25,7 @@ export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<
  */
 export abstract class BaseWebviewEditor extends BaseEditor {
 
-	protected _webview: Webview;
+	protected _webview: Webview | undefined;
 	protected contextKey: IContextKey<boolean>;
 	protected findWidgetVisible: IContextKey<boolean>;
 	protected findInputFocusContextKey: IContextKey<boolean>;

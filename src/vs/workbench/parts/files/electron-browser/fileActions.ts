@@ -51,7 +51,7 @@ import { IListService, ListWidget } from 'vs/platform/list/browser/listService';
 import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { distinctParents, basenameOrAuthority } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
-import { IConfirmationService, IConfirmationResult, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmationResult, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { getConfirmMessage } from 'vs/workbench/services/dialogs/electron-browser/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
@@ -566,7 +566,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 		private useTrash: boolean,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
-		@IConfirmationService private confirmationService: IConfirmationService,
+		@IDialogService private dialogService: IDialogService,
 		@ITextFileService textFileService: ITextFileService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
@@ -611,13 +611,13 @@ class BaseDeleteFileAction extends BaseFileAction {
 				message = nls.localize('dirtyMessageFileDelete', "You are deleting a file with unsaved changes. Do you want to continue?");
 			}
 
-			confirmDirtyPromise = this.confirmationService.confirm({
+			confirmDirtyPromise = this.dialogService.confirm({
 				message,
 				type: 'warning',
 				detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
 				primaryButton
-			}).then(confirmed => {
-				if (!confirmed) {
+			}).then(res => {
+				if (!res.confirmed) {
 					return false;
 				}
 
@@ -644,7 +644,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 				const message = distinctElements.length > 1 ? getConfirmMessage(nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource))
 					: distinctElements[0].isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name)
 						: nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name);
-				confirmDeletePromise = this.confirmationService.confirmWithCheckbox({
+				confirmDeletePromise = this.dialogService.confirm({
 					message,
 					detail: isWindows ? nls.localize('undoBin', "You can restore from the Recycle Bin.") : nls.localize('undoTrash', "You can restore from the Trash."),
 					primaryButton,
@@ -660,7 +660,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 				const message = distinctElements.length > 1 ? getConfirmMessage(nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource))
 					: distinctElements[0].isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name)
 						: nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name);
-				confirmDeletePromise = this.confirmationService.confirmWithCheckbox({
+				confirmDeletePromise = this.dialogService.confirm({
 					message,
 					detail: nls.localize('irreversible', "This action is irreversible!"),
 					primaryButton,
@@ -703,17 +703,17 @@ class BaseDeleteFileAction extends BaseFileAction {
 							primaryButton = nls.localize({ key: 'retryButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Retry");
 						}
 
-						return this.confirmationService.confirm({
+						return this.dialogService.confirm({
 							message: errorMessage,
 							detail: detailMessage,
 							type: 'warning',
 							primaryButton
-						}).then(confirmed => {
+						}).then(res => {
 
 							// Focus back to tree
 							this.tree.domFocus();
 
-							if (confirmed) {
+							if (res.confirmed) {
 								if (this.useTrash) {
 									this.useTrash = false; // Delete Permanently
 								}
@@ -745,7 +745,7 @@ export class ImportFileAction extends BaseFileAction {
 		clazz: string,
 		@IFileService fileService: IFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IConfirmationService private confirmationService: IConfirmationService,
+		@IDialogService private dialogService: IDialogService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -787,7 +787,7 @@ export class ImportFileAction extends BaseFileAction {
 						targetNames[isLinux ? child.name : child.name.toLowerCase()] = child;
 					});
 
-					let overwritePromise = TPromise.as(true);
+					let overwritePromise: TPromise<IConfirmationResult> = TPromise.as({ confirmed: true });
 					if (resources.some(resource => {
 						return !!targetNames[isLinux ? paths.basename(resource.fsPath) : paths.basename(resource.fsPath).toLowerCase()];
 					})) {
@@ -798,11 +798,11 @@ export class ImportFileAction extends BaseFileAction {
 							type: 'warning'
 						};
 
-						overwritePromise = this.confirmationService.confirm(confirm);
+						overwritePromise = this.dialogService.confirm(confirm);
 					}
 
-					return overwritePromise.then(overwrite => {
-						if (!overwrite) {
+					return overwritePromise.then(res => {
+						if (!res.confirmed) {
 							return void 0;
 						}
 
@@ -1439,6 +1439,10 @@ export function getWellFormedFileName(filename: string): string {
 
 	// Remove trailing dots
 	filename = strings.rtrim(filename, '.');
+
+	// Remove trailing slashes
+	filename = strings.rtrim(filename, '/');
+	filename = strings.rtrim(filename, '\\');
 
 	return filename;
 }

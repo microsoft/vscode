@@ -200,7 +200,6 @@ export class MarkersPanel extends Panel {
 			filter: new Viewer.DataFilter(),
 			renderer,
 			controller,
-			sorter: new Viewer.Sorter(),
 			accessibilityProvider: new Viewer.MarkersTreeAccessibilityProvider(),
 			dnd
 		}, {
@@ -347,7 +346,7 @@ export class MarkersPanel extends Panel {
 		let selectedElement = this.tree.getSelection();
 		if (selectedElement && selectedElement.length > 0) {
 			if (selectedElement[0] instanceof Marker) {
-				if (resource.uri.toString() === selectedElement[0].marker.resource.toString()) {
+				if (resource.uri.toString() === (<Marker>selectedElement[0]).raw.resource.toString()) {
 					return true;
 				}
 			}

@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { EditorInput, EditorModel } from 'vs/workbench/common/editor';
 import { IEditorModel, Position, IEditorInput } from 'vs/platform/editor/common/editor';
-import { Webview } from 'vs/workbench/parts/html/browser/webview';
+import { Webview } from 'vs/workbench/parts/html/electron-browser/webview';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';

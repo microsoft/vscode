@@ -37,7 +37,7 @@ import { isNumber } from 'vs/base/common/types';
 import { IChoiceService, Choice } from 'vs/platform/dialogs/common/dialogs';
 import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { INotificationService } from '../../../../platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 interface IExtensionsContent {
 	recommendations: string[];
@@ -311,7 +311,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					});
 				}
 
-				if (countBadRecommendations > 0) {
+				if (countBadRecommendations > 0 && this.notificationService) {
 					this.notificationService.warn(
 						'The below ' +
 						countBadRecommendations +

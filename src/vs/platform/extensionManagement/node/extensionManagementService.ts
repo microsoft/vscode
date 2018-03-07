@@ -25,7 +25,7 @@ import {
 import { getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, groupByExtension, getMaliciousExtensionsSet, getLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Limiter } from 'vs/base/common/async';
+import { Limiter, always } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as semver from 'semver';
 import URI from 'vs/base/common/uri';
@@ -49,8 +49,6 @@ const INSTALL_ERROR_GALLERY = 'gallery';
 const INSTALL_ERROR_LOCAL = 'local';
 const INSTALL_ERROR_EXTRACTING = 'extracting';
 const INSTALL_ERROR_DELETING = 'deleting';
-const INSTALL_ERROR_READING_EXTENSION_FROM_DISK = 'readingExtension';
-const INSTALL_ERROR_SAVING_METADATA = 'savingMetadata';
 const INSTALL_ERROR_UNKNOWN = 'unknown';
 
 export class ExtensionManagementError extends Error {
@@ -411,43 +409,39 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private extractAndInstall({ zipPath, id, metadata }: InstallableExtension): TPromise<ILocalExtension> {
-		const extensionPath = path.join(this.extensionsPath, id);
-		return pfs.rimraf(extensionPath)
-			.then(() => {
-				this.logService.trace(`Started extracting the extension from ${zipPath} to ${extensionPath}`);
-				return extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true })
-					.then(
-					() => {
-						this.logService.info(`Extracted extension to ${extensionPath}:`, id);
-						return this.completeInstall(id, extensionPath, metadata);
-					},
-					e => TPromise.wrapError(new ExtensionManagementError(e.message, INSTALL_ERROR_EXTRACTING)))
-					.then(null, e => {
-						this.logService.info('Deleting the extracted extension', id);
-						return pfs.rimraf(extensionPath).then(() => TPromise.wrapError(e), () => TPromise.wrapError(e));
-					});
-			}, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING)));
+		const extractPath = path.join(this.extensionsPath, `.${id}`); // Extract to temp path
+		return this.extract(id, zipPath, extractPath, { sourcePath: 'extension', overwrite: true })
+			.then(() => this.completeInstall(id, extractPath))
+			.then(() => this.scanExtension(id, this.extensionsPath, LocalExtensionType.User))
+			.then(local => {
+				if (metadata) {
+					local.metadata = metadata;
+					return this.saveMetadataForLocalExtension(local);
+				}
+				return local;
+			});
 	}
 
-	private completeInstall(id: string, extensionPath: string, metadata: IGalleryMetadata): TPromise<ILocalExtension> {
-		return TPromise.join([readManifest(extensionPath), pfs.readdir(extensionPath)])
-			.then(null, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_READING_EXTENSION_FROM_DISK)))
-			.then(([{ manifest }, children]) => {
-				const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
-				const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)).toString() : null;
-				const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
-				const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)).toString() : null;
-				const type = LocalExtensionType.User;
-				const identifier = { id, uuid: metadata ? metadata.id : null };
+	private extract(id: string, zipPath: string, extractPath: string, options: any): TPromise<void> {
+		this.logService.trace(`Started extracting the extension from ${zipPath} to ${extractPath}`);
+		return pfs.rimraf(extractPath)
+			.then(
+			() => extract(zipPath, extractPath, options)
+				.then(
+				() => this.logService.info(`Extracted extension to ${extractPath}:`, id),
+				e => always(pfs.rimraf(extractPath), () => null)
+					.then(() => TPromise.wrapError(new ExtensionManagementError(e.message, INSTALL_ERROR_EXTRACTING)))),
+			e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING)));
+	}
 
-				const local: ILocalExtension = { type, identifier, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
-
-				this.logService.trace(`Updating metadata of the extension:`, id);
-				return this.saveMetadataForLocalExtension(local)
-					.then(() => {
-						this.logService.info(`Updated metadata of the extension:`, id);
-						return local;
-					}, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_SAVING_METADATA)));
+	private completeInstall(id: string, extractPath: string): TPromise<void> {
+		return pfs.rename(extractPath, path.join(this.extensionsPath, id))
+			.then(
+			() => this.logService.info('Installation compelted.', id),
+			e => {
+				this.logService.info('Deleting the extracted extension', id);
+				return always(pfs.rimraf(extractPath), () => null)
+					.then(() => TPromise.wrapError(e));
 			});
 	}
 
@@ -722,6 +716,9 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private scanExtension(folderName: string, root: string, type: LocalExtensionType): TPromise<ILocalExtension> {
+		if (type === LocalExtensionType.User && folderName.indexOf('.') === 0) { // Do not consider user exension folder starting with `.`
+			return TPromise.as(null);
+		}
 		const extensionPath = path.join(root, folderName);
 		return pfs.readdir(extensionPath)
 			.then(children => readManifest(extensionPath)

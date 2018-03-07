@@ -24,7 +24,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 import { Webview, WebviewOptions } from './webview';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { BaseWebviewEditor } from './webviewEditor';
+import { BaseWebviewEditor } from './baseWebviewEditor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import URI from 'vs/base/common/uri';
 import { Scope } from 'vs/workbench/common/memento';
@@ -93,7 +93,6 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 			}
 
 			this._webview = new Webview(
-				this.content,
 				this.partService.getContainer(Parts.EDITOR_PART),
 				this.themeService,
 				this._environmentService,
@@ -104,6 +103,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 					...webviewOptions,
 					useSameOriginForRoot: true
 				});
+			this._webview.mountTo(this.content);
 
 			if (this.input && this.input instanceof HtmlInput) {
 				const state = this.loadViewState(this.input.getResource());

@@ -66,7 +66,7 @@ import 'vs/workbench/parts/debug/browser/debugViewlet'; // can be packaged separ
 import 'vs/workbench/parts/markers/markers.contribution';
 import 'vs/workbench/parts/markers/browser/markersPanel'; // can be packaged separately
 
-import 'vs/workbench/parts/html/browser/html.contribution';
+import 'vs/workbench/parts/html/electron-browser/html.contribution';
 
 import 'vs/workbench/parts/webview/electron-browser/webview.contribution';
 

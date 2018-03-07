@@ -9,9 +9,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, } from 'vs/base/common/lifecycle';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { Position } from 'vs/platform/editor/common/editor';
-import { BaseWebviewEditor as BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/parts/html/browser/webviewEditor';
+import { BaseWebviewEditor as BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/parts/html/electron-browser/baseWebviewEditor';
 import { Builder, Dimension } from 'vs/base/browser/builder';
-import { Webview } from 'vs/workbench/parts/html/browser/webview';
+import { Webview } from 'vs/workbench/parts/html/electron-browser/webview';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -29,7 +29,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 	private editorFrame: HTMLElement;
 	private content: HTMLElement;
-	private webviewContent: HTMLElement;
+	private webviewContent: HTMLElement | undefined;
 	private _onDidFocusWebview: Emitter<void>;
 	private _webviewFocusTracker?: DOM.IFocusTracker;
 	private _webviewFocusListenerDisposable?: IDisposable;
@@ -56,7 +56,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 	private doUpdateContainer() {
 		const webviewContainer = this.input && (this.input as WebviewInput).container;
-		if (webviewContainer) {
+		if (webviewContainer && webviewContainer.parentElement) {
 			const frameRect = this.editorFrame.getBoundingClientRect();
 			const containerRect = webviewContainer.parentElement.getBoundingClientRect();
 
@@ -164,7 +164,11 @@ export class WebviewEditor extends BaseWebviewEditor {
 			localResourceRoots: (input && input.options.localResourceRoots) || this._contextService.getWorkspace().folders.map(x => x.uri)
 		};
 		input.setHtml(input.html);
-		this.webviewContent.style.visibility = 'visible';
+
+		if (this.webviewContent) {
+			this.webviewContent.style.visibility = 'visible';
+		}
+
 		this.doUpdateContainer();
 	}
 
@@ -191,7 +195,6 @@ export class WebviewEditor extends BaseWebviewEditor {
 		this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 
 		this._webview = new Webview(
-			this.webviewContent,
 			this._partService.getContainer(Parts.EDITOR_PART),
 			this.themeService,
 			this._environmentService,
@@ -202,6 +205,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 				enableWrappedPostMessage: true,
 				useSameOriginForRoot: false
 			});
+		this._webview.mountTo(this.webviewContent);
 		input.webview = this._webview;
 
 		if (input.options.tryRestoreScrollPosition) {
