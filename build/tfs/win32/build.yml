@@ -1,6 +1,8 @@
 variables:
   VSCODE_BUILD_VERBOSE: true
   System.Debug: true
+  ELECTRON_RUN_AS_NODE: 1
+  APPVEYOR: true
 
 steps:
 

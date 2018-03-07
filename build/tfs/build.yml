@@ -4,26 +4,25 @@ phases:
   variables:
     VSCODE_BUILD_VERBOSE: true
     System.Debug: true
+    ELECTRON_RUN_AS_NODE: 1
+    APPVEYOR: true
 
   steps:
   - task: NodeTool@0
     inputs:
       versionSpec: "8.9.1"
-
   - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
     inputs:
       versionSpec: "1.3.2"
-
   - powershell: |
       yarn
       .\node_modules\.bin\gulp electron
       .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit
       npm run compile
     name: build
-
   - powershell: |
       .\scripts\test.bat --build --reporter spec
-      .\scripts\test-integration.bat
+      # .\scripts\test-integration.bat
     name: test
 
 - phase: Linux
@@ -83,5 +82,5 @@ phases:
     name: build
   - script: |
       ./scripts/test.sh --build --reporter spec
-      ./scripts/test-integration.sh
+      # ./scripts/test-integration.sh
     name: test
