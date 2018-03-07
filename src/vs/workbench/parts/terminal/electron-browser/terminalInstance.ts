@@ -572,7 +572,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._processReady.then(() => {
 			let path: string;
 			if (/(System32|Sysnative)\\(bash.exe|wsl.exe)/i.exec(this._shellLaunchConfig.executable)) {
-				path = `"${filePath.replace(/([A-Za-z]):/, (m, g) => `mnt/${g.toLocaleLowerCase()}`)}"`;
+				path = `"${filePath.replace(/([A-Za-z]):/, (m, g) => `mnt/${g.toLowerCase()}`)}"`;
 			} else {
 				path = `"${filePath.replace(/^\//, '')}"`;
 			}
