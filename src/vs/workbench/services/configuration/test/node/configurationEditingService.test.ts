@@ -47,7 +47,8 @@ class SettingsTestEnvironmentService extends EnvironmentService {
 	get appSettingsPath(): string { return this.customAppSettingsHome; }
 }
 
-suite('ConfigurationEditingService', () => {
+suite('ConfigurationEditingService', function () {
+	this.timeout(10000);
 
 	let instantiationService: TestInstantiationService;
 	let testObject: ConfigurationEditingService;
