@@ -252,6 +252,8 @@ function runTests(opts) {
 			mocha.reporter(IPCReporter);
 		}
 
+		mocha.timeout(5000);
+
 		const runner = mocha.run(() => {
 			createCoverageReport(opts).then(() => {
 				ipcRenderer.send('all done');
