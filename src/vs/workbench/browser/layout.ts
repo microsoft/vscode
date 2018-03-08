@@ -133,9 +133,9 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			orientation: Orientation.HORIZONTAL
 		});
 
-		this._sidebarWidth = this.storageService.getInteger(WorkbenchLayout.sashXOneWidthSettingsKey, StorageScope.GLOBAL, -1);
-		this._panelHeight = this.storageService.getInteger(WorkbenchLayout.sashYHeightSettingsKey, StorageScope.GLOBAL, 0);
-		this._panelWidth = this.storageService.getInteger(WorkbenchLayout.sashXTwoWidthSettingsKey, StorageScope.GLOBAL, 0);
+		this._sidebarWidth = Math.max(this.partLayoutInfo.sidebar.minWidth, this.storageService.getInteger(WorkbenchLayout.sashXOneWidthSettingsKey, StorageScope.GLOBAL, -1));
+		this._panelHeight = Math.max(this.partLayoutInfo.panel.minHeight, this.storageService.getInteger(WorkbenchLayout.sashYHeightSettingsKey, StorageScope.GLOBAL, 0));
+		this._panelWidth = Math.max(this.partLayoutInfo.panel.minWidth, this.storageService.getInteger(WorkbenchLayout.sashXTwoWidthSettingsKey, StorageScope.GLOBAL, 0));
 
 		this.layoutEditorGroupsVertically = (this.editorGroupService.getGroupOrientation() !== 'horizontal');
 
