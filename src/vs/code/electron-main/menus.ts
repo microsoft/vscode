@@ -606,7 +606,7 @@ export class CodeMenu {
 
 	private setSelectionMenu(winLinuxEditMenu: Electron.Menu): void {
 		let multiCursorModifierLabel: string;
-		if (this.currentMultiCursorModifierSetting === 'ctrlCmd') {
+		if (this.currentMultiCursorModifierSetting === 'alt') {
 			multiCursorModifierLabel = nls.localize('miMultiCursorAlt', "Switch to Alt+Click for Multi-Cursor"); // The default has been overwritten
 		} else {
 			multiCursorModifierLabel = (
