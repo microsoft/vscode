@@ -291,11 +291,20 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 /**
  * @internal
  */
+export interface IForeignModuleFactory {
+	(ctx: IWorkerContext, createData: any): any;
+}
+
+/**
+ * @internal
+ */
 export abstract class BaseEditorSimpleWorker {
+	private _foreignModuleFactory: IForeignModuleFactory;
 	private _foreignModule: any;
 
-	constructor(foreignModule: any) {
-		this._foreignModule = foreignModule;
+	constructor(foreignModuleFactory: IForeignModuleFactory) {
+		this._foreignModuleFactory = foreignModuleFactory;
+		this._foreignModule = null;
 	}
 
 	protected abstract _getModel(uri: string): ICommonModel;
@@ -474,7 +483,14 @@ export abstract class BaseEditorSimpleWorker {
 	// ---- BEGIN foreign module support --------------------------------------------------------------------------
 
 	public loadForeignModule(moduleId: string, createData: any): TPromise<string[]> {
-		if (this._foreignModule) {
+		let ctx: IWorkerContext = {
+			getMirrorModels: (): IMirrorModel[] => {
+				return this._getModels();
+			}
+		};
+
+		if (this._foreignModuleFactory) {
+			this._foreignModule = this._foreignModuleFactory(ctx, createData);
 			// static foreing module
 			let methods: string[] = [];
 			for (let prop in this._foreignModule) {
@@ -486,12 +502,7 @@ export abstract class BaseEditorSimpleWorker {
 		}
 		return new TPromise<any>((c, e) => {
 			// Use the global require to be sure to get the global config
-			(<any>self).require([moduleId], (foreignModule: { create: (ctx: IWorkerContext, createData: any) => any; }) => {
-				let ctx: IWorkerContext = {
-					getMirrorModels: (): IMirrorModel[] => {
-						return this._getModels();
-					}
-				};
+			(<any>self).require([moduleId], (foreignModule: { create: IForeignModuleFactory }) => {
 				this._foreignModule = foreignModule.create(ctx, createData);
 
 				let methods: string[] = [];
@@ -531,8 +542,8 @@ export class EditorSimpleWorkerImpl extends BaseEditorSimpleWorker implements IR
 
 	private _models: { [uri: string]: MirrorModel; };
 
-	constructor(foreignModule: any) {
-		super(foreignModule);
+	constructor(foreignModuleFactory: IForeignModuleFactory) {
+		super(foreignModuleFactory);
 		this._models = Object.create(null);
 	}
 

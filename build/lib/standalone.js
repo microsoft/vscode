@@ -112,15 +112,6 @@ function createESMSourcesAndResources(options) {
         }
         var fileContents = fs.readFileSync(filename).toString();
         var info = ts.preProcessFile(fileContents);
-        if (info.isLibFile) {
-            console.log("1. oh no, what does this mean!!!");
-        }
-        if (info.typeReferenceDirectives.length > 0) {
-            console.log("2. oh no, what does this mean!!!");
-        }
-        if (info.referencedFiles.length > 0) {
-            console.log("3. oh no, what does this mean!!!");
-        }
         for (var i = info.importedFiles.length - 1; i >= 0; i--) {
             var importedFilename = info.importedFiles[i].fileName;
             var pos = info.importedFiles[i].pos;
