@@ -24,6 +24,7 @@ import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import * as model from 'vs/editor/common/model';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 /**
  * Register information about a new language.
@@ -494,7 +495,7 @@ export interface CompletionItem {
 	/**
 	 * A human-readable string that represents a doc-comment.
 	 */
-	documentation?: string;
+	documentation?: string | IMarkdownString;
 	/**
 	 * A command that should be run upon acceptance of this item.
 	 */
@@ -528,6 +529,12 @@ export interface CompletionItem {
 	 */
 	range?: Range;
 	/**
+	 * An optional set of characters that when pressed while this completion is active will accept it first and
+	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
+	 * characters will be ignored.
+	 */
+	commitCharacters?: string[];
+	/**
 	 * @deprecated **Deprecated** in favor of `CompletionItem.insertText` and `CompletionItem.range`.
 	 *
 	 * ~~An [edit](#TextEdit) which is applied to a document when selecting
@@ -544,12 +551,6 @@ export interface CompletionItem {
 	 * nor with themselves.
 	 */
 	additionalTextEdits?: model.ISingleEditOperation[];
-	/**
-	 * An optional set of characters that when pressed while this completion is active will accept it first and
-	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
-	 * characters will be ignored.
-	 */
-	commitCharacters?: string[];
 }
 /**
  * Represents a collection of [completion items](#CompletionItem) to be presented

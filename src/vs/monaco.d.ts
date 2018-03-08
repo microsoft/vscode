@@ -4171,7 +4171,7 @@ declare module monaco.languages {
 		/**
 		 * A human-readable string that represents a doc-comment.
 		 */
-		documentation?: string;
+		documentation?: string | IMarkdownString;
 		/**
 		 * A command that should be run upon acceptance of this item.
 		 */
@@ -4205,6 +4205,12 @@ declare module monaco.languages {
 		 */
 		range?: Range;
 		/**
+		 * An optional set of characters that when pressed while this completion is active will accept it first and
+		 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
+		 * characters will be ignored.
+		 */
+		commitCharacters?: string[];
+		/**
 		 * @deprecated **Deprecated** in favor of `CompletionItem.insertText` and `CompletionItem.range`.
 		 *
 		 * ~~An [edit](#TextEdit) which is applied to a document when selecting
@@ -4221,12 +4227,6 @@ declare module monaco.languages {
 		 * nor with themselves.
 		 */
 		additionalTextEdits?: editor.ISingleEditOperation[];
-		/**
-		 * An optional set of characters that when pressed while this completion is active will accept it first and
-		 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
-		 * characters will be ignored.
-		 */
-		commitCharacters?: string[];
 	}
 
 	/**
