@@ -36,3 +36,9 @@ steps:
 - script: |
     DISPLAY=:10 ./scripts/test.sh --build --tfs
   name: test
+
+- script: |
+    npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-deb"
+    npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-rpm"
+    #npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-snap"
+    ./build/tfs/linux/release2.sh $(VSCODE_ARCH) $(LINUX_REPO_PASSWORD)
