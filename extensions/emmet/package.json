@@ -200,10 +200,10 @@
                             "default": null,
                             "description": "%emmetPreferencesCssMsProperties%"
                         },
-                        "fuzzySearchMinScore": {
+                        "css.fuzzySearchMinScore": {
                             "type": "number",
                             "default": 0.3,
-                            "description": "%emmetPreferencesFuzzySearchMinScore%"
+                            "description": "%emmetPreferencesCssFuzzySearchMinScore%"
                         }
                     }
                 },
