@@ -93,6 +93,10 @@ export class PagedList<T> {
 		return this.list;
 	}
 
+	get onDidDispose(): Event<void> {
+		return this.list.onDidDispose;
+	}
+
 	get onFocusChange(): Event<IListEvent<T>> {
 		return mapEvent(this.list.onFocusChange, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
 	}
@@ -184,5 +188,9 @@ export class PagedList<T> {
 
 	style(styles: IListStyles): void {
 		this.list.style(styles);
+	}
+
+	dispose(): void {
+		this.list.dispose();
 	}
 }
