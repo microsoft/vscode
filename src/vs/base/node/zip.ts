@@ -76,7 +76,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 
 	return mkdirp(targetDirName).then(() => new TPromise((c, e) => {
 		let istream = createWriteStream(targetFileName, { mode });
-		istream.once('finish', () => c(null));
+		istream.once('close', () => c(null));
 		istream.once('error', e);
 		stream.once('error', e);
 		stream.pipe(istream);
