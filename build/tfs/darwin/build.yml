@@ -17,7 +17,7 @@ steps:
     yarn
     npm run gulp -- hygiene
     ./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
-    VSCODE_MIXIN_PASSWORD="$VSCODE_MIXIN_PASSWORD" npm run gulp -- mixin
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
     node build/tfs/common/installDistro.js
 
 - script: |
