@@ -356,6 +356,7 @@ export interface IEnvConfig {
 	request: string;
 	internalConsoleOptions?: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	preLaunchTask?: string;
+	postDebugTask?: string;
 	__restart?: any;
 	__sessionId?: string;
 	debugServer?: number;
