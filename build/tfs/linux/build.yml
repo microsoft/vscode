@@ -6,7 +6,7 @@ steps:
 - script: |
     apt-get update
     apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 libgconf-2-4 dbus xvfb
-    cp build/tfs/linux/x64/xvfb.init /etc/init.d/xvfb
+    cp build/tfs/linux/$(VSCODE_ARCH)/xvfb.init /etc/init.d/xvfb
     chmod +x /etc/init.d/xvfb
     update-rc.d xvfb defaults
     ln -sf /bin/dbus-daemon /usr/bin/dbus-daemon
@@ -30,7 +30,7 @@ steps:
     node build/tfs/common/installDistro.js
 
 - script: |
-    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-linux-x64-min
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-linux-$(VSCODE_ARCH)-min
   name: build
 
 - script: |
