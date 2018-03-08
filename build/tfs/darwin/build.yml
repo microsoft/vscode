@@ -29,12 +29,27 @@ steps:
 #   name: test
 
 - script: |
+    # archive the unsigned build
     pushd ../VSCode-darwin && zip -r -X -y ../VSCode-darwin-unsigned.zip * && popd
 
+    # publish the unsigned build
     PACKAGEJSON=`ls ../VSCode-darwin/*.app/Contents/Resources/app/package.json`
     VERSION=`node -p "require(\"$PACKAGEJSON\").version"`
-    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" node build/tfs/common/publish.js "$(VSCODE_QUALITY)" darwin archive-unsigned "VSCode-darwin-$(VSCODE_QUALITY)-unsigned.zip" $VERSION false ../VSCode-darwin-unsigned.zip
+    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+    MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
+    node build/tfs/common/publish.js \
+      "$(VSCODE_QUALITY)" \
+      darwin \
+      archive-unsigned \
+      "VSCode-darwin-$(VSCODE_QUALITY)-unsigned.zip" \
+      $VERSION \
+      false \
+      ../VSCode-darwin-unsigned.zip
 
-    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" node build/tfs/common/enqueue.js "$(VSCODE_QUALITY)"
+    # enqueue the unsigned build
+    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+    node build/tfs/common/enqueue.js "$(VSCODE_QUALITY)"
 
     npm run gulp -- upload-vscode-configuration
