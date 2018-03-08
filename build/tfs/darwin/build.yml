@@ -10,8 +10,8 @@ steps:
 
 - script: |
   echo "$(VSCODE_MIXIN_PASSWORD)"
-    # yarn
-    # npm run gulp -- electron-x64
+# yarn
+# npm run gulp -- electron-x64
 
 # - script: |
 #     npm run gulp -- hygiene
