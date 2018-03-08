@@ -27,7 +27,7 @@ let EditorInputRegistry: IEditorInputFactoryRegistry = Platform.Registry.as(Edit
 
 export class MyEditor extends BaseEditor {
 
-	constructor( @ITelemetryService telemetryService: ITelemetryService) {
+	constructor(@ITelemetryService telemetryService: ITelemetryService) {
 		super('MyEditor', NullTelemetryService, NullThemeService);
 	}
 
@@ -46,7 +46,7 @@ export class MyEditor extends BaseEditor {
 
 export class MyOtherEditor extends BaseEditor {
 
-	constructor( @ITelemetryService telemetryService: ITelemetryService) {
+	constructor(@ITelemetryService telemetryService: ITelemetryService) {
 		super('myOtherEditor', NullTelemetryService, NullThemeService);
 	}
 

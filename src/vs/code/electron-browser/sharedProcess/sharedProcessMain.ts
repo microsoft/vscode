@@ -62,7 +62,7 @@ class ActiveWindowManager implements IDisposable {
 	private disposables: IDisposable[] = [];
 	private _activeWindowId: number;
 
-	constructor( @IWindowsService windowsService: IWindowsService) {
+	constructor(@IWindowsService windowsService: IWindowsService) {
 		windowsService.onWindowOpen(this.setActiveWindow, this, this.disposables);
 		windowsService.onWindowFocus(this.setActiveWindow, this, this.disposables);
 	}
