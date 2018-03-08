@@ -9,7 +9,7 @@ import assert = require('assert');
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import { IMarker } from 'vs/platform/markers/common/markers';
-import { MarkersModel, Marker, Resource } from 'vs/workbench/parts/markers/common/markersModel';
+import { MarkersModel, Marker, Resource } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 
 class TestMarkersModel extends MarkersModel {
 

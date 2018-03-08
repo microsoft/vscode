@@ -17,20 +17,20 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import Constants from 'vs/workbench/parts/markers/common/constants';
-import { Marker, Resource } from 'vs/workbench/parts/markers/common/markersModel';
-import { Controller } from 'vs/workbench/parts/markers/browser/markersTreeController';
-import * as Viewer from 'vs/workbench/parts/markers/browser/markersTreeViewer';
+import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
+import { Marker, Resource } from 'vs/workbench/parts/markers/electron-browser/markersModel';
+import { Controller } from 'vs/workbench/parts/markers/electron-browser/markersTreeController';
+import * as Viewer from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CollapseAllAction, FilterAction, FilterInputBoxActionItem } from 'vs/workbench/parts/markers/browser/markersPanelActions';
+import { CollapseAllAction, FilterAction, FilterInputBoxActionItem } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import Messages from 'vs/workbench/parts/markers/common/messages';
+import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { debounceEvent } from 'vs/base/common/event';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
-import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/common/markers';
+import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/electron-browser/markers';
 import { SimpleFileResourceDragAndDrop } from 'vs/workbench/browser/dnd';
 
 export class MarkersPanel extends Panel {

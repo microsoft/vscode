@@ -14,9 +14,9 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
-import Messages from 'vs/workbench/parts/markers/common/messages';
-import Constants from 'vs/workbench/parts/markers/common/constants';
-import { MarkersPanel } from 'vs/workbench/parts/markers/browser/markersPanel';
+import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
+import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
+import { MarkersPanel } from 'vs/workbench/parts/markers/electron-browser/markersPanel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -24,7 +24,7 @@ import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/brow
 import Tree = require('vs/base/parts/tree/browser/tree');
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/common/markers';
+import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/electron-browser/markers';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
