@@ -463,7 +463,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		const retryUntil = Date.now() + ExtensionManagementService.RENAME_RETRY_TIME;
 		return retry(
 			() => pfs.rename(extractPath, path.join(this.extensionsPath, id)),
-			err => platform === Platform.Windows && Date.now() < retryUntil && err.code === 'EPERM');
+			err => platform === Platform.Windows && err && err.code === 'EPERM' && Date.now() < retryUntil);
 	}
 
 	private rollback(extensions: IGalleryExtension[]): TPromise<void> {
