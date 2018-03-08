@@ -30,7 +30,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import * as semver from 'semver';
 import URI from 'vs/base/common/uri';
 import pkg from 'vs/platform/node/package';
-import { isMacintosh, platform, Platform } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/extensionsManifestCache';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -463,7 +463,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		const retryUntil = Date.now() + ExtensionManagementService.RENAME_RETRY_TIME;
 		return retry(
 			() => pfs.rename(extractPath, path.join(this.extensionsPath, id)),
-			err => platform === Platform.Windows && err && err.code === 'EPERM' && Date.now() < retryUntil);
+			err => isWindows && err && err.code === 'EPERM' && Date.now() < retryUntil);
 	}
 
 	private rollback(extensions: IGalleryExtension[]): TPromise<void> {
