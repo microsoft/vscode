@@ -93,7 +93,7 @@ gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
 gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor'));
 
 gulp.task('clean-editor-esm', util.rimraf('out-editor-esm'));
-gulp.task('extract-editor-esm', ['clean-editor-esm'], function() {
+gulp.task('extract-editor-esm', ['clean-editor-esm', 'clean-editor-distro'], function() {
 	standalone.createESMSourcesAndResources({
 		entryPoints: [
 			'vs/editor/editor.main',

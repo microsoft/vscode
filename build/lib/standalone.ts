@@ -130,15 +130,6 @@ export function createESMSourcesAndResources(options: IOptions): void {
 		let fileContents = fs.readFileSync(filename).toString();
 
 		const info = ts.preProcessFile(fileContents);
-		if (info.isLibFile) {
-			console.log(`1. oh no, what does this mean!!!`);
-		}
-		if (info.typeReferenceDirectives.length > 0) {
-			console.log(`2. oh no, what does this mean!!!`);
-		}
-		if (info.referencedFiles.length > 0) {
-			console.log(`3. oh no, what does this mean!!!`);
-		}
 
 		for (let i = info.importedFiles.length - 1; i >= 0; i--) {
 			const importedFilename = info.importedFiles[i].fileName;
