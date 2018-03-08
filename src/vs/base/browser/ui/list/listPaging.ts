@@ -97,6 +97,10 @@ export class PagedList<T> implements IDisposable {
 		return this.list;
 	}
 
+	get onDidDispose(): Event<void> {
+		return this.list.onDidDispose;
+	}
+
 	get onFocusChange(): Event<IListEvent<T>> {
 		return mapEvent(this.list.onFocusChange, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
 	}

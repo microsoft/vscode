@@ -325,7 +325,7 @@ export function template(template: string, values: { [key: string]: string | ISe
 			const left = segments[index - 1];
 			const right = segments[index + 1];
 
-			return [left, right].every(segment => segment && segment.type === Type.VARIABLE && segment.value.length > 0);
+			return [left, right].every(segment => segment && (segment.type === Type.VARIABLE || segment.type === Type.TEXT) && segment.value.length > 0);
 		}
 
 		// accept any TEXT and VARIABLE

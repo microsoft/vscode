@@ -31,9 +31,9 @@ function toResource(relativePath: string): uri {
 
 suite('Stat Resolver', () => {
 
-	test('resolve file', function (done: () => void) {
+	test('resolve file', function () {
 		let resolver = create('/index.html');
-		resolver.resolve(null).then(result => {
+		return resolver.resolve(null).then(result => {
 			assert.ok(!result.isDirectory);
 			assert.equal(result.name, 'index.html');
 			assert.ok(!!result.etag);
@@ -42,16 +42,15 @@ suite('Stat Resolver', () => {
 			return resolver.resolve(null).then(result => {
 				assert.ok(result.isDirectory);
 			});
-		})
-			.done(() => done(), done);
+		});
 	});
 
-	test('resolve directory', function (done: () => void) {
+	test('resolve directory', function () {
 		let testsElements = ['examples', 'other', 'index.html', 'site.css'];
 
 		let resolver = create('/');
 
-		resolver.resolve(null).then(result => {
+		return resolver.resolve(null).then(result => {
 			assert.ok(result);
 			assert.ok(result.children);
 			assert.ok(result.children.length > 0);
@@ -78,14 +77,13 @@ suite('Stat Resolver', () => {
 					assert.ok(!'Unexpected value ' + path.basename(value.resource.fsPath));
 				}
 			});
-		})
-			.done(() => done(), done);
+		});
 	});
 
-	test('resolve directory - resolveTo single directory', function (done: () => void) {
+	test('resolve directory - resolveTo single directory', function () {
 		let resolver = create('/');
 
-		resolver.resolve({ resolveTo: [toResource('other/deep')] }).then(result => {
+		return resolver.resolve({ resolveTo: [toResource('other/deep')] }).then(result => {
 			assert.ok(result);
 			assert.ok(result.children);
 			assert.ok(result.children.length > 0);
@@ -102,14 +100,13 @@ suite('Stat Resolver', () => {
 			assert.ok(deep);
 			assert.ok(deep.children.length > 0);
 			assert.equal(deep.children.length, 4);
-		})
-			.done(() => done(), done);
+		});
 	});
 
-	test('resolve directory - resolveTo single directory - mixed casing', function (done: () => void) {
+	test('resolve directory - resolveTo single directory - mixed casing', function () {
 		let resolver = create('/');
 
-		resolver.resolve({ resolveTo: [toResource('other/Deep')] }).then(result => {
+		return resolver.resolve({ resolveTo: [toResource('other/Deep')] }).then(result => {
 			assert.ok(result);
 			assert.ok(result.children);
 			assert.ok(result.children.length > 0);
@@ -131,14 +128,13 @@ suite('Stat Resolver', () => {
 				assert.ok(deep.children.length > 0);
 				assert.equal(deep.children.length, 4);
 			}
-		})
-			.done(() => done(), done);
+		});
 	});
 
-	test('resolve directory - resolveTo multiple directories', function (done: () => void) {
+	test('resolve directory - resolveTo multiple directories', function () {
 		let resolver = create('/');
 
-		resolver.resolve({ resolveTo: [toResource('other/deep'), toResource('examples')] }).then(result => {
+		return resolver.resolve({ resolveTo: [toResource('other/deep'), toResource('examples')] }).then(result => {
 			assert.ok(result);
 			assert.ok(result.children);
 			assert.ok(result.children.length > 0);
@@ -160,14 +156,13 @@ suite('Stat Resolver', () => {
 			assert.ok(examples);
 			assert.ok(examples.children.length > 0);
 			assert.equal(examples.children.length, 4);
-		})
-			.done(() => done(), done);
+		});
 	});
 
-	test('resolve directory - resolveSingleChildFolders', function (done: () => void) {
+	test('resolve directory - resolveSingleChildFolders', function () {
 		let resolver = create('/other');
 
-		resolver.resolve({ resolveSingleChildDescendants: true }).then(result => {
+		return resolver.resolve({ resolveSingleChildDescendants: true }).then(result => {
 			assert.ok(result);
 			assert.ok(result.children);
 			assert.ok(result.children.length > 0);
@@ -180,7 +175,6 @@ suite('Stat Resolver', () => {
 			assert.ok(deep);
 			assert.ok(deep.children.length > 0);
 			assert.equal(deep.children.length, 4);
-		})
-			.done(() => done(), done);
+		});
 	});
 });

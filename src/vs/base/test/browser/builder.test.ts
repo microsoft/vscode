@@ -8,8 +8,8 @@ import * as assert from 'assert';
 import { Build, Builder, MultiBuilder, $, bindElement, withElement, setPropertyOnElement, getPropertyFromElement } from 'vs/base/browser/builder';
 import * as Types from 'vs/base/common/types';
 import * as DomUtils from 'vs/base/browser/dom';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { timeout } from 'vs/base/common/async';
 
 let withElementsBySelector = function (selector: string, offdom: boolean = false) {
 	let elements = window.document.querySelectorAll(selector);
@@ -638,20 +638,19 @@ suite('Builder', () => {
 		assert(b.isHidden());
 	});
 
-	test('Builder.showDelayed()', function (done) {
+	test('Builder.showDelayed()', function () {
 		let b = Build.withElementById(fixtureId);
 		b.div().hide();
 
 		b.showDelayed(20);
 		assert(b.hasClass('monaco-builder-hidden'));
 
-		TPromise.timeout(30).then(() => {
+		return timeout(30).then(() => {
 			assert(!b.hasClass('monaco-builder-hidden'));
-			done();
 		});
 	});
 
-	test('Builder.showDelayed() but interrupted', function (done) {
+	test('Builder.showDelayed() but interrupted', function () {
 		let b = Build.withElementById(fixtureId);
 		b.div().hide();
 
@@ -660,9 +659,8 @@ suite('Builder', () => {
 
 		b.hide(); // Should cancel the visibility promise
 
-		TPromise.timeout(30).then(() => {
+		return timeout(30).then(() => {
 			assert(b.hasClass('monaco-builder-hidden'));
-			done();
 		});
 	});
 

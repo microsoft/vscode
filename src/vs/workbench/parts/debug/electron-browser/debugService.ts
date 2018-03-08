@@ -35,7 +35,7 @@ import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression,
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
-import Constants from 'vs/workbench/parts/markers/common/constants';
+import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { ITaskService, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
 import { TaskError } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
@@ -83,6 +83,7 @@ export class DebugService implements debug.IDebugService {
 	private breakpointsToSendOnResourceSaved: Set<string>;
 	private launchJsonChanged: boolean;
 	private firstSessionStart: boolean;
+	private skipRunningTask: boolean;
 	private previousState: debug.State;
 	private fetchThreadsSchedulers: Map<string, RunOnceScheduler>;
 
@@ -814,7 +815,7 @@ export class DebugService implements debug.IDebugService {
 					return this.doCreateProcess(workspace, resolvedConfig, sessionId);
 				});
 
-				return this.runPreLaunchTask(sessionId, workspace, resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
+				return this.runTask(sessionId, workspace, resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
 					const errorCount = resolvedConfig.preLaunchTask ? this.markerService.getStatistics().errors : 0;
 					const successExitCode = taskSummary && taskSummary.exitCode === 0;
 					const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
@@ -995,15 +996,16 @@ export class DebugService implements debug.IDebugService {
 		});
 	}
 
-	private runPreLaunchTask(sessionId: string, root: IWorkspaceFolder, taskName: string): TPromise<ITaskSummary> {
-		if (!taskName) {
+	private runTask(sessionId: string, root: IWorkspaceFolder, taskName: string): TPromise<ITaskSummary> {
+		if (!taskName || this.skipRunningTask) {
+			this.skipRunningTask = false;
 			return TPromise.as(null);
 		}
 
 		// run a task before starting a debug session
 		return this.taskService.getTask(root, taskName).then(task => {
 			if (!task) {
-				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'.", taskName)));
+				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the task \'{0}\'.", taskName)));
 			}
 
 			function once(kind: TaskEventKind, event: Event<TaskEvent>): Event<TaskEvent> {
@@ -1047,7 +1049,7 @@ export class DebugService implements debug.IDebugService {
 
 				setTimeout(() => {
 					if (!taskStarted) {
-						e({ severity: severity.Error, message: nls.localize('taskNotTracked', "The preLaunchTask '{0}' cannot be tracked.", taskName) });
+						e({ severity: severity.Error, message: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked.", taskName) });
 					}
 				}, 10000);
 			});
@@ -1065,6 +1067,8 @@ export class DebugService implements debug.IDebugService {
 			}
 			const focusedProcess = this.viewModel.focusedProcess;
 			const preserveFocus = focusedProcess && process.getId() === focusedProcess.getId();
+			// Do not run preLaunch and postDebug tasks for automatic restarts
+			this.skipRunningTask = !!restartData;
 
 			return process.session.disconnect(true).then(() => {
 				if (strings.equalsIgnoreCase(process.configuration.type, 'extensionHost') && process.session.root) {
@@ -1088,6 +1092,7 @@ export class DebugService implements debug.IDebugService {
 							config.noDebug = process.configuration.noDebug;
 						}
 						config.__restart = restartData;
+						this.skipRunningTask = !!restartData;
 						this.startDebugging(launch, config).then(() => c(null), err => e(err));
 					}, 300);
 				});
@@ -1142,6 +1147,9 @@ export class DebugService implements debug.IDebugService {
 		if (process) {
 			process.inactive = true;
 			this._onDidEndProcess.fire(process);
+			if (process.configuration.postDebugTask) {
+				this.runTask(process.getId(), process.session.root, process.configuration.postDebugTask);
+			}
 		}
 
 		this.toDisposeOnSessionEnd.set(session.getId(), lifecycle.dispose(this.toDisposeOnSessionEnd.get(session.getId())));

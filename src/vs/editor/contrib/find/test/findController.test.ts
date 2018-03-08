@@ -335,7 +335,7 @@ suite('FindController', () => {
 			findController.delayedUpdateHistoryPromise.then(() => {
 				assert.deepEqual(['3'], toArray(findController.getHistory()));
 				done();
-			});
+			}, error => done(error));
 		});
 	});
 

@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { MarkersModel, FilterOptions } from 'vs/workbench/parts/markers/common/markersModel';
+import { MarkersModel, FilterOptions } from './markersModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { localize } from 'vs/nls';
-import Constants from 'vs/workbench/parts/markers/common/constants';
+import Constants from './constants';
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export const IMarkersWorkbenchService = createDecorator<IMarkersWorkbenchService>('markersWorkbenchService');
 
@@ -62,3 +63,6 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 		this.activityService.showActivity(Constants.MARKERS_PANEL_ID, new NumberBadge(filtered, () => message));
 	}
 }
+
+
+registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService);

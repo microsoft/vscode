@@ -218,18 +218,17 @@ suite('Arrays', () => {
 		assert.deepEqual(arrays.top([4, 6, 2, 7, 8, 3, 5, 1], cmp, 3), [1, 2, 3]);
 	});
 
-	test('topAsync', function (done) {
+	test('topAsync', function () {
 		const cmp = (a: number, b: number) => {
 			assert.strictEqual(typeof a, 'number', 'typeof a');
 			assert.strictEqual(typeof b, 'number', 'typeof b');
 			return a - b;
 		};
 
-		testTopAsync(cmp, 1)
+		return testTopAsync(cmp, 1)
 			.then(() => {
 				return testTopAsync(cmp, 2);
-			})
-			.then(done, done);
+			});
 	});
 
 	function testTopAsync(cmp: any, m: number) {
