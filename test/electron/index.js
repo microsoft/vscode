@@ -8,6 +8,7 @@ const { tmpdir } = require('os');
 const { join } = require('path');
 const path = require('path');
 const mocha = require('mocha');
+const JUnitReporter = require('mocha-junit-reporter');
 const events = require('events');
 
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
@@ -96,6 +97,26 @@ function parseReporterOption(value) {
 	return r ? { [r[1]]: r[2] } : {};
 }
 
+class TFSReporter extends mocha.reporters.Base {
+
+	constructor(runner) {
+		super(runner);
+
+		runner.on('pending', test => {
+			console.log('PEND', test.fullTitle());
+		});
+		runner.on('pass', test => {
+			console.log('OK  ', test.fullTitle(), `(${test.duration}ms)`);
+		});
+		runner.on('fail', test => {
+			console.log('FAIL', test.fullTitle(), `(${test.duration}ms)`);
+		});
+		runner.once('end', () => {
+			this.epilogue();
+		});
+	}
+}
+
 app.on('ready', () => {
 
 	const win = new BrowserWindow({
@@ -121,15 +142,12 @@ app.on('ready', () => {
 	const runner = new IPCRunner();
 
 	if (argv.tfs) {
-		const Reporter = require('mocha-multi-reporters');
-		const reporterOptions = {
-			reporterEnabled: `${defaultReporterName}, mocha-junit-reporter`,
-			mochaJunitReporterReporterOptions: {
+		new TFSReporter(runner);
+		new JUnitReporter(runner, {
+			reporterOptions: {
 				mochaFile: '.build/tests/unit-test-results.xml'
 			}
-		};
-
-		new Reporter(runner, { reporterOptions });
+		});
 	} else {
 		const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
 		let Reporter;
