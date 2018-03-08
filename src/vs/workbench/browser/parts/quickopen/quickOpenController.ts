@@ -329,10 +329,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 
 		// Respect input value
-		if (options.value) {
-			if (!options.valueSelection) {
-				this.pickOpenWidget.setValue(options.value, options.valueSelection);
-			}
+		if (options.value && !options.valueSelection) {
+			this.pickOpenWidget.setValue(options.value, options.valueSelection);
 		}
 
 		// Respect password
