@@ -19,7 +19,8 @@
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.js",
     "update-localization-extension": "node build/npm/update-localization-extension.js",
-    "smoketest": "cd test/smoke && mocha"
+    "smoketest": "cd test/smoke && mocha",
+    "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit"
   },
   "dependencies": {
     "applicationinsights": "0.18.0",

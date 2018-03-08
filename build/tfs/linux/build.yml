@@ -25,7 +25,7 @@ steps:
     echo "machine monacotools.visualstudio.com password $(VSO_PAT)" > ~/.netrc
     yarn
     npm run gulp -- hygiene
-    ./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
+    npm run monaco-compile-check
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
     node build/tfs/common/installDistro.js
 
