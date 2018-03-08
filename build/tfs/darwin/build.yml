@@ -20,7 +20,7 @@ steps:
     node build/tfs/common/installDistro.js
 
 - script: |
-    npm run gulp -- vscode-darwin-min
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-darwin-min
   name: build
 
 - script: |
