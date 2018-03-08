@@ -2430,7 +2430,7 @@
 		"scope-resolution": {
 			"patterns": [
 				{
-					"match": "([A-Za-z_\\x{7f}-\\x{7fffffff}\\\\][A_Za-z0-9_\\x{7f}-\\x{7fffffff}\\\\]*)(?=\\s*::)",
+					"match": "([A-Za-z_\\x{7f}-\\x{7fffffff}\\\\][A-Za-z0-9_\\x{7f}-\\x{7fffffff}\\\\]*)(?=\\s*::)",
 					"captures": {
 						"1": {
 							"patterns": [
