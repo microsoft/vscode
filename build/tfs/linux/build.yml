@@ -34,5 +34,5 @@ steps:
   name: build
 
 - script: |
-    DISPLAY=:10 ./scripts/test.sh --build --reporter dot
+    DISPLAY=:10 ./scripts/test.sh --build --tfs
   name: test
