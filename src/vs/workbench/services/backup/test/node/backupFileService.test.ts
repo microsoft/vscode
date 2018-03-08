@@ -48,7 +48,9 @@ class TestBackupFileService extends BackupFileService {
 	}
 }
 
-suite('BackupFileService', () => {
+suite('BackupFileService', function () {
+	this.timeout(10000);
+
 	let service: TestBackupFileService;
 
 	setup(() => {
