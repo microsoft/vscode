@@ -73,7 +73,13 @@ export class ListService implements IListService {
 
 		const result = combinedDisposable([
 			widget.onDidFocus(() => this._lastFocusedWidget = widget),
-			toDisposable(() => this.lists.splice(this.lists.indexOf(registeredList), 1))
+			toDisposable(() => this.lists.splice(this.lists.indexOf(registeredList), 1)),
+			widget.onDidDispose(() => {
+				this.lists = this.lists.filter(l => l !== registeredList);
+				if (this._lastFocusedWidget === widget) {
+					this._lastFocusedWidget = undefined;
+				}
+			})
 		]);
 
 		return result;
