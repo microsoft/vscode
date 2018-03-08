@@ -95,10 +95,7 @@
 
 .monaco-editor .debug-top-stack-frame.debug-breakpoint,
 .monaco-editor .debug-top-stack-frame.debug-breakpoint-conditional,
-.monaco-editor .debug-breakpoint-column.debug-breakpoint-column.debug-top-stack-frame-column::before,
-.monaco-editor.vs-dark .debug-top-stack-frame.debug-breakpoint,
-.monaco-editor.vs-dark .debug-top-stack-frame.debug-breakpoint-conditional,
-.monaco-editor.vs-dark .debug-breakpoint-column.debug-breakpoint-column.debug-top-stack-frame-column::before {
+.monaco-editor .debug-breakpoint-column.debug-breakpoint-column.debug-top-stack-frame-column::before {
 	background: url('current-and-breakpoint.svg') center center no-repeat;
 }
 
@@ -246,61 +243,6 @@
 
 .monaco-editor.vs-dark .debug-top-stack-frame-range {
 	background-color: rgba(255, 255, 0, 0.3)
-}
-
-.vs-dark .debug-breakpoint,
-.hc-black .debug-breakpoint,
-.monaco-editor.vs-dark .debug-breakpoint-column.debug-breakpoint-column::before {
-	background: url('breakpoint.svg') center center no-repeat;
-}
-
-.vs-dark .debug-breakpoint-conditional,
-.hc-black .debug-breakpoint-conditional,
-.monaco-editor.vs-dark .debug-breakpoint-column.debug-breakpoint-conditional-column::before {
-	background: url('breakpoint-conditional.svg') center center no-repeat;
-}
-
-.vs-dark .debug-breakpoint-unsupported,
-.hc-black .debug-breakpoint-unsupported,
-.monaco-editor.vs-dark .debug-breakpoint-column.debug-breakpoint-unsupported-column::before {
-	background: url('breakpoint-unsupported.svg') center center no-repeat;
-}
-
-.vs-dark .debug-breakpoint-disabled,
-.hc-black .debug-breakpoint-disabled,
-.monaco-editor.vs-dark .debug-breakpoint-column.debug-breakpoint-disabled-column::before {
-	background: url('breakpoint-disabled.svg') center center no-repeat;
-}
-
-.vs-dark .debug-breakpoint-unverified,
-.hc-black .debug-breakpoint-unverified,
-.monaco-editor.vs-dark .debug-breakpoint-column.debug-breakpoint-unverified-column::before {
-	background: url('breakpoint-unverified.svg') center center no-repeat;
-}
-
-.monaco-editor.vs-dark .debug-focused-stack-frame {
-	background: url('stackframe-arrow.svg') center center no-repeat;
-}
-
-.monaco-editor.vs-dark .debug-focused-stack-frame.debug-breakpoint,
-.monaco-editor.vs-dark .debug-focused-stack-frame.debug-breakpoint-conditional {
-	background: url('stackframe-and-breakpoint.svg') center center no-repeat;
-}
-
-.vs-dark .debug-function-breakpoint,
-.hc-black .debug-function-breakpoint {
-	background: url('breakpoint-function.svg') center center no-repeat;
-}
-
-.vs-dark .debug-function-breakpoint-unverified,
-.hc-black .debug-function-breakpoint-unverified {
-	background: url('breakpoint-function-unverified.svg') center center no-repeat;
-
-}
-
-.vs-dark .debug-function-breakpoint-disabled,
-.hc-black .debug-function-breakpoint-disabled {
-	background: url('breakpoint-function-disabled.svg') center center no-repeat;
 }
 
 /* High Contrast Theming */

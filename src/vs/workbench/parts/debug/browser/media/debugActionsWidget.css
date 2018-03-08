@@ -26,6 +26,7 @@
 	height: 16px;
 	width: 16px;
 	background: url('drag.svg') center center no-repeat;
+	background-size: 16px 16px;
 }
 
 .monaco-workbench .debug-actions-widget .drag-area.dragged {
