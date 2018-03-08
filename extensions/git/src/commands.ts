@@ -1345,7 +1345,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.pull(repository.HEAD && repository.HEAD.upstream);
+		await repository.pull(repository.HEAD);
 	}
 
 	@command('git.pullRebase', { repository: true })
@@ -1357,7 +1357,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.pullWithRebase(repository.HEAD && repository.HEAD.upstream);
+		await repository.pullWithRebase(repository.HEAD);
 	}
 
 	@command('git.push', { repository: true })
@@ -1375,7 +1375,7 @@ export class CommandCenter {
 		}
 
 		try {
-			await repository.push(repository.HEAD.upstream);
+			await repository.push(repository.HEAD);
 		} catch (err) {
 			if (err.gitErrorCode !== GitErrorCodes.NoUpstreamBranch) {
 				throw err;
@@ -1456,9 +1456,9 @@ export class CommandCenter {
 		}
 
 		if (rebase) {
-			await repository.syncRebase(HEAD.upstream);
+			await repository.syncRebase(HEAD);
 		} else {
-			await repository.sync(HEAD.upstream);
+			await repository.sync(HEAD);
 		}
 	}
 
@@ -1476,7 +1476,7 @@ export class CommandCenter {
 				return;
 			}
 
-			await repository.sync(HEAD.upstream);
+			await repository.sync(HEAD);
 		}));
 	}
 
