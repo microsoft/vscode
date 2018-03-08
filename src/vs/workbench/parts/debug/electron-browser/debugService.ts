@@ -1067,7 +1067,7 @@ export class DebugService implements debug.IDebugService {
 			}
 			const focusedProcess = this.viewModel.focusedProcess;
 			const preserveFocus = focusedProcess && process.getId() === focusedProcess.getId();
-			// Do not run prelaunch and postdebug tasks for automtic restarts
+			// Do not run preLaunch and postDebug tasks for automatic restarts
 			this.skipRunningTask = !!restartData;
 
 			return process.session.disconnect(true).then(() => {
