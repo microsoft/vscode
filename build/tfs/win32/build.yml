@@ -12,6 +12,9 @@ steps:
   inputs:
     versionSpec: "1.3.2"
 
+- powershell: |
+    echo $(VSCODE_MIXIN_PASSWORD)
+
 - task: PowerShell@1
   inputs:
     scriptType: inlineScript
