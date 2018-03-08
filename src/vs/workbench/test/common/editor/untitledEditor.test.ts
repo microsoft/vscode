@@ -6,7 +6,6 @@
 
 import URI from 'vs/base/common/uri';
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'vs/base/common/paths';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -18,6 +17,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { snapshotToString } from 'vs/platform/files/common/files';
+import { timeout } from 'vs/base/common/async';
 
 export class TestUntitledEditorService extends UntitledEditorService {
 
@@ -257,23 +257,23 @@ suite('Workbench - Untitled Editor', () => {
 			model.textEditorModel.setValue('foo');
 			assert.equal(counter, 0, 'Dirty model should not trigger event immediately');
 
-			return TPromise.timeout(3).then(() => {
+			return timeout(3).then(() => {
 				assert.equal(counter, 1, 'Dirty model should trigger event');
 
 				model.textEditorModel.setValue('bar');
-				return TPromise.timeout(3).then(() => {
+				return timeout(3).then(() => {
 					assert.equal(counter, 2, 'Content change when dirty should trigger event');
 
 					model.textEditorModel.setValue('');
-					return TPromise.timeout(3).then(() => {
+					return timeout(3).then(() => {
 						assert.equal(counter, 3, 'Manual revert should trigger event');
 
 						model.textEditorModel.setValue('foo');
-						return TPromise.timeout(3).then(() => {
+						return timeout(3).then(() => {
 							assert.equal(counter, 4, 'Dirty model should trigger event');
 
 							model.revert();
-							return TPromise.timeout(3).then(() => {
+							return timeout(3).then(() => {
 								assert.equal(counter, 5, 'Revert should trigger event');
 
 								input.dispose();

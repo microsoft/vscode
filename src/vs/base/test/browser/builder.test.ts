@@ -8,8 +8,8 @@ import * as assert from 'assert';
 import { Build, Builder, MultiBuilder, $, bindElement, withElement, setPropertyOnElement, getPropertyFromElement } from 'vs/base/browser/builder';
 import * as Types from 'vs/base/common/types';
 import * as DomUtils from 'vs/base/browser/dom';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { timeout } from 'vs/base/common/async';
 
 let withElementsBySelector = function (selector: string, offdom: boolean = false) {
 	let elements = window.document.querySelectorAll(selector);
@@ -645,7 +645,7 @@ suite('Builder', () => {
 		b.showDelayed(20);
 		assert(b.hasClass('monaco-builder-hidden'));
 
-		return TPromise.timeout(30).then(() => {
+		return timeout(30).then(() => {
 			assert(!b.hasClass('monaco-builder-hidden'));
 		});
 	});
@@ -659,7 +659,7 @@ suite('Builder', () => {
 
 		b.hide(); // Should cancel the visibility promise
 
-		return TPromise.timeout(30).then(() => {
+		return timeout(30).then(() => {
 			assert(b.hasClass('monaco-builder-hidden'));
 		});
 	});

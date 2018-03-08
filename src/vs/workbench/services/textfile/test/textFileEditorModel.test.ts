@@ -16,6 +16,7 @@ import { toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { FileOperationResult, FileOperationError, IFileService, snapshotToString } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { timeout } from 'vs/base/common/async';
 
 class ServiceAccessor {
 	constructor( @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService, @IFileService public fileService: TestFileService) {
@@ -241,7 +242,7 @@ suite('Files - TextFileEditorModel', () => {
 				model2.textEditorModel.setValue('foo');
 				assert.ok(accessor.textFileService.isDirty(toResource.call(this, '/path/index_async.txt')));
 
-				return TPromise.timeout(10).then(() => {
+				return timeout(10).then(() => {
 					accessor.textFileService.saveAll().then(() => {
 						assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async.txt')));
 						assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async2.txt')));
@@ -297,7 +298,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		TextFileEditorModel.setSaveParticipant({
 			participate: (model) => {
-				return TPromise.timeout(10);
+				return timeout(10);
 			}
 		});
 
@@ -343,13 +344,13 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(!sequentializer.pendingSave);
 
 		// pending removes itself after done (use timeout)
-		sequentializer.setPending(2, TPromise.timeout(1));
+		sequentializer.setPending(2, timeout(1));
 		assert.ok(sequentializer.hasPendingSave());
 		assert.ok(sequentializer.hasPendingSave(2));
 		assert.ok(!sequentializer.hasPendingSave(1));
 		assert.ok(sequentializer.pendingSave);
 
-		return TPromise.timeout(2).then(() => {
+		return timeout(2).then(() => {
 			assert.ok(!sequentializer.hasPendingSave());
 			assert.ok(!sequentializer.hasPendingSave(2));
 			assert.ok(!sequentializer.pendingSave);
@@ -360,7 +361,7 @@ suite('Files - TextFileEditorModel', () => {
 		const sequentializer = new SaveSequentializer();
 
 		let pendingDone = false;
-		sequentializer.setPending(1, TPromise.timeout(1).then(() => { pendingDone = true; return null; }));
+		sequentializer.setPending(1, timeout(1).then(() => { pendingDone = true; return null; }));
 
 		// next finishes instantly
 		let nextDone = false;
@@ -376,11 +377,11 @@ suite('Files - TextFileEditorModel', () => {
 		const sequentializer = new SaveSequentializer();
 
 		let pendingDone = false;
-		sequentializer.setPending(1, TPromise.timeout(1).then(() => { pendingDone = true; return null; }));
+		sequentializer.setPending(1, timeout(1).then(() => { pendingDone = true; return null; }));
 
 		// next finishes after timeout
 		let nextDone = false;
-		const res = sequentializer.setNext(() => TPromise.timeout(1).then(() => { nextDone = true; return null; }));
+		const res = sequentializer.setNext(() => timeout(1).then(() => { nextDone = true; return null; }));
 
 		return res.done(() => {
 			assert.ok(pendingDone);
@@ -392,17 +393,17 @@ suite('Files - TextFileEditorModel', () => {
 		const sequentializer = new SaveSequentializer();
 
 		let pendingDone = false;
-		sequentializer.setPending(1, TPromise.timeout(1).then(() => { pendingDone = true; return null; }));
+		sequentializer.setPending(1, timeout(1).then(() => { pendingDone = true; return null; }));
 
 		// next finishes after timeout
 		let firstDone = false;
-		let firstRes = sequentializer.setNext(() => TPromise.timeout(2).then(() => { firstDone = true; return null; }));
+		let firstRes = sequentializer.setNext(() => timeout(2).then(() => { firstDone = true; return null; }));
 
 		let secondDone = false;
-		let secondRes = sequentializer.setNext(() => TPromise.timeout(3).then(() => { secondDone = true; return null; }));
+		let secondRes = sequentializer.setNext(() => timeout(3).then(() => { secondDone = true; return null; }));
 
 		let thirdDone = false;
-		let thirdRes = sequentializer.setNext(() => TPromise.timeout(4).then(() => { thirdDone = true; return null; }));
+		let thirdRes = sequentializer.setNext(() => timeout(4).then(() => { thirdDone = true; return null; }));
 
 		return TPromise.join([firstRes, secondRes, thirdRes]).then(() => {
 			assert.ok(pendingDone);

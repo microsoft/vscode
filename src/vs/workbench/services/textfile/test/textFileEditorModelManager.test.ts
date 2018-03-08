@@ -7,7 +7,6 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { join } from 'vs/base/common/paths';
@@ -16,6 +15,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { timeout } from 'vs/base/common/async';
 
 export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
 
@@ -220,7 +220,7 @@ suite('Files - TextFileEditorModelManager', () => {
 							assert.equal(encodingCounter, 2);
 
 							// content change event if done async
-							return TPromise.timeout(10).then(() => {
+							return timeout(10).then(() => {
 								assert.equal(contentCounter, 2);
 
 								model1.dispose();
@@ -276,7 +276,7 @@ suite('Files - TextFileEditorModelManager', () => {
 						model2.dispose();
 
 						return model1.revert().then(() => { // should not trigger another event if disposed
-							return TPromise.timeout(20).then(() => {
+							return timeout(20).then(() => {
 								assert.equal(dirtyCounter, 2);
 								assert.equal(revertedCounter, 1);
 								assert.equal(savedCounter, 1);

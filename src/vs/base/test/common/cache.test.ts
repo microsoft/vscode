@@ -8,6 +8,7 @@
 import * as assert from 'assert';
 import Cache from 'vs/base/common/cache';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { timeout } from 'vs/base/common/async';
 
 suite('Cache', () => {
 
@@ -36,7 +37,7 @@ suite('Cache', () => {
 
 		const cache = new Cache(() => {
 			counter1++;
-			return TPromise.timeout(1).then(() => counter2++);
+			return timeout(1).then(() => counter2++);
 		});
 
 		assert.equal(counter1, 0);

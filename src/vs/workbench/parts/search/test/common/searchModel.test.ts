@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { DeferredPPromise } from 'vs/base/test/common/utils';
-import { PPromise, TPromise } from 'vs/base/common/winjs.base';
+import { PPromise } from 'vs/base/common/winjs.base';
 import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import URI from 'vs/base/common/uri';
 import { IFileMatch, IFolderQuery, ILineMatch, ISearchService, ISearchComplete, ISearchProgressItem, IUncachedSearchStats } from 'vs/platform/search/common/search';
@@ -19,6 +19,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { timeout } from 'vs/base/common/async';
 
 const nullEvent = new class {
 
@@ -158,7 +159,7 @@ suite('SearchModel', () => {
 		let testObject = instantiationService.createInstance(SearchModel);
 		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
 
-		return TPromise.timeout(1).then(() => {
+		return timeout(1).then(() => {
 			return result.then(() => {
 				assert.ok(target1.calledWith('searchResultsFirstRender'));
 				assert.ok(target1.calledWith('searchResultsFinished'));
@@ -182,7 +183,7 @@ suite('SearchModel', () => {
 		promise.progress(aRawMatch('file://c:/1', aLineMatch('some preview')));
 		promise.complete({ results: [], stats: testSearchStats });
 
-		return TPromise.timeout(1).then(() => {
+		return timeout(1).then(() => {
 			return result.then(() => {
 				assert.ok(target1.calledWith('searchResultsFirstRender'));
 				assert.ok(target1.calledWith('searchResultsFinished'));
@@ -205,7 +206,7 @@ suite('SearchModel', () => {
 
 		promise.error('error');
 
-		return TPromise.timeout(1).then(() => {
+		return timeout(1).then(() => {
 			return result.then(() => { }, () => {
 				assert.ok(target1.calledWith('searchResultsFirstRender'));
 				assert.ok(target1.calledWith('searchResultsFinished'));
@@ -228,7 +229,7 @@ suite('SearchModel', () => {
 
 		promise.cancel();
 
-		return TPromise.timeout(1).then(() => {
+		return timeout(1).then(() => {
 			return result.then(() => { }, () => {
 				assert.ok(target1.calledWith('searchResultsFirstRender'));
 				assert.ok(target1.calledWith('searchResultsFinished'));

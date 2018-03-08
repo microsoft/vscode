@@ -22,6 +22,7 @@ import { TestEnvironmentService, TestContextService, TestTextResourceConfigurati
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { timeout } from 'vs/base/common/async';
 
 suite('FileService', () => {
 	let service: FileService;
@@ -155,7 +156,7 @@ suite('FileService', () => {
 
 			const stat = fs.statSync(s.resource.fsPath);
 
-			return TPromise.timeout(10).then(() => {
+			return timeout(10).then(() => {
 				return service.touchFile(s.resource).then(s => {
 					const statNow = fs.statSync(s.resource.fsPath);
 					assert.ok(statNow.mtime.getTime() >= stat.mtime.getTime()); // one some OS the resolution seems to be 1s, so we use >= here
@@ -175,7 +176,7 @@ suite('FileService', () => {
 
 			const stat = fs.statSync(s.resource.fsPath);
 
-			return TPromise.timeout(10).then(() => {
+			return timeout(10).then(() => {
 				return service.touchFile(s.resource).then(s => {
 					const statNow = fs.statSync(s.resource.fsPath);
 					assert.ok(statNow.mtime.getTime() >= stat.mtime.getTime()); // one some OS the resolution seems to be 1s, so we use >= here

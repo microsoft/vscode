@@ -14,6 +14,7 @@ import fs = require('fs');
 
 import uuid = require('vs/base/common/uuid');
 import * as pfs from 'vs/base/node/pfs';
+import { timeout } from 'vs/base/common/async';
 
 suite('PFS', () => {
 
@@ -77,9 +78,9 @@ suite('PFS', () => {
 			return TPromise.join([
 				pfs.writeFile(testFile, 'Hello World 1', null),
 				pfs.writeFile(testFile, 'Hello World 2', null),
-				TPromise.timeout(10).then(() => pfs.writeFile(testFile, 'Hello World 3', null)),
+				timeout(10).then(() => pfs.writeFile(testFile, 'Hello World 3', null)),
 				pfs.writeFile(testFile, 'Hello World 4', null),
-				TPromise.timeout(10).then(() => pfs.writeFile(testFile, 'Hello World 5', null))
+				timeout(10).then(() => pfs.writeFile(testFile, 'Hello World 5', null))
 			]).then(() => {
 				assert.equal(fs.readFileSync(testFile), 'Hello World 5');
 
