@@ -99,7 +99,8 @@ suite('BackupMainService', () => {
 		return pfs.del(backupHome, os.tmpdir());
 	});
 
-	test('service validates backup workspaces on startup and cleans up (folder workspaces)', () => {
+	test('service validates backup workspaces on startup and cleans up (folder workspaces)', function () {
+		this.timeout(10000);
 
 		// 1) backup workspace path does not exist
 		service.registerFolderBackupSync(fooFile.fsPath);
@@ -144,7 +145,8 @@ suite('BackupMainService', () => {
 		assert.equal(service.getEmptyWindowBackupPaths().length, 1);
 	});
 
-	test('service validates backup workspaces on startup and cleans up (root workspaces)', () => {
+	test('service validates backup workspaces on startup and cleans up (root workspaces)', function () {
+		this.timeout(10000);
 
 		// 1) backup workspace path does not exist
 		service.registerWorkspaceBackupSync(toWorkspace(fooFile.fsPath));
