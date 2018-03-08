@@ -13,7 +13,7 @@ import * as which from 'which';
 import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
-import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
+import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
 import { CancellationToken } from 'vscode';
 
 const readfile = denodeify<string, string | null, string>(fs.readFile);
@@ -32,7 +32,9 @@ export interface IFileStatus {
 
 export interface Remote {
 	name: string;
-	url: string;
+	fetchUrl?: string;
+	pushUrl?: string;
+	canPush: boolean;
 }
 
 export interface Stash {
@@ -1199,14 +1201,37 @@ export class Repository {
 
 	async getRemotes(): Promise<Remote[]> {
 		const result = await this.run(['remote', '--verbose']);
-		const regex = /^([^\s]+)\s+([^\s]+)\s/;
-		const rawRemotes = result.stdout.trim().split('\n')
-			.filter(b => !!b)
-			.map(line => regex.exec(line) as RegExpExecArray)
-			.filter(g => !!g)
-			.map((groups: RegExpExecArray) => ({ name: groups[1], url: groups[2] }));
+		const remotes: Remote[] = [];
+		const lines = result.stdout.trim().split('\n').filter(l => !!l);
+		for (const line of lines) {
+			const parts = line.split(/\s/);
+			let remote = remotes.find(r => r.name === parts[0]);
+			if (!remote) {
+				remote = { name: parts[0], canPush: true };
+				remotes.push(remote);
+			}
 
-		return uniqBy(rawRemotes, remote => remote.name);
+			switch (parts[2]) {
+				case '(fetch)': {
+					remote.fetchUrl = parts[1];
+					break;
+				}
+				case '(push)': {
+					remote.pushUrl = parts[1];
+					break;
+				}
+				default: {
+					remote.fetchUrl = parts[1];
+					remote.pushUrl = parts[1];
+					break;
+				}
+			}
+
+			// https://github.com/Microsoft/vscode/issues/45271
+			remote.canPush = remote.pushUrl !== undefined && remote.pushUrl !== 'no_push';
+		}
+
+		return remotes;
 	}
 
 	async getBranch(name: string): Promise<Branch> {

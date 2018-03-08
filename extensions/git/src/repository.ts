@@ -789,23 +789,24 @@ export class Repository implements Disposable {
 	}
 
 	private async _sync(head: Branch, rebase: boolean): Promise<void> {
-		let remote: string | undefined;
+		let remoteName: string | undefined;
 		let pullBranch: string | undefined;
 		let pushBranch: string | undefined;
 
 		if (head.name && head.upstream) {
-			remote = head.upstream.remote;
+			remoteName = head.upstream.remote;
 			pullBranch = `${head.upstream.name}`;
 			pushBranch = `${head.name}:${head.upstream.name}`;
 		}
 
 		await this.run(Operation.Sync, async () => {
-			await this.repository.pull(rebase, remote, pullBranch);
+			await this.repository.pull(rebase, remoteName, pullBranch);
 
-			const shouldPush = this.HEAD && typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true;
+			const remote = this.remotes.find(r => r.name === remoteName);
+			const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true) && (!remote || remote.canPush);
 
 			if (shouldPush) {
-				await this.repository.push(remote, pushBranch);
+				await this.repository.push(remoteName, pushBranch);
 			}
 		});
 	}
@@ -1152,6 +1153,13 @@ export class Repository implements Disposable {
 			|| !(this.HEAD.ahead || this.HEAD.behind)
 		) {
 			return '';
+		}
+
+		const remoteName = this.HEAD && this.HEAD.remote || this.HEAD.upstream.remote;
+		const remote = this.remotes.find(r => r.name === remoteName);
+
+		if (remote && !remote.canPush) {
+			return `${this.HEAD.behind}↓`;
 		}
 
 		return `${this.HEAD.behind}↓ ${this.HEAD.ahead}↑`;

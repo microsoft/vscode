@@ -1314,7 +1314,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const remotePicks = remotes.map(r => ({ label: r.name, description: r.url }));
+		const remotePicks = remotes.filter(r => r.fetchUrl !== undefined).map(r => ({ label: r.name, description: r.fetchUrl! }));
 		const placeHolder = localize('pick remote pull repo', "Pick a remote to pull the branch from");
 		const remotePick = await window.showQuickPick(remotePicks, { placeHolder });
 
@@ -1421,7 +1421,7 @@ export class CommandCenter {
 		}
 
 		const branchName = repository.HEAD.name;
-		const picks = remotes.map(r => ({ label: r.name, description: r.url }));
+		const picks = remotes.filter(r => r.pushUrl !== undefined).map(r => ({ label: r.name, description: r.pushUrl! }));
 		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
 		const pick = await window.showQuickPick(picks, { placeHolder });
 
