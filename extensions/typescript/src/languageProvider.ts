@@ -18,6 +18,7 @@ import DiagnosticsManager from './features/diagnostics';
 import { LanguageDescription } from './utils/languageDescription';
 import * as fileSchemes from './utils/fileSchemes';
 import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
+import { memoize } from './utils/memoize';
 
 const validateSetting = 'validate.enable';
 const foldingSetting = 'typescript.experimental.syntaxFolding';
@@ -30,8 +31,6 @@ export default class LanguageProvider {
 	private readonly toUpdateOnConfigurationChanged: ({ updateConfiguration: () => void })[] = [];
 
 	private _validate: boolean = true;
-
-	private _documentSelector?: DocumentFilter[];
 
 	private readonly disposables: Disposable[] = [];
 	private readonly versionDependentDisposables: Disposable[] = [];
@@ -82,16 +81,15 @@ export default class LanguageProvider {
 		this.formattingOptionsManager.dispose();
 	}
 
+	@memoize
 	private get documentSelector(): DocumentFilter[] {
-		if (!this._documentSelector) {
-			this._documentSelector = [];
-			for (const language of this.description.modeIds) {
-				for (const scheme of fileSchemes.supportedSchemes) {
-					this._documentSelector.push({ language, scheme });
-				}
+		const documentSelector = [];
+		for (const language of this.description.modeIds) {
+			for (const scheme of fileSchemes.supportedSchemes) {
+				documentSelector.push({ language, scheme });
 			}
 		}
-		return this._documentSelector;
+		return documentSelector;
 	}
 
 	private async registerProviders(
@@ -196,7 +194,7 @@ export default class LanguageProvider {
 		return !!base && base === this.description.configFile;
 	}
 
-	public get id(): string {
+	private get id(): string {
 		return this.description.id;
 	}
 
