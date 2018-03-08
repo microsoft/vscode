@@ -466,10 +466,18 @@ export class NotificationsToasts extends Themable {
 	}
 
 	private setVisibility(toast: INotificationToast, visible: boolean): void {
-		toast.container.style.display = visible ? 'block' : 'none';
+		if (this.isVisible(toast) === visible) {
+			return;
+		}
+
+		if (visible) {
+			this.notificationsToastsContainer.appendChild(toast.container);
+		} else {
+			this.notificationsToastsContainer.removeChild(toast.container);
+		}
 	}
 
 	private isVisible(toast: INotificationToast): boolean {
-		return toast.container.style.display === 'block';
+		return !!toast.container.parentElement;
 	}
 }
