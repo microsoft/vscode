@@ -7,7 +7,7 @@
 import {
 	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, DocumentColorRequest, ColorPresentationRequest,
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, DocumentColorRequest, ColorPresentationRequest, Position,
 } from 'vscode-languageserver';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
@@ -18,7 +18,7 @@ import Strings = require('./utils/strings');
 import { formatError, runSafe, runSafeAsync } from './utils/errors';
 import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-import { createScanner, SyntaxKind } from 'jsonc-parser';
+import { createScanner, SyntaxKind, ScanError } from 'jsonc-parser';
 
 import { FoldingRangeType, FoldingRangesRequest, FoldingRange, FoldingRangeList, FoldingProviderServerCapabilities } from './protocol/foldingProvider.proposed';
 
@@ -393,9 +393,13 @@ connection.onRequest(FoldingRangesRequest.type, params => {
 					case SyntaxKind.BlockCommentTrivia: {
 						let startLine = document.positionAt(scanner.getTokenOffset()).line;
 						let endLine = document.positionAt(scanner.getTokenOffset() + scanner.getTokenLength()).line;
-						if (startLine < endLine) {
-							ranges.push({ startLine, endLine, type: FoldingRangeType.Comment });
-							prevStart = startLine;
+						if (scanner.getTokenError() === ScanError.UnexpectedEndOfComment && startLine + 1 < document.lineCount) {
+							scanner.setPosition(document.offsetAt(Position.create(startLine + 1, 0)));
+						} else {
+							if (startLine < endLine) {
+								ranges.push({ startLine, endLine, type: FoldingRangeType.Comment });
+								prevStart = startLine;
+							}
 						}
 						break;
 					}
