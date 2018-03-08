@@ -13,7 +13,7 @@ steps:
     versionSpec: "1.3.2"
 
 - script: |
-    echo "machine monacotools.visualstudio.com password $VSO_PAT" > ~/.netrc
+    echo "machine monacotools.visualstudio.com password $(VSO_PAT)" > ~/.netrc
     yarn
     npm run gulp -- hygiene
     ./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
