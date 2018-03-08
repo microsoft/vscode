@@ -83,6 +83,7 @@ export class DebugService implements debug.IDebugService {
 	private breakpointsToSendOnResourceSaved: Set<string>;
 	private launchJsonChanged: boolean;
 	private firstSessionStart: boolean;
+	private skipRunningTask: boolean;
 	private previousState: debug.State;
 	private fetchThreadsSchedulers: Map<string, RunOnceScheduler>;
 
@@ -996,7 +997,8 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private runTask(sessionId: string, root: IWorkspaceFolder, taskName: string): TPromise<ITaskSummary> {
-		if (!taskName) {
+		if (!taskName || this.skipRunningTask) {
+			this.skipRunningTask = false;
 			return TPromise.as(null);
 		}
 
@@ -1065,6 +1067,8 @@ export class DebugService implements debug.IDebugService {
 			}
 			const focusedProcess = this.viewModel.focusedProcess;
 			const preserveFocus = focusedProcess && process.getId() === focusedProcess.getId();
+			// Do not run prelaunch and postdebug tasks for automtic restarts
+			this.skipRunningTask = !!restartData;
 
 			return process.session.disconnect(true).then(() => {
 				if (strings.equalsIgnoreCase(process.configuration.type, 'extensionHost') && process.session.root) {
@@ -1088,6 +1092,7 @@ export class DebugService implements debug.IDebugService {
 							config.noDebug = process.configuration.noDebug;
 						}
 						config.__restart = restartData;
+						this.skipRunningTask = !!restartData;
 						this.startDebugging(launch, config).then(() => c(null), err => e(err));
 					}, 300);
 				});
