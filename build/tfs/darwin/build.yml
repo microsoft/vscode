@@ -29,5 +29,7 @@ steps:
   name: test
 
 - script: |
-    ./build/tfs/darwin/release.sh
+    cd ../VSCode-darwin && zip -r -X -y ../VSCode-darwin-unsigned.zip *
+    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" node build/tfs/common/publish.js "$(VSCODE_QUALITY)" darwin archive-unsigned "VSCode-darwin-$(VSCODE_QUALITY)-unsigned.zip" "$(VERSION)" false "$(UNSIGNEDZIP)"
+    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" node build/tfs/common/enqueue.js "$(VSCODE_QUALITY)"
     npm run gulp -- upload-vscode-configuration
