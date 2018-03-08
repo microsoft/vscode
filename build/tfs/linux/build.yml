@@ -1,6 +1,5 @@
 variables:
   VSCODE_BUILD_VERBOSE: true
-  System.Debug: true
 
 steps:
 
@@ -23,15 +22,17 @@ steps:
     versionSpec: "1.3.2"
 
 - script: |
+    echo "machine monacotools.visualstudio.com password $(VSO_PAT)" > ~/.netrc
     yarn
-    npm run gulp -- electron-x64
-
-- script: |
     npm run gulp -- hygiene
     ./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
-    npm run gulp -- vscode-linux-x64-min
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
+    node build/tfs/common/installDistro.js
+
+- script: |
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-linux-x64-min
   name: build
 
 - script: |
-    DISPLAY=:10 ./scripts/test.sh --build --reporter spec
+    ./scripts/test.sh --build --reporter dot
   name: test
