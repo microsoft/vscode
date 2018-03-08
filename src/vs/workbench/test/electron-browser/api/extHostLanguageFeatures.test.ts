@@ -324,8 +324,8 @@ suite('ExtHostLanguageFeatures', function () {
 				assert.equal(value.definitions.length, 2);
 				// let [first, second] = value;
 
-				assert.equal(value[0].uri.authority, 'second');
-				assert.equal(value[1].uri.authority, 'first');
+				assert.equal(value.definitions[0].uri.authority, 'second');
+				assert.equal(value.definitions[1].uri.authority, 'first');
 			});
 		});
 	});
@@ -372,16 +372,18 @@ suite('ExtHostLanguageFeatures', function () {
 			},
 			resolveDefinitionContext() {
 				return {
-					definingSymbolRange: new types.Range(1, 2, 1, 3)
+					definingSymbolRange: new types.Range(1, 3, 1, 4)
 				};
 			}
 		};
 		disposables.push(extHost.registerDefinitionProvider(defaultSelector, provider2));
 
 		return rpcProtocol.sync().then(() => {
-
-			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
-				assert.equal(value.firstProvider, provider1);
+			const pos = new EditorPosition(1, 1);
+			return getDefinitionsAtPosition(model, pos).then(value => {
+				return asWinJsPromise(token => value.firstProvider.resolveDefinitionContext(model, pos, token)).then(context => {
+					assert.equal(context.definingSymbolRange.endColumn, 5);
+				});
 			});
 		});
 	});
