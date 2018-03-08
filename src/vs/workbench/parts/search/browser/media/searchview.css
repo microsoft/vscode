@@ -53,6 +53,10 @@
 	margin-left: 3px;
 }
 
+.search-view .search-widget .replace-container .monaco-action-bar {
+	height: 25px;
+}
+
 .search-view .search-widget .replace-container .monaco-action-bar .action-item .icon {
 	background-repeat: no-repeat;
 	width: 20px;
