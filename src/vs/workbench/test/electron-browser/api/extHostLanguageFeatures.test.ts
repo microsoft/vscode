@@ -275,8 +275,8 @@ suite('ExtHostLanguageFeatures', function () {
 		return rpcProtocol.sync().then(() => {
 
 			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
-				assert.equal(value.length, 1);
-				let [entry] = value;
+				assert.equal(value.definitions.length, 1);
+				let [entry] = value.definitions;
 				assert.deepEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
 				assert.equal(entry.uri.toString(), model.uri.toString());
 			});
@@ -299,7 +299,7 @@ suite('ExtHostLanguageFeatures', function () {
 		return rpcProtocol.sync().then(() => {
 
 			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
-				assert.equal(value.length, 2);
+				assert.equal(value.definitions.length, 2);
 			});
 		});
 	});
@@ -321,7 +321,7 @@ suite('ExtHostLanguageFeatures', function () {
 		return rpcProtocol.sync().then(() => {
 
 			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
-				assert.equal(value.length, 2);
+				assert.equal(value.definitions.length, 2);
 				// let [first, second] = value;
 
 				assert.equal(value[0].uri.authority, 'second');
@@ -346,10 +346,46 @@ suite('ExtHostLanguageFeatures', function () {
 		return rpcProtocol.sync().then(() => {
 
 			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
-				assert.equal(value.length, 1);
+				assert.equal(value.definitions.length, 1);
 			});
 		});
 	});
+
+	test('Definition, resolve context order', function () {
+
+		const provider1 = {
+			provideDefinition(): any {
+				return [new types.Location(URI.parse('far://first'), new types.Range(2, 3, 4, 5))];
+			},
+			resolveDefinitionContext() {
+				return {
+					definingSymbolRange: new types.Range(1, 2, 1, 3)
+				};
+			}
+		};
+
+		disposables.push(extHost.registerDefinitionProvider(defaultSelector, provider1));
+
+		const provider2 = {
+			provideDefinition(): any {
+				return new types.Location(URI.parse('far://second'), new types.Range(1, 2, 3, 4));
+			},
+			resolveDefinitionContext() {
+				return {
+					definingSymbolRange: new types.Range(1, 2, 1, 3)
+				};
+			}
+		};
+		disposables.push(extHost.registerDefinitionProvider(defaultSelector, provider2));
+
+		return rpcProtocol.sync().then(() => {
+
+			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
+				assert.equal(value.firstProvider, provider1);
+			});
+		});
+	});
+
 
 	// --- implementation
 
@@ -363,8 +399,8 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 			return getImplementationsAtPosition(model, new EditorPosition(1, 1)).then(value => {
-				assert.equal(value.length, 1);
-				let [entry] = value;
+				assert.equal(value.definitions.length, 1);
+				let [entry] = value.definitions;
 				assert.deepEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
 				assert.equal(entry.uri.toString(), model.uri.toString());
 			});
@@ -383,8 +419,8 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 			return getTypeDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
-				assert.equal(value.length, 1);
-				let [entry] = value;
+				assert.equal(value.definitions.length, 1);
+				let [entry] = value.definitions;
 				assert.deepEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
 				assert.equal(entry.uri.toString(), model.uri.toString());
 			});

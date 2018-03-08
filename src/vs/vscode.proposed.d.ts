@@ -353,6 +353,10 @@ declare module 'vscode' {
 		text?: string;
 	}
 
+	export interface DefinitionContext {
+		definingSymbolRange?: Range;
+	}
+
 	export namespace languages {
 
 		/**
@@ -371,7 +375,16 @@ declare module 'vscode' {
 		export interface RenameProvider2 extends RenameProvider {
 			resolveInitialRenameValue?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameInitialValue>;
 		}
+
+		export interface DefinitionProvider2 extends DefinitionProvider {
+
+			/**
+			 * Provides additional information about a definition.
+			 */
+			resolveDefinitionContext?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<DefinitionContext>;
+		}
 	}
+
 	export interface FoldingProvider {
 		provideFoldingRanges(document: TextDocument, token: CancellationToken): ProviderResult<FoldingRangeList>;
 	}

@@ -112,7 +112,7 @@ export class DefinitionAction extends EditorAction {
 	}
 
 	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<Location[]> {
-		return getDefinitionsAtPosition(model, position);
+		return getDefinitionsAtPosition(model, position).then(result => result.definitions);
 	}
 
 	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
@@ -249,7 +249,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 
 export class ImplementationAction extends DefinitionAction {
 	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<Location[]> {
-		return getImplementationsAtPosition(model, position);
+		return getImplementationsAtPosition(model, position).then(result => result.definitions);
 	}
 
 	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
@@ -305,7 +305,7 @@ export class PeekImplementationAction extends ImplementationAction {
 
 export class TypeDefinitionAction extends DefinitionAction {
 	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<Location[]> {
-		return getTypeDefinitionsAtPosition(model, position);
+		return getTypeDefinitionsAtPosition(model, position).then(result => result.definitions);
 	}
 
 	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {

@@ -7,17 +7,17 @@
 
 import 'vs/css!./goToDeclarationMouse';
 import * as nls from 'vs/nls';
-import { Throttler } from 'vs/base/common/async';
+import { Throttler, asWinJsPromise } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Location, DefinitionProviderRegistry } from 'vs/editor/common/modes';
+import { DefinitionProviderRegistry, DefinitionProvider } from 'vs/editor/common/modes';
 import { ICodeEditor, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { getDefinitionsAtPosition } from './goToDeclaration';
+import { getDefinitionsAtPosition, DefintionsResult } from './goToDeclaration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -102,31 +102,32 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.throttler.queue(() => {
 			return state.validate(this.editor)
 				? this.findDefinition(mouseEvent.target)
-				: TPromise.wrap<Location[]>(null);
+				: TPromise.wrap<DefintionsResult<DefinitionProvider>>(null);
 
-		}).then(results => {
-			if (!results || !results.length || !state.validate(this.editor)) {
+		}).then(definitionResult => {
+			const locations = definitionResult.definitions;
+			if (!locations || !locations.length || !state.validate(this.editor)) {
 				this.removeDecorations();
 				return;
 			}
 
 			// Multiple results
-			if (results.length > 1) {
+			if (locations.length > 1) {
 				this.addDecoration(
 					new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
-					new MarkdownString().appendText(nls.localize('multipleResults', "Click to show {0} definitions.", results.length))
+					new MarkdownString().appendText(nls.localize('multipleResults', "Click to show {0} definitions.", locations.length))
 				);
 			}
 
 			// Single result
 			else {
-				let result = results[0];
+				let result = locations[0];
 
 				if (!result.uri) {
 					return;
 				}
 
-				this.textModelResolverService.createModelReference(result.uri).then(ref => {
+				this.textModelResolverService.createModelReference(result.uri).then(async ref => {
 
 					if (!ref.object || !ref.object.textEditorModel) {
 						ref.dispose();
@@ -157,8 +158,22 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 					const previewRange = new Range(startLineNumber, 1, endLineNumber + 1, 1);
 					const value = textEditorModel.getValueInRange(previewRange).replace(new RegExp(`^\\s{${minIndent - 1}}`, 'gm'), '').trim();
 
+					let wordRange: Range;
+					if (definitionResult.firstProvider && definitionResult.firstProvider.resolveDefinitionContext) {
+						const result = await asWinJsPromise(token =>
+							definitionResult.firstProvider.resolveDefinitionContext(textEditorModel, position, token));
+						if (result && result.definingSymbolRange) {
+							const range = result.definingSymbolRange;
+							wordRange = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+						}
+					}
+
+					if (!wordRange) {
+						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+					}
+
 					this.addDecoration(
-						new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
+						wordRange,
 						new MarkdownString().appendCodeblock(this.modeService.getModeIdByFilenameOrFirstLine(textEditorModel.uri.fsPath), value)
 					);
 					ref.dispose();
@@ -194,7 +209,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			DefinitionProviderRegistry.has(this.editor.getModel());
 	}
 
-	private findDefinition(target: IMouseTarget): TPromise<Location[]> {
+	private findDefinition(target: IMouseTarget): TPromise<DefintionsResult<DefinitionProvider> | null> {
 		let model = this.editor.getModel();
 		if (!model) {
 			return TPromise.as(null);

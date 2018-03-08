@@ -522,6 +522,10 @@ export interface Location {
  */
 export type Definition = Location | Location[];
 
+export interface DefinitionContext {
+	definingSymbolRange?: IRange;
+}
+
 /**
  * The definition provider interface defines the contract between extensions and
  * the [go to definition](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-definition)
@@ -532,6 +536,11 @@ export interface DefinitionProvider {
 	 * Provide the definition of the symbol at the given position and document.
 	 */
 	provideDefinition(model: model.ITextModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+
+	/**
+	 * Resolve additional information about the definition.
+	 */
+	resolveDefinitionContext?(model: model.ITextModel, position: Position, token: CancellationToken): DefinitionContext | Thenable<DefinitionContext>;
 }
 
 /**
