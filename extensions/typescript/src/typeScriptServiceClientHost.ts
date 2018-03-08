@@ -246,7 +246,7 @@ export default class TypeScriptServiceClientHost implements ITypeScriptServiceCl
 
 	private createMarkerDatas(diagnostics: Proto.Diagnostic[], source: string): Diagnostic[] {
 		const result: Diagnostic[] = [];
-		for (let diagnostic of diagnostics) {
+		for (const diagnostic of diagnostics) {
 			const { start, end, text } = diagnostic;
 			const range = new Range(tsLocationToVsPosition(start), tsLocationToVsPosition(end));
 			const converted = new Diagnostic(range, text);

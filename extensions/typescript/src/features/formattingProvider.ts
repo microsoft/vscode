@@ -89,7 +89,7 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 			if (!edits) {
 				return result;
 			}
-			for (let edit of edits) {
+			for (const edit of edits) {
 				let textEdit = this.codeEdit2SingleEditOperation(edit);
 				let range = textEdit.range;
 				// Work around for https://github.com/Microsoft/TypeScript/issues/6700.

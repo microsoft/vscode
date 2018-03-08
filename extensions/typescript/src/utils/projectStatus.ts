@@ -205,7 +205,7 @@ function computeLargeRoots(configFileName: string, fileNames: string[]): string[
 
 	// console.log(dir, fileNames);
 
-	for (let fileName of fileNames) {
+	for (const fileName of fileNames) {
 		if (fileName.indexOf(dir) === 0) {
 			let first = fileName.substring(dir.length + 1);
 			first = first.substring(0, first.indexOf('/'));
@@ -226,7 +226,7 @@ function computeLargeRoots(configFileName: string, fileNames: string[]): string[
 
 	let result: string[] = [];
 	let sum = 0;
-	for (let e of data) {
+	for (const e of data) {
 		sum += e.count;
 		result.push(e.root);
 		if (fileNames.length - sum < fileLimit) {
