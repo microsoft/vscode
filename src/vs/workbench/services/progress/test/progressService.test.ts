@@ -280,12 +280,12 @@ suite('Progress Service', () => {
 
 		// Acive: Show While
 		let p = TPromise.as(null);
-		service.showWhile(p).then(() => {
+		return service.showWhile(p).then(() => {
 			assert.strictEqual(true, testProgressBar.fDone);
 
 			viewletService.onDidViewletCloseEmitter.fire(testViewlet);
 			p = TPromise.as(null);
-			service.showWhile(p).then(() => {
+			return service.showWhile(p).then(() => {
 				assert.strictEqual(true, testProgressBar.fDone);
 
 				viewletService.onDidViewletOpenEmitter.fire(testViewlet);

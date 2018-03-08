@@ -15,7 +15,7 @@ import { WebviewFindWidget } from './webviewFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { normalize, nativeSep } from 'vs/base/common/paths';
+import { nativeSep } from 'vs/base/common/paths';
 import { startsWith } from 'vs/base/common/strings';
 
 export interface WebviewOptions {
@@ -322,16 +322,24 @@ export class Webview {
 			return;
 		}
 
+		const appRootUri = URI.file(this._environmentService.appRoot);
+
 		registerFileProtocol(contents, 'vscode-core-resource', () => [
-			this._environmentService.appRoot
+			appRootUri
 		]);
-		registerFileProtocol(contents, 'vscode-extension-resource', () => [
-			this._environmentService.extensionsPath,
-			this._environmentService.appRoot,
-			this._environmentService.extensionDevelopmentPath
-		]);
+
+		const extensionPaths = [
+			URI.file(this._environmentService.extensionsPath),
+			appRootUri,
+		];
+
+		if (this._environmentService.extensionDevelopmentPath) {
+			extensionPaths.push(URI.file(this._environmentService.extensionDevelopmentPath));
+		}
+		registerFileProtocol(contents, 'vscode-extension-resource', () => extensionPaths);
+
 		registerFileProtocol(contents, 'vscode-workspace-resource', () =>
-			(this._options.localResourceRoots || []).map(uri => uri.fsPath)
+			(this._options.localResourceRoots || [])
 		);
 	}
 
@@ -425,13 +433,13 @@ namespace ApiThemeClassName {
 function registerFileProtocol(
 	contents: Electron.WebContents,
 	protocol: string,
-	getRoots: () => string[]
+	getRoots: () => URI[]
 ) {
 	contents.session.protocol.registerFileProtocol(protocol, (request, callback: any) => {
-		const requestPath = URI.parse(request.url).fsPath;
+		const requestPath = URI.parse(request.url).path;
+		const normalizedPath = URI.file(requestPath).fsPath;
 		for (const root of getRoots()) {
-			const normalizedPath = normalize(requestPath, true);
-			if (startsWith(normalizedPath, root + nativeSep)) {
+			if (startsWith(normalizedPath, root.fsPath + nativeSep)) {
 				callback({ path: normalizedPath });
 				return;
 			}

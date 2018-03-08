@@ -223,11 +223,10 @@ suite('ExtensionEnablementService Test', () => {
 			.then(() => assert.ok(target.calledWithExactly({ id: 'pub.a', uuid: void 0 })));
 	});
 
-	test('test disable an extension for workspace when there is no workspace throws error', (done) => {
+	test('test disable an extension for workspace when there is no workspace throws error', () => {
 		instantiationService.stub(IWorkspaceContextService, 'getWorkbenchState', WorkbenchState.EMPTY);
 		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.WorkspaceDisabled)
-			.then(() => assert.fail('should throw an error'), error => assert.ok(error))
-			.then(done, done);
+			.then(() => assert.fail('should throw an error'), error => assert.ok(error));
 	});
 
 	test('test enable an extension globally', () => {
@@ -237,26 +236,23 @@ suite('ExtensionEnablementService Test', () => {
 			.then(extensions => assert.deepEqual([], extensions));
 	});
 
-	test('test enable an extension globally return truthy promise', (done) => {
-		testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Disabled)
+	test('test enable an extension globally return truthy promise', () => {
+		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Disabled)
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Enabled))
-			.then(value => assert.ok(value))
-			.then(done, done);
+			.then(value => assert.ok(value));
 	});
 
-	test('test enable an extension globally triggers change event', (done) => {
+	test('test enable an extension globally triggers change event', () => {
 		const target = sinon.spy();
-		testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Disabled)
+		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Disabled)
 			.then(() => testObject.onEnablementChanged(target))
 			.then(() => testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Enabled))
-			.then(() => assert.ok(target.calledWithExactly({ id: 'pub.a', uuid: void 0 })))
-			.then(done, done);
+			.then(() => assert.ok(target.calledWithExactly({ id: 'pub.a', uuid: void 0 })));
 	});
 
-	test('test enable an extension globally when already enabled return falsy promise', (done) => {
-		testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Enabled)
-			.then(value => assert.ok(!value))
-			.then(done, done);
+	test('test enable an extension globally when already enabled return falsy promise', () => {
+		return testObject.setEnablement(aLocalExtension('pub.a'), EnablementState.Enabled)
+			.then(value => assert.ok(!value));
 	});
 
 	test('test enable an extension for workspace', () => {

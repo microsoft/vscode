@@ -58,7 +58,7 @@ export class CommandLineDialogService implements IDialogService {
 	}
 
 	confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
-		return this.show(Severity.Info, confirmation.message, [confirmation.primaryButton, confirmation.secondaryButton || localize('no', "No")]).then(index => {
+		return this.show(Severity.Info, confirmation.message, [confirmation.primaryButton, confirmation.secondaryButton || localize('cancel', "Cancel")]).then(index => {
 			return {
 				confirmed: index === 0
 			} as IConfirmationResult;

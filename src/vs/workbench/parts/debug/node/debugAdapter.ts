@@ -215,6 +215,11 @@ export class Adapter {
 				default: null,
 				description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
 			};
+			properties['postDebugTask'] = {
+				type: ['string', 'null'],
+				default: null,
+				description: nls.localize('debugPostDebugTask', "Task to run after debug session ends.")
+			};
 			properties['internalConsoleOptions'] = INTERNAL_CONSOLE_OPTIONS_SCHEMA;
 
 			const osProperties = objects.deepClone(properties);

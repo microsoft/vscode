@@ -253,6 +253,14 @@ export class TerminalInstance implements ITerminalInstance {
 		// The panel is minimized
 		if (!this._isVisible) {
 			return TerminalInstance._lastKnownDimensions;
+		} else {
+			// Trigger scroll event manually so that the viewport's scroll area is synced. This
+			// needs to happen otherwise its scrollTop value is invalid when the panel is toggled as
+			// it gets removed and then added back to the DOM (resetting scrollTop to 0).
+			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
+			if (this._xterm) {
+				this._xterm.emit('scroll', this._xterm.buffer.ydisp);
+			}
 		}
 
 		if (!this._wrapperElement) {

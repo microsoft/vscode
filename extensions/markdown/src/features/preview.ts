@@ -257,7 +257,7 @@ export class MarkdownPreview {
 		}
 
 		if (!resource.scheme || resource.scheme === 'file') {
-			return [vscode.Uri.parse(path.dirname(resource.fsPath))];
+			return [vscode.Uri.file(path.dirname(resource.fsPath))];
 		}
 
 		return [];

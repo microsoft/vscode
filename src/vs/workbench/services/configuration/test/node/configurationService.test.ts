@@ -16,7 +16,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import extfs = require('vs/base/node/extfs');
+import pfs = require('vs/base/node/pfs');
 import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
@@ -91,13 +91,14 @@ suite('WorkspaceContextService - Folder', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (workspaceContextService) {
 			(<WorkspaceService>workspaceContextService).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('getWorkspace()', () => {
@@ -161,13 +162,14 @@ suite('WorkspaceContextService - Workspace', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (testObject) {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('workspace folders', () => {
@@ -282,7 +284,7 @@ suite('WorkspaceContextService - Workspace', () => {
 
 	test('remove folders and add them back by writing into the file', done => {
 		const folders = testObject.getWorkspace().folders;
-		return testObject.removeFolders([folders[0].uri])
+		testObject.removeFolders([folders[0].uri])
 			.then(() => {
 				testObject.onDidChangeWorkspaceFolders(actual => {
 					assert.deepEqual(actual.added.map(r => r.uri.toString()), [folders[0].uri.toString()]);
@@ -290,7 +292,7 @@ suite('WorkspaceContextService - Workspace', () => {
 				});
 				const workspace = { folders: [{ path: folders[0].uri.fsPath }, { path: folders[1].uri.fsPath }] };
 				fs.writeFileSync(testObject.getWorkspace().configuration.fsPath, JSON.stringify(workspace, null, '\t'));
-			});
+			}, done);
 	});
 
 	test('update folders (remove last and add to end)', () => {
@@ -423,13 +425,14 @@ suite('WorkspaceService - Initialization', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (testObject) {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('initialize a folder workspace from an empty workspace with no configuration changes', () => {
@@ -675,13 +678,14 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (testObject) {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('defaults', () => {
@@ -973,13 +977,14 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (testObject) {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('executable settings are not read from workspace', () => {

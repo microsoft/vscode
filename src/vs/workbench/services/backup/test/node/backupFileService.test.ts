@@ -11,7 +11,6 @@ import crypto = require('crypto');
 import os = require('os');
 import fs = require('fs');
 import path = require('path');
-import extfs = require('vs/base/node/extfs');
 import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backup/node/backupFileService';
@@ -52,21 +51,19 @@ class TestBackupFileService extends BackupFileService {
 suite('BackupFileService', () => {
 	let service: TestBackupFileService;
 
-	setup(done => {
+	setup(() => {
 		service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
 
 		// Delete any existing backups completely and then re-create it.
-		extfs.del(backupHome, os.tmpdir(), () => {
-			pfs.mkdirp(backupHome).then(() => {
-				pfs.writeFile(workspacesJsonPath, '').then(() => {
-					done();
-				});
+		return pfs.del(backupHome, os.tmpdir()).then(() => {
+			return pfs.mkdirp(backupHome).then(() => {
+				return pfs.writeFile(workspacesJsonPath, '');
 			});
 		});
 	});
 
-	teardown(done => {
-		extfs.del(backupHome, os.tmpdir(), done);
+	teardown(() => {
+		return pfs.del(backupHome, os.tmpdir());
 	});
 
 	suite('getBackupResource', () => {
@@ -90,16 +87,15 @@ suite('BackupFileService', () => {
 	});
 
 	suite('loadBackupResource', () => {
-		test('should return whether a backup resource exists', done => {
-			pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
+		test('should return whether a backup resource exists', () => {
+			return pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
 				fs.writeFileSync(fooBackupPath, 'foo');
 				service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
-				service.loadBackupResource(fooFile).then(resource => {
+				return service.loadBackupResource(fooFile).then(resource => {
 					assert.ok(resource);
 					assert.equal(path.basename(resource.fsPath), path.basename(fooBackupPath));
 					return service.hasBackups().then(hasBackups => {
 						assert.ok(hasBackups);
-						done();
 					});
 				});
 			});
@@ -107,165 +103,151 @@ suite('BackupFileService', () => {
 	});
 
 	suite('backupResource', () => {
-		test('text file', function (done: () => void) {
-			service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
+		test('text file', function () {
+			return service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
 				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 				assert.equal(fs.existsSync(fooBackupPath), true);
 				assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
-				done();
 			});
 		});
 
-		test('untitled file', function (done: () => void) {
-			service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
+		test('untitled file', function () {
+			return service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
 				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
 				assert.equal(fs.existsSync(untitledBackupPath), true);
 				assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\ntest`);
-				done();
 			});
 		});
 
-		test('text file (ITextSnapshot)', function (done: () => void) {
+		test('text file (ITextSnapshot)', function () {
 			const model = TextModel.createFromString('test');
 
-			service.backupResource(fooFile, model.createSnapshot()).then(() => {
+			return service.backupResource(fooFile, model.createSnapshot()).then(() => {
 				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 				assert.equal(fs.existsSync(fooBackupPath), true);
 				assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
 				model.dispose();
-				done();
 			});
 		});
 
-		test('untitled file (ITextSnapshot)', function (done: () => void) {
+		test('untitled file (ITextSnapshot)', function () {
 			const model = TextModel.createFromString('test');
 
-			service.backupResource(untitledFile, model.createSnapshot()).then(() => {
+			return service.backupResource(untitledFile, model.createSnapshot()).then(() => {
 				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
 				assert.equal(fs.existsSync(untitledBackupPath), true);
 				assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\ntest`);
 				model.dispose();
-				done();
 			});
 		});
 
-		test('text file (large file, ITextSnapshot)', function (done: () => void) {
+		test('text file (large file, ITextSnapshot)', function () {
 			const largeString = (new Array(10 * 1024)).join('Large String\n');
 			const model = TextModel.createFromString(largeString);
 
-			service.backupResource(fooFile, model.createSnapshot()).then(() => {
+			return service.backupResource(fooFile, model.createSnapshot()).then(() => {
 				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
 				assert.equal(fs.existsSync(fooBackupPath), true);
 				assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\n${largeString}`);
 				model.dispose();
-				done();
 			});
 		});
 
-		test('untitled file (large file, ITextSnapshot)', function (done: () => void) {
+		test('untitled file (large file, ITextSnapshot)', function () {
 			const largeString = (new Array(10 * 1024)).join('Large String\n');
 			const model = TextModel.createFromString(largeString);
 
-			service.backupResource(untitledFile, model.createSnapshot()).then(() => {
+			return service.backupResource(untitledFile, model.createSnapshot()).then(() => {
 				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
 				assert.equal(fs.existsSync(untitledBackupPath), true);
 				assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\n${largeString}`);
 				model.dispose();
-				done();
 			});
 		});
 	});
 
 	suite('discardResourceBackup', () => {
-		test('text file', function (done: () => void) {
-			service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
+		test('text file', function () {
+			return service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
 				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
-				service.discardResourceBackup(fooFile).then(() => {
+				return service.discardResourceBackup(fooFile).then(() => {
 					assert.equal(fs.existsSync(fooBackupPath), false);
 					assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 0);
-					done();
 				});
 			});
 		});
 
-		test('untitled file', function (done: () => void) {
-			service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
+		test('untitled file', function () {
+			return service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
 				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
-				service.discardResourceBackup(untitledFile).then(() => {
+				return service.discardResourceBackup(untitledFile).then(() => {
 					assert.equal(fs.existsSync(untitledBackupPath), false);
 					assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 0);
-					done();
 				});
 			});
 		});
 	});
 
 	suite('discardAllWorkspaceBackups', () => {
-		test('text file', function (done: () => void) {
-			service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
+		test('text file', function () {
+			return service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
 				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
-				service.backupResource(barFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
+				return service.backupResource(barFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
 					assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 2);
-					service.discardAllWorkspaceBackups().then(() => {
+					return service.discardAllWorkspaceBackups().then(() => {
 						assert.equal(fs.existsSync(fooBackupPath), false);
 						assert.equal(fs.existsSync(barBackupPath), false);
 						assert.equal(fs.existsSync(path.join(workspaceBackupPath, 'file')), false);
-						done();
 					});
 				});
 			});
 		});
 
-		test('untitled file', function (done: () => void) {
-			service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
+		test('untitled file', function () {
+			return service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
 				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
-				service.discardAllWorkspaceBackups().then(() => {
+				return service.discardAllWorkspaceBackups().then(() => {
 					assert.equal(fs.existsSync(untitledBackupPath), false);
 					assert.equal(fs.existsSync(path.join(workspaceBackupPath, 'untitled')), false);
-					done();
 				});
 			});
 		});
 
-		test('should disable further backups', function (done: () => void) {
-			service.discardAllWorkspaceBackups().then(() => {
-				service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
+		test('should disable further backups', function () {
+			return service.discardAllWorkspaceBackups().then(() => {
+				return service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
 					assert.equal(fs.existsSync(workspaceBackupPath), false);
-					done();
 				});
 			});
 		});
 	});
 
 	suite('getWorkspaceFileBackups', () => {
-		test('("file") - text file', done => {
-			service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
-				service.getWorkspaceFileBackups().then(textFiles => {
+		test('("file") - text file', () => {
+			return service.backupResource(fooFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
+				return service.getWorkspaceFileBackups().then(textFiles => {
 					assert.deepEqual(textFiles.map(f => f.fsPath), [fooFile.fsPath]);
-					service.backupResource(barFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
-						service.getWorkspaceFileBackups().then(textFiles => {
+					return service.backupResource(barFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
+						return service.getWorkspaceFileBackups().then(textFiles => {
 							assert.deepEqual(textFiles.map(f => f.fsPath), [fooFile.fsPath, barFile.fsPath]);
-							done();
 						});
 					});
 				});
 			});
 		});
 
-		test('("file") - untitled file', done => {
-			service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
-				service.getWorkspaceFileBackups().then(textFiles => {
+		test('("file") - untitled file', () => {
+			return service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
+				return service.getWorkspaceFileBackups().then(textFiles => {
 					assert.deepEqual(textFiles.map(f => f.fsPath), [untitledFile.fsPath]);
-					done();
 				});
 			});
 		});
 
-		test('("untitled") - untitled file', done => {
-			service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
-				service.getWorkspaceFileBackups().then(textFiles => {
+		test('("untitled") - untitled file', () => {
+			return service.backupResource(untitledFile, createTextBufferFactory('test').create(DefaultEndOfLine.LF).createSnapshot(false)).then(() => {
+				return service.getWorkspaceFileBackups().then(textFiles => {
 					assert.deepEqual(textFiles.map(f => f.fsPath), ['Untitled-1']);
-					done();
 				});
 			});
 		});
@@ -346,16 +328,14 @@ suite('BackupFilesModel', () => {
 		assert.equal(model.has(resource4), true);
 	});
 
-	test('resolve', (done) => {
-		pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
+	test('resolve', () => {
+		return pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
 			fs.writeFileSync(fooBackupPath, 'foo');
 
 			const model = new BackupFilesModel();
 
-			model.resolve(workspaceBackupPath).then(model => {
+			return model.resolve(workspaceBackupPath).then(model => {
 				assert.equal(model.has(Uri.file(fooBackupPath)), true);
-
-				done();
 			});
 		});
 	});

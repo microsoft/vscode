@@ -38,7 +38,7 @@ suite('Workbench - EditorModel', () => {
 		accessor = instantiationService.createInstance(ServiceAccessor);
 	});
 
-	test('TextDiffEditorModel', function (done) {
+	test('TextDiffEditorModel', function () {
 		const dispose = accessor.textModelResolverService.registerTextModelContentProvider('test', {
 			provideTextContent: function (resource: URI): TPromise<ITextModel> {
 				if (resource.scheme === 'test') {
@@ -55,7 +55,7 @@ suite('Workbench - EditorModel', () => {
 		let otherInput = instantiationService.createInstance(ResourceEditorInput, 'name2', 'description', URI.from({ scheme: 'test', authority: null, path: 'thePath' }));
 		let diffInput = new DiffEditorInput('name', 'description', input, otherInput);
 
-		diffInput.resolve(true).then((model: any) => {
+		return diffInput.resolve(true).then((model: any) => {
 			assert(model);
 			assert(model instanceof TextDiffEditorModel);
 
@@ -72,8 +72,6 @@ suite('Workbench - EditorModel', () => {
 
 				dispose.dispose();
 			});
-		}).done(() => {
-			done();
 		});
 	});
 });

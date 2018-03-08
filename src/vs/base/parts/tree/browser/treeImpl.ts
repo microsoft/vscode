@@ -131,7 +131,7 @@ export class Tree implements _.ITree {
 	}
 
 	public isDOMFocused(): boolean {
-		return this.view.isFocused();
+		return this.view && this.view.isFocused();
 	}
 
 	public domBlur(): void {
