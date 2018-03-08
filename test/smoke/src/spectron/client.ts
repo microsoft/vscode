@@ -25,10 +25,6 @@ export class SpectronClient {
 		this.retryCount = (waitTime * 1000) / this.retryDuration;
 	}
 
-	windowByIndex(index: number): Promise<any> {
-		return this.spectron.client.windowByIndex(index);
-	}
-
 	keys(keys: string[]): Promise<void> {
 		this.spectron.client.keys(keys);
 		return Promise.resolve();
@@ -52,10 +48,6 @@ export class SpectronClient {
 	async waitForValue(selector: string, value?: string, accept?: (result: string) => boolean): Promise<any> {
 		accept = accept ? accept : result => value !== void 0 ? value === result : !!result;
 		return this.waitFor(() => this.spectron.client.getValue(selector), accept, `getValue with selector ${selector}`);
-	}
-
-	async waitForHTML(selector: string, accept: (result: string) => boolean = (result: string) => !!result): Promise<any> {
-		return this.waitFor(() => this.spectron.client.getHTML(selector), accept, `getHTML with selector ${selector}`);
 	}
 
 	async waitAndClick(selector: string): Promise<any> {

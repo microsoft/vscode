@@ -11,7 +11,8 @@ import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/conver
 
 export default class TypeScriptDefinitionProviderBase {
 	constructor(
-		private client: ITypeScriptServiceClient) { }
+		private client: ITypeScriptServiceClient
+	) { }
 
 	protected async getSymbolLocations(
 		definitionType: 'definition' | 'implementation' | 'typeDefinition',

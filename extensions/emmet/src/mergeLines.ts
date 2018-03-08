@@ -8,10 +8,11 @@ import { Node } from 'EmmetNode';
 import { getNode, parseDocument, validate } from './util';
 
 export function mergeLines() {
-	let editor = vscode.window.activeTextEditor;
-	if (!validate(false)) {
+	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
 	}
+
+	const editor = vscode.window.activeTextEditor;
 
 	let rootNode = parseDocument(editor.document);
 	if (!rootNode) {
@@ -20,7 +21,7 @@ export function mergeLines() {
 
 	return editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
-			let textEdit = getRangesToReplace(editor.document, selection, rootNode);
+			let textEdit = getRangesToReplace(editor.document, selection, rootNode!);
 			if (textEdit) {
 				editBuilder.replace(textEdit.range, textEdit.newText);
 			}
@@ -28,9 +29,9 @@ export function mergeLines() {
 	});
 }
 
-function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): vscode.TextEdit {
-	let startNodeToUpdate: Node;
-	let endNodeToUpdate: Node;
+function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): vscode.TextEdit | undefined {
+	let startNodeToUpdate: Node | null;
+	let endNodeToUpdate: Node | null;
 
 	if (selection.isEmpty) {
 		startNodeToUpdate = endNodeToUpdate = getNode(rootNode, selection.start);

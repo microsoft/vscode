@@ -15,7 +15,7 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
  */
 export class MenuPreventer extends Disposable implements IEditorContribution {
 
-	private static ID = 'editor.contrib.menuPreventer';
+	private static readonly ID = 'editor.contrib.menuPreventer';
 
 	private _editor: ICodeEditor;
 	private _altListeningMouse: boolean;

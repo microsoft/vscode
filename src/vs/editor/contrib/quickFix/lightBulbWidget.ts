@@ -12,7 +12,7 @@ import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveM
 import * as dom from 'vs/base/browser/dom';
 import { ICodeEditor, IContentWidget, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { QuickFixComputeEvent } from './quickFixModel';
-import { computeIndentLevel } from 'vs/editor/common/model/modelLine';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 export class LightBulbWidget implements IDisposable, IContentWidget {
 
@@ -38,7 +38,15 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 
 		this._disposables.push(this._editor.onDidChangeModel(_ => this._futureFixes.cancel()));
 		this._disposables.push(this._editor.onDidChangeModelLanguage(_ => this._futureFixes.cancel()));
+		this._disposables.push(this._editor.onDidChangeModelContent(_ => {
+			// cancel when the line in question has been removed
+			if (this._model && this.model.position.lineNumber >= this._editor.getModel().getLineCount()) {
+				this._futureFixes.cancel();
+			}
+		}));
 		this._disposables.push(dom.addStandardDisposableListener(this._domNode, 'click', e => {
+			// Make sure that focus / cursor location is not lost when clicking widget icon
+			this._editor.focus();
 			// a bit of extra work to make sure the menu
 			// doesn't cover the line-text
 			const { top, height } = dom.getDomNodePagePosition(this._domNode);
@@ -139,7 +147,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		const model = this._editor.getModel();
 		const tabSize = model.getOptions().tabSize;
 		const lineContent = model.getLineContent(lineNumber);
-		const indent = computeIndentLevel(lineContent, tabSize);
+		const indent = TextModel.computeIndentLevel(lineContent, tabSize);
 		const lineHasSpace = config.fontInfo.spaceWidth * indent > 22;
 
 		let effectiveLineNumber = lineNumber;

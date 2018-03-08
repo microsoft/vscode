@@ -151,15 +151,6 @@ export class ConfigurationModel implements IConfigurationModel {
 		}
 	}
 
-	public setValueInOverrides(overrideIdentifier: string, key: string, value: any): void {
-		let override = this.overrides.filter(override => override.identifiers.indexOf(overrideIdentifier) !== -1)[0];
-		if (!override) {
-			override = { identifiers: [overrideIdentifier], contents: {} };
-			this.overrides.push(override);
-		}
-		addToValueTree(override.contents, key, value, e => { throw new Error(e); });
-	}
-
 	private addKey(key: string): void {
 		let index = this.keys.length;
 		for (let i = 0; i < index; i++) {
@@ -295,7 +286,8 @@ export class Configuration {
 		private _workspaceConfiguration: ConfigurationModel = new ConfigurationModel(),
 		private _folderConfigurations: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>(),
 		private _memoryConfiguration: ConfigurationModel = new ConfigurationModel(),
-		private _memoryConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>()) {
+		private _memoryConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>(),
+		private _freeze: boolean = true) {
 	}
 
 	getValue(section: string, overrides: IConfigurationOverrides, workspace: Workspace): any {
@@ -406,14 +398,6 @@ export class Configuration {
 		return this._folderConfigurations;
 	}
 
-	private get memory(): ConfigurationModel {
-		return this._memoryConfiguration;
-	}
-
-	private get memoryByResource(): StrictResourceMap<ConfigurationModel> {
-		return this._memoryConfigurationByResource;
-	}
-
 	private getConsolidateConfigurationModel(overrides: IConfigurationOverrides, workspace: Workspace): ConfigurationModel {
 		let configurationModel = this.getConsolidatedConfigurationModelForResource(overrides, workspace);
 		return overrides.overrideIdentifier ? configurationModel.override(overrides.overrideIdentifier) : configurationModel;
@@ -438,7 +422,10 @@ export class Configuration {
 
 	private getWorkspaceConsolidatedConfiguration(): ConfigurationModel {
 		if (!this._workspaceConsolidatedConfiguration) {
-			this._workspaceConsolidatedConfiguration = this._defaultConfiguration.merge(this._userConfiguration).merge(this._workspaceConfiguration).merge(this._memoryConfiguration).freeze();
+			this._workspaceConsolidatedConfiguration = this._defaultConfiguration.merge(this._userConfiguration, this._workspaceConfiguration, this._memoryConfiguration);
+			if (this._freeze) {
+				this._workspaceConfiguration = this._workspaceConfiguration.freeze();
+			}
 		}
 		return this._workspaceConsolidatedConfiguration;
 	}
@@ -449,7 +436,10 @@ export class Configuration {
 			const workspaceConsolidateConfiguration = this.getWorkspaceConsolidatedConfiguration();
 			const folderConfiguration = this._folderConfigurations.get(folder);
 			if (folderConfiguration) {
-				folderConsolidatedConfiguration = workspaceConsolidateConfiguration.merge(folderConfiguration).freeze();
+				folderConsolidatedConfiguration = workspaceConsolidateConfiguration.merge(folderConfiguration);
+				if (this._freeze) {
+					folderConsolidatedConfiguration = folderConsolidatedConfiguration.freeze();
+				}
 				this._foldersConsolidatedConfigurations.set(folder, folderConsolidatedConfiguration);
 			} else {
 				folderConsolidatedConfiguration = workspaceConsolidateConfiguration;
@@ -509,21 +499,6 @@ export class Configuration {
 			addKeys(this.folders.get(resource).keys);
 		}
 		return all;
-	}
-
-	public static parse(data: IConfigurationData): Configuration {
-		const defaultConfiguration = Configuration.parseConfigurationModel(data.defaults);
-		const userConfiguration = Configuration.parseConfigurationModel(data.user);
-		const workspaceConfiguration = Configuration.parseConfigurationModel(data.workspace);
-		const folders: StrictResourceMap<ConfigurationModel> = Object.keys(data.folders).reduce((result, key) => {
-			result.set(URI.parse(key), Configuration.parseConfigurationModel(data.folders[key]));
-			return result;
-		}, new StrictResourceMap<ConfigurationModel>());
-		return new Configuration(defaultConfiguration, userConfiguration, workspaceConfiguration, folders);
-	}
-
-	private static parseConfigurationModel(model: IConfigurationModel): ConfigurationModel {
-		return new ConfigurationModel(model.contents, model.keys, model.overrides).freeze();
 	}
 }
 

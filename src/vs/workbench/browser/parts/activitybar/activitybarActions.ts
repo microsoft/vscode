@@ -25,7 +25,7 @@ import { ActivityAction, ActivityActionItem, ICompositeBarColors } from 'vs/work
 
 export class ViewletActivityAction extends ActivityAction {
 
-	private static preventDoubleClickDelay = 300;
+	private static readonly preventDoubleClickDelay = 300;
 
 	private lastRun: number = 0;
 

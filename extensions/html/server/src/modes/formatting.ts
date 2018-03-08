@@ -6,11 +6,11 @@
 
 import { applyEdits } from '../utils/edits';
 import { TextDocument, Range, TextEdit, FormattingOptions, Position } from 'vscode-languageserver-types';
-import { LanguageModes, Settings } from './languageModes';
+import { LanguageModes, Settings, LanguageModeRange } from './languageModes';
 import { pushAll } from '../utils/arrays';
 import { isEOL } from '../utils/strings';
 
-export function format(languageModes: LanguageModes, document: TextDocument, formatRange: Range, formattingOptions: FormattingOptions, settings: Settings, enabledModes: { [mode: string]: boolean }) {
+export function format(languageModes: LanguageModes, document: TextDocument, formatRange: Range, formattingOptions: FormattingOptions, settings: Settings | undefined, enabledModes: { [mode: string]: boolean }) {
 	let result: TextEdit[] = [];
 
 	let endPos = formatRange.end;
@@ -37,9 +37,11 @@ export function format(languageModes: LanguageModes, document: TextDocument, for
 	let allRanges = languageModes.getModesInRange(document, formatRange);
 	let i = 0;
 	let startPos = formatRange.start;
-	while (i < allRanges.length && allRanges[i].mode.getId() !== 'html') {
+	let isHTML = (range: LanguageModeRange) => range.mode && range.mode.getId() === 'html';
+
+	while (i < allRanges.length && !isHTML(allRanges[i])) {
 		let range = allRanges[i];
-		if (!range.attributeValue && range.mode.format) {
+		if (!range.attributeValue && range.mode && range.mode.format) {
 			let edits = range.mode.format(document, Range.create(startPos, range.end), formattingOptions, settings);
 			pushAll(result, edits);
 		}

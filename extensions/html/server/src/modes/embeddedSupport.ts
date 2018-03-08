@@ -8,21 +8,21 @@
 import { TextDocument, Position, LanguageService, TokenType, Range } from 'vscode-html-languageservice';
 
 export interface LanguageRange extends Range {
-	languageId: string;
+	languageId: string | undefined;
 	attributeValue?: boolean;
 }
 
 export interface HTMLDocumentRegions {
 	getEmbeddedDocument(languageId: string, ignoreAttributeValues?: boolean): TextDocument;
 	getLanguageRanges(range: Range): LanguageRange[];
-	getLanguageAtPosition(position: Position): string;
+	getLanguageAtPosition(position: Position): string | undefined;
 	getLanguagesInDocument(): string[];
 	getImportedScripts(): string[];
 }
 
 export var CSS_STYLE_RULE = '__';
 
-interface EmbeddedRegion { languageId: string; start: number; end: number; attributeValue?: boolean; }
+interface EmbeddedRegion { languageId: string | undefined; start: number; end: number; attributeValue?: boolean; }
 
 
 export function getDocumentRegions(languageService: LanguageService, document: TextDocument): HTMLDocumentRegions {
@@ -45,7 +45,7 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 				regions.push({ languageId: 'css', start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
 				break;
 			case TokenType.Script:
-				regions.push({ languageId: languageIdFromType!, start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
+				regions.push({ languageId: languageIdFromType, start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
 				break;
 			case TokenType.AttributeName:
 				lastAttributeName = scanner.getTokenText();
@@ -146,7 +146,7 @@ function getLanguagesInDocument(document: TextDocument, regions: EmbeddedRegion[
 	return result;
 }
 
-function getLanguageAtPosition(document: TextDocument, regions: EmbeddedRegion[], position: Position): string {
+function getLanguageAtPosition(document: TextDocument, regions: EmbeddedRegion[], position: Position): string | undefined {
 	let offset = document.offsetAt(position);
 	for (let region of regions) {
 		if (region.start <= offset) {

@@ -15,10 +15,10 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 
 export class ToggleSidebarPositionAction extends Action {
 
-	public static ID = 'workbench.action.toggleSidebarPosition';
-	public static LABEL = nls.localize('toggleLocation', "Toggle Side Bar Location");
+	public static readonly ID = 'workbench.action.toggleSidebarPosition';
+	public static readonly LABEL = nls.localize('toggleSidebarPosition', "Toggle Side Bar Position");
 
-	private static sidebarPositionConfigurationKey = 'workbench.sideBar.location';
+	private static readonly sidebarPositionConfigurationKey = 'workbench.sideBar.location';
 
 	constructor(
 		id: string,
@@ -40,4 +40,4 @@ export class ToggleSidebarPositionAction extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarPositionAction, ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.LABEL), 'View: Toggle Side Bar Location', nls.localize('view', "View"));
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarPositionAction, ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.LABEL), 'View: Toggle Side Bar Position', nls.localize('view', "View"));

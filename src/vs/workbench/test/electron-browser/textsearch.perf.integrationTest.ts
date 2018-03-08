@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/workbench/parts/search/browser/search.contribution'; // load contributions
+import 'vs/workbench/parts/search/electron-browser/search.contribution'; // load contributions
 import * as assert from 'assert';
 import * as fs from 'fs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -34,6 +34,7 @@ import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 
 import Event, * as event from 'vs/base/common/event';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 
 declare var __dirname: string;
 
@@ -67,7 +68,8 @@ suite('TextSearch performance (integration)', () => {
 			[IEditorGroupService, new TestEditorGroupService()],
 			[IEnvironmentService, TestEnvironmentService],
 			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
-			[ISearchService, createSyncDescriptor(SearchService)]
+			[ISearchService, createSyncDescriptor(SearchService)],
+			[ILogService, new NullLogService()]
 		));
 
 		const queryOptions: IQueryOptions = {

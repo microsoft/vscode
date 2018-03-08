@@ -1,12 +1,13 @@
 {
     "name": "emmet",
-    "displayName": "emmet",
-    "description": "Emmet support for VS Code",
-    "version": "0.0.1",
+    "displayName": "Emmet",
+    "description": "%description%",
+    "version": "1.0.0",
     "publisher": "vscode",
     "engines": {
         "vscode": "^1.13.0"
     },
+    "icon": "images/icon.png",
     "categories": [
         "Other"
     ],
@@ -159,6 +160,45 @@
                                 "class"
                             ],
                             "description": "%emmetPreferencesFilterCommentTrigger%"
+                        },
+                        "format.noIndentTags": {
+                            "type": "array",
+                            "default": [
+                                "html"
+                            ],
+                            "description": "%emmetPreferencesFormatNoIndentTags%"
+                        },
+                        "format.forceIndentationForTags": {
+                            "type": "array",
+                            "default": [
+                                "body"
+                            ],
+                            "description": "%emmetPreferencesFormatForceIndentTags%"
+                        },
+                        "profile.allowCompactBoolean": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "%emmetPreferencesAllowCompactBoolean%"
+                        },
+                        "css.webkitProperties": {
+                            "type": "string",
+                            "default": null,
+                            "description": "%emmetPreferencesCssWebkitProperties%"
+                        },
+                        "css.mozProperties": {
+                            "type": "string",
+                            "default": null,
+                            "description": "%emmetPreferencesCssMozProperties%"
+                        },
+                        "css.oProperties": {
+                            "type": "string",
+                            "default": null,
+                            "description": "%emmetPreferencesCssOProperties%"
+                        },
+                        "css.msProperties": {
+                            "type": "string",
+                            "default": null,
+                            "description": "%emmetPreferencesCssMsProperties%"
                         }
                     }
                 },
@@ -291,16 +331,16 @@
         "compile": "gulp compile-extension:emmet"
     },
     "devDependencies": {
-        "@types/node": "7.0.43",
+        "@types/node": "8.0.33",
         "vscode": "1.0.1"
     },
     "dependencies": {
-        "@emmetio/html-matcher": "^0.3.1",
+        "@emmetio/html-matcher": "^0.3.3",
         "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
         "@emmetio/math-expression": "^0.1.1",
-        "vscode-emmet-helper": "^1.1.17",
-        "vscode-languageserver-types": "^3.0.3",
+        "vscode-emmet-helper": "^1.2.0",
+        "vscode-languageserver-types": "^3.5.0",
         "image-size": "^0.5.2",
-        "vscode-nls": "2.0.2"
+        "vscode-nls": "3.2.1"
     }
 }

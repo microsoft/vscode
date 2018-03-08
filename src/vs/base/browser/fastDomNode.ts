@@ -201,10 +201,6 @@ export class FastDomNode<T extends HTMLElement> {
 		this.domNode.setAttribute(name, value);
 	}
 
-	public getAttribute(name: string): string {
-		return this.domNode.getAttribute(name);
-	}
-
 	public removeAttribute(name: string): void {
 		this.domNode.removeAttribute(name);
 	}

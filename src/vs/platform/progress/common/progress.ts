@@ -31,6 +31,12 @@ export interface IProgressRunner {
 	done(): void;
 }
 
+export const emptyProgressRunner: IProgressRunner = Object.freeze({
+	total() { },
+	worked() { },
+	done() { }
+});
+
 export interface IProgress<T> {
 	report(item: T): void;
 }
@@ -57,8 +63,10 @@ export class Progress<T> implements IProgress<T> {
 }
 
 export enum ProgressLocation {
-	Scm = 1,
-	Window = 10,
+	Explorer = 1,
+	Scm = 3,
+	Extensions = 5,
+	Window = 10
 }
 
 export interface IProgressOptions {
@@ -78,5 +86,5 @@ export interface IProgressService2 {
 
 	_serviceBrand: any;
 
-	withProgress(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => TPromise<any>): void;
+	withProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P): P;
 }

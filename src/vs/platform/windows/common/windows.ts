@@ -15,6 +15,7 @@ import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { PerformanceEntry } from 'vs/base/common/performance';
+import { LogLevel } from 'vs/platform/log/common/log';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -98,11 +99,16 @@ export interface IWindowsService {
 	onWindowFocus: Event<number>;
 	onWindowBlur: Event<number>;
 
+	// Dialogs
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
-	reloadWindow(windowId: number): TPromise<void>;
+	showMessageBox(windowId: number, options: MessageBoxOptions): TPromise<IMessageBoxResult>;
+	showSaveDialog(windowId: number, options: SaveDialogOptions): TPromise<string>;
+	showOpenDialog(windowId: number, options: OpenDialogOptions): TPromise<string[]>;
+
+	reloadWindow(windowId: number, args?: ParsedArgs): TPromise<void>;
 	openDevTools(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
@@ -154,6 +160,8 @@ export interface IWindowsService {
 
 	// TODO: this is a bit backwards
 	startCrashReporter(config: CrashReporterStartOptions): TPromise<void>;
+
+	openAboutDialog(): TPromise<void>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
@@ -175,7 +183,7 @@ export interface IWindowService {
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
-	reloadWindow(): TPromise<void>;
+	reloadWindow(args?: ParsedArgs): TPromise<void>;
 	openDevTools(): TPromise<void>;
 	toggleDevTools(): TPromise<void>;
 	closeWorkspace(): TPromise<void>;
@@ -191,10 +199,9 @@ export interface IWindowService {
 	setDocumentEdited(flag: boolean): TPromise<void>;
 	onWindowTitleDoubleClick(): TPromise<void>;
 	show(): TPromise<void>;
-	showMessageBoxSync(options: MessageBoxOptions): number;
 	showMessageBox(options: MessageBoxOptions): TPromise<IMessageBoxResult>;
-	showSaveDialog(options: SaveDialogOptions, callback?: (fileName: string) => void): string;
-	showOpenDialog(options: OpenDialogOptions, callback?: (fileNames: string[]) => void): string[];
+	showSaveDialog(options: SaveDialogOptions): TPromise<string>;
+	showOpenDialog(options: OpenDialogOptions): TPromise<string[]>;
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';
@@ -207,7 +214,6 @@ export interface IWindowSettings {
 	openFilesInNewWindow: 'on' | 'off' | 'default';
 	openFoldersInNewWindow: 'on' | 'off' | 'default';
 	restoreWindows: 'all' | 'folders' | 'one' | 'none';
-	reopenFolders: 'all' | 'one' | 'none'; // TODO@Ben deprecated
 	restoreFullscreen: boolean;
 	zoomLevel: number;
 	titleBarStyle: 'native' | 'custom';
@@ -292,6 +298,10 @@ export interface IAddFoldersRequest {
 }
 
 export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
+	machineId: string;
+	windowId: number;
+	logLevel: LogLevel;
+
 	appRoot: string;
 	execPath: string;
 	isInitialStartup?: boolean;

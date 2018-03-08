@@ -11,37 +11,37 @@ import { CompletionModel } from 'vs/editor/contrib/suggest/completionModel';
 import { IPosition } from 'vs/editor/common/core/position';
 import { TPromise } from 'vs/base/common/winjs.base';
 
-suite('CompletionModel', function () {
+export function createSuggestItem(label: string, overwriteBefore: number, type: SuggestionType = 'property', incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }): ISuggestionItem {
 
-	function createSuggestItem(label: string, overwriteBefore: number, type: SuggestionType = 'property', incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }): ISuggestionItem {
+	return new class implements ISuggestionItem {
 
-		return new class implements ISuggestionItem {
+		position = position;
 
-			position = position;
+		suggestion: ISuggestion = {
+			label,
+			overwriteBefore,
+			insertText: label,
+			type
+		};
 
-			suggestion: ISuggestion = {
-				label,
-				overwriteBefore,
-				insertText: label,
-				type
-			};
+		container: ISuggestResult = {
+			incomplete,
+			suggestions: [this.suggestion]
+		};
 
-			container: ISuggestResult = {
-				incomplete,
-				suggestions: [this.suggestion]
-			};
-
-			support: ISuggestSupport = {
-				provideCompletionItems(): any {
-					return;
-				}
-			};
-
-			resolve(): TPromise<void> {
-				return null;
+		support: ISuggestSupport = {
+			provideCompletionItems(): any {
+				return;
 			}
 		};
-	}
+
+		resolve(): TPromise<void> {
+			return null;
+		}
+	};
+}
+suite('CompletionModel', function () {
+
 
 	let model: CompletionModel;
 
@@ -225,7 +225,74 @@ suite('CompletionModel', function () {
 		const [first, second] = model.items;
 		assert.equal(first.suggestion.label, 'source');
 		assert.equal(second.suggestion.label, '<- groups');
-
 	});
 
+	test('Score only filtered items when typing more, score all when typing less', function () {
+		model = new CompletionModel([
+			createSuggestItem('console', 0, 'property'),
+			createSuggestItem('co_new', 0, 'property'),
+			createSuggestItem('bar', 0, 'property'),
+			createSuggestItem('car', 0, 'property'),
+			createSuggestItem('foo', 0, 'property'),
+		], 1, {
+				leadingLineContent: '',
+				characterCountDelta: 0
+			}, 'inline');
+
+		assert.equal(model.items.length, 5);
+
+		// narrow down once
+		model.lineContext = { leadingLineContent: 'c', characterCountDelta: 1 };
+		assert.equal(model.items.length, 3);
+
+		// query gets longer, narrow down the narrow-down'ed-set from before
+		model.lineContext = { leadingLineContent: 'cn', characterCountDelta: 2 };
+		assert.equal(model.items.length, 2);
+
+		// query gets shorter, refilter everything
+		model.lineContext = { leadingLineContent: '', characterCountDelta: 0 };
+		assert.equal(model.items.length, 5);
+	});
+
+	test('Have more relaxed suggest matching algorithm #15419', function () {
+		model = new CompletionModel([
+			createSuggestItem('result', 0, 'property'),
+			createSuggestItem('replyToUser', 0, 'property'),
+			createSuggestItem('randomLolut', 0, 'property'),
+			createSuggestItem('car', 0, 'property'),
+			createSuggestItem('foo', 0, 'property'),
+		], 1, {
+				leadingLineContent: '',
+				characterCountDelta: 0
+			}, 'inline');
+
+		// query gets longer, narrow down the narrow-down'ed-set from before
+		model.lineContext = { leadingLineContent: 'rlut', characterCountDelta: 4 };
+		assert.equal(model.items.length, 3);
+
+		const [first, second, third] = model.items;
+		assert.equal(first.suggestion.label, 'result'); // best with `rult`
+		assert.equal(second.suggestion.label, 'replyToUser');  // best with `rltu`
+		assert.equal(third.suggestion.label, 'randomLolut');  // best with `rlut`
+	});
+
+	test('Emmet suggestion not appearing at the top of the list in jsx files, #39518', function () {
+		model = new CompletionModel([
+			createSuggestItem('from', 0, 'property'),
+			createSuggestItem('form', 0, 'property'),
+			createSuggestItem('form:get', 0, 'property'),
+			createSuggestItem('testForeignMeasure', 0, 'property'),
+			createSuggestItem('fooRoom', 0, 'property'),
+		], 1, {
+				leadingLineContent: '',
+				characterCountDelta: 0
+			}, 'inline');
+
+		model.lineContext = { leadingLineContent: 'form', characterCountDelta: 4 };
+		assert.equal(model.items.length, 5);
+		const [first, second, third] = model.items;
+		assert.equal(first.suggestion.label, 'form'); // best with `form`
+		assert.equal(second.suggestion.label, 'form:get');  // best with `form`
+		assert.equal(third.suggestion.label, 'from');  // best with `from`
+	});
 });

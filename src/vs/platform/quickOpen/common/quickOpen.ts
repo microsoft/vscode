@@ -27,6 +27,7 @@ export interface IPickOpenEntry {
 	label: string;
 	description?: string;
 	detail?: string;
+	tooltip?: string;
 	separator?: ISeparator;
 	alwaysShow?: boolean;
 	run?: (context: IEntryRunContext) => void;

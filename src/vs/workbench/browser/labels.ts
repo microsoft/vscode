@@ -7,8 +7,8 @@
 
 import uri from 'vs/base/common/uri';
 import resources = require('vs/base/common/resources');
-import { IconLabel, IIconLabelOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { toResource } from 'vs/workbench/common/editor';
@@ -23,7 +23,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { Schemas } from 'vs/base/common/network';
 import { FileKind, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface IResourceLabel {
@@ -32,7 +32,7 @@ export interface IResourceLabel {
 	resource?: uri;
 }
 
-export interface IResourceLabelOptions extends IIconLabelOptions {
+export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	fileKind?: FileKind;
 	fileDecorations?: { colors: boolean, badges: boolean, data?: IDecorationData };
 }
@@ -65,8 +65,8 @@ export class ResourceLabel extends IconLabel {
 
 	private registerListeners(): void {
 
-		// update when extensions are loaded with potentially new languages
-		this.extensionService.onReady().then(() => this.render(true /* clear cache */));
+		// update when extensions are registered with potentially new languages
+		this.toDispose.push(this.extensionService.onDidRegisterExtensions(() => this.render(true /* clear cache */)));
 
 		// react to model mode changes
 		this.toDispose.push(this.modelService.onModelModeChanged(e => this.onModelModeChanged(e)));
@@ -85,7 +85,7 @@ export class ResourceLabel extends IconLabel {
 		}));
 	}
 
-	private onModelModeChanged(e: { model: IModel; oldModeId: string; }): void {
+	private onModelModeChanged(e: { model: ITextModel; oldModeId: string; }): void {
 		if (!this.label || !this.label.resource) {
 			return; // only update if label exists
 		}
@@ -94,7 +94,7 @@ export class ResourceLabel extends IconLabel {
 			return; // we need the resource to compare
 		}
 
-		if (e.model.uri.scheme === Schemas.file && e.oldModeId === PLAINTEXT_MODE_ID) {
+		if (e.model.uri.scheme === Schemas.file && e.oldModeId === PLAINTEXT_MODE_ID) { // todo@remote does this apply?
 			return; // ignore transitions in files from no mode to specific mode because this happens each time a model is created
 		}
 
@@ -172,7 +172,7 @@ export class ResourceLabel extends IconLabel {
 			return;
 		}
 
-		const iconLabelOptions: IIconLabelOptions = {
+		const iconLabelOptions: IIconLabelValueOptions = {
 			title: '',
 			italic: this.options && this.options.italic,
 			matches: this.options && this.options.matches,
@@ -183,7 +183,7 @@ export class ResourceLabel extends IconLabel {
 
 		if (this.options && typeof this.options.title === 'string') {
 			iconLabelOptions.title = this.options.title;
-		} else if (resource) {
+		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
 			iconLabelOptions.title = getPathLabel(resource, void 0, this.environmentService);
 		}
 

@@ -143,7 +143,7 @@ function getNextAttribute(selectionStart: vscode.Position, selectionEnd: vscode.
 			continue;
 		}
 
-		let pos = undefined;
+		let pos: number | undefined = undefined;
 		if (selectionStart.isEqual(attr.value.start) && selectionEnd.isEqual(attr.value.end)) {
 			pos = -1;
 		}

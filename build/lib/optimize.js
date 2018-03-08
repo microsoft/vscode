@@ -57,7 +57,7 @@ function loader(bundledFileHeader, bundleLoader) {
             this.emit('data', new VinylFile({
                 path: 'fake',
                 base: '',
-                contents: new Buffer(bundledFileHeader)
+                contents: Buffer.from(bundledFileHeader)
             }));
             this.emit('data', data);
         }
@@ -96,7 +96,7 @@ function toConcatStream(bundledFileHeader, sources, dest) {
         return new VinylFile({
             path: source.path ? root + '/' + source.path.replace(/\\/g, '/') : 'fake',
             base: base,
-            contents: new Buffer(source.contents)
+            contents: Buffer.from(source.contents)
         });
     });
     return es.readArray(treatedSources)
@@ -139,7 +139,7 @@ function optimizeTask(opts) {
                 bundleInfoArray.push(new VinylFile({
                     path: 'bundleInfo.json',
                     base: '.',
-                    contents: new Buffer(JSON.stringify(result.bundleData, null, '\t'))
+                    contents: Buffer.from(JSON.stringify(result.bundleData, null, '\t'))
                 }));
             }
             es.readArray(bundleInfoArray).pipe(bundleInfoStream);
@@ -172,7 +172,6 @@ function optimizeTask(opts) {
     };
 }
 exports.optimizeTask = optimizeTask;
-;
 /**
  * Wrap around uglify and allow the preserveComments function
  * to have a file "context" to include our copyright only once per file.
@@ -235,4 +234,3 @@ function minifyTask(src, sourceMapBaseUrl) {
     };
 }
 exports.minifyTask = minifyTask;
-;

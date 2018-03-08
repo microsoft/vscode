@@ -483,6 +483,26 @@ suite('FileSearchEngine', () => {
 		});
 	});
 
+	test('Files: *.* include with unicode', function (done: () => void) {
+		this.timeout(testTimeout);
+		let engine = new FileSearchEngine({
+			folderQueries: ROOT_FOLDER_QUERY,
+			filePattern: '*.*',
+			includePattern: { '**/üm laut汉语/*': true }
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
+			done();
+		});
+	});
+
 	test('Files: multiroot with exclude', function (done: () => void) {
 		this.timeout(testTimeout);
 		const folderQueries: IFolderSearch[] = [

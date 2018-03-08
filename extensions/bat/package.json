@@ -1,6 +1,8 @@
 {
 	"name": "bat",
-	"version": "0.1.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {
@@ -17,6 +19,10 @@
 			"language": "bat",
 			"scopeName": "source.batchfile",
 			"path": "./syntaxes/batchfile.tmLanguage.json"
+		}],
+		"snippets": [{
+			"language": "bat",
+			"path": "./snippets/batchfile.snippets.json"
 		}]
 	}
 }

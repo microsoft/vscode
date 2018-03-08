@@ -25,7 +25,7 @@ export function generateRandomPipeName(): string {
 
 export class Protocol implements IMessagePassingProtocol {
 
-	private static _headerLen = 17;
+	private static readonly _headerLen = 17;
 
 	private _onMessage = new Emitter<any>();
 

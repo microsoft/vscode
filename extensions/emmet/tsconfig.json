@@ -6,7 +6,8 @@
 		],
 		"module": "commonjs",
 		"outDir": "./out",
-		"noUnusedLocals": true
+		"noUnusedLocals": true,
+		"strictNullChecks": true
 	},
 	"exclude": [
 		"node_modules",

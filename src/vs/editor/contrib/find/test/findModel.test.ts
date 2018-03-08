@@ -1475,46 +1475,6 @@ suite('FindModel', () => {
 		findState.dispose();
 	});
 
-	findTest('finds only in editable range if replace is shown', (editor, cursor) => {
-		editor.getModel().setEditableRange({
-			startLineNumber: 6,
-			startColumn: 1,
-			endLineNumber: 8,
-			endColumn: 1
-		});
-
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', replaceString: 'hi', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
-
-		assertFindState(
-			editor,
-			[1, 1, 1, 1],
-			null,
-			[
-				[6, 14, 6, 19],
-				[6, 27, 6, 32],
-				[7, 14, 7, 19],
-				[8, 14, 8, 19]
-			]
-		);
-
-		findState.change({ isReplaceRevealed: true }, false);
-		assertFindState(
-			editor,
-			[1, 1, 1, 1],
-			null,
-			[
-				[6, 14, 6, 19],
-				[6, 27, 6, 32],
-				[7, 14, 7, 19]
-			]
-		);
-
-		findModel.dispose();
-		findState.dispose();
-	});
-
 	findTest('listens to model content changes', (editor, cursor) => {
 		let findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', replaceString: 'hi', wholeWord: true }, false);

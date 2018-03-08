@@ -9,7 +9,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtHostLogger } from 'vs/workbench/api/node/extHostLogService';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = TPromise.wrap<void>(void 0);
@@ -26,6 +27,7 @@ export interface IExtensionContext {
 	extensionPath: string;
 	storagePath: string;
 	asAbsolutePath(relativePath: string): string;
+	logger: ExtHostLogger;
 }
 
 /**
@@ -45,7 +47,7 @@ export interface IExtensionAPI {
 
 export class ExtensionActivationTimes {
 
-	public static NONE = new ExtensionActivationTimes(false, -1, -1, -1);
+	public static readonly NONE = new ExtensionActivationTimes(false, -1, -1, -1);
 
 	public readonly startup: boolean;
 	public readonly codeLoadingTime: number;
@@ -159,8 +161,23 @@ export class FailedExtension extends ActivatedExtension {
 export interface IExtensionsActivatorHost {
 	showMessage(severity: Severity, message: string): void;
 
-	actualActivateExtension(extensionDescription: IExtensionDescription, startup: boolean): TPromise<ActivatedExtension>;
+	actualActivateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TPromise<ActivatedExtension>;
 }
+
+export class ExtensionActivatedByEvent {
+	constructor(
+		public readonly startup: boolean,
+		public readonly activationEvent: string
+	) { }
+}
+
+export class ExtensionActivatedByAPI {
+	constructor(
+		public readonly startup: boolean
+	) { }
+}
+
+export type ExtensionActivationReason = ExtensionActivatedByEvent | ExtensionActivatedByAPI;
 
 export class ExtensionsActivator {
 
@@ -192,23 +209,23 @@ export class ExtensionsActivator {
 		return this._activatedExtensions[extensionId];
 	}
 
-	public activateByEvent(activationEvent: string, startup: boolean): TPromise<void> {
+	public activateByEvent(activationEvent: string, reason: ExtensionActivationReason): TPromise<void> {
 		if (this._alreadyActivatedEvents[activationEvent]) {
 			return NO_OP_VOID_PROMISE;
 		}
 		let activateExtensions = this._registry.getExtensionDescriptionsForActivationEvent(activationEvent);
-		return this._activateExtensions(activateExtensions, startup, 0).then(() => {
+		return this._activateExtensions(activateExtensions, reason, 0).then(() => {
 			this._alreadyActivatedEvents[activationEvent] = true;
 		});
 	}
 
-	public activateById(extensionId: string, startup: boolean): TPromise<void> {
+	public activateById(extensionId: string, reason: ExtensionActivationReason): TPromise<void> {
 		let desc = this._registry.getExtensionDescription(extensionId);
 		if (!desc) {
 			throw new Error('Extension `' + extensionId + '` is not known');
 		}
 
-		return this._activateExtensions([desc], startup, 0);
+		return this._activateExtensions([desc], reason, 0);
 	}
 
 	/**
@@ -225,7 +242,7 @@ export class ExtensionsActivator {
 
 			if (!depDesc) {
 				// Error condition 1: unknown dependency
-				this._host.showMessage(Severity.Error, nls.localize('unknownDep', "Extension `{1}` failed to activate. Reason: unknown dependency `{0}`.", depId, currentExtension.id));
+				this._host.showMessage(Severity.Error, nls.localize('unknownDep', "Extension '{1}' failed to activate. Reason: unknown dependency '{0}'.", depId, currentExtension.id));
 				this._activatedExtensions[currentExtension.id] = new FailedExtension(ExtensionActivationTimes.NONE);
 				return;
 			}
@@ -234,7 +251,7 @@ export class ExtensionsActivator {
 				let dep = this._activatedExtensions[depId];
 				if (dep.activationFailed) {
 					// Error condition 2: a dependency has already failed activation
-					this._host.showMessage(Severity.Error, nls.localize('failedDep1', "Extension `{1}` failed to activate. Reason: dependency `{0}` failed to activate.", depId, currentExtension.id));
+					this._host.showMessage(Severity.Error, nls.localize('failedDep1', "Extension '{1}' failed to activate. Reason: dependency '{0}' failed to activate.", depId, currentExtension.id));
 					this._activatedExtensions[currentExtension.id] = new FailedExtension(ExtensionActivationTimes.NONE);
 					return;
 				}
@@ -252,7 +269,7 @@ export class ExtensionsActivator {
 		}
 	}
 
-	private _activateExtensions(extensionDescriptions: IExtensionDescription[], startup: boolean, recursionLevel: number): TPromise<void> {
+	private _activateExtensions(extensionDescriptions: IExtensionDescription[], reason: ExtensionActivationReason, recursionLevel: number): TPromise<void> {
 		// console.log(recursionLevel, '_activateExtensions: ', extensionDescriptions.map(p => p.id));
 		if (extensionDescriptions.length === 0) {
 			return TPromise.as(void 0);
@@ -267,7 +284,7 @@ export class ExtensionsActivator {
 			// More than 10 dependencies deep => most likely a dependency loop
 			for (let i = 0, len = extensionDescriptions.length; i < len; i++) {
 				// Error condition 3: dependency loop
-				this._host.showMessage(Severity.Error, nls.localize('failedDep2', "Extension `{0}` failed to activate. Reason: more than 10 levels of dependencies (most likely a dependency loop).", extensionDescriptions[i].id));
+				this._host.showMessage(Severity.Error, nls.localize('failedDep2', "Extension '{0}' failed to activate. Reason: more than 10 levels of dependencies (most likely a dependency loop).", extensionDescriptions[i].id));
 				this._activatedExtensions[extensionDescriptions[i].id] = new FailedExtension(ExtensionActivationTimes.NONE);
 			}
 			return TPromise.as(void 0);
@@ -294,15 +311,15 @@ export class ExtensionsActivator {
 
 		if (red.length === 0) {
 			// Finally reached only leafs!
-			return TPromise.join(green.map((p) => this._activateExtension(p, startup))).then(_ => void 0);
+			return TPromise.join(green.map((p) => this._activateExtension(p, reason))).then(_ => void 0);
 		}
 
-		return this._activateExtensions(green, startup, recursionLevel + 1).then(_ => {
-			return this._activateExtensions(red, startup, recursionLevel + 1);
+		return this._activateExtensions(green, reason, recursionLevel + 1).then(_ => {
+			return this._activateExtensions(red, reason, recursionLevel + 1);
 		});
 	}
 
-	private _activateExtension(extensionDescription: IExtensionDescription, startup: boolean): TPromise<void> {
+	private _activateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TPromise<void> {
 		if (hasOwnProperty.call(this._activatedExtensions, extensionDescription.id)) {
 			return TPromise.as(void 0);
 		}
@@ -311,8 +328,8 @@ export class ExtensionsActivator {
 			return this._activatingExtensions[extensionDescription.id];
 		}
 
-		this._activatingExtensions[extensionDescription.id] = this._host.actualActivateExtension(extensionDescription, startup).then(null, (err) => {
-			this._host.showMessage(Severity.Error, nls.localize('activationError', "Activating extension `{0}` failed: {1}.", extensionDescription.id, err.message));
+		this._activatingExtensions[extensionDescription.id] = this._host.actualActivateExtension(extensionDescription, reason).then(null, (err) => {
+			this._host.showMessage(Severity.Error, nls.localize('activationError', "Activating extension '{0}' failed: {1}.", extensionDescription.id, err.message));
 			console.error('Activating extension `' + extensionDescription.id + '` failed: ', err.message);
 			console.log('Here is the error stack: ', err.stack);
 			// Treat the extension as being empty

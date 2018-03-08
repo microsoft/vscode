@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/editorCommon';
+import { IModelDecoration } from 'vs/editor/common/model';
 
 //
 // The red-black tree is based on the "Introduction to Algorithms" by Cormen, Leiserson and Rivest.
@@ -25,7 +25,7 @@ export const ClassName = {
  * Describes the behavior of decorations when typing/editing near their edges.
  * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
  */
-export const enum TrackedRangeStickiness {
+const enum TrackedRangeStickiness {
 	AlwaysGrowsWhenTypingAtEdges = 0,
 	NeverGrowsWhenTypingAtEdges = 1,
 	GrowsOnlyWhenTypingBefore = 2,

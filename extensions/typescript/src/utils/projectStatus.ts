@@ -28,17 +28,17 @@ const fileLimit = 500;
 class ExcludeHintItem {
 	public configFileName?: string;
 	private _item: vscode.StatusBarItem;
-	private _currentHint: Hint;
+	private _currentHint?: Hint;
 
 	constructor(
 		private readonly telemetryReporter: TelemetryReporter
 	) {
-		this._item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
+		this._item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 98 /* to the right of typescript version status (99) */);
 		this._item.command = 'js.projectStatus.command';
 	}
 
 	public getCurrentHint(): Hint {
-		return this._currentHint;
+		return this._currentHint!;
 	}
 
 	public hide() {

@@ -1,7 +1,10 @@
 {
 	"name": "php",
-	"version": "0.1.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
 	"publisher": "vscode",
+	"icon": "icons/logo.png",
 	"engines": {
 		"vscode": "0.10.x"
 	},
@@ -10,7 +13,7 @@
 	],
 	"main": "./out/phpMain",
 	"dependencies": {
-		"vscode-nls": "^1.0.4"
+		"vscode-nls": "^3.2.1"
 	},
 	"contributes": {
 		"languages": [
@@ -37,8 +40,13 @@
 		"grammars": [
 			{
 				"language": "php",
+				"scopeName": "source.php",
+				"path": "./syntaxes/php.tmLanguage.json"
+			},
+			{
+				"language": "php",
 				"scopeName": "text.html.php",
-				"path": "./syntaxes/php.tmLanguage.json",
+				"path": "./syntaxes/html.tmLanguage.json",
 				"embeddedLanguages": {
 					"text.html": "html",
 					"source.php": "php",
@@ -53,7 +61,7 @@
 		"snippets": [
 			{
 				"language": "php",
-				"path": "./snippets/php.json"
+				"path": "./snippets/php.snippets.json"
 			}
 		],
 		"configuration": {

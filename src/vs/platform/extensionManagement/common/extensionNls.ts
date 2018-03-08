@@ -8,7 +8,7 @@
 import { cloneAndChange } from 'vs/base/common/objects';
 import { IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 
-const nlsRegex = /^%([\w\d.]+)%$/i;
+const nlsRegex = /^%([\w\d.-]+)%$/i;
 
 export interface ITranslations {
 	[key: string]: string;

@@ -16,7 +16,7 @@ import { IWindowsService } from 'vs/platform/windows/common/windows';
  */
 export class BinaryFileEditor extends BaseBinaryResourceEditor {
 
-	public static ID = BINARY_FILE_EDITOR_ID;
+	public static readonly ID = BINARY_FILE_EDITOR_ID;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,

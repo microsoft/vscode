@@ -12,7 +12,7 @@ import { isIPad } from 'vs/base/browser/browser';
 import { isMacintosh } from 'vs/base/common/platform';
 import types = require('vs/base/common/types');
 import DOM = require('vs/base/browser/dom');
-import { EventType, GestureEvent } from 'vs/base/browser/touch';
+import { EventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import Event, { Emitter } from 'vs/base/common/event';
 
@@ -35,6 +35,7 @@ export interface ISashEvent {
 	currentX: number;
 	startY: number;
 	currentY: number;
+	altKey: boolean;
 }
 
 export interface ISashOptions {
@@ -71,6 +72,7 @@ export class Sash {
 
 		this.$e.on(DOM.EventType.MOUSE_DOWN, (e) => { this.onMouseDown(e as MouseEvent); });
 		this.$e.on(DOM.EventType.DBLCLICK, (e) => this._onDidReset.fire());
+		Gesture.addTarget(this.$e.getHTMLElement());
 		this.$e.on(EventType.Start, (e) => { this.onTouchStart(e as GestureEvent); });
 
 		this.size = options.baseSize || 5;
@@ -139,12 +141,14 @@ export class Sash {
 		let mouseDownEvent = new StandardMouseEvent(e);
 		let startX = mouseDownEvent.posx;
 		let startY = mouseDownEvent.posy;
+		const altKey = mouseDownEvent.altKey;
 
 		let startEvent: ISashEvent = {
 			startX: startX,
 			currentX: startX,
 			startY: startY,
-			currentY: startY
+			currentY: startY,
+			altKey
 		};
 
 		this.$e.addClass('active');
@@ -161,7 +165,8 @@ export class Sash {
 				startX: startX,
 				currentX: mouseMoveEvent.posx,
 				startY: startY,
-				currentY: mouseMoveEvent.posy
+				currentY: mouseMoveEvent.posy,
+				altKey
 			};
 
 			this._onDidChange.fire(event);
@@ -189,12 +194,15 @@ export class Sash {
 
 		let startX = event.pageX;
 		let startY = event.pageY;
+		const altKey = event.altKey;
+
 
 		this._onDidStart.fire({
 			startX: startX,
 			currentX: startX,
 			startY: startY,
-			currentY: startY
+			currentY: startY,
+			altKey
 		});
 
 		listeners.push(DOM.addDisposableListener(this.$e.getHTMLElement(), EventType.Change, (event: GestureEvent) => {
@@ -203,7 +211,8 @@ export class Sash {
 					startX: startX,
 					currentX: event.pageX,
 					startY: startY,
-					currentY: event.pageY
+					currentY: event.pageY,
+					altKey
 				});
 			}
 		}));

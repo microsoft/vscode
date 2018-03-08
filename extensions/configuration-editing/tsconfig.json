@@ -6,7 +6,8 @@
 		"lib": [
 			"es2015"
 		],
-		"strict": true
+		"strict": true,
+		"noUnusedLocals": true
 	},
 	"include": [
 		"src/**/*"

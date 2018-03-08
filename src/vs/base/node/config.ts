@@ -12,6 +12,7 @@ import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import * as extfs from 'vs/base/node/extfs';
+import { isWindows } from 'vs/base/common/platform';
 
 export interface IConfigurationChangeEvent<T> {
 	config: T;
@@ -151,26 +152,32 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 			return; // avoid watchers that will never get disposed by checking for being disposed
 		}
 
-		try {
-			const watcher = extfs.watch(path, (type, file) => this.onConfigFileChange(type, file, isParentFolder));
-			watcher.on('error', (code: number, signal: string) => this.options.onError(`Error watching ${path} for configuration changes (${code}, ${signal})`));
+		const watcher = extfs.watch(path,
+			(type, file) => this.onConfigFileChange(type, file, isParentFolder),
+			(error: string) => this.options.onError(error)
+		);
 
+		if (watcher) {
 			this.disposables.push(toDisposable(() => {
 				watcher.removeAllListeners();
 				watcher.close();
 			}));
-		} catch (error) {
-			fs.exists(path, exists => {
-				if (exists) {
-					this.options.onError(`Failed to watch ${path} for configuration changes (${error.toString()})`);
-				}
-			});
 		}
 	}
 
 	private onConfigFileChange(eventType: string, filename: string, isParentFolder: boolean): void {
-		if (isParentFolder && filename !== this.configName) {
-			return; // a change to a sibling file that is not our config file
+		if (isParentFolder) {
+
+			// Windows: in some cases the filename contains artifacts from the absolute path
+			// see https://github.com/nodejs/node/issues/19170
+			// As such, we have to ensure that the filename basename is used for comparison.
+			if (isWindows && filename !== this.configName) {
+				filename = basename(filename);
+			}
+
+			if (filename !== this.configName) {
+				return; // a change to a sibling file that is not our config file
+			}
 		}
 
 		if (this.timeoutHandle) {

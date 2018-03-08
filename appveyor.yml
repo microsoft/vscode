@@ -11,6 +11,7 @@ install:
 build_script:
   - yarn
   - .\node_modules\.bin\gulp electron
+  - .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit
   - npm run compile
 
 test_script:

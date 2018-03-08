@@ -13,7 +13,7 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class Margin extends ViewPart {
 
-	public static CLASS_NAME = 'glyph-margin';
+	public static readonly CLASS_NAME = 'glyph-margin';
 
 	private _domNode: FastDomNode<HTMLElement>;
 	private _canUseLayerHinting: boolean;

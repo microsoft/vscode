@@ -94,23 +94,28 @@ export class OutputLinkComputer {
 		]);
 
 		workspaceFolderVariants.forEach(workspaceFolderVariant => {
+			const validPathCharacterPattern = '[^\\s\\(\\):<>"]';
+			const validPathCharacterOrSpacePattern = `(?:${validPathCharacterPattern}| ${validPathCharacterPattern})`;
+			const pathPattern = `${validPathCharacterOrSpacePattern}+\\.${validPathCharacterPattern}+`;
+			const strictPathPattern = `${validPathCharacterPattern}+`;
 
 			// Example: /workspaces/express/server.js on line 8, column 13
-			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + '(\\S*) on line ((\\d+)(, column (\\d+))?)', 'gi'));
+			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + `(${pathPattern}) on line ((\\d+)(, column (\\d+))?)`, 'gi'));
 
 			// Example: /workspaces/express/server.js:line 8, column 13
-			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + '(\\S*):line ((\\d+)(, column (\\d+))?)', 'gi'));
+			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + `(${pathPattern}):line ((\\d+)(, column (\\d+))?)`, 'gi'));
 
 			// Example: /workspaces/mankala/Features.ts(45): error
 			// Example: /workspaces/mankala/Features.ts (45): error
 			// Example: /workspaces/mankala/Features.ts(45,18): error
 			// Example: /workspaces/mankala/Features.ts (45,18): error
-			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + '([^\\s\\(\\)]*)(\\s?\\((\\d+)(,(\\d+))?)\\)', 'gi'));
+			// Example: /workspaces/mankala/Features Special.ts (45,18): error
+			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + `(${pathPattern})(\\s?\\((\\d+)(,(\\d+))?)\\)`, 'gi'));
 
 			// Example: at /workspaces/mankala/Game.ts
 			// Example: at /workspaces/mankala/Game.ts:336
 			// Example: at /workspaces/mankala/Game.ts:336:9
-			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + '([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?', 'gi'));
+			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + `(${strictPathPattern})(:(\\d+))?(:(\\d+))?`, 'gi'));
 		});
 
 		return patterns;

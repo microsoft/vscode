@@ -24,6 +24,10 @@ step "Hygiene" {
   exec { & npm run gulp -- hygiene }
 }
 
+step "Monaco Editor Check" {
+	exec { & .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit }
+}
+
 $env:VSCODE_MIXIN_PASSWORD = $mixinPassword
 step "Mix in repository from vscode-distro" {
   exec { & npm run gulp -- mixin }
@@ -39,6 +43,10 @@ step "Install distro dependencies" {
 
 step "Build minified" {
   exec { & npm run gulp -- "vscode-win32-$global:arch-min" }
+}
+
+step "Copy Inno updater" {
+  exec { & npm run gulp -- "vscode-win32-$global:arch-copy-inno-updater" }
 }
 
 # step "Create loader snapshot" {

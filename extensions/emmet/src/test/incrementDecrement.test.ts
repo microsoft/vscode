@@ -7,7 +7,13 @@ import 'mocha';
 import * as assert from 'assert';
 import { Selection } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
-import { incrementDecrement } from '../incrementDecrement';
+import { incrementDecrement as incrementDecrementImpl } from '../incrementDecrement';
+
+function incrementDecrement(delta): Thenable<boolean> {
+	const result = incrementDecrementImpl(delta);
+	assert.ok(result);
+	return result!;
+}
 
 suite('Tests for Increment/Decrement Emmet Commands', () => {
 	teardown(closeAllEditors);

@@ -62,7 +62,7 @@ suite('TokenizationSupport2Adapter', () => {
 	}
 
 	class MockState implements IState {
-		public static INSTANCE = new MockState();
+		public static readonly INSTANCE = new MockState();
 		private constructor() { }
 		public clone(): IState {
 			return this;

@@ -31,7 +31,7 @@
 }
 
 .monaco-workbench > .part.panel > .composite.title > .title-actions {
-	flex: 0;
+	flex-grow: 0;
 }
 
 .monaco-workbench > .part.panel > .title > .title-actions .monaco-action-bar .action-item .action-label {
@@ -50,19 +50,26 @@
 }
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
-	line-height: 32px;
+	line-height: 30px;
+	height: 35px;
 }
 
-.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:first-child .action-label {
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:first-child {
 	margin-left: 12px;
 }
 
-.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item {
 	text-transform: uppercase;
-	margin-left: 16px;
-	margin-right: 16px;
+	padding-left: 16px;
+	padding-right: 16px;
 	font-size: 11px;
-	padding-bottom: 4px; /* puts the bottom border down */
+	padding-bottom: 3px; /* puts the bottom border down */
+	padding-top: 2px;
+	display: flex;
+}
+
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:last-child {
+	padding-right: 6px;
 }
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label {
@@ -70,15 +77,11 @@
 }
 
 .monaco-workbench  > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .badge .badge-content {
-	top: 8px;
-	right: 0px;
-	position: absolute;
-	font-size: 11px;
-	min-width: 6px;
-	line-height: 18px;
-	padding: 0 5px;
-	border-radius: 20px;
+	padding: 0.2em 0.5em;
+	border-radius: 1em;
+	font-weight: normal;
 	text-align: center;
+	display: inline;
 }
 
 /** Actions */
@@ -87,7 +90,7 @@
 	cursor: default;
 }
 
-.monaco-workbench .panel .monaco-action-bar .action-item .select-box {
+.monaco-workbench .panel .monaco-action-bar .action-item .monaco-select-box {
 	cursor: pointer;
 	min-width: 110px;
 }

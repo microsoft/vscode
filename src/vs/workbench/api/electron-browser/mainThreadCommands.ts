@@ -9,6 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { revive } from 'vs/base/common/marshalling';
 
 @extHostNamedCustomer(MainContext.MainThreadCommands)
 export class MainThreadCommands implements MainThreadCommandsShape {
@@ -21,7 +22,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		extHostContext: IExtHostContext,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostCommands);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostCommands);
 
 		this._generateCommandsDocumentationRegistration = CommandsRegistry.registerCommand('_generateCommandsDocumentation', () => this._generateCommandsDocumentation());
 	}
@@ -33,7 +34,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		this._generateCommandsDocumentationRegistration.dispose();
 	}
 
-	private _generateCommandsDocumentation(): TPromise<void> {
+	private _generateCommandsDocumentation(): Thenable<void> {
 		return this._proxy.$getContributedCommandHandlerDescriptions().then(result => {
 			// add local commands
 			const commands = CommandsRegistry.getCommands();
@@ -53,23 +54,28 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		});
 	}
 
-	$registerCommand(id: string): TPromise<any> {
+	$registerCommand(id: string): void {
 		this._disposables.set(
 			id,
-			CommandsRegistry.registerCommand(id, (accessor, ...args) => this._proxy.$executeContributedCommand(id, ...args))
+			CommandsRegistry.registerCommand(id, (accessor, ...args) => {
+				return this._proxy.$executeContributedCommand(id, ...args).then(result => {
+					return revive(result, 0);
+				});
+			})
 		);
-		return undefined;
 	}
 
-	$unregisterCommand(id: string): TPromise<any> {
+	$unregisterCommand(id: string): void {
 		if (this._disposables.has(id)) {
 			this._disposables.get(id).dispose();
 			this._disposables.delete(id);
 		}
-		return undefined;
 	}
 
 	$executeCommand<T>(id: string, args: any[]): Thenable<T> {
+		for (let i = 0; i < args.length; i++) {
+			args[i] = revive(args[i], 0);
+		}
 		return this._commandService.executeCommand<T>(id, ...args);
 	}
 

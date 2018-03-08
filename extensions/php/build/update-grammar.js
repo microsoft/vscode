@@ -20,5 +20,21 @@ function adaptInjectionScope(grammar) {
 	injections[newInjectionKey] = injection;
 }
 
-updateGrammar.update('atom/language-php', 'grammars/php.cson', './syntaxes/php.tmLanguage.json', adaptInjectionScope);
+// Workaround for https://github.com/Microsoft/vscode/issues/40279
+// and https://github.com/Microsoft/vscode-textmate/issues/59
+function fixBadRegex(grammar) {
+	const scopeResolution = grammar.repository['scope-resolution'];
+	if (scopeResolution) {
+		const match = scopeResolution.patterns[0].match;
+		if (match === '(?i)([a-z_\\x{7f}-\\x{7fffffff}\\\\][a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]*)(?=\\s*::)') {
+			scopeResolution.patterns[0].match = '([A-Za-z_\\x{7f}-\\x{7fffffff}\\\\][A-Za-z0-9_\\x{7f}-\\x{7fffffff}\\\\]*)(?=\\s*::)';
+			return;
+		}
+	}
+
+	throw new Error(`fixBadRegex callback couldn't patch the regex. It may be obsolete`);
+}
+
+updateGrammar.update('atom/language-php', 'grammars/php.cson', './syntaxes/php.tmLanguage.json', fixBadRegex);
+updateGrammar.update('atom/language-php', 'grammars/html.cson', './syntaxes/html.tmLanguage.json', adaptInjectionScope);
 

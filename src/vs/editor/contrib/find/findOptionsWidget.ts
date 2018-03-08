@@ -18,7 +18,7 @@ import { inputActiveOptionBorder, editorWidgetBackground, contrastBorder, widget
 
 export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
-	private static ID = 'editor.contrib.findOptionsWidget';
+	private static readonly ID = 'editor.contrib.findOptionsWidget';
 
 	private _editor: ICodeEditor;
 	private _state: FindReplaceState;

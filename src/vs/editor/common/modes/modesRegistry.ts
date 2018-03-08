@@ -12,7 +12,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
 
 // Define extension point ids
-export var Extensions = {
+export const Extensions = {
 	ModesRegistry: 'editor.modesRegistry'
 };
 
@@ -42,7 +42,7 @@ export class EditorModesRegistry {
 	}
 }
 
-export var ModesRegistry = new EditorModesRegistry();
+export const ModesRegistry = new EditorModesRegistry();
 Registry.add(Extensions.ModesRegistry, ModesRegistry);
 
 export const PLAINTEXT_MODE_ID = 'plaintext';

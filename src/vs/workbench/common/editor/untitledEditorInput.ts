@@ -29,7 +29,7 @@ import { IHashService } from 'vs/workbench/services/hash/common/hashService';
  */
 export class UntitledEditorInput extends EditorInput implements IEncodingSupport {
 
-	public static ID: string = 'workbench.editors.untitledEditorInput';
+	public static readonly ID: string = 'workbench.editors.untitledEditorInput';
 
 	private _hasAssociatedFilePath: boolean;
 	private cachedModel: UntitledEditorModel;
@@ -180,7 +180,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.hasAssociatedFilePath;
 	}
 
-	public confirmSave(): ConfirmResult {
+	public confirmSave(): TPromise<ConfirmResult> {
 		return this.textFileService.confirmSave([this.resource]);
 	}
 

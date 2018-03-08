@@ -6,7 +6,6 @@
 		"no-string-throw": true,
 		"no-unused-expression": true,
 		"no-duplicate-variable": true,
-		// "no-unused-variable": true, // requires type information in tslint > v4
 		"curly": true,
 		"class-name": true,
 		"semicolon": [
@@ -395,6 +394,18 @@
 					"**/vs/editor/**",
 					"**/vs/workbench/{common,browser,node,electron-browser,api}/**",
 					"**/vs/workbench/services/**/{common,browser,node,electron-browser}/**",
+					"*" // node modules
+				]
+			},
+			{
+				"target": "**/vs/code/electron-browser/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"vs/nls",
+					"**/vs/base/**",
+					"**/vs/platform/**",
+					"**/vs/code/**",
 					"*" // node modules
 				]
 			},

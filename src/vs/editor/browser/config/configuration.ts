@@ -96,7 +96,7 @@ export interface ISerializedFontInfo {
 
 class CSSBasedConfiguration extends Disposable {
 
-	public static INSTANCE = new CSSBasedConfiguration();
+	public static readonly INSTANCE = new CSSBasedConfiguration();
 
 	private _cache: CSSBasedConfigurationCache;
 	private _evictUntrustedReadingsTimeout: number;
@@ -335,6 +335,8 @@ export class Configuration extends CommonEditorConfiguration {
 			extra += 'ff ';
 		} else if (browser.isEdge) {
 			extra += 'edge ';
+		} else if (browser.isSafari) {
+			extra += 'safari ';
 		}
 		if (platform.isMacintosh) {
 			extra += 'mac ';

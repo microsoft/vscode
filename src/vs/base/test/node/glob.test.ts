@@ -301,6 +301,22 @@ suite('Glob', () => {
 		assert(!glob.match(p, '/xpackage.json'));
 	});
 
+	test('issue 41724', function () {
+		let p = 'some/**/*.js';
+
+		assert(glob.match(p, 'some/foo.js'));
+		assert(glob.match(p, 'some/folder/foo.js'));
+		assert(!glob.match(p, 'something/foo.js'));
+		assert(!glob.match(p, 'something/folder/foo.js'));
+
+		p = 'some/**/*';
+
+		assert(glob.match(p, 'some/foo.js'));
+		assert(glob.match(p, 'some/folder/foo.js'));
+		assert(!glob.match(p, 'something/foo.js'));
+		assert(!glob.match(p, 'something/folder/foo.js'));
+	});
+
 	test('brace expansion', function () {
 		let p = '*.{html,js}';
 
@@ -909,14 +925,14 @@ suite('Glob', () => {
 
 	test('relative pattern - glob star', function () {
 		if (isWindows) {
-			let p = { base: 'C:\\DNXConsoleApp\\foo', pattern: '**/*.cs' };
+			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: '**/*.cs', pathToRelative: (from, to) => path.relative(from, to) };
 			assert(glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.cs'));
 			assert(glob.match(p, 'C:\\DNXConsoleApp\\foo\\bar\\Program.cs'));
 			assert(!glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.ts'));
 			assert(!glob.match(p, 'C:\\DNXConsoleApp\\Program.cs'));
 			assert(!glob.match(p, 'C:\\other\\DNXConsoleApp\\foo\\Program.ts'));
 		} else {
-			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: '**/*.cs' };
+			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: '**/*.cs', pathToRelative: (from, to) => path.relative(from, to) };
 			assert(glob.match(p, '/DNXConsoleApp/foo/Program.cs'));
 			assert(glob.match(p, '/DNXConsoleApp/foo/bar/Program.cs'));
 			assert(!glob.match(p, '/DNXConsoleApp/foo/Program.ts'));
@@ -927,14 +943,14 @@ suite('Glob', () => {
 
 	test('relative pattern - single star', function () {
 		if (isWindows) {
-			let p = { base: 'C:\\DNXConsoleApp\\foo', pattern: '*.cs' };
+			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: '*.cs', pathToRelative: (from, to) => path.relative(from, to) };
 			assert(glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.cs'));
 			assert(!glob.match(p, 'C:\\DNXConsoleApp\\foo\\bar\\Program.cs'));
 			assert(!glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.ts'));
 			assert(!glob.match(p, 'C:\\DNXConsoleApp\\Program.cs'));
 			assert(!glob.match(p, 'C:\\other\\DNXConsoleApp\\foo\\Program.ts'));
 		} else {
-			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: '*.cs' };
+			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: '*.cs', pathToRelative: (from, to) => path.relative(from, to) };
 			assert(glob.match(p, '/DNXConsoleApp/foo/Program.cs'));
 			assert(!glob.match(p, '/DNXConsoleApp/foo/bar/Program.cs'));
 			assert(!glob.match(p, '/DNXConsoleApp/foo/Program.ts'));
@@ -945,11 +961,11 @@ suite('Glob', () => {
 
 	test('relative pattern - single star with path', function () {
 		if (isWindows) {
-			let p = { base: 'C:\\DNXConsoleApp\\foo', pattern: 'something/*.cs' };
+			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: 'something/*.cs', pathToRelative: (from, to) => path.relative(from, to) };
 			assert(glob.match(p, 'C:\\DNXConsoleApp\\foo\\something\\Program.cs'));
 			assert(!glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.cs'));
 		} else {
-			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: 'something/*.cs' };
+			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: 'something/*.cs', pathToRelative: (from, to) => path.relative(from, to) };
 			assert(glob.match(p, '/DNXConsoleApp/foo/something/Program.cs'));
 			assert(!glob.match(p, '/DNXConsoleApp/foo/Program.cs'));
 		}

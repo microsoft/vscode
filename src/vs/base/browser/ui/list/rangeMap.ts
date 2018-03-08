@@ -19,18 +19,18 @@ export interface IRangedGroup {
 
 /**
  * Returns the intersection between two ranges as a range itself.
- * Returns `null` if the intersection is empty.
+ * Returns `{ start: 0, end: 0 }` if the intersection is empty.
  */
 export function intersect(one: IRange, other: IRange): IRange {
 	if (one.start >= other.end || other.start >= one.end) {
-		return null;
+		return { start: 0, end: 0 };
 	}
 
 	const start = Math.max(one.start, other.start);
 	const end = Math.min(one.end, other.end);
 
 	if (end - start <= 0) {
-		return null;
+		return { start: 0, end: 0 };
 	}
 
 	return { start, end };
@@ -56,12 +56,6 @@ export function relativeComplement(one: IRange, other: IRange): IRange[] {
 	return result;
 }
 
-export function each(range: IRange, fn: (index: number) => void): void {
-	for (let i = range.start; i < range.end; i++) {
-		fn(i);
-	}
-}
-
 /**
  * Returns the intersection between a ranged group and a range.
  * Returns `[]` if the intersection is empty.
@@ -80,7 +74,7 @@ export function groupIntersect(range: IRange, groups: IRangedGroup[]): IRangedGr
 
 		const intersection = intersect(range, r.range);
 
-		if (!intersection) {
+		if (isEmpty(intersection)) {
 			continue;
 		}
 
@@ -96,7 +90,7 @@ export function groupIntersect(range: IRange, groups: IRangedGroup[]): IRangedGr
 /**
  * Shifts a range by that `much`.
  */
-function shift({ start, end }: IRange, much: number): IRange {
+export function shift({ start, end }: IRange, much: number): IRange {
 	return { start: start + much, end: end + much };
 }
 

@@ -69,5 +69,7 @@
 	"invalidFileNameError": "名前 **{0}** がファイル名またはフォルダー名として無効です。別の名前を指定してください。",
 	"filePathTooLongError": "名前 **{0}** のパスが長すぎます。名前を短くしてください。",
 	"compareWithSaved": "保存済みファイルと作業中のファイルを比較",
-	"modifiedLabel": "{0} (ローカル) ↔ {1}"
+	"modifiedLabel": "{0} (ローカル) ↔ {1}",
+	"compareWithClipboard": "クリップボードとアクティブ ファイルを比較",
+	"clipboardComparisonLabel": "クリップボード ↔ {0}"
 }

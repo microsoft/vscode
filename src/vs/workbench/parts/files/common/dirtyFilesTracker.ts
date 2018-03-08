@@ -154,10 +154,6 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		}
 	}
 
-	public getId(): string {
-		return 'vs.files.dirtyFilesTracker';
-	}
-
 	public dispose(): void {
 		this.toUnbind = dispose(this.toUnbind);
 	}

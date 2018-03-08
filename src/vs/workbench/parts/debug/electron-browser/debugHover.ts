@@ -10,9 +10,8 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as dom from 'vs/base/browser/dom';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { DefaultController, ICancelableEvent, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { ICancelableEvent, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -20,25 +19,27 @@ import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPosit
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/parts/debug/common/debug';
 import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
-import { VariablesRenderer, renderExpressionValue, VariablesDataSource } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
-import { IListService } from 'vs/platform/list/browser/listService';
+import { renderExpressionValue } from 'vs/workbench/parts/debug/browser/baseDebugView';
+import { VariablesDataSource, VariablesRenderer } from 'vs/workbench/parts/debug/electron-browser/variablesView';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { attachListStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
+import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
 
 export class DebugHoverWidget implements IContentWidget {
 
-	public static ID = 'debug.hoverWidget';
+	public static readonly ID = 'debug.hoverWidget';
 	// editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
 
 	private _isVisible: boolean;
 	private domNode: HTMLElement;
-	private tree: ITree;
+	private tree: WorkbenchTree;
 	private showAtPosition: Position;
 	private highlightDecorations: string[];
 	private complexValueContainer: HTMLElement;
@@ -52,7 +53,6 @@ export class DebugHoverWidget implements IContentWidget {
 	constructor(
 		private editor: ICodeEditor,
 		private debugService: IDebugService,
-		private listService: IListService,
 		private instantiationService: IInstantiationService,
 		private themeService: IThemeService
 	) {
@@ -69,15 +69,14 @@ export class DebugHoverWidget implements IContentWidget {
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
-		this.tree = new Tree(this.treeContainer, {
+		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new VariablesDataSource(),
 			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
-			controller: new DebugHoverController(this.editor)
+			controller: this.instantiationService.createInstance(DebugHoverController, this.editor)
 		}, {
 				indentPixels: 6,
 				twistiePixels: 15,
-				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
-				keyboardSupport: false
+				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover")
 			});
 
 		this.valueContainer = $('.value');
@@ -89,8 +88,6 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this.editor.applyFontInfo(this.domNode);
 
-		this.toDispose.push(attachListStyler(this.tree, this.themeService));
-		this.toDispose.push(this.listService.register(this.tree));
 		this.toDispose.push(attachStylerCallback(this.themeService, { editorHoverBackground, editorHoverBorder }, colors => {
 			this.domNode.style.backgroundColor = colors.editorHoverBackground;
 			if (colors.editorHoverBorder) {
@@ -237,7 +234,8 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private findExpressionInStackFrame(namesToFind: string[], expressionRange: Range): TPromise<IExpression> {
-		return this.debugService.getViewModel().focusedStackFrame.getMostSpecificScopes(expressionRange)
+		return this.debugService.getViewModel().focusedStackFrame.getScopes()
+			.then(scopes => scopes.filter(s => !s.expensive))
 			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
 			.then(expressions => expressions.filter(exp => !!exp))
 			// only show if all expressions found have the same value
@@ -283,7 +281,7 @@ export class DebugHoverWidget implements IContentWidget {
 			this.scrollbar.scanDomNode();
 			if (focus) {
 				this.editor.render();
-				this.tree.DOMFocus();
+				this.tree.domFocus();
 			}
 		});
 	}
@@ -336,10 +334,13 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 }
 
-class DebugHoverController extends DefaultController {
+class DebugHoverController extends WorkbenchTreeController {
 
-	constructor(private editor: ICodeEditor) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false });
+	constructor(
+		private editor: ICodeEditor,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super({ openMode: OpenMode.SINGLE_CLICK }, configurationService);
 	}
 
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin = 'mouse'): boolean {

@@ -9,8 +9,8 @@ import { Viewlet } from '../workbench/viewlet';
 
 export class Explorer extends Viewlet {
 
-	private static EXPLORER_VIEWLET = 'div[id="workbench.view.explorer"]';
-	private static OPEN_EDITORS_VIEW = `${Explorer.EXPLORER_VIEWLET} .split-view-view:nth-child(1) .title`;
+	private static readonly EXPLORER_VIEWLET = 'div[id="workbench.view.explorer"]';
+	private static readonly OPEN_EDITORS_VIEW = `${Explorer.EXPLORER_VIEWLET} .split-view-view:nth-child(1) .title`;
 
 	constructor(spectron: SpectronApplication) {
 		super(spectron);

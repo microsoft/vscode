@@ -8,22 +8,23 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IWindowsService, IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
+	keyboard: { touchbar: { enabled: boolean } };
 }
 
 export class SettingsChangeRelauncher implements IWorkbenchContribution {
@@ -34,6 +35,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private nativeTabs: boolean;
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
+	private touchbarEnabled: boolean;
 
 	private firstFolderResource: URI;
 	private extensionHostRestarter: RunOnceScheduler;
@@ -45,7 +47,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		@IWindowService private windowService: IWindowService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private envService: IEnvironmentService,
-		@IMessageService private messageService: IMessageService,
+		@IDialogService private dialogService: IDialogService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
@@ -88,6 +90,12 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		// Crash reporter
 		if (config.telemetry && typeof config.telemetry.enableCrashReporter === 'boolean' && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
 			this.enableCrashReporter = config.telemetry.enableCrashReporter;
+			changed = true;
+		}
+
+		// Touchbar config
+		if (config.keyboard && config.keyboard.touchbar && typeof config.keyboard.touchbar.enabled === 'boolean' && config.keyboard.touchbar.enabled !== this.touchbarEnabled) {
+			this.touchbarEnabled = config.keyboard.touchbar.enabled;
 			changed = true;
 		}
 
@@ -138,22 +146,20 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
 		this.windowService.isFocused().then(focused => {
 			if (focused) {
-				const confirm = this.messageService.confirmSync({
+				return this.dialogService.confirm({
 					type: 'info',
 					message,
 					detail,
 					primaryButton
+				}).then(res => {
+					if (res.confirmed) {
+						confirmed();
+					}
 				});
-
-				if (confirm) {
-					confirmed();
-				}
 			}
-		});
-	}
 
-	public getId(): string {
-		return 'workbench.relauncher';
+			return void 0;
+		});
 	}
 
 	public dispose(): void {

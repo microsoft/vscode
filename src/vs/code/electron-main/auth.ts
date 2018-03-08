@@ -32,7 +32,7 @@ export class ProxyAuthHandler {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IWindowsMainService private windowsService: IWindowsMainService
+		@IWindowsMainService private windowsMainService: IWindowsMainService
 	) {
 		const onLogin = fromNodeEventEmitter<LoginEvent>(app, 'login', (event, webContents, req, authInfo, cb) => ({ event, webContents, req, authInfo, cb }));
 		onLogin(this.onLogin, this, this.disposables);
@@ -59,7 +59,7 @@ export class ProxyAuthHandler {
 			title: 'VS Code'
 		};
 
-		const focusedWindow = this.windowsService.getFocusedWindow();
+		const focusedWindow = this.windowsMainService.getFocusedWindow();
 
 		if (focusedWindow) {
 			opts.parent = focusedWindow.win;
@@ -68,7 +68,7 @@ export class ProxyAuthHandler {
 
 		const win = new BrowserWindow(opts);
 		const config = {};
-		const baseUrl = require.toUrl('./auth.html');
+		const baseUrl = require.toUrl('vs/code/electron-browser/proxy/auth.html');
 		const url = `${baseUrl}?config=${encodeURIComponent(JSON.stringify(config))}`;
 		const proxyUrl = `${authInfo.host}:${authInfo.port}`;
 		const title = localize('authRequire', "Proxy Authentication Required");

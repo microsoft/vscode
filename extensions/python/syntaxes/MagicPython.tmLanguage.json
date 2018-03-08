@@ -7,27 +7,6 @@
 	"version": "https://github.com/MagicStack/MagicPython/commit/b453f26ed856c9b16a053517c41207e3a72cc7d5",
 	"name": "MagicPython",
 	"scopeName": "source.python",
-	"fileTypes": [
-		"py",
-		"py3",
-		"rpy",
-		"pyw",
-		"cpy",
-		"pyi",
-		"SConstruct",
-		"Sconstruct",
-		"sconstruct",
-		"SConscript",
-		"gyp",
-		"gypi",
-		"wsgi",
-		"kv",
-		"Snakefile",
-		"tac"
-	],
-	"first_line_match": "^#![ \\t]*/.*\\bpython[\\d\\.]*\\b",
-	"firstLineMatch": "^#![ \\t]*/.*\\bpython[\\d\\.]*\\b",
-	"uuid": "742deb57-6e38-4192-bed6-410746efd85d",
 	"patterns": [
 		{
 			"include": "#statement"

@@ -16,7 +16,10 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchActionRegistryExtensio
 import { ToggleViewletAction, Extensions as ViewletExtensions, ViewletRegistry, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { TogglePanelAction, Extensions as PanelExtensions, PanelRegistry, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { VariablesView, WatchExpressionsView, CallStackView, BreakpointsView } from 'vs/workbench/parts/debug/electron-browser/debugViews';
+import { VariablesView } from 'vs/workbench/parts/debug/electron-browser/variablesView';
+import { BreakpointsView } from 'vs/workbench/parts/debug/browser/breakpointsView';
+import { WatchExpressionsView } from 'vs/workbench/parts/debug/electron-browser/watchExpressionsView';
+import { CallStackView } from 'vs/workbench/parts/debug/electron-browser/callStackView';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import {
 	IDebugService, VIEWLET_ID, REPL_ID, CONTEXT_NOT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA,
@@ -35,10 +38,10 @@ import { DebugContentProvider } from 'vs/workbench/parts/debug/browser/debugCont
 import 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import * as debugCommands from 'vs/workbench/parts/debug/electron-browser/debugCommands';
+import { registerCommands } from 'vs/workbench/parts/debug/browser/debugCommands';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
-import { StatusBarColorProvider } from 'vs/workbench/parts/debug/electron-browser/statusbarColorProvider';
-import { ViewLocation, ViewsRegistry } from 'vs/workbench/browser/parts/views/viewsRegistry';
+import { StatusBarColorProvider } from 'vs/workbench/parts/debug/browser/statusbarColorProvider';
+import { ViewLocation, ViewsRegistry } from 'vs/workbench/common/views';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import URI from 'vs/base/common/uri';
@@ -47,10 +50,11 @@ import { Repl } from 'vs/workbench/parts/debug/electron-browser/repl';
 import { DebugQuickOpenHandler } from 'vs/workbench/parts/debug/browser/debugQuickOpen';
 import { DebugStatus } from 'vs/workbench/parts/debug/browser/debugStatus';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 
 class OpenDebugViewletAction extends ToggleViewletAction {
-	public static ID = VIEWLET_ID;
-	public static LABEL = nls.localize('toggleDebugViewlet', "Show Debug");
+	public static readonly ID = VIEWLET_ID;
+	public static readonly LABEL = nls.localize('toggleDebugViewlet', "Show Debug");
 
 	constructor(
 		id: string,
@@ -63,8 +67,8 @@ class OpenDebugViewletAction extends ToggleViewletAction {
 }
 
 class OpenDebugPanelAction extends TogglePanelAction {
-	public static ID = 'workbench.debug.action.toggleRepl';
-	public static LABEL = nls.localize('toggleDebugPanel', "Debug Console");
+	public static readonly ID = 'workbench.debug.action.toggleRepl';
+	public static readonly LABEL = nls.localize('toggleDebugPanel', "Debug Console");
 
 	constructor(
 		id: string,
@@ -104,10 +108,10 @@ Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescri
 Registry.as<PanelRegistry>(PanelExtensions.Panels).setDefaultPanelId(REPL_ID);
 
 // Register default debug views
-ViewsRegistry.registerViews([{ id: VARIABLES_VIEW_ID, name: nls.localize('variables', "Variables"), ctor: VariablesView, order: 10, size: 40, location: ViewLocation.Debug, canToggleVisibility: true }]);
-ViewsRegistry.registerViews([{ id: WATCH_VIEW_ID, name: nls.localize('watch', "Watch"), ctor: WatchExpressionsView, order: 20, size: 10, location: ViewLocation.Debug, canToggleVisibility: true }]);
-ViewsRegistry.registerViews([{ id: CALLSTACK_VIEW_ID, name: nls.localize('callStack', "Call Stack"), ctor: CallStackView, order: 30, size: 30, location: ViewLocation.Debug, canToggleVisibility: true }]);
-ViewsRegistry.registerViews([{ id: BREAKPOINTS_VIEW_ID, name: nls.localize('breakpoints', "Breakpoints"), ctor: BreakpointsView, order: 40, size: 20, location: ViewLocation.Debug, canToggleVisibility: true }]);
+ViewsRegistry.registerViews([{ id: VARIABLES_VIEW_ID, name: nls.localize('variables', "Variables"), ctor: VariablesView, order: 10, weight: 40, location: ViewLocation.Debug, canToggleVisibility: true }]);
+ViewsRegistry.registerViews([{ id: WATCH_VIEW_ID, name: nls.localize('watch', "Watch"), ctor: WatchExpressionsView, order: 20, weight: 10, location: ViewLocation.Debug, canToggleVisibility: true }]);
+ViewsRegistry.registerViews([{ id: CALLSTACK_VIEW_ID, name: nls.localize('callStack', "Call Stack"), ctor: CallStackView, order: 30, weight: 30, location: ViewLocation.Debug, canToggleVisibility: true }]);
+ViewsRegistry.registerViews([{ id: BREAKPOINTS_VIEW_ID, name: nls.localize('breakpoints', "Breakpoints"), ctor: BreakpointsView, order: 40, weight: 20, location: ViewLocation.Debug, canToggleVisibility: true }]);
 
 // register action to open viewlet
 const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionRegistryExtensions.WorkbenchActions);
@@ -190,6 +194,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'debug.showInStatusBar': {
 			enum: ['never', 'always', 'onFirstSessionStart'],
+			enumDescriptions: [nls.localize('never', "Never show debug in status bar"), nls.localize('always', "Always show debug in status bar"), nls.localize('onFirstSessionStart', "Show debug in status bar only after debug was started for the first time")],
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showInStatusBar' }, "Controls when the debug status bar should be visible"),
 			default: 'onFirstSessionStart'
 		},
@@ -197,17 +202,18 @@ configurationRegistry.registerConfiguration({
 		'debug.openDebug': {
 			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
 			default: 'openOnFirstSessionStart',
-			description: nls.localize('openDebug', "Controls whether debug viewlet should be open on debugging session start.")
+			description: nls.localize('openDebug', "Controls whether debug view should be open on debugging session start.")
 		},
 		'launch': {
 			type: 'object',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces"),
-			default: {}
+			default: { configurations: [], compounds: [] },
+			$ref: launchSchemaId
 		}
 	}
 });
 
-debugCommands.registerCommands();
+registerCommands();
 
 // Register Debug Status
 const statusBar = Registry.as<IStatusbarRegistry>(StatusExtensions.Statusbar);
@@ -219,7 +225,7 @@ if (isMacintosh) {
 	const registerTouchBarEntry = (id: string, title: string, order, when: ContextKeyExpr, icon: string) => {
 		MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
 			command: {
-				id, title, iconPath: URI.parse(require.toUrl(`vs/workbench/parts/debug/electron-browser/media/${icon}`)).fsPath
+				id, title, iconPath: { dark: URI.parse(require.toUrl(`vs/workbench/parts/debug/electron-browser/media/${icon}`)).fsPath }
 			},
 			when,
 			group: '9_debug',

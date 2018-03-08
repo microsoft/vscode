@@ -51,6 +51,13 @@ export class Context implements IContext {
 		}
 		return ret;
 	}
+
+	collectAllValues(): { [key: string]: any; } {
+		let result = this._parent ? this._parent.collectAllValues() : Object.create(null);
+		result = { ...result, ...this._value };
+		delete result['_contextId'];
+		return result;
+	}
 }
 
 class ConfigAwareContextValuesContainer extends Context {
@@ -169,11 +176,7 @@ export class ContextKeyChangeEvent implements IContextKeyChangeEvent {
 	private _keys: string[] = [];
 
 	collect(oneOrManyKeys: string | string[]): void {
-		if (Array.isArray(oneOrManyKeys)) {
-			this._keys = this._keys.concat(oneOrManyKeys);
-		} else {
-			this._keys.push(oneOrManyKeys);
-		}
+		this._keys = this._keys.concat(oneOrManyKeys);
 	}
 
 	affectsSome(keys: Set<string>): boolean {
@@ -235,7 +238,11 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 	}
 
 	public setContext(key: string, value: any): void {
-		if (this.getContextValuesContainer(this._myContextId).setValue(key, value)) {
+		const myContext = this.getContextValuesContainer(this._myContextId);
+		if (!myContext) {
+			return;
+		}
+		if (myContext.setValue(key, value)) {
 			this._onDidChangeContextKey.fire(key);
 		}
 	}

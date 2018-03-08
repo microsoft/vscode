@@ -15,6 +15,7 @@ import TsConfigProvider, { TSConfig } from '../utils/tsconfigProvider';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
 
 import * as nls from 'vscode-nls';
+import { Lazy } from '../utils/lazy';
 const localize = nls.loadMessageBundle();
 
 type AutoDetect = 'on' | 'off' | 'build' | 'watch';
@@ -42,7 +43,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 	private readonly disposables: vscode.Disposable[] = [];
 
 	public constructor(
-		private readonly lazyClient: () => ITypeScriptServiceClient
+		private readonly client: Lazy<ITypeScriptServiceClient>
 	) {
 		this.tsconfigProvider = new TsConfigProvider();
 
@@ -104,7 +105,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 		}
 
 		try {
-			const res: Proto.ProjectInfoResponse = await this.lazyClient().execute(
+			const res: Proto.ProjectInfoResponse = await this.client.value.execute(
 				'projectInfo',
 				{ file, needFileNameList: false },
 				token);
@@ -123,8 +124,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 					workspaceFolder: folder
 				}];
 			}
-		}
-		catch (e) {
+		} catch (e) {
 			// noop
 		}
 		return [];
@@ -134,17 +134,32 @@ class TscTaskProvider implements vscode.TaskProvider {
 		return Array.from(await this.tsconfigProvider.getConfigsForWorkspace());
 	}
 
-	private async getCommand(project: TSConfig): Promise<string> {
+	private static async getCommand(project: TSConfig): Promise<string> {
 		if (project.workspaceFolder) {
-			const platform = process.platform;
-			const bin = path.join(project.workspaceFolder.uri.fsPath, 'node_modules', '.bin');
-			if (platform === 'win32' && await exists(path.join(bin, 'tsc.cmd'))) {
-				return path.join(bin, 'tsc.cmd');
-			} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(bin, 'tsc'))) {
-				return path.join(bin, 'tsc');
+			const localTsc = await TscTaskProvider.getLocalTscAtPath(path.dirname(project.path));
+			if (localTsc) {
+				return localTsc;
+			}
+
+			const workspaceTsc = await TscTaskProvider.getLocalTscAtPath(project.workspaceFolder.uri.fsPath);
+			if (workspaceTsc) {
+				return workspaceTsc;
 			}
 		}
+
+		// Use global tsc version
 		return 'tsc';
+	}
+
+	private static async getLocalTscAtPath(folderPath: string): Promise<string | undefined> {
+		const platform = process.platform;
+		const bin = path.join(folderPath, 'node_modules', '.bin');
+		if (platform === 'win32' && await exists(path.join(bin, 'tsc.cmd'))) {
+			return path.join(bin, 'tsc.cmd');
+		} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(bin, 'tsc'))) {
+			return path.join(bin, 'tsc');
+		}
+		return undefined;
 	}
 
 	private getActiveTypeScriptFile(): string | null {
@@ -152,14 +167,14 @@ class TscTaskProvider implements vscode.TaskProvider {
 		if (editor) {
 			const document = editor.document;
 			if (document && (document.languageId === 'typescript' || document.languageId === 'typescriptreact')) {
-				return this.lazyClient().normalizePath(document.uri);
+				return this.client.value.normalizePath(document.uri);
 			}
 		}
 		return null;
 	}
 
 	private async getTasksForProject(project: TSConfig): Promise<vscode.Task[]> {
-		const command = await this.getCommand(project);
+		const command = await TscTaskProvider.getCommand(project);
 		const label = this.getLabelForTasks(project);
 
 		const tasks: vscode.Task[] = [];
@@ -221,14 +236,14 @@ class TscTaskProvider implements vscode.TaskProvider {
 }
 
 /**
- * Manages registrations of TypeScript task provides with VScode.
+ * Manages registrations of TypeScript task providers with VS Code.
  */
 export default class TypeScriptTaskProviderManager {
 	private taskProviderSub: vscode.Disposable | undefined = undefined;
 	private readonly disposables: vscode.Disposable[] = [];
 
 	constructor(
-		private readonly lazyClient: () => ITypeScriptServiceClient
+		private readonly client: Lazy<ITypeScriptServiceClient>
 	) {
 		vscode.workspace.onDidChangeConfiguration(this.onConfigurationChanged, this, this.disposables);
 		this.onConfigurationChanged();
@@ -248,7 +263,7 @@ export default class TypeScriptTaskProviderManager {
 			this.taskProviderSub.dispose();
 			this.taskProviderSub = undefined;
 		} else if (!this.taskProviderSub && autoDetect !== 'off') {
-			this.taskProviderSub = vscode.workspace.registerTaskProvider('typescript', new TscTaskProvider(this.lazyClient));
+			this.taskProviderSub = vscode.workspace.registerTaskProvider('typescript', new TscTaskProvider(this.client));
 		}
 	}
 }

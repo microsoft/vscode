@@ -260,7 +260,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 });
 
 class IndentRulesMode extends MockMode {
-	private static _id = new LanguageIdentifier('moveLinesIndentMode', 7);
+	private static readonly _id = new LanguageIdentifier('moveLinesIndentMode', 7);
 	constructor(indentationRules: IndentationRule) {
 		super(IndentRulesMode._id);
 		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {

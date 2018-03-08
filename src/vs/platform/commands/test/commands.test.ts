@@ -6,7 +6,6 @@
 
 import * as assert from 'assert';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 suite('Command Tests', function () {
 
@@ -76,22 +75,5 @@ suite('Command Tests', function () {
 		assert.throws(() => CommandsRegistry.getCommands()['test3'].handler.apply(undefined, [undefined, 'string']));
 		assert.equal(CommandsRegistry.getCommands()['test3'].handler.apply(undefined, [undefined, 1]), true);
 
-	});
-
-	test('CommandsRegistry with precondition', function () {
-		let r1 = CommandsRegistry.registerCommand('foo', () => { });
-
-		const precondition = new RawContextKey<boolean>('ddd', false);
-		let r2 = CommandsRegistry.registerCommand({
-			id: 'bar',
-			handler: () => { },
-			precondition
-		});
-
-		assert.ok(CommandsRegistry.getCommand('bar').precondition === precondition);
-		assert.equal(CommandsRegistry.getCommand('foo').precondition, undefined);
-
-		r1.dispose();
-		r2.dispose();
 	});
 });

@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { getEditOperation, testCommand } from 'vs/editor/test/browser/testCommand';
@@ -21,16 +21,14 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
  */
 export function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
 	return {
-		identifier: null,
 		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
-		text: text,
-		forceMoveMarkers: false
+		text: text
 	};
 }
 
 class DocBlockCommentMode extends MockMode {
 
-	private static _id = new LanguageIdentifier('commentMode', 3);
+	private static readonly _id = new LanguageIdentifier('commentMode', 3);
 
 	constructor() {
 		super(DocBlockCommentMode._id);

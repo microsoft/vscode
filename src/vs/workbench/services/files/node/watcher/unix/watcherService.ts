@@ -14,9 +14,10 @@ import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/fil
 import { FileChangesEvent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { normalize } from 'path';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 export class FileWatcher {
-	private static MAX_RESTARTS = 5;
+	private static readonly MAX_RESTARTS = 5;
 
 	private isDisposed: boolean;
 	private restartCounter: number;
@@ -54,7 +55,7 @@ export class FileWatcher {
 		// Start watching
 		const basePath: string = normalize(this.contextService.getWorkspace().folders[0].uri.fsPath);
 		service.watch({ basePath: basePath, ignored: this.ignored, verboseLogging: this.verboseLogging }).then(null, err => {
-			if (!this.isDisposed && !(err instanceof Error && err.name === 'Canceled' && err.message === 'Canceled')) {
+			if (!this.isDisposed && !isPromiseCanceledError(err)) {
 				return TPromise.wrapError(err); // the service lib uses the promise cancel error to indicate the process died, we do not want to bubble this up
 			}
 

@@ -104,8 +104,8 @@ function layout(view: ISize, around: IView, viewport: IView, anchorPosition: Anc
 
 export class ContextView {
 
-	private static BUBBLE_UP_EVENTS = ['click', 'keydown', 'focus', 'blur'];
-	private static BUBBLE_DOWN_EVENTS = ['click'];
+	private static readonly BUBBLE_UP_EVENTS = ['click', 'keydown', 'focus', 'blur'];
+	private static readonly BUBBLE_DOWN_EVENTS = ['click'];
 
 	private $container: Builder;
 	private $view: Builder;
@@ -128,6 +128,7 @@ export class ContextView {
 
 	public setContainer(container: HTMLElement): void {
 		if (this.$container) {
+			this.$container.getHTMLElement().removeChild(this.$view.getHTMLElement());
 			this.$container.off(ContextView.BUBBLE_UP_EVENTS);
 			this.$container.off(ContextView.BUBBLE_DOWN_EVENTS, true);
 			this.$container = null;

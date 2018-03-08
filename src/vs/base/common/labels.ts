@@ -6,8 +6,9 @@
 
 import URI from 'vs/base/common/uri';
 import platform = require('vs/base/common/platform');
-import { nativeSep, normalize, isEqualOrParent, isEqual, basename, join } from 'vs/base/common/paths';
+import { nativeSep, normalize, isEqualOrParent, isEqual, basename as pathsBasename, join } from 'vs/base/common/paths';
 import { endsWith, ltrim } from 'vs/base/common/strings';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IWorkspaceFolderProvider {
 	getWorkspaceFolder(resource: URI): { uri: URI };
@@ -29,8 +30,8 @@ export function getPathLabel(resource: URI | string, rootProvider?: IWorkspaceFo
 		resource = URI.file(resource);
 	}
 
-	if (resource.scheme !== 'file' && resource.scheme !== 'untitled') {
-		return resource.authority + resource.path;
+	if (resource.scheme !== Schemas.file && resource.scheme !== Schemas.untitled) {
+		return resource.with({ query: null, fragment: null }).toString(true);
 	}
 
 	// return early if we can resolve a relative path label from the root
@@ -46,7 +47,7 @@ export function getPathLabel(resource: URI | string, rootProvider?: IWorkspaceFo
 		}
 
 		if (hasMultipleRoots) {
-			const rootName = basename(baseResource.uri.fsPath);
+			const rootName = pathsBasename(baseResource.uri.fsPath);
 			pathLabel = pathLabel ? join(rootName, pathLabel) : rootName; // always show root basename if there are multiple
 		}
 
@@ -67,6 +68,25 @@ export function getPathLabel(resource: URI | string, rootProvider?: IWorkspaceFo
 	return res;
 }
 
+export function getBaseLabel(resource: URI | string): string {
+	if (!resource) {
+		return null;
+	}
+
+	if (typeof resource === 'string') {
+		resource = URI.file(resource);
+	}
+
+	const base = pathsBasename(resource.fsPath) || resource.fsPath /* can be empty string if '/' is passed in */;
+
+	// convert c: => C:
+	if (hasDriveLetter(base)) {
+		return normalizeDriveLetter(base);
+	}
+
+	return base;
+}
+
 function hasDriveLetter(path: string): boolean {
 	return platform.isWindows && path && path[1] === ':';
 }
@@ -85,6 +105,10 @@ export function tildify(path: string, userHome: string): string {
 	}
 
 	return path;
+}
+
+export function untildify(path: string, userHome: string): string {
+	return path.replace(/^~($|\/|\\)/, `${userHome}$1`);
 }
 
 /**
@@ -301,7 +325,7 @@ export function template(template: string, values: { [key: string]: string | ISe
 			const left = segments[index - 1];
 			const right = segments[index + 1];
 
-			return [left, right].every(segment => segment && segment.type === Type.VARIABLE && segment.value.length > 0);
+			return [left, right].every(segment => segment && (segment.type === Type.VARIABLE || segment.type === Type.TEXT) && segment.value.length > 0);
 		}
 
 		// accept any TEXT and VARIABLE

@@ -7,13 +7,13 @@ import * as interfaces from './interfaces';
 import { loadMessageBundle } from 'vscode-nls';
 const localize = loadMessageBundle();
 
-export default class MergeDectorator implements vscode.Disposable {
+export default class MergeDecorator implements vscode.Disposable {
 
 	private decorations: { [key: string]: vscode.TextEditorDecorationType } = {};
 
 	private decorationUsesWholeLine: boolean = true; // Useful for debugging, set to false to see exact match ranges
 
-	private config: interfaces.IExtensionConfiguration;
+	private config?: interfaces.IExtensionConfiguration;
 	private tracker: interfaces.IDocumentMergeConflictTracker;
 	private updating = new Map<vscode.TextEditor, boolean>();
 
@@ -210,7 +210,7 @@ export default class MergeDectorator implements vscode.Disposable {
 					}
 				});
 
-				if (this.config.enableDecorations) {
+				if (this.config!.enableDecorations) {
 					pushDecoration('current.header', { range: conflict.current.header });
 					pushDecoration('splitter', { range: conflict.splitter });
 					pushDecoration('incoming.header', { range: conflict.incoming.header });

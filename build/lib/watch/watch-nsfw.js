@@ -30,12 +30,12 @@ function watch(root) {
             path: path,
             base: root
         });
-
+        //@ts-ignore
         file.event = type;
         result.emit('data', file);
     }
 
-    nsfw(root, function(events) {
+    nsfw(root, function (events) {
         for (var i = 0; i < events.length; i++) {
             var e = events[i];
             var changeType = e.action;
@@ -47,16 +47,16 @@ function watch(root) {
                 handleEvent(path.join(e.directory, e.file), toChangeType(changeType));
             }
         }
-    }).then(function(watcher) {
+    }).then(function (watcher) {
         watcher.start();
-	});
+    });
 
-	return result;
+    return result;
 }
 
 var cache = Object.create(null);
 
-module.exports = function(pattern, options) {
+module.exports = function (pattern, options) {
     options = options || {};
 
     var cwd = path.normalize(options.cwd || process.cwd());
@@ -66,7 +66,7 @@ module.exports = function(pattern, options) {
         watcher = cache[cwd] = watch(cwd);
     }
 
-    var rebase = !options.base ? es.through() : es.mapSync(function(f) {
+    var rebase = !options.base ? es.through() : es.mapSync(function (f) {
         f.base = options.base;
         return f;
     });
@@ -74,13 +74,13 @@ module.exports = function(pattern, options) {
     return watcher
         .pipe(filter(['**', '!.git{,/**}'])) // ignore all things git
         .pipe(filter(pattern))
-        .pipe(es.map(function(file, cb) {
-            fs.stat(file.path, function(err, stat) {
+        .pipe(es.map(function (file, cb) {
+            fs.stat(file.path, function (err, stat) {
                 if (err && err.code === 'ENOENT') { return cb(null, file); }
                 if (err) { return cb(); }
                 if (!stat.isFile()) { return cb(); }
 
-                fs.readFile(file.path, function(err, contents) {
+                fs.readFile(file.path, function (err, contents) {
                     if (err && err.code === 'ENOENT') { return cb(null, file); }
                     if (err) { return cb(); }
 

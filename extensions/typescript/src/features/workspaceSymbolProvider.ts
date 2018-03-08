@@ -62,22 +62,28 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 			searchValue: search
 		};
 		const response = await this.client.execute('navto', args, token);
+		if (!response.body) {
+			return [];
+		}
+
 		const result: SymbolInformation[] = [];
-		const data = response.body;
-		if (data) {
-			for (const item of data) {
-				if (!item.containerName && item.kind === 'alias') {
-					continue;
-				}
-				const range = tsTextSpanToVsRange(item);
-				let label = item.name;
-				if (item.kind === 'method' || item.kind === 'function') {
-					label += '()';
-				}
-				result.push(new SymbolInformation(label, getSymbolKind(item), item.containerName || '',
-					new Location(this.client.asUrl(item.file), range)));
+		for (const item of response.body) {
+			if (!item.containerName && item.kind === 'alias') {
+				continue;
 			}
+			const range = tsTextSpanToVsRange(item);
+			const label = TypeScriptWorkspaceSymbolProvider.getLabel(item);
+			result.push(new SymbolInformation(label, getSymbolKind(item), item.containerName || '',
+				new Location(this.client.asUrl(item.file), range)));
 		}
 		return result;
+	}
+
+	private static getLabel(item: Proto.NavtoItem) {
+		let label = item.name;
+		if (item.kind === 'method' || item.kind === 'function') {
+			label += '()';
+		}
+		return label;
 	}
 }

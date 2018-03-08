@@ -72,10 +72,16 @@ export function toLineRanges(selections: Selection[], textDocument: TextDocument
 	return result;
 }
 
-function getModifiedRange(textDocument: TextDocument, diff: LineChange): Range {
-	return diff.modifiedEndLineNumber === 0
-		? new Range(textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, textDocument.lineAt(diff.modifiedStartLineNumber).range.start)
-		: new Range(textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.start, textDocument.lineAt(diff.modifiedEndLineNumber - 1).range.end);
+export function getModifiedRange(textDocument: TextDocument, diff: LineChange): Range {
+	if (diff.modifiedEndLineNumber === 0) {
+		if (diff.modifiedStartLineNumber === 0) {
+			return new Range(textDocument.lineAt(diff.modifiedStartLineNumber).range.end, textDocument.lineAt(diff.modifiedStartLineNumber).range.start);
+		} else {
+			return new Range(textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, textDocument.lineAt(diff.modifiedStartLineNumber).range.start);
+		}
+	} else {
+		return new Range(textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.start, textDocument.lineAt(diff.modifiedEndLineNumber - 1).range.end);
+	}
 }
 
 export function intersectDiffWithRange(textDocument: TextDocument, diff: LineChange, range: Range): LineChange | null {

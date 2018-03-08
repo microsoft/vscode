@@ -476,6 +476,14 @@ export class SimpleKeybinding {
 		);
 	}
 
+	public getHashCode(): string {
+		let ctrl = this.ctrlKey ? '1' : '0';
+		let shift = this.shiftKey ? '1' : '0';
+		let alt = this.altKey ? '1' : '0';
+		let meta = this.metaKey ? '1' : '0';
+		return `${ctrl}${shift}${alt}${meta}${this.keyCode}`;
+	}
+
 	public isModifierKey(): boolean {
 		return (
 			this.keyCode === KeyCode.Unknown
@@ -508,6 +516,10 @@ export class ChordKeybinding {
 	constructor(firstPart: SimpleKeybinding, chordPart: SimpleKeybinding) {
 		this.firstPart = firstPart;
 		this.chordPart = chordPart;
+	}
+
+	public getHashCode(): string {
+		return `${this.firstPart.getHashCode()};${this.chordPart.getHashCode()}`;
 	}
 }
 

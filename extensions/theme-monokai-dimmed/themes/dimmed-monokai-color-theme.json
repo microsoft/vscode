@@ -5,7 +5,7 @@
 		"list.activeSelectionBackground": "#707070",
 		"list.focusBackground": "#707070",
 		"list.inactiveSelectionBackground": "#4e4e4e",
-		"list.hoverBackground": "#707070",
+		"list.hoverBackground": "#444444",
 		"list.highlightForeground": "#e58520",
 		"button.background": "#565656",
 		"editor.background": "#1e1e1e",
@@ -13,6 +13,7 @@
 		"editor.selectionBackground": "#676b7180",
 		"editor.selectionHighlightBackground": "#575b6180",
 		"editor.lineHighlightBackground": "#303030",
+		"editorActiveLineNumber.foreground": "#949494",
 		"editor.wordHighlightBackground": "#4747a180",
         "editor.wordHighlightStrongBackground": "#6767ce80",
 		"editorCursor.foreground": "#c07020",
@@ -34,7 +35,6 @@
 		"activityBarBadge.background": "#3655b5",
 		"sideBar.background": "#272727",
 		"sideBarSectionHeader.background": "#505050",
-		"notification.background": "#353535",
 		"pickerGroup.foreground": "#b0b0b0",
 		"terminal.ansiWhite": "#ffffff",
 		"inputOption.activeBorder": "#3655b5",
@@ -208,14 +208,6 @@
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#6089B4"
-			}
-		},
-		{
-			"name": "Language Constant",
-			"scope": "constant.language",
-			"settings": {
-				"fontStyle": "",
-				"foreground": "#FF0080"
 			}
 		},
 		{

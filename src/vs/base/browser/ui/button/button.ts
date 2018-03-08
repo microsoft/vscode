@@ -13,8 +13,10 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import Event, { Emitter } from 'vs/base/common/event';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IButtonOptions extends IButtonStyles {
+	title?: boolean;
 }
 
 export interface IButtonStyles {
@@ -43,6 +45,8 @@ export class Button {
 	private _onDidClick = new Emitter<any>();
 	readonly onDidClick: Event<any> = this._onDidClick.event;
 
+	private focusTracker: DOM.IFocusTracker;
+
 	constructor(container: Builder, options?: IButtonOptions);
 	constructor(container: HTMLElement, options?: IButtonOptions);
 	constructor(container: any, options?: IButtonOptions) {
@@ -59,7 +63,7 @@ export class Button {
 			'role': 'button'
 		}).appendTo(container);
 
-		this.$el.on(DOM.EventType.CLICK, (e) => {
+		this.$el.on(DOM.EventType.CLICK, e => {
 			if (!this.enabled) {
 				DOM.EventHelper.stop(e);
 				return;
@@ -68,7 +72,7 @@ export class Button {
 			this._onDidClick.fire(e);
 		});
 
-		this.$el.on(DOM.EventType.KEY_DOWN, (e) => {
+		this.$el.on(DOM.EventType.KEY_DOWN, e => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = false;
 			if (this.enabled && event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
@@ -84,20 +88,29 @@ export class Button {
 			}
 		});
 
-		this.$el.on(DOM.EventType.MOUSE_OVER, (e) => {
+		this.$el.on(DOM.EventType.MOUSE_OVER, e => {
 			if (!this.$el.hasClass('disabled')) {
-				const hoverBackground = this.buttonHoverBackground ? this.buttonHoverBackground.toString() : null;
-				if (hoverBackground) {
-					this.$el.style('background-color', hoverBackground);
-				}
+				this.setHoverBackground();
 			}
 		});
 
-		this.$el.on(DOM.EventType.MOUSE_OUT, (e) => {
+		this.$el.on(DOM.EventType.MOUSE_OUT, e => {
 			this.applyStyles(); // restore standard styles
 		});
 
+		// Also set hover background when button is focused for feedback
+		this.focusTracker = DOM.trackFocus(this.$el.getHTMLElement());
+		this.focusTracker.onDidFocus(() => this.setHoverBackground());
+		this.focusTracker.onDidBlur(() => this.applyStyles()); // restore standard styles
+
 		this.applyStyles();
+	}
+
+	private setHoverBackground(): void {
+		const hoverBackground = this.buttonHoverBackground ? this.buttonHoverBackground.toString() : null;
+		if (hoverBackground) {
+			this.$el.style('background-color', hoverBackground);
+		}
 	}
 
 	style(styles: IButtonStyles): void {
@@ -124,7 +137,7 @@ export class Button {
 		}
 	}
 
-	getElement(): HTMLElement {
+	get element(): HTMLElement {
 		return this.$el.getHTMLElement();
 	}
 
@@ -133,6 +146,9 @@ export class Button {
 			this.$el.addClass('monaco-text-button');
 		}
 		this.$el.text(value);
+		if (this.options.title) {
+			this.$el.title(value);
+		}
 	}
 
 	set icon(iconClassName: string) {
@@ -165,8 +181,66 @@ export class Button {
 		if (this.$el) {
 			this.$el.dispose();
 			this.$el = null;
+
+			this.focusTracker.dispose();
+			this.focusTracker = null;
 		}
 
 		this._onDidClick.dispose();
+	}
+}
+
+export class ButtonGroup {
+	private _buttons: Button[];
+	private toDispose: IDisposable[];
+
+	constructor(container: Builder, count: number, options?: IButtonOptions);
+	constructor(container: HTMLElement, count: number, options?: IButtonOptions);
+	constructor(container: any, count: number, options?: IButtonOptions) {
+		this._buttons = [];
+		this.toDispose = [];
+
+		this.create(container, count, options);
+	}
+
+	get buttons(): Button[] {
+		return this._buttons;
+	}
+
+	private create(container: Builder, count: number, options?: IButtonOptions): void;
+	private create(container: HTMLElement, count: number, options?: IButtonOptions): void;
+	private create(container: any, count: number, options?: IButtonOptions): void {
+		for (let index = 0; index < count; index++) {
+			const button = new Button(container, options);
+			this._buttons.push(button);
+			this.toDispose.push(button);
+
+			// Implement keyboard access in buttons if there are multiple
+			if (count > 1) {
+				$(button.element).on(DOM.EventType.KEY_DOWN, e => {
+					const event = new StandardKeyboardEvent(e as KeyboardEvent);
+					let eventHandled = true;
+
+					// Next / Previous Button
+					let buttonIndexToFocus: number;
+					if (event.equals(KeyCode.LeftArrow)) {
+						buttonIndexToFocus = index > 0 ? index - 1 : this._buttons.length - 1;
+					} else if (event.equals(KeyCode.RightArrow)) {
+						buttonIndexToFocus = index === this._buttons.length - 1 ? 0 : index + 1;
+					} else {
+						eventHandled = false;
+					}
+
+					if (eventHandled) {
+						this._buttons[buttonIndexToFocus].focus();
+						DOM.EventHelper.stop(e, true);
+					}
+				}, this.toDispose);
+			}
+		}
+	}
+
+	dispose(): void {
+		this.toDispose = dispose(this.toDispose);
 	}
 }

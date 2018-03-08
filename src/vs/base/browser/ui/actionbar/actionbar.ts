@@ -14,9 +14,10 @@ import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import DOM = require('vs/base/browser/dom');
 import types = require('vs/base/common/types');
-import { Gesture, EventType } from 'vs/base/browser/touch';
+import { EventType, Gesture } from 'vs/base/browser/touch';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import Event, { Emitter } from 'vs/base/common/event';
 
 export interface IActionItem {
@@ -41,7 +42,6 @@ export class BaseActionItem implements IActionItem {
 	public _context: any;
 	public _action: IAction;
 
-	private gesture: Gesture;
 	private _actionRunner: IActionRunner;
 
 	constructor(context: any, action: IAction, protected options?: IBaseActionItemOptions) {
@@ -106,7 +106,7 @@ export class BaseActionItem implements IActionItem {
 
 	public render(container: HTMLElement): void {
 		this.builder = $(container);
-		this.gesture = new Gesture(container);
+		Gesture.addTarget(container);
 
 		const enableDragging = this.options && this.options.draggable;
 		if (enableDragging) {
@@ -139,7 +139,7 @@ export class BaseActionItem implements IActionItem {
 			if (this.options && this.options.isMenu) {
 				this.onClick(e);
 			} else {
-				setTimeout(() => this.onClick(e), 50);
+				setImmediate(() => this.onClick(e));
 			}
 		});
 
@@ -201,18 +201,13 @@ export class BaseActionItem implements IActionItem {
 			this.builder = null;
 		}
 
-		if (this.gesture) {
-			this.gesture.dispose();
-			this.gesture = null;
-		}
-
 		this._callOnDispose = lifecycle.dispose(this._callOnDispose);
 	}
 }
 
 export class Separator extends Action {
 
-	public static ID = 'vs.actions.separator';
+	public static readonly ID = 'vs.actions.separator';
 
 	constructor(label?: string, order?: number) {
 		super(Separator.ID, label, label ? 'separator text' : 'separator');
@@ -761,9 +756,10 @@ export class SelectActionItem extends BaseActionItem {
 	protected selectBox: SelectBox;
 	protected toDispose: lifecycle.IDisposable[];
 
-	constructor(ctx: any, action: IAction, options: string[], selected: number) {
+	constructor(ctx: any, action: IAction, options: string[], selected: number, contextViewProvider: IContextViewProvider
+	) {
 		super(ctx, action);
-		this.selectBox = new SelectBox(options, selected);
+		this.selectBox = new SelectBox(options, selected, contextViewProvider);
 
 		this.toDispose = [];
 		this.toDispose.push(this.selectBox);

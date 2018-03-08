@@ -6,7 +6,8 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 
 export class MoveCaretCommand implements ICommand {
 
@@ -24,7 +25,7 @@ export class MoveCaretCommand implements ICommand {
 		this._isMovingLeft = isMovingLeft;
 	}
 
-	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		var s = this._selection;
 		this._selectionId = builder.trackSelection(s);
 		if (s.startLineNumber !== s.endLineNumber) {
@@ -63,7 +64,7 @@ export class MoveCaretCommand implements ICommand {
 		this._moved = true;
 	}
 
-	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		var result = helper.getTrackedSelection(this._selectionId);
 		if (this._moved) {
 			result = result.setStartPosition(result.startLineNumber, this._cutStartIndex);

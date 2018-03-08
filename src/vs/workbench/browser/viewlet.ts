@@ -7,18 +7,39 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import DOM = require('vs/base/browser/dom');
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { ToggleSidebarVisibilityAction } from 'vs/workbench/browser/actions/toggleSidebarVisibility';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 
+	constructor(id: string,
+		private partService: IPartService,
+		telemetryService: ITelemetryService,
+		themeService: IThemeService
+	) {
+		super(id, telemetryService, themeService);
+	}
+
 	public getOptimalWidth(): number {
 		return null;
+	}
+
+	public getContextMenuActions(): IAction[] {
+		return [<IAction>{
+			id: ToggleSidebarVisibilityAction.ID,
+			label: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+			enabled: true,
+			run: () => this.partService.setSideBarHidden(true)
+		}];
 	}
 }
 
@@ -149,7 +170,7 @@ export class CollapseAction extends Action {
 			viewer.collapseAll();
 			viewer.clearSelection();
 			viewer.clearFocus();
-			viewer.DOMFocus();
+			viewer.domFocus();
 			viewer.focusFirst();
 
 			return TPromise.as(null);

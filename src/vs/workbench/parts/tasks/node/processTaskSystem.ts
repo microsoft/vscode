@@ -22,7 +22,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ProblemMatcher, ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
+import { ProblemMatcher, ProblemMatcherRegistry } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind } from 'vs/workbench/parts/tasks/common/problemCollectors';
@@ -417,7 +417,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 	}
 
 	private showOutput(): void {
-		this.outputChannel.show(true);
+		this.outputService.showChannel(this.outputChannel.id, true);
 	}
 
 	private clearOutput(): void {

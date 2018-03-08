@@ -15,7 +15,7 @@ import { IConfigurationChangedEvent, IEditorOptions, IDiffEditorOptions } from '
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { IMessageService } from 'vs/platform/message/common/message';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class EmbeddedCodeEditorWidget extends CodeEditor {
 
@@ -72,9 +72,9 @@ export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IThemeService themeService: IThemeService,
-		@IMessageService messageService: IMessageService
+		@INotificationService notificationService: INotificationService
 	) {
-		super(domElement, parentEditor.getRawConfiguration(), editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, messageService);
+		super(domElement, parentEditor.getRawConfiguration(), editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;

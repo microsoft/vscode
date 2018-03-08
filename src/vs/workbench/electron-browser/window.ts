@@ -6,7 +6,6 @@
 'use strict';
 
 import nls = require('vs/nls');
-import platform = require('vs/base/common/platform');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
@@ -14,14 +13,12 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import arrays = require('vs/base/common/arrays');
 import objects = require('vs/base/common/objects');
 import DOM = require('vs/base/browser/dom');
-import Severity from 'vs/base/common/severity';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Action } from 'vs/base/common/actions';
 import { AutoSaveConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { toResource } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService, IResourceInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IWindowsService, IWindowService, IWindowSettings, IPath, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
@@ -33,7 +30,7 @@ import * as browser from 'vs/base/browser/browser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Position, IResourceInput, IUntitledResourceInput, IEditor } from 'vs/platform/editor/common/editor';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { Themable } from 'vs/workbench/common/theme';
 import { ipcRenderer as ipc, webFrame } from 'electron';
@@ -46,6 +43,10 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
+import { AccessibilitySupport, isRootUser, isWindows, isMacintosh } from 'vs/base/common/platform';
+import product from 'vs/platform/node/product';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
@@ -60,7 +61,7 @@ const TextInputActions: IAction[] = [
 
 export class ElectronWindow extends Themable {
 
-	private static AUTO_SAVE_SETTING = 'files.autoSave';
+	private static readonly AUTO_SAVE_SETTING = 'files.autoSave';
 
 	private touchBarUpdater: RunOnceScheduler;
 	private touchBarMenu: IMenu;
@@ -81,7 +82,7 @@ export class ElectronWindow extends Themable {
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@ITitleService private titleService: ITitleService,
 		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@ICommandService private commandService: ICommandService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IViewletService private viewletService: IViewletService,
@@ -91,7 +92,8 @@ export class ElectronWindow extends Themable {
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
 		@IFileService private fileService: IFileService,
 		@IMenuService private menuService: IMenuService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IIntegrityService private integrityService: IIntegrityService
 	) {
 		super(themeService);
 
@@ -155,7 +157,7 @@ export class ElectronWindow extends Themable {
 				*/
 				this.telemetryService.publicLog('commandExecuted', { id: request.id, from: request.from });
 			}, err => {
-				this.messageService.show(Severity.Error, err);
+				this.notificationService.error(err);
 			});
 		});
 
@@ -192,7 +194,7 @@ export class ElectronWindow extends Themable {
 
 		// Message support
 		ipc.on('vscode:showInfoMessage', (_event: any, message: string) => {
-			this.messageService.show(Severity.Info, message);
+			this.notificationService.info(message);
 		});
 
 		// Support toggling auto save
@@ -239,7 +241,7 @@ export class ElectronWindow extends Themable {
 
 		// keyboard layout changed event
 		ipc.on('vscode:accessibilitySupportChanged', (_event: any, accessibilitySupportEnabled: boolean) => {
-			browser.setAccessibilitySupport(accessibilitySupportEnabled ? platform.AccessibilitySupport.Enabled : platform.AccessibilitySupport.Disabled);
+			browser.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
 
 		// Zoom level changes
@@ -270,7 +272,6 @@ export class ElectronWindow extends Themable {
 	}
 
 	private updateWindowZoomLevel(): void {
-
 		const windowConfig: IWindowsConfiguration = this.configurationService.getValue<IWindowsConfiguration>();
 
 		let newZoomLevel = 0;
@@ -306,7 +307,7 @@ export class ElectronWindow extends Themable {
 		};
 
 		// Send over all extension viewlets when extensions are ready
-		this.extensionService.onReady().then(() => {
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			ipc.send('vscode:extensionViewlets', JSON.stringify(this.viewletService.getViewlets().filter(v => !!v.extensionId).map(v => { return { id: v.id, label: v.name }; })));
 		});
 
@@ -317,11 +318,40 @@ export class ElectronWindow extends Themable {
 
 		// Touchbar Support
 		this.updateTouchbarMenu();
+
+		// Integrity warning
+		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
+
+		// Root warning
+		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+			let isAdminPromise: Promise<boolean>;
+			if (isWindows) {
+				isAdminPromise = import('native-is-elevated').then(isElevated => isElevated());
+			} else {
+				isAdminPromise = Promise.resolve(isRootUser());
+			}
+
+			return isAdminPromise.then(isAdmin => {
+
+				// Update title
+				this.titleService.updateProperties({ isAdmin });
+
+				// Show warning message (unix only)
+				if (isAdmin && !isWindows) {
+					this.notificationService.warn(nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", product.nameShort));
+				}
+			});
+		});
 	}
 
 	private updateTouchbarMenu(): void {
-		if (!platform.isMacintosh) {
+		if (!isMacintosh) {
 			return; // macOS only
+		}
+
+		const touchbarEnabled = this.configurationService.getValue<boolean>('keyboard.touchbar.enabled');
+		if (!touchbarEnabled) {
+			return; // disabled via setting
 		}
 
 		// Dispose old
@@ -345,7 +375,7 @@ export class ElectronWindow extends Themable {
 		const actions: (MenuItemAction | Separator)[] = [];
 
 		// Fill actions into groups respecting order
-		fillInActions(this.touchBarMenu, void 0, actions);
+		fillInActions(this.touchBarMenu, void 0, actions, this.contextMenuService);
 
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];
@@ -380,7 +410,7 @@ export class ElectronWindow extends Themable {
 	}
 
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; label: string, isNative: boolean; }[]> {
-		return TPromise.join([this.lifecycleService.when(LifecyclePhase.Running), this.extensionService.onReady()]).then(() => {
+		return TPromise.join([this.lifecycleService.when(LifecyclePhase.Running), this.extensionService.whenInstalledExtensionsRegistered()]).then(() => {
 			return arrays.coalesce(actionIds.map(id => {
 				const binding = this.keybindingService.lookupKeybinding(id);
 				if (!binding) {

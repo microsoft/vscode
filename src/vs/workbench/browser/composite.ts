@@ -14,6 +14,8 @@ import { IEditorControl } from 'vs/platform/editor/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import DOM = require('vs/base/browser/dom');
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
@@ -26,10 +28,14 @@ import { IConstructorSignature0, IInstantiationService } from 'vs/platform/insta
  * layout and focus call, but only one create and dispose call.
  */
 export abstract class Composite extends Component implements IComposite {
-	private _telemetryData: any = {};
+	private _onTitleAreaUpdate: Emitter<void>;
+	private _onDidFocus: Emitter<void>;
+
+	private _focusTracker?: DOM.IFocusTracker;
+	private _focusListenerDisposable?: IDisposable;
+
 	private visible: boolean;
 	private parent: Builder;
-	private _onTitleAreaUpdate: Emitter<void>;
 
 	protected actionRunner: IActionRunner;
 
@@ -45,6 +51,7 @@ export abstract class Composite extends Component implements IComposite {
 
 		this.visible = false;
 		this._onTitleAreaUpdate = new Emitter<void>();
+		this._onDidFocus = new Emitter<void>();
 	}
 
 	public getTitle(): string {
@@ -85,6 +92,14 @@ export abstract class Composite extends Component implements IComposite {
 		return this.parent;
 	}
 
+	public get onDidFocus(): Event<any> {
+		this._focusTracker = DOM.trackFocus(this.getContainer().getHTMLElement());
+		this._focusListenerDisposable = this._focusTracker.onDidFocus(() => {
+			this._onDidFocus.fire();
+		});
+		return this._onDidFocus.event;
+	}
+
 	/**
 	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.
@@ -99,42 +114,6 @@ export abstract class Composite extends Component implements IComposite {
 	 */
 	public setVisible(visible: boolean): TPromise<void> {
 		this.visible = visible;
-
-		// Reset telemetry data when composite becomes visible
-		if (visible) {
-			this._telemetryData = {};
-			this._telemetryData.startTime = new Date();
-
-			// Only submit telemetry data when not running from an integration test
-			if (this._telemetryService && this._telemetryService.publicLog) {
-				const eventName: string = 'compositeOpen';
-				/* __GDPR__
-					"compositeOpen" : {
-						"composite" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this._telemetryService.publicLog(eventName, { composite: this.getId() });
-			}
-		}
-
-		// Send telemetry data when composite hides
-		else {
-			this._telemetryData.timeSpent = (Date.now() - this._telemetryData.startTime) / 1000;
-			delete this._telemetryData.startTime;
-
-			// Only submit telemetry data when not running from an integration test
-			if (this._telemetryService && this._telemetryService.publicLog) {
-				const eventName: string = 'compositeShown';
-				this._telemetryData.composite = this.getId();
-				/* __GDPR__
-					"compositeShown" : {
-						"timeSpent" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-						"composite": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this._telemetryService.publicLog(eventName, this._telemetryData);
-			}
-		}
 
 		return TPromise.as(null);
 	}
@@ -221,6 +200,15 @@ export abstract class Composite extends Component implements IComposite {
 
 	public dispose(): void {
 		this._onTitleAreaUpdate.dispose();
+		this._onDidFocus.dispose();
+
+		if (this._focusTracker) {
+			this._focusTracker.dispose();
+		}
+
+		if (this._focusListenerDisposable) {
+			this._focusListenerDisposable.dispose();
+		}
 
 		super.dispose();
 	}
@@ -235,6 +223,7 @@ export abstract class CompositeDescriptor<T extends Composite> {
 	public cssClass: string;
 	public order: number;
 	public keybindingId: string;
+	public enabled: boolean;
 
 	private ctor: IConstructorSignature0<T>;
 
@@ -244,6 +233,7 @@ export abstract class CompositeDescriptor<T extends Composite> {
 		this.name = name;
 		this.cssClass = cssClass;
 		this.order = order;
+		this.enabled = true;
 		this.keybindingId = keybindingId;
 	}
 

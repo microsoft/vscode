@@ -36,7 +36,7 @@ const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessi
 
 class AccessibilityHelpController extends Disposable
 	implements IEditorContribution {
-	private static ID = 'editor.contrib.accessibilityHelpController';
+	private static readonly ID = 'editor.contrib.accessibilityHelpController';
 
 	public static get(editor: ICodeEditor): AccessibilityHelpController {
 		return editor.getContribution<AccessibilityHelpController>(
@@ -103,9 +103,9 @@ function getSelectionLabel(selections: Selection[], charactersSelected: number):
 }
 
 class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
-	private static ID = 'editor.contrib.accessibilityHelpWidget';
-	private static WIDTH = 500;
-	private static HEIGHT = 300;
+	private static readonly ID = 'editor.contrib.accessibilityHelpWidget';
+	private static readonly WIDTH = 500;
+	private static readonly HEIGHT = 300;
 
 	private _editor: ICodeEditor;
 	private _domNode: FastDomNode<HTMLElement>;
@@ -115,9 +115,9 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 	constructor(
 		editor: ICodeEditor,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IKeybindingService private _keybindingService: IKeybindingService,
-		@IOpenerService private _openerService: IOpenerService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 		super();
 

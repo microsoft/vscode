@@ -10,7 +10,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 class WindowManager {
 
-	public static INSTANCE = new WindowManager();
+	public static readonly INSTANCE = new WindowManager();
 
 	// --- Zoom Level
 	private _zoomLevel: number = 0;

@@ -18,7 +18,7 @@ import { ValidationStatus, IProblemReporter as IProblemReporterBase } from 'vs/b
 import {
 	NamedProblemMatcher, ProblemMatcher, ProblemMatcherParser, Config as ProblemMatcherConfig,
 	isNamedProblemMatcher, ProblemMatcherRegistry
-} from 'vs/platform/markers/common/problemMatcher';
+} from 'vs/workbench/parts/tasks/common/problemMatcher';
 
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
@@ -810,6 +810,10 @@ namespace CommandConfiguration {
 		return isEmpty(result) ? undefined : result;
 	}
 
+	export function hasCommand(value: Tasks.CommandConfiguration): boolean {
+		return value && !!value.name;
+	}
+
 	export function isEmpty(value: Tasks.CommandConfiguration): boolean {
 		return _isEmpty(value, properties);
 	}
@@ -1233,7 +1237,7 @@ namespace CustomTask {
 			taskName = external.label;
 		}
 		if (!taskName) {
-			context.problemReporter.error(nls.localize('ConfigurationParser.noTaskName', 'Error: tasks must provide a taskName property. The task will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
+			context.problemReporter.error(nls.localize('ConfigurationParser.noTaskName', 'Error: a task must provide a label property. The task will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
 			return undefined;
 		}
 
@@ -1278,7 +1282,8 @@ namespace CustomTask {
 
 	export function fillGlobals(task: Tasks.CustomTask, globals: Globals): void {
 		// We only merge a command from a global definition if there is no dependsOn
-		if (task.dependsOn === void 0) {
+		// or there is a dependsOn and a defined command.
+		if (CommandConfiguration.hasCommand(task.command) || task.dependsOn === void 0) {
 			task.command = CommandConfiguration.fillGlobals(task.command, globals.command, task.name);
 		}
 		// promptOnClose is inferred from isBackground if available

@@ -15,26 +15,29 @@ import { registerEditorContribution, EditorAction, IActionOptions, registerEdito
 import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
-import { registerColor, editorSelectionHighlight, activeContrastBorder, overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorSelectionHighlight, overviewRulerSelectionHighlightForeground, activeContrastBorder, editorSelectionHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { firstIndex } from 'vs/base/common/arrays';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ITextModel, TrackedRangeStickiness, OverviewRulerLane, IModelDeltaDecoration } from 'vs/editor/common/model';
 
-export const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable.'));
-export const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable.'));
+export const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable. The color must not be opaque to not hide underlying decorations.'), true);
+export const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable. The color must not be opaque to not hide underlying decorations.'), true);
+export const editorWordHighlightBorder = registerColor('editor.wordHighlightBorder', { light: null, dark: null, hc: activeContrastBorder }, nls.localize('wordHighlightBorder', 'Border color of a symbol during read-access, like reading a variable.'));
+export const editorWordHighlightStrongBorder = registerColor('editor.wordHighlightStrongBorder', { light: null, dark: null, hc: activeContrastBorder }, nls.localize('wordHighlightStrongBorder', 'Border color of a symbol during write-access, like writing to a variable.'));
 
 export const overviewRulerWordHighlightForeground = registerColor('editorOverviewRuler.wordHighlightForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerWordHighlightForeground', 'Overview ruler marker color for symbol highlights.'));
 export const overviewRulerWordHighlightStrongForeground = registerColor('editorOverviewRuler.wordHighlightStrongForeground', { dark: '#C0A0C0', light: '#C0A0C0', hc: '#C0A0C0' }, nls.localize('overviewRulerWordHighlightStrongForeground', 'Overview ruler marker color for write-access symbol highlights.'));
 
 export const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlights', false);
 
-export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: Position): TPromise<DocumentHighlight[]> {
+export function getOccurrencesAtPosition(model: ITextModel, position: Position): TPromise<DocumentHighlight[]> {
 
 	const orderedByScore = DocumentHighlightProviderRegistry.ordered(model);
 	let foundResult = false;
@@ -71,7 +74,7 @@ class WordHighlighter {
 
 	private editor: ICodeEditor;
 	private occurrencesHighlight: boolean;
-	private model: editorCommon.IModel;
+	private model: ITextModel;
 	private _lastWordRange: Range;
 	private _decorationIds: string[];
 	private toUnhook: IDisposable[];
@@ -159,7 +162,7 @@ class WordHighlighter {
 		try {
 			this._ignorePositionChangeEvent = true;
 			this.editor.setPosition(dest.getStartPosition());
-			this.editor.revealRangeInCenter(dest);
+			this.editor.revealRangeInCenterIfOutsideViewport(dest);
 		} finally {
 			this._ignorePositionChangeEvent = false;
 		}
@@ -173,7 +176,7 @@ class WordHighlighter {
 		try {
 			this._ignorePositionChangeEvent = true;
 			this.editor.setPosition(dest.getStartPosition());
-			this.editor.revealRangeInCenter(dest);
+			this.editor.revealRangeInCenterIfOutsideViewport(dest);
 		} finally {
 			this._ignorePositionChangeEvent = false;
 		}
@@ -330,7 +333,7 @@ class WordHighlighter {
 			this.renderDecorationsTimer = -1;
 			this.renderDecorations();
 		} else {
-			// Asyncrhonous
+			// Asynchronous
 			this.renderDecorationsTimer = setTimeout(() => {
 				this.renderDecorations();
 			}, (minimumRenderTime - currentTime));
@@ -339,7 +342,7 @@ class WordHighlighter {
 
 	private renderDecorations(): void {
 		this.renderDecorationsTimer = -1;
-		var decorations: editorCommon.IModelDeltaDecoration[] = [];
+		var decorations: IModelDeltaDecoration[] = [];
 		for (var i = 0, len = this.workerRequestValue.length; i < len; i++) {
 			var info = this.workerRequestValue[i];
 			decorations.push({
@@ -362,33 +365,33 @@ class WordHighlighter {
 		}
 	}
 
-	private static _WRITE_OPTIONS = ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+	private static readonly _WRITE_OPTIONS = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'wordHighlightStrong',
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerWordHighlightStrongForeground),
 			darkColor: themeColorFromId(overviewRulerWordHighlightStrongForeground),
-			position: editorCommon.OverviewRulerLane.Center
+			position: OverviewRulerLane.Center
 		}
 	});
 
-	private static _TEXT_OPTIONS = ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+	private static readonly _TEXT_OPTIONS = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerSelectionHighlightForeground),
 			darkColor: themeColorFromId(overviewRulerSelectionHighlightForeground),
-			position: editorCommon.OverviewRulerLane.Center
+			position: OverviewRulerLane.Center
 		}
 	});
 
-	private static _REGULAR_OPTIONS = ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+	private static readonly _REGULAR_OPTIONS = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'wordHighlight',
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerWordHighlightForeground),
 			darkColor: themeColorFromId(overviewRulerWordHighlightForeground),
-			position: editorCommon.OverviewRulerLane.Center
+			position: OverviewRulerLane.Center
 		}
 	});
 
@@ -400,7 +403,7 @@ class WordHighlighter {
 
 class WordHighlighterContribution implements editorCommon.IEditorContribution {
 
-	private static ID = 'editor.contrib.wordHighlighter';
+	private static readonly ID = 'editor.contrib.wordHighlighter';
 
 	public static get(editor: ICodeEditor): WordHighlighterContribution {
 		return editor.getContribution<WordHighlighterContribution>(WordHighlighterContribution.ID);
@@ -514,11 +517,17 @@ registerThemingParticipant((theme, collector) => {
 	if (wordHighlightStrong) {
 		collector.addRule(`.monaco-editor .wordHighlightStrong { background-color: ${wordHighlightStrong}; }`);
 	}
-	let hcOutline = theme.getColor(activeContrastBorder);
-	if (hcOutline) {
-		collector.addRule(`.monaco-editor .selectionHighlight { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
-		collector.addRule(`.monaco-editor .wordHighlight { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);
-		collector.addRule(`.monaco-editor .wordHighlightStrong { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);
+	let selectionHighlightBorder = theme.getColor(editorSelectionHighlightBorder);
+	if (selectionHighlightBorder) {
+		collector.addRule(`.monaco-editor .selectionHighlight { border: 1px dotted ${selectionHighlightBorder}; box-sizing: border-box; }`);
+	}
+	let wordHighlightBorder = theme.getColor(editorWordHighlightBorder);
+	if (wordHighlightBorder) {
+		collector.addRule(`.monaco-editor .wordHighlight { border: 1px dashed ${wordHighlightBorder}; box-sizing: border-box; }`);
+	}
+	let wordHighlightStrongBorder = theme.getColor(editorWordHighlightStrongBorder);
+	if (wordHighlightStrongBorder) {
+		collector.addRule(`.monaco-editor .wordHighlightStrong { border: 1px dashed ${wordHighlightStrongBorder}; box-sizing: border-box; }`);
 	}
 
 });

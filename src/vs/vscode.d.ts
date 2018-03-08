@@ -261,7 +261,7 @@ declare module 'vscode' {
 		constructor(line: number, character: number);
 
 		/**
-		 * Check if `other` is before this position.
+		 * Check if this position is before `other`.
 		 *
 		 * @param other A position.
 		 * @return `true` if position is on a smaller line
@@ -270,7 +270,7 @@ declare module 'vscode' {
 		isBefore(other: Position): boolean;
 
 		/**
-		 * Check if `other` is before or equal to this position.
+		 * Check if this position is before or equal to `other`.
 		 *
 		 * @param other A position.
 		 * @return `true` if position is on a smaller line
@@ -279,7 +279,7 @@ declare module 'vscode' {
 		isBeforeOrEqual(other: Position): boolean;
 
 		/**
-		 * Check if `other` is after this position.
+		 * Check if this position is after `other`.
 		 *
 		 * @param other A position.
 		 * @return `true` if position is on a greater line
@@ -288,7 +288,7 @@ declare module 'vscode' {
 		isAfter(other: Position): boolean;
 
 		/**
-		 * Check if `other` is after or equal to this position.
+		 * Check if this position is after or equal to `other`.
 		 *
 		 * @param other A position.
 		 * @return `true` if position is on a greater line
@@ -297,7 +297,7 @@ declare module 'vscode' {
 		isAfterOrEqual(other: Position): boolean;
 
 		/**
-		 * Check if `other` equals this position.
+		 * Check if this position is equal to `other`.
 		 *
 		 * @param other A position.
 		 * @return `true` if the line and character of the given position are equal to
@@ -769,6 +769,24 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A reference to a named icon. Currently only [File](#ThemeIcon.File) and [Folder](#ThemeIcon.Folder) are supported.
+	 * Using a theme icon is preferred over a custom icon as it gives theme authors the possibility to change the icons.
+	 */
+	export class ThemeIcon {
+		/**
+		 * Reference to a icon representing a file. The icon is taken from the current file icon theme or a placeholder icon.
+		 */
+		static readonly File: ThemeIcon;
+
+		/**
+		 * Reference to a icon representing a folder. The icon is taken from the current file icon theme or a placeholder icon.
+		 */
+		static readonly Folder: ThemeIcon;
+
+		private constructor(id: string);
+	}
+
+	/**
 	 * Represents theme specific rendering styles for a [text editor decoration](#TextEditorDecorationType).
 	 */
 	export interface ThemableDecorationRenderOptions {
@@ -839,6 +857,16 @@ declare module 'vscode' {
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
+		fontStyle?: string;
+
+		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 */
+		fontWeight?: string;
+
+		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 */
 		textDecoration?: string;
 
 		/**
@@ -902,6 +930,14 @@ declare module 'vscode' {
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
 		borderColor?: string | ThemeColor;
+		/**
+		 * CSS styling property that will be applied to the decoration attachment.
+		 */
+		fontStyle?: string;
+		/**
+		 * CSS styling property that will be applied to the decoration attachment.
+		 */
+		fontWeight?: string;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
@@ -1014,7 +1050,7 @@ declare module 'vscode' {
 		/**
 		 * The document associated with this text editor. The document will be the same for the entire lifetime of this text editor.
 		 */
-		document: TextDocument;
+		readonly document: TextDocument;
 
 		/**
 		 * The primary selection on this text editor. Shorthand for `TextEditor.selections[0]`.
@@ -1610,8 +1646,11 @@ declare module 'vscode' {
 		title: string;
 
 		/**
-		 * Indicates that this item replaces the default
-		 * 'Close' action.
+		 * A hint for modal dialogs that the item should be triggered
+		 * when the user cancels the dialog (e.g. by pressing the ESC
+		 * key).
+		 *
+		 * Note: this option is ignored for non-modal messages.
 		 */
 		isCloseAffordance?: boolean;
 	}
@@ -1714,13 +1753,13 @@ declare module 'vscode' {
 
 	/**
 	 * A file glob pattern to match file paths against. This can either be a glob pattern string
-	 * (like `**∕*.{ts,js}` or `*.{ts,js}`) or a [relative pattern](#RelativePattern).
+	 * (like `**​/*.{ts,js}` or `*.{ts,js}`) or a [relative pattern](#RelativePattern).
 	 *
 	 * Glob patterns can have the following syntax:
 	 * * `*` to match one or more characters in a path segment
 	 * * `?` to match on one character in a path segment
 	 * * `**` to match any number of path segments, including none
-	 * * `{}` to group conditions (e.g. `**∕*.{ts,js}` matches all TypeScript and JavaScript files)
+	 * * `{}` to group conditions (e.g. `**​/*.{ts,js}` matches all TypeScript and JavaScript files)
 	 * * `[]` to declare a range of characters to match in a path segment (e.g., `example.[0-9]` to match on `example.0`, `example.1`, …)
 	 * * `[!...]` to negate a range of characters to match in a path segment (e.g., `example.[!0-9]` to match on `example.a`, `example.b`, but not `example.0`)
 	 */
@@ -1732,7 +1771,7 @@ declare module 'vscode' {
 	 * its resource, or a glob-pattern that is applied to the [path](#TextDocument.fileName).
 	 *
 	 * @sample A language filter that applies to typescript files on disk: `{ language: 'typescript', scheme: 'file' }`
-	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**∕package.json' }`
+	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**​/package.json' }`
 	 */
 	export interface DocumentFilter {
 
@@ -1758,7 +1797,7 @@ declare module 'vscode' {
 	 * and [language filters](#DocumentFilter).
 	 *
 	 * @sample `let sel:DocumentSelector = 'typescript'`;
-	 * @sample `let sel:DocumentSelector = ['typescript', { language: 'json', pattern: '**∕tsconfig.json' }]`;
+	 * @sample `let sel:DocumentSelector = ['typescript', { language: 'json', pattern: '**​/tsconfig.json' }]`;
 	 */
 	export type DocumentSelector = string | DocumentFilter | (string | DocumentFilter)[];
 
@@ -1795,6 +1834,90 @@ declare module 'vscode' {
 	export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>;
 
 	/**
+	 * Kind of a code action.
+	 *
+	 * Kinds are a hierarchical list of identifiers separated by `.`, e.g. `"refactor.extract.function"`.
+	 */
+	export class CodeActionKind {
+		/**
+		 * Empty kind.
+		 */
+		static readonly Empty: CodeActionKind;
+
+		/**
+		 * Base kind for quickfix actions.
+		 */
+		static readonly QuickFix: CodeActionKind;
+
+		/**
+		 * Base kind for refactoring actions.
+		 */
+		static readonly Refactor: CodeActionKind;
+
+		/**
+		 * Base kind for refactoring extraction actions.
+		 *
+		 * Example extract actions:
+		 *
+		 * - Extract method
+		 * - Extract function
+		 * - Extract variable
+		 * - Extract interface from class
+		 * - ...
+		 */
+		static readonly RefactorExtract: CodeActionKind;
+
+		/**
+		 * Base kind for refactoring inline actions.
+		 *
+		 * Example inline actions:
+		 *
+		 * - Inline function
+		 * - Inline variable
+		 * - Inline constant
+		 * - ...
+		 */
+		static readonly RefactorInline: CodeActionKind;
+
+		/**
+		 * Base kind for refactoring rewrite actions.
+		 *
+		 * Example rewrite actions:
+		 *
+		 * - Convert JavaScript function to class
+		 * - Add or remove parameter
+		 * - Encapsulate field
+		 * - Make method static
+		 * - Move method to base class
+		 * - ...
+		 */
+		static readonly RefactorRewrite: CodeActionKind;
+
+		private constructor(value: string);
+
+		/**
+		 * String value of the kind, e.g. `"refactor.extract.function"`.
+		 */
+		readonly value?: string;
+
+		/**
+		 * Create a new kind by appending a more specific selector to the current kind.
+		 *
+		 * Does not modify the current kind.
+		 */
+		append(parts: string): CodeActionKind;
+
+		/**
+		 * Does this kind contain `other`?
+		 *
+		 * The kind `"refactor"` for example contains `"refactor.extract"` and ``"refactor.extract.function"`, but not `"unicorn.refactor.extract"` or `"refactory.extract"`
+		 *
+		 * @param other Kind to check.
+		 */
+		contains(other: CodeActionKind): boolean;
+	}
+
+	/**
 	 * Contains additional diagnostic information about the context in which
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
 	 */
@@ -1803,6 +1926,60 @@ declare module 'vscode' {
 		 * An array of diagnostics.
 		 */
 		readonly diagnostics: Diagnostic[];
+
+		/**
+		 * Requested kind of actions to return.
+		 *
+		 * Actions not of this kind are filtered out before being shown by the lightbulb.
+		 */
+		readonly only?: CodeActionKind;
+	}
+
+	/**
+	 * A code action represents a change that can be performed in code, e.g. to fix a problem or
+	 * to refactor code.
+	 *
+	 * A CodeAction must set either [`edit`](CodeAction#edit) and/or a [`command`](CodeAction#command). If both are supplied, the `edit` is applied first, then the command is executed.
+	 */
+	export class CodeAction {
+
+		/**
+		 * A short, human-readable, title for this code action.
+		 */
+		title: string;
+
+		/**
+		 * A [workspace edit](#WorkspaceEdit) this code action performs.
+		 */
+		edit?: WorkspaceEdit;
+
+		/**
+		 * [Diagnostics](#Diagnostic) that this code action resolves.
+		 */
+		diagnostics?: Diagnostic[];
+
+		/**
+		 * A [command](#Command) this code action executes.
+		 */
+		command?: Command;
+
+		/**
+		 * [Kind](#CodeActionKind) of the code action.
+		 *
+		 * Used to filter code actions.
+		 */
+		kind?: CodeActionKind;
+
+		/**
+		 * Creates a new code action.
+		 *
+		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edit)
+		 * or a [command](#CodeAction.command).
+		 *
+		 * @param title The title of the code action.
+		 * @param kind The kind of the code action.
+		 */
+		constructor(title: string, kind?: CodeActionKind);
 	}
 
 	/**
@@ -1820,10 +1997,10 @@ declare module 'vscode' {
 		 * @param range The range for which the command was invoked.
 		 * @param context Context carrying additional information.
 		 * @param token A cancellation token.
-		 * @return An array of commands or a thenable of such. The lack of a result can be
+		 * @return An array of commands, quick fixes, or refactorings or a thenable of such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<Command[]>;
+		provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
 	}
 
 	/**
@@ -2361,7 +2538,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A workspace edit represents textual changes for many documents.
+	 * A workspace edit represents textual and files changes for
+	 * multiple resources and documents.
 	 */
 	export class WorkspaceEdit {
 
@@ -2422,7 +2600,7 @@ declare module 'vscode' {
 		/**
 		 * Get all text edits grouped by resource.
 		 *
-		 * @return An array of `[Uri, TextEdit[]]`-tuples.
+		 * @return A shallow copy of `[Uri, TextEdit[]]`-tuples.
 		 */
 		entries(): [Uri, TextEdit[]][];
 	}
@@ -2852,7 +3030,7 @@ declare module 'vscode' {
 	export class CompletionList {
 
 		/**
-		 * This list it not complete. Further typing should result in recomputing
+		 * This list is not complete. Further typing should result in recomputing
 		 * this list.
 		 */
 		isIncomplete?: boolean;
@@ -2882,7 +3060,11 @@ declare module 'vscode' {
 		/**
 		 * Completion was triggered by a trigger character.
 		 */
-		TriggerCharacter = 1
+		TriggerCharacter = 1,
+		/**
+		 * Completion was re-triggered as current completion list is incomplete
+		 */
+		TriggerForIncompleteCompletions = 2
 	}
 
 	/**
@@ -2909,12 +3091,11 @@ declare module 'vscode' {
 	 * The completion item provider interface defines the contract between extensions and
 	 * [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
 	 *
-	 * When computing *complete* completion items is expensive, providers can optionally implement
-	 * the `resolveCompletionItem`-function. In that case it is enough to return completion
-	 * items with a [label](#CompletionItem.label) from the
-	 * [provideCompletionItems](#CompletionItemProvider.provideCompletionItems)-function. Subsequently,
-	 * when a completion item is shown in the UI and gains focus this provider is asked to resolve
-	 * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
+	 * Providers can delay the computation of the [`detail`](#CompletionItem.detail)
+	 * and [`documentation`](#CompletionItem.documentation) properties by implementing the
+	 * [`resolveCompletionItem`](#CompletionItemProvider.resolveCompletionItem)-function. However, properties that
+	 * are needed for the inital sorting and filtering, like `sortText`, `filterText`, `insertText`, and `range`, must
+	 * not be changed during resolve.
 	 *
 	 * Providers are asked for completions either explicitly by a user gesture or -depending on the configuration-
 	 * implicitly when typing words or trigger characters.
@@ -3453,7 +3634,7 @@ declare module 'vscode' {
 		uri: Uri;
 
 		/**
-		 * The document range of this locations.
+		 * The document range of this location.
 		 */
 		range: Range;
 
@@ -3745,7 +3926,7 @@ declare module 'vscode' {
 		/**
 		 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:
 		 *
-		 * `My text $(icon-name) contains icons like $(icon'name) this one.`
+		 * `My text $(icon-name) contains icons like $(icon-name) this one.`
 		 *
 		 * Where the icon-name is taken from the [octicon](https://octicons.github.com) icon set, e.g.
 		 * `light-bulb`, `thumbsup`, `zap` etc.
@@ -4497,7 +4678,7 @@ declare module 'vscode' {
 		 * has changed. *Note* that the event also fires when the active editor changes
 		 * to `undefined`.
 		 */
-		export const onDidChangeActiveTextEditor: Event<TextEditor>;
+		export const onDidChangeActiveTextEditor: Event<TextEditor | undefined>;
 
 		/**
 		 * An [event](#Event) which fires when the array of [visible editors](#window.visibleTextEditors)
@@ -4881,6 +5062,7 @@ declare module 'vscode' {
 	export interface TreeDataProvider<T> {
 		/**
 		 * An optional event to signal that an element or root has changed.
+		 * This will trigger the view to update the changed element/root and its children recursively (if shown).
 		 * To signal that root has changed, do not pass any argument or pass `undefined` or `null`.
 		 */
 		onDidChangeTreeData?: Event<T | undefined | null>;
@@ -4904,14 +5086,36 @@ declare module 'vscode' {
 
 	export class TreeItem {
 		/**
-		 * A human-readable string describing this item
+		 * A human-readable string describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
 		 */
-		label: string;
+		label?: string;
 
 		/**
-		 * The icon path for the tree item
+		 * Optional id for the tree item that has to be unique across tree. The id is used to preserve the selection and expansion state of the tree item.
+		 *
+		 * If not provided, an id is generated using the tree item's label. **Note** that when labels change, ids will change and that selection and expansion state cannot be kept stable anymore.
 		 */
-		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri };
+		id?: string;
+
+		/**
+		 * The icon path or [ThemeIcon](#ThemeIcon) for the tree item.
+		 * When `falsy`, [Folder Theme Icon](#ThemeIcon.Folder) is assigned, if item is collapsible otherwise [File Theme Icon](#ThemeIcon.File).
+		 * When a [ThemeIcon](#ThemeIcon) is specified, icon is derived from the current file icon theme for the specified theme icon using [resourceUri](#TreeItem.resourceUri) (if provided).
+		 */
+		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+
+		/**
+		 * The [uri](#Uri) of the resource representing this item.
+		 *
+		 * Will be used to derive the [label](#TreeItem.label), when it is not provided.
+		 * Will be used to derive the icon from current icon theme, when [iconPath](#TreeItem.iconPath) has [ThemeIcon](#ThemeIcon) value.
+		 */
+		resourceUri?: Uri;
+
+		/**
+		 * The tooltip text when you hover over this item.
+		 */
+		tooltip?: string | undefined;
 
 		/**
 		 * The [command](#Command) which should be run when the tree item is selected.
@@ -4948,6 +5152,12 @@ declare module 'vscode' {
 		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
 		 */
 		constructor(label: string, collapsibleState?: TreeItemCollapsibleState);
+
+		/**
+		 * @param resourceUri The [uri](#Uri) of the resource representing this item.
+		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
+		 */
+		constructor(resourceUri: Uri, collapsibleState?: TreeItemCollapsibleState);
 	}
 
 	/**
@@ -4986,6 +5196,12 @@ declare module 'vscode' {
 		 * Args for the custom shell executable, this does not work on Windows (see #8429)
 		 */
 		shellArgs?: string[];
+
+		/**
+		 * A path for the current working directory to be used for the terminal.
+		 */
+		cwd?: string;
+
 		/**
 		 * Object with environment variables that will be added to the VS Code process.
 		 */
@@ -5242,6 +5458,49 @@ declare module 'vscode' {
 		export function asRelativePath(pathOrUri: string | Uri, includeWorkspaceFolder?: boolean): string;
 
 		/**
+		 * This method replaces `deleteCount` [workspace folders](#workspace.workspaceFolders) starting at index `start`
+		 * by an optional set of `workspaceFoldersToAdd` on the `vscode.workspace.workspaceFolders` array. This "splice"
+		 * behavior can be used to add, remove and change workspace folders in a single operation.
+		 *
+		 * If the first workspace folder is added, removed or changed, the currently executing extensions (including the
+		 * one that called this method) will be terminated and restarted so that the (deprecated) `rootPath` property is
+		 * updated to point to the first workspace folder.
+		 *
+		 * Use the [`onDidChangeWorkspaceFolders()`](#onDidChangeWorkspaceFolders) event to get notified when the
+		 * workspace folders have been updated.
+		 *
+		 * **Example:** adding a new workspace folder at the end of workspace folders
+		 * ```typescript
+		 * workspace.updateWorkspaceFolders(workspace.workspaceFolders ? workspace.workspaceFolders.length : 0, null, { uri: ...});
+		 * ```
+		 *
+		 * **Example:** removing the first workspace folder
+		 * ```typescript
+		 * workspace.updateWorkspaceFolders(0, 1);
+		 * ```
+		 *
+		 * **Example:** replacing an existing workspace folder with a new one
+		 * ```typescript
+		 * workspace.updateWorkspaceFolders(0, 1, { uri: ...});
+		 * ```
+		 *
+		 * It is valid to remove an existing workspace folder and add it again with a different name
+		 * to rename that folder.
+		 *
+		 * **Note:** it is not valid to call [updateWorkspaceFolders()](#updateWorkspaceFolders) multiple times
+		 * without waiting for the [`onDidChangeWorkspaceFolders()`](#onDidChangeWorkspaceFolders) to fire.
+		 *
+		 * @param start the zero-based location in the list of currently opened [workspace folders](#WorkspaceFolder)
+		 * from which to start deleting workspace folders.
+		 * @param deleteCount the optional number of workspace folders to remove.
+		 * @param workspaceFoldersToAdd the optional variable set of workspace folders to add in place of the deleted ones.
+		 * Each workspace is identified with a mandatory URI and an optional name.
+		 * @return true if the operation was successfully started and false otherwise if arguments were used that would result
+		 * in invalid workspace folder state (e.g. 2 folders with the same URI).
+		 */
+		export function updateWorkspaceFolders(start: number, deleteCount: number | undefined | null, ...workspaceFoldersToAdd: { uri: Uri, name?: string }[]): boolean;
+
+		/**
 		 * Creates a file system watcher.
 		 *
 		 * A glob pattern that filters the file events on their absolute path must be provided. Optionally,
@@ -5261,18 +5520,19 @@ declare module 'vscode' {
 		/**
 		 * Find files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
 		 *
-		 * @sample `findFiles('**∕*.js', '**∕node_modules∕**', 10)`
+		 * @sample `findFiles('**​/*.js', '**​/node_modules/**', 10)`
 		 * @param include A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace. Use a [relative pattern](#RelativePattern)
 		 * to restrict the search results to a [workspace folder](#WorkspaceFolder).
 		 * @param exclude  A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace.
+		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined` only default excludes will
+		 * apply, when `null` no excludes will apply.
 		 * @param maxResults An upper-bound for the result.
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves to an array of resource identifiers. Will return no results if no
 		 * [workspace folders](#workspace.workspaceFolders) are opened.
 		 */
-		export function findFiles(include: GlobPattern, exclude?: GlobPattern, maxResults?: number, token?: CancellationToken): Thenable<Uri[]>;
+		export function findFiles(include: GlobPattern, exclude?: GlobPattern | null, maxResults?: number, token?: CancellationToken): Thenable<Uri[]>;
 
 		/**
 		 * Save all dirty files.
@@ -5353,11 +5613,23 @@ declare module 'vscode' {
 
 		/**
 		 * An event that is emitted when a [text document](#TextDocument) is opened.
+		 *
+		 * To add an event listener when a visible text document is opened, use the [TextEditor](#TextEditor) events in the
+		 * [window](#window) namespace. Note that:
+		 *
+		 * - The event is emitted before the [document](#TextDocument) is updated in the
+		 * [active text editor](#window.activeTextEditor)
+		 * - When a [text document](#TextDocument) is already open (e.g.: open in another [visible text editor](#window.visibleTextEditors)) this event is not emitted
+		 *
 		 */
 		export const onDidOpenTextDocument: Event<TextDocument>;
 
 		/**
 		 * An event that is emitted when a [text document](#TextDocument) is disposed.
+		 *
+		 * To add an event listener when a visible text document is closed, use the [TextEditor](#TextEditor) events in the
+		 * [window](#window) namespace. Note that this event is not emitted when a [TextEditor](#TextEditor) is closed
+		 * but the document remains open in another [visible text editor](#window.visibleTextEditors).
 		 */
 		export const onDidCloseTextDocument: Event<TextDocument>;
 
@@ -5401,7 +5673,7 @@ declare module 'vscode' {
 		 * @param resource A resource for which the configuration is asked for
 		 * @return The full configuration or a subset.
 		 */
-		export function getConfiguration(section?: string, resource?: Uri): WorkspaceConfiguration;
+		export function getConfiguration(section?: string, resource?: Uri | null): WorkspaceConfiguration;
 
 		/**
 		 * An event that is emitted when the [configuration](#WorkspaceConfiguration) changed.
@@ -6100,21 +6372,99 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Namespace for dealing with debug sessions.
+	 * Represents the debug console.
 	 */
-	export namespace debug {
+	export interface DebugConsole {
+		/**
+		 * Append the given value to the debug console.
+		 *
+		 * @param value A string, falsy values will not be printed.
+		 */
+		append(value: string): void;
 
 		/**
-		 * Start debugging by using either a named launch or named compound configuration,
-		 * or by directly passing a [DebugConfiguration](#DebugConfiguration).
-		 * The named configurations are looked up in '.vscode/launch.json' found in the given folder.
-		 * Before debugging starts, all unsaved files are saved and the launch configurations are brought up-to-date.
-		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
-		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
-		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
-		 * @return A thenable that resolves when debugging could be successfully started.
+		 * Append the given value and a line feed character
+		 * to the debug console.
+		 *
+		 * @param value A string, falsy values will be printed.
 		 */
-		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration): Thenable<boolean>;
+		appendLine(value: string): void;
+	}
+
+	/**
+	 * An event describing the changes to the set of [breakpoints](#debug.Breakpoint).
+	 */
+	export interface BreakpointsChangeEvent {
+		/**
+		 * Added breakpoints.
+		 */
+		readonly added: Breakpoint[];
+
+		/**
+		 * Removed breakpoints.
+		 */
+		readonly removed: Breakpoint[];
+
+		/**
+		 * Changed breakpoints.
+		 */
+		readonly changed: Breakpoint[];
+	}
+
+	/**
+	 * The base class of all breakpoint types.
+	 */
+	export class Breakpoint {
+		/**
+		 * Is breakpoint enabled.
+		 */
+		readonly enabled: boolean;
+		/**
+		 * An optional expression for conditional breakpoints.
+		 */
+		readonly condition?: string;
+		/**
+		 * An optional expression that controls how many hits of the breakpoint are ignored.
+		 */
+		readonly hitCondition?: string;
+
+		protected constructor(enabled?: boolean, condition?: string, hitCondition?: string);
+	}
+
+	/**
+	 * A breakpoint specified by a source location.
+	 */
+	export class SourceBreakpoint extends Breakpoint {
+		/**
+		 * The source and line position of this breakpoint.
+		 */
+		readonly location: Location;
+
+		/**
+		 * Create a new breakpoint for a source location.
+		 */
+		constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string);
+	}
+
+	/**
+	 * A breakpoint specified by a function name.
+	 */
+	export class FunctionBreakpoint extends Breakpoint {
+		/**
+		 * The name of the function to which this breakpoint is attached.
+		 */
+		readonly functionName: string;
+
+		/**
+		 * Create a new function breakpoint.
+		 */
+		constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string);
+	}
+
+	/**
+	 * Namespace for debug functionality.
+	 */
+	export namespace debug {
 
 		/**
 		 * The currently active [debug session](#DebugSession) or `undefined`. The active debug session is the one
@@ -6122,6 +6472,17 @@ declare module 'vscode' {
 		 * If no debug session is active, the value is `undefined`.
 		 */
 		export let activeDebugSession: DebugSession | undefined;
+
+		/**
+		 * The currently active [debug console](#DebugConsole).
+		 */
+		export let activeDebugConsole: DebugConsole;
+
+		/**
+		 * List of breakpoints.
+		 */
+		export let breakpoints: Breakpoint[];
+
 
 		/**
 		 * An [event](#Event) which fires when the [active debug session](#debug.activeDebugSession)
@@ -6146,6 +6507,12 @@ declare module 'vscode' {
 		export const onDidTerminateDebugSession: Event<DebugSession>;
 
 		/**
+		 * An [event](#Event) that is emitted when the set of breakpoints is added, removed, or changed.
+		 */
+		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
+
+
+		/**
 		 * Register a [debug configuration provider](#DebugConfigurationProvider) for a specifc debug type.
 		 * More than one provider can be registered for the same type.
 		 *
@@ -6154,6 +6521,30 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerDebugConfigurationProvider(debugType: string, provider: DebugConfigurationProvider): Disposable;
+
+		/**
+		 * Start debugging by using either a named launch or named compound configuration,
+		 * or by directly passing a [DebugConfiguration](#DebugConfiguration).
+		 * The named configurations are looked up in '.vscode/launch.json' found in the given folder.
+		 * Before debugging starts, all unsaved files are saved and the launch configurations are brought up-to-date.
+		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
+		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
+		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
+		 * @return A thenable that resolves when debugging could be successfully started.
+		 */
+		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration): Thenable<boolean>;
+
+		/**
+		 * Add breakpoints.
+		 * @param breakpoints The breakpoints to add.
+		*/
+		export function addBreakpoints(breakpoints: Breakpoint[]): void;
+
+		/**
+		 * Remove breakpoints.
+		 * @param breakpoints The breakpoints to remove.
+		 */
+		export function removeBreakpoints(breakpoints: Breakpoint[]): void;
 	}
 
 	/**

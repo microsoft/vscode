@@ -5,8 +5,6 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-nls.config({ locale: vscode.env.language });
 
 import PHPCompletionItemProvider from './features/completionItemProvider';
 import PHPHoverProvider from './features/hoverProvider';
@@ -22,7 +20,6 @@ export function activate(context: vscode.ExtensionContext): any {
 	context.subscriptions.push(vscode.languages.registerCompletionItemProvider('php', new PHPCompletionItemProvider(), '>', '$'));
 	context.subscriptions.push(vscode.languages.registerHoverProvider('php', new PHPHoverProvider()));
 	context.subscriptions.push(vscode.languages.registerSignatureHelpProvider('php', new PHPSignatureHelpProvider(), '(', ','));
-
 
 	// need to set in the extension host as well as the completion provider uses it.
 	vscode.languages.setLanguageConfiguration('php', {

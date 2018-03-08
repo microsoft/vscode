@@ -192,6 +192,19 @@ export enum Verbosity {
 	LONG
 }
 
+export interface IRevertOptions {
+
+	/**
+	 *  Forces to load the contents of the editor again even if the editor is not dirty.
+	 */
+	force?: boolean;
+
+	/**
+	 * A soft revert will clear dirty state of an editor but will not attempt to load it.
+	 */
+	soft?: boolean;
+}
+
 export interface IEditorInput extends IDisposable {
 
 	/**
@@ -232,7 +245,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Reverts this input.
 	 */
-	revert(): TPromise<boolean>;
+	revert(options?: IRevertOptions): TPromise<boolean>;
 
 	/**
 	 * Returns if the other object matches this input.
@@ -256,12 +269,16 @@ export interface IEditorOptions {
 	forceOpen?: boolean;
 
 	/**
-	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups.
+	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups. Note
+	 * that this option is just a hint that might be ignored if the user wants to open an editor explicitly
+	 * to the side of another one.
 	 */
 	revealIfVisible?: boolean;
 
 	/**
-	 * Will reveal the editor if it is already opened (even when not visible) in any of the opened editor groups.
+	 * Will reveal the editor if it is already opened (even when not visible) in any of the opened editor groups. Note
+	 * that this option is just a hint that might be ignored if the user wants to open an editor explicitly
+	 * to the side of another one.
 	 */
 	revealIfOpened?: boolean;
 

@@ -8,17 +8,17 @@ import { HtmlNode } from 'EmmetNode';
 import { getNode, parseDocument, validate } from './util';
 
 export function matchTag() {
-	let editor = vscode.window.activeTextEditor;
-	if (!validate(false)) {
+	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
 	}
+	const editor = vscode.window.activeTextEditor;
 
 	let rootNode = <HtmlNode>parseDocument(editor.document);
 	if (!rootNode) {
 		return;
 	}
 
-	let updatedSelections = [];
+	let updatedSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
 		let updatedSelection = getUpdatedSelections(editor, selection.start, rootNode);
 		if (updatedSelection) {
@@ -31,7 +31,7 @@ export function matchTag() {
 	}
 }
 
-function getUpdatedSelections(editor: vscode.TextEditor, position: vscode.Position, rootNode: HtmlNode): vscode.Selection {
+function getUpdatedSelections(editor: vscode.TextEditor, position: vscode.Position, rootNode: HtmlNode): vscode.Selection | undefined {
 	let currentNode = <HtmlNode>getNode(rootNode, position, true);
 	if (!currentNode) {
 		return;

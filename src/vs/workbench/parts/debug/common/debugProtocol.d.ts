@@ -233,6 +233,20 @@ declare module DebugProtocol {
 		};
 	}
 
+	/** Event message for 'capabilities' event type.
+		The event indicates that one or more capabilities have changed.
+		Since the capabilities are dependent on the frontend and its UI, it might not be possible to change that at random times (or too late).
+		Consequently this event has a hint characteristic: a frontend can only be expected to make a 'best effort' in honouring individual capabilities but there are no guarantees.
+		Only changed capabilities need to be included, all other capabilities keep their values.
+	*/
+	export interface CapabilitiesEvent extends Event {
+		// event: 'capabilities';
+		body: {
+			/** The set of updated capabilities. */
+			capabilities: Capabilities;
+		};
+	}
+
 	/** runInTerminal request; value of command field is 'runInTerminal'.
 		With this request a debug adapter can run a command in a terminal.
 	*/
@@ -251,8 +265,8 @@ declare module DebugProtocol {
 		cwd: string;
 		/** List of arguments. The first argument is the command to run. */
 		args: string[];
-		/** Environment key-value pairs that are added to the default environment. */
-		env?: { [key: string]: string; };
+		/** Environment key-value pairs that are added to or removed from the default environment. */
+		env?: { [key: string]: string | null; };
 	}
 
 	/** Response to Initialize request. */
@@ -1073,6 +1087,8 @@ declare module DebugProtocol {
 		supportsDelayedStackTraceLoading?: boolean;
 		/** The debug adapter supports the 'loadedSources' request. */
 		supportsLoadedSourcesRequest?: boolean;
+		/** The debug adapter supports logpoints by interpreting the 'logMessage' attribute of the SourceBreakpoint. */
+		supportsLogPoints?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -1275,7 +1291,18 @@ declare module DebugProtocol {
 	/** Optional properties of a variable that can be used to determine how to render the variable in the UI. */
 	export interface VariablePresentationHint {
 		/** The kind of variable. Before introducing additional values, try to use the listed values.
-			Values: 'property', 'method', 'class', 'data', 'event', 'baseClass', 'innerClass', 'interface', 'mostDerivedClass', etc.
+			Values:
+			'property': Indicates that the object is a property.
+			'method': Indicates that the object is a method.
+			'class': Indicates that the object is a class.
+			'data': Indicates that the object is data.
+			'event': Indicates that the object is an event.
+			'baseClass': Indicates that the object is a base class.
+			'innerClass': Indicates that the object is an inner class.
+			'interface': Indicates that the object is an interface.
+			'mostDerivedClass': Indicates that the object is the most derived class.
+			'virtual': Indicates that the object is virtual, that means it is a synthetic object introduced by the adapter for rendering purposes, e.g. an index range for large arrays.
+			etc.
 		*/
 		kind?: string;
 		/** Set of attributes represented as an array of strings. Before introducing additional values, try to use the listed values.
@@ -1296,9 +1323,9 @@ declare module DebugProtocol {
 		visibility?: string;
 	}
 
-	/** Properties of a breakpoint passed to the setBreakpoints request. */
+	/** Properties of a breakpoint or logpoint passed to the setBreakpoints request. */
 	export interface SourceBreakpoint {
-		/** The source line of the breakpoint. */
+		/** The source line of the breakpoint or logpoint. */
 		line: number;
 		/** An optional source column of the breakpoint. */
 		column?: number;
@@ -1306,6 +1333,8 @@ declare module DebugProtocol {
 		condition?: string;
 		/** An optional expression that controls how many hits of the breakpoint are ignored. The backend is expected to interpret the expression as needed. */
 		hitCondition?: string;
+		/** If this attribute exists and is non-empty, the backend must not 'break' (stop) but log the message instead. Expressions within {} are interpolated. */
+		logMessage?: string;
 	}
 
 	/** Properties of a breakpoint passed to the setFunctionBreakpoints request. */

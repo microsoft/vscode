@@ -21,7 +21,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
-import { Verbosity } from 'vs/platform/editor/common/editor';
+import { Verbosity, IRevertOptions } from 'vs/platform/editor/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
@@ -214,7 +214,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return model.isDirty();
 	}
 
-	public confirmSave(): ConfirmResult {
+	public confirmSave(): TPromise<ConfirmResult> {
 		return this.textFileService.confirmSave([this.resource]);
 	}
 
@@ -222,8 +222,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.textFileService.save(this.resource);
 	}
 
-	public revert(): TPromise<boolean> {
-		return this.textFileService.revert(this.resource);
+	public revert(options?: IRevertOptions): TPromise<boolean> {
+		return this.textFileService.revert(this.resource, options);
 	}
 
 	public getPreferredEditorId(candidates: string[]): string {
@@ -240,7 +240,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		// Resolve as text
 		return this.textFileService.models.loadOrCreate(this.resource, { encoding: this.preferredEncoding, reload: refresh }).then(model => {
 
-			// TODO@Ben this is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
+			// This is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
 			// or very large files do not resolve to a text file model but should be opened as binary files without text. First calling into
 			// loadOrCreate ensures we are not creating model references for these kind of resources.
 			// In addition we have a bit of payload to take into account (encoding, reload) that the text resolver does not handle yet.

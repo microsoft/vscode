@@ -19,7 +19,7 @@ import { IHashService } from 'vs/workbench/services/hash/common/hashService';
  */
 export class ResourceEditorInput extends EditorInput {
 
-	static ID: string = 'workbench.editors.resourceEditorInput';
+	static readonly ID: string = 'workbench.editors.resourceEditorInput';
 
 	private modelReference: TPromise<IReference<ITextEditorModel>>;
 	private resource: URI;
@@ -93,7 +93,8 @@ export class ResourceEditorInput extends EditorInput {
 			if (!(model instanceof ResourceEditorModel)) {
 				ref.dispose();
 				this.modelReference = null;
-				return TPromise.wrapError<ITextEditorModel>(new Error(`Unexpected model for ResourceInput: ${this.resource}`)); // TODO@Ben eventually also files should be supported, but we guard due to the dangerous dispose of the model in dispose()
+
+				return TPromise.wrapError<ITextEditorModel>(new Error(`Unexpected model for ResourceInput: ${this.resource}`));
 			}
 
 			return model;

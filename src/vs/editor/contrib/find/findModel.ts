@@ -22,6 +22,7 @@ import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry'
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ITextModel, FindMatch, EndOfLinePreference } from 'vs/editor/common/model';
 
 export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
 export const CONTEXT_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
@@ -53,6 +54,7 @@ export const ShowNextFindTermKeybinding: IKeybindings = {
 
 export const FIND_IDS = {
 	StartFindAction: 'actions.find',
+	StartFindWithSelection: 'actions.findWithSelection',
 	NextMatchFindAction: 'editor.action.nextMatchFindAction',
 	PreviousMatchFindAction: 'editor.action.previousMatchFindAction',
 	NextSelectionMatchFindAction: 'editor.action.nextSelectionMatchFindAction',
@@ -146,14 +148,8 @@ export class FindModelBoundToEditorModel {
 		}
 	}
 
-	private static _getSearchRange(model: editorCommon.IModel, searchOnlyEditableRange: boolean, findScope: Range): Range {
-		let searchRange: Range;
-
-		if (searchOnlyEditableRange) {
-			searchRange = model.getEditableRange();
-		} else {
-			searchRange = model.getFullModelRange();
-		}
+	private static _getSearchRange(model: ITextModel, findScope: Range): Range {
+		let searchRange = model.getFullModelRange();
 
 		// If we have set now or before a find scope, use it for computing the search range
 		if (findScope) {
@@ -225,7 +221,7 @@ export class FindModelBoundToEditorModel {
 		}
 
 		let findScope = this._decorations.getFindScope();
-		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), this._state.isReplaceRevealed, findScope);
+		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), findScope);
 
 		// ...(----)...|...
 		if (searchRange.getEndPosition().isBefore(before)) {
@@ -290,13 +286,13 @@ export class FindModelBoundToEditorModel {
 		}
 	}
 
-	private _getNextMatch(after: Position, captureMatches: boolean, forceMove: boolean, isRecursed: boolean = false): editorCommon.FindMatch {
+	private _getNextMatch(after: Position, captureMatches: boolean, forceMove: boolean, isRecursed: boolean = false): FindMatch {
 		if (this._cannotFind()) {
 			return null;
 		}
 
 		let findScope = this._decorations.getFindScope();
-		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), this._state.isReplaceRevealed, findScope);
+		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), findScope);
 
 		// ...(----)...|...
 		if (searchRange.getEndPosition().isBefore(after)) {
@@ -387,8 +383,8 @@ export class FindModelBoundToEditorModel {
 		}
 	}
 
-	private _findMatches(findScope: Range, captureMatches: boolean, limitResultCount: number): editorCommon.FindMatch[] {
-		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), this._state.isReplaceRevealed, findScope);
+	private _findMatches(findScope: Range, captureMatches: boolean, limitResultCount: number): FindMatch[] {
+		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), findScope);
 		return this._editor.getModel().findMatches(this._state.searchString, searchRange, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getConfiguration().wordSeparators : null, captureMatches, limitResultCount);
 	}
 
@@ -400,7 +396,7 @@ export class FindModelBoundToEditorModel {
 		const findScope = this._decorations.getFindScope();
 
 		if (findScope === null && this._state.matchesCount >= MATCHES_LIMIT) {
-			// Doing a replace on the entire file that is over 1k matches
+			// Doing a replace on the entire file that is over ${MATCHES_LIMIT} matches
 			this._largeReplaceAll();
 		} else {
 			this._regularReplaceAll(findScope);
@@ -429,7 +425,7 @@ export class FindModelBoundToEditorModel {
 		}
 
 		const model = this._editor.getModel();
-		const modelText = model.getValue(editorCommon.EndOfLinePreference.LF);
+		const modelText = model.getValue(EndOfLinePreference.LF);
 		const fullModelRange = model.getFullModelRange();
 
 		const replacePattern = this._getReplacePattern();

@@ -5,6 +5,7 @@
 'use strict';
 
 import { CharCode } from 'vs/base/common/charCode';
+import { ITextBuffer } from 'vs/editor/common/model';
 
 /**
  * Compute the diff in spaces between two line's indentation.
@@ -80,9 +81,9 @@ export interface IGuessedIndentation {
 	insertSpaces: boolean;
 }
 
-export function guessIndentation(lines: string[], defaultTabSize: number, defaultInsertSpaces: boolean): IGuessedIndentation {
+export function guessIndentation(source: ITextBuffer, defaultTabSize: number, defaultInsertSpaces: boolean): IGuessedIndentation {
 	// Look at most at the first 10k lines
-	const linesLen = Math.min(lines.length, 10000);
+	const linesCount = Math.min(source.getLineCount(), 10000);
 
 	let linesIndentedWithTabsCount = 0;				// number of lines that contain at least one tab in indentation
 	let linesIndentedWithSpacesCount = 0;			// number of lines that contain only spaces in indentation
@@ -95,15 +96,24 @@ export function guessIndentation(lines: string[], defaultTabSize: number, defaul
 
 	let spacesDiffCount = [0, 0, 0, 0, 0, 0, 0, 0, 0];		// `tabSize` scores
 
-	for (let i = 0; i < linesLen; i++) {
-		let currentLineText = lines[i];
+	for (let lineNumber = 1; lineNumber <= linesCount; lineNumber++) {
+		let currentLineLength = source.getLineLength(lineNumber);
+		let currentLineText = source.getLineContent(lineNumber);
+		let charCodeAt: (offset: number) => number;
+		if (currentLineLength > 65536) {
+			// if the text buffer is chunk based, so long lines are cons-string, v8 will flattern the string when we check charCode.
+			// checking charCode on chunks directly is cheaper.
+			charCodeAt = (offset: number) => source.getLineCharCode(lineNumber, offset);
+		} else {
+			charCodeAt = (offset: number) => currentLineText.charCodeAt(offset);
+		}
 
 		let currentLineHasContent = false;			// does `currentLineText` contain non-whitespace chars
 		let currentLineIndentation = 0;				// index at which `currentLineText` contains the first non-whitespace char
 		let currentLineSpacesCount = 0;				// count of spaces found in `currentLineText` indentation
 		let currentLineTabsCount = 0;				// count of tabs found in `currentLineText` indentation
-		for (let j = 0, lenJ = currentLineText.length; j < lenJ; j++) {
-			let charCode = currentLineText.charCodeAt(j);
+		for (let j = 0, lenJ = currentLineLength; j < lenJ; j++) {
+			let charCode = charCodeAt(j);
 
 			if (charCode === CharCode.Tab) {
 				currentLineTabsCount++;
@@ -149,7 +159,7 @@ export function guessIndentation(lines: string[], defaultTabSize: number, defaul
 	}
 
 	let tabSize = defaultTabSize;
-	let tabSizeScore = (insertSpaces ? 0 : 0.1 * linesLen);
+	let tabSizeScore = (insertSpaces ? 0 : 0.1 * linesCount);
 
 	// console.log("score threshold: " + tabSizeScore);
 

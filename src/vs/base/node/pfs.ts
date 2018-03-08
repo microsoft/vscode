@@ -19,7 +19,7 @@ export function readdir(path: string): TPromise<string[]> {
 }
 
 export function exists(path: string): TPromise<boolean> {
-	return new TPromise(c => fs.exists(path, c));
+	return new TPromise(c => fs.exists(path, c), () => { });
 }
 
 export function chmod(path: string, mode: number): TPromise<boolean> {
@@ -52,6 +52,10 @@ export function realpath(path: string): TPromise<string> {
 
 export function stat(path: string): TPromise<fs.Stats> {
 	return nfcall(fs.stat, path);
+}
+
+export function statLink(path: string): TPromise<{ stat: fs.Stats, isSymbolicLink: boolean }> {
+	return nfcall(extfs.statLink, path);
 }
 
 export function lstat(path: string): TPromise<fs.Stats> {
@@ -99,10 +103,11 @@ export function readFile(path: string, encoding?: string): TPromise<Buffer | str
 // Therefor we use a Queue on the path that is given to us to sequentialize calls to the same path properly.
 const writeFilePathQueue: { [path: string]: Queue<void> } = Object.create(null);
 
-export function writeFile(path: string, data: string, options?: { mode?: number; flag?: string; }): TPromise<void>;
-export function writeFile(path: string, data: NodeBuffer, options?: { mode?: number; flag?: string; }): TPromise<void>;
-export function writeFile(path: string, data: any, options?: { mode?: number; flag?: string; }): TPromise<void> {
-	let queueKey = toQueueKey(path);
+export function writeFile(path: string, data: string, options?: extfs.IWriteFileOptions): TPromise<void>;
+export function writeFile(path: string, data: NodeBuffer, options?: extfs.IWriteFileOptions): TPromise<void>;
+export function writeFile(path: string, data: NodeJS.ReadableStream, options?: extfs.IWriteFileOptions): TPromise<void>;
+export function writeFile(path: string, data: any, options?: extfs.IWriteFileOptions): TPromise<void> {
+	const queueKey = toQueueKey(path);
 
 	return ensureWriteFileQueue(queueKey).queue(() => nfcall(extfs.writeFileAndFlush, path, data, options));
 }
@@ -160,8 +165,14 @@ export function fileExists(path: string): TPromise<boolean> {
 /**
  * Deletes a path from disk.
  */
-const tmpDir = os.tmpdir();
-export function del(path: string, tmp = tmpDir): TPromise<void> {
+let _tmpDir: string = null;
+function getTmpDir(): string {
+	if (!_tmpDir) {
+		_tmpDir = os.tmpdir();
+	}
+	return _tmpDir;
+}
+export function del(path: string, tmp = getTmpDir()): TPromise<void> {
 	return nfcall(extfs.del, path, tmp);
 }
 
@@ -184,4 +195,8 @@ export function whenDeleted(path: string): TPromise<void> {
 			}
 		}, 1000);
 	});
+}
+
+export function copy(source: string, target: string): TPromise<void> {
+	return nfcall(extfs.copy, source, target);
 }

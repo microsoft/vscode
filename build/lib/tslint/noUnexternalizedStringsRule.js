@@ -144,6 +144,16 @@ var NoUnexternalizedStringsRuleWalker = /** @class */ (function (_super) {
     };
     NoUnexternalizedStringsRuleWalker.prototype.recordKey = function (keyNode, messageNode) {
         var text = keyNode.getText();
+        // We have an empty key
+        if (text.match(/(['"]) *\1/)) {
+            if (messageNode) {
+                this.addFailureAtNode(keyNode, "Key is empty for message: " + messageNode.getText());
+            }
+            else {
+                this.addFailureAtNode(keyNode, "Key is empty.");
+            }
+            return;
+        }
         var occurrences = this.usedKeys[text];
         if (!occurrences) {
             occurrences = [];

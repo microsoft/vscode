@@ -13,7 +13,7 @@ import * as objects from 'vs/base/common/objects';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import URI from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
-import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -62,7 +62,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		return this.name;
 	}
 
-	public getLabelOptions(): IIconLabelOptions {
+	public getLabelOptions(): IIconLabelValueOptions {
 		return {
 			extraClasses: getIconClasses(this.modelService, this.modeService, this.resource)
 		};
@@ -88,8 +88,8 @@ export class FileEntry extends EditorQuickOpenEntry {
 		this.range = range;
 	}
 
-	public isFile(): boolean {
-		return true; // TODO@Ben debt with editor history merging
+	public mergeWithEditorHistory(): boolean {
+		return true;
 	}
 
 	public getInput(): IResourceInput | EditorInput {
@@ -141,6 +141,9 @@ export class OpenFileHandler extends QuickOpenHandler {
 		if (!searchValue) {
 			return TPromise.as(new FileQuickOpenModel([]));
 		}
+
+		// Untildify file pattern
+		searchValue = labels.untildify(searchValue, this.environmentService.userHome);
 
 		// Do find results
 		return this.doFindResults(searchValue, this.cacheState.cacheKey, maxSortedResults);

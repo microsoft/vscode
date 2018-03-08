@@ -25,12 +25,15 @@ export interface IProductConfiguration {
 	extensionsGallery: {
 		serviceUrl: string;
 		itemUrl: string;
+		controlUrl: string;
+		recommendationsUrl: string;
 	};
 	extensionTips: { [id: string]: string; };
 	extensionImportantTips: { [id: string]: { name: string; pattern: string; }; };
 	exeBasedExtensionTips: { [id: string]: any; };
 	extensionKeywords: { [extension: string]: string[]; };
 	extensionAllowedBadgeProviders: string[];
+	extensionAllowedProposedApi: string[];
 	keymapExtensionTips: string[];
 	crashReporter: {
 		companyName: string;
@@ -68,6 +71,7 @@ export interface IProductConfiguration {
 		'linux-x64': string;
 		'darwin': string;
 	};
+	logUploaderUrl: string;
 }
 
 export interface ISurveyData {

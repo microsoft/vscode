@@ -22,7 +22,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 
 export class MessageController implements editorCommon.IEditorContribution {
 
-	private static _id = 'editor.contrib.messageController';
+	private static readonly _id = 'editor.contrib.messageController';
 
 	static CONTEXT_SNIPPET_MODE = new RawContextKey<boolean>('messageVisible', false);
 
@@ -138,10 +138,9 @@ class MessageWidget implements IContentWidget {
 
 		this._editor = editor;
 		this._editor.revealLinesInCenterIfOutsideViewport(lineNumber, lineNumber, editorCommon.ScrollType.Smooth);
-		this._position = { lineNumber, column: 1 };
+		this._position = { lineNumber, column: column - 1 };
 
 		this._domNode = document.createElement('div');
-		this._domNode.style.paddingLeft = `${editor.getOffsetForColumn(lineNumber, column) - 6}px`;
 		this._domNode.classList.add('monaco-editor-overlaymessage');
 
 		const message = document.createElement('div');

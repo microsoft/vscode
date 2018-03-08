@@ -7,7 +7,7 @@
 
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { IExpression } from 'vs/base/common/glob';
-import { IProgress, ILineMatch, IPatternInfo, ISearchStats, ISearchLog } from 'vs/platform/search/common/search';
+import { IProgress, ILineMatch, IPatternInfo, ISearchStats } from 'vs/platform/search/common/search';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IFolderSearch {
@@ -71,7 +71,7 @@ export interface ISerializedFileMatch {
 }
 
 // Type of the possible values for progress calls from the engine
-export type ISerializedSearchProgressItem = ISerializedFileMatch | ISerializedFileMatch[] | IProgress | ISearchLog;
+export type ISerializedSearchProgressItem = ISerializedFileMatch | ISerializedFileMatch[] | IProgress;
 export type IFileSearchProgressItem = IRawFileMatch | IRawFileMatch[] | IProgress;
 
 

@@ -861,6 +861,14 @@ export class SnippetParser {
 			if (this._accept(TokenType.Forwardslash)) {
 				break;
 			}
+
+			let escaped: string;
+			if (escaped = this._accept(TokenType.Backslash, true)) {
+				escaped = this._accept(TokenType.Forwardslash, true) || escaped;
+				transform.appendChild(new Text(escaped));
+				continue;
+			}
+
 			if (this._parseFormatString(transform) || this._parseAnything(transform)) {
 				continue;
 			}

@@ -13,7 +13,7 @@ import { IDebugService, IStackFrame } from 'vs/workbench/parts/debug/common/debu
 import { clipboard } from 'electron';
 
 export class CopyValueAction extends Action {
-	static ID = 'workbench.debug.viewlet.action.copyValue';
+	static readonly ID = 'workbench.debug.viewlet.action.copyValue';
 	static LABEL = nls.localize('copyValue', "Copy Value");
 
 	constructor(id: string, label: string, private value: any, @IDebugService private debugService: IDebugService) {
@@ -34,8 +34,25 @@ export class CopyValueAction extends Action {
 	}
 }
 
+export class CopyEvaluatePathAction extends Action {
+	static readonly ID = 'workbench.debug.viewlet.action.copyEvaluatePath';
+	static LABEL = nls.localize('copyAsExpression', "Copy as Expression");
+
+	constructor(id: string, label: string, private value: any) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		if (this.value instanceof Variable) {
+			clipboard.writeText(this.value.evaluateName);
+		}
+
+		return TPromise.as(null);
+	}
+}
+
 export class CopyAction extends Action {
-	static ID = 'workbench.debug.action.copy';
+	static readonly ID = 'workbench.debug.action.copy';
 	static LABEL = nls.localize('copy', "Copy");
 
 	public run(): TPromise<any> {
@@ -45,7 +62,7 @@ export class CopyAction extends Action {
 }
 
 export class CopyAllAction extends Action {
-	static ID = 'workbench.debug.action.copyAll';
+	static readonly ID = 'workbench.debug.action.copyAll';
 	static LABEL = nls.localize('copyAll', "Copy All");
 
 	constructor(id: string, label: string, private tree: ITree) {
@@ -69,7 +86,7 @@ export class CopyAllAction extends Action {
 }
 
 export class CopyStackTraceAction extends Action {
-	static ID = 'workbench.action.debug.copyStackTrace';
+	static readonly ID = 'workbench.action.debug.copyStackTrace';
 	static LABEL = nls.localize('copyStackTrace', "Copy Call Stack");
 
 	public run(frame: IStackFrame): TPromise<any> {

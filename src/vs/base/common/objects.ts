@@ -120,10 +120,6 @@ export function assign(destination: any, ...sources: any[]): any {
 	return destination;
 }
 
-export function toObject<T>(arr: T[], keyMap: (t: T) => string): { [key: string]: T } {
-	return arr.reduce((o, d) => assign(o, { [keyMap(d)]: d }), Object.create(null));
-}
-
 export function equals(one: any, other: any): boolean {
 	if (one === other) {
 		return true;

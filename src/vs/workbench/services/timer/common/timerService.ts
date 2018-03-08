@@ -49,13 +49,7 @@ export interface IMemoryInfo {
 		"hasAccessibilitySupport" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"isVMLikelyhood" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"emptyWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"loadavg" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"${wildcard}": [
-			{
-				"${prefix}": "timers2.",
-				"${classification}": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-			}
-		]
+		"loadavg" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	}
 */
 export interface IStartupMetrics {
@@ -72,6 +66,7 @@ export interface IStartupMetrics {
 		ellapsedEditorRestore: number;
 		ellapsedWorkbench: number;
 		ellapsedTimersToTimersComputed: number;
+		ellapsedNlsGeneration: number;
 	};
 	platform: string;
 	release: string;
@@ -89,32 +84,13 @@ export interface IStartupMetrics {
 
 export interface IInitData {
 	start: number;
-
-	appReady: number;
-
 	windowLoad: number;
-
-	beforeLoadWorkbenchMain: number;
-	afterLoadWorkbenchMain: number;
-
 	isInitialStartup: boolean;
 	hasAccessibilitySupport: boolean;
 }
 
 export interface ITimerService extends IInitData {
 	_serviceBrand: any;
-
-	beforeDOMContentLoaded: number;
-	afterDOMContentLoaded: number;
-
-	beforeWorkbenchOpen: number;
-	workbenchStarted: number;
-
-	beforeExtensionLoad: number;
-	afterExtensionLoad: number;
-
-	restoreViewletDuration: number;
-	restoreEditorsDuration: number;
 
 	readonly startupMetrics: IStartupMetrics;
 }

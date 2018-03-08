@@ -305,16 +305,15 @@ suite('Debug - Model', () => {
 		const process = new Process({ name: 'mockProcess', type: 'node', request: 'launch' }, rawSession);
 		const thread = new Thread(process, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: undefined, endColumn: undefined }, 0);
-		model.addWatchExpression(process, stackFrame, 'console').done();
-		model.addWatchExpression(process, stackFrame, 'console').done();
+		model.addWatchExpression(process, stackFrame, 'console');
+		model.addWatchExpression(process, stackFrame, 'console');
 		let watchExpressions = model.getWatchExpressions();
 		assertWatchExpressions(watchExpressions, 'console');
 
-		model.renameWatchExpression(process, stackFrame, watchExpressions[0].getId(), 'new_name').done();
-		model.renameWatchExpression(process, stackFrame, watchExpressions[1].getId(), 'new_name').done();
+		model.renameWatchExpression(process, stackFrame, watchExpressions[0].getId(), 'new_name');
+		model.renameWatchExpression(process, stackFrame, watchExpressions[1].getId(), 'new_name');
 		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
 
-		model.evaluateWatchExpressions(process, null);
 		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
 
 		model.addWatchExpression(process, stackFrame, 'mockExpression');

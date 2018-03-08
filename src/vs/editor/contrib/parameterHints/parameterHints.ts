@@ -19,7 +19,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 
 class ParameterHintsController implements IEditorContribution {
 
-	private static ID = 'editor.controller.parameterHints';
+	private static readonly ID = 'editor.controller.parameterHints';
 
 	public static get(editor: ICodeEditor): ParameterHintsController {
 		return editor.getContribution<ParameterHintsController>(ParameterHintsController.ID);

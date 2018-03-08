@@ -224,7 +224,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 	private _collections: DiagnosticCollection[];
 
 	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.get(MainContext.MainThreadDiagnostics);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadDiagnostics);
 		this._collections = [];
 	}
 
@@ -255,4 +255,3 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		this._collections.forEach(callback);
 	}
 }
-

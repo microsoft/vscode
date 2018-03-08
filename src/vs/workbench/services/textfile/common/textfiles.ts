@@ -9,10 +9,12 @@ import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult } from 'vs/workbench/common/editor';
-import { IBaseStat, IResolveContentOptions } from 'vs/platform/files/common/files';
+import { IBaseStat, IResolveContentOptions, ITextSnapshot } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IRawTextSource } from 'vs/editor/common/model/textSource';
+import { ITextBufferFactory } from 'vs/editor/common/model';
+import { IRevertOptions } from 'vs/platform/editor/common/editor';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * The save error handler can be installed on the text text file editor model to install code that executes when save errors occur.
@@ -89,6 +91,7 @@ export class TextFileModelChangeEvent {
 }
 
 export const TEXT_FILE_SERVICE_ID = 'textFileService';
+export const AutoSaveContext = new RawContextKey<string>('config.files.autoSave', undefined);
 
 export interface ITextFileOperationResult {
 	results: IResult[];
@@ -100,13 +103,6 @@ export interface IResult {
 	success?: boolean;
 }
 
-/* __GDPR__FRAGMENT__
-	"IAutoSaveConfiguration" : {
-		"autoSaveDelay" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"autoSaveFocusChange": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"autoSaveApplicationChange": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	}
-*/
 export interface IAutoSaveConfiguration {
 	autoSaveDelay: number;
 	autoSaveFocusChange: boolean;
@@ -135,12 +131,7 @@ export interface IRawTextContent extends IBaseStat {
 	/**
 	 * The line grouped content of a text file.
 	 */
-	value: IRawTextSource;
-
-	/**
-	 * The line grouped logical hash of a text file.
-	 */
-	valueLogicalHash: string;
+	value: ITextBufferFactory;
 
 	/**
 	 * The encoding of the content if known.
@@ -185,6 +176,7 @@ export interface ISaveOptions {
 	overwriteReadonly?: boolean;
 	overwriteEncoding?: boolean;
 	skipSaveParticipants?: boolean;
+	writeElevated?: boolean;
 }
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
@@ -208,26 +200,13 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	revert(soft?: boolean): TPromise<void>;
 
-	getValue(): string;
+	createSnapshot(): ITextSnapshot;
 
 	isDirty(): boolean;
 
 	isResolved(): boolean;
 
 	isDisposed(): boolean;
-}
-
-export interface IRevertOptions {
-
-	/**
-	 *  Forces to load the contents from disk again even if the file is not dirty.
-	 */
-	force?: boolean;
-
-	/**
-	 * A soft revert will clear dirty state of a file but not attempt to load the contents from disk.
-	 */
-	soft?: boolean;
 }
 
 export interface ITextFileService extends IDisposable {
@@ -265,17 +244,20 @@ export interface ITextFileService extends IDisposable {
 	 * Saves the resource.
 	 *
 	 * @param resource the resource to save
+	 * @param options optional save options
 	 * @return true if the resource was saved.
 	 */
 	save(resource: URI, options?: ISaveOptions): TPromise<boolean>;
 
 	/**
-	 * Saves the provided resource asking the user for a file name.
+	 * Saves the provided resource asking the user for a file name or using the provided one.
 	 *
 	 * @param resource the resource to save as.
+	 * @param targetResource the optional target to save to.
+	 * @param options optional save options
 	 * @return true if the file was saved.
 	 */
-	saveAs(resource: URI, targetResource?: URI): TPromise<URI>;
+	saveAs(resource: URI, targetResource?: URI, options?: ISaveOptions): TPromise<URI>;
 
 	/**
 	 * Saves the set of resources and returns a promise with the operation result.
@@ -305,7 +287,7 @@ export interface ITextFileService extends IDisposable {
 	 * @param resources the resources of the files to ask for confirmation or null if
 	 * confirming for all dirty resources.
 	 */
-	confirmSave(resources?: URI[]): ConfirmResult;
+	confirmSave(resources?: URI[]): TPromise<ConfirmResult>;
 
 	/**
 	 * Convinient fast access to the current auto save mode.

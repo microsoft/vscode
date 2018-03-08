@@ -244,6 +244,12 @@ suite('SnippetParser', () => {
 		assertMarker('${TM_DIRECTORY/src\\//$1/}', Variable);
 	});
 
+	test('No way to escape forward slash in snippet format section #37562', function () {
+		assertMarker('${TM_SELECTED_TEXT/a/\\/$1/g}', Variable);
+		assertMarker('${TM_SELECTED_TEXT/a/in\\/$1ner/g}', Variable);
+		assertMarker('${TM_SELECTED_TEXT/a/end\\//g}', Variable);
+	});
+
 	test('Parser, placeholder with choice', () => {
 
 		assertTextAndMarker('${1|one,two,three|}', 'one', Placeholder);
@@ -617,5 +623,11 @@ suite('SnippetParser', () => {
 
 		const clone = transform.clone();
 		assert.equal(clone.resolve('my-file-name'), 'MyFileName');
+	});
+
+	test('problem with snippets regex #40570', function () {
+
+		const snippet = new SnippetParser().parse('${TM_DIRECTORY/.*src[\\/](.*)/$1/}');
+		assertMarker(snippet, Variable);
 	});
 });

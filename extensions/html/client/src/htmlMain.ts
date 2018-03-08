@@ -5,18 +5,16 @@
 'use strict';
 
 import * as path from 'path';
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Color, ColorInformation, ColorPresentation } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, FoldingRangeList, FoldingRange, workspace } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, Disposable } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-import { ConfigurationFeature } from 'vscode-languageclient/lib/configuration.proposed';
-import { DocumentColorRequest, DocumentColorParams, ColorPresentationRequest, ColorPresentationParams } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
-
-import * as nls from 'vscode-nls';
-let localize = nls.loadMessageBundle();
+import { FoldingRangesRequest } from './protocol/foldingProvider.proposed';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
@@ -28,19 +26,21 @@ interface IPackageInfo {
 	aiKey: string;
 }
 
+let telemetryReporter: TelemetryReporter | null;
+
+let foldingProviderRegistration: Disposable | undefined = void 0;
+const foldingSetting = 'html.experimental.syntaxFolding';
+
 export function activate(context: ExtensionContext) {
 	let toDispose = context.subscriptions;
 
 	let packageInfo = getPackageInfo(context);
-	let telemetryReporter: TelemetryReporter | null = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
-	if (telemetryReporter) {
-		toDispose.push(telemetryReporter);
-	}
+	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'htmlServerMain.js'));
 	// The debug options for the server
-	let debugOptions = { execArgv: ['--nolazy', '--inspect=6004'] };
+	let debugOptions = { execArgv: ['--nolazy', '--inspect=6045'] };
 
 	// If the extension is launch in debug mode the debug server options are use
 	// Otherwise the run options are used
@@ -56,7 +56,7 @@ export function activate(context: ExtensionContext) {
 	let clientOptions: LanguageClientOptions = {
 		documentSelector,
 		synchronize: {
-			configurationSection: ['html', 'css', 'javascript'], // the settings to synchronize
+			configurationSection: ['html', 'css', 'javascript', 'emmet'], // the settings to synchronize
 		},
 		initializationOptions: {
 			embeddedLanguages
@@ -65,42 +65,11 @@ export function activate(context: ExtensionContext) {
 
 	// Create the language client and start the client.
 	let client = new LanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), serverOptions, clientOptions);
-	client.registerFeature(new ConfigurationFeature(client));
+	client.registerProposedFeatures();
 
 	let disposable = client.start();
 	toDispose.push(disposable);
 	client.onReady().then(() => {
-		disposable = languages.registerColorProvider(documentSelector, {
-			provideDocumentColors(document: TextDocument): Thenable<ColorInformation[]> {
-				let params: DocumentColorParams = {
-					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document)
-				};
-				return client.sendRequest(DocumentColorRequest.type, params).then(symbols => {
-					return symbols.map(symbol => {
-						let range = client.protocol2CodeConverter.asRange(symbol.range);
-						let color = new Color(symbol.color.red, symbol.color.green, symbol.color.blue, symbol.color.alpha);
-						return new ColorInformation(range, color);
-					});
-				});
-			},
-			provideColorPresentations(color, context): Thenable<ColorPresentation[]> {
-				let params: ColorPresentationParams = {
-					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(context.document),
-					color,
-					range: client.code2ProtocolConverter.asRange(context.range)
-				};
-				return client.sendRequest(ColorPresentationRequest.type, params).then(presentations => {
-					return presentations.map(p => {
-						let presentation = new ColorPresentation(p.label);
-						presentation.textEdit = p.textEdit && client.protocol2CodeConverter.asTextEdit(p.textEdit);
-						presentation.additionalTextEdits = p.additionalTextEdits && client.protocol2CodeConverter.asTextEdits(p.additionalTextEdits);
-						return presentation;
-					});
-				});
-			}
-		});
-		toDispose.push(disposable);
-
 		let tagRequestor = (document: TextDocument, position: Position) => {
 			let param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
 			return client.sendRequest(TagCloseRequest.type, param);
@@ -114,6 +83,14 @@ export function activate(context: ExtensionContext) {
 			}
 		});
 		toDispose.push(disposable);
+
+		initFoldingProvider();
+		toDispose.push(workspace.onDidChangeConfiguration(c => {
+			if (c.affectsConfiguration(foldingSetting)) {
+				initFoldingProvider();
+			}
+		}));
+		toDispose.push({ dispose: () => foldingProviderRegistration && foldingProviderRegistration.dispose() });
 	});
 
 	languages.setLanguageConfiguration('html', {
@@ -164,6 +141,54 @@ export function activate(context: ExtensionContext) {
 			}
 		],
 	});
+
+	const regionCompletionRegExpr = /^(\s*)(<(!(-(-\s*(#\w*)?)?)?)?)?$/;
+	languages.registerCompletionItemProvider(documentSelector, {
+		provideCompletionItems(doc, pos) {
+			let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));
+			let match = lineUntilPos.match(regionCompletionRegExpr);
+			if (match) {
+				let range = new Range(new Position(pos.line, match[1].length), pos);
+				let beginProposal = new CompletionItem('#region', CompletionItemKind.Snippet);
+				beginProposal.range = range;
+				beginProposal.insertText = new SnippetString('<!-- #region $1-->');
+				beginProposal.documentation = localize('folding.start', 'Folding Region Start');
+				beginProposal.filterText = match[2];
+				beginProposal.sortText = 'za';
+				let endProposal = new CompletionItem('#endregion', CompletionItemKind.Snippet);
+				endProposal.range = range;
+				endProposal.insertText = new SnippetString('<!-- #endregion -->');
+				endProposal.documentation = localize('folding.end', 'Folding Region End');
+				endProposal.filterText = match[2];
+				endProposal.sortText = 'zb';
+				return [beginProposal, endProposal];
+			}
+			return null;
+		}
+	});
+
+	function initFoldingProvider() {
+		let enable = workspace.getConfiguration().get(foldingSetting);
+		if (enable) {
+			if (!foldingProviderRegistration) {
+				foldingProviderRegistration = languages.registerFoldingProvider(documentSelector, {
+					provideFoldingRanges(document: TextDocument) {
+						return client.sendRequest(FoldingRangesRequest.type, { textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document) }).then(res => {
+							if (res && Array.isArray(res.ranges)) {
+								return new FoldingRangeList(res.ranges.map(r => new FoldingRange(r.startLine, r.endLine, r.type)));
+							}
+							return null;
+						});
+					}
+				});
+			}
+		} else {
+			if (foldingProviderRegistration) {
+				foldingProviderRegistration.dispose();
+				foldingProviderRegistration = void 0;
+			}
+		}
+	}
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo | null {
@@ -176,4 +201,8 @@ function getPackageInfo(context: ExtensionContext): IPackageInfo | null {
 		};
 	}
 	return null;
+}
+
+export function deactivate(): Promise<any> {
+	return telemetryReporter ? telemetryReporter.dispose() : Promise.resolve(null);
 }

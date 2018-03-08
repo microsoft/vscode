@@ -19,7 +19,7 @@ export class MainThreadFileSystemEventService {
 		@IFileService fileService: IFileService
 	) {
 
-		const proxy: ExtHostFileSystemEventServiceShape = extHostContext.get(ExtHostContext.ExtHostFileSystemEventService);
+		const proxy: ExtHostFileSystemEventServiceShape = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
 		const events: FileSystemEvents = {
 			created: [],
 			changed: [],

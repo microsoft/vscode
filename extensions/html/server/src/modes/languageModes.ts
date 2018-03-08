@@ -20,10 +20,13 @@ import { getHTMLMode } from './htmlMode';
 
 export { ColorInformation, ColorPresentation, Color };
 
+import { FoldingRangeList } from '../protocol/foldingProvider.proposed';
+
 export interface Settings {
 	css?: any;
 	html?: any;
 	javascript?: any;
+	emmet?: { [key: string]: any };
 }
 
 export interface SettingProvider {
@@ -34,7 +37,8 @@ export interface LanguageMode {
 	getId(): string;
 	configure?: (options: Settings) => void;
 	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
-	doComplete?: (document: TextDocument, position: Position, settings?: Settings) => CompletionList | null;
+	doComplete?: (document: TextDocument, position: Position, settings?: Settings, registeredCompletionParticipants?: any[]) => CompletionList | null;
+	setCompletionParticipants?: (registeredCompletionParticipants: any[]) => void;
 	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem | null;
 	doHover?: (document: TextDocument, position: Position) => Hover | null;
 	doSignatureHelp?: (document: TextDocument, position: Position) => SignatureHelp | null;
@@ -43,10 +47,11 @@ export interface LanguageMode {
 	findDocumentLinks?: (document: TextDocument, documentContext: DocumentContext) => DocumentLink[];
 	findDefinition?: (document: TextDocument, position: Position) => Definition | null;
 	findReferences?: (document: TextDocument, position: Position) => Location[];
-	format?: (document: TextDocument, range: Range, options: FormattingOptions, settings: Settings) => TextEdit[];
+	format?: (document: TextDocument, range: Range, options: FormattingOptions, settings?: Settings) => TextEdit[];
 	findDocumentColors?: (document: TextDocument) => ColorInformation[];
 	getColorPresentations?: (document: TextDocument, color: Color, range: Range) => ColorPresentation[];
 	doAutoClose?: (document: TextDocument, position: Position) => string | null;
+	getFoldingRanges?: (document: TextDocument) => FoldingRangeList | null;
 	onDocumentRemoved(document: TextDocument): void;
 	dispose(): void;
 }
@@ -62,7 +67,7 @@ export interface LanguageModes {
 }
 
 export interface LanguageModeRange extends Range {
-	mode: LanguageMode;
+	mode: LanguageMode | undefined;
 	attributeValue?: boolean;
 }
 
@@ -92,10 +97,10 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 		},
 		getModesInRange(document: TextDocument, range: Range): LanguageModeRange[] {
 			return documentRegions.get(document).getLanguageRanges(range).map(r => {
-				return {
+				return <LanguageModeRange>{
 					start: r.start,
 					end: r.end,
-					mode: modes[r.languageId],
+					mode: r.languageId && modes[r.languageId],
 					attributeValue: r.attributeValue
 				};
 			});

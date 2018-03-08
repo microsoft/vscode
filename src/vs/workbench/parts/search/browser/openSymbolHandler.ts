@@ -34,10 +34,10 @@ class SymbolEntry extends EditorQuickOpenEntry {
 	constructor(
 		private _bearing: SymbolInformation,
 		private _provider: IWorkspaceSymbolProvider,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IEnvironmentService private _environmentService: IEnvironmentService
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService
 	) {
 		super(editorService);
 	}
@@ -132,7 +132,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 
 	public static readonly ID = 'workbench.picker.symbols';
 
-	private static SEARCH_DELAY = 500; // This delay accommodates for the user typing a word and then stops typing to start searching
+	private static readonly SEARCH_DELAY = 500; // This delay accommodates for the user typing a word and then stops typing to start searching
 
 	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
 	private options: IOpenSymbolOptions;

@@ -12,7 +12,7 @@ import { findFirst } from 'vs/base/common/arrays';
 
 export class HiddenRangeModel {
 	private _foldingModel: FoldingModel;
-	private _hiddenRanges: IRange[] = [];
+	private _hiddenRanges: IRange[];
 	private _foldingModelListener: IDisposable;
 	private _updateEventEmitter = new Emitter<IRange[]>();
 
@@ -22,7 +22,8 @@ export class HiddenRangeModel {
 	public constructor(model: FoldingModel) {
 		this._foldingModel = model;
 		this._foldingModelListener = model.onDidChange(_ => this.updateHiddenRanges());
-		if (model.ranges.length) {
+		this._hiddenRanges = [];
+		if (model.regions.length) {
 			this.updateHiddenRanges();
 		}
 	}
@@ -36,7 +37,7 @@ export class HiddenRangeModel {
 		let lastCollapsedStart = Number.MAX_VALUE;
 		let lastCollapsedEnd = -1;
 
-		let ranges = this._foldingModel.ranges;
+		let ranges = this._foldingModel.regions;
 		for (; i < ranges.length; i++) {
 			if (!ranges.isCollapsed(i)) {
 				continue;
@@ -78,6 +79,13 @@ export class HiddenRangeModel {
 		}
 		this.applyHiddenRanges(hiddenRanges);
 		return true;
+	}
+
+	/**
+	 * Collapse state memento, for persistence only, only used if folding model is not yet initialized
+	 */
+	public getMemento(): CollapseMemento {
+		return this._hiddenRanges.map(r => ({ startLineNumber: r.startLineNumber - 1, endLineNumber: r.endLineNumber }));
 	}
 
 	private applyHiddenRanges(newHiddenAreas: IRange[]) {

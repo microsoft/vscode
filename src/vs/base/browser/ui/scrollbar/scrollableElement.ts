@@ -45,7 +45,7 @@ class MouseWheelClassifierItem {
 
 export class MouseWheelClassifier {
 
-	public static INSTANCE = new MouseWheelClassifier();
+	public static readonly INSTANCE = new MouseWheelClassifier();
 
 	private readonly _capacity: number;
 	private _memory: MouseWheelClassifierItem[];
@@ -330,7 +330,7 @@ export abstract class AbstractScrollableElement extends Widget {
 
 			// Convert vertical scrolling to horizontal if shift is held, this
 			// is handled at a higher level on Mac
-			const shiftConvert = !Platform.isMacintosh && e.browserEvent.shiftKey;
+			const shiftConvert = !Platform.isMacintosh && e.browserEvent && e.browserEvent.shiftKey;
 			if ((this._options.scrollYToX || shiftConvert) && !deltaX) {
 				deltaX = deltaY;
 				deltaY = 0;

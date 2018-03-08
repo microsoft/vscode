@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { BoundedMap } from 'vs/base/common/map';
+import { LRUCache } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 
 /**
@@ -243,18 +243,18 @@ export function regExpContainsBackreference(regexpValue: string): boolean {
  */
 export const canNormalize = typeof ((<any>'').normalize) === 'function';
 
-const nfcCache = new BoundedMap<string>(10000); // bounded to 10000 elements
+const nfcCache = new LRUCache<string, string>(10000); // bounded to 10000 elements
 export function normalizeNFC(str: string): string {
 	return normalize(str, 'NFC', nfcCache);
 }
 
-const nfdCache = new BoundedMap<string>(10000); // bounded to 10000 elements
+const nfdCache = new LRUCache<string, string>(10000); // bounded to 10000 elements
 export function normalizeNFD(str: string): string {
 	return normalize(str, 'NFD', nfdCache);
 }
 
 const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
-function normalize(str: string, form: string, normalizedCache: BoundedMap<string>): string {
+function normalize(str: string, form: string, normalizedCache: LRUCache<string, string>): string {
 	if (!canNormalize || !str) {
 		return str;
 	}
@@ -711,4 +711,16 @@ export function fuzzyContains(target: string, query: string): boolean {
 	}
 
 	return true;
+}
+
+export function containsUppercaseCharacter(target: string, ignoreEscapedChars = false): boolean {
+	if (!target) {
+		return false;
+	}
+
+	if (ignoreEscapedChars) {
+		target = target.replace(/\\./g, '');
+	}
+
+	return target.toLowerCase() !== target;
 }

@@ -18,7 +18,6 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	private _lineHeight: number;
 	private _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	private _selectionIsEmpty: boolean;
-	private _primaryCursorIsInEditableRange: boolean;
 	private _primaryCursorLineNumber: number;
 	private _contentLeft: number;
 
@@ -29,7 +28,6 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
 
 		this._selectionIsEmpty = true;
-		this._primaryCursorIsInEditableRange = true;
 		this._primaryCursorLineNumber = 1;
 		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 
@@ -58,11 +56,6 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		let hasChanged = false;
-
-		if (this._primaryCursorIsInEditableRange !== e.isInEditableRange) {
-			this._primaryCursorIsInEditableRange = e.isInEditableRange;
-			hasChanged = true;
-		}
 
 		const primaryCursorLineNumber = e.selections[0].positionLineNumber;
 		if (this._primaryCursorLineNumber !== primaryCursorLineNumber) {
@@ -98,21 +91,21 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 
 	public render(startLineNumber: number, lineNumber: number): string {
 		if (lineNumber === this._primaryCursorLineNumber) {
+			let className = 'current-line';
 			if (this._shouldShowCurrentLine()) {
 				const paintedInContent = this._willRenderContentCurrentLine();
-				const className = 'current-line-margin' + (paintedInContent ? ' current-line-margin-both' : '');
-				return (
-					'<div class="'
-					+ className
-					+ '" style="width:'
-					+ String(this._contentLeft)
-					+ 'px; height:'
-					+ String(this._lineHeight)
-					+ 'px;"></div>'
-				);
-			} else {
-				return '';
+				className = 'current-line current-line-margin' + (paintedInContent ? ' current-line-margin-both' : '');
 			}
+
+			return (
+				'<div class="'
+				+ className
+				+ '" style="width:'
+				+ String(this._contentLeft)
+				+ 'px; height:'
+				+ String(this._lineHeight)
+				+ 'px;"></div>'
+			);
 		}
 		return '';
 	}
@@ -120,7 +113,6 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	private _shouldShowCurrentLine(): boolean {
 		return (
 			(this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all')
-			&& this._primaryCursorIsInEditableRange
 		);
 	}
 
@@ -128,7 +120,6 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		return (
 			(this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all')
 			&& this._selectionIsEmpty
-			&& this._primaryCursorIsInEditableRange
 		);
 	}
 }

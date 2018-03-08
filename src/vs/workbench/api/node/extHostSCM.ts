@@ -4,18 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext } from './extHost.protocol';
-import { sortedDiff, Splice } from 'vs/base/common/arrays';
+import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape } from './extHost.protocol';
+import { sortedDiff } from 'vs/base/common/arrays';
 import { comparePaths } from 'vs/base/common/comparers';
 import * as vscode from 'vscode';
+import { ISplice } from 'vs/base/common/sequence';
+import { ILogService } from 'vs/platform/log/common/log';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -91,7 +93,7 @@ function compareResourceStatesDecorations(a: vscode.SourceControlResourceDecorat
 }
 
 function compareResourceStates(a: vscode.SourceControlResourceState, b: vscode.SourceControlResourceState): number {
-	let result = comparePaths(a.resourceUri.fsPath, b.resourceUri.fsPath);
+	let result = comparePaths(a.resourceUri.fsPath, b.resourceUri.fsPath, true);
 
 	if (result !== 0) {
 		return result;
@@ -108,7 +110,11 @@ function compareResourceStates(a: vscode.SourceControlResourceState, b: vscode.S
 	return result;
 }
 
-export class ExtHostSCMInputBox {
+export interface IValidateInput {
+	(value: string, cursorPosition: number): vscode.ProviderResult<vscode.SourceControlInputBoxValidation | undefined | null>;
+}
+
+export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 
 	private _value: string = '';
 
@@ -138,7 +144,31 @@ export class ExtHostSCMInputBox {
 		this._placeholder = placeholder;
 	}
 
-	constructor(private _proxy: MainThreadSCMShape, private _sourceControlHandle: number) {
+	private _validateInput: IValidateInput;
+
+	get validateInput(): IValidateInput {
+		if (!this._extension.enableProposedApi) {
+			throw new Error(`[${this._extension.id}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.id}`);
+		}
+
+		return this._validateInput;
+	}
+
+	set validateInput(fn: IValidateInput) {
+		if (!this._extension.enableProposedApi) {
+			throw new Error(`[${this._extension.id}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.id}`);
+		}
+
+		if (fn && typeof fn !== 'function') {
+			console.warn('Invalid SCM input box validation function');
+			return;
+		}
+
+		this._validateInput = fn;
+		this._proxy.$setValidationProviderIsEnabled(this._sourceControlHandle, !!fn);
+	}
+
+	constructor(private _extension: IExtensionDescription, private _proxy: MainThreadSCMShape, private _sourceControlHandle: number) {
 		// noop
 	}
 
@@ -221,12 +251,12 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		const snapshot = [...this._resourceStates].sort(compareResourceStates);
 		const diffs = sortedDiff(this._resourceSnapshot, snapshot, compareResourceStates);
 
-		const splices = diffs.map<Splice<{ rawResource: SCMRawResource, handle: number }>>(diff => {
-			const inserted = diff.inserted.map(r => {
+		const splices = diffs.map<ISplice<{ rawResource: SCMRawResource, handle: number }>>(diff => {
+			const toInsert = diff.toInsert.map(r => {
 				const handle = this._resourceHandlePool++;
 				this._resourceStatesMap.set(handle, r);
 
-				const sourceUri = r.resourceUri.toString();
+				const sourceUri = r.resourceUri;
 				const iconPath = getIconPath(r.decorations);
 				const lightIconPath = r.decorations && getIconPath(r.decorations.light) || iconPath;
 				const darkIconPath = r.decorations && getIconPath(r.decorations.dark) || iconPath;
@@ -252,21 +282,21 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				const letter = r.decorations && r.decorations.letter || undefined;
 				const color = r.decorations && r.decorations.color || undefined;
 
-				const rawResource = [handle, sourceUri, icons, tooltip, strikeThrough, faded, source, letter, color] as SCMRawResource;
+				const rawResource = [handle, <UriComponents>sourceUri, icons, tooltip, strikeThrough, faded, source, letter, color] as SCMRawResource;
 
 				return { rawResource, handle };
 			});
 
-			return { start: diff.start, deleteCount: diff.deleteCount, inserted };
+			return { start: diff.start, deleteCount: diff.deleteCount, toInsert };
 		});
 
 		const rawResourceSplices = splices
-			.map(({ start, deleteCount, inserted }) => [start, deleteCount, inserted.map(i => i.rawResource)] as SCMRawResourceSplice);
+			.map(({ start, deleteCount, toInsert }) => [start, deleteCount, toInsert.map(i => i.rawResource)] as SCMRawResourceSplice);
 
 		const reverseSplices = splices.reverse();
 
-		for (const { start, deleteCount, inserted } of reverseSplices) {
-			const handles = inserted.map(i => i.handle);
+		for (const { start, deleteCount, toInsert } of reverseSplices) {
+			const handles = toInsert.map(i => i.handle);
 			const handlesToDelete = this._handlesSnapshot.splice(start, deleteCount, ...handles);
 
 			for (const handle of handlesToDelete) {
@@ -368,14 +398,15 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	private handle: number = ExtHostSourceControl._handlePool++;
 
 	constructor(
+		_extension: IExtensionDescription,
 		private _proxy: MainThreadSCMShape,
 		private _commands: ExtHostCommands,
 		private _id: string,
 		private _label: string,
 		private _rootUri?: vscode.Uri
 	) {
-		this._inputBox = new ExtHostSCMInputBox(this._proxy, this.handle);
-		this._proxy.$registerSourceControl(this.handle, _id, _label, _rootUri && _rootUri.toString());
+		this._inputBox = new ExtHostSCMInputBox(_extension, this._proxy, this.handle);
+		this._proxy.$registerSourceControl(this.handle, _id, _label, _rootUri);
 	}
 
 	private updatedResourceGroups = new Set<ExtHostSourceControlResourceGroup>();
@@ -429,7 +460,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 }
 
-export class ExtHostSCM {
+export class ExtHostSCM implements ExtHostSCMShape {
 
 	private static _handlePool: number = 0;
 
@@ -442,9 +473,10 @@ export class ExtHostSCM {
 
 	constructor(
 		mainContext: IMainContext,
-		private _commands: ExtHostCommands
+		private _commands: ExtHostCommands,
+		@ILogService private logService: ILogService
 	) {
-		this._proxy = mainContext.get(MainContext.MainThreadSCM);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadSCM);
 
 		_commands.registerArgumentProcessor({
 			processArgument: arg => {
@@ -486,8 +518,10 @@ export class ExtHostSCM {
 	}
 
 	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined): vscode.SourceControl {
+		this.logService.trace('ExtHostSCM#createSourceControl', extension.id, id, label, rootUri);
+
 		const handle = ExtHostSCM._handlePool++;
-		const sourceControl = new ExtHostSourceControl(this._proxy, this._commands, id, label, rootUri);
+		const sourceControl = new ExtHostSourceControl(extension, this._proxy, this._commands, id, label, rootUri);
 		this._sourceControls.set(handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(extension.id) || [];
@@ -499,6 +533,8 @@ export class ExtHostSCM {
 
 	// Deprecated
 	getLastInputBox(extension: IExtensionDescription): ExtHostSCMInputBox {
+		this.logService.trace('ExtHostSCM#getLastInputBox', extension.id);
+
 		const sourceControls = this._sourceControlsByExtension.get(extension.id);
 		const sourceControl = sourceControls && sourceControls[sourceControls.length - 1];
 		const inputBox = sourceControl && sourceControl.inputBox;
@@ -506,20 +542,22 @@ export class ExtHostSCM {
 		return inputBox;
 	}
 
-	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<URI> {
+	$provideOriginalResource(sourceControlHandle: number, uriComponents: UriComponents): TPromise<UriComponents> {
+		const uri = URI.revive(uriComponents);
+		this.logService.trace('ExtHostSCM#$provideOriginalResource', sourceControlHandle, uri.toString());
+
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl || !sourceControl.quickDiffProvider) {
 			return TPromise.as(null);
 		}
 
-		return asWinJsPromise(token => {
-			const result = sourceControl.quickDiffProvider.provideOriginalResource(uri, token);
-			return result && URI.parse(result.toString());
-		});
+		return asWinJsPromise(token => sourceControl.quickDiffProvider.provideOriginalResource(uri, token));
 	}
 
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void> {
+		this.logService.trace('ExtHostSCM#$onInputBoxValueChange', sourceControlHandle);
+
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
@@ -531,6 +569,8 @@ export class ExtHostSCM {
 	}
 
 	async $executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void> {
+		this.logService.trace('ExtHostSCM#$executeResourceCommand', sourceControlHandle, groupHandle, handle);
+
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
@@ -544,5 +584,27 @@ export class ExtHostSCM {
 		}
 
 		await group.$executeResourceCommand(handle);
+	}
+
+	async $validateInput(sourceControlHandle: number, value: string, cursorPosition: number): TPromise<[string, number] | undefined> {
+		this.logService.trace('ExtHostSCM#$validateInput', sourceControlHandle);
+
+		const sourceControl = this._sourceControls.get(sourceControlHandle);
+
+		if (!sourceControl) {
+			return TPromise.as(undefined);
+		}
+
+		if (!sourceControl.inputBox.validateInput) {
+			return TPromise.as(undefined);
+		}
+
+		const result = await sourceControl.inputBox.validateInput(value, cursorPosition);
+
+		if (!result) {
+			return TPromise.as(undefined);
+		}
+
+		return [result.message, result.type];
 	}
 }

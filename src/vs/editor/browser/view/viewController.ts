@@ -62,10 +62,11 @@ export class ViewController {
 		this._execCoreEditorCommandFunc(editorCommand, args);
 	}
 
-	public paste(source: string, text: string, pasteOnNewLine: boolean): void {
+	public paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[]): void {
 		this.commandService.executeCommand(editorCommon.Handler.Paste, {
 			text: text,
 			pasteOnNewLine: pasteOnNewLine,
+			multicursorText: multicursorText
 		});
 	}
 

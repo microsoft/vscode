@@ -12,7 +12,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IModel, IModelChangedEvent } from 'vs/editor/common/editorCommon';
+import { IModelChangedEvent } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { StandaloneKeybindingService } from 'vs/editor/standalone/browser/simpleServices';
@@ -26,9 +27,9 @@ import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/acti
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IMessageService } from 'vs/platform/message/common/message';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 /**
  * Description of an action contribution
@@ -82,7 +83,7 @@ export interface IEditorConstructionOptions extends IEditorOptions {
 	/**
 	 * The initial model associated with this code editor.
 	 */
-	model?: IModel;
+	model?: ITextModel;
 	/**
 	 * The initial value of the auto created model in the editor.
 	 * To not create automatically a model, use `model: null`.
@@ -300,7 +301,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		if (typeof options.theme === 'string') {
 			themeService.setTheme(options.theme);
 		}
-		let model: IModel = options.model;
+		let model: ITextModel = options.model;
 		delete options.model;
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService);
 
@@ -328,14 +329,14 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		super.dispose();
 	}
 
-	_attachModel(model: IModel): void {
+	_attachModel(model: ITextModel): void {
 		super._attachModel(model);
 		if (this._view) {
 			this._contextViewService.setContainer(this._view.domNode.domNode);
 		}
 	}
 
-	_postDetachModelCleanup(detachedModel: IModel): void {
+	_postDetachModelCleanup(detachedModel: ITextModel): void {
 		super._postDetachModelCleanup(detachedModel);
 		if (detachedModel && this._ownsModel) {
 			detachedModel.dispose();
@@ -359,14 +360,14 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
-		@IMessageService messageService: IMessageService
+		@INotificationService notificationService: INotificationService
 	) {
 		options = options || {};
 		if (typeof options.theme === 'string') {
 			options.theme = themeService.setTheme(options.theme);
 		}
 
-		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, messageService);
+		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService);
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
 

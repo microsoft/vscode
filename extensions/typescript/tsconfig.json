@@ -12,7 +12,8 @@
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 		"strict": true,
-		"alwaysStrict": true
+		"alwaysStrict": true,
+		"experimentalDecorators": true
 	},
 	"include": [
 		"src/**/*"

@@ -36,7 +36,7 @@ class CursorState {
 
 export class CursorUndoController extends Disposable implements IEditorContribution {
 
-	private static ID = 'editor.contrib.cursorUndoController';
+	private static readonly ID = 'editor.contrib.cursorUndoController';
 
 	public static get(editor: ICodeEditor): CursorUndoController {
 		return editor.getContribution<CursorUndoController>(CursorUndoController.ID);

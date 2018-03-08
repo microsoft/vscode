@@ -15,7 +15,7 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 
 export class IPadShowKeyboard implements IEditorContribution {
 
-	private static ID = 'editor.contrib.iPadShowKeyboard';
+	private static readonly ID = 'editor.contrib.iPadShowKeyboard';
 
 	private editor: ICodeEditor;
 	private widget: ShowKeyboardWidget;
@@ -61,7 +61,7 @@ export class IPadShowKeyboard implements IEditorContribution {
 
 class ShowKeyboardWidget implements IOverlayWidget {
 
-	private static ID = 'editor.contrib.ShowKeyboardWidget';
+	private static readonly ID = 'editor.contrib.ShowKeyboardWidget';
 
 	private editor: ICodeEditor;
 

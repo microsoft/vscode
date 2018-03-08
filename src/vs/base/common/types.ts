@@ -147,7 +147,7 @@ export function validateConstraint(arg: any, constraint: TypeConstraint): void {
 		if (arg instanceof constraint) {
 			return;
 		}
-		if (arg && arg.constructor === constraint) {
+		if (!isUndefinedOrNull(arg) && arg.constructor === constraint) {
 			return;
 		}
 		if (constraint.length === 1 && constraint.call(undefined, arg) === true) {

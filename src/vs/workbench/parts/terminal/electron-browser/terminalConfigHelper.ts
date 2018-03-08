@@ -9,23 +9,12 @@ import * as platform from 'vs/base/common/platform';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IChoiceService } from 'vs/platform/message/common/message';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/parts/terminal/common/terminal';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION } from 'vs/workbench/parts/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
 import { isFedora } from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import { deepClone } from 'vs/base/common/objects';
-
-interface IEditorConfiguration {
-	editor: IEditorOptions;
-}
-
-interface IFullTerminalConfiguration {
-	terminal: {
-		integrated: ITerminalConfiguration;
-	};
-}
+import { Terminal as XTermTerminal } from 'vscode-xterm';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const DEFAULT_LINE_HEIGHT = 1.0;
 
@@ -41,16 +30,24 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 
 	private _charMeasureElement: HTMLElement;
 	private _lastFontMeasurement: ITerminalFont;
+	public config: ITerminalConfiguration;
 
 	public constructor(
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IWorkspaceConfigurationService private _workspaceConfigurationService: IWorkspaceConfigurationService,
-		@IChoiceService private _choiceService: IChoiceService,
-		@IStorageService private _storageService: IStorageService) {
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkspaceConfigurationService private readonly _workspaceConfigurationService: IWorkspaceConfigurationService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IStorageService private readonly _storageService: IStorageService
+	) {
+		this._updateConfig();
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
+				this._updateConfig();
+			}
+		});
 	}
 
-	public get config(): ITerminalConfiguration {
-		return deepClone(this._configurationService.getValue<IFullTerminalConfiguration>().terminal.integrated);
+	private _updateConfig(): void {
+		this.config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 	}
 
 	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
@@ -59,7 +56,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			this._charMeasureElement = document.createElement('div');
 			this.panelContainer.appendChild(this._charMeasureElement);
 		}
-		// TODO: This should leverage CharMeasure
+
 		const style = this._charMeasureElement.style;
 		style.display = 'block';
 		style.fontFamily = fontFamily;
@@ -88,22 +85,20 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	 * Gets the font information based on the terminal.integrated.fontFamily
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
-	public getFont(excludeDimensions?: boolean): ITerminalFont {
-		const config = this._configurationService.getValue();
-		const editorConfig = (<IEditorConfiguration>config).editor;
-		const terminalConfig = this.config;
+	public getFont(xterm?: XTermTerminal, excludeDimensions?: boolean): ITerminalFont {
+		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
-		let fontFamily = terminalConfig.fontFamily || editorConfig.fontFamily;
+		let fontFamily = this.config.fontFamily || editorConfig.fontFamily;
 
 		// Work around bad font on Fedora
-		if (!terminalConfig.fontFamily) {
+		if (!this.config.fontFamily) {
 			if (isFedora) {
 				fontFamily = '\'DejaVu Sans Mono\'';
 			}
 		}
 
-		let fontSize = this._toInteger(terminalConfig.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
-		const lineHeight = terminalConfig.lineHeight ? Math.max(terminalConfig.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
+		let fontSize = this._toInteger(this.config.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
+		const lineHeight = this.config.lineHeight ? Math.max(this.config.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
 
 		if (excludeDimensions) {
 			return {
@@ -113,6 +108,20 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			};
 		}
 
+		// Get the character dimensions from xterm if it's available
+		if (xterm) {
+			if (xterm.charMeasure && xterm.charMeasure.width && xterm.charMeasure.height) {
+				return {
+					fontFamily,
+					fontSize,
+					lineHeight,
+					charHeight: xterm.charMeasure.height,
+					charWidth: xterm.charMeasure.width
+				};
+			}
+		}
+
+		// Fall back to measuring the font ourselves
 		return this._measureFont(fontFamily, fontSize, lineHeight);
 	}
 
@@ -156,13 +165,15 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			}
 			const message = nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow {0} (defined as a workspace setting) to be launched in the terminal?", changeString);
 			const options = [nls.localize('allow', "Allow"), nls.localize('disallow', "Disallow")];
-			this._choiceService.choose(Severity.Info, message, options, 1).then(choice => {
-				if (choice === 0) {
-					this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE);
-				} else {
-					this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE);
+			this._notificationService.prompt(Severity.Info, message, options).then(choice => {
+				switch (choice) {
+					case 0:  /* Allow */
+						this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE);
+						break;
+					case 1:  /* Disallow */
+						this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE);
+						break;
 				}
-				return TPromise.as(null);
 			});
 		}
 

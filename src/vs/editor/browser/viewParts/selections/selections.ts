@@ -66,14 +66,14 @@ const isIEWithZoomingIssuesNearRoundedBorders = browser.isEdgeOrIE;
 
 export class SelectionsOverlay extends DynamicViewOverlay {
 
-	private static SELECTION_CLASS_NAME = 'selected-text';
-	private static SELECTION_TOP_LEFT = 'top-left-radius';
-	private static SELECTION_BOTTOM_LEFT = 'bottom-left-radius';
-	private static SELECTION_TOP_RIGHT = 'top-right-radius';
-	private static SELECTION_BOTTOM_RIGHT = 'bottom-right-radius';
-	private static EDITOR_BACKGROUND_CLASS_NAME = 'monaco-editor-background';
+	private static readonly SELECTION_CLASS_NAME = 'selected-text';
+	private static readonly SELECTION_TOP_LEFT = 'top-left-radius';
+	private static readonly SELECTION_BOTTOM_LEFT = 'bottom-left-radius';
+	private static readonly SELECTION_TOP_RIGHT = 'top-right-radius';
+	private static readonly SELECTION_BOTTOM_RIGHT = 'bottom-right-radius';
+	private static readonly EDITOR_BACKGROUND_CLASS_NAME = 'monaco-editor-background';
 
-	private static ROUNDED_PIECE_WIDTH = 10;
+	private static readonly ROUNDED_PIECE_WIDTH = 10;
 
 	private _context: ViewContext;
 	private _lineHeight: number;
@@ -387,7 +387,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		}
 		let lineIndex = lineNumber - startLineNumber;
 		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
-			throw new Error('Unexpected render request');
+			return '';
 		}
 		return this._renderResult[lineIndex];
 	}
