@@ -12,7 +12,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { join } from 'vs/base/common/paths';
 import { workbenchInstantiationService, TestEditorGroupService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
-import { onError } from 'vs/base/test/common/utils';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
@@ -103,12 +102,12 @@ suite('Files - TextFileEditorModelManager', () => {
 		model3.dispose();
 	});
 
-	test('loadOrCreate', function (done) {
+	test('loadOrCreate', function () {
 		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
 		const resource = URI.file('/test.html');
 		const encoding = 'utf8';
 
-		manager.loadOrCreate(resource, { encoding, reload: true }).done(model => {
+		return manager.loadOrCreate(resource, { encoding, reload: true }).then(model => {
 			assert.ok(model);
 			assert.equal(model.getEncoding(), encoding);
 			assert.equal(manager.get(resource), model);
@@ -123,11 +122,9 @@ suite('Files - TextFileEditorModelManager', () => {
 					assert.equal(manager.get(resource), model3);
 
 					model3.dispose();
-
-					done();
 				});
 			});
-		}, error => onError(error, done));
+		});
 	});
 
 	test('removed from cache when model disposed', function () {
@@ -150,7 +147,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		model3.dispose();
 	});
 
-	test('events', function (done) {
+	test('events', function () {
 		TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 0;
 		TextFileEditorModel.DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 0;
 
@@ -200,7 +197,7 @@ suite('Files - TextFileEditorModelManager', () => {
 			disposeCounter++;
 		});
 
-		manager.loadOrCreate(resource1, { encoding: 'utf8' }).done(model1 => {
+		return manager.loadOrCreate(resource1, { encoding: 'utf8' }).then(model1 => {
 			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.DELETED }]));
 			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.ADDED }]));
 
@@ -223,7 +220,7 @@ suite('Files - TextFileEditorModelManager', () => {
 							assert.equal(encodingCounter, 2);
 
 							// content change event if done async
-							TPromise.timeout(10).then(() => {
+							return TPromise.timeout(10).then(() => {
 								assert.equal(contentCounter, 2);
 
 								model1.dispose();
@@ -231,17 +228,15 @@ suite('Files - TextFileEditorModelManager', () => {
 
 								assert.ok(!accessor.modelService.getModel(resource1));
 								assert.ok(!accessor.modelService.getModel(resource2));
-
-								done();
 							});
 						});
 					});
 				});
 			});
-		}, error => onError(error, done));
+		});
 	});
 
-	test('events debounced', function (done) {
+	test('events debounced', function () {
 		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
 
 		const resource1 = toResource('/path/index.txt');
@@ -268,7 +263,7 @@ suite('Files - TextFileEditorModelManager', () => {
 			assert.equal(e[0].resource.toString(), resource1.toString());
 		});
 
-		manager.loadOrCreate(resource1, { encoding: 'utf8' }).done(model1 => {
+		return manager.loadOrCreate(resource1, { encoding: 'utf8' }).then(model1 => {
 			return manager.loadOrCreate(resource2, { encoding: 'utf8' }).then(model2 => {
 				model1.textEditorModel.setValue('changed');
 				model1.updatePreferredEncoding('utf16');
@@ -291,38 +286,35 @@ suite('Files - TextFileEditorModelManager', () => {
 
 								assert.ok(!accessor.modelService.getModel(resource1));
 								assert.ok(!accessor.modelService.getModel(resource2));
-
-								done();
 							});
 						});
 					});
 				});
 			});
-		}, error => onError(error, done));
+		});
 	});
 
-	test('disposing model takes it out of the manager', function (done) {
+	test('disposing model takes it out of the manager', function () {
 		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
 
 		const resource = toResource('/path/index_something.txt');
 
-		manager.loadOrCreate(resource, { encoding: 'utf8' }).done(model => {
+		return manager.loadOrCreate(resource, { encoding: 'utf8' }).then(model => {
 			model.dispose();
 
 			assert.ok(!manager.get(resource));
 			assert.ok(!accessor.modelService.getModel(model.getResource()));
 
 			manager.dispose();
-			done();
-		}, error => onError(error, done));
+		});
 	});
 
-	test('dispose prevents dirty model from getting disposed', function (done) {
+	test('dispose prevents dirty model from getting disposed', function () {
 		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
 
 		const resource = toResource('/path/index_something.txt');
 
-		manager.loadOrCreate(resource, { encoding: 'utf8' }).done(model => {
+		return manager.loadOrCreate(resource, { encoding: 'utf8' }).then(model => {
 			model.textEditorModel.setValue('make dirty');
 
 			manager.disposeModel(model as TextFileEditorModel);
@@ -334,7 +326,6 @@ suite('Files - TextFileEditorModelManager', () => {
 			assert.ok(model.isDisposed());
 
 			manager.dispose();
-			done();
-		}, error => onError(error, done));
+		});
 	});
 });

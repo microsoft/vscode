@@ -102,7 +102,7 @@ suite('Workbench - Untitled Editor', () => {
 			});
 
 			model.textEditorModel.setValue('foo bar');
-		});
+		}, err => done(err));
 	});
 
 	test('Untitled with associated resource', function () {
@@ -115,12 +115,12 @@ suite('Workbench - Untitled Editor', () => {
 		untitled.dispose();
 	});
 
-	test('Untitled no longer dirty when content gets empty', function (done) {
+	test('Untitled no longer dirty when content gets empty', function () {
 		const service = accessor.untitledEditorService;
 		const input = service.createOrGet();
 
 		// dirty
-		input.resolve().then((model: UntitledEditorModel) => {
+		return input.resolve().then((model: UntitledEditorModel) => {
 			model.textEditorModel.setValue('foo bar');
 			assert.ok(model.isDirty());
 
@@ -128,12 +128,10 @@ suite('Workbench - Untitled Editor', () => {
 			assert.ok(!model.isDirty());
 
 			input.dispose();
-
-			done();
 		});
 	});
 
-	test('Untitled via loadOrCreate', function (done) {
+	test('Untitled via loadOrCreate', function () {
 		const service = accessor.untitledEditorService;
 		service.loadOrCreate().then(model1 => {
 			model1.textEditorModel.setValue('foo bar');
@@ -160,8 +158,6 @@ suite('Workbench - Untitled Editor', () => {
 						model3.dispose();
 						model4.dispose();
 						input.dispose();
-
-						done();
 					});
 				});
 			});
@@ -175,13 +171,13 @@ suite('Workbench - Untitled Editor', () => {
 		assert.ok(service.suggestFileName(input.getResource()));
 	});
 
-	test('Untitled with associated path remains dirty when content gets empty', function (done) {
+	test('Untitled with associated path remains dirty when content gets empty', function () {
 		const service = accessor.untitledEditorService;
 		const file = URI.file(join('C:\\', '/foo/file.txt'));
 		const input = service.createOrGet(file);
 
 		// dirty
-		input.resolve().then((model: UntitledEditorModel) => {
+		return input.resolve().then((model: UntitledEditorModel) => {
 			model.textEditorModel.setValue('foo bar');
 			assert.ok(model.isDirty());
 
@@ -189,8 +185,6 @@ suite('Workbench - Untitled Editor', () => {
 			assert.ok(model.isDirty());
 
 			input.dispose();
-
-			done();
 		});
 	});
 
@@ -225,7 +219,7 @@ suite('Workbench - Untitled Editor', () => {
 		input.dispose();
 	});
 
-	test('encoding change event', function (done) {
+	test('encoding change event', function () {
 		const service = accessor.untitledEditorService;
 		const input = service.createOrGet();
 
@@ -237,18 +231,16 @@ suite('Workbench - Untitled Editor', () => {
 		});
 
 		// dirty
-		input.resolve().then((model: UntitledEditorModel) => {
+		return input.resolve().then((model: UntitledEditorModel) => {
 			model.setEncoding('utf16');
 
 			assert.equal(counter, 1);
 
 			input.dispose();
-
-			done();
 		});
 	});
 
-	test('onDidChangeContent event', done => {
+	test('onDidChangeContent event', () => {
 		const service = accessor.untitledEditorService;
 		const input = service.createOrGet();
 
@@ -261,32 +253,30 @@ suite('Workbench - Untitled Editor', () => {
 			assert.equal(r.toString(), input.getResource().toString());
 		});
 
-		input.resolve().then((model: UntitledEditorModel) => {
+		return input.resolve().then((model: UntitledEditorModel) => {
 			model.textEditorModel.setValue('foo');
 			assert.equal(counter, 0, 'Dirty model should not trigger event immediately');
 
-			TPromise.timeout(3).then(() => {
+			return TPromise.timeout(3).then(() => {
 				assert.equal(counter, 1, 'Dirty model should trigger event');
 
 				model.textEditorModel.setValue('bar');
-				TPromise.timeout(3).then(() => {
+				return TPromise.timeout(3).then(() => {
 					assert.equal(counter, 2, 'Content change when dirty should trigger event');
 
 					model.textEditorModel.setValue('');
-					TPromise.timeout(3).then(() => {
+					return TPromise.timeout(3).then(() => {
 						assert.equal(counter, 3, 'Manual revert should trigger event');
 
 						model.textEditorModel.setValue('foo');
-						TPromise.timeout(3).then(() => {
+						return TPromise.timeout(3).then(() => {
 							assert.equal(counter, 4, 'Dirty model should trigger event');
 
 							model.revert();
-							TPromise.timeout(3).then(() => {
+							return TPromise.timeout(3).then(() => {
 								assert.equal(counter, 5, 'Revert should trigger event');
 
 								input.dispose();
-
-								done();
 							});
 						});
 					});
@@ -295,7 +285,7 @@ suite('Workbench - Untitled Editor', () => {
 		});
 	});
 
-	test('onDidDisposeModel event', done => {
+	test('onDidDisposeModel event', () => {
 		const service = accessor.untitledEditorService;
 		const input = service.createOrGet();
 
@@ -306,12 +296,10 @@ suite('Workbench - Untitled Editor', () => {
 			assert.equal(r.toString(), input.getResource().toString());
 		});
 
-		input.resolve().then((model: UntitledEditorModel) => {
+		return input.resolve().then((model: UntitledEditorModel) => {
 			assert.equal(counter, 0);
 			input.dispose();
 			assert.equal(counter, 1);
-
-			done();
 		});
 	});
 });

@@ -54,7 +54,7 @@ let originalErrorHandler: (e: any) => any;
 
 suite('ExtHostLanguageFeatureCommands', function () {
 
-	suiteSetup((done) => {
+	suiteSetup(() => {
 
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
@@ -127,7 +127,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
 
-		rpcProtocol.sync().then(done, done);
+		return rpcProtocol.sync();
 	});
 
 	suiteTeardown(() => {
@@ -136,17 +136,16 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		mainThread.dispose();
 	});
 
-	teardown(function (done) {
+	teardown(function () {
 		while (disposables.length) {
 			disposables.pop().dispose();
 		}
-		rpcProtocol.sync()
-			.then(() => done(), err => done(err));
+		return rpcProtocol.sync();
 	});
 
 	// --- workspace symbols
 
-	test('WorkspaceSymbols, invalid arguments', function (done) {
+	test('WorkspaceSymbols, invalid arguments', function () {
 		let promises = [
 			commands.executeCommand('vscode.executeWorkspaceSymbolProvider'),
 			commands.executeCommand('vscode.executeWorkspaceSymbolProvider', null),
@@ -154,14 +153,12 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			commands.executeCommand('vscode.executeWorkspaceSymbolProvider', true)
 		];
 
-		TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
+		return TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
 			assert.equal(err.length, 4);
-			done();
-			return [];
 		});
 	});
 
-	test('WorkspaceSymbols, back and forth', function (done) {
+	test('WorkspaceSymbols, back and forth', function () {
 
 		disposables.push(extHost.registerWorkspaceSymbolProvider(<vscode.WorkspaceSymbolProvider>{
 			provideWorkspaceSymbols(query): any {
@@ -180,8 +177,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}));
 
-		rpcProtocol.sync().then(() => {
-			commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', 'testing').then(value => {
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', 'testing').then(value => {
 
 				for (let info of value) {
 					assert.ok(info instanceof types.SymbolInformation);
@@ -189,9 +186,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 					assert.equal(info.kind, types.SymbolKind.Array);
 				}
 				assert.equal(value.length, 3);
-				done();
-			}, done);
-		}, done);
+			});
+		});
 	});
 
 	test('executeWorkspaceSymbolProvider should accept empty string, #39522', async function () {
@@ -213,7 +209,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	// --- definition
 
-	test('Definition, invalid arguments', function (done) {
+	test('Definition, invalid arguments', function () {
 		let promises = [
 			commands.executeCommand('vscode.executeDefinitionProvider'),
 			commands.executeCommand('vscode.executeDefinitionProvider', null),
@@ -221,10 +217,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			commands.executeCommand('vscode.executeDefinitionProvider', true, false)
 		];
 
-		TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
+		return TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
 			assert.equal(err.length, 4);
-			done();
-			return [];
 		});
 	});
 
@@ -281,7 +275,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	// --- outline
 
-	test('Outline, back and forth', function (done) {
+	test('Outline, back and forth', function () {
 		disposables.push(extHost.registerDocumentSymbolProvider(defaultSelector, <vscode.DocumentSymbolProvider>{
 			provideDocumentSymbols(): any {
 				return [
@@ -291,15 +285,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}));
 
-		rpcProtocol.sync().then(() => {
-			commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
 				assert.equal(values.length, 2);
 				let [first, second] = values;
 				assert.equal(first.name, 'testing2');
 				assert.equal(second.name, 'testing1');
-				done();
-			}, done);
-		}, done);
+			});
+		});
 	});
 
 	// --- suggest
@@ -362,7 +355,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
-	test('Suggest, return CompletionList !array', function (done) {
+	test('Suggest, return CompletionList !array', function () {
 		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
 				let a = new types.CompletionItem('item1');
@@ -371,11 +364,10 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}, []));
 
-		rpcProtocol.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', model.uri, new types.Position(0, 4)).then(list => {
 				assert.ok(list instanceof types.CompletionList);
 				assert.equal(list.isIncomplete, true);
-				done();
 			});
 		});
 	});

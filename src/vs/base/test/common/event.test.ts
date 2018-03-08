@@ -183,7 +183,7 @@ suite('Event', function () {
 		doc.setText('3');
 	});
 
-	test('Debounce Event - leading', function (done: () => void) {
+	test('Debounce Event - leading', function () {
 		const emitter = new Emitter<void>();
 		let debounced = debounceEvent(emitter.event, (l, e) => e, 0, /*leading=*/true);
 
@@ -194,13 +194,13 @@ suite('Event', function () {
 
 		// If the source event is fired once, the debounced (on the leading edge) event should be fired only once
 		emitter.fire();
-		setTimeout(() => {
+
+		return TPromise.timeout(1).then(() => {
 			assert.equal(calls, 1);
-			done();
 		});
 	});
 
-	test('Debounce Event - leading', function (done: () => void) {
+	test('Debounce Event - leading', function () {
 		const emitter = new Emitter<void>();
 		let debounced = debounceEvent(emitter.event, (l, e) => e, 0, /*leading=*/true);
 
@@ -213,9 +213,8 @@ suite('Event', function () {
 		emitter.fire();
 		emitter.fire();
 		emitter.fire();
-		setTimeout(() => {
+		return TPromise.timeout(1).then(() => {
 			assert.equal(calls, 2);
-			done();
 		});
 	});
 

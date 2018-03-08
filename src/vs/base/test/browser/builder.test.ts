@@ -638,20 +638,19 @@ suite('Builder', () => {
 		assert(b.isHidden());
 	});
 
-	test('Builder.showDelayed()', function (done) {
+	test('Builder.showDelayed()', function () {
 		let b = Build.withElementById(fixtureId);
 		b.div().hide();
 
 		b.showDelayed(20);
 		assert(b.hasClass('monaco-builder-hidden'));
 
-		TPromise.timeout(30).then(() => {
+		return TPromise.timeout(30).then(() => {
 			assert(!b.hasClass('monaco-builder-hidden'));
-			done();
 		});
 	});
 
-	test('Builder.showDelayed() but interrupted', function (done) {
+	test('Builder.showDelayed() but interrupted', function () {
 		let b = Build.withElementById(fixtureId);
 		b.div().hide();
 
@@ -660,9 +659,8 @@ suite('Builder', () => {
 
 		b.hide(); // Should cancel the visibility promise
 
-		TPromise.timeout(30).then(() => {
+		return TPromise.timeout(30).then(() => {
 			assert(b.hasClass('monaco-builder-hidden'));
-			done();
 		});
 	});
 

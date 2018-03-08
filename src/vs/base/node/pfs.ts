@@ -196,3 +196,7 @@ export function whenDeleted(path: string): TPromise<void> {
 		}, 1000);
 	});
 }
+
+export function copy(source: string, target: string): TPromise<void> {
+	return nfcall(extfs.copy, source, target);
+}
