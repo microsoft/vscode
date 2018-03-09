@@ -55,7 +55,7 @@ export class ListService implements IListService {
 		return this._lastFocusedWidget;
 	}
 
-	constructor( @IContextKeyService contextKeyService: IContextKeyService) { }
+	constructor(@IContextKeyService contextKeyService: IContextKeyService) { }
 
 	register(widget: ListWidget, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable {
 		if (this.lists.some(l => l.widget === widget)) {

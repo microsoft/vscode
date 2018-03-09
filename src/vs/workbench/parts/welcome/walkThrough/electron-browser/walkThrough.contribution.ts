@@ -28,12 +28,12 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 		WalkThroughPart.ID,
 		localize('walkThrough.editor.label', "Interactive Playground"),
 	),
-	[new SyncDescriptor(WalkThroughInput)]);
+		[new SyncDescriptor(WalkThroughInput)]);
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 	.registerWorkbenchAction(
-	new SyncActionDescriptor(EditorWalkThroughAction, EditorWalkThroughAction.ID, EditorWalkThroughAction.LABEL),
-	'Help: Interactive Playground', localize('help', "Help"));
+		new SyncActionDescriptor(EditorWalkThroughAction, EditorWalkThroughAction.ID, EditorWalkThroughAction.LABEL),
+		'Help: Interactive Playground', localize('help', "Help"));
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(EditorWalkThroughInputFactory.ID, EditorWalkThroughInputFactory);
 
