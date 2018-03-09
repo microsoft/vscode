@@ -968,7 +968,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _sendLineData(buffer: any, lineIndex: number): void {
 		let lineData = buffer.translateBufferLineToString(lineIndex, true);
 		while (lineIndex >= 0 && buffer.lines.get(lineIndex--).isWrapped) {
-			lineData = buffer.translateBufferLineToString(lineIndex, true) + lineData;
+			lineData = buffer.translateBufferLineToString(lineIndex, false) + lineData;
 		}
 		this._onLineDataListeners.forEach(listener => {
 			try {
