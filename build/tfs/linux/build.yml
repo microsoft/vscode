@@ -19,6 +19,10 @@ steps:
       bsdmainutils \
       rpm
 
+    # 32 bit dependencies
+    apt-get install -y \
+      gcc-multilib g++-multilib
+
     # setup xvfb
     cp build/tfs/linux/$(VSCODE_ARCH)/xvfb.init /etc/init.d/xvfb
     chmod +x /etc/init.d/xvfb
