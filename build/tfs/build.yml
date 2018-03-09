@@ -3,10 +3,7 @@ phases:
   queue: Hosted VS2017
   variables:
     VSCODE_BUILD_VERBOSE: true
-    System.Debug: true
-    ELECTRON_RUN_AS_NODE: 1
     APPVEYOR: true
-
   steps:
   - task: NodeTool@0
     inputs:
@@ -33,8 +30,6 @@ phases:
   queue: Hosted Linux Preview
   variables:
     VSCODE_BUILD_VERBOSE: true
-    System.Debug: true
-
   steps:
   - script: |
       apt-get update
@@ -71,9 +66,7 @@ phases:
   queue: Hosted macOS Preview
   variables:
     VSCODE_BUILD_VERBOSE: true
-    System.Debug: true
   steps:
-
   - task: NodeTool@0
     inputs:
       versionSpec: "8.9.1"
