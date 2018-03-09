@@ -390,6 +390,10 @@ button {
 	text-overflow: ellipsis;
 }
 
+.issues-container > .issue > .issue-state .octicon {
+	width: 16px;
+}
+
 .issues-container > .issue > .issue-state {
 	width: 77px;
 	padding: 3px 6px;
