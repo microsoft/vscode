@@ -70,8 +70,8 @@ export default class TypeScriptServiceClientHost {
 		this.client = new TypeScriptServiceClient(workspaceState, version => this.versionStatus.onDidChangeTypeScriptVersion(version), plugins, logDirectoryProvider);
 		this.disposables.push(this.client);
 
-		this.client.onSyntaxDiagnosticsReceived(diag => this.syntaxDiagnosticsReceived(diag), null, this.disposables);
-		this.client.onSemanticDiagnosticsReceived(diag => this.semanticDiagnosticsReceived(diag), null, this.disposables);
+		this.client.onSyntaxDiagnosticsReceived(({ file, diagnostics }) => this.syntaxDiagnosticsReceived(file, diagnostics), null, this.disposables);
+		this.client.onSemanticDiagnosticsReceived(({ file, diagnostics }) => this.semanticDiagnosticsReceived(file, diagnostics), null, this.disposables);
 		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this.disposables);
 		this.client.onResendModelsRequested(() => this.populateService(), null, this.disposables);
 
@@ -170,25 +170,21 @@ export default class TypeScriptServiceClientHost {
 		});
 	}
 
-	private syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void {
-		const body = event.body;
-		if (body && body.diagnostics) {
-			this.findLanguage(body.file).then(language => {
-				if (language) {
-					language.syntaxDiagnosticsReceived(this.client.asUrl(body.file), this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
-				}
-			});
+	private async syntaxDiagnosticsReceived(file: string, diagnostics: Proto.Diagnostic[]): Promise<void> {
+		const language = await this.findLanguage(file);
+		if (language) {
+			language.syntaxDiagnosticsReceived(
+				this.client.asUrl(file),
+				this.createMarkerDatas(diagnostics, language.diagnosticSource));
 		}
 	}
 
-	private semanticDiagnosticsReceived(event: Proto.DiagnosticEvent): void {
-		const body = event.body;
-		if (body && body.diagnostics) {
-			this.findLanguage(body.file).then(language => {
-				if (language) {
-					language.semanticDiagnosticsReceived(this.client.asUrl(body.file), this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
-				}
-			});
+	private async semanticDiagnosticsReceived(file: string, diagnostics: Proto.Diagnostic[]): Promise<void> {
+		const language = await this.findLanguage(file);
+		if (language) {
+			language.semanticDiagnosticsReceived(
+				this.client.asUrl(file),
+				this.createMarkerDatas(diagnostics, language.diagnosticSource));
 		}
 	}
 
@@ -244,19 +240,19 @@ export default class TypeScriptServiceClientHost {
 	}
 
 	private createMarkerDatas(diagnostics: Proto.Diagnostic[], source: string): Diagnostic[] {
-		const result: Diagnostic[] = [];
-		for (const diagnostic of diagnostics) {
-			const { start, end, text } = diagnostic;
-			const range = new Range(tsLocationToVsPosition(start), tsLocationToVsPosition(end));
-			const converted = new Diagnostic(range, text);
-			converted.severity = this.getDiagnosticSeverity(diagnostic);
-			converted.source = diagnostic.source || source;
-			if (diagnostic.code) {
-				converted.code = diagnostic.code;
-			}
-			result.push(converted);
+		return diagnostics.map(tsDiag => this.tsDiagnosticToVsDiagnostic(tsDiag, source));
+	}
+
+	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string) {
+		const { start, end, text } = diagnostic;
+		const range = new Range(tsLocationToVsPosition(start), tsLocationToVsPosition(end));
+		const converted = new Diagnostic(range, text);
+		converted.severity = this.getDiagnosticSeverity(diagnostic);
+		converted.source = diagnostic.source || source;
+		if (diagnostic.code) {
+			converted.code = diagnostic.code;
 		}
-		return result;
+		return converted;
 	}
 
 	private getDiagnosticSeverity(diagnostic: Proto.Diagnostic): DiagnosticSeverity {

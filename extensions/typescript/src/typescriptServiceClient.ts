@@ -139,6 +139,11 @@ class ForkedTsServerProcess {
 	}
 }
 
+export interface TsDiagnostics {
+	file: string;
+	diagnostics: Proto.Diagnostic[];
+}
+
 export default class TypeScriptServiceClient implements ITypeScriptServiceClient {
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${fileSchemes.walkThroughSnippet}:`;
 
@@ -232,11 +237,11 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		this.disposables.push(this.telemetryReporter);
 	}
 
-	private _onSyntaxDiagnosticsReceived = new EventEmitter<Proto.DiagnosticEvent>();
-	public get onSyntaxDiagnosticsReceived(): Event<Proto.DiagnosticEvent> { return this._onSyntaxDiagnosticsReceived.event; }
+	private _onSyntaxDiagnosticsReceived = new EventEmitter<TsDiagnostics>();
+	public get onSyntaxDiagnosticsReceived(): Event<TsDiagnostics> { return this._onSyntaxDiagnosticsReceived.event; }
 
-	private _onSemanticDiagnosticsReceived = new EventEmitter<Proto.DiagnosticEvent>();
-	public get onSemanticDiagnosticsReceived(): Event<Proto.DiagnosticEvent> { return this._onSemanticDiagnosticsReceived.event; }
+	private _onSemanticDiagnosticsReceived = new EventEmitter<TsDiagnostics>();
+	public get onSemanticDiagnosticsReceived(): Event<TsDiagnostics> { return this._onSemanticDiagnosticsReceived.event; }
 
 	private _onConfigDiagnosticsReceived = new EventEmitter<Proto.ConfigFileDiagnosticEvent>();
 	public get onConfigDiagnosticsReceived(): Event<Proto.ConfigFileDiagnosticEvent> { return this._onConfigDiagnosticsReceived.event; }
@@ -793,13 +798,27 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private dispatchEvent(event: Proto.Event) {
 		switch (event.event) {
 			case 'syntaxDiag':
-				this._onSyntaxDiagnosticsReceived.fire(event as Proto.DiagnosticEvent);
-				break;
-
+				{
+					const diagnosticEvent: Proto.DiagnosticEvent = event;
+					if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
+						this._onSyntaxDiagnosticsReceived.fire({
+							file: diagnosticEvent.body.file,
+							diagnostics: diagnosticEvent.body.diagnostics
+						});
+					}
+					break;
+				}
 			case 'semanticDiag':
-				this._onSemanticDiagnosticsReceived.fire(event as Proto.DiagnosticEvent);
-				break;
-
+				{
+					const diagnosticEvent: Proto.DiagnosticEvent = event;
+					if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
+						this._onSemanticDiagnosticsReceived.fire({
+							file: diagnosticEvent.body.file,
+							diagnostics: diagnosticEvent.body.diagnostics
+						});
+					}
+					break;
+				}
 			case 'configFileDiag':
 				this._onConfigDiagnosticsReceived.fire(event as Proto.ConfigFileDiagnosticEvent);
 				break;
