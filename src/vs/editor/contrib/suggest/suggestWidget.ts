@@ -365,6 +365,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	private listElement: HTMLElement;
 	private details: SuggestionDetails;
 	private list: List<ICompletionItem>;
+	private listHeight: number;
 
 	private suggestWidgetVisible: IContextKey<boolean>;
 	private suggestWidgetMultipleSuggestions: IContextKey<boolean>;
@@ -669,10 +670,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this._ariaAlert(this.details.getAriaLabel());
 				break;
 		}
-
-		if (stateChanged && this.state !== State.Hidden) {
-			this.editor.layoutContentWidget(this);
-		}
 	}
 
 	showTriggered(auto: boolean) {
@@ -930,7 +927,12 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	}
 
 	private show(): void {
-		this.updateListHeight();
+		const newHeight = this.updateListHeight();
+		if (newHeight !== this.listHeight) {
+			this.editor.layoutContentWidget(this);
+			this.listHeight = newHeight;
+		}
+
 		this.suggestWidgetVisible.set(true);
 
 		this.showTimeout = TPromise.timeout(100).then(() => {
@@ -970,7 +972,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		return SuggestWidget.ID;
 	}
 
-	private updateListHeight(): void {
+	private updateListHeight(): number {
 		let height = 0;
 
 		if (this.state === State.Empty || this.state === State.Loading) {
@@ -983,6 +985,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.element.style.lineHeight = `${this.unfocusedHeight}px`;
 		this.listElement.style.height = `${height}px`;
 		this.list.layout(height);
+		return height;
 	}
 
 	private adjustDocsPosition() {
