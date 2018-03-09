@@ -217,7 +217,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void> {
 		/* __GDPR__
 			"openKeybindings" : {
-				"textual" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"textual" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.publicLog('openKeybindings', { textual });

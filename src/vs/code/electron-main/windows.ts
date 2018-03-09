@@ -1536,6 +1536,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		if (!internalOptions.telemetryEventName) {
 			if (pickFolders && pickFiles) {
+				// __GDPR__TODO__ classify event
 				internalOptions.telemetryEventName = 'openFileFolder';
 			} else if (pickFolders) {
 				internalOptions.telemetryEventName = 'openFolder';

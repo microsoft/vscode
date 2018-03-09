@@ -578,7 +578,7 @@ export class SearchResult extends Disposable {
 		const onDone = stopwatch(fromPromise(promise));
 		/* __GDPR__
 			"replaceAll.started" : {
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
 		onDone(duration => this.telemetryService.publicLog('replaceAll.started', { duration }));
@@ -736,7 +736,7 @@ export class SearchModel extends Disposable {
 		const onFirstRenderStopwatch = stopwatch(onFirstRender);
 		/* __GDPR__
 			"searchResultsFirstRender" : {
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
 		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
@@ -746,7 +746,7 @@ export class SearchModel extends Disposable {
 
 		/* __GDPR__
 			"searchResultsFinished" : {
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
 		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
@@ -775,11 +775,11 @@ export class SearchModel extends Disposable {
 		delete options.pattern;
 		/* __GDPR__
 			"searchResultsShown" : {
-				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"options": { "${inline}": [ "${IPatternInfo}" ] },
-				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"useRipgrep": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"useRipgrep": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.publicLog('searchResultsShown', {
