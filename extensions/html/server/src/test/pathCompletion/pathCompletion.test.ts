@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import { providePathSuggestions } from '../../modes/pathCompletion';
-import { CompletionItemKind, Range, Position, CompletionItem, TextEdit } from 'vscode-languageserver-types';
+import { CompletionItemKind, Range, Position, CompletionItem, TextEdit, Command } from 'vscode-languageserver-types';
 
 const fixtureRoot = path.resolve(__dirname, '../../../test/pathCompletionFixtures');
 
@@ -23,21 +23,41 @@ interface PathSuggestion {
 	label?: string;
 	kind?: CompletionItemKind;
 	textEdit?: TextEdit;
+	command?: Command;
 }
 
-function assertSuggestions( actual: CompletionItem[], expected: PathSuggestion[]) {
+function assertSuggestions(actual: CompletionItem[], expected: PathSuggestion[]) {
 	assert.equal(actual.length, expected.length, `Suggestions have length ${actual.length} but should have length ${expected.length}`);
 
 	for (let i = 0; i < expected.length; i++) {
 		if (expected[i].label) {
-			assert.equal(actual[i].label, expected[i].label, `Suggestion ${actual[i].label} should have label ${expected[i].label}`);
+			assert.equal(
+				actual[i].label,
+				expected[i].label,
+				`Suggestion ${actual[i].label} should have label ${expected[i].label}`
+			);
 		}
 		if (expected[i].kind) {
-			assert.equal(actual[i].kind, expected[i].kind, `Suggestion ${actual[i].label} has type ${CompletionItemKind[actual[i].kind]} but should have label ${CompletionItemKind[expected[i].kind]}`);
+			assert.equal(actual[i].kind,
+				expected[i].kind,
+				`Suggestion ${actual[i].label} has type ${CompletionItemKind[actual[i].kind]} but should have label ${CompletionItemKind[expected[i].kind]}`
+			);
 		}
 		if (expected[i].textEdit) {
 			assert.equal(actual[i].textEdit.newText, expected[i].textEdit.newText);
 			assert.deepEqual(actual[i].textEdit.range, expected[i].textEdit.range);
+		}
+		if (expected[i].command) {
+			assert.equal(
+				actual[i].command.title,
+				expected[i].command.title,
+				`Suggestion ${actual[i].label} has command title ${actual[i].command.title} but should have command title ${expected[i].command.title}`
+			);
+			assert.equal(
+				actual[i].command.command,
+				expected[i].command.command,
+				`Suggestion ${actual[i].label} has command ${actual[i].command.command} but should have command ${expected[i].command.command}`
+			);
 		}
 	}
 }
@@ -51,9 +71,9 @@ suite('Path Completion - Relative Path:', () => {
 		const suggestions = providePathSuggestions(value, mockRange, activeFileFsPath);
 
 		assertSuggestions(suggestions, [
-			{ label: 'about', kind: CompletionItemKind.Folder },
+			{ label: 'about/', kind: CompletionItemKind.Folder },
 			{ label: 'index.html', kind: CompletionItemKind.File },
-			{ label: 'src', kind: CompletionItemKind.Folder }
+			{ label: 'src/', kind: CompletionItemKind.Folder }
 		]);
 	});
 
@@ -63,9 +83,9 @@ suite('Path Completion - Relative Path:', () => {
 		const suggestions = providePathSuggestions(value, mockRange, activeFileFsPath);
 
 		assertSuggestions(suggestions, [
-			{ label: 'about', kind: CompletionItemKind.Folder },
+			{ label: 'about/', kind: CompletionItemKind.Folder },
 			{ label: 'index.html', kind: CompletionItemKind.File },
-			{ label: 'src', kind: CompletionItemKind.Folder }
+			{ label: 'src/', kind: CompletionItemKind.Folder }
 		]);
 	});
 
@@ -89,14 +109,14 @@ suite('Path Completion - Absolute Path:', () => {
 		const activeFileFsPath1 = path.resolve(fixtureRoot, 'index.html');
 		const activeFileFsPath2 = path.resolve(fixtureRoot, 'about/index.html');
 
-		const suggestions1 = providePathSuggestions(value, mockRange, activeFileFsPath1, fixtureRoot); 
-		const suggestions2 = providePathSuggestions(value, mockRange, activeFileFsPath2, fixtureRoot); 
+		const suggestions1 = providePathSuggestions(value, mockRange, activeFileFsPath1, fixtureRoot);
+		const suggestions2 = providePathSuggestions(value, mockRange, activeFileFsPath2, fixtureRoot);
 
 		const verify = (suggestions) => {
 			assertSuggestions(suggestions, [
-				{ label: 'about', kind: CompletionItemKind.Folder },
+				{ label: 'about/', kind: CompletionItemKind.Folder },
 				{ label: 'index.html', kind: CompletionItemKind.File },
-				{ label: 'src', kind: CompletionItemKind.Folder }
+				{ label: 'src/', kind: CompletionItemKind.Folder }
 			]);
 		};
 
@@ -116,6 +136,22 @@ suite('Path Completion - Absolute Path:', () => {
 	});
 });
 
+suite('Path Completion - Folder Commands:', () => {
+	const mockRange = toRange(0, 3, 5);
+
+	test('Folder should have command `editor.action.triggerSuggest', () => {
+		const value = './';
+		const activeFileFsPath = path.resolve(fixtureRoot, 'index.html');
+		const suggestions = providePathSuggestions(value, mockRange, activeFileFsPath);
+
+		assertSuggestions(suggestions, [
+			{ label: 'about/', command: { title: 'Suggest', command: 'editor.action.triggerSuggest'} },
+			{ label: 'index.html' },
+			{ label: 'src/', command: { title: 'Suggest', command: 'editor.action.triggerSuggest'} },
+		]);
+	});
+});
+
 suite('Path Completion - Incomplete Path at End:', () => {
 	const mockRange = toRange(0, 3, 5);
 
@@ -128,7 +164,7 @@ suite('Path Completion - Incomplete Path at End:', () => {
 			{ label: 'feature.js', kind: CompletionItemKind.File },
 			{ label: 'test.js', kind: CompletionItemKind.File }
 		]);
-	}); 
+	});
 
 	test('Incomplete Path that does not start with slash', () => {
 		const value = '../src/f';
@@ -139,7 +175,7 @@ suite('Path Completion - Incomplete Path at End:', () => {
 			{ label: 'feature.js', kind: CompletionItemKind.File },
 			{ label: 'test.js', kind: CompletionItemKind.File }
 		]);
-	}); 
+	});
 });
 
 suite('Path Completion - No leading dot or slash:', () => {
@@ -151,9 +187,9 @@ suite('Path Completion - No leading dot or slash:', () => {
 		const suggestions = providePathSuggestions(value, range, activeFileFsPath, fixtureRoot);
 
 		assertSuggestions(suggestions, [
-			{ label: 'about', kind: CompletionItemKind.Folder, textEdit: toTextEdit(0, 4, 4, 'about') },
+			{ label: 'about/', kind: CompletionItemKind.Folder, textEdit: toTextEdit(0, 4, 4, 'about/') },
 			{ label: 'index.html', kind: CompletionItemKind.File, textEdit: toTextEdit(0, 4, 4, 'index.html') },
-			{ label: 'src', kind: CompletionItemKind.Folder, textEdit: toTextEdit(0, 4, 4, 'src') }
+			{ label: 'src/', kind: CompletionItemKind.Folder, textEdit: toTextEdit(0, 4, 4, 'src/') }
 		]);
 	});
 
@@ -190,12 +226,12 @@ suite('Path Completion - TextEdit:', () => {
 		const range = toRange(0, 3, 5);
 		const expectedReplaceRange = toRange(0, 4, 4);
 
-		const suggestions = providePathSuggestions(value, range, activeFileFsPath); 
+		const suggestions = providePathSuggestions(value, range, activeFileFsPath);
 
 		assertSuggestions(suggestions, [
-			{ textEdit: TextEdit.replace(expectedReplaceRange, 'about') },
+			{ textEdit: TextEdit.replace(expectedReplaceRange, 'about/') },
 			{ textEdit: TextEdit.replace(expectedReplaceRange, 'index.html') },
-			{ textEdit: TextEdit.replace(expectedReplaceRange, 'src') },
+			{ textEdit: TextEdit.replace(expectedReplaceRange, 'src/') },
 		]);
 	});
 });
