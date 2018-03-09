@@ -100,6 +100,10 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 					let clonedConfig = void 0;
 					const cloneOnWriteProxy = (target: any, accessor: string): any => {
 						let clonedTarget = void 0;
+						const cloneTarget = () => {
+							clonedConfig = clonedConfig ? clonedConfig : deepClone(config);
+							clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
+						};
 						return isObject(target) ?
 							new Proxy(target, {
 								get: (target: any, property: string) => {
@@ -114,9 +118,18 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 									return result;
 								},
 								set: (target: any, property: string, value: any) => {
-									clonedConfig = clonedConfig ? clonedConfig : deepClone(config);
-									clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
+									cloneTarget();
 									clonedTarget[property] = value;
+									return true;
+								},
+								deleteProperty: (target: any, property: string) => {
+									cloneTarget();
+									delete clonedTarget[property];
+									return true;
+								},
+								defineProperty: (target: any, property: string, descriptor: any) => {
+									cloneTarget();
+									Object.defineProperty(clonedTarget, property, descriptor);
 									return true;
 								}
 							}) : target;
