@@ -22,15 +22,10 @@ export function getPathCompletionParticipant(
 		onHtmlAttributeValue: ({ tag, attribute, value, range }) => {
 
 			if (shouldDoPathCompletion(tag, attribute, value)) {
-				let workspaceRoot;
-
-				if (startsWith(value, '/')) {
-					if (!workspaceFolders || workspaceFolders.length === 0) {
-						return;
-					}
-
-					workspaceRoot = resolveWorkspaceRoot(document, workspaceFolders);
+				if (!workspaceFolders || workspaceFolders.length === 0) {
+					return;
 				}
+				const workspaceRoot = resolveWorkspaceRoot(document, workspaceFolders);
 
 				const suggestions = providePathSuggestions(value, range, URI.parse(document.uri).fsPath, workspaceRoot);
 				result.items = [...suggestions, ...result.items];
@@ -56,26 +51,29 @@ function shouldDoPathCompletion(tag: string, attr: string, value: string): boole
 }
 
 export function providePathSuggestions(value: string, range: Range, activeDocFsPath: string, root?: string): CompletionItem[] {
-	if (value.indexOf('/') === -1) {
-		return [];
-	}
-
 	if (startsWith(value, '/') && !root) {
 		return [];
 	}
 
+	let replaceRange: Range;
 	const lastIndexOfSlash = value.lastIndexOf('/');
-	const valueBeforeLastSlash = value.slice(0, lastIndexOfSlash + 1);
-	const valueAfterLastSlash = value.slice(lastIndexOfSlash + 1);
-	const parentDir = startsWith(value, '/')
-		? path.resolve(root, '.' + valueBeforeLastSlash)
-		: path.resolve(activeDocFsPath, '..', valueBeforeLastSlash);
-
-	if (!fs.existsSync(parentDir)) {
-		return [];
+	if (lastIndexOfSlash === -1) {
+		replaceRange = getFullReplaceRange(range);
+	} else {
+		const valueAfterLastSlash = value.slice(lastIndexOfSlash + 1);
+		replaceRange = getReplaceRange(range, valueAfterLastSlash);
 	}
 
-	const replaceRange = getReplaceRange(range, valueAfterLastSlash);
+	let parentDir: string;
+	if (lastIndexOfSlash === -1) {
+		parentDir = path.resolve(root);
+	} else {
+		const valueBeforeLastSlash = value.slice(0, lastIndexOfSlash + 1);
+
+		parentDir = startsWith(value, '/')
+			? path.resolve(root, '.' + valueBeforeLastSlash)
+			: path.resolve(activeDocFsPath, '..', valueBeforeLastSlash);
+	}
 
 	try {
 		return fs.readdirSync(parentDir).map(f => {
@@ -102,7 +100,12 @@ function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: Propose
 	}
 }
 
-function getReplaceRange(valueRange: Range, valueAfterLastSlash: string): Range {
+function getFullReplaceRange(valueRange: Range) {
+	const start = Position.create(valueRange.end.line, valueRange.start.character + 1);
+	const end = Position.create(valueRange.end.line, valueRange.end.character - 1);
+	return Range.create(start, end);
+}
+function getReplaceRange(valueRange: Range, valueAfterLastSlash: string) {
 	const start = Position.create(valueRange.end.line, valueRange.end.character - 1 - valueAfterLastSlash.length);
 	const end = Position.create(valueRange.end.line, valueRange.end.character - 1);
 	return Range.create(start, end);

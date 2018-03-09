@@ -14,6 +14,10 @@ const fixtureRoot = path.resolve(__dirname, '../../../test/pathCompletionFixture
 function toRange(line: number, startChar: number, endChar: number) {
 	return Range.create(Position.create(line, startChar), Position.create(line, endChar));
 }
+function toTextEdit(line: number, startChar: number, endChar: number, newText: string) {
+	const range = Range.create(Position.create(line, startChar), Position.create(line, endChar));
+	return TextEdit.replace(range, newText);
+}
 
 interface PathSuggestion {
 	label?: string;
@@ -22,7 +26,7 @@ interface PathSuggestion {
 }
 
 function assertSuggestions( actual: CompletionItem[], expected: PathSuggestion[]) {
-	assert.equal(actual.length, expected.length, 'Suggestions should have expected length');
+	assert.equal(actual.length, expected.length, `Suggestions have length ${actual.length} but should have length ${expected.length}`);
 
 	for (let i = 0; i < expected.length; i++) {
 		if (expected[i].label) {
@@ -38,8 +42,8 @@ function assertSuggestions( actual: CompletionItem[], expected: PathSuggestion[]
 	}
 }
 
-suite('Path Completion - Relative Path', () => {
-	const mockRange = Range.create(Position.create(0, 3), Position.create(0, 5));
+suite('Path Completion - Relative Path:', () => {
+	const mockRange = toRange(0, 3, 5);
 
 	test('Current Folder', () => {
 		const value = './';
@@ -53,7 +57,7 @@ suite('Path Completion - Relative Path', () => {
 		]);
 	});
 
-	test('Parent Folder', () => {
+	test('Parent Folder:', () => {
 		const value = '../';
 		const activeFileFsPath = path.resolve(fixtureRoot, 'about/about.html');
 		const suggestions = providePathSuggestions(value, mockRange, activeFileFsPath);
@@ -65,7 +69,7 @@ suite('Path Completion - Relative Path', () => {
 		]);
 	});
 
-	test('Adjacent Folder', () => {
+	test('Adjacent Folder:', () => {
 		const value = '../src/';
 		const activeFileFsPath = path.resolve(fixtureRoot, 'about/about.html');
 		const suggestions = providePathSuggestions(value, mockRange, activeFileFsPath);
@@ -77,8 +81,8 @@ suite('Path Completion - Relative Path', () => {
 	});
 });
 
-suite('Path Completion - Absolute Path', () => {
-	const mockRange = Range.create(Position.create(0, 3), Position.create(0, 5));
+suite('Path Completion - Absolute Path:', () => {
+	const mockRange = toRange(0, 3, 5);
 
 	test('Root', () => {
 		const value = '/';
@@ -112,8 +116,8 @@ suite('Path Completion - Absolute Path', () => {
 	});
 });
 
-suite('Path Completion - Incomplete Path at End', () => {
-	const mockRange = Range.create(Position.create(0, 3), Position.create(0, 5));
+suite('Path Completion - Incomplete Path at End:', () => {
+	const mockRange = toRange(0, 3, 5);
 
 	test('Incomplete Path that starts with slash', () => {
 		const value = '/src/f';
@@ -138,7 +142,48 @@ suite('Path Completion - Incomplete Path at End', () => {
 	}); 
 });
 
-suite('Path Completion - TextEdit', () => {
+suite('Path Completion - No leading dot or slash:', () => {
+
+	test('Top level completion', () => {
+		const value = 's';
+		const activeFileFsPath = path.resolve(fixtureRoot, 'index.html');
+		const range = toRange(0, 3, 5);
+		const suggestions = providePathSuggestions(value, range, activeFileFsPath, fixtureRoot);
+
+		assertSuggestions(suggestions, [
+			{ label: 'about', kind: CompletionItemKind.Folder, textEdit: toTextEdit(0, 4, 4, 'about') },
+			{ label: 'index.html', kind: CompletionItemKind.File, textEdit: toTextEdit(0, 4, 4, 'index.html') },
+			{ label: 'src', kind: CompletionItemKind.Folder, textEdit: toTextEdit(0, 4, 4, 'src') }
+		]);
+	});
+
+	test('src/', () => {
+		const value = 'src/';
+		const activeFileFsPath = path.resolve(fixtureRoot, 'index.html');
+		const range = toRange(0, 3, 8);
+		const suggestions = providePathSuggestions(value, range, activeFileFsPath, fixtureRoot);
+
+		assertSuggestions(suggestions, [
+			{ label: 'feature.js', kind: CompletionItemKind.File, textEdit: toTextEdit(0, 7, 7, 'feature.js') },
+			{ label: 'test.js', kind: CompletionItemKind.File, textEdit: toTextEdit(0, 7, 7, 'test.js') }
+		]);
+	});
+
+	test('src/f', () => {
+		const value = 'src/f';
+		const activeFileFsPath = path.resolve(fixtureRoot, 'index.html');
+		const range = toRange(0, 3, 9);
+		const suggestions = providePathSuggestions(value, range, activeFileFsPath, fixtureRoot);
+
+		assertSuggestions(suggestions, [
+			{ label: 'feature.js', kind: CompletionItemKind.File, textEdit: toTextEdit(0, 7, 8, 'feature.js') },
+			{ label: 'test.js', kind: CompletionItemKind.File, textEdit: toTextEdit(0, 7, 8, 'test.js') }
+		]);
+	});
+});
+
+suite('Path Completion - TextEdit:', () => {
+
 	test('TextEdit has correct replace text and range', () => {
 		const value = './';
 		const activeFileFsPath = path.resolve(fixtureRoot, 'index.html');
