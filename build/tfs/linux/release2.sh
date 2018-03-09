@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 # Arguments
 ARCH="$1"
