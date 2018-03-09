@@ -36,20 +36,21 @@ export enum DiagnosticKind {
 	Suggestion
 }
 
+const allDiagnosticKinds = [DiagnosticKind.Syntax, DiagnosticKind.Semantic, DiagnosticKind.Suggestion];
+
 export class DiagnosticsManager {
 
-	private readonly diagnostics: Map<DiagnosticKind, DiagnosticSet>;
+	private readonly diagnostics = new Map<DiagnosticKind, DiagnosticSet>();
 	private readonly currentDiagnostics: DiagnosticCollection;
 	private _validate: boolean = true;
 
 	constructor(
 		language: string
 	) {
-		this.diagnostics = new Map([
-			[DiagnosticKind.Syntax, new DiagnosticSet()],
-			[DiagnosticKind.Semantic, new DiagnosticSet()],
-			[DiagnosticKind.Suggestion, new DiagnosticSet()]
-		]);
+		for (const kind of allDiagnosticKinds) {
+			this.diagnostics.set(kind, new DiagnosticSet());
+		}
+
 		this.currentDiagnostics = languages.createDiagnosticCollection(language);
 	}
 
@@ -100,10 +101,11 @@ export class DiagnosticsManager {
 			return;
 		}
 
-		const semanticDiagnostics = this.diagnostics.get(DiagnosticKind.Semantic)!.get(file);
-		const syntaxDiagnostics = this.diagnostics.get(DiagnosticKind.Syntax)!.get(file);
-		const suggestionDiagnostics = this.diagnostics.get(DiagnosticKind.Suggestion)!.get(file);
-		this.currentDiagnostics.set(file, semanticDiagnostics.concat(syntaxDiagnostics, suggestionDiagnostics));
+		const allDiagnostics = allDiagnosticKinds.reduce((sum, kind) => {
+			sum.push(...this.diagnostics.get(kind)!.get(file));
+			return sum;
+		}, [] as Diagnostic[]);
+		this.currentDiagnostics.set(file, allDiagnostics);
 	}
 
 	public getDiagnostics(file: Uri): Diagnostic[] {
