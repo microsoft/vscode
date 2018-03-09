@@ -70,8 +70,8 @@ export default class TypeScriptServiceClientHost {
 		this.client = new TypeScriptServiceClient(workspaceState, version => this.versionStatus.onDidChangeTypeScriptVersion(version), plugins, logDirectoryProvider);
 		this.disposables.push(this.client);
 
-		this.client.onSyntaxDiagnosticsReceived(({ file, diagnostics }) => this.syntaxDiagnosticsReceived(file, diagnostics), null, this.disposables);
-		this.client.onSemanticDiagnosticsReceived(({ file, diagnostics }) => this.semanticDiagnosticsReceived(file, diagnostics), null, this.disposables);
+		this.client.onSyntaxDiagnosticsReceived(({ resource, diagnostics }) => this.syntaxDiagnosticsReceived(resource, diagnostics), null, this.disposables);
+		this.client.onSemanticDiagnosticsReceived(({ resource, diagnostics }) => this.semanticDiagnosticsReceived(resource, diagnostics), null, this.disposables);
 		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this.disposables);
 		this.client.onResendModelsRequested(() => this.populateService(), null, this.disposables);
 
@@ -137,8 +137,8 @@ export default class TypeScriptServiceClientHost {
 		this.triggerAllDiagnostics();
 	}
 
-	public handles(file: string): boolean {
-		return !!this.findLanguage(file);
+	public handles(resource: Uri): boolean {
+		return !!this.findLanguage(resource);
 	}
 
 	private configurationChanged(): void {
@@ -146,10 +146,10 @@ export default class TypeScriptServiceClientHost {
 		this.reportStyleCheckAsWarnings = config.get('reportStyleChecksAsWarnings', true);
 	}
 
-	private async findLanguage(file: string): Promise<LanguageProvider | undefined> {
+	private async findLanguage(resource: Uri): Promise<LanguageProvider | undefined> {
 		try {
-			const doc = await workspace.openTextDocument(this.client.asUrl(file));
-			return this.languages.find(language => language.handles(file, doc));
+			const doc = await workspace.openTextDocument(resource);
+			return this.languages.find(language => language.handles(resource, doc));
 		} catch {
 			return undefined;
 		}
@@ -170,20 +170,20 @@ export default class TypeScriptServiceClientHost {
 		});
 	}
 
-	private async syntaxDiagnosticsReceived(file: string, diagnostics: Proto.Diagnostic[]): Promise<void> {
-		const language = await this.findLanguage(file);
+	private async syntaxDiagnosticsReceived(resource: Uri, diagnostics: Proto.Diagnostic[]): Promise<void> {
+		const language = await this.findLanguage(resource);
 		if (language) {
 			language.syntaxDiagnosticsReceived(
-				this.client.asUrl(file),
+				resource,
 				this.createMarkerDatas(diagnostics, language.diagnosticSource));
 		}
 	}
 
-	private async semanticDiagnosticsReceived(file: string, diagnostics: Proto.Diagnostic[]): Promise<void> {
-		const language = await this.findLanguage(file);
+	private async semanticDiagnosticsReceived(resource: Uri, diagnostics: Proto.Diagnostic[]): Promise<void> {
+		const language = await this.findLanguage(resource);
 		if (language) {
 			language.semanticDiagnosticsReceived(
-				this.client.asUrl(file),
+				resource,
 				this.createMarkerDatas(diagnostics, language.diagnosticSource));
 		}
 	}
@@ -195,7 +195,7 @@ export default class TypeScriptServiceClientHost {
 			return;
 		}
 
-		(this.findLanguage(body.configFile)).then(language => {
+		(this.findLanguage(this.client.asUrl(body.configFile))).then(language => {
 			if (!language) {
 				return;
 			}

@@ -171,16 +171,16 @@ export default class LanguageProvider {
 		}
 	}
 
-	public handles(file: string, doc: TextDocument): boolean {
+	public handles(resource: Uri, doc: TextDocument): boolean {
 		if (doc && this.description.modeIds.indexOf(doc.languageId) >= 0) {
 			return true;
 		}
 
-		if (this.bufferSyncSupport.handles(file)) {
+		if (this.bufferSyncSupport.handles(resource)) {
 			return true;
 		}
 
-		const base = basename(file);
+		const base = basename(resource.fsPath);
 		return !!base && base === this.description.configFile;
 	}
 

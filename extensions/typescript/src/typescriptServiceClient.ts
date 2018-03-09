@@ -140,8 +140,8 @@ class ForkedTsServerProcess {
 }
 
 export interface TsDiagnostics {
-	file: string;
-	diagnostics: Proto.Diagnostic[];
+	readonly resource: Uri;
+	readonly diagnostics: Proto.Diagnostic[];
 }
 
 export default class TypeScriptServiceClient implements ITypeScriptServiceClient {
@@ -802,7 +802,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 					const diagnosticEvent: Proto.DiagnosticEvent = event;
 					if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
 						this._onSyntaxDiagnosticsReceived.fire({
-							file: diagnosticEvent.body.file,
+							resource: this.asUrl(diagnosticEvent.body.file),
 							diagnostics: diagnosticEvent.body.diagnostics
 						});
 					}
@@ -813,7 +813,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 					const diagnosticEvent: Proto.DiagnosticEvent = event;
 					if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
 						this._onSemanticDiagnosticsReceived.fire({
-							file: diagnosticEvent.body.file,
+							resource: this.asUrl(diagnosticEvent.body.file),
 							diagnostics: diagnosticEvent.body.diagnostics
 						});
 					}

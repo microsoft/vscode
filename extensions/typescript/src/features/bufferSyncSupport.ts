@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 
-import { workspace, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable } from 'vscode';
+import { workspace, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable, Uri } from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
@@ -142,8 +142,9 @@ export default class BufferSyncSupport {
 		this._validate = value;
 	}
 
-	public handles(file: string): boolean {
-		return this.syncedBuffers.has(file);
+	public handles(resource: Uri): boolean {
+		const file = this.client.normalizePath(resource);
+		return !!file && this.syncedBuffers.has(file);
 	}
 
 	public reOpenDocuments(): void {
