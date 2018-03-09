@@ -70,7 +70,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			}
 		}
 
-		if (tsEntry.kindModifiers.match(/\boptional\b/)) {
+		if (tsEntry.kindModifiers && tsEntry.kindModifiers.match(/\boptional\b/)) {
 			this.insertText = this.label;
 			this.filterText = this.label;
 			this.label += '?';
