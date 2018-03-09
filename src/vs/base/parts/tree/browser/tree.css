@@ -31,6 +31,11 @@
 	height: 100%;
 }
 
+.monaco-tree .monaco-tree-rows.scrolling {
+	min-width: 100%;
+	width: auto;
+}
+
 .monaco-tree .monaco-tree-rows > .monaco-tree-row {
 	-moz-box-sizing:	border-box;
 	-o-box-sizing:		border-box;

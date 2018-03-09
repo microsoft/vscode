@@ -408,6 +408,8 @@ export class TreeView extends HeightMap {
 	private highlightedItemWasDraggable: boolean;
 	private onHiddenScrollTop: number;
 
+	private maxWidthContainer: number;
+
 	private _onDOMFocus: Emitter<void> = new Emitter<void>();
 	get onDOMFocus(): Event<void> { return this._onDOMFocus.event; }
 
@@ -464,12 +466,12 @@ export class TreeView extends HeightMap {
 		this.wrapper.className = 'monaco-tree-wrapper';
 		this.scrollableElement = new ScrollableElement(this.wrapper, {
 			alwaysConsumeMouseWheel: true,
-			horizontal: ScrollbarVisibility.Hidden,
+			horizontal: (typeof context.options.horizontalScrollMode !== 'undefined' ? context.options.verticalScrollMode : ScrollbarVisibility.Hidden),
 			vertical: (typeof context.options.verticalScrollMode !== 'undefined' ? context.options.verticalScrollMode : ScrollbarVisibility.Auto),
 			useShadows: context.options.useShadows
 		});
 		this.scrollableElement.onScroll((e) => {
-			this.render(e.scrollTop, e.height);
+			this.render(e.scrollTop, e.height, e.scrollLeft);
 		});
 
 		if (Browser.isIE) {
@@ -483,6 +485,9 @@ export class TreeView extends HeightMap {
 		this.rowsContainer.className = 'monaco-tree-rows';
 		if (context.options.showTwistie) {
 			this.rowsContainer.className += ' show-twisties';
+		}
+		if (context.options.horizontalScrollMode) {
+			this.rowsContainer.className += ' scrolling';
 		}
 
 		var focusTracker = DOM.trackFocus(this.domNode);
@@ -542,6 +547,8 @@ export class TreeView extends HeightMap {
 		this.dragAndDropScrollTimeout = null;
 
 		this.onHiddenScrollTop = null;
+
+		this.maxWidthContainer = 0;
 
 		this.onRowsChanged();
 		this.layout();
@@ -664,15 +671,16 @@ export class TreeView extends HeightMap {
 		return this.onHiddenScrollTop === null;
 	}
 
-	public layout(height?: number): void {
+	public layout(height?: number, width?: number): void {
 		if (!this.isTreeVisible()) {
 			return;
 		}
-
-		this.viewHeight = height || DOM.getContentHeight(this.wrapper); // render
+		// render
+		this.viewHeight = height || DOM.getContentHeight(this.wrapper);
+		this.viewWidth = width || DOM.getContentWidth(this.wrapper);
 	}
 
-	private render(scrollTop: number, viewHeight: number): void {
+	private render(scrollTop: number, viewHeight: number, scrollLeft: number): void {
 		var i: number;
 		var stop: number;
 
@@ -708,6 +716,10 @@ export class TreeView extends HeightMap {
 
 		this.lastRenderTop = renderTop;
 		this.lastRenderHeight = renderBottom - renderTop;
+
+		// Horizontal Scroll
+		this.rowsContainer.style.left = -scrollLeft + 'px';
+		this.viewWidth = DOM.getContentWidth(this.wrapper);
 	}
 
 	public setModel(newModel: Model.TreeModel): void {
@@ -808,6 +820,22 @@ export class TreeView extends HeightMap {
 			height: viewHeight,
 			scrollHeight: this.getTotalHeight()
 		});
+	}
+
+	public get viewWidth() {
+		const scrollDimensions = this.scrollableElement.getScrollDimensions();
+		return scrollDimensions.width;
+	}
+
+	public set viewWidth(viewWidth: number) {
+		const currentWidthContainer = DOM.getContentWidth(this.rowsContainer);
+		if (currentWidthContainer > this.maxWidthContainer) {
+			this.maxWidthContainer = currentWidthContainer;
+			this.scrollableElement.setScrollDimensions({
+				width: viewWidth,
+				scrollWidth: currentWidthContainer
+			});
+		}
 	}
 
 	public get scrollTop(): number {

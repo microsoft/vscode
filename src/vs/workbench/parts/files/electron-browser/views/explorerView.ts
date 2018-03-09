@@ -40,10 +40,15 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
 import { isLinux } from 'vs/base/common/platform';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
+<<<<<<< HEAD
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+=======
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+>>>>>>> upstream/master
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	viewletState: FileViewletState;
@@ -416,8 +421,17 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			accessibilityProvider
 		}, {
 				autoExpandSingleChildren: true,
+<<<<<<< HEAD
+				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
+				twistiePixels: 12,
+				showTwistie: false,
+				keyboardSupport: false,
+				horizontalScrollMode: ScrollbarVisibility.Auto
+			}, this.contextKeyService, this.listService, this.themeService);
+=======
 				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer")
 			});
+>>>>>>> upstream/master
 
 		// Bind context keys
 		FilesExplorerFocusedContext.bindTo(this.explorerViewer.contextKeyService);
