@@ -95,10 +95,7 @@
 
 .monaco-editor .debug-top-stack-frame.debug-breakpoint,
 .monaco-editor .debug-top-stack-frame.debug-breakpoint-conditional,
-.monaco-editor .debug-breakpoint-column.debug-breakpoint-column.debug-top-stack-frame-column::before,
-.monaco-editor.vs-dark .debug-top-stack-frame.debug-breakpoint,
-.monaco-editor.vs-dark .debug-top-stack-frame.debug-breakpoint-conditional,
-.monaco-editor.vs-dark .debug-breakpoint-column.debug-breakpoint-column.debug-top-stack-frame-column::before {
+.monaco-editor .debug-breakpoint-column.debug-breakpoint-column.debug-top-stack-frame-column::before {
 	background: url('current-and-breakpoint.svg') center center no-repeat;
 }
 
@@ -246,16 +243,6 @@
 
 .monaco-editor.vs-dark .debug-top-stack-frame-range {
 	background-color: rgba(255, 255, 0, 0.3)
-}
-
-.vs-dark .debug-function-breakpoint-unverified,
-.hc-black .debug-function-breakpoint-unverified {
-	background: url('breakpoint-function-unverified.svg') center center no-repeat;
-}
-
-.vs-dark .debug-function-breakpoint-disabled,
-.hc-black .debug-function-breakpoint-disabled {
-	background: url('breakpoint-function-disabled.svg') center center no-repeat;
 }
 
 /* High Contrast Theming */
