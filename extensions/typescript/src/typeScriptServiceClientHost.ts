@@ -71,6 +71,10 @@ export default class TypeScriptServiceClientHost implements ITypeScriptServiceCl
 		this.client = new TypeScriptServiceClient(this, workspaceState, version => this.versionStatus.onDidChangeTypeScriptVersion(version), plugins, logDirectoryProvider);
 		this.disposables.push(this.client);
 
+		this.client.onSyntaxDiagnosticsReceived(diag => this.syntaxDiagnosticsReceived(diag), null, this.disposables);
+		this.client.onSemanticDiagnosticsReceived(diag => this.semanticDiagnosticsReceived(diag), null, this.disposables);
+		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this.disposables);
+
 		this.versionStatus = new VersionStatus(resource => this.client.normalizePath(resource));
 		this.disposables.push(this.versionStatus);
 
@@ -166,7 +170,7 @@ export default class TypeScriptServiceClientHost implements ITypeScriptServiceCl
 		});
 	}
 
-	/* internal */ syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void {
+	private syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void {
 		const body = event.body;
 		if (body && body.diagnostics) {
 			this.findLanguage(body.file).then(language => {
@@ -177,7 +181,7 @@ export default class TypeScriptServiceClientHost implements ITypeScriptServiceCl
 		}
 	}
 
-	/* internal */ semanticDiagnosticsReceived(event: Proto.DiagnosticEvent): void {
+	private semanticDiagnosticsReceived(event: Proto.DiagnosticEvent): void {
 		const body = event.body;
 		if (body && body.diagnostics) {
 			this.findLanguage(body.file).then(language => {
@@ -188,7 +192,7 @@ export default class TypeScriptServiceClientHost implements ITypeScriptServiceCl
 		}
 	}
 
-	/* internal */ configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
+	private configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
 		// See https://github.com/Microsoft/TypeScript/issues/10384
 		const body = event.body;
 		if (!body || !body.diagnostics || !body.configFile) {

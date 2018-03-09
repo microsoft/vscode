@@ -233,6 +233,15 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		this.disposables.push(this.telemetryReporter);
 	}
 
+	private _onSyntaxDiagnosticsReceived = new EventEmitter<Proto.DiagnosticEvent>();
+	public get onSyntaxDiagnosticsReceived(): Event<Proto.DiagnosticEvent> { return this._onSyntaxDiagnosticsReceived.event; }
+
+	private _onSemanticDiagnosticsReceived = new EventEmitter<Proto.DiagnosticEvent>();
+	public get onSemanticDiagnosticsReceived(): Event<Proto.DiagnosticEvent> { return this._onSemanticDiagnosticsReceived.event; }
+
+	private _onConfigDiagnosticsReceived = new EventEmitter<Proto.ConfigFileDiagnosticEvent>();
+	public get onConfigDiagnosticsReceived(): Event<Proto.ConfigFileDiagnosticEvent> { return this._onConfigDiagnosticsReceived.event; }
+
 	public get configuration() {
 		return this._configuration;
 	}
@@ -245,6 +254,9 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		}
 
 		disposeAll(this.disposables);
+		this._onSyntaxDiagnosticsReceived.dispose();
+		this._onSemanticDiagnosticsReceived.dispose();
+		this._onConfigDiagnosticsReceived.dispose();
 	}
 
 	public restartTsServer(): void {
@@ -782,15 +794,15 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private dispatchEvent(event: Proto.Event) {
 		switch (event.event) {
 			case 'syntaxDiag':
-				this.host.syntaxDiagnosticsReceived(event as Proto.DiagnosticEvent);
+				this._onSyntaxDiagnosticsReceived.fire(event as Proto.DiagnosticEvent);
 				break;
 
 			case 'semanticDiag':
-				this.host.semanticDiagnosticsReceived(event as Proto.DiagnosticEvent);
+				this._onSemanticDiagnosticsReceived.fire(event as Proto.DiagnosticEvent);
 				break;
 
 			case 'configFileDiag':
-				this.host.configFileDiagnosticsReceived(event as Proto.ConfigFileDiagnosticEvent);
+				this._onConfigDiagnosticsReceived.fire(event as Proto.ConfigFileDiagnosticEvent);
 				break;
 
 			case 'telemetry':
