@@ -5,6 +5,7 @@ steps:
 
 - script: |
     # dependencies
+    dpkg --add-architecture i386
     apt-get update
     apt-get install -y \
       libxkbfile-dev \
@@ -21,7 +22,12 @@ steps:
 
     # 32 bit dependencies
     apt-get install -y \
-      gcc-multilib g++-multilib
+      gcc-multilib g++-multilib \
+      libx11-dev:i386 \
+      libxkbfile-dev:i386 \
+      libx11-xcb-dev:i386 \
+      libgl1-mesa-glx:i386 \
+      libgl1-mesa-dri:i386
 
     # setup xvfb
     cp build/tfs/linux/$(VSCODE_ARCH)/xvfb.init /etc/init.d/xvfb
