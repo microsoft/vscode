@@ -11,11 +11,6 @@ import { TypeScriptServerPlugin } from './utils/plugins';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import Logger from './utils/logger';
 
-export interface ITypeScriptServiceClientHost {
-	populateService(): void;
-}
-
-
 export interface ITypeScriptServiceClient {
 	normalizePath(resource: Uri): string | null;
 	asUrl(filepath: string): Uri;

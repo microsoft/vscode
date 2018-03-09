@@ -12,7 +12,7 @@ import { Reader, ICallback } from './utils/wireProtocol';
 
 import { workspace, window, Uri, CancellationToken, Disposable, Memento, MessageItem, EventEmitter, Event, commands, env } from 'vscode';
 import * as Proto from './protocol';
-import { ITypeScriptServiceClient, ITypeScriptServiceClientHost } from './typescriptService';
+import { ITypeScriptServiceClient } from './typescriptService';
 import { TypeScriptServerPlugin } from './utils/plugins';
 import Logger from './utils/logger';
 
@@ -182,7 +182,6 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private readonly disposables: Disposable[] = [];
 
 	constructor(
-		private readonly host: ITypeScriptServiceClientHost,
 		private readonly workspaceState: Memento,
 		private readonly onDidChangeTypeScriptVersion: (version: TypeScriptVersion) => void,
 		public readonly plugins: TypeScriptServerPlugin[],
@@ -242,6 +241,9 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private _onConfigDiagnosticsReceived = new EventEmitter<Proto.ConfigFileDiagnosticEvent>();
 	public get onConfigDiagnosticsReceived(): Event<Proto.ConfigFileDiagnosticEvent> { return this._onConfigDiagnosticsReceived.event; }
 
+	private _onResendModelsRequested = new EventEmitter<void>();
+	public get onResendModelsRequested(): Event<void> { return this._onResendModelsRequested.event; }
+
 	public get configuration() {
 		return this._configuration;
 	}
@@ -257,6 +259,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		this._onSyntaxDiagnosticsReceived.dispose();
 		this._onSemanticDiagnosticsReceived.dispose();
 		this._onConfigDiagnosticsReceived.dispose();
+		this._onResendModelsRequested.dispose();
 	}
 
 	public restartTsServer(): void {
@@ -499,7 +502,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		this.execute('configure', configureOptions);
 		this.setCompilerOptionsForInferredProjects(this._configuration);
 		if (resendModels) {
-			this.host.populateService();
+			this._onResendModelsRequested.fire();
 		}
 	}
 

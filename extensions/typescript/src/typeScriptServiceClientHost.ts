@@ -14,7 +14,6 @@ import * as Proto from './protocol';
 import * as PConst from './protocol.const';
 
 import TypeScriptServiceClient from './typescriptServiceClient';
-import { ITypeScriptServiceClientHost } from './typescriptService';
 import LanguageProvider from './languageProvider';
 
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
@@ -36,7 +35,7 @@ const styleCheckDiagnostics = [
 	7030	// not all code paths return a value
 ];
 
-export default class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
+export default class TypeScriptServiceClientHost {
 	private readonly ataProgressReporter: AtaProgressReporter;
 	private readonly typingsStatus: TypingsStatus;
 	private readonly client: TypeScriptServiceClient;
@@ -68,12 +67,13 @@ export default class TypeScriptServiceClientHost implements ITypeScriptServiceCl
 		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this.disposables);
 		configFileWatcher.onDidChange(handleProjectChange, this, this.disposables);
 
-		this.client = new TypeScriptServiceClient(this, workspaceState, version => this.versionStatus.onDidChangeTypeScriptVersion(version), plugins, logDirectoryProvider);
+		this.client = new TypeScriptServiceClient(workspaceState, version => this.versionStatus.onDidChangeTypeScriptVersion(version), plugins, logDirectoryProvider);
 		this.disposables.push(this.client);
 
 		this.client.onSyntaxDiagnosticsReceived(diag => this.syntaxDiagnosticsReceived(diag), null, this.disposables);
 		this.client.onSemanticDiagnosticsReceived(diag => this.semanticDiagnosticsReceived(diag), null, this.disposables);
 		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this.disposables);
+		this.client.onResendModelsRequested(() => this.populateService(), null, this.disposables);
 
 		this.versionStatus = new VersionStatus(resource => this.client.normalizePath(resource));
 		this.disposables.push(this.versionStatus);
@@ -161,7 +161,7 @@ export default class TypeScriptServiceClientHost implements ITypeScriptServiceCl
 		}
 	}
 
-	/* internal */ populateService(): void {
+	private populateService(): void {
 		// See https://github.com/Microsoft/TypeScript/issues/5530
 		workspace.saveAll(false).then(() => {
 			for (const language of this.languagePerId.values()) {
