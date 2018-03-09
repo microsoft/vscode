@@ -25,6 +25,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDomNodePagePosition } from 'vs/base/browser/dom';
 import { DataTransfers } from 'vs/base/browser/dnd';
+import { Delayer } from 'vs/base/common/async';
 
 export interface IRow {
 	element: HTMLElement;
@@ -383,6 +384,8 @@ export class TreeView extends HeightMap {
 	private msGesture: MSGesture;
 	private lastPointerType: string;
 	private lastClickTimeStamp: number = 0;
+	private contentWidthProvider?: _.IContentWidthProvider;
+	private contentWidthUpdateDelayer = new Delayer<void>(50);
 
 	private lastRenderTop: number;
 	private lastRenderHeight: number;
@@ -460,16 +463,19 @@ export class TreeView extends HeightMap {
 			DOM.addClass(this.domNode, 'no-row-padding');
 		}
 
+		const horizontalScrollMode = typeof context.options.contentWidthProvider === 'undefined' ? ScrollbarVisibility.Hidden : ScrollbarVisibility.Auto;
+		this.contentWidthProvider = context.options.contentWidthProvider;
+
 		this.wrapper = document.createElement('div');
 		this.wrapper.className = 'monaco-tree-wrapper';
 		this.scrollableElement = new ScrollableElement(this.wrapper, {
 			alwaysConsumeMouseWheel: true,
-			horizontal: ScrollbarVisibility.Hidden,
+			horizontal: horizontalScrollMode,
 			vertical: (typeof context.options.verticalScrollMode !== 'undefined' ? context.options.verticalScrollMode : ScrollbarVisibility.Auto),
 			useShadows: context.options.useShadows
 		});
 		this.scrollableElement.onScroll((e) => {
-			this.render(e.scrollTop, e.height);
+			this.render(e.scrollTop, e.height, e.scrollLeft, e.width, e.scrollWidth);
 		});
 
 		if (Browser.isIE) {
@@ -670,9 +676,14 @@ export class TreeView extends HeightMap {
 		}
 
 		this.viewHeight = height || DOM.getContentHeight(this.wrapper); // render
+		this.scrollHeight = this.getContentHeight();
+
+		if (this.contentWidthProvider) {
+			this.viewWidth = DOM.getContentWidth(this.wrapper);
+		}
 	}
 
-	private render(scrollTop: number, viewHeight: number): void {
+	private render(scrollTop: number, viewHeight: number, scrollLeft: number, viewWidth: number, scrollWidth: number): void {
 		var i: number;
 		var stop: number;
 
@@ -704,6 +715,11 @@ export class TreeView extends HeightMap {
 
 		if (topItem) {
 			this.rowsContainer.style.top = (topItem.top - renderTop) + 'px';
+		}
+
+		if (this.contentWidthProvider) {
+			this.rowsContainer.style.left = -scrollLeft + 'px';
+			this.rowsContainer.style.width = `${Math.max(scrollWidth, viewWidth)}px`;
 		}
 
 		this.lastRenderTop = renderTop;
@@ -746,6 +762,12 @@ export class TreeView extends HeightMap {
 		}
 
 		this.scrollTop = scrollTop;
+
+		if (this.contentWidthProvider) {
+			this.contentWidthUpdateDelayer.trigger(() => {
+				this.scrollWidth = this.contentWidthProvider.getContentWidth();
+			});
+		}
 	}
 
 	public focusNextPage(eventPayload?: any): void {
@@ -803,11 +825,25 @@ export class TreeView extends HeightMap {
 		return scrollDimensions.height;
 	}
 
-	public set viewHeight(viewHeight: number) {
-		this.scrollableElement.setScrollDimensions({
-			height: viewHeight,
-			scrollHeight: this.getTotalHeight()
-		});
+	public set viewHeight(height: number) {
+		this.scrollableElement.setScrollDimensions({ height });
+	}
+
+	private set scrollHeight(scrollHeight: number) {
+		this.scrollableElement.setScrollDimensions({ scrollHeight });
+	}
+
+	public get viewWidth(): number {
+		const scrollDimensions = this.scrollableElement.getScrollDimensions();
+		return scrollDimensions.width;
+	}
+
+	public set viewWidth(viewWidth: number) {
+		this.scrollableElement.setScrollDimensions({ width: viewWidth });
+	}
+
+	private set scrollWidth(scrollWidth: number) {
+		this.scrollableElement.setScrollDimensions({ scrollWidth });
 	}
 
 	public get scrollTop(): number {
@@ -817,7 +853,7 @@ export class TreeView extends HeightMap {
 
 	public set scrollTop(scrollTop: number) {
 		this.scrollableElement.setScrollDimensions({
-			scrollHeight: this.getTotalHeight()
+			scrollHeight: this.getContentHeight()
 		});
 		this.scrollableElement.setScrollPosition({
 			scrollTop: scrollTop
@@ -825,12 +861,12 @@ export class TreeView extends HeightMap {
 	}
 
 	public getScrollPosition(): number {
-		const height = this.getTotalHeight() - this.viewHeight;
+		const height = this.getContentHeight() - this.viewHeight;
 		return height <= 0 ? 1 : this.scrollTop / height;
 	}
 
 	public setScrollPosition(pos: number): void {
-		const height = this.getTotalHeight() - this.viewHeight;
+		const height = this.getContentHeight() - this.viewHeight;
 		this.scrollTop = height * pos;
 	}
 

@@ -212,7 +212,7 @@ export class Tree implements _.ITree {
 	}
 
 	getContentHeight(): number {
-		return this.view.getTotalHeight();
+		return this.view.getContentHeight();
 	}
 
 	public setHighlight(element?: any, eventPayload?: any): void {

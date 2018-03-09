@@ -22,7 +22,7 @@ export class HeightMap {
 		this.indexes = {};
 	}
 
-	public getTotalHeight(): number {
+	public getContentHeight(): number {
 		var last = this.heightMap[this.heightMap.length - 1];
 		return !last ? 0 : last.top + last.height;
 	}

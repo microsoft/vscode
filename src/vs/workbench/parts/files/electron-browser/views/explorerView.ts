@@ -416,7 +416,8 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			accessibilityProvider
 		}, {
 				autoExpandSingleChildren: true,
-				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer")
+				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
+				contentWidthProvider: { getContentWidth: () => this.getOptimalWidth() }
 			});
 
 		// Bind context keys
@@ -459,10 +460,32 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	}
 
 	public getOptimalWidth(): number {
-		const parentNode = this.explorerViewer.getHTMLElement();
-		const childNodes = [].slice.call(parentNode.querySelectorAll('.explorer-item .label-name')); // select all file labels
+		if (!this.explorerViewer) {
+			return 0;
+		}
 
-		return DOM.getLargestChildWidth(parentNode, childNodes);
+		let result = 0;
+		const parentNode = this.explorerViewer.getHTMLElement();
+		const rows = [].slice.call(parentNode.querySelectorAll('.monaco-tree-row')) as HTMLElement[];
+
+		for (const row of rows) {
+			const rowStyle = window.getComputedStyle(row);
+			const content = row.querySelector('.content') as HTMLElement;
+			const twistieStyle = window.getComputedStyle(content, ':before');
+			const iconLabel = content.querySelector('.monaco-icon-label') as HTMLElement;
+			const iconStyle = window.getComputedStyle(iconLabel, ':before'); // width + padding
+			const decorationsStyle = window.getComputedStyle(iconLabel, ':after'); // width + padding
+			const label = iconLabel.querySelector('.monaco-icon-label-description-container > .label-name') as HTMLElement;
+
+			const twistieWidth = (twistieStyle.display !== 'none' && twistieStyle.content) ? parseFloat(twistieStyle.width) + parseFloat(twistieStyle.paddingLeft) + parseFloat(twistieStyle.paddingRight) : 0;
+			const iconWidth = iconStyle.content ? parseFloat(iconStyle.width) + parseFloat(iconStyle.paddingLeft) + parseFloat(iconStyle.paddingRight) : 0;
+			const decorationsWidth = decorationsStyle.content ? parseFloat(decorationsStyle.width) + parseFloat(decorationsStyle.paddingLeft) + parseFloat(decorationsStyle.paddingRight) : 0;
+			const width = parseFloat(rowStyle.paddingLeft) + twistieWidth + iconWidth + decorationsWidth + label.offsetWidth;
+
+			result = Math.max(result, width);
+		}
+
+		return result + 12; // 12 for right padding
 	}
 
 	private onFileOperation(e: FileOperationEvent): void {

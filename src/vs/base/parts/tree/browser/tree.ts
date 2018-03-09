@@ -668,11 +668,16 @@ export interface ITreeConfiguration {
 	accessibilityProvider?: IAccessibilityProvider;
 }
 
+export interface IContentWidthProvider {
+	getContentWidth(): number;
+}
+
 export interface ITreeOptions extends ITreeStyles {
 	twistiePixels?: number;
 	showTwistie?: boolean;
 	indentPixels?: number;
 	verticalScrollMode?: ScrollbarVisibility;
+	contentWidthProvider?: IContentWidthProvider;
 	alwaysFocused?: boolean;
 	autoExpandSingleChildren?: boolean;
 	useShadows?: boolean;
