@@ -277,7 +277,7 @@ export class CodeApplication {
 			this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 			// Spawn shared process
-			this.sharedProcess = new SharedProcess(this.environmentService, machineId, this.userEnv, this.logService);
+			this.sharedProcess = new SharedProcess(this.environmentService, this.lifecycleService, machineId, this.userEnv, this.logService);
 			this.toDispose.push(this.sharedProcess);
 			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
@@ -346,20 +346,6 @@ export class CodeApplication {
 	private openFirstWindow(accessor: ServicesAccessor): void {
 		const appInstantiationService = accessor.get(IInstantiationService);
 
-		// TODO@Joao: unfold this
-		this.windowsMainService = accessor.get(IWindowsMainService);
-
-		// TODO@Joao: so ugly...
-		this.windowsMainService.onWindowsCountChanged(e => {
-			if (e.newCount !== 0) {
-				return; // only when all VS Code windows are closed
-			}
-
-			if (!platform.isMacintosh /* macOS can still run when all windows are closed */ || this.lifecycleService.isQuitRequested()) {
-				this.sharedProcess.dispose();
-			}
-		});
-
 		// Register more Main IPC services
 		const launchService = accessor.get(ILaunchService);
 		const launchChannel = new LaunchChannel(launchService);
@@ -396,6 +382,7 @@ export class CodeApplication {
 		this.lifecycleService.ready();
 
 		// Propagate to clients
+		this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this
 		this.windowsMainService.ready(this.userEnv);
 
 		// Open our first window

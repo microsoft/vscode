@@ -13,6 +13,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 import { ISharedProcess } from 'vs/platform/windows/electron-main/windows';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 
 export class SharedProcess implements ISharedProcess {
 
@@ -23,10 +24,26 @@ export class SharedProcess implements ISharedProcess {
 
 	constructor(
 		private environmentService: IEnvironmentService,
+		private lifecycleService: ILifecycleService,
 		private readonly machineId: string,
 		private readonly userEnv: IProcessEnvironment,
 		private readonly logService: ILogService
-	) { }
+	) {
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Shut the shared process down when we are quitting
+		//
+		// Note: because we veto the window close, we must call our dispose() method,
+		// which removes the veto. Otherwise the application would never quit because
+		// the shared process window is refusing to close!
+		//
+		this.lifecycleService.onQuit(() => {
+			this.dispose();
+		});
+	}
 
 	@memoize
 	private get _whenReady(): TPromise<void> {
