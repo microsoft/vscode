@@ -76,7 +76,7 @@ export class CodeWindow implements ICodeWindow {
 	private toDispose: IDisposable[];
 	private representedFilename: string;
 
-	private whenReadyCallbacks: TValueCallback<CodeWindow>[];
+	private whenReadyCallbacks: TValueCallback<ICodeWindow>[];
 
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
@@ -295,8 +295,8 @@ export class CodeWindow implements ICodeWindow {
 		}
 	}
 
-	public ready(): TPromise<CodeWindow> {
-		return new TPromise<CodeWindow>((c) => {
+	public ready(): TPromise<ICodeWindow> {
+		return new TPromise<ICodeWindow>((c) => {
 			if (this._readyState === ReadyState.READY) {
 				return c(this);
 			}
