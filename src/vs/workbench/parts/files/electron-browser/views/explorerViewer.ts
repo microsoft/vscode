@@ -977,17 +977,13 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 						name: folders[index].name,
 						uri: folders[index].uri
 					});
-
-					if (sourceIndex && targetIndex) {
-						break;
-					}
 				}
 
 				const swap = workspaceCreationData[sourceIndex];
 				workspaceCreationData[sourceIndex] = workspaceCreationData[targetIndex];
 				workspaceCreationData[targetIndex] = swap;
 
-				return this.workspaceEditingService.updateFolders(Math.min(sourceIndex, targetIndex), workspaceCreationData.length, workspaceCreationData);
+				return this.workspaceEditingService.updateFolders(0, workspaceCreationData.length, workspaceCreationData);
 			}
 
 			// Reuse duplicate action if user copies
