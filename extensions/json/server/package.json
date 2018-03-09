@@ -8,12 +8,12 @@
     "node": "*"
   },
   "dependencies": {
-    "jsonc-parser": "^1.0.2",
+    "jsonc-parser": "^2.0.0-next.1",
     "request-light": "^0.2.2",
-    "vscode-json-languageservice": "^3.0.8",
+    "vscode-json-languageservice": "^3.0.12",
     "vscode-languageserver": "^4.0.0",
     "vscode-nls": "^3.2.1",
-    "vscode-uri": "^1.0.1"
+    "vscode-uri": "^1.0.3"
   },
   "devDependencies": {
     "@types/node": "7.0.43"
