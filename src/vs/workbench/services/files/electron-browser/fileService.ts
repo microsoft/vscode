@@ -124,7 +124,7 @@ export class FileService implements IFileService {
 		// Detect if we run into ENOSPC issues
 		if (msg.indexOf(FileService.ENOSPC_ERROR) >= 0 && !this.storageService.getBoolean(FileService.ENOSPC_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
 			const choices: PromptOption[] = [nls.localize('learnMore', "Instructions"), { label: nls.localize('neverShowAgain', "Don't Show Again") }];
-			this.notificationService.prompt(Severity.Warning, nls.localize('enospcError', "{0} is running out of file handles. Please follow the instructions link to resolve this issue.", product.nameLong), choices).then(choice => {
+			this.notificationService.prompt(Severity.Warning, nls.localize('enospcError', "{0} is unable to watch for file changes in this large workspace. Please follow the instructions link to resolve this issue.", product.nameLong), choices).then(choice => {
 				switch (choice) {
 					case 0 /* Read More */:
 						window.open('https://go.microsoft.com/fwlink/?linkid=867693');
