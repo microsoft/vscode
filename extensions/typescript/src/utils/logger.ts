@@ -5,18 +5,16 @@
 
 import { OutputChannel, window } from 'vscode';
 import * as is from './is';
+import { memoize } from './memoize';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 export default class Logger {
-	private _output?: OutputChannel;
 
+	@memoize
 	private get output(): OutputChannel {
-		if (!this._output) {
-			this._output = window.createOutputChannel(localize('channelName', 'TypeScript'));
-		}
-		return this._output;
+		return window.createOutputChannel(localize('channelName', 'TypeScript'));
 	}
 
 	private data2String(data: any): string {
