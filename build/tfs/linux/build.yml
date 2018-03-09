@@ -57,4 +57,8 @@ steps:
     npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-deb"
     npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-rpm"
     #npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-snap"
+
+    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+    MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
     ./build/tfs/linux/release2.sh "$(VSCODE_ARCH)" "$(LINUX_REPO_PASSWORD)"
