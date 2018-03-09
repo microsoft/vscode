@@ -351,7 +351,11 @@ export class CodeApplication {
 
 		// TODO@Joao: so ugly...
 		this.windowsMainService.onWindowsCountChanged(e => {
-			if (!platform.isMacintosh && e.newCount === 0) {
+			if (e.newCount !== 0) {
+				return; // only when all VS Code windows are closed
+			}
+
+			if (!platform.isMacintosh /* macOS can still run when all windows are closed */ || this.lifecycleService.isQuitRequested()) {
 				this.sharedProcess.dispose();
 			}
 		});

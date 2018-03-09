@@ -50,8 +50,12 @@ export class SharedProcess implements ISharedProcess {
 
 		// Prevent the window from dying
 		const onClose = (e: Event) => {
+
+			// We never allow to close the shared process unless we get explicitly disposed()
+			e.preventDefault();
+
+			// Still hide the window though if visible
 			if (this.window.isVisible()) {
-				e.preventDefault();
 				this.window.hide();
 			}
 		};
