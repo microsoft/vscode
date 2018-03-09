@@ -4,13 +4,29 @@ variables:
 steps:
 
 - script: |
+    # dependencies
     apt-get update
-    apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 libgconf-2-4 dbus xvfb
+    apt-get install -y \
+      libxkbfile-dev \
+      pkg-config \
+      libsecret-1-dev \
+      libxss1 \
+      libgconf-2-4 \
+      dbus \
+      xvfb \
+      fakeroot \
+      bc \
+      bsdmainutils \
+      rpm
+
+    # setup xvfb
     cp build/tfs/linux/$(VSCODE_ARCH)/xvfb.init /etc/init.d/xvfb
     chmod +x /etc/init.d/xvfb
     update-rc.d xvfb defaults
-    ln -sf /bin/dbus-daemon /usr/bin/dbus-daemon
     service xvfb start
+
+    # setup dbus
+    ln -sf /bin/dbus-daemon /usr/bin/dbus-daemon
     service dbus start
 
 - task: NodeTool@0
@@ -41,4 +57,4 @@ steps:
     npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-deb"
     npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-rpm"
     #npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-snap"
-    ./build/tfs/linux/release2.sh $(VSCODE_ARCH) $(LINUX_REPO_PASSWORD)
+    ./build/tfs/linux/release2.sh "$(VSCODE_ARCH)" "$(LINUX_REPO_PASSWORD)"
