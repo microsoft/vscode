@@ -405,6 +405,12 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
+		if (ctx.leadingWord.startColumn < this._context.leadingWord.startColumn) {
+			// happens when the current word gets outdented
+			this.cancel();
+			return;
+		}
+
 		if (ctx.column < this._context.column) {
 			// typed -> moved cursor LEFT -> retrigger if still on a word
 			if (ctx.leadingWord.word) {
