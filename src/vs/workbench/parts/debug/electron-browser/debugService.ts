@@ -966,10 +966,10 @@ export class DebugService implements debug.IDebugService {
 				this.updateStateAndEmit(session.getId(), debug.State.Inactive);
 				if (!session.disconnected) {
 					session.disconnect().done(null, errors.onUnexpectedError);
-				}
-				if (process) {
+				} else if (process) {
 					this.model.removeProcess(process.getId());
 				}
+
 				// Show the repl if some error got logged there #5870
 				if (this.model.getReplElements().length > 0) {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
