@@ -20,33 +20,17 @@ import product from 'vs/platform/node/product';
 import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { mark, exportEntries } from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 
-export interface IWindowState {
-	width?: number;
-	height?: number;
-	x?: number;
-	y?: number;
-	mode?: WindowMode;
-	display?: number;
-}
-
 export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
 	isExtensionTestHost?: boolean;
-}
-
-export enum WindowMode {
-	Maximized,
-	Normal,
-	Minimized, // not used anymore, but also cannot remove due to existing stored UI state (needs migration)
-	Fullscreen
 }
 
 export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
