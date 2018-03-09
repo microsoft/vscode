@@ -121,7 +121,7 @@ async function goToProjectConfig(
 
 	const file = client.normalizePath(resource);
 	// TSServer errors when 'projectInfo' is invoked on a non js/ts file
-	if (!file || !clientHost.handles(file)) {
+	if (!file || !clientHost.handles(resource)) {
 		vscode.window.showWarningMessage(
 			localize(
 				'typescript.projectConfigUnsupportedFile',

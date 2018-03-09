@@ -63,7 +63,7 @@ class ExcludeHintItem {
 	}
 }
 
-function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITypeScriptServiceClient, isOpen: (path: string) => Promise<boolean>, memento: vscode.Memento): vscode.Disposable[] {
+function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITypeScriptServiceClient, isOpen: (resource: vscode.Uri) => Promise<boolean>, memento: vscode.Memento): vscode.Disposable[] {
 	const toDispose: vscode.Disposable[] = [];
 	const projectHinted: ProjectHintedMap = Object.create(null);
 
@@ -88,7 +88,7 @@ function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITyp
 		if (!file) {
 			return;
 		}
-		isOpen(file).then(value => {
+		isOpen(editor.document.uri).then(value => {
 			if (!value) {
 				return;
 			}
@@ -175,7 +175,7 @@ function onConfigureExcludesSelected(
 export function create(
 	client: ITypeScriptServiceClient,
 	telemetryReporter: TelemetryReporter,
-	isOpen: (path: string) => Promise<boolean>,
+	isOpen: (resource: vscode.Uri) => Promise<boolean>,
 	memento: vscode.Memento
 ) {
 	const toDispose: vscode.Disposable[] = [];
