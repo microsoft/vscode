@@ -39,7 +39,7 @@ steps:
 
 - script: |
     echo "machine monacotools.visualstudio.com password $(VSO_PAT)" > ~/.netrc
-    yarn
+    npm_config_arch="$(VSCODE_ARCH)" yarn
     npm run gulp -- hygiene
     npm run monaco-compile-check
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
