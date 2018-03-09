@@ -92,7 +92,7 @@ export function providePathSuggestions(value: string, range: Range, activeDocFsP
 					label: f,
 					kind: CompletionItemKind.File,
 					textEdit: TextEdit.replace(replaceRange, f)
-				};	
+				};
 			}
 		});
 	} catch (e) {
