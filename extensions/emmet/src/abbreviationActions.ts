@@ -184,19 +184,22 @@ export function wrapIndividualLinesWithAbbreviation(args: any) {
 	}
 
 	const editor = vscode.window.activeTextEditor;
-	const selection = editor.selection;
-	let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
-	if (!rangeToReplace.isSingleLine && rangeToReplace.end.character === 0) {
-		let previousLine = rangeToReplace.end.line - 1;
-		let lastChar = editor.document.lineAt(previousLine).text.length;
-		rangeToReplace = new vscode.Range(rangeToReplace.start, new vscode.Position(previousLine, lastChar));
-	}
-	if (rangeToReplace.isEmpty) {
-		vscode.window.showInformationMessage('Select more than 1 line and try again.');
-		return;
-	}
+	let rangesToReplace: vscode.Range[] = [];
+	editor.selections.forEach(selection => {
+		let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
+		if (!rangeToReplace.isSingleLine && rangeToReplace.end.character === 0) {
+			let previousLine = rangeToReplace.end.line - 1;
+			let lastChar = editor.document.lineAt(previousLine).text.length;
+			rangeToReplace = new vscode.Range(rangeToReplace.start, new vscode.Position(previousLine, lastChar));
+		}
+		if (rangeToReplace.isEmpty) {
+			vscode.window.showInformationMessage('Select more than 1 line and try again.');
+			return;
+		}
 
-	rangeToReplace = ignoreExtraWhitespaceSelected(rangeToReplace, editor.document);
+		rangeToReplace = ignoreExtraWhitespaceSelected(rangeToReplace, editor.document);
+		rangesToReplace.push(rangeToReplace);
+	});
 
 	const syntax = getSyntaxFromArgs({ language: editor.document.languageId });
 	if (!syntax) {
@@ -204,27 +207,31 @@ export function wrapIndividualLinesWithAbbreviation(args: any) {
 	}
 
 	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation' });
-	const lines = editor.document.getText(rangeToReplace).split('\n').map(x => x.trim());
 	const helper = getEmmetHelper();
 
 	return abbreviationPromise.then(inputAbbreviation => {
+		let expandAbbrInput: ExpandAbbreviationInput[] = [];
 		if (!inputAbbreviation || !inputAbbreviation.trim() || !helper.isAbbreviationValid(syntax, inputAbbreviation)) { return false; }
 
 		let extractedResults = helper.extractAbbreviationFromText(inputAbbreviation);
 		if (!extractedResults) {
 			return false;
 		}
+		rangesToReplace.forEach(rangeToReplace => {
+			let lines = editor.document.getText(rangeToReplace).split('\n').map(x => x.trim());
 
-		let { abbreviation, filter } = extractedResults;
-		let input: ExpandAbbreviationInput = {
-			syntax,
-			abbreviation,
-			rangeToReplace,
-			textToWrap: lines,
-			filter
-		};
+			let { abbreviation, filter } = extractedResults;
+			let input: ExpandAbbreviationInput = {
+				syntax,
+				abbreviation,
+				rangeToReplace,
+				textToWrap: lines,
+				filter
+			};
+			expandAbbrInput.push(input);
+		});
 
-		return expandAbbreviationInRange(editor, [input], true);
+		return expandAbbreviationInRange(editor, expandAbbrInput, false);
 	});
 
 }
@@ -513,7 +520,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 		expandAbbrList.forEach((expandAbbrInput: ExpandAbbreviationInput) => {
 			let expandedText = expandAbbr(expandAbbrInput);
 			if (expandedText) {
-				insertPromises.push(editor.insertSnippet(new vscode.SnippetString(expandedText), expandAbbrInput.rangeToReplace));
+				insertPromises.push(editor.insertSnippet(new vscode.SnippetString(expandedText), expandAbbrInput.rangeToReplace, { undoStopBefore: false, undoStopAfter: false }));
 			}
 		});
 		if (insertPromises.length === 0) {
