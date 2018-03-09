@@ -196,9 +196,7 @@ function format(text: string): string {
 	function getRuleProvider(options: ts.FormatCodeSettings) {
 		// Share this between multiple formatters using the same options.
 		// This represents the bulk of the space the formatter uses.
-		let ruleProvider = new (<any>ts).formatting.RulesProvider();
-		ruleProvider.ensureUpToDate(options);
-		return ruleProvider;
+		return (ts as any).formatting.getFormatContext(options);
 	}
 
 	function applyEdits(text: string, edits: ts.TextChange[]): string {

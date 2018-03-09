@@ -76,7 +76,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 			bucket.push(result);
 		}
 		if (item.childItems && item.childItems.length > 0) {
-			for (let child of item.childItems) {
+			for (const child of item.childItems) {
 				TypeScriptDocumentSymbolProvider.convertNavBar(resource, realIndent + 1, foldingMap, bucket, child, item.text);
 			}
 		}

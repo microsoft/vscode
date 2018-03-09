@@ -174,6 +174,7 @@ export class CompletionModel {
 				// use a score of `-100` because that is out of the
 				// bound of values `fuzzyScore` will return
 				item.score = -100;
+				item.matches = undefined;
 
 			} else if (typeof suggestion.filterText === 'string') {
 				// when there is a `filterText` it must match the `word`.

@@ -5,11 +5,12 @@
 
 import * as fs from 'fs';
 
-import { workspace, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable } from 'vscode';
+import { workspace, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable, Uri } from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
 import * as languageModeIds from '../utils/languageModeIds';
+import { disposeAll } from '../utils/dipose';
 
 interface IDiagnosticRequestor {
 	requestDiagnostic(filepath: string): void;
@@ -141,8 +142,9 @@ export default class BufferSyncSupport {
 		this._validate = value;
 	}
 
-	public handles(file: string): boolean {
-		return this.syncedBuffers.has(file);
+	public handles(resource: Uri): boolean {
+		const file = this.client.normalizePath(resource);
+		return !!file && this.syncedBuffers.has(file);
 	}
 
 	public reOpenDocuments(): void {
@@ -152,12 +154,7 @@ export default class BufferSyncSupport {
 	}
 
 	public dispose(): void {
-		while (this.disposables.length) {
-			const obj = this.disposables.pop();
-			if (obj) {
-				obj.dispose();
-			}
-		}
+		disposeAll(this.disposables);
 	}
 
 	private onDidOpenTextDocument(document: TextDocument): void {

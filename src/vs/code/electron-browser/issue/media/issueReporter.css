@@ -379,20 +379,22 @@ button {
 
 .issues-container > .issue {
 	padding: 4px 0;
+	display: flex;
 }
 
 .issues-container > .issue > .issue-link {
-	display: inline-block;
 	width: calc(100% - 82px);
-	vertical-align: top;
 	overflow: hidden;
 	padding-top: 3px;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 }
 
+.issues-container > .issue > .issue-state .octicon {
+	width: 16px;
+}
+
 .issues-container > .issue > .issue-state {
-	display: inline-block;
 	width: 77px;
 	padding: 3px 6px;
 	margin-right: 5px;
@@ -401,14 +403,8 @@ button {
 	border-radius: .25rem;
 }
 
-.issues-container > .issue > .issue-state .octicon {
-	vertical-align: top;
-	width: 16px;
-}
-
 .issues-container > .issue .label {
 	margin-left: 5px;
-	display: inline-block;
 	width: 44px;
 	text-overflow: ellipsis;
 	overflow: hidden;

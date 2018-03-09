@@ -77,9 +77,9 @@ export class SelectColorThemeAction extends Action {
 
 			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex } })
 				.then(
-				theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0),
-				null,
-				theme => delayer.trigger(() => selectTheme(theme, false))
+					theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0),
+					null,
+					theme => delayer.trigger(() => selectTheme(theme, false))
 				);
 		});
 	}
@@ -135,9 +135,9 @@ class SelectIconThemeAction extends Action {
 
 			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex } })
 				.then(
-				theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0),
-				null,
-				theme => delayer.trigger(() => selectTheme(theme, false))
+					theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0),
+					null,
+					theme => delayer.trigger(() => selectTheme(theme, false))
 				);
 		});
 	}

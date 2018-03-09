@@ -1082,7 +1082,7 @@ export class SaveSequentializer {
 
 class DefaultSaveErrorHandler implements ISaveErrorHandler {
 
-	constructor( @INotificationService private notificationService: INotificationService) { }
+	constructor(@INotificationService private notificationService: INotificationService) { }
 
 	public onSaveError(error: any, model: TextFileEditorModel): void {
 		this.notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(model.getResource().fsPath), toErrorMessage(error, false)));

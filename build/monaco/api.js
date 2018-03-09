@@ -171,9 +171,7 @@ function format(text) {
     function getRuleProvider(options) {
         // Share this between multiple formatters using the same options.
         // This represents the bulk of the space the formatter uses.
-        var ruleProvider = new ts.formatting.RulesProvider();
-        ruleProvider.ensureUpToDate(options);
-        return ruleProvider;
+        return ts.formatting.getFormatContext(options);
     }
     function applyEdits(text, edits) {
         // Apply edits in reverse on the existing text

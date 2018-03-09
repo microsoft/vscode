@@ -14,7 +14,6 @@ import * as Proto from './protocol';
 import * as PConst from './protocol.const';
 
 import TypeScriptServiceClient from './typescriptServiceClient';
-import { ITypeScriptServiceClientHost } from './typescriptService';
 import LanguageProvider from './languageProvider';
 
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
@@ -24,6 +23,7 @@ import { tsLocationToVsPosition } from './utils/convert';
 import { CommandManager } from './utils/commandManager';
 import { LanguageDescription } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
+import { disposeAll } from './utils/dipose';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
@@ -35,7 +35,7 @@ const styleCheckDiagnostics = [
 	7030	// not all code paths return a value
 ];
 
-export default class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
+export default class TypeScriptServiceClientHost {
 	private readonly ataProgressReporter: AtaProgressReporter;
 	private readonly typingsStatus: TypingsStatus;
 	private readonly client: TypeScriptServiceClient;
@@ -67,8 +67,13 @@ export default class TypeScriptServiceClientHost implements ITypeScriptServiceCl
 		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this.disposables);
 		configFileWatcher.onDidChange(handleProjectChange, this, this.disposables);
 
-		this.client = new TypeScriptServiceClient(this, workspaceState, version => this.versionStatus.onDidChangeTypeScriptVersion(version), plugins, logDirectoryProvider);
+		this.client = new TypeScriptServiceClient(workspaceState, version => this.versionStatus.onDidChangeTypeScriptVersion(version), plugins, logDirectoryProvider);
 		this.disposables.push(this.client);
+
+		this.client.onSyntaxDiagnosticsReceived(({ resource, diagnostics }) => this.syntaxDiagnosticsReceived(resource, diagnostics), null, this.disposables);
+		this.client.onSemanticDiagnosticsReceived(({ resource, diagnostics }) => this.semanticDiagnosticsReceived(resource, diagnostics), null, this.disposables);
+		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this.disposables);
+		this.client.onResendModelsRequested(() => this.populateService(), null, this.disposables);
 
 		this.versionStatus = new VersionStatus(resource => this.client.normalizePath(resource));
 		this.disposables.push(this.versionStatus);
@@ -118,13 +123,7 @@ export default class TypeScriptServiceClientHost implements ITypeScriptServiceCl
 	}
 
 	public dispose(): void {
-		while (this.disposables.length) {
-			const obj = this.disposables.pop();
-			if (obj) {
-				obj.dispose();
-			}
-		}
-
+		disposeAll(this.disposables);
 		this.typingsStatus.dispose();
 		this.ataProgressReporter.dispose();
 	}
@@ -138,8 +137,8 @@ export default class TypeScriptServiceClientHost implements ITypeScriptServiceCl
 		this.triggerAllDiagnostics();
 	}
 
-	public handles(file: string): boolean {
-		return !!this.findLanguage(file);
+	public handles(resource: Uri): boolean {
+		return !!this.findLanguage(resource);
 	}
 
 	private configurationChanged(): void {
@@ -147,10 +146,10 @@ export default class TypeScriptServiceClientHost implements ITypeScriptServiceCl
 		this.reportStyleCheckAsWarnings = config.get('reportStyleChecksAsWarnings', true);
 	}
 
-	private async findLanguage(file: string): Promise<LanguageProvider | undefined> {
+	private async findLanguage(resource: Uri): Promise<LanguageProvider | undefined> {
 		try {
-			const doc = await workspace.openTextDocument(this.client.asUrl(file));
-			return this.languages.find(language => language.handles(file, doc));
+			const doc = await workspace.openTextDocument(resource);
+			return this.languages.find(language => language.handles(resource, doc));
 		} catch {
 			return undefined;
 		}
@@ -162,7 +161,7 @@ export default class TypeScriptServiceClientHost implements ITypeScriptServiceCl
 		}
 	}
 
-	/* internal */ populateService(): void {
+	private populateService(): void {
 		// See https://github.com/Microsoft/TypeScript/issues/5530
 		workspace.saveAll(false).then(() => {
 			for (const language of this.languagePerId.values()) {
@@ -171,36 +170,32 @@ export default class TypeScriptServiceClientHost implements ITypeScriptServiceCl
 		});
 	}
 
-	/* internal */ syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void {
-		const body = event.body;
-		if (body && body.diagnostics) {
-			this.findLanguage(body.file).then(language => {
-				if (language) {
-					language.syntaxDiagnosticsReceived(this.client.asUrl(body.file), this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
-				}
-			});
+	private async syntaxDiagnosticsReceived(resource: Uri, diagnostics: Proto.Diagnostic[]): Promise<void> {
+		const language = await this.findLanguage(resource);
+		if (language) {
+			language.syntaxDiagnosticsReceived(
+				resource,
+				this.createMarkerDatas(diagnostics, language.diagnosticSource));
 		}
 	}
 
-	/* internal */ semanticDiagnosticsReceived(event: Proto.DiagnosticEvent): void {
-		const body = event.body;
-		if (body && body.diagnostics) {
-			this.findLanguage(body.file).then(language => {
-				if (language) {
-					language.semanticDiagnosticsReceived(this.client.asUrl(body.file), this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
-				}
-			});
+	private async semanticDiagnosticsReceived(resource: Uri, diagnostics: Proto.Diagnostic[]): Promise<void> {
+		const language = await this.findLanguage(resource);
+		if (language) {
+			language.semanticDiagnosticsReceived(
+				resource,
+				this.createMarkerDatas(diagnostics, language.diagnosticSource));
 		}
 	}
 
-	/* internal */ configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
+	private configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
 		// See https://github.com/Microsoft/TypeScript/issues/10384
 		const body = event.body;
 		if (!body || !body.diagnostics || !body.configFile) {
 			return;
 		}
 
-		(this.findLanguage(body.configFile)).then(language => {
+		(this.findLanguage(this.client.asUrl(body.configFile))).then(language => {
 			if (!language) {
 				return;
 			}
@@ -245,19 +240,19 @@ export default class TypeScriptServiceClientHost implements ITypeScriptServiceCl
 	}
 
 	private createMarkerDatas(diagnostics: Proto.Diagnostic[], source: string): Diagnostic[] {
-		const result: Diagnostic[] = [];
-		for (let diagnostic of diagnostics) {
-			const { start, end, text } = diagnostic;
-			const range = new Range(tsLocationToVsPosition(start), tsLocationToVsPosition(end));
-			const converted = new Diagnostic(range, text);
-			converted.severity = this.getDiagnosticSeverity(diagnostic);
-			converted.source = diagnostic.source || source;
-			if (diagnostic.code) {
-				converted.code = diagnostic.code;
-			}
-			result.push(converted);
+		return diagnostics.map(tsDiag => this.tsDiagnosticToVsDiagnostic(tsDiag, source));
+	}
+
+	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string) {
+		const { start, end, text } = diagnostic;
+		const range = new Range(tsLocationToVsPosition(start), tsLocationToVsPosition(end));
+		const converted = new Diagnostic(range, text);
+		converted.severity = this.getDiagnosticSeverity(diagnostic);
+		converted.source = diagnostic.source || source;
+		if (diagnostic.code) {
+			converted.code = diagnostic.code;
 		}
-		return result;
+		return converted;
 	}
 
 	private getDiagnosticSeverity(diagnostic: Proto.Diagnostic): DiagnosticSeverity {

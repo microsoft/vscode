@@ -28,7 +28,7 @@ export class RangeHighlightDecorations implements IDisposable {
 	private _onHighlightRemoved: Emitter<void> = new Emitter<void>();
 	public readonly onHighlghtRemoved: Event<void> = this._onHighlightRemoved.event;
 
-	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 	}
 
 	public removeHighlightRange() {

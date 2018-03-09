@@ -51,7 +51,7 @@ export class ColorThemeStore {
 
 	public get onDidChange(): Event<ColorThemeData[]> { return this.onDidChangeEmitter.event; }
 
-	constructor( @IExtensionService private extensionService: IExtensionService, defaultTheme: ColorThemeData) {
+	constructor(@IExtensionService private extensionService: IExtensionService, defaultTheme: ColorThemeData) {
 		this.extensionsColorThemes = [defaultTheme];
 		this.onDidChangeEmitter = new Emitter<ColorThemeData[]>();
 		this.initialize();

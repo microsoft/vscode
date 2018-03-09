@@ -302,7 +302,6 @@ configurationRegistry.registerConfiguration({
 				isMacintosh ?
 					nls.localize('openFilesInNewWindowMac', "Controls if files should open in a new window.\n- default: files will open in the window with the files' folder open or the last active window unless opened via the Dock or from Finder\n- on: files will open in a new window\n- off: files will open in the window with the files' folder open or the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).") :
 					nls.localize('openFilesInNewWindow', "Controls if files should open in a new window.\n- default: files will open in a new window unless picked from within the application (e.g. via the File menu)\n- on: files will open in a new window\n- off: files will open in the window with the files' folder open or the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
-
 		},
 		'window.openFoldersInNewWindow': {
 			'type': 'string',
@@ -314,6 +313,16 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': 'default',
 			'description': nls.localize('openFoldersInNewWindow', "Controls if folders should open in a new window or replace the last active window.\n- default: folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)\n- on: folders will open in a new window\n- off: folders will replace the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
+		},
+		'window.openWithoutArgumentsInNewWindow': {
+			'type': 'string',
+			'enum': ['on', 'off'],
+			'enumDescriptions': [
+				nls.localize('window.openWithoutArgumentsInNewWindow.on', "Open a new empty window"),
+				nls.localize('window.openWithoutArgumentsInNewWindow.off', "Focus the last active running instance")
+			],
+			'default': isMacintosh ? 'off' : 'on',
+			'description': nls.localize('openWithoutArgumentsInNewWindow', "Controls if a new empty window should open when starting a second instance without arguments or if the last running instance should get focus.\n- on: open a new empty window\n- off: the last active running instance will get focus\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
 		},
 		'window.restoreWindows': {
 			'type': 'string',

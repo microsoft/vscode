@@ -199,6 +199,11 @@
                             "type": "string",
                             "default": null,
                             "description": "%emmetPreferencesCssMsProperties%"
+                        },
+                        "css.fuzzySearchMinScore": {
+                            "type": "number",
+                            "default": 0.3,
+                            "description": "%emmetPreferencesCssFuzzySearchMinScore%"
                         }
                     }
                 },
@@ -338,7 +343,7 @@
         "@emmetio/html-matcher": "^0.3.3",
         "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
         "@emmetio/math-expression": "^0.1.1",
-        "vscode-emmet-helper": "^1.2.0",
+        "vscode-emmet-helper": "^1.2.1",
         "vscode-languageserver-types": "^3.5.0",
         "image-size": "^0.5.2",
         "vscode-nls": "3.2.1"

@@ -213,6 +213,7 @@ export interface IWindowsConfiguration {
 export interface IWindowSettings {
 	openFilesInNewWindow: 'on' | 'off' | 'default';
 	openFoldersInNewWindow: 'on' | 'off' | 'default';
+	openWithoutArgumentsInNewWindow: 'on' | 'off';
 	restoreWindows: 'all' | 'folders' | 'one' | 'none';
 	restoreFullscreen: boolean;
 	zoomLevel: number;

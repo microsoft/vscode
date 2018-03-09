@@ -214,23 +214,23 @@ declare module 'vscode-xterm' {
 	}
 
 	export interface IEventEmitter {
-	  on(type: string, listener: (...args: any[]) => void): void;
-	  off(type: string, listener: (...args: any[]) => void): void;
-	  emit(type: string, data?: any): void;
-	  addDisposableListener(type: string, handler: (...args: any[]) => void): IDisposable;
+		on(type: string, listener: (...args: any[]) => void): void;
+		off(type: string, listener: (...args: any[]) => void): void;
+		emit(type: string, data?: any): void;
+		addDisposableListener(type: string, handler: (...args: any[]) => void): IDisposable;
 	}
 
 	/**
 	 * An object that can be disposed via a dispose function.
 	 */
 	export interface IDisposable {
-	  dispose(): void;
+		dispose(): void;
 	}
 
 	export interface ILocalizableStrings {
-	  blankLine: string;
-	  promptLabel: string;
-	  tooMuchOutput: string;
+		blankLine: string;
+		promptLabel: string;
+		tooMuchOutput: string;
 	}
 
 	/**
@@ -308,13 +308,13 @@ declare module 'vscode-xterm' {
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'refresh', listener: (data?: {start: number, end: number}) => void): void;
+		on(type: 'refresh', listener: (data?: { start: number, end: number }) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'resize', listener: (data?: {cols: number, rows: number}) => void): void;
+		on(type: 'resize', listener: (data?: { cols: number, rows: number }) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.

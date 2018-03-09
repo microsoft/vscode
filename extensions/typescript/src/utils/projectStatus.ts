@@ -63,7 +63,7 @@ class ExcludeHintItem {
 	}
 }
 
-function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITypeScriptServiceClient, isOpen: (path: string) => Promise<boolean>, memento: vscode.Memento): vscode.Disposable[] {
+function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITypeScriptServiceClient, isOpen: (resource: vscode.Uri) => Promise<boolean>, memento: vscode.Memento): vscode.Disposable[] {
 	const toDispose: vscode.Disposable[] = [];
 	const projectHinted: ProjectHintedMap = Object.create(null);
 
@@ -88,7 +88,7 @@ function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITyp
 		if (!file) {
 			return;
 		}
-		isOpen(file).then(value => {
+		isOpen(editor.document.uri).then(value => {
 			if (!value) {
 				return;
 			}
@@ -175,7 +175,7 @@ function onConfigureExcludesSelected(
 export function create(
 	client: ITypeScriptServiceClient,
 	telemetryReporter: TelemetryReporter,
-	isOpen: (path: string) => Promise<boolean>,
+	isOpen: (resource: vscode.Uri) => Promise<boolean>,
 	memento: vscode.Memento
 ) {
 	const toDispose: vscode.Disposable[] = [];
@@ -205,7 +205,7 @@ function computeLargeRoots(configFileName: string, fileNames: string[]): string[
 
 	// console.log(dir, fileNames);
 
-	for (let fileName of fileNames) {
+	for (const fileName of fileNames) {
 		if (fileName.indexOf(dir) === 0) {
 			let first = fileName.substring(dir.length + 1);
 			first = first.substring(0, first.indexOf('/'));
@@ -226,7 +226,7 @@ function computeLargeRoots(configFileName: string, fileNames: string[]): string[
 
 	let result: string[] = [];
 	let sum = 0;
-	for (let e of data) {
+	for (const e of data) {
 		sum += e.count;
 		result.push(e.root);
 		if (fileNames.length - sum < fileLimit) {
