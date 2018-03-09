@@ -13,7 +13,7 @@ import * as languageModeIds from '../utils/languageModeIds';
 import { disposeAll } from '../utils/dipose';
 
 interface IDiagnosticRequestor {
-	requestDiagnostic(filepath: string): void;
+	requestDiagnostic(resource: Uri): void;
 }
 
 function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined {
@@ -94,12 +94,53 @@ class SyncedBuffer {
 			};
 			this.client.execute('change', args, false);
 		}
-		this.diagnosticRequestor.requestDiagnostic(filePath);
+		this.diagnosticRequestor.requestDiagnostic(this.document.uri);
 	}
 }
 
+class SyncedBufferMap {
+	private readonly _map = new Map<string, SyncedBuffer>();
+
+	constructor(
+		private readonly _normalizePath: (resource: Uri) => string | null
+	) { }
+
+	public has(resource: Uri): boolean {
+		const file = this._normalizePath(resource);
+		return !!file && this._map.has(file);
+	}
+
+	public get(resource: Uri): SyncedBuffer | undefined {
+		const file = this._normalizePath(resource);
+		return file ? this._map.get(file) : undefined;
+	}
+
+	public set(resource: Uri, buffer: SyncedBuffer) {
+		const file = this._normalizePath(resource);
+		if (file) {
+			this._map.set(file, buffer);
+		}
+	}
+
+	public delete(resource: Uri): void {
+		const file = this._normalizePath(resource);
+		if (file) {
+			this._map.delete(file);
+		}
+	}
+
+	public get allBuffers(): Iterable<SyncedBuffer> {
+		return this._map.values();
+	}
+
+	public get allResources(): Iterable<string> {
+		return this._map.keys();
+	}
+}
+
+
 export interface Diagnostics {
-	delete(file: string): void;
+	delete(resource: Uri): void;
 }
 
 export default class BufferSyncSupport {
@@ -110,7 +151,7 @@ export default class BufferSyncSupport {
 	private readonly modeIds: Set<string>;
 	private readonly diagnostics: Diagnostics;
 	private readonly disposables: Disposable[] = [];
-	private readonly syncedBuffers: Map<string, SyncedBuffer>;
+	private readonly syncedBuffers: SyncedBufferMap;
 
 	private pendingDiagnostics = new Map<string, number>();
 	private readonly diagnosticDelayer: Delayer<any>;
@@ -128,7 +169,7 @@ export default class BufferSyncSupport {
 
 		this.diagnosticDelayer = new Delayer<any>(300);
 
-		this.syncedBuffers = new Map<string, SyncedBuffer>();
+		this.syncedBuffers = new SyncedBufferMap(path => this.client.normalizePath(path));
 	}
 
 	public listen(): void {
@@ -143,12 +184,11 @@ export default class BufferSyncSupport {
 	}
 
 	public handles(resource: Uri): boolean {
-		const file = this.client.normalizePath(resource);
-		return !!file && this.syncedBuffers.has(file);
+		return this.syncedBuffers.has(resource);
 	}
 
 	public reOpenDocuments(): void {
-		for (const buffer of this.syncedBuffers.values()) {
+		for (const buffer of this.syncedBuffers.allBuffers) {
 			buffer.open();
 		}
 	}
@@ -167,45 +207,37 @@ export default class BufferSyncSupport {
 			return;
 		}
 		const syncedBuffer = new SyncedBuffer(document, filepath, this, this.client);
-		this.syncedBuffers.set(filepath, syncedBuffer);
+		this.syncedBuffers.set(resource, syncedBuffer);
 		syncedBuffer.open();
-		this.requestDiagnostic(filepath);
+		this.requestDiagnostic(resource);
 	}
 
 	private onDidCloseTextDocument(document: TextDocument): void {
-		const filepath = this.client.normalizePath(document.uri);
-		if (!filepath) {
-			return;
-		}
-		const syncedBuffer = this.syncedBuffers.get(filepath);
+		const resource = document.uri;
+		const syncedBuffer = this.syncedBuffers.get(resource);
 		if (!syncedBuffer) {
 			return;
 		}
-		this.diagnostics.delete(filepath);
-		this.syncedBuffers.delete(filepath);
+		this.diagnostics.delete(resource);
+		this.syncedBuffers.delete(resource);
 		syncedBuffer.close();
-		if (!fs.existsSync(filepath)) {
+		if (!fs.existsSync(resource.fsPath)) {
 			this.requestAllDiagnostics();
 		}
 	}
 
 	private onDidChangeTextDocument(e: TextDocumentChangeEvent): void {
-		const filepath = this.client.normalizePath(e.document.uri);
-		if (!filepath) {
-			return;
+		const syncedBuffer = this.syncedBuffers.get(e.document.uri);
+		if (syncedBuffer) {
+			syncedBuffer.onContentChanged(e.contentChanges);
 		}
-		let syncedBuffer = this.syncedBuffers.get(filepath);
-		if (!syncedBuffer) {
-			return;
-		}
-		syncedBuffer.onContentChanged(e.contentChanges);
 	}
 
 	public requestAllDiagnostics() {
 		if (!this._validate) {
 			return;
 		}
-		for (const filePath of this.syncedBuffers.keys()) {
+		for (const filePath of this.syncedBuffers.allResources) {
 			this.pendingDiagnostics.set(filePath, Date.now());
 		}
 		this.diagnosticDelayer.trigger(() => {
@@ -213,16 +245,21 @@ export default class BufferSyncSupport {
 		}, 200);
 	}
 
-	public requestDiagnostic(file: string): void {
+	public requestDiagnostic(resource: Uri): void {
 		if (!this._validate) {
 			return;
 		}
 
+		const file = this.client.normalizePath(resource);
+		if (!file) {
+			return;
+		}
+
 		this.pendingDiagnostics.set(file, Date.now());
-		const buffer = this.syncedBuffers.get(file);
+		const buffer = this.syncedBuffers.get(resource);
 		let delay = 300;
 		if (buffer) {
-			let lineCount = buffer.lineCount;
+			const lineCount = buffer.lineCount;
 			delay = Math.min(Math.max(Math.ceil(lineCount / 20), 300), 800);
 		}
 		this.diagnosticDelayer.trigger(() => {
@@ -246,7 +283,7 @@ export default class BufferSyncSupport {
 		});
 
 		// Add all open TS buffers to the geterr request. They might be visible
-		for (const file of this.syncedBuffers.keys()) {
+		for (const file of this.syncedBuffers.allResources) {
 			if (!this.pendingDiagnostics.get(file)) {
 				files.push(file);
 			}

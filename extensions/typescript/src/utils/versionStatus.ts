@@ -8,40 +8,40 @@ import { TypeScriptVersion } from './versionProvider';
 import * as languageModeIds from './languageModeIds';
 
 export default class VersionStatus {
-	private readonly onChangeEditorSub: vscode.Disposable;
-	private readonly versionBarEntry: vscode.StatusBarItem;
+	private readonly _onChangeEditorSub: vscode.Disposable;
+	private readonly _versionBarEntry: vscode.StatusBarItem;
 
 	constructor(
-		private readonly normalizePath: (resource: vscode.Uri) => string | null
+		private readonly _normalizePath: (resource: vscode.Uri) => string | null
 	) {
-		this.versionBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99 /* to the right of editor status (100) */);
-		this.onChangeEditorSub = vscode.window.onDidChangeActiveTextEditor(this.showHideStatus, this);
+		this._versionBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99 /* to the right of editor status (100) */);
+		this._onChangeEditorSub = vscode.window.onDidChangeActiveTextEditor(this.showHideStatus, this);
 	}
 
 	dispose() {
-		this.versionBarEntry.dispose();
-		this.onChangeEditorSub.dispose();
+		this._versionBarEntry.dispose();
+		this._onChangeEditorSub.dispose();
 	}
 
 	public onDidChangeTypeScriptVersion(version: TypeScriptVersion) {
 		this.showHideStatus();
-		this.versionBarEntry.text = version.versionString;
-		this.versionBarEntry.tooltip = version.path;
-		this.versionBarEntry.command = 'typescript.selectTypeScriptVersion';
+		this._versionBarEntry.text = version.versionString;
+		this._versionBarEntry.tooltip = version.path;
+		this._versionBarEntry.command = 'typescript.selectTypeScriptVersion';
 	}
 
 	private showHideStatus() {
 		if (!vscode.window.activeTextEditor) {
-			this.versionBarEntry.hide();
+			this._versionBarEntry.hide();
 			return;
 		}
 
 		const doc = vscode.window.activeTextEditor.document;
 		if (vscode.languages.match([languageModeIds.typescript, languageModeIds.typescriptreact], doc)) {
-			if (this.normalizePath(doc.uri)) {
-				this.versionBarEntry.show();
+			if (this._normalizePath(doc.uri)) {
+				this._versionBarEntry.show();
 			} else {
-				this.versionBarEntry.hide();
+				this._versionBarEntry.hide();
 			}
 			return;
 		}
@@ -52,6 +52,6 @@ export default class VersionStatus {
 			return;
 		}
 
-		this.versionBarEntry.hide();
+		this._versionBarEntry.hide();
 	}
 }
