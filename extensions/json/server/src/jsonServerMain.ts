@@ -7,20 +7,20 @@
 import {
 	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, DocumentColorRequest, ColorPresentationRequest, Position,
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, DocumentColorRequest, ColorPresentationRequest
 } from 'vscode-languageserver';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
-import fs = require('fs');
+import * as fs from 'fs';
 import URI from 'vscode-uri';
 import * as URL from 'url';
-import Strings = require('./utils/strings');
+import { startsWith } from './utils/strings';
 import { formatError, runSafe, runSafeAsync } from './utils/errors';
 import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-import { createScanner, SyntaxKind, ScanError } from 'jsonc-parser';
+import { getFoldingRegions } from './folding';
 
-import { FoldingRangeType, FoldingRangesRequest, FoldingRange, FoldingRangeList, FoldingProviderServerCapabilities } from './protocol/foldingProvider.proposed';
+import { FoldingRangesRequest, FoldingProviderServerCapabilities } from './protocol/foldingProvider.proposed';
 
 interface ISchemaAssociations {
 	[pattern: string]: string[];
@@ -93,14 +93,14 @@ let workspaceContext = {
 };
 
 let schemaRequestService = (uri: string): Thenable<string> => {
-	if (Strings.startsWith(uri, 'file://')) {
+	if (startsWith(uri, 'file://')) {
 		let fsPath = URI.parse(uri).fsPath;
 		return new Promise<string>((c, e) => {
 			fs.readFile(fsPath, 'UTF-8', (err, result) => {
 				err ? e('') : c(result.toString());
 			});
 		});
-	} else if (Strings.startsWith(uri, 'vscode://')) {
+	} else if (startsWith(uri, 'vscode://')) {
 		return connection.sendRequest(VSCodeContentRequest.type, uri).then(responseText => {
 			return responseText;
 		}, error => {
@@ -361,80 +361,7 @@ connection.onRequest(FoldingRangesRequest.type, params => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
-			let ranges: FoldingRange[] = [];
-			let stack: FoldingRange[] = [];
-			let prevStart = -1;
-			let scanner = createScanner(document.getText(), false);
-			let token = scanner.scan();
-			while (token !== SyntaxKind.EOF) {
-				switch (token) {
-					case SyntaxKind.OpenBraceToken:
-					case SyntaxKind.OpenBracketToken: {
-						let startLine = document.positionAt(scanner.getTokenOffset()).line;
-						let range = { startLine, endLine: startLine, type: token === SyntaxKind.OpenBraceToken ? 'object' : 'array' };
-						stack.push(range);
-						break;
-					}
-					case SyntaxKind.CloseBraceToken:
-					case SyntaxKind.CloseBracketToken: {
-						let type = token === SyntaxKind.CloseBraceToken ? 'object' : 'array';
-						if (stack.length > 0 && stack[stack.length - 1].type === type) {
-							let range = stack.pop();
-							let line = document.positionAt(scanner.getTokenOffset()).line;
-							if (range && line > range.startLine + 1 && prevStart !== range.startLine) {
-								range.endLine = line - 1;
-								ranges.push(range);
-								prevStart = range.startLine;
-							}
-						}
-						break;
-					}
-
-					case SyntaxKind.BlockCommentTrivia: {
-						let startLine = document.positionAt(scanner.getTokenOffset()).line;
-						let endLine = document.positionAt(scanner.getTokenOffset() + scanner.getTokenLength()).line;
-						if (scanner.getTokenError() === ScanError.UnexpectedEndOfComment && startLine + 1 < document.lineCount) {
-							scanner.setPosition(document.offsetAt(Position.create(startLine + 1, 0)));
-						} else {
-							if (startLine < endLine) {
-								ranges.push({ startLine, endLine, type: FoldingRangeType.Comment });
-								prevStart = startLine;
-							}
-						}
-						break;
-					}
-
-					case SyntaxKind.LineCommentTrivia: {
-						let text = document.getText().substr(scanner.getTokenOffset(), scanner.getTokenLength());
-						let m = text.match(/^\/\/\s*#(region\b)|(endregion\b)/);
-						if (m) {
-							let line = document.positionAt(scanner.getTokenOffset()).line;
-							if (m[1]) { // start pattern match
-								let range = { startLine: line, endLine: line, type: FoldingRangeType.Region };
-								stack.push(range);
-							} else {
-								let i = stack.length - 1;
-								while (i >= 0 && stack[i].type !== FoldingRangeType.Region) {
-									i--;
-								}
-								if (i >= 0) {
-									let range = stack[i];
-									stack.length = i;
-									if (line > range.startLine && prevStart !== range.startLine) {
-										range.endLine = line;
-										ranges.push(range);
-										prevStart = range.startLine;
-									}
-								}
-							}
-						}
-						break;
-					}
-
-				}
-				token = scanner.scan();
-			}
-			return <FoldingRangeList>{ ranges };
+			return getFoldingRegions(document);
 		}
 		return null;
 	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`);
