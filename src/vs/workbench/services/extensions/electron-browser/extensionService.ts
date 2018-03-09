@@ -533,7 +533,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			const { type, extensionId, extensionPointId, message } = msg;
 			/* __GDPR__
 				"extensionsMessage" : {
-					"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 					"extensionId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 					"extensionPointId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 					"message": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }

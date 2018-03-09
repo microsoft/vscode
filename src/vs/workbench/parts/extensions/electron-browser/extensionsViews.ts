@@ -307,7 +307,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 
 						/* __GDPR__
 							"extensionAllRecommendations:open" : {
-								"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 							}
 						*/
 						this.telemetryService.publicLog('extensionAllRecommendations:open', { count: names.length });
@@ -345,7 +345,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 
 						/* __GDPR__
 							"extensionRecommendations:open" : {
-								"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 							}
 						*/
 						this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });
@@ -399,7 +399,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 				const names = recommendations.filter(name => name.toLowerCase().indexOf(value) > -1);
 				/* __GDPR__
 			"extensionWorkspaceRecommendations:open" : {
-				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 				this.telemetryService.publicLog('extensionWorkspaceRecommendations:open', { count: names.length });

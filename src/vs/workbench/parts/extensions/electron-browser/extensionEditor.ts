@@ -305,7 +305,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		/* __GDPR__
 			"extensionGallery:openExtension" : {
-				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]

@@ -149,8 +149,8 @@ export default class ErrorTelemetry {
 					"name": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 					"stack": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 					"id": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-					"line": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-					"column": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
+					"line": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+					"column": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 				}
 			*/
 			// __GDPR__TODO__ what's the complete set of properties?

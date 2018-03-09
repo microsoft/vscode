@@ -1593,8 +1593,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 					// TODO@Ben remove me after a while
 					/* __GDPR__
 						"editorGroupMoved" : {
-							"source" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"to": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							"source" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"to": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 						}
 					*/
 					this.telemetryService.publicLog('editorGroupMoved', { source: position, to: moveTo });

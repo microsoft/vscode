@@ -81,7 +81,7 @@ export class KeymapExtensions implements IWorkbenchContribution {
 					"disableOtherKeymaps" : {
 						"newKeymap" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"oldKeymaps": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"confirmed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"confirmed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 				*/
 				this.telemetryService.publicLog('disableOtherKeymaps', telemetryData);
