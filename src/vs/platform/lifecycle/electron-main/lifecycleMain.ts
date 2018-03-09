@@ -40,6 +40,11 @@ export interface ILifecycleService {
 	wasRestarted: boolean;
 
 	/**
+	 * Will be true if the program was requested to quit.
+	 */
+	isQuitRequested: boolean;
+
+	/**
 	 * Due to the way we handle lifecycle with eventing, the general app.on('before-quit')
 	 * event cannot be used because it can be called twice on shutdown. Instead the onBeforeShutdown
 	 * handler in this module can be used and it is only called once on a shutdown sequence.
@@ -73,7 +78,6 @@ export interface ILifecycleService {
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): void;
 
 	quit(fromUpdate?: boolean): TPromise<boolean /* veto */>;
-	isQuitRequested(): boolean;
 
 	kill(code?: number): void;
 }
@@ -127,6 +131,10 @@ export class LifecycleService implements ILifecycleService {
 
 	public get wasRestarted(): boolean {
 		return this._wasRestarted;
+	}
+
+	public get isQuitRequested(): boolean {
+		return !!this.quitRequested;
 	}
 
 	public ready(): void {
@@ -381,9 +389,5 @@ export class LifecycleService implements ILifecycleService {
 		this.quit().then(veto => {
 			vetoed = veto;
 		});
-	}
-
-	public isQuitRequested(): boolean {
-		return !!this.quitRequested;
 	}
 }
