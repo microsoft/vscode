@@ -801,7 +801,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		else {
 			const sources: FileStat[] = data.getData();
 			if (target instanceof Model) {
-				if (sources.length === 1 && sources[0].isRoot) {
+				if (sources[0].isRoot) {
 					return DRAG_OVER_ACCEPT_BUBBLE_DOWN(false);
 				}
 
@@ -817,7 +817,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					return true; // NewStatPlaceholders can not be moved
 				}
 
-				if (source.isRoot && (sources.length > 1 || target instanceof FileStat && !target.isRoot)) {
+				if (source.isRoot && target instanceof FileStat && !target.isRoot) {
 					return true; // Root folder can not be moved to a non root file stat. Do not allow root folder move when multi selection drag.
 				}
 
@@ -949,7 +949,8 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 			return updateConfirmSettingsPromise.then(() => {
 				if (res.confirmed) {
-					return TPromise.join(sources.map(source => this.doHandleExplorerDrop(tree, source, target, isCopy))).then(() => void 0);
+					const rootDropPromise = this.doHandleRootDrop(sources.filter(s => s.isRoot), target);
+					return TPromise.join(sources.filter(s => !s.isRoot).map(source => this.doHandleExplorerDrop(tree, source, target, isCopy)).concat(rootDropPromise)).then(() => void 0);
 				}
 
 				return TPromise.as(void 0);
@@ -957,35 +958,40 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		});
 	}
 
+	private doHandleRootDrop(roots: FileStat[], target: FileStat | Model): TPromise<void> {
+		const folders = this.contextService.getWorkspace().folders;
+		let targetIndex: number;
+		const workspaceCreationData: IWorkspaceFolderCreationData[] = [];
+		const targetUri = target instanceof FileStat ? target.resource : folders[folders.length - 1].uri;
+		const rootsToMove: IWorkspaceFolderCreationData[] = [];
+
+		for (let index = 0; index < folders.length; index++) {
+			const data = {
+				name: folders[index].name,
+				uri: folders[index].uri
+			};
+			if (folders[index].uri.toString() === targetUri.toString()) {
+				targetIndex = workspaceCreationData.length;
+				workspaceCreationData.push(data);
+			} else if (roots.every(r => r.resource.toString() !== folders[index].uri.toString())) {
+				workspaceCreationData.push(data);
+			} else {
+				rootsToMove.push(data);
+			}
+		}
+
+		if (target instanceof FileStat) {
+			rootsToMove.push(workspaceCreationData[targetIndex]);
+		} else {
+			rootsToMove.unshift(workspaceCreationData[targetIndex]);
+		}
+
+		workspaceCreationData.splice(targetIndex, 1, ...rootsToMove);
+		return this.workspaceEditingService.updateFolders(0, workspaceCreationData.length, workspaceCreationData);
+	}
+
 	private doHandleExplorerDrop(tree: ITree, source: FileStat, target: FileStat | Model, isCopy: boolean): TPromise<void> {
 		return tree.expand(target).then(() => {
-			if (source.isRoot) {
-				const folders = this.contextService.getWorkspace().folders;
-				let sourceIndex: number;
-				let targetIndex: number;
-				const workspaceCreationData: IWorkspaceFolderCreationData[] = [];
-				const targetUri = target instanceof FileStat ? target.resource : folders[folders.length - 1].uri;
-
-				for (let index = 0; index < folders.length; index++) {
-					if (folders[index].uri.toString() === source.resource.toString()) {
-						sourceIndex = index;
-					}
-					if (folders[index].uri.toString() === targetUri.toString()) {
-						targetIndex = index;
-					}
-					workspaceCreationData.push({
-						name: folders[index].name,
-						uri: folders[index].uri
-					});
-				}
-
-				const swap = workspaceCreationData[sourceIndex];
-				workspaceCreationData[sourceIndex] = workspaceCreationData[targetIndex];
-				workspaceCreationData[targetIndex] = swap;
-
-				return this.workspaceEditingService.updateFolders(0, workspaceCreationData.length, workspaceCreationData);
-			}
-
 			// Reuse duplicate action if user copies
 			if (isCopy) {
 				return this.instantiationService.createInstance(DuplicateFileAction, tree, source, target).run();
