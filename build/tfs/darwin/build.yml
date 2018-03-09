@@ -23,9 +23,9 @@ steps:
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-darwin-min
   name: build
 
-# - script: |
-#     ./scripts/test.sh --build --tfs
-#   name: test
+- script: |
+    ./scripts/test.sh --build --tfs
+  name: test
 
 - script: |
     # archive the unsigned build
