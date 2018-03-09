@@ -102,6 +102,11 @@ suite('ExtHostConfiguration', function () {
 					'config2': 'Das Pferd frisst kein Reis.'
 				},
 				'config4': ''
+			},
+			'workbench': {
+				'colorCustomizations': {
+					'statusBar.foreground': 'somevalue'
+				}
 			}
 		});
 
@@ -131,6 +136,14 @@ suite('ExtHostConfiguration', function () {
 		actual = testObject.inspect('farboo');
 		actual['value'] = 'effectiveValue';
 		assert.equal('effectiveValue', actual['value']);
+
+		testObject = all.getConfiguration('workbench');
+		actual = testObject.get('colorCustomizations');
+		delete actual['statusBar.foreground'];
+		assert.equal(actual['statusBar.foreground'], undefined);
+		testObject = all.getConfiguration('workbench');
+		actual = testObject.get('colorCustomizations');
+		assert.equal(actual['statusBar.foreground'], 'somevalue');
 	});
 
 	test('cannot modify returned configuration', function () {
@@ -158,7 +171,6 @@ suite('ExtHostConfiguration', function () {
 			testObject['farboo']['config0'] = false;
 			assert.fail('This should be readonly');
 		} catch (e) {
-			console.log(e);
 		}
 
 		try {
