@@ -23,8 +23,8 @@
 
 .monaco-workbench .debug-actions-widget .drag-area {
 	cursor: -webkit-grab;
-	height: 16px;
-	width: 16px;
+	height: 32px;
+	width: 10px;
 	background: url('drag.svg') center center no-repeat;
 	background-size: 16px 16px;
 }

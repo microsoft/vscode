@@ -31,8 +31,7 @@
 }
 
 .debug-breakpoint-hint {
-	background: url('breakpoint.svg') center center no-repeat;
-	opacity: .2;
+	background: url('breakpoint-hint.svg') center center no-repeat;
 }
 
 .debug-breakpoint-disabled,
