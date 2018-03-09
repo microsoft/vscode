@@ -28,6 +28,7 @@ import { TypeScriptVersionPicker } from './utils/versionPicker';
 import * as fileSchemes from './utils/fileSchemes';
 import { inferredProjectConfig } from './utils/tsconfig';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
+import { disposeAll } from './utils/dipose';
 
 const localize = nls.loadMessageBundle();
 
@@ -243,12 +244,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			}).then(undefined, () => void 0);
 		}
 
-		while (this.disposables.length) {
-			const obj = this.disposables.pop();
-			if (obj) {
-				obj.dispose();
-			}
-		}
+		disposeAll(this.disposables);
 	}
 
 	public restartTsServer(): void {
