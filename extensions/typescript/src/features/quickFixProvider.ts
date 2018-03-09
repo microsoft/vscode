@@ -11,7 +11,7 @@ import * as typeConverters from '../utils/typeConverters';
 import FormattingConfigurationManager from './formattingConfigurationManager';
 import { getEditForCodeAction, applyCodeActionCommands } from '../utils/codeAction';
 import { Command, CommandManager } from '../utils/commandManager';
-import DiagnosticsManager from './diagnostics';
+import { DiagnosticsManager } from './diagnostics';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();

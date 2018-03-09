@@ -30,20 +30,26 @@ class DiagnosticSet {
 	}
 }
 
-export default class DiagnosticsManager {
+export enum DiagnosticKind {
+	Syntax,
+	Semantic,
+	Suggestion
+}
 
-	private readonly syntaxDiagnostics: DiagnosticSet;
-	private readonly semanticDiagnostics: DiagnosticSet;
-	private readonly suggestionDiagnostics: DiagnosticSet;
+export class DiagnosticsManager {
+
+	private readonly diagnostics: Map<DiagnosticKind, DiagnosticSet>;
 	private readonly currentDiagnostics: DiagnosticCollection;
 	private _validate: boolean = true;
 
 	constructor(
 		language: string
 	) {
-		this.syntaxDiagnostics = new DiagnosticSet();
-		this.semanticDiagnostics = new DiagnosticSet();
-		this.suggestionDiagnostics = new DiagnosticSet();
+		this.diagnostics = new Map([
+			[DiagnosticKind.Syntax, new DiagnosticSet()],
+			[DiagnosticKind.Semantic, new DiagnosticSet()],
+			[DiagnosticKind.Suggestion, new DiagnosticSet()]
+		]);
 		this.currentDiagnostics = languages.createDiagnosticCollection(language);
 	}
 
@@ -53,8 +59,10 @@ export default class DiagnosticsManager {
 
 	public reInitialize(): void {
 		this.currentDiagnostics.clear();
-		this.syntaxDiagnostics.clear();
-		this.semanticDiagnostics.clear();
+
+		for (const diagnosticSet of this.diagnostics.values()) {
+			diagnosticSet.clear();
+		}
 	}
 
 	public set validate(value: boolean) {
@@ -67,19 +75,16 @@ export default class DiagnosticsManager {
 		}
 	}
 
-	public syntaxDiagnosticsReceived(file: Uri, syntaxDiagnostics: Diagnostic[]): void {
-		this.syntaxDiagnostics.set(file, syntaxDiagnostics);
-		this.updateCurrentDiagnostics(file);
-	}
-
-	public semanticDiagnosticsReceived(file: Uri, semanticDiagnostics: Diagnostic[]): void {
-		this.semanticDiagnostics.set(file, semanticDiagnostics);
-		this.updateCurrentDiagnostics(file);
-	}
-
-	public suggestionDiagnosticsReceived(file: Uri, suggestionDiagnostics: Diagnostic[]): void {
-		this.semanticDiagnostics.set(file, suggestionDiagnostics);
-		this.updateCurrentDiagnostics(file);
+	public diagnosticsReceived(
+		kind: DiagnosticKind,
+		file: Uri,
+		syntaxDiagnostics: Diagnostic[]
+	): void {
+		const diagnostics = this.diagnostics.get(kind);
+		if (diagnostics) {
+			diagnostics.set(file, syntaxDiagnostics);
+			this.updateCurrentDiagnostics(file);
+		}
 	}
 
 	public configFileDiagnosticsReceived(file: Uri, diagnostics: Diagnostic[]): void {
@@ -95,9 +100,9 @@ export default class DiagnosticsManager {
 			return;
 		}
 
-		const semanticDiagnostics = this.semanticDiagnostics.get(file);
-		const syntaxDiagnostics = this.syntaxDiagnostics.get(file);
-		const suggestionDiagnostics = this.suggestionDiagnostics.get(file);
+		const semanticDiagnostics = this.diagnostics.get(DiagnosticKind.Semantic)!.get(file);
+		const syntaxDiagnostics = this.diagnostics.get(DiagnosticKind.Syntax)!.get(file);
+		const suggestionDiagnostics = this.diagnostics.get(DiagnosticKind.Suggestion)!.get(file);
 		this.currentDiagnostics.set(file, semanticDiagnostics.concat(syntaxDiagnostics, suggestionDiagnostics));
 	}
 
