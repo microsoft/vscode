@@ -194,7 +194,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Handle various lifecycle events around windows
 		this.lifecycleService.onBeforeWindowUnload(e => this.onBeforeWindowUnload(e));
 		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win as ICodeWindow));
-		this.lifecycleService.onBeforeQuit(() => this.onBeforeQuit());
+		this.lifecycleService.onBeforeShutdown(() => this.onBeforeShutdown());
 		this.onWindowsCountChanged(e => {
 			if (e.newCount - e.oldCount > 0) {
 				// clear last closed window state when a new window opens. this helps on macOS where
@@ -205,12 +205,12 @@ export class WindowsManager implements IWindowsMainService {
 		});
 	}
 
-	// Note that onBeforeQuit() and onBeforeWindowClose() are fired in different order depending on the OS:
+	// Note that onBeforeShutdown() and onBeforeWindowClose() are fired in different order depending on the OS:
 	// - macOS: since the app will not quit when closing the last window, you will always first get
-	//          the onBeforeQuit() event followed by N onbeforeWindowClose() events for each window
+	//          the onBeforeShutdown() event followed by N onbeforeWindowClose() events for each window
 	// - other: on other OS, closing the last window will quit the app so the order depends on the
 	//          user interaction: closing the last window will first trigger onBeforeWindowClose()
-	//          and then onBeforeQuit(). Using the quit action however will first issue onBeforeQuit()
+	//          and then onBeforeShutdown(). Using the quit action however will first issue onBeforeShutdown()
 	//          and then onBeforeWindowClose().
 	//
 	// Here is the behaviour on different OS dependig on action taken (Electron 1.7.x):
@@ -219,30 +219,30 @@ export class WindowsManager implements IWindowsMainService {
 	// -  quit(N): quit application with N windows opened
 	// - close(1): close one window via the window close button
 	// - closeAll: close all windows via the taskbar command
-	// - onBeforeQuit(N): number of windows reported in this event handler
+	// - onBeforeShutdown(N): number of windows reported in this event handler
 	// - onBeforeWindowClose(N, M): number of windows reported and quitRequested boolean in this event handler
 	//
 	// macOS
-	// 	-     quit(1): onBeforeQuit(1), onBeforeWindowClose(1, true)
-	// 	-     quit(2): onBeforeQuit(2), onBeforeWindowClose(2, true), onBeforeWindowClose(2, true)
-	// 	-     quit(0): onBeforeQuit(0)
+	// 	-     quit(1): onBeforeShutdown(1), onBeforeWindowClose(1, true)
+	// 	-     quit(2): onBeforeShutdown(2), onBeforeWindowClose(2, true), onBeforeWindowClose(2, true)
+	// 	-     quit(0): onBeforeShutdown(0)
 	// 	-    close(1): onBeforeWindowClose(1, false)
 	//
 	// Windows
-	// 	-     quit(1): onBeforeQuit(1), onBeforeWindowClose(1, true)
-	// 	-     quit(2): onBeforeQuit(2), onBeforeWindowClose(2, true), onBeforeWindowClose(2, true)
+	// 	-     quit(1): onBeforeShutdown(1), onBeforeWindowClose(1, true)
+	// 	-     quit(2): onBeforeShutdown(2), onBeforeWindowClose(2, true), onBeforeWindowClose(2, true)
 	// 	-    close(1): onBeforeWindowClose(2, false)[not last window]
-	// 	-    close(1): onBeforeWindowClose(1, false), onBeforequit(0)[last window]
-	// 	- closeAll(2): onBeforeWindowClose(2, false), onBeforeWindowClose(2, false), onBeforeQuit(0)
+	// 	-    close(1): onBeforeWindowClose(1, false), onBeforeShutdown(0)[last window]
+	// 	- closeAll(2): onBeforeWindowClose(2, false), onBeforeWindowClose(2, false), onBeforeShutdown(0)
 	//
 	// Linux
-	// 	-     quit(1): onBeforeQuit(1), onBeforeWindowClose(1, true)
-	// 	-     quit(2): onBeforeQuit(2), onBeforeWindowClose(2, true), onBeforeWindowClose(2, true)
+	// 	-     quit(1): onBeforeShutdown(1), onBeforeWindowClose(1, true)
+	// 	-     quit(2): onBeforeShutdown(2), onBeforeWindowClose(2, true), onBeforeWindowClose(2, true)
 	// 	-    close(1): onBeforeWindowClose(2, false)[not last window]
-	// 	-    close(1): onBeforeWindowClose(1, false), onBeforequit(0)[last window]
-	// 	- closeAll(2): onBeforeWindowClose(2, false), onBeforeWindowClose(2, false), onBeforeQuit(0)
+	// 	-    close(1): onBeforeWindowClose(1, false), onBeforeShutdown(0)[last window]
+	// 	- closeAll(2): onBeforeWindowClose(2, false), onBeforeWindowClose(2, false), onBeforeShutdown(0)
 	//
-	private onBeforeQuit(): void {
+	private onBeforeShutdown(): void {
 		const currentWindowsState: IWindowsState = {
 			openedWindows: [],
 			lastPluginDevelopmentHostWindow: this.windowsState.lastPluginDevelopmentHostWindow,
@@ -280,7 +280,7 @@ export class WindowsManager implements IWindowsMainService {
 		this.stateService.setItem(WindowsManager.windowsStateStorageKey, currentWindowsState);
 	}
 
-	// See note on #onBeforeQuit() for details how these events are flowing
+	// See note on #onBeforeShutdown() for details how these events are flowing
 	private onBeforeWindowClose(win: ICodeWindow): void {
 		if (this.lifecycleService.isQuitRequested()) {
 			return; // during quit, many windows close in parallel so let it be handled in the before-quit handler

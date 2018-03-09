@@ -23,11 +23,11 @@ export class SharedProcess implements ISharedProcess {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		private environmentService: IEnvironmentService,
-		private lifecycleService: ILifecycleService,
+		private readonly environmentService: IEnvironmentService,
+		private readonly lifecycleService: ILifecycleService,
+		private readonly logService: ILogService,
 		private readonly machineId: string,
 		private readonly userEnv: IProcessEnvironment,
-		private readonly logService: ILogService
 	) {
 		this.registerListeners();
 	}
@@ -40,7 +40,7 @@ export class SharedProcess implements ISharedProcess {
 		// which removes the veto. Otherwise the application would never quit because
 		// the shared process window is refusing to close!
 		//
-		this.lifecycleService.onQuit(() => {
+		this.lifecycleService.onShutdown(() => {
 			this.dispose();
 		});
 	}
@@ -67,6 +67,7 @@ export class SharedProcess implements ISharedProcess {
 
 		// Prevent the window from dying
 		const onClose = (e: Event) => {
+			this.logService.trace('SharedProcess#close prevented');
 
 			// We never allow to close the shared process unless we get explicitly disposed()
 			e.preventDefault();
