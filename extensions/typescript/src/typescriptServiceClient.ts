@@ -243,6 +243,9 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private _onSemanticDiagnosticsReceived = new EventEmitter<TsDiagnostics>();
 	public get onSemanticDiagnosticsReceived(): Event<TsDiagnostics> { return this._onSemanticDiagnosticsReceived.event; }
 
+	private _onSuggestionDiagnosticsReceived = new EventEmitter<TsDiagnostics>();
+	public get onSuggestionDiagnosticsReceived(): Event<TsDiagnostics> { return this._onSuggestionDiagnosticsReceived.event; }
+
 	private _onConfigDiagnosticsReceived = new EventEmitter<Proto.ConfigFileDiagnosticEvent>();
 	public get onConfigDiagnosticsReceived(): Event<Proto.ConfigFileDiagnosticEvent> { return this._onConfigDiagnosticsReceived.event; }
 
@@ -813,6 +816,17 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 					const diagnosticEvent: Proto.DiagnosticEvent = event;
 					if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
 						this._onSemanticDiagnosticsReceived.fire({
+							resource: this.asUrl(diagnosticEvent.body.file),
+							diagnostics: diagnosticEvent.body.diagnostics
+						});
+					}
+					break;
+				}
+			case 'suggestionDiag':
+				{
+					const diagnosticEvent: Proto.DiagnosticEvent = event;
+					if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
+						this._onSuggestionDiagnosticsReceived.fire({
 							resource: this.asUrl(diagnosticEvent.body.file),
 							diagnostics: diagnosticEvent.body.diagnostics
 						});

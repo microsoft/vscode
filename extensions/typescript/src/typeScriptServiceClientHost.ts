@@ -72,6 +72,8 @@ export default class TypeScriptServiceClientHost {
 
 		this.client.onSyntaxDiagnosticsReceived(({ resource, diagnostics }) => this.syntaxDiagnosticsReceived(resource, diagnostics), null, this.disposables);
 		this.client.onSemanticDiagnosticsReceived(({ resource, diagnostics }) => this.semanticDiagnosticsReceived(resource, diagnostics), null, this.disposables);
+		this.client.onSuggestionDiagnosticsReceived(({ resource, diagnostics }) => this.suggestionDiagnosticsRecieved(resource, diagnostics), null, this.disposables);
+
 		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this.disposables);
 		this.client.onResendModelsRequested(() => this.populateService(), null, this.disposables);
 
@@ -188,6 +190,15 @@ export default class TypeScriptServiceClientHost {
 		}
 	}
 
+	private async suggestionDiagnosticsRecieved(resource: Uri, diagnostics: Proto.Diagnostic[]): Promise<void> {
+		const language = await this.findLanguage(resource);
+		if (language) {
+			language.suggestionDiagnosticsRecieved(
+				resource,
+				this.createMarkerDatas(diagnostics, language.diagnosticSource));
+		}
+	}
+
 	private configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
 		// See https://github.com/Microsoft/TypeScript/issues/10384
 		const body = event.body;
@@ -266,6 +277,9 @@ export default class TypeScriptServiceClientHost {
 
 			case PConst.DiagnosticCategory.warning:
 				return DiagnosticSeverity.Warning;
+
+			case PConst.DiagnosticCategory.suggestion:
+				return DiagnosticSeverity.Hint;
 
 			default:
 				return DiagnosticSeverity.Error;

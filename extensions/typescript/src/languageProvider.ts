@@ -241,6 +241,10 @@ export default class LanguageProvider {
 		this.diagnosticsManager.semanticDiagnosticsReceived(file, semanticDiagnostics);
 	}
 
+	public suggestionDiagnosticsRecieved(file: Uri, semanticDiagnostics: Diagnostic[]): void {
+		this.diagnosticsManager.suggestionDiagnosticsReceived(file, semanticDiagnostics);
+	}
+
 	public configFileDiagnosticsReceived(file: Uri, diagnostics: Diagnostic[]): void {
 		this.diagnosticsManager.configFileDiagnosticsReceived(file, diagnostics);
 	}

@@ -34,6 +34,7 @@ export default class DiagnosticsManager {
 
 	private readonly syntaxDiagnostics: DiagnosticSet;
 	private readonly semanticDiagnostics: DiagnosticSet;
+	private readonly suggestionDiagnostics: DiagnosticSet;
 	private readonly currentDiagnostics: DiagnosticCollection;
 	private _validate: boolean = true;
 
@@ -42,6 +43,7 @@ export default class DiagnosticsManager {
 	) {
 		this.syntaxDiagnostics = new DiagnosticSet();
 		this.semanticDiagnostics = new DiagnosticSet();
+		this.suggestionDiagnostics = new DiagnosticSet();
 		this.currentDiagnostics = languages.createDiagnosticCollection(language);
 	}
 
@@ -75,6 +77,11 @@ export default class DiagnosticsManager {
 		this.updateCurrentDiagnostics(file);
 	}
 
+	public suggestionDiagnosticsReceived(file: Uri, suggestionDiagnostics: Diagnostic[]): void {
+		this.semanticDiagnostics.set(file, suggestionDiagnostics);
+		this.updateCurrentDiagnostics(file);
+	}
+
 	public configFileDiagnosticsReceived(file: Uri, diagnostics: Diagnostic[]): void {
 		this.currentDiagnostics.set(file, diagnostics);
 	}
@@ -90,7 +97,8 @@ export default class DiagnosticsManager {
 
 		const semanticDiagnostics = this.semanticDiagnostics.get(file);
 		const syntaxDiagnostics = this.syntaxDiagnostics.get(file);
-		this.currentDiagnostics.set(file, semanticDiagnostics.concat(syntaxDiagnostics));
+		const suggestionDiagnostics = this.suggestionDiagnostics.get(file);
+		this.currentDiagnostics.set(file, semanticDiagnostics.concat(syntaxDiagnostics, suggestionDiagnostics));
 	}
 
 	public getDiagnostics(file: Uri): Diagnostic[] {
