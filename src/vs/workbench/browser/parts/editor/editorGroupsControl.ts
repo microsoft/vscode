@@ -2139,7 +2139,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Layout centered Editor (only in vertical layout when one group is opened)
 		const id = this.visibleEditors[Position.ONE] ? this.visibleEditors[Position.ONE].getId() : undefined;
-		const doCentering = this.layoutVertically && this.stacks.groups.length === 1 && this.partService.isEditorLayoutCentered() && id !== PREFERENCES_EDITOR_ID && id !== TEXT_DIFF_EDITOR_ID;
+		const doCentering = this.partService.isEditorLayoutCentered() && this.stacks.groups.length === 1 && id !== PREFERENCES_EDITOR_ID && id !== TEXT_DIFF_EDITOR_ID;
 		if (doCentering && !this.centeredEditorActive) {
 			this.centeredEditorSashLeft.show();
 			this.centeredEditorSashRight.show();
