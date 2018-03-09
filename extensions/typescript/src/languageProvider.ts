@@ -19,6 +19,7 @@ import { LanguageDescription } from './utils/languageDescription';
 import * as fileSchemes from './utils/fileSchemes';
 import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
 import { memoize } from './utils/memoize';
+import { disposeAll } from './utils/dipose';
 
 const validateSetting = 'validate.enable';
 const foldingSetting = 'typescript.experimental.syntaxFolding';
@@ -62,19 +63,8 @@ export default class LanguageProvider {
 	}
 
 	public dispose(): void {
-		while (this.disposables.length) {
-			const obj = this.disposables.pop();
-			if (obj) {
-				obj.dispose();
-			}
-		}
-
-		while (this.versionDependentDisposables.length) {
-			const obj = this.versionDependentDisposables.pop();
-			if (obj) {
-				obj.dispose();
-			}
-		}
+		disposeAll(this.disposables);
+		disposeAll(this.versionDependentDisposables);
 
 		this.diagnosticsManager.dispose();
 		this.bufferSyncSupport.dispose();
@@ -223,12 +213,7 @@ export default class LanguageProvider {
 	}
 
 	private async registerVersionDependentProviders(): Promise<void> {
-		while (this.versionDependentDisposables.length) {
-			const obj = this.versionDependentDisposables.pop();
-			if (obj) {
-				obj.dispose();
-			}
-		}
+		disposeAll(this.versionDependentDisposables);
 
 		if (!this.client) {
 			return;

@@ -24,6 +24,7 @@ import { tsLocationToVsPosition } from './utils/convert';
 import { CommandManager } from './utils/commandManager';
 import { LanguageDescription } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
+import { disposeAll } from './utils/dipose';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
@@ -118,13 +119,7 @@ export default class TypeScriptServiceClientHost implements ITypeScriptServiceCl
 	}
 
 	public dispose(): void {
-		while (this.disposables.length) {
-			const obj = this.disposables.pop();
-			if (obj) {
-				obj.dispose();
-			}
-		}
-
+		disposeAll(this.disposables);
 		this.typingsStatus.dispose();
 		this.ataProgressReporter.dispose();
 	}

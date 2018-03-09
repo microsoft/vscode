@@ -10,6 +10,7 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
 import * as languageModeIds from '../utils/languageModeIds';
+import { disposeAll } from '../utils/dipose';
 
 interface IDiagnosticRequestor {
 	requestDiagnostic(filepath: string): void;
@@ -152,12 +153,7 @@ export default class BufferSyncSupport {
 	}
 
 	public dispose(): void {
-		while (this.disposables.length) {
-			const obj = this.disposables.pop();
-			if (obj) {
-				obj.dispose();
-			}
-		}
+		disposeAll(this.disposables);
 	}
 
 	private onDidOpenTextDocument(document: TextDocument): void {
