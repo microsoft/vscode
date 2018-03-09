@@ -94,7 +94,7 @@ export class SwitchOutputAction extends Action {
 
 	public static readonly ID = 'workbench.output.action.switchBetweenOutputs';
 
-	constructor( @IOutputService private outputService: IOutputService) {
+	constructor(@IOutputService private outputService: IOutputService) {
 		super(SwitchOutputAction.ID, nls.localize('switchToOutput.label', "Switch to Output"));
 
 		this.class = 'output-action switch-to-output';

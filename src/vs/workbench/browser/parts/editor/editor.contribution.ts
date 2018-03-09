@@ -220,7 +220,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEncodingAction, 
 export class QuickOpenActionContributor extends ActionBarContributor {
 	private openToSideActionInstance: OpenToSideAction;
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 	}
 

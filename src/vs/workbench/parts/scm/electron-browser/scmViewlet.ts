@@ -1010,7 +1010,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 class InstallAdditionalSCMProvidersAction extends Action {
 
-	constructor( @IViewletService private viewletService: IViewletService) {
+	constructor(@IViewletService private viewletService: IViewletService) {
 		super('scm.installAdditionalSCMProviders', localize('installAdditionalSCMProviders', "Install Additional SCM Providers..."), '', true);
 	}
 

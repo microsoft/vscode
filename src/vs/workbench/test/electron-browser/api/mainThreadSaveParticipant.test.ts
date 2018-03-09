@@ -20,7 +20,7 @@ import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/commo
 import { snapshotToString } from 'vs/platform/files/common/files';
 
 class ServiceAccessor {
-	constructor( @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
+	constructor(@ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
 	}
 }
 
