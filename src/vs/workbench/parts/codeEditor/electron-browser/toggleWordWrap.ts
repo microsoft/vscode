@@ -257,7 +257,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: 'editor.action.toggleWordWrap',
 		title: nls.localize('unwrapMinified', "Disable wrapping for this file"),
-		iconPath: { dark: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/WordWrap_16x.svg')).fsPath }
+		iconPath: { dark: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/media/WordWrap_16x.svg')).fsPath }
 	},
 	group: 'navigation',
 	order: 1,
@@ -271,7 +271,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: 'editor.action.toggleWordWrap',
 		title: nls.localize('wrapMinified', "Enable wrapping for this file"),
-		iconPath: { dark: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/WordWrap_16x.svg')).fsPath }
+		iconPath: { dark: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/media/WordWrap_16x.svg')).fsPath }
 	},
 	group: 'navigation',
 	order: 1,

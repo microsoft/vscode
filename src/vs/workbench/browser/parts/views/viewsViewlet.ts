@@ -161,7 +161,7 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 		}
 
 		// Pass Focus to Viewer
-		this.tree.DOMFocus();
+		this.tree.domFocus();
 	}
 
 	dispose(): void {
@@ -235,13 +235,13 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 
 	getContextMenuActions(): IAction[] {
 		const result: IAction[] = [];
-		const viewToggleActions = this.getViewDescriptorsFromRegistry(true)
-			.filter(viewDescriptor => viewDescriptor.canToggleVisibility && this.contextKeyService.contextMatchesRules(viewDescriptor.when))
+		const viewToggleActions = this.getViewDescriptorsFromRegistry()
+			.filter(viewDescriptor => this.contextKeyService.contextMatchesRules(viewDescriptor.when))
 			.map(viewDescriptor => (<IAction>{
 				id: `${viewDescriptor.id}.toggleVisibility`,
 				label: viewDescriptor.name,
 				checked: this.isCurrentlyVisible(viewDescriptor),
-				enabled: true,
+				enabled: viewDescriptor.canToggleVisibility,
 				run: () => this.toggleViewVisibility(viewDescriptor.id)
 			}));
 		result.push(...viewToggleActions);
@@ -563,13 +563,13 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		return super.isSingleView();
 	}
 
-	protected getViewDescriptorsFromRegistry(defaultOrder: boolean = false): IViewDescriptor[] {
+	protected getViewDescriptorsFromRegistry(): IViewDescriptor[] {
 		return ViewsRegistry.getViews(this.location)
 			.sort((a, b) => {
 				const viewStateA = this.viewsStates.get(a.id);
 				const viewStateB = this.viewsStates.get(b.id);
-				const orderA = !defaultOrder && viewStateA ? viewStateA.order : a.order;
-				const orderB = !defaultOrder && viewStateB ? viewStateB.order : b.order;
+				const orderA = viewStateA ? viewStateA.order : a.order;
+				const orderB = viewStateB ? viewStateB.order : b.order;
 
 				if (orderB === void 0 || orderB === null) {
 					return -1;

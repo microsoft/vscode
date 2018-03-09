@@ -342,11 +342,6 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			return;
 		}
 
-		if (this._configuration.editor.readOnly) {
-			// Cannot execute when read only
-			return;
-		}
-
 		if (opResult.shouldPushStackElementBefore) {
 			this._model.pushStackElement();
 		}
@@ -455,6 +450,12 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 		if (handlerId === H.CompositionEnd) {
 			this._isDoingComposition = false;
+			return;
+		}
+
+		if (this._configuration.editor.readOnly) {
+			// All the remaining handlers will try to edit the model,
+			// but we cannot edit when read only...
 			return;
 		}
 

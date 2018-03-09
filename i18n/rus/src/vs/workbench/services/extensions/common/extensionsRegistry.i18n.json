@@ -30,5 +30,6 @@
 	"vscode.extension.badges.description": "Описание эмблемы.",
 	"vscode.extension.extensionDependencies": "Зависимости от других расширений. Идентификатор расширения — всегда ${publisher}.${name}. Например: vscode.csharp.",
 	"vscode.extension.scripts.prepublish": "Скрипт, выполняемый перед публикацией пакета в качестве расширения VS Code.",
+	"vscode.extension.scripts.uninstall": "Удалить обработчик для расширения VS Code. Скрипт, который выполняется после полного удаления расширения из VS Code, когда VS Code перезапускается (выключается и запускается) после удаления расширения. Поддерживаются только скрипты Node.",
 	"vscode.extension.icon": "Путь к значку размером 128 x 128 пикселей."
 }

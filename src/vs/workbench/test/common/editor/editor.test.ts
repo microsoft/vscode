@@ -17,7 +17,7 @@ import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestSe
 import { Schemas } from 'vs/base/common/network';
 
 class ServiceAccessor {
-	constructor( @IUntitledEditorService public untitledEditorService: UntitledEditorService) {
+	constructor(@IUntitledEditorService public untitledEditorService: UntitledEditorService) {
 	}
 }
 

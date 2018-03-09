@@ -32,7 +32,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 		outputChannelRegistry.registerChannel(Constants.mainLogChannelId, nls.localize('mainLog', "Log (Main)"), URI.file(join(this.environmentService.logsPath, `main.log`)));
 		outputChannelRegistry.registerChannel(Constants.sharedLogChannelId, nls.localize('sharedLog', "Log (Shared)"), URI.file(join(this.environmentService.logsPath, `sharedprocess.log`)));
 		outputChannelRegistry.registerChannel(Constants.rendererLogChannelId, nls.localize('rendererLog', "Log (Window)"), URI.file(join(this.environmentService.logsPath, `renderer${this.windowService.getCurrentWindowId()}.log`)));
-		outputChannelRegistry.registerChannel(Constants.extHostLogChannelId, nls.localize('extensionsLog', "Log (Extension Host)"), URI.file(join(this.environmentService.logsPath, `extHost${this.windowService.getCurrentWindowId()}.log`)));
+		outputChannelRegistry.registerChannel(Constants.extHostLogChannelId, nls.localize('extensionsLog', "Log (Extension Host)"), URI.file(join(this.environmentService.logsPath, `exthost${this.windowService.getCurrentWindowId()}.log`)));
 
 		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
 		const devCategory = nls.localize('developer', "Developer");

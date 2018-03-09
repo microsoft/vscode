@@ -9,9 +9,8 @@
 	"typescript.projectConfigNoWorkspace": "TypeScript または JavaScript プロジェクトを使用するには、VS Code でフォルダーを開いてください",
 	"typescript.projectConfigUnsupportedFile": "TypeScript または JavaScript のプロジェクトを判別できませんでした。サポートされていないファイルの種類です",
 	"typescript.projectConfigCouldNotGetInfo": "TypeScript または JavaScript のプロジェクトを判別できませんでした",
-	"typescript.noTypeScriptProjectConfig": "ファイルは TypeScript プロジェクトの一部ではない",
-	"typescript.noJavaScriptProjectConfig": "ファイルは JavaScript プロジェクトの一部ではない",
+	"typescript.noTypeScriptProjectConfig": "ファイルは TypeScript プロジェクトの一部ではありません。詳細情報は [こちら]({1}) をクリックしてください。",
+	"typescript.noJavaScriptProjectConfig": "ファイルは JavaScript プロジェクトの一部ではありません。詳細情報は [こちら]({1}) をクリックしてください。",
 	"typescript.configureTsconfigQuickPick": "tsconfig.json を構成する",
-	"typescript.configureJsconfigQuickPick": "jsconfig.json を構成する",
-	"typescript.projectConfigLearnMore": "詳細情報"
+	"typescript.configureJsconfigQuickPick": "jsconfig.json を構成する"
 }

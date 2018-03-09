@@ -23,7 +23,7 @@ export class Model {
 	private _roots: FileStat[];
 	private _listener: IDisposable;
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders.map(folder => {
 			const root = new FileStat(folder.uri, undefined);
 			root.name = folder.name;

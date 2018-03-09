@@ -446,7 +446,7 @@ suite('ExtHostTreeView', function () {
 		};
 		const revealTarget = sinon.spy(target, '$reveal');
 		const treeView = testObject.registerTreeDataProvider('treeDataProvider', aCompleteNodeTreeDataProvider(), (fn) => fn);
-		return treeView.reveal({ key: 'bac' }, { donotSelect: true })
+		return treeView.reveal({ key: 'bac' }, { select: false })
 			.then(() => {
 				assert.ok(revealTarget.calledOnce);
 				assert.deepEqual('treeDataProvider', revealTarget.args[0][0]);
@@ -455,7 +455,7 @@ suite('ExtHostTreeView', function () {
 					{ handle: '0/0:b', label: 'b', collapsibleState: TreeItemCollapsibleState.Collapsed },
 					{ handle: '0/0:b/0:ba', label: 'ba', collapsibleState: TreeItemCollapsibleState.Collapsed, parentHandle: '0/0:b' }
 				], (<Array<any>>revealTarget.args[0][2]).map(arg => removeUnsetKeys(arg)));
-				assert.deepEqual({ donotSelect: true }, revealTarget.args[0][3]);
+				assert.deepEqual({ select: false }, revealTarget.args[0][3]);
 			});
 	});
 

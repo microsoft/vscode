@@ -18,16 +18,16 @@ jsonc-parser@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-1.0.0.tgz#ddcc864ae708e60a7a6dd36daea00172fa8d9272"
 
-vscode-css-languageservice@^3.0.6:
-  version "3.0.6"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.6.tgz#0e9230347040ba0161fba941885195215ec9be40"
+vscode-css-languageservice@^3.0.7:
+  version "3.0.7"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.7.tgz#ca53f94db020e4e6c7059963fed8dc256593decc"
   dependencies:
     vscode-languageserver-types "^3.6.0-next.1"
     vscode-nls "^2.0.1"
 
-vscode-emmet-helper@^1.1.38:
-  version "1.1.38"
-  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-1.1.38.tgz#6b7de1abe39f8b41d4713c4e85ace4a7261ef0d8"
+vscode-emmet-helper@^1.2.0:
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-1.2.0.tgz#6b9311be065c9c99d5de2dae18ea0730d9cfb734"
   dependencies:
     "@emmetio/extract-abbreviation" "0.1.6"
     jsonc-parser "^1.0.0"

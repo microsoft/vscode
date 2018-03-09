@@ -1,7 +1,10 @@
 {
 	"name": "php",
-	"version": "0.1.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
 	"publisher": "vscode",
+	"icon": "icons/logo.png",
 	"engines": {
 		"vscode": "0.10.x"
 	},

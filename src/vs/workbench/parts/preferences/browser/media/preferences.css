@@ -48,8 +48,12 @@
 	text-overflow: ellipsis;
 }
 
-.settings-tabs-widget > .monaco-action-bar .action-item .action-label:not([aria-haspopup]) {
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	display: block;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label.folder-settings {
+	display: flex;
 }
 
 .settings-tabs-widget > .monaco-action-bar .actions-container {
@@ -213,7 +217,6 @@
 	width: 100%;
 	cursor: pointer;
 	font-weight: bold;
-	-webkit-user-select: none;
 	user-select: none;
 	display: flex;
 }

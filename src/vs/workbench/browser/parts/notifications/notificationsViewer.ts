@@ -146,11 +146,10 @@ class NotificationMessageRenderer {
 		// Message has links
 		else {
 			let index = 0;
-			let textBefore: string;
 			for (let i = 0; i < message.links.length; i++) {
 				const link = message.links[i];
 
-				textBefore = message.value.substring(index, link.offset);
+				const textBefore = message.value.substring(index, link.offset);
 				if (textBefore) {
 					messageContainer.appendChild(document.createTextNode(textBefore));
 				}
@@ -167,6 +166,12 @@ class NotificationMessageRenderer {
 				messageContainer.appendChild(anchor);
 
 				index = link.offset + link.length;
+			}
+
+			// Add text after links if any
+			const textAfter = message.value.substring(index);
+			if (textAfter) {
+				messageContainer.appendChild(document.createTextNode(textAfter));
 			}
 		}
 
@@ -424,7 +429,7 @@ export class NotificationTemplateRenderer {
 		clearNode(this.template.buttonsContainer);
 
 		if (notification.expanded) {
-			const buttonGroup = new ButtonGroup(this.template.buttonsContainer, notification.actions.primary.length);
+			const buttonGroup = new ButtonGroup(this.template.buttonsContainer, notification.actions.primary.length, { title: true /* assign titles to buttons in case they overflow */ });
 			buttonGroup.buttons.forEach((button, index) => {
 				const action = notification.actions.primary[index];
 				button.label = action.label;

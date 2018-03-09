@@ -37,10 +37,10 @@ export const CLEAR_ALL_NOTIFICATIONS = 'notifications.clearAll';
 const notificationFocusedId = 'notificationFocus';
 export const NotificationFocusedContext = new RawContextKey<boolean>(notificationFocusedId, true);
 
-const notificationsCenterVisibleId = 'notificationsCenterVisible';
+const notificationsCenterVisibleId = 'notificationCenterVisible';
 export const NotificationsCenterVisibleContext = new RawContextKey<boolean>(notificationsCenterVisibleId, false);
 
-const notificationsToastsVisibleId = 'notificationsToastsVisible';
+const notificationsToastsVisibleId = 'notificationToastsVisible';
 export const NotificationsToastsVisibleContext = new RawContextKey<boolean>(notificationsToastsVisibleId, false);
 
 export interface INotificationsCenterController {
@@ -81,7 +81,9 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	}
 
 	// Show Notifications Cneter
-	CommandsRegistry.registerCommand(SHOW_NOTIFICATIONS_CENTER, () => center.show());
+	CommandsRegistry.registerCommand(SHOW_NOTIFICATIONS_CENTER, () => {
+		center.show();
+	});
 
 	// Hide Notifications Center
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -93,7 +95,13 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	});
 
 	// Toggle Notifications Center
-	CommandsRegistry.registerCommand(TOGGLE_NOTIFICATIONS_CENTER, accessor => center.isVisible ? center.hide() : center.show());
+	CommandsRegistry.registerCommand(TOGGLE_NOTIFICATIONS_CENTER, accessor => {
+		if (center.isVisible) {
+			center.hide();
+		} else {
+			center.show();
+		}
+	});
 
 	// Clear Notification
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -146,6 +154,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: NotificationFocusedContext,
 		primary: KeyCode.Space,
+		secondary: [KeyCode.Enter],
 		handler: accessor => {
 			const notification = getNotificationFromContext(accessor.get(IListService));
 			if (notification) {

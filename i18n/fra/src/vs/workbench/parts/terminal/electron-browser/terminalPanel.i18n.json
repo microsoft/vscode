@@ -9,5 +9,6 @@
 	"copy": "Copier",
 	"paste": "Coller",
 	"selectAll": "Tout Sélectionner",
-	"clear": "Effacer"
+	"clear": "Effacer",
+	"split": "Diviser"
 }

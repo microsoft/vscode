@@ -193,8 +193,11 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		return promise.then(success => {
 			if (!success) {
 				return TPromise.wrapError(new Error('cannot open ' + uri.toString()));
+			} else if (!this._modelIsSynced[uri.toString()]) {
+				return TPromise.wrapError(new Error('cannot open ' + uri.toString() + '. Detail: Files above 50MB cannot be synchronized with extensions.'));
+			} else {
+				return undefined;
 			}
-			return undefined;
 		}, err => {
 			return TPromise.wrapError(new Error('cannot open ' + uri.toString() + '. Detail: ' + toErrorMessage(err)));
 		});

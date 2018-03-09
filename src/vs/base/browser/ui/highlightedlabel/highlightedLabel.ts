@@ -7,7 +7,7 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import * as objects from 'vs/base/common/objects';
-import { render as renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 export interface IHighlight {
 	start: number;

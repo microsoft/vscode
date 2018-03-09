@@ -29,7 +29,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
+import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier, EditorInput, PREFERENCES_EDITOR_ID, TEXT_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -39,7 +39,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ResourcesDropHandler, LocalSelectionTransfer, DraggedEditorIdentifier } from 'vs/workbench/browser/dnd';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 
 export enum Rochade {
 	NONE,
@@ -100,7 +99,7 @@ interface CenteredEditorLayoutData {
  */
 export class EditorGroupsControl extends Themable implements IEditorGroupsControl, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
 
-	private static readonly CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY = 'workbench.centerededitorlayout.layoutData';
+	private static readonly CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY = 'workbench.centerededitorlayout.data';
 
 	private static readonly TITLE_AREA_CONTROL_KEY = '__titleAreaControl';
 	private static readonly PROGRESS_BAR_CONTROL_KEY = '__progressBar';
@@ -1050,10 +1049,11 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			this.centeredEditorSashRight = new Sash(container.getHTMLElement(), this, { baseSize: 5, orientation: Orientation.VERTICAL });
 			registerSashListeners(this.centeredEditorSashLeft);
 			registerSashListeners(this.centeredEditorSashRight);
+			this.centeredEditorSashLeft.hide();
+			this.centeredEditorSashRight.hide();
 
 			this.centeredEditorActive = false;
 			this.centeredEditorLeftMarginRatio = 0.5;
-			this.centeredEditorPreferedSize = -1; // set this later if we know the container size
 
 			// Restore centered layout position and size
 			const centeredLayoutDataString = this.storageServise.get(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, StorageScope.GLOBAL);
@@ -1952,7 +1952,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			position -= delta;
 		}
 
-		if (size > 3 * this.minSize) {
+		if (size > 3 * this.minSize && size < this.centeredEditorAvailableSize) {
 			this.centeredEditorPreferedSize = size;
 			position -= EditorGroupsControl.CENTERED_EDITOR_MIN_MARGIN;
 			position = Math.min(position, this.centeredEditorAvailableSize - this.centeredEditorSize);
@@ -2138,13 +2138,14 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		});
 
 		// Layout centered Editor (only in vertical layout when one group is opened)
-		const doCentering = this.layoutVertically && this.stacks.groups.length === 1 && this.partService.isEditorLayoutCentered() && !(this.visibleEditors[Position.ONE] instanceof TextDiffEditor);
+		const id = this.visibleEditors[Position.ONE] ? this.visibleEditors[Position.ONE].getId() : undefined;
+		const doCentering = this.partService.isEditorLayoutCentered() && this.stacks.groups.length === 1 && id !== PREFERENCES_EDITOR_ID && id !== TEXT_DIFF_EDITOR_ID;
 		if (doCentering && !this.centeredEditorActive) {
 			this.centeredEditorSashLeft.show();
 			this.centeredEditorSashRight.show();
 
 			// no size set yet. Calculate a default value
-			if (this.centeredEditorPreferedSize === -1) {
+			if (!this.centeredEditorPreferedSize) {
 				this.resetCenteredEditor(false);
 			}
 		} else if (!doCentering && this.centeredEditorActive) {

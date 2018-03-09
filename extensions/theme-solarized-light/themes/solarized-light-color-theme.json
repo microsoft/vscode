@@ -456,10 +456,6 @@
 		"debugExceptionWidget.background": "#DDD6C1",
 		"debugExceptionWidget.border": "#AB395B",
 
-		// Workbench: Notifications
-		"notification.background": "#999178",
-		// "notification.foreground": "",
-
 		// Workbench: Quick Open
 		"pickerGroup.border": "#2AA19899",
 		"pickerGroup.foreground": "#2AA19899",

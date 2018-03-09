@@ -18,7 +18,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 call .\scripts\code.bat %~dp0\..\extensions\vscode-colorize-tests\test --extensionDevelopmentPath=%~dp0\..\extensions\vscode-colorize-tests --extensionTestsPath=%~dp0\..\extensions\vscode-colorize-tests\out --disableExtensions --user-data-dir=%VSCODEUSERDATADIR%
 if %errorlevel% neq 0 exit /b %errorlevel%
 
-call .\scripts\code.bat $%~dp0\..\extensions\emmet\test-fixtures --extensionDevelopmentPath=%~dp0\..\extensions\emmet --extensionTestsPath=%~dp0\..\extensions\emmet\out\test --disableExtensions --user-data-dir=%VSCODEUSERDATADIR%
+call .\scripts\code.bat $%~dp0\..\extensions\emmet\test-fixtures --extensionDevelopmentPath=%~dp0\..\extensions\emmet --extensionTestsPath=%~dp0\..\extensions\emmet\out\test --disableExtensions --user-data-dir=%VSCODEUSERDATADIR% .
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 :: Integration & performance tests in AMD

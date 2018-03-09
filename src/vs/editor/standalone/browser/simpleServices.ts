@@ -38,8 +38,8 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { OS } from 'vs/base/common/platform';
 import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { INotificationService, INotification, INotificationHandle, NoOpNotification } from 'vs/platform/notification/common/notification';
-import { IConfirmation, IConfirmationResult, IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService, INotification, INotificationHandle, NoOpNotification, PromptOption } from 'vs/platform/notification/common/notification';
+import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IPosition, Position as Pos } from 'vs/editor/common/core/position';
 
 export class SimpleEditor implements IEditor {
@@ -236,11 +236,20 @@ export class SimpleProgressService implements IProgressService {
 	}
 }
 
-export class SimpleConfirmationService implements IConfirmationService {
+export class SimpleDialogService implements IDialogService {
 
 	public _serviceBrand: any;
 
-	public confirm(confirmation: IConfirmation): TPromise<boolean> {
+	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+		return this.doConfirm(confirmation).then(confirmed => {
+			return {
+				confirmed,
+				checkboxChecked: false // unsupported
+			} as IConfirmationResult;
+		});
+	}
+
+	private doConfirm(confirmation: IConfirmation): TPromise<boolean> {
 		let messageText = confirmation.message;
 		if (confirmation.detail) {
 			messageText = messageText + '\n\n' + confirmation.detail;
@@ -249,13 +258,8 @@ export class SimpleConfirmationService implements IConfirmationService {
 		return TPromise.wrap(window.confirm(messageText));
 	}
 
-	public confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult> {
-		return this.confirm(confirmation).then(confirmed => {
-			return {
-				confirmed,
-				checkboxChecked: false // unsupported
-			} as IConfirmationResult;
-		});
+	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): TPromise<number> {
+		return TPromise.as(0);
 	}
 }
 
@@ -291,6 +295,10 @@ export class SimpleNotificationService implements INotificationService {
 		}
 
 		return SimpleNotificationService.NO_OP;
+	}
+
+	public prompt(severity: Severity, message: string, choices: PromptOption[]): TPromise<number> {
+		return TPromise.as(0);
 	}
 }
 

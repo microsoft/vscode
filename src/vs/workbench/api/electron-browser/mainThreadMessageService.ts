@@ -6,14 +6,16 @@
 
 import nls = require('vs/nls');
 import Severity from 'vs/base/common/severity';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { MainThreadMessageServiceShape, MainContext, IExtHostContext, MainThreadMessageOptions } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { once } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { localize } from 'vs/nls';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
@@ -22,7 +24,8 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		extHostContext: IExtHostContext,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IChoiceService private readonly _choiceService: IChoiceService
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService
 	) {
 		//
 	}
@@ -43,7 +46,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 		return new Promise<number>(resolve => {
 
-			let actions: MessageItemAction[] = [];
+			let primaryActions: MessageItemAction[] = [];
 
 			class MessageItemAction extends Action {
 				constructor(id: string, label: string, handle: number) {
@@ -63,14 +66,28 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			}
 
 			commands.forEach(command => {
-				actions.push(new MessageItemAction('_extension_message_handle_' + command.handle, command.title, command.handle));
+				primaryActions.push(new MessageItemAction('_extension_message_handle_' + command.handle, command.title, command.handle));
 			});
+
+			let source: string;
+			if (extension) {
+				source = localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name);
+			}
+
+			if (!source) {
+				source = localize('defaultSource', "Extension");
+			}
+
+			const secondaryActions: IAction[] = [];
+			if (extension && extension.extensionFolderPath !== this._environmentService.extensionDevelopmentPath) {
+				secondaryActions.push(new ManageExtensionAction(extension.id, nls.localize('manageExtension', "Manage Extension"), this._commandService));
+			}
 
 			const messageHandle = this._notificationService.notify({
 				severity,
 				message,
-				actions: { primary: actions, secondary: extension ? [new ManageExtensionAction(extension.id, nls.localize('manageExtension', "Manage Extension"), this._commandService)] : [] },
-				source: extension && `${extension.displayName || extension.name}`
+				actions: { primary: primaryActions, secondary: secondaryActions },
+				source
 			});
 
 			// if promise has not been resolved yet, now is the time to ensure a return value
@@ -84,7 +101,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 	private _showModalMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> {
 		let cancelId: number | undefined = void 0;
 
-		const options = commands.map((command, index) => {
+		const buttons = commands.map((command, index) => {
 			if (command.isCloseAffordance === true) {
 				cancelId = index;
 			}
@@ -93,16 +110,16 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		});
 
 		if (cancelId === void 0) {
-			if (options.length > 0) {
-				options.push(nls.localize('cancel', "Cancel"));
+			if (buttons.length > 0) {
+				buttons.push(nls.localize('cancel', "Cancel"));
 			} else {
-				options.push(nls.localize('ok', "OK"));
+				buttons.push(nls.localize('ok', "OK"));
 			}
 
-			cancelId = options.length - 1;
+			cancelId = buttons.length - 1;
 		}
 
-		return this._choiceService.choose(severity, message, options, cancelId, true)
+		return this._dialogService.show(severity, message, buttons, { cancelId })
 			.then(result => result === commands.length ? undefined : commands[result].handle);
 	}
 }

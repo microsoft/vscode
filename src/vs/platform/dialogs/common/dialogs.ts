@@ -7,6 +7,9 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import URI from 'vs/base/common/uri';
+import { basename } from 'vs/base/common/paths';
+import { localize } from 'vs/nls';
 
 export interface IConfirmation {
 	title?: string;
@@ -22,63 +25,66 @@ export interface IConfirmation {
 }
 
 export interface IConfirmationResult {
+
+	/**
+	 * Will be true if the dialog was confirmed with the primary button
+	 * pressed.
+	 */
 	confirmed: boolean;
+
+	/**
+	 * This will only be defined if the confirmation was created
+	 * with the checkox option defined.
+	 */
 	checkboxChecked?: boolean;
 }
 
-export const IConfirmationService = createDecorator<IConfirmationService>('confirmationService');
+export const IDialogService = createDecorator<IDialogService>('dialogService');
 
-export interface IConfirmationService {
+export interface IDialogOptions {
+	cancelId?: number;
+	detail?: string;
+}
+
+/**
+ * A service to bring up modal dialogs.
+ *
+ * Note: use the `INotificationService.prompt()` method for a non-modal way to ask
+ * the user for input.
+ */
+export interface IDialogService {
 
 	_serviceBrand: any;
 
 	/**
 	 * Ask the user for confirmation with a modal dialog.
 	 */
-	confirm(confirmation: IConfirmation): TPromise<boolean>;
+	confirm(confirmation: IConfirmation): TPromise<IConfirmationResult>;
 
 	/**
-	 * Ask the user for confirmation with a checkbox in a modal dialog.
+	 * Present a modal dialog to the user.
+	 *
+	 * @returns A promise with the selected choice index. If the user refused to choose,
+	 * then a promise with index of `cancelId` option is returned. If there is no such
+	 * option then promise with index `0` is returned.
 	 */
-	confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult>;
+	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): TPromise<number>;
 }
 
-export const IChoiceService = createDecorator<IChoiceService>('choiceService');
+const MAX_CONFIRM_FILES = 10;
+export function getConfirmMessage(start: string, resourcesToConfirm: URI[]): string {
+	const message = [start];
+	message.push('');
+	message.push(...resourcesToConfirm.slice(0, MAX_CONFIRM_FILES).map(r => basename(r.fsPath)));
 
-/**
- * The choices to present to the user. The `ISecondaryChoice` hint allows to control where
- * choices appear when the `modal` option is set to `false`. In that case, the choices
- * are presented as part of a notification and secondary choices will appear less
- * prominent.
- */
-export interface SecondaryChoice {
-	label: string;
-	keepOpen?: boolean;
-}
-export type PrimaryChoice = string;
-export type Choice = PrimaryChoice | SecondaryChoice;
+	if (resourcesToConfirm.length > MAX_CONFIRM_FILES) {
+		if (resourcesToConfirm.length - MAX_CONFIRM_FILES === 1) {
+			message.push(localize('moreFile', "...1 additional file not shown"));
+		} else {
+			message.push(localize('moreFiles', "...{0} additional files not shown", resourcesToConfirm.length - MAX_CONFIRM_FILES));
+		}
+	}
 
-export interface IChoiceService {
-
-	_serviceBrand: any;
-
-	/**
-	 * Prompt the user for a choice between multiple choices.
-	 *
-	 * @param choices the choices to present to the user. The `isSecondary` hint allows
-	 * to control where are presented as part of a notification and secondary choices will
-	 * appear less choices appear when the `modal` option is set to `false`. In that case,
-	 * the choices prominent.
-	 *
-	 * @param when `modal` is true, this will block the user until chooses.
-	 *
-	 * @returns A promise with the selected choice index. The promise is cancellable
-	 * which hides the message. The promise can return an error, meaning that
-	 * the user refused to choose.
-	 *
-	 * When `modal` is true and user refused to choose, then promise with index of
-	 * `Cancel` option is returned. If there is no such option then promise with
-	 * `0` index is returned.
-	 */
-	choose(severity: Severity, message: string, choices: Choice[], cancelId?: number, modal?: boolean): TPromise<number>;
+	message.push('');
+	return message.join('\n');
 }

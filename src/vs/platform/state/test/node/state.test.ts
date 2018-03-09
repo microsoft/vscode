@@ -21,7 +21,7 @@ suite('StateService', () => {
 		extfs.del(parentDir, os.tmpdir(), done);
 	});
 
-	test('Basics', done => {
+	test('Basics', () => {
 		return mkdirp(parentDir).then(() => {
 			writeFileAndFlushSync(storageFile, '');
 
@@ -49,8 +49,6 @@ suite('StateService', () => {
 
 			service.setItem('some.null.key', null);
 			assert.equal(service.getItem('some.null.key', 'some.default'), 'some.default');
-
-			done();
 		});
 	});
 });

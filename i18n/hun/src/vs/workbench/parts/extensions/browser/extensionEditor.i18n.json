@@ -46,6 +46,8 @@
 	"defaultLight": "Alapértelmezett világos",
 	"defaultHC": "Alapértelmezett nagy kontrasztú",
 	"JSON Validation": "JSON-validációk ({0})",
+	"fileMatch": "Fájlegyezés",
+	"schema": "Séma",
 	"commands": "Parancsok ({0})",
 	"command name": "Név",
 	"keyboard shortcuts": "Billentyűparancsok",

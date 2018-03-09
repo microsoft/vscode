@@ -13,7 +13,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import * as errors from 'vs/base/common/errors';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import severity from 'vs/base/common/severity';
-import { isObject, isString } from 'vs/base/common/types';
+import { isObject, isString, isUndefinedOrNull } from 'vs/base/common/types';
 import { distinct } from 'vs/base/common/arrays';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ISuggestion } from 'vs/editor/common/modes';
@@ -38,8 +38,6 @@ export abstract class AbstractReplElement implements IReplElement {
 	public getId(): string {
 		return `replelement:${this.id}`;
 	}
-
-	abstract toString(): string;
 }
 
 export class SimpleReplElement extends AbstractReplElement {
@@ -50,10 +48,6 @@ export class SimpleReplElement extends AbstractReplElement {
 		source: IReplElementSource,
 	) {
 		super(source);
-	}
-
-	public toString(): string {
-		return this.value;
 	}
 }
 
@@ -94,10 +88,6 @@ export class RawObjectReplElement extends AbstractReplElement implements IExpres
 		}
 
 		return TPromise.as(result);
-	}
-
-	public toString(): string {
-		return this.name ? `${this.name}: ${this.value}` : this.value;
 	}
 }
 
@@ -891,16 +881,25 @@ export class Model implements IModel {
 		this.breakpoints.forEach(bp => {
 			const bpData = data[bp.getId()];
 			if (bpData) {
-				bp.lineNumber = bpData.line ? bpData.line : bp.lineNumber;
+				if (!isUndefinedOrNull(bpData.line)) {
+					bp.lineNumber = bpData.line;
+				}
 				bp.endLineNumber = bpData.endLine;
 				bp.column = bpData.column;
 				bp.endColumn = bpData.endColumn;
-				bp.verified = bp.verified || bpData.verified;
+				if (!isUndefinedOrNull(bpData.verified)) {
+					bp.verified = bpData.verified;
+				}
 				bp.idFromAdapter = bpData.id;
 				bp.message = bpData.message;
 				bp.adapterData = bpData.source ? bpData.source.adapterData : bp.adapterData;
-				bp.condition = bpData.condition || bp.condition;
-				bp.hitCondition = bpData.hitCondition || bp.hitCondition;
+
+				if (!isUndefinedOrNull(bpData.condition)) {
+					bp.condition = bpData.condition;
+				}
+				if (!isUndefinedOrNull(bpData.hitCondition)) {
+					bp.hitCondition = bpData.hitCondition;
+				}
 				updated.push(bp);
 			}
 		});

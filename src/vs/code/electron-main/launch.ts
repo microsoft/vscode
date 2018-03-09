@@ -9,14 +9,15 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
-import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { OpenContext } from 'vs/platform/windows/common/windows';
+import { OpenContext, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -110,7 +111,8 @@ export class LaunchService implements ILaunchService {
 		@IWindowsMainService private windowsMainService: IWindowsMainService,
 		@IURLService private urlService: IURLService,
 		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
 	public start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
@@ -140,13 +142,51 @@ export class LaunchService implements ILaunchService {
 	private startOpenWindow(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
 		const context = !!userEnv['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 		let usedWindows: ICodeWindow[];
+
+		// Special case extension development
 		if (!!args.extensionDevelopmentPath) {
 			this.windowsMainService.openExtensionDevelopmentHostWindow({ context, cli: args, userEnv });
-		} else if (args._.length === 0 && (args['new-window'] || args['unity-launch'])) {
-			usedWindows = this.windowsMainService.open({ context, cli: args, userEnv, forceNewWindow: true, forceEmpty: true });
-		} else if (args._.length === 0) {
-			usedWindows = [this.windowsMainService.focusLastActive(args, context)];
-		} else {
+		}
+
+		// Start without file/folder arguments
+		else if (args._.length === 0) {
+			let openNewWindow = false;
+
+			// Force new window
+			if (args['new-window'] || args['unity-launch']) {
+				openNewWindow = true;
+			}
+
+			// Force reuse window
+			else if (args['reuse-window']) {
+				openNewWindow = false;
+			}
+
+			// Otherwise check for settings
+			else {
+				const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+				const openWithoutArgumentsInNewWindowConfig = (windowConfig && windowConfig.openWithoutArgumentsInNewWindow) || 'default' /* default */;
+				switch (openWithoutArgumentsInNewWindowConfig) {
+					case 'on':
+						openNewWindow = true;
+						break;
+					case 'off':
+						openNewWindow = false;
+						break;
+					default:
+						openNewWindow = !isMacintosh; // prefer to restore running instance on macOS
+				}
+			}
+
+			if (openNewWindow) {
+				usedWindows = this.windowsMainService.open({ context, cli: args, userEnv, forceNewWindow: true, forceEmpty: true });
+			} else {
+				usedWindows = [this.windowsMainService.focusLastActive(args, context)];
+			}
+		}
+
+		// Start with file/folder arguments
+		else {
 			usedWindows = this.windowsMainService.open({
 				context,
 				cli: args,

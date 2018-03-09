@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Event, { Emitter } from 'vs/base/common/event';
-import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, IProcess, IThread, IExpression, IFunctionBreakpoint } from 'vs/workbench/parts/debug/common/debug';
+import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, IProcess, IThread, IExpression, IFunctionBreakpoint, CONTEXT_BREAKPOINT_SELECTED } from 'vs/workbench/parts/debug/common/debug';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export class ViewModel implements IViewModel {
@@ -19,6 +19,7 @@ export class ViewModel implements IViewModel {
 	private _onDidSelectExpression: Emitter<IExpression>;
 	private multiProcessView: boolean;
 	private expressionSelectedContextKey: IContextKey<boolean>;
+	private breakpointSelectedContextKey: IContextKey<boolean>;
 
 	constructor(contextKeyService: IContextKeyService) {
 		this._onDidFocusProcess = new Emitter<IProcess | undefined>();
@@ -26,6 +27,7 @@ export class ViewModel implements IViewModel {
 		this._onDidSelectExpression = new Emitter<IExpression>();
 		this.multiProcessView = false;
 		this.expressionSelectedContextKey = CONTEXT_EXPRESSION_SELECTED.bindTo(contextKeyService);
+		this.breakpointSelectedContextKey = CONTEXT_BREAKPOINT_SELECTED.bindTo(contextKeyService);
 	}
 
 	public getId(): string {
@@ -87,6 +89,7 @@ export class ViewModel implements IViewModel {
 
 	public setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint): void {
 		this.selectedFunctionBreakpoint = functionBreakpoint;
+		this.breakpointSelectedContextKey.set(!!functionBreakpoint);
 	}
 
 	public isMultiProcessView(): boolean {

@@ -321,7 +321,12 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		// Resource Editor Support
 		const resourceInput = <IResourceInput>input;
 		if (resourceInput.resource instanceof URI) {
-			return this.createOrGet(resourceInput.resource, this.instantiationService, resourceInput.label || basename(resourceInput.resource.fsPath), resourceInput.description, resourceInput.encoding);
+			let label = resourceInput.label;
+			if (!label && resourceInput.resource.scheme !== Schemas.data) {
+				label = basename(resourceInput.resource.fsPath); // derive the label from the path (but not for data URIs)
+			}
+
+			return this.createOrGet(resourceInput.resource, this.instantiationService, label, resourceInput.description, resourceInput.encoding);
 		}
 
 		return null;

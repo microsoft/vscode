@@ -35,7 +35,7 @@
 	"welcomePage.learn": "学习",
 	"welcomePage.showCommands": "查找并运行所有命令",
 	"welcomePage.showCommandsDescription": "使用命令面板快速访问和搜索命令 ({0})",
-	"welcomePage.interfaceOverview": "界面概述",
+	"welcomePage.interfaceOverview": "界面概览",
 	"welcomePage.interfaceOverviewDescription": "查看突出显示主要 UI 组件的叠加图",
 	"welcomePage.interactivePlayground": "交互式演练场",
 	"welcomePage.interactivePlaygroundDescription": "在简短演练中试用编辑器的基本功能"

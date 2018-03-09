@@ -15,5 +15,6 @@
 	"developer": "Entwickler",
 	"extensionsConfigurationTitle": "Erweiterungen",
 	"extensionsAutoUpdate": "Erweiterungen automatisch aktualisieren",
-	"extensionsIgnoreRecommendations": "Bei TRUE werden Benachrichtigungen für Erweiterungsempfehlungen nicht mehr angezeigt."
+	"extensionsIgnoreRecommendations": "Bei TRUE werden Benachrichtigungen für Erweiterungsempfehlungen nicht mehr angezeigt.",
+	"extensionsShowRecommendationsOnlyOnDemand": "Wenn Sie \"True\" festlegen, werden Empfehlungen nur auf Anforderung vom Benutzer abgerufen oder angezeigt."
 }

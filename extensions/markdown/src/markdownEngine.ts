@@ -150,9 +150,15 @@ export class MarkdownEngine {
 					}
 
 					if (fragment) {
-						uri = uri.with({ fragment });
+						uri = uri.with({
+							fragment: Slug.fromHeading(fragment).value
+						});
 					}
 					return normalizeLink(uri.with({ scheme: 'vscode-workspace-resource' }).toString(true));
+				} else if (!uri.scheme && !uri.path && uri.fragment) {
+					return normalizeLink(uri.with({
+						fragment: Slug.fromHeading(uri.fragment).value
+					}).toString(true));
 				}
 			} catch (e) {
 				// noop

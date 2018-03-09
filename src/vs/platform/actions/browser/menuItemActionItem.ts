@@ -19,8 +19,10 @@ import { IdGenerator } from 'vs/base/common/idGenerator';
 import { createCSSRule } from 'vs/base/browser/dom';
 import URI from 'vs/base/common/uri';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { isWindows } from 'vs/base/common/platform';
 
-class AltKeyEmitter extends Emitter<boolean> {
+// The alternative key on all platforms is alt. On windows we also support shift as an alternative key #44136
+class AlternativeKeyEmitter extends Emitter<boolean> {
 
 	private _subscriptions: IDisposable[] = [];
 	private _isPressed: boolean;
@@ -28,7 +30,9 @@ class AltKeyEmitter extends Emitter<boolean> {
 	private constructor(contextMenuService: IContextMenuService) {
 		super();
 
-		this._subscriptions.push(domEvent(document.body, 'keydown')(e => this.isPressed = e.altKey));
+		this._subscriptions.push(domEvent(document.body, 'keydown')(e => {
+			this.isPressed = e.altKey || (isWindows && e.shiftKey);
+		}));
 		this._subscriptions.push(domEvent(document.body, 'keyup')(e => this.isPressed = false));
 		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => this.isPressed = false));
 		this._subscriptions.push(domEvent(document.body, 'blur')(e => this.isPressed = false));
@@ -47,7 +51,7 @@ class AltKeyEmitter extends Emitter<boolean> {
 
 	@memoize
 	static getInstance(contextMenuService: IContextMenuService) {
-		return new AltKeyEmitter(contextMenuService);
+		return new AlternativeKeyEmitter(contextMenuService);
 	}
 
 	dispose() {
@@ -61,11 +65,11 @@ export function fillInActions(menu: IMenu, options: IMenuActionOptions, target: 
 	if (groups.length === 0) {
 		return;
 	}
-	const altKey = AltKeyEmitter.getInstance(contextMenuService);
+	const getAlternativeActions = AlternativeKeyEmitter.getInstance(contextMenuService).isPressed;
 
 	for (let tuple of groups) {
 		let [group, actions] = tuple;
-		if (altKey.isPressed) {
+		if (getAlternativeActions) {
 			actions = actions.map(a => !!a.alt ? a.alt : a);
 		}
 
@@ -152,10 +156,10 @@ export class MenuItemActionItem extends ActionItem {
 		this._updateItemClass(this._action.item);
 
 		let mouseOver = false;
-		let altDown = false;
+		let alternativeKeyDown = false;
 
 		const updateAltState = () => {
-			const wantsAltCommand = mouseOver && altDown;
+			const wantsAltCommand = mouseOver && alternativeKeyDown;
 			if (wantsAltCommand !== this._wantsAltCommand) {
 				this._wantsAltCommand = wantsAltCommand;
 				this._updateLabel();
@@ -164,8 +168,8 @@ export class MenuItemActionItem extends ActionItem {
 			}
 		};
 
-		this._callOnDispose.push(AltKeyEmitter.getInstance(this._contextMenuService).event(value => {
-			altDown = value;
+		this._callOnDispose.push(AlternativeKeyEmitter.getInstance(this._contextMenuService).event(value => {
+			alternativeKeyDown = value;
 			updateAltState();
 		}));
 

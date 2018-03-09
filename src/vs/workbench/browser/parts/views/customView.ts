@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/views';
-import Event, { Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -33,6 +32,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export class CustomViewsService extends Disposable implements ICustomViewsService {
 
@@ -101,14 +101,10 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 	private _hasIconForParentNode = false;
 	private _hasIconForLeafNode = false;
 
-	private _onDidIconsChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidIconsChange: Event<void> = this._onDidIconsChange.event;
-
 	private treeContainer: HTMLElement;
 	private tree: FileIconThemableWorkbenchTree;
 	private root: ITreeItem;
 	private elementsToRefresh: ITreeItem[] = [];
-	private refreshing = 0;
 
 	private _dataProvider: ITreeViewDataProvider;
 	private dataProviderDisposables: IDisposable[] = [];
@@ -133,7 +129,6 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 	set dataProvider(dataProvider: ITreeViewDataProvider) {
 		dispose(this.dataProviderDisposables);
 		if (dataProvider) {
-			const customTreeView: CustomTreeViewer = this;
 			this._dataProvider = new class implements ITreeViewDataProvider {
 				onDidChange = dataProvider.onDidChange;
 				onDispose = dataProvider.onDispose;
@@ -144,9 +139,6 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 					const promise = node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node);
 					return promise.then(children => {
 						node.children = children;
-						if (!customTreeView.refreshing) {
-							customTreeView.updateIconsAvailability(node);
-						}
 						return children;
 					});
 				}
@@ -206,7 +198,7 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 			}
 
 			// Pass Focus to Viewer
-			this.tree.DOMFocus();
+			this.tree.domFocus();
 		}
 	}
 
@@ -222,7 +214,7 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 		const actionItemProvider = (action: IAction) => action instanceof MenuItemAction ? this.instantiationService.createInstance(ContextAwareMenuItemActionItem, action) : undefined;
 		const menus = this.instantiationService.createInstance(Menus, this.id);
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this);
-		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, this, menus, actionItemProvider);
+		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, menus, actionItemProvider);
 		const controller = this.instantiationService.createInstance(TreeController, this.id, menus);
 		this.tree = this.instantiationService.createInstance(FileIconThemableWorkbenchTree, this.treeContainer, { dataSource, renderer, controller }, {});
 		this.tree.contextKeyService.createKey<boolean>(this.id, true);
@@ -262,10 +254,10 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 		return TPromise.as(null);
 	}
 
-	reveal(item: ITreeItem, parentChain: ITreeItem[], options?: { donotSelect?: boolean }): TPromise<void> {
+	reveal(item: ITreeItem, parentChain: ITreeItem[], options?: { select?: boolean }): TPromise<void> {
 		if (this.tree && this.isVisible) {
-			options = options ? options : { donotSelect: false };
-			const select = !options.donotSelect;
+			options = options ? options : { select: true };
+			const select = isUndefinedOrNull(options.select) ? true : options.select;
 			var result = TPromise.as(null);
 			parentChain.forEach((e) => {
 				result = result.then(() => this.tree.expand(e));
@@ -289,58 +281,9 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 
 	private doRefresh(elements: ITreeItem[]): TPromise<void> {
 		if (this.tree) {
-			return TPromise.join(elements.map(e => {
-				this.refreshing++;
-				return this.tree.refresh(e).then(() => this.refreshing--, () => this.refreshing--);
-			})).then(() => this.updateIconsAvailability(this.root));
+			return TPromise.join(elements.map(e => this.tree.refresh(e))).then(() => null);
 		}
 		return TPromise.as(null);
-	}
-
-	private updateIconsAvailability(parent: ITreeItem): void {
-		if (this.activated && this.tree) {
-			const initialResult = parent instanceof Root ? { hasIconForParentNode: false, hasIconForLeafNode: false } : { hasIconForParentNode: this.hasIconForParentNode, hasIconForLeafNode: this.hasIconForLeafNode };
-			const { hasIconForParentNode, hasIconForLeafNode } = this.computeIconsAvailability(parent.children || [], initialResult);
-			const changed = this.hasIconForParentNode !== hasIconForParentNode || this.hasIconForLeafNode !== hasIconForLeafNode;
-			this._hasIconForParentNode = hasIconForParentNode;
-			this._hasIconForLeafNode = hasIconForLeafNode;
-			if (changed) {
-				this._onDidIconsChange.fire();
-			}
-			DOM.toggleClass(this.treeContainer, 'custom-view-align-icons-and-twisties', this.hasIconForLeafNode && !this.hasIconForParentNode);
-		}
-	}
-
-	private computeIconsAvailability(nodes: ITreeItem[], result: { hasIconForParentNode: boolean, hasIconForLeafNode: boolean }): { hasIconForParentNode: boolean, hasIconForLeafNode: boolean } {
-		if (!result.hasIconForLeafNode || !result.hasIconForParentNode) {
-			for (const node of nodes) {
-				if (this.hasIcon(node)) {
-					result.hasIconForParentNode = result.hasIconForParentNode || node.collapsibleState !== TreeItemCollapsibleState.None;
-					result.hasIconForLeafNode = result.hasIconForLeafNode || node.collapsibleState === TreeItemCollapsibleState.None;
-				}
-				this.computeIconsAvailability(node.children || [], result);
-				if (result.hasIconForLeafNode && result.hasIconForParentNode) {
-					return result;
-				}
-			}
-		}
-		return result;
-	}
-
-	private hasIcon(node: ITreeItem): boolean {
-		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
-		if (icon) {
-			return true;
-		}
-		if (node.resourceUri || node.themeIcon) {
-			const fileIconTheme = this.themeService.getFileIconTheme();
-			const isFolder = node.themeIcon ? node.themeIcon.id === FolderThemeIcon.id : node.collapsibleState !== TreeItemCollapsibleState.None;
-			if (isFolder) {
-				return fileIconTheme.hasFileIcons && fileIconTheme.hasFolderIcons;
-			}
-			return fileIconTheme.hasFileIcons;
-		}
-		return false;
 	}
 
 	private onSelection({ payload }: any): void {
@@ -394,8 +337,9 @@ class TreeDataSource implements IDataSource {
 interface ITreeExplorerTemplateData {
 	label: HTMLElement;
 	resourceLabel: ResourceLabel;
-	icon: TreeItemIcon;
+	icon: HTMLElement;
 	actionBar: ActionBar;
+	aligner: Aligner;
 }
 
 class TreeRenderer implements IRenderer {
@@ -405,7 +349,6 @@ class TreeRenderer implements IRenderer {
 
 	constructor(
 		private treeViewId: string,
-		private treeViewer: ITreeViewer,
 		private menus: Menus,
 		private actionItemProvider: IActionItemProvider,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -424,7 +367,7 @@ class TreeRenderer implements IRenderer {
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): ITreeExplorerTemplateData {
 		DOM.addClass(container, 'custom-view-tree-node-item');
 
-		const icon = this.instantiationService.createInstance(TreeItemIcon, container, this.treeViewer);
+		const icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
 		const label = DOM.append(container, DOM.$('.custom-view-tree-node-item-label'));
 		const resourceLabel = this.instantiationService.createInstance(ResourceLabel, container, {});
 		const actionsContainer = DOM.append(container, DOM.$('.actions'));
@@ -433,7 +376,7 @@ class TreeRenderer implements IRenderer {
 			actionRunner: new MultipleSelectionActionRunner(() => tree.getSelection())
 		});
 
-		return { label, resourceLabel, icon, actionBar };
+		return { label, resourceLabel, icon, actionBar, aligner: new Aligner(container, tree, this.themeService) };
 	}
 
 	public renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
@@ -458,9 +401,12 @@ class TreeRenderer implements IRenderer {
 			templateData.label.title = typeof node.tooltip === 'string' ? node.tooltip : label;
 		}
 
-		templateData.icon.treeItem = node;
+		templateData.icon.style.backgroundImage = icon ? `url('${icon}')` : '';
+		DOM.toggleClass(templateData.icon, 'custom-view-tree-node-item-icon', !!icon);
 		templateData.actionBar.context = (<TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle });
 		templateData.actionBar.push(this.menus.getResourceActions(node), { icon: true, label: false });
+
+		templateData.aligner.align(node);
 	}
 
 	private getFileKind(node: ITreeItem): FileKind {
@@ -478,55 +424,81 @@ class TreeRenderer implements IRenderer {
 	public disposeTemplate(tree: ITree, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		templateData.resourceLabel.dispose();
 		templateData.actionBar.dispose();
-		templateData.icon.dispose();
+		templateData.aligner.dispose();
 	}
 }
 
-class TreeItemIcon extends Disposable {
+class Aligner extends Disposable {
 
-	private _treeItem: ITreeItem;
-	private iconElement: HTMLElement;
+	private node: ITreeItem;
 
 	constructor(
-		container: HTMLElement,
-		private treeViewer: CustomTreeViewer,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService
+		private container: HTMLElement,
+		private tree: ITree,
+		private themeService: IWorkbenchThemeService
 	) {
 		super();
-		this.iconElement = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
-		this._register(this.treeViewer.onDidIconsChange(() => this.render()));
+		this._register(this.themeService.onDidFileIconThemeChange(() => this.alignByTheme()));
 	}
 
-	set treeItem(treeItem: ITreeItem) {
-		this._treeItem = treeItem;
-		this.render();
+	align(treeItem: ITreeItem): void {
+		this.node = treeItem;
+		this.alignByTheme();
 	}
 
-	private render(): void {
-		if (this._treeItem) {
-			const fileIconTheme = this.themeService.getFileIconTheme();
-			const contributedIcon = this.themeService.getTheme().type === LIGHT ? this._treeItem.icon : this._treeItem.iconDark;
-
-			const hasContributedIcon = !!contributedIcon;
-			const hasChildren = this._treeItem.collapsibleState !== TreeItemCollapsibleState.None;
-			const hasThemeIcon = !!this._treeItem.resourceUri || !!this._treeItem.themeIcon;
-			const isFolder = hasThemeIcon && this._treeItem.themeIcon ? this._treeItem.themeIcon.id === FolderThemeIcon.id : hasChildren;
-			const isFile = hasThemeIcon && this._treeItem.themeIcon ? this._treeItem.themeIcon.id === FileThemeIcon.id : !hasChildren;
-			const hasThemeFolderIcon = isFolder && fileIconTheme.hasFileIcons && fileIconTheme.hasFolderIcons;
-			const hasThemeFileIcon = isFile && fileIconTheme.hasFileIcons;
-			const hasIcon = hasContributedIcon || hasThemeFolderIcon || hasThemeFileIcon;
-			const hasFolderPlaceHolderIcon = hasIcon ? false : isFolder && this.treeViewer.hasIconForParentNode;
-			const hasFilePlaceHolderIcon = hasIcon ? false : isFile && this.treeViewer.hasIconForLeafNode;
-			const hasContainerPlaceHolderIcon = hasIcon || hasFolderPlaceHolderIcon ? false : hasChildren && this.treeViewer.hasIconForParentNode;
-			const hasLeafPlaceHolderIcon = hasIcon || hasFilePlaceHolderIcon ? false : !hasChildren && (this.treeViewer.hasIconForParentNode || this.treeViewer.hasIconForLeafNode);
-
-			this.iconElement.style.backgroundImage = hasContributedIcon ? `url('${contributedIcon}')` : '';
-			DOM.toggleClass(this.iconElement, 'folder-icon', hasFolderPlaceHolderIcon);
-			DOM.toggleClass(this.iconElement, 'file-icon', hasFilePlaceHolderIcon);
-			DOM.toggleClass(this.iconElement, 'placeholder-icon', hasContainerPlaceHolderIcon);
-			DOM.toggleClass(this.iconElement, 'custom-view-tree-node-item-icon', hasContributedIcon || hasFolderPlaceHolderIcon || hasFilePlaceHolderIcon || hasContainerPlaceHolderIcon || hasLeafPlaceHolderIcon);
+	private alignByTheme(): void {
+		if (this.node) {
+			DOM.toggleClass(this.container, 'align-with-twisty', this.hasToAlignWithTwisty());
 		}
+	}
+
+	private hasToAlignWithTwisty(): boolean {
+		if (this.hasParentHasIcon()) {
+			return false;
+		}
+
+		const fileIconTheme = this.themeService.getFileIconTheme();
+		if (!(fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons)) {
+			return false;
+		}
+		if (this.node.collapsibleState !== TreeItemCollapsibleState.None) {
+			return false;
+		}
+		const icon = this.themeService.getTheme().type === LIGHT ? this.node.icon : this.node.iconDark;
+		const hasIcon = !!icon || !!this.node.resourceUri;
+		if (!hasIcon) {
+			return false;
+		}
+
+		const siblingsWithChildren = this.getSiblings().filter(s => s.collapsibleState !== TreeItemCollapsibleState.None);
+		for (const s of siblingsWithChildren) {
+			const icon = this.themeService.getTheme().type === LIGHT ? s.icon : s.iconDark;
+			if (icon) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	private getSiblings(): ITreeItem[] {
+		const parent: ITreeItem = this.tree.getNavigator(this.node).parent() || this.tree.getInput();
+		return parent.children;
+	}
+
+	private hasParentHasIcon(): boolean {
+		const parent = this.tree.getNavigator(this.node).parent() || this.tree.getInput();
+		const icon = this.themeService.getTheme().type === LIGHT ? parent.icon : parent.iconDark;
+		if (icon) {
+			return true;
+		}
+		if (parent.resourceUri) {
+			const fileIconTheme = this.themeService.getFileIconTheme();
+			if (fileIconTheme.hasFileIcons && fileIconTheme.hasFolderIcons) {
+				return true;
+			}
+		}
+		return false;
 	}
 }
 
@@ -569,7 +541,7 @@ class TreeController extends WorkbenchTreeController {
 
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
-					tree.DOMFocus();
+					tree.domFocus();
 				}
 			},
 

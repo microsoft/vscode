@@ -173,7 +173,7 @@ export interface ITreeViewer extends IDisposable {
 
 	getOptimalWidth(): number;
 
-	reveal(item: ITreeItem, parentChain: ITreeItem[], options: { donotSelect?: boolean }): TPromise<void>;
+	reveal(item: ITreeItem, parentChain: ITreeItem[], options: { select?: boolean }): TPromise<void>;
 }
 
 export interface ICustomViewDescriptor extends IViewDescriptor {

@@ -32,7 +32,7 @@ export function getDefaultTerminalLinuxReady(): TPromise<string> {
 			}
 
 			c('xterm');
-		});
+		}, () => { });
 	}
 	return _DEFAULT_TERMINAL_LINUX_READY;
 }

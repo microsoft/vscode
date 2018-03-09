@@ -50,7 +50,7 @@ export class KeybindingsEditorInput extends EditorInput {
 	public static readonly ID: string = 'workbench.input.keybindings';
 	public readonly keybindingsModel: KeybindingsEditorModel;
 
-	constructor( @IInstantiationService instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();
 		this.keybindingsModel = instantiationService.createInstance(KeybindingsEditorModel, OS);
 	}
@@ -181,7 +181,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.showOverlayContainer();
 		return this.defineKeybindingWidget.define().then(key => {
 			if (key) {
-				if (key !== keybindingEntry.keybindingItem.keybinding.getUserSettingsLabel()) {
+				const currentKey = keybindingEntry.keybindingItem.keybinding ? keybindingEntry.keybindingItem.keybinding.getUserSettingsLabel() : '';
+				if (currentKey !== key) {
 					this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_DEFINE, keybindingEntry.keybindingItem.command, key);
 					return this.keybindingEditingService.editKeybinding(key, keybindingEntry.keybindingItem.keybindingItem)
 						.then(() => {
@@ -209,10 +210,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_REMOVE, keybindingEntry.keybindingItem.command, keybindingEntry.keybindingItem.keybinding);
 			return this.keybindingEditingService.removeKeybinding(keybindingEntry.keybindingItem.keybindingItem)
 				.then(() => this.focus(),
-				error => {
-					this.onKeybindingEditingError(error);
-					this.selectEntry(keybindingEntry);
-				});
+					error => {
+						this.onKeybindingEditingError(error);
+						this.selectEntry(keybindingEntry);
+					});
 		}
 		return TPromise.as(null);
 	}
@@ -227,10 +228,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				}
 				this.selectEntry(keybindingEntry);
 			},
-			error => {
-				this.onKeybindingEditingError(error);
-				this.selectEntry(keybindingEntry);
-			});
+				error => {
+					this.onKeybindingEditingError(error);
+					this.selectEntry(keybindingEntry);
+				});
 	}
 
 	copyKeybinding(keybinding: IKeybindingItemEntry): TPromise<any> {

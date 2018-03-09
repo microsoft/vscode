@@ -35,6 +35,7 @@
 	"terminal.integrated.env.linux": "要添加到 VS Code 进程中的带有环境变量的对象，其会被 Linux 终端使用。",
 	"terminal.integrated.env.windows": "要添加到 VS Code 进程中的带有环境变量的对象，其会被 Windows 终端使用。",
 	"terminal.integrated.showExitAlert": "当退出代码非零时，显示“终端进程以某退出代码终止”的警告。",
+	"terminal.integrated.experimentalRestore": "启动 VS Code 时，是否自动恢复工作区的终端会话。这是一项实验性设置，可能会出现问题，将来也可能会有变化。",
 	"terminalCategory": "终端",
 	"viewCategory": "查看"
 }

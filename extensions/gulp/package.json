@@ -3,7 +3,7 @@
   "publisher": "vscode",
   "description": "%description%",
   "displayName": "%displayName%",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "icon": "images/gulp.png",
   "engines": {
     "vscode": "*"

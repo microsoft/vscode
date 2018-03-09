@@ -102,7 +102,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IInstantiationService private instantiationService: IInstantiationService) {
 
 		this.container = container;
-		this.colorThemeStore = new ColorThemeStore(extensionService);
+		this.colorThemeStore = new ColorThemeStore(extensionService, ColorThemeData.createLoadedEmptyTheme(DEFAULT_THEME_ID, DEFAULT_THEME_SETTING_VALUE));
 		this.onFileIconThemeChange = new Emitter<IFileIconTheme>();
 		this.iconThemeStore = new FileIconThemeStore(extensionService);
 		this.onColorThemeChange = new Emitter<IColorTheme>();
@@ -465,7 +465,7 @@ colorThemeSchema.register();
 fileIconThemeSchema.register();
 
 class ConfigurationWriter {
-	constructor( @IConfigurationService private configurationService: IConfigurationService) {
+	constructor(@IConfigurationService private configurationService: IConfigurationService) {
 	}
 
 	public writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget): TPromise<void> {

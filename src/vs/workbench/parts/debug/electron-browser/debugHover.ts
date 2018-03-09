@@ -281,7 +281,7 @@ export class DebugHoverWidget implements IContentWidget {
 			this.scrollbar.scanDomNode();
 			if (focus) {
 				this.editor.render();
-				this.tree.DOMFocus();
+				this.tree.domFocus();
 			}
 		});
 	}

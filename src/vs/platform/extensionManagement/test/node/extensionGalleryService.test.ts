@@ -26,7 +26,7 @@ suite('Extension Gallery Service', () => {
 		extfs.del(marketplaceHome, os.tmpdir(), () => {
 			mkdirp(marketplaceHome).then(() => {
 				done();
-			});
+			}, error => done(error));
 		});
 	});
 
@@ -34,7 +34,7 @@ suite('Extension Gallery Service', () => {
 		extfs.del(marketplaceHome, os.tmpdir(), done);
 	});
 
-	test('marketplace machine id', done => {
+	test('marketplace machine id', () => {
 		const args = ['--user-data-dir', marketplaceHome];
 		const environmentService = new EnvironmentService(parseArgs(args), process.execPath);
 
@@ -43,8 +43,6 @@ suite('Extension Gallery Service', () => {
 
 			return resolveMarketplaceHeaders(environmentService).then(headers2 => {
 				assert.equal(headers['X-Market-User-Id'], headers2['X-Market-User-Id']);
-
-				done();
 			});
 		});
 	});

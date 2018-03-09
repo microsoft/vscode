@@ -28,6 +28,8 @@
 	"selectProblemMatcher": "スキャンするタスク出力のエラーと警告の種類を選択",
 	"customizeParseErrors": "現在のタスクの構成にはエラーがあります。タスクをカスタマイズする前にエラーを修正してください。",
 	"moreThanOneBuildTask": "tasks.json で複数のビルド タスクが定義されています。最初のタスクのみを実行します。\\n",
+	"TaskSystem.activeSame.background": "'{0}' タスクは既にバックグラウンド モードでアクティブです。タスクを終了するにはタスク メニューから `タスクの終了...` を使用します。",
+	"TaskSystem.activeSame.noBackground": "{0}' タスクは既にアクティブです。タスクを終了するにはタスク メニューから `タスクの終了...` を使用します。",
 	"TaskSystem.active": "既に実行中のタスクがあります。まずこのタスクを終了してから、別のタスクを実行してください。",
 	"TaskSystem.restartFailed": "タスク {0} を終了して再開できませんでした",
 	"TaskService.noConfiguration": "エラー: {0} タスク検出は次の構成に対してタスクを提供していません:\n{1}\nこのタスクは無視されます。\n",

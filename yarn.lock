@@ -13,6 +13,12 @@
     normalize-path "^2.0.1"
     through2 "^2.0.3"
 
+"@types/commander@^2.11.0":
+  version "2.12.2"
+  resolved "https://registry.yarnpkg.com/@types/commander/-/commander-2.12.2.tgz#183041a23842d4281478fa5d23c5ca78e6fd08ae"
+  dependencies:
+    commander "*"
+
 "@types/keytar@4.0.1":
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/@types/keytar/-/keytar-4.0.1.tgz#e2cf6405dc33861424e59b67516c66d2cf7bc21b"
@@ -28,6 +34,10 @@
 "@types/node@*":
   version "4.2.22"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-4.2.22.tgz#cf488a0f6b4a9c245d09927f4f757ca278b9c8ce"
+
+"@types/semver@^5.4.0":
+  version "5.5.0"
+  resolved "https://registry.yarnpkg.com/@types/semver/-/semver-5.5.0.tgz#146c2a29ee7d3bae4bf2fcb274636e264c813c45"
 
 "@types/sinon@1.16.34":
   version "1.16.34"
@@ -225,8 +235,8 @@ arrify@^1.0.0:
   resolved "https://registry.yarnpkg.com/arrify/-/arrify-1.0.1.tgz#898508da2226f380df904728456849c1501a4b0d"
 
 asap@~2.0.3:
-  version "2.0.5"
-  resolved "https://registry.yarnpkg.com/asap/-/asap-2.0.5.tgz#522765b50c3510490e52d7dcfe085ef9ba96958f"
+  version "2.0.6"
+  resolved "https://registry.yarnpkg.com/asap/-/asap-2.0.6.tgz#e50347611d7e690943208bbdafebcbc2fb866d46"
 
 asar@^0.14.0:
   version "0.14.0"
@@ -416,10 +426,6 @@ bl@~1.1.2:
   resolved "https://registry.yarnpkg.com/bl/-/bl-1.1.2.tgz#fdca871a99713aa00d19e3bbba41c44787a65398"
   dependencies:
     readable-stream "~2.0.5"
-
-bluebird@^3.0.5:
-  version "3.5.1"
-  resolved "https://registry.yarnpkg.com/bluebird/-/bluebird-3.5.1.tgz#d9551f9de98f1fcda1e683d17ee91a0602ee2eb9"
 
 body-parser@1.18.2:
   version "1.18.2"
@@ -785,6 +791,10 @@ combined-stream@~0.0.4:
   resolved "https://registry.yarnpkg.com/combined-stream/-/combined-stream-0.0.7.tgz#0137e657baa5a7541c57ac37ac5fc07d73b4dc1f"
   dependencies:
     delayed-stream "0.0.5"
+
+commander@*, commander@^2.11.0:
+  version "2.15.0"
+  resolved "https://registry.yarnpkg.com/commander/-/commander-2.15.0.tgz#ad2a23a1c3b036e392469b8012cec6b33b4c1322"
 
 commander@0.6.1:
   version "0.6.1"
@@ -1241,14 +1251,15 @@ ecc-jsbn@~0.1.1:
   dependencies:
     jsbn "~0.1.0"
 
-editorconfig@^0.13.2:
-  version "0.13.3"
-  resolved "https://registry.yarnpkg.com/editorconfig/-/editorconfig-0.13.3.tgz#e5219e587951d60958fd94ea9a9a008cdeff1b34"
+editorconfig@^0.15.0:
+  version "0.15.0"
+  resolved "https://registry.yarnpkg.com/editorconfig/-/editorconfig-0.15.0.tgz#b6dd4a0b6b9e76ce48e066bdc15381aebb8804fd"
   dependencies:
-    bluebird "^3.0.5"
-    commander "^2.9.0"
-    lru-cache "^3.2.0"
-    semver "^5.1.0"
+    "@types/commander" "^2.11.0"
+    "@types/semver" "^5.4.0"
+    commander "^2.11.0"
+    lru-cache "^4.1.1"
+    semver "^5.4.1"
     sigmund "^1.0.1"
 
 ee-first@1.1.1:
@@ -1335,16 +1346,6 @@ es6-map@^0.1.3:
     es6-set "~0.1.5"
     es6-symbol "~3.1.1"
     event-emitter "~0.3.5"
-
-es6-promise@^4.0.3:
-  version "4.1.1"
-  resolved "https://registry.yarnpkg.com/es6-promise/-/es6-promise-4.1.1.tgz#8811e90915d9a0dba36274f0b242dbda78f9c92a"
-
-es6-promisify@^5.0.0:
-  version "5.0.0"
-  resolved "https://registry.yarnpkg.com/es6-promisify/-/es6-promisify-5.0.0.tgz#5109d62f3e56ea967c4b63505aef08291c8a5203"
-  dependencies:
-    es6-promise "^4.0.3"
 
 es6-set@~0.1.5:
   version "0.1.5"
@@ -1800,16 +1801,6 @@ flat-cache@^1.2.1:
     graceful-fs "^4.1.2"
     write "^0.2.1"
 
-flatpak-bundler@^0.1.1:
-  version "0.1.3"
-  resolved "https://registry.yarnpkg.com/flatpak-bundler/-/flatpak-bundler-0.1.3.tgz#e45dfa0c4a7485c370e0915e4728929798503946"
-  dependencies:
-    debug "^2.2.0"
-    es6-promisify "^5.0.0"
-    fs-extra "^0.30.0"
-    lodash "^4.16.2"
-    tmp "0.0.29"
-
 flatten@^1.0.2:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/flatten/-/flatten-1.0.2.tgz#dae46a9d78fbe25292258cc1e780a41d95c03782"
@@ -1906,16 +1897,6 @@ fs-extra@0.26.7, fs-extra@^0.26.5:
     path-is-absolute "^1.0.0"
     rimraf "^2.2.8"
 
-fs-extra@^0.30.0:
-  version "0.30.0"
-  resolved "https://registry.yarnpkg.com/fs-extra/-/fs-extra-0.30.0.tgz#f233ffcc08d4da7d432daa449776989db1df93f0"
-  dependencies:
-    graceful-fs "^4.1.2"
-    jsonfile "^2.1.0"
-    klaw "^1.0.0"
-    path-is-absolute "^1.0.0"
-    rimraf "^2.2.8"
-
 fs-extra@^2.0.0:
   version "2.1.2"
   resolved "https://registry.yarnpkg.com/fs-extra/-/fs-extra-2.1.2.tgz#046c70163cef9aad46b0e4a7fa467fb22d71de35"
@@ -2000,13 +1981,6 @@ glob-base@^0.3.0:
     glob-parent "^2.0.0"
     is-glob "^2.0.0"
 
-glob-expand@^0.2.1:
-  version "0.2.1"
-  resolved "https://registry.yarnpkg.com/glob-expand/-/glob-expand-0.2.1.tgz#1b088ac272b57158870b76816111da4618a66a0f"
-  dependencies:
-    glob "~4.5.x"
-    lodash "~4.13.x"
-
 glob-parent@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/glob-parent/-/glob-parent-2.0.0.tgz#81383d72db054fcccf5336daa902f182f6edbb28"
@@ -2073,7 +2047,7 @@ glob@5.x, glob@^5.0.13, glob@^5.0.3:
     once "^1.3.0"
     path-is-absolute "^1.0.0"
 
-glob@^4.3.1, glob@~4.5.x:
+glob@^4.3.1:
   version "4.5.3"
   resolved "https://registry.yarnpkg.com/glob/-/glob-4.5.3.tgz#c6cb73d3226c1efef04de3c56d012f03377ee15f"
   dependencies:
@@ -3537,7 +3511,7 @@ lodash@^3.5.0:
   version "3.10.1"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-3.10.1.tgz#5bf45e8e49ba4189e17d482789dfd15bd140b7b6"
 
-lodash@^4.0.0, lodash@^4.13.1, lodash@^4.14.0, lodash@^4.15.0, lodash@^4.16.2, lodash@^4.3.0:
+lodash@^4.0.0, lodash@^4.13.1, lodash@^4.14.0, lodash@^4.15.0, lodash@^4.3.0:
   version "4.17.4"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.4.tgz#78203a4d1c328ae1d86dca6460e369b57f4055ae"
 
@@ -3552,10 +3526,6 @@ lodash@~1.0.1:
 lodash@~2.4.1:
   version "2.4.2"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-2.4.2.tgz#fadd834b9683073da179b3eae6d9c0d15053f73e"
-
-lodash@~4.13.x:
-  version "4.13.1"
-  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.13.1.tgz#83e4b10913f48496d4d16fec4a560af2ee744b68"
 
 log-driver@1.2.5:
   version "1.2.5"
@@ -3580,15 +3550,16 @@ lru-cache@2:
   version "2.7.3"
   resolved "https://registry.yarnpkg.com/lru-cache/-/lru-cache-2.7.3.tgz#6d4524e8b955f95d4f5b58851ce21dd72fb4e952"
 
-lru-cache@^3.2.0:
-  version "3.2.0"
-  resolved "https://registry.yarnpkg.com/lru-cache/-/lru-cache-3.2.0.tgz#71789b3b7f5399bec8565dda38aa30d2a097efee"
-  dependencies:
-    pseudomap "^1.0.1"
-
 lru-cache@^4.0.1:
   version "4.1.1"
   resolved "https://registry.yarnpkg.com/lru-cache/-/lru-cache-4.1.1.tgz#622e32e82488b49279114a4f9ecf45e7cd6bba55"
+  dependencies:
+    pseudomap "^1.0.2"
+    yallist "^2.1.2"
+
+lru-cache@^4.1.1:
+  version "4.1.2"
+  resolved "https://registry.yarnpkg.com/lru-cache/-/lru-cache-4.1.2.tgz#45234b2e6e2f2b33da125624c4664929a0224c3f"
   dependencies:
     pseudomap "^1.0.2"
     yallist "^2.1.2"
@@ -3847,9 +3818,9 @@ nan@2.5.1:
   version "2.5.1"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.5.1.tgz#d5b01691253326a97a2bbee9e61c55d8d60351e2"
 
-nan@^2.0.0, nan@^2.6.2:
-  version "2.6.2"
-  resolved "https://registry.yarnpkg.com/nan/-/nan-2.6.2.tgz#e4ff34e6c95fdfb5aecc08de6596f43605a7db45"
+nan@^2.0.0:
+  version "2.9.2"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.9.2.tgz#f564d75f5f8f36a6d9456cca7a6c4fe488ab7866"
 
 nan@^2.0.9, nan@^2.3.0:
   version "2.4.0"
@@ -3858,6 +3829,10 @@ nan@^2.0.9, nan@^2.3.0:
 nan@^2.1.0:
   version "2.7.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.7.0.tgz#d95bf721ec877e08db276ed3fc6eb78f9083ad46"
+
+nan@^2.6.2:
+  version "2.6.2"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.6.2.tgz#e4ff34e6c95fdfb5aecc08de6596f43605a7db45"
 
 nan@^2.8.0:
   version "2.8.0"
@@ -3962,16 +3937,6 @@ npm-run-path@^2.0.0:
   resolved "https://registry.yarnpkg.com/npm-run-path/-/npm-run-path-2.0.2.tgz#35a9232dfa35d7067b4cb2ddf2357b1871536c5f"
   dependencies:
     path-key "^2.0.0"
-
-nsfw@1.0.16:
-  version "1.0.16"
-  resolved "https://registry.yarnpkg.com/nsfw/-/nsfw-1.0.16.tgz#78ba3e7f513b53d160c221b9018e0baf108614cc"
-  dependencies:
-    fs-extra "^0.26.5"
-    lodash.isinteger "^4.0.4"
-    lodash.isundefined "^3.0.1"
-    nan "^2.0.0"
-    promisify-node "^0.3.0"
 
 nth-check@~1.0.1:
   version "1.0.1"
@@ -4160,6 +4125,12 @@ osenv@^0.1.3:
     os-homedir "^1.0.0"
     os-tmpdir "^1.0.0"
 
+p-all@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/p-all/-/p-all-1.0.0.tgz#93bdf53a55a23821fdfa98b4174a99bf7f31df8d"
+  dependencies:
+    p-map "^1.0.0"
+
 p-finally@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/p-finally/-/p-finally-1.0.0.tgz#3fbcfb15b899a44123b34b6dcc18b724336a2cae"
@@ -4175,6 +4146,10 @@ p-locate@^2.0.0:
   resolved "https://registry.yarnpkg.com/p-locate/-/p-locate-2.0.0.tgz#20a0103b222a70c8fd39cc2e580680f3dde5ec43"
   dependencies:
     p-limit "^1.1.0"
+
+p-map@^1.0.0:
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/p-map/-/p-map-1.2.0.tgz#e4e94f311eabbc8633a1e79908165fca26241b6b"
 
 p-try@^1.0.0:
   version "1.0.0"
@@ -4602,7 +4577,7 @@ proxy-addr@~2.0.2:
     forwarded "~0.1.2"
     ipaddr.js "1.5.2"
 
-pseudomap@^1.0.1, pseudomap@^1.0.2:
+pseudomap@^1.0.2:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/pseudomap/-/pseudomap-1.0.2.tgz#f052a28da70e618917ef0a8ac34c1ae5a68286b3"
 
@@ -5057,6 +5032,10 @@ semaphore@1.0.5:
 semver@4.3.6, semver@^4.1.0, semver@^4.3.4:
   version "4.3.6"
   resolved "https://registry.yarnpkg.com/semver/-/semver-4.3.6.tgz#300bc6e0e86374f7ba61068b5b1ecd57fc6532da"
+
+semver@^5.4.1:
+  version "5.5.0"
+  resolved "https://registry.yarnpkg.com/semver/-/semver-5.5.0.tgz#dc4bbc7a6ca9d916dee5d43516f0092b58f7b8ab"
 
 send@0.16.1:
   version "0.16.1"
@@ -5654,17 +5633,16 @@ typedarray@^0.0.6:
   version "0.0.6"
   resolved "https://registry.yarnpkg.com/typedarray/-/typedarray-0.0.6.tgz#867ac74e3864187b1d3d47d996a78ec5c8830777"
 
-typescript-formatter@4.0.1:
-  version "4.0.1"
-  resolved "https://registry.yarnpkg.com/typescript-formatter/-/typescript-formatter-4.0.1.tgz#ed82daf856cc9a379bb16b7f1aac9affee2974cd"
+typescript-formatter@7.1.0:
+  version "7.1.0"
+  resolved "https://registry.yarnpkg.com/typescript-formatter/-/typescript-formatter-7.1.0.tgz#dd1b5547de211065221f765263e15f18c84c66b8"
   dependencies:
     commandpost "^1.0.0"
-    editorconfig "^0.13.2"
-    glob-expand "^0.2.1"
+    editorconfig "^0.15.0"
 
-typescript@2.6.1:
-  version "2.6.1"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.1.tgz#ef39cdea27abac0b500242d6726ab90e0c846631"
+typescript@2.7.2:
+  version "2.7.2"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.7.2.tgz#2d615a1ef4aee4f574425cdff7026edf81919836"
 
 typescript@^2.6.2:
   version "2.6.2"
@@ -5975,9 +5953,9 @@ vscode-chokidar@1.6.2:
   optionalDependencies:
     vscode-fsevents "0.3.8"
 
-vscode-debugprotocol@1.26.0:
-  version "1.26.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.26.0.tgz#8ab4588ae6a67b2c1cce0d866677a74f96a31c7b"
+vscode-debugprotocol@1.27.0:
+  version "1.27.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.27.0.tgz#735a43a3cc1235fe587c0ef93fe4e328def7b17c"
 
 vscode-fsevents@0.3.8:
   version "0.3.8"
@@ -6001,6 +5979,16 @@ vscode-nls-dev@3.0.7:
     xml2js "^0.4.19"
     yargs "^10.1.1"
 
+vscode-nsfw@1.0.17:
+  version "1.0.17"
+  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-1.0.17.tgz#da3820f26aea3a7e95cadc54bd9e5dae3d47e474"
+  dependencies:
+    fs-extra "^0.26.5"
+    lodash.isinteger "^4.0.4"
+    lodash.isundefined "^3.0.1"
+    nan "^2.0.0"
+    promisify-node "^0.3.0"
+
 vscode-ripgrep@0.7.1-patch.0.1:
   version "0.7.1-patch.0.1"
   resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-0.7.1-patch.0.1.tgz#f05d2f093fd7f6a9d10fb935171e72620feaf999"
@@ -6012,9 +6000,9 @@ vscode-textmate@^3.2.0:
     fast-plist "^0.1.2"
     oniguruma "^6.0.1"
 
-vscode-xterm@3.2.0-beta7:
-  version "3.2.0-beta7"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.2.0-beta7.tgz#352b33a17c31911d90b9c3bcfd1822800b32c8ed"
+vscode-xterm@3.3.0-beta4:
+  version "3.3.0-beta4"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.3.0-beta4.tgz#560c039c3addebe6aa3a81c5b79d2869de87ecc5"
 
 vso-node-api@^6.1.2-preview:
   version "6.1.2-preview"

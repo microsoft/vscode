@@ -36,6 +36,7 @@ export interface IExtension {
 	latestVersion: string;
 	description: string;
 	url: string;
+	downloadUrl: string;
 	repository: string;
 	iconUrl: string;
 	iconUrlFallback: string;
@@ -77,6 +78,7 @@ export interface IExtensionsWorkbenchService {
 	install(vsix: string): TPromise<void>;
 	install(extension: IExtension, promptToInstallDependencies?: boolean): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
+	reinstall(extension: IExtension): TPromise<void>;
 	setEnablement(extension: IExtension, enablementState: EnablementState): TPromise<void>;
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies>;
 	open(extension: IExtension, sideByside?: boolean): TPromise<any>;

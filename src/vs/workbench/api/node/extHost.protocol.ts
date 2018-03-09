@@ -211,7 +211,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 export interface MainThreadTreeViewsShape extends IDisposable {
 	$registerTreeViewDataProvider(treeViewId: string): void;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): void;
-	$reveal(treeViewId: string, treeItem: ITreeItem, parentChain: ITreeItem[], options?: { donotSelect?: boolean }): TPromise<void>;
+	$reveal(treeViewId: string, treeItem: ITreeItem, parentChain: ITreeItem[], options?: { select?: boolean }): TPromise<void>;
 }
 
 export interface MainThreadErrorsShape extends IDisposable {
@@ -345,7 +345,7 @@ export interface MainThreadTelemetryShape extends IDisposable {
 export type WebviewHandle = number;
 
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebview(handle: WebviewHandle, uri: URI, options: vscode.WebviewOptions): void;
+	$createWebview(handle: WebviewHandle, uri: URI, title: string, column: EditorPosition, options: vscode.WebviewOptions): void;
 	$disposeWebview(handle: WebviewHandle): void;
 	$show(handle: WebviewHandle, column: EditorPosition): void;
 	$setTitle(handle: WebviewHandle, value: string): void;
@@ -355,7 +355,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 export interface ExtHostWebviewsShape {
 	$onMessage(handle: WebviewHandle, message: any): void;
 	$onDidChangeActiveWeview(handle: WebviewHandle | undefined): void;
-	$onDidDisposeWeview(handle: WebviewHandle): void;
+	$onDidDisposeWeview(handle: WebviewHandle): Thenable<void>;
 	$onDidChangePosition(handle: WebviewHandle, newPosition: EditorPosition): void;
 }
 
@@ -692,7 +692,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$resolveWorkspaceSymbol(handle: number, symbol: SymbolInformationDto): TPromise<SymbolInformationDto>;
 	$releaseWorkspaceSymbols(handle: number, id: number): void;
 	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string): TPromise<WorkspaceEditDto>;
-	$resolveInitialRenameValue(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.RenameInitialValue>;
+	$resolveInitialRenameValue(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.RenameInformation>;
 	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.SuggestContext): TPromise<SuggestResultDto>;
 	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion>;
 	$releaseCompletionItems(handle: number, id: number): void;

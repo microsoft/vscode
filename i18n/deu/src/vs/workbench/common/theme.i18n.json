@@ -58,5 +58,13 @@
 	"titleBarInactiveForeground": "Vordergrund der Titelleiste, wenn das Fenster inaktiv ist. Diese Farbe wird derzeit nur von MacOS unterstützt.",
 	"titleBarActiveBackground": "Hintergrund der Titelleiste, wenn das Fenster aktiv ist. Diese Farbe wird derzeit nur von MacOS unterstützt.",
 	"titleBarInactiveBackground": "Hintergrund der Titelleiste, wenn das Fenster inaktiv ist. Diese Farbe wird derzeit nur von MacOS unterstützt.",
-	"titleBarBorder": "Rahmenfarbe der Titelleiste. Diese Farbe wird derzeit nur unter MacOS unterstützt."
+	"titleBarBorder": "Rahmenfarbe der Titelleiste. Diese Farbe wird derzeit nur unter MacOS unterstützt.",
+	"notificationCenterBorder": "Rahmenfarbe der Benachrichtigungszentrale. Benachrichtigungen werden unten rechts eingeblendet.",
+	"notificationToastBorder": "Rahmenfarbe der Popupbenachrichtigung. Benachrichtigungen werden unten rechts eingeblendet.",
+	"notificationsForeground": "Vordergrundfarbe für Benachrichtigungen. Benachrichtigungen werden unten rechts eingeblendet.",
+	"notificationsBackground": "Hintergrundfarbe für Benachrichtigungen. Benachrichtigungen werden unten rechts eingeblendet.",
+	"notificationsLink": "Vordergrundfarbe für Benachrichtigungslinks. Benachrichtigungen werden unten rechts eingeblendet.",
+	"notificationCenterHeaderForeground": "Vordergrundfarbe für Kopfzeile der Benachrichtigungszentrale. Benachrichtigungen werden unten rechts eingeblendet.",
+	"notificationCenterHeaderBackground": "Hintergrundfarbe für Kopfzeile der Benachrichtigungszentrale. Benachrichtigungen werden unten rechts eingeblendet.",
+	"notificationsBorder": "Rahmenfarbe für Benachrichtigungen zum Trennen von anderen Benachrichtigungen in der Benachrichtigungszentrale. Benachrichtigungen werden unten rechts eingeblendet."
 }

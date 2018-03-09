@@ -55,7 +55,7 @@ export class ListService implements IListService {
 		return this._lastFocusedWidget;
 	}
 
-	constructor( @IContextKeyService contextKeyService: IContextKeyService) { }
+	constructor(@IContextKeyService contextKeyService: IContextKeyService) { }
 
 	register(widget: ListWidget, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable {
 		if (this.lists.some(l => l.widget === widget)) {
@@ -73,7 +73,13 @@ export class ListService implements IListService {
 
 		const result = combinedDisposable([
 			widget.onDidFocus(() => this._lastFocusedWidget = widget),
-			toDisposable(() => this.lists.splice(this.lists.indexOf(registeredList), 1))
+			toDisposable(() => this.lists.splice(this.lists.indexOf(registeredList), 1)),
+			widget.onDidDispose(() => {
+				this.lists = this.lists.filter(l => l !== registeredList);
+				if (this._lastFocusedWidget === widget) {
+					this._lastFocusedWidget = undefined;
+				}
+			})
 		]);
 
 		return result;
@@ -206,16 +212,16 @@ export class WorkbenchList<T> extends List<T> {
 		this.registerListeners();
 	}
 
-	public get useAltAsMultipleSelectionModifier(): boolean {
-		return this._useAltAsMultipleSelectionModifier;
-	}
-
 	private registerListeners(): void {
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
 			}
 		}));
+	}
+
+	get useAltAsMultipleSelectionModifier(): boolean {
+		return this._useAltAsMultipleSelectionModifier;
 	}
 }
 
@@ -252,10 +258,6 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		this.registerListeners();
 	}
 
-	public get useAltAsMultipleSelectionModifier(): boolean {
-		return this._useAltAsMultipleSelectionModifier;
-	}
-
 	private registerListeners(): void {
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
@@ -264,7 +266,13 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		}));
 	}
 
+	get useAltAsMultipleSelectionModifier(): boolean {
+		return this._useAltAsMultipleSelectionModifier;
+	}
+
 	dispose(): void {
+		super.dispose();
+
 		this.disposables = dispose(this.disposables);
 	}
 }
@@ -309,14 +317,6 @@ export class WorkbenchTree extends Tree {
 		this.registerListeners();
 	}
 
-	public get openOnSingleClick(): boolean {
-		return this._openOnSingleClick;
-	}
-
-	public get useAltAsMultipleSelectionModifier(): boolean {
-		return this._useAltAsMultipleSelectionModifier;
-	}
-
 	private registerListeners(): void {
 		this.disposables.push(this.onDidChangeSelection(() => {
 			const selection = this.getSelection();
@@ -335,7 +335,17 @@ export class WorkbenchTree extends Tree {
 		}));
 	}
 
+	get openOnSingleClick(): boolean {
+		return this._openOnSingleClick;
+	}
+
+	get useAltAsMultipleSelectionModifier(): boolean {
+		return this._useAltAsMultipleSelectionModifier;
+	}
+
 	dispose(): void {
+		super.dispose();
+
 		this.disposables = dispose(this.disposables);
 	}
 }
@@ -400,7 +410,7 @@ export interface IResourceResultsNavigationOptions {
 export class TreeResourceNavigator extends Disposable {
 
 	private _openResource: Emitter<IOpenResourceOptions> = new Emitter<IOpenResourceOptions>();
-	public readonly openResource: Event<IOpenResourceOptions> = this._openResource.event;
+	readonly openResource: Event<IOpenResourceOptions> = this._openResource.event;
 
 	constructor(private tree: WorkbenchTree, private options?: IResourceResultsNavigationOptions) {
 		super();

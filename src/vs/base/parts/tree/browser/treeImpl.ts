@@ -126,7 +126,7 @@ export class Tree implements _.ITree {
 		this.view.layout(height);
 	}
 
-	public DOMFocus(): void {
+	public domFocus(): void {
 		this.view.focus();
 	}
 
@@ -134,7 +134,7 @@ export class Tree implements _.ITree {
 		return this.view.isFocused();
 	}
 
-	public DOMBlur(): void {
+	public domBlur(): void {
 		this.view.blur();
 	}
 

@@ -56,7 +56,7 @@ interface IDependentService {
 
 class DependentService implements IDependentService {
 	_serviceBrand: any;
-	constructor( @IService1 service: IService1) {
+	constructor(@IService1 service: IService1) {
 		assert.equal(service.c, 1);
 	}
 
@@ -65,7 +65,7 @@ class DependentService implements IDependentService {
 
 class Service1Consumer {
 
-	constructor( @IService1 service1: IService1) {
+	constructor(@IService1 service1: IService1) {
 		assert.ok(service1);
 		assert.equal(service1.c, 1);
 	}
@@ -73,7 +73,7 @@ class Service1Consumer {
 
 class Target2Dep {
 
-	constructor( @IService1 service1: IService1, @IService2 service2) {
+	constructor(@IService1 service1: IService1, @IService2 service2) {
 		assert.ok(service1 instanceof Service1);
 		assert.ok(service2 instanceof Service2);
 	}
@@ -88,12 +88,12 @@ class TargetWithStaticParam {
 }
 
 class TargetNotOptional {
-	constructor( @IService1 service1: IService1, @IService2 service2: IService2) {
+	constructor(@IService1 service1: IService1, @IService2 service2: IService2) {
 
 	}
 }
 class TargetOptional {
-	constructor( @IService1 service1: IService1, @optional(IService2) service2: IService2) {
+	constructor(@IService1 service1: IService1, @optional(IService2) service2: IService2) {
 		assert.ok(service1);
 		assert.equal(service1.c, 1);
 		assert.ok(service2 === void 0);
@@ -101,14 +101,14 @@ class TargetOptional {
 }
 
 class DependentServiceTarget {
-	constructor( @IDependentService d) {
+	constructor(@IDependentService d) {
 		assert.ok(d);
 		assert.equal(d.name, 'farboo');
 	}
 }
 
 class DependentServiceTarget2 {
-	constructor( @IDependentService d: IDependentService, @IService1 s: IService1) {
+	constructor(@IDependentService d: IDependentService, @IService1 s: IService1) {
 		assert.ok(d);
 		assert.equal(d.name, 'farboo');
 		assert.ok(s);
@@ -121,7 +121,7 @@ class ServiceLoop1 implements IService1 {
 	_serviceBrand: any;
 	c = 1;
 
-	constructor( @IService2 s: IService2) {
+	constructor(@IService2 s: IService2) {
 
 	}
 }
@@ -130,7 +130,7 @@ class ServiceLoop2 implements IService2 {
 	_serviceBrand: any;
 	d = true;
 
-	constructor( @IService1 s: IService1) {
+	constructor(@IService1 s: IService1) {
 
 	}
 }

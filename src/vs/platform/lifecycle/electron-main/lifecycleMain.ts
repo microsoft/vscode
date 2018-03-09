@@ -14,6 +14,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { ReadyState } from 'vs/platform/windows/common/windows';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
@@ -39,11 +40,23 @@ export interface ILifecycleService {
 	wasRestarted: boolean;
 
 	/**
+	 * Will be true if the program was requested to quit.
+	 */
+	isQuitRequested: boolean;
+
+	/**
 	 * Due to the way we handle lifecycle with eventing, the general app.on('before-quit')
-	 * event cannot be used because it can be called twice on shutdown. Instead the onBeforeQuit
+	 * event cannot be used because it can be called twice on shutdown. Instead the onBeforeShutdown
 	 * handler in this module can be used and it is only called once on a shutdown sequence.
 	 */
-	onBeforeQuit: Event<void>;
+	onBeforeShutdown: Event<void>;
+
+	/**
+	 * An event that fires after the onBeforeShutdown event has been fired and after no window has
+	 * vetoed the shutdown sequence. At this point listeners are ensured that the application will
+	 * quit without veto.
+	 */
+	onShutdown: Event<void>;
 
 	/**
 	 * We provide our own event when we close a window because the general window.on('close')
@@ -65,7 +78,6 @@ export interface ILifecycleService {
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): void;
 
 	quit(fromUpdate?: boolean): TPromise<boolean /* veto */>;
-	isQuitRequested(): boolean;
 
 	kill(code?: number): void;
 }
@@ -82,9 +94,13 @@ export class LifecycleService implements ILifecycleService {
 	private pendingQuitPromiseComplete: TValueCallback<boolean>;
 	private oneTimeListenerTokenGenerator: number;
 	private _wasRestarted: boolean;
+	private windowCounter: number;
 
-	private _onBeforeQuit = new Emitter<void>();
-	onBeforeQuit: Event<void> = this._onBeforeQuit.event;
+	private _onBeforeShutdown = new Emitter<void>();
+	onBeforeShutdown: Event<void> = this._onBeforeShutdown.event;
+
+	private _onShutdown = new Emitter<void>();
+	onShutdown: Event<void> = this._onShutdown.event;
 
 	private _onBeforeWindowClose = new Emitter<ICodeWindow>();
 	onBeforeWindowClose: Event<ICodeWindow> = this._onBeforeWindowClose.event;
@@ -100,6 +116,7 @@ export class LifecycleService implements ILifecycleService {
 		this.quitRequested = false;
 		this.oneTimeListenerTokenGenerator = 0;
 		this._wasRestarted = false;
+		this.windowCounter = 0;
 
 		this.handleRestarted();
 	}
@@ -116,6 +133,10 @@ export class LifecycleService implements ILifecycleService {
 		return this._wasRestarted;
 	}
 
+	public get isQuitRequested(): boolean {
+		return !!this.quitRequested;
+	}
+
 	public ready(): void {
 		this.registerListeners();
 	}
@@ -127,7 +148,8 @@ export class LifecycleService implements ILifecycleService {
 			this.logService.trace('Lifecycle#before-quit');
 
 			if (!this.quitRequested) {
-				this._onBeforeQuit.fire(); // only send this if this is the first quit request we have
+				this.logService.trace('Lifecycle#onBeforeShutdown.fire()');
+				this._onBeforeShutdown.fire(); // only send this if this is the first quit request we have
 			}
 
 			this.quitRequested = true;
@@ -146,6 +168,9 @@ export class LifecycleService implements ILifecycleService {
 	}
 
 	public registerWindow(window: ICodeWindow): void {
+
+		// track window count
+		this.windowCounter++;
 
 		// Window Before Closing: Main -> Renderer
 		window.win.on('close', e => {
@@ -166,13 +191,33 @@ export class LifecycleService implements ILifecycleService {
 			this.unload(window, UnloadReason.CLOSE).done(veto => {
 				if (!veto) {
 					this.windowToCloseRequest[windowId] = true;
+
+					this.logService.trace('Lifecycle#onBeforeWindowClose.fire()');
 					this._onBeforeWindowClose.fire(window);
+
 					window.close();
 				} else {
 					this.quitRequested = false;
 					delete this.windowToCloseRequest[windowId];
 				}
 			});
+		});
+
+		// Window After Closing
+		window.win.on('closed', e => {
+			const windowId = window.id;
+			this.logService.trace('Lifecycle#window-closed', windowId);
+
+			// update window count
+			this.windowCounter--;
+
+			// if there are no more code windows opened, fire the onShutdown event, unless
+			// we are on macOS where it is perfectly fine to close the last window and
+			// the application continues running (unless quit was actually requested)
+			if (this.windowCounter === 0 && (!isMacintosh || this.isQuitRequested)) {
+				this.logService.trace('Lifecycle#onShutdown.fire()');
+				this._onShutdown.fire();
+			}
 		});
 	}
 
@@ -279,7 +324,10 @@ export class LifecycleService implements ILifecycleService {
 				// Store as field to access it from a window cancellation
 				this.pendingQuitPromiseComplete = c;
 
+				// The will-quit event is fired when all windows have closed without veto
 				app.once('will-quit', () => {
+					this.logService.trace('Lifecycle#will-quit');
+
 					if (this.pendingQuitPromiseComplete) {
 						if (fromUpdate) {
 							this.stateService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
@@ -291,6 +339,15 @@ export class LifecycleService implements ILifecycleService {
 					}
 				});
 
+				// macOS: can run without any window open. in that case we fire the onShutdown() event
+				// directly because there is no veto to be expected.
+				if (isMacintosh && this.windowCounter === 0) {
+					this.logService.trace('Lifecycle#onShutdown.fire()');
+					this._onShutdown.fire();
+				}
+
+				// Calling app.quit() will trigger the close handlers of each opened window
+				// and only if no window vetoed the shutdown, we will get the will-quit event
 				app.quit();
 			});
 		}
@@ -332,9 +389,5 @@ export class LifecycleService implements ILifecycleService {
 		this.quit().then(veto => {
 			vetoed = veto;
 		});
-	}
-
-	public isQuitRequested(): boolean {
-		return !!this.quitRequested;
 	}
 }

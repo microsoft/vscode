@@ -112,8 +112,9 @@ export abstract class ContextKeyExpr {
 		}
 
 		let value = serializedValue.slice(start + 1, end);
+		let caseIgnoreFlag = serializedValue[end + 1] === 'i' ? 'i' : '';
 		try {
-			return new RegExp(value);
+			return new RegExp(value, caseIgnoreFlag);
 		} catch (e) {
 			console.warn(`bad regexp-value '${serializedValue}', parse error: ${e}`);
 			return null;
@@ -400,7 +401,7 @@ export class ContextKeyRegexExpr implements ContextKeyExpr {
 	}
 
 	public serialize(): string {
-		return `${this.key} =~ /${this.regexp ? this.regexp.source : '<invalid>'}/`;
+		return `${this.key} =~ /${this.regexp ? this.regexp.source : '<invalid>'}/${this.regexp.ignoreCase ? 'i' : ''}`;
 	}
 
 	public keys(): string[] {

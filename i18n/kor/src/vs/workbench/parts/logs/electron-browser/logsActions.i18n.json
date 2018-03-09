@@ -15,6 +15,7 @@
 	"mainProcess": "기본",
 	"selectProcess": "프로세스에 대한 로그 선택",
 	"openLogFile": "로그 파일 열기...",
+	"setLogLevel": "로그 수준 설정...",
 	"trace": "Trace",
 	"debug": "디버그",
 	"info": "정보",

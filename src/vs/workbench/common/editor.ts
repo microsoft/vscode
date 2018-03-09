@@ -31,6 +31,8 @@ export enum ConfirmResult {
  */
 export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
 
+export const PREFERENCES_EDITOR_ID = 'workbench.editor.preferencesEditor';
+
 /**
  * Binary diff editor id.
  */

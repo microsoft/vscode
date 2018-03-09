@@ -39,7 +39,6 @@ import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifi
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 used();
 
@@ -227,7 +226,6 @@ class WelcomePage {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@INotificationService private notificationService: INotificationService,
-		@IChoiceService private choiceService: IChoiceService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
@@ -416,22 +414,20 @@ class WelcomePage {
 				this.notificationService.info(strings.alreadyInstalled.replace('{0}', extensionSuggestion.name));
 				return;
 			}
-			const foundAndInstalled = installedExtension ? TPromise.as(installedExtension.identifier) : this.extensionGalleryService.query({ names: [extensionSuggestion.id], source: telemetryFrom })
+			const foundAndInstalled = installedExtension ? TPromise.as(installedExtension.local) : this.extensionGalleryService.query({ names: [extensionSuggestion.id], source: telemetryFrom })
 				.then(result => {
 					const [extension] = result.firstPage;
 					if (!extension) {
 						return null;
 					}
 					return this.extensionManagementService.installFromGallery(extension)
-						.then(() => {
+						.then(local => {
 							// TODO: Do this as part of the install to avoid multiple events.
-							return this.extensionEnablementService.setEnablement(extension.identifier, EnablementState.Disabled);
-						}).then(() => {
-							return extension.identifier;
+							return this.extensionEnablementService.setEnablement(local, EnablementState.Disabled).then(() => local);
 						});
 				});
 
-			this.choiceService.choose(Severity.Info, strings.reloadAfterInstall.replace('{0}', extensionSuggestion.name), [localize('ok', "OK"), localize('details', "Details")]).then(choice => {
+			this.notificationService.prompt(Severity.Info, strings.reloadAfterInstall.replace('{0}', extensionSuggestion.name), [localize('ok', "OK"), localize('details', "Details")]).then(choice => {
 				switch (choice) {
 					case 0 /* OK */:
 						const messageDelay = TPromise.timeout(300);
@@ -440,7 +436,7 @@ class WelcomePage {
 						});
 						TPromise.join(extensionSuggestion.isKeymap ? extensions.filter(extension => isKeymapExtension(this.tipsService, extension) && extension.globallyEnabled)
 							.map(extension => {
-								return this.extensionEnablementService.setEnablement(extension.identifier, EnablementState.Disabled);
+								return this.extensionEnablementService.setEnablement(extension.local, EnablementState.Disabled);
 							}) : []).then(() => {
 								return foundAndInstalled.then(foundExtension => {
 									messageDelay.cancel();

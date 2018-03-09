@@ -43,22 +43,23 @@ export function readdir(path: string, callback: (error: Error, files: string[]) 
 	return fs.readdir(path, callback);
 }
 
-export function statLink(path: string, callback: (error: Error, statAndIsLink: { stat: fs.Stats, isSymbolicLink: boolean }) => void): void {
-	fs.lstat(path, (error, stat) => {
-		if (error) {
-			return callback(error, null);
-		}
+export interface IStatAndLink {
+	stat: fs.Stats;
+	isSymbolicLink: boolean;
+}
 
-		if (stat.isSymbolicLink()) {
+export function statLink(path: string, callback: (error: Error, statAndIsLink: IStatAndLink) => void): void {
+	fs.lstat(path, (error, lstat) => {
+		if (error || lstat.isSymbolicLink()) {
 			fs.stat(path, (error, stat) => {
 				if (error) {
 					return callback(error, null);
 				}
 
-				callback(null, { stat, isSymbolicLink: true });
+				callback(null, { stat, isSymbolicLink: lstat && lstat.isSymbolicLink() });
 			});
 		} else {
-			callback(null, { stat, isSymbolicLink: false });
+			callback(null, { stat: lstat, isSymbolicLink: false });
 		}
 	});
 }

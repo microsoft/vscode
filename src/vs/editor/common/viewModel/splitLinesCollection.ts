@@ -5,7 +5,7 @@
 'use strict';
 
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ViewLineData, ICoordinatesConverter, IOverviewRulerDecorations } from 'vs/editor/common/viewModel/viewModel';
@@ -14,7 +14,7 @@ import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import { ThemeColor, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
-import { IModelDecoration, ITextModel, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IModelDecoration, ITextModel, IModelDeltaDecoration, EndOfLinePreference } from 'vs/editor/common/model';
 
 export class OutputPosition {
 	_outputPositionBrand: void;
@@ -43,6 +43,7 @@ export interface ISimpleModel {
 	getLineContent(lineNumber: number): string;
 	getLineMinColumn(lineNumber: number): number;
 	getLineMaxColumn(lineNumber: number): number;
+	getValueInRange(range: IRange, eol?: EndOfLinePreference): string;
 }
 
 export interface ISplitLine {
@@ -179,7 +180,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		let modelVersion = this.model.getVersionId();
 		if (modelVersion !== this._validModelVersionId) {
 			// This is pretty bad, it means we lost track of the model...
-			this._constructLines(false);
+			throw new Error(`ViewModel is out of sync with Model!`);
 		}
 	}
 
@@ -287,6 +288,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		let hiddenAreaIdx = -1;
 		let nextLineNumberToUpdateHiddenArea = (hiddenAreaIdx + 1 < hiddenAreas.length) ? hiddenAreaEnd + 1 : this.lines.length + 2;
 
+		let hasVisibleLine = false;
 		for (let i = 0; i < this.lines.length; i++) {
 			let lineNumber = i + 1;
 
@@ -305,6 +307,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 					lineChanged = true;
 				}
 			} else {
+				hasVisibleLine = true;
 				// Line should be visible
 				if (!this.lines[i].isVisible()) {
 					this.lines[i] = this.lines[i].setVisible(true);
@@ -315,6 +318,11 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 				let newOutputLineCount = this.lines[i].getViewLineCount();
 				this.prefixSumComputer.changeValue(i, newOutputLineCount);
 			}
+		}
+
+		if (!hasVisibleLine) {
+			// Cannot have everything be hidden => reveal everything!
+			this.setHiddenAreas([]);
 		}
 
 		return true;
@@ -464,6 +472,10 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 	public acceptVersionId(versionId: number): void {
 		this._validModelVersionId = versionId;
+		if (this.lines.length === 1 && !this.lines[0].isVisible()) {
+			// At least one line must be visible => reset hidden areas
+			this.setHiddenAreas([]);
+		}
 	}
 
 	public getViewLineCount(): number {
@@ -947,7 +959,12 @@ export class SplitLine implements ISplitLine {
 		}
 		let startOffset = this.getInputStartOffsetOfOutputLineIndex(outputLineIndex);
 		let endOffset = this.getInputEndOffsetOfOutputLineIndex(model, modelLineNumber, outputLineIndex);
-		let r = model.getLineContent(modelLineNumber).substring(startOffset, endOffset);
+		let r = model.getValueInRange({
+			startLineNumber: modelLineNumber,
+			startColumn: startOffset + 1,
+			endLineNumber: modelLineNumber,
+			endColumn: endOffset + 1
+		});
 
 		if (outputLineIndex > 0) {
 			r = this.wrappedIndent + r;
@@ -956,7 +973,7 @@ export class SplitLine implements ISplitLine {
 		return r;
 	}
 
-	public getViewLineMinColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number {
+	public getViewLineMinColumn(model: ITextModel, modelLineNumber: number, outputLineIndex: number): number {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
@@ -981,7 +998,13 @@ export class SplitLine implements ISplitLine {
 		let startOffset = this.getInputStartOffsetOfOutputLineIndex(outputLineIndex);
 		let endOffset = this.getInputEndOffsetOfOutputLineIndex(model, modelLineNumber, outputLineIndex);
 
-		let lineContent = model.getLineContent(modelLineNumber).substring(startOffset, endOffset);
+		let lineContent = model.getValueInRange({
+			startLineNumber: modelLineNumber,
+			startColumn: startOffset + 1,
+			endLineNumber: modelLineNumber,
+			endColumn: endOffset + 1
+		});
+
 		if (outputLineIndex > 0) {
 			lineContent = this.wrappedIndent + lineContent;
 		}
@@ -1003,7 +1026,7 @@ export class SplitLine implements ISplitLine {
 		);
 	}
 
-	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
+	public getViewLinesData(model: ITextModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}

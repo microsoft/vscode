@@ -21,6 +21,8 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { CollapseAction } from 'vs/workbench/browser/viewlet';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -835,5 +837,17 @@ export class ReverseContinueAction extends AbstractDebugAction {
 		const process = this.debugService.getViewModel().focusedProcess;
 		return super.isEnabled(state) && state === State.Stopped &&
 			process && process.session.capabilities.supportsStepBack;
+	}
+}
+
+export class ReplCollapseAllAction extends CollapseAction {
+	constructor(viewer: ITree, private toFocus: { focus(): void; }) {
+		super(viewer, true, undefined);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return super.run(event).then(() => {
+			this.toFocus.focus();
+		});
 	}
 }

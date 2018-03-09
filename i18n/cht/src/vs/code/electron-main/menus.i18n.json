@@ -175,7 +175,7 @@
 	"miPrivacyStatement": "隱私權聲明(&&P)",
 	"miAbout": "關於(&&A)",
 	"miRunTask": "執行工作(&&R)",
-	"miBuildTask": " 執行建置工作(&&B)...",
+	"miBuildTask": "執行建置工作(&&B)...",
 	"miRunningTask": "顯示執行中的工作(&&G)...",
 	"miRestartTask": "重新開始執行工作(&&E)...",
 	"miTerminateTask": "終止工作(&&T)...",

@@ -46,6 +46,8 @@
 	"defaultLight": "預設淺色",
 	"defaultHC": "預設高對比",
 	"JSON Validation": "JSON 驗證 ({0})",
+	"fileMatch": "檔案相符",
+	"schema": "結構描述",
 	"commands": "命令 ({0})",
 	"command name": "名稱",
 	"keyboard shortcuts": "鍵盤快速鍵(&&K)",

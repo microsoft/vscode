@@ -25,11 +25,11 @@
 	"saveAll": "全部保存",
 	"compareWithSaved": "与已保存文件比较",
 	"compareWithSelected": "与已选项目进行比较",
-	"compareSource": "选择以进行比较",
+	"compareSource": "选择进行比较",
 	"compareSelected": "将已选项进行比较",
 	"close": "关闭",
 	"closeOthers": "关闭其他",
-	"closeUnmodified": "关闭未更改",
+	"closeSaved": "关闭已保存",
 	"closeAll": "全部关闭",
 	"deleteFile": "永久删除"
 }

@@ -35,6 +35,7 @@
 	"terminal.integrated.env.linux": "A VS Code folyamatához hozzáadott környezeti változókat tartalmazó objektum, amit a linuxos terminál használ.",
 	"terminal.integrated.env.windows": "A VS Code folyamatához hozzáadott környezeti változókat tartalmazó objektum, amit a windowsos terminál használ.",
 	"terminal.integrated.showExitAlert": "A `A terminálfolyamat a következő kilépési kóddal állt le` üzenet megjelenítése, ha a kilépési kód nem nulla.",
+	"terminal.integrated.experimentalRestore": "Vissza legyenek-e állítva a terminálos munkamenetek a VS Code indításakor. Ez egy kísérleti beállítás: hibákat tartalmazhat és változhat is a jövőben.",
 	"terminalCategory": "Terminál",
 	"viewCategory": "Nézet"
 }

@@ -12,5 +12,7 @@
 	"configuration.validate.run": "Indica si linter se ejecuta al guardar o al escribir.",
 	"configuration.title": "PHP",
 	"commands.categroy.php": "PHP",
-	"command.untrustValidationExecutable": "No permitir el ejecutable de validación de PHP (como configuración de área de trabajo)"
+	"command.untrustValidationExecutable": "No permitir el ejecutable de validación de PHP (como configuración de área de trabajo)",
+	"displayName": "Características del lenguaje PHP",
+	"description": "Proporciona IntelliSense, linting y conceptos básicos del lenguaje para archivos de PHP."
 }

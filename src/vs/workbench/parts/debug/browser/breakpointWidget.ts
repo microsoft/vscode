@@ -34,6 +34,7 @@ export class BreakpointWidget extends ZoneWidget {
 	private hitCountContext: boolean;
 	private hitCountInput: string;
 	private conditionInput: string;
+	private breakpoint: IBreakpoint;
 
 	constructor(editor: ICodeEditor, private lineNumber: number, private column: number,
 		@IContextViewService private contextViewService: IContextViewService,
@@ -45,6 +46,14 @@ export class BreakpointWidget extends ZoneWidget {
 		this.toDispose = [];
 		this.hitCountInput = '';
 		this.conditionInput = '';
+		const uri = this.editor.getModel().uri;
+		this.breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.column === this.column && bp.uri.toString() === uri.toString()).pop();
+
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(e => {
+			if (this.breakpoint && e.removed && e.removed.indexOf(this.breakpoint) >= 0) {
+				this.dispose();
+			}
+		}));
 		this.create();
 	}
 
@@ -66,10 +75,7 @@ export class BreakpointWidget extends ZoneWidget {
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('breakpoint-widget');
-		const uri = this.editor.getModel().uri;
-		const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.column === this.column && bp.uri.toString() === uri.toString()).pop();
-
-		this.hitCountContext = breakpoint && breakpoint.hitCondition && !breakpoint.condition;
+		this.hitCountContext = this.breakpoint && this.breakpoint.hitCondition && !this.breakpoint.condition;
 		const selected = this.hitCountContext ? 1 : 0;
 		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count")], selected, this.contextViewService);
 		this.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
@@ -84,7 +90,7 @@ export class BreakpointWidget extends ZoneWidget {
 
 			this.inputBox.setAriaLabel(this.ariaLabel);
 			this.inputBox.setPlaceHolder(this.placeholder);
-			this.inputBox.value = this.getInputBoxValue(breakpoint);
+			this.inputBox.value = this.getInputBoxValue(this.breakpoint);
 		});
 
 		const inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
@@ -96,7 +102,7 @@ export class BreakpointWidget extends ZoneWidget {
 		this.toDispose.push(this.inputBox);
 
 		dom.addClass(this.inputBox.inputElement, isWindows ? 'windows' : isMacintosh ? 'mac' : 'linux');
-		this.inputBox.value = this.getInputBoxValue(breakpoint);
+		this.inputBox.value = this.getInputBoxValue(this.breakpoint);
 		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
 		setTimeout(() => this.inputBox.focus(), 0);
 
@@ -106,11 +112,9 @@ export class BreakpointWidget extends ZoneWidget {
 				disposed = true;
 				if (success) {
 					// if there is already a breakpoint on this location - remove it.
-					const oldBreakpoint = this.debugService.getModel().getBreakpoints()
-						.filter(bp => bp.lineNumber === this.lineNumber && bp.column === this.column && bp.uri.toString() === uri.toString()).pop();
 
-					let condition = oldBreakpoint && oldBreakpoint.condition;
-					let hitCondition = oldBreakpoint && oldBreakpoint.hitCondition;
+					let condition = this.breakpoint && this.breakpoint.condition;
+					let hitCondition = this.breakpoint && this.breakpoint.hitCondition;
 
 					if (this.hitCountContext) {
 						hitCondition = this.inputBox.value;
@@ -124,18 +128,18 @@ export class BreakpointWidget extends ZoneWidget {
 						}
 					}
 
-					if (oldBreakpoint) {
-						this.debugService.updateBreakpoints(oldBreakpoint.uri, {
-							[oldBreakpoint.getId()]: {
+					if (this.breakpoint) {
+						this.debugService.updateBreakpoints(this.breakpoint.uri, {
+							[this.breakpoint.getId()]: {
 								condition,
 								hitCondition,
-								verified: oldBreakpoint.verified
+								verified: this.breakpoint.verified
 							}
 						}, false);
 					} else {
-						this.debugService.addBreakpoints(uri, [{
+						this.debugService.addBreakpoints(this.editor.getModel().uri, [{
 							lineNumber: this.lineNumber,
-							column: oldBreakpoint ? oldBreakpoint.column : undefined,
+							column: this.breakpoint ? this.breakpoint.column : undefined,
 							enabled: true,
 							condition,
 							hitCondition

@@ -20,6 +20,7 @@
 	"showSameKeybindings": "동일한 키 바인딩 표시",
 	"copyLabel": "복사",
 	"copyCommandLabel": "복사 명령",
+	"error": "키 바인딩을 편집하는 동안 '{0}' 오류가 발생했습니다. 'keybindings.json' 파일을 열고 오류를 확인하세요.",
 	"command": "명령",
 	"keybinding": "키 바인딩",
 	"source": "소스",

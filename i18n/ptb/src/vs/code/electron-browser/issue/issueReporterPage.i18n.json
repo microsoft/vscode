@@ -10,6 +10,7 @@
 	"issueTypeLabel": "Isso é um",
 	"issueTitleLabel": "Título",
 	"issueTitleRequired": "Por favor, digite um título.",
+	"titleLengthValidation": "O título é muito longo.",
 	"systemInfo": "Minhas Informações do Sistema",
 	"sendData": "Enviar meus dados",
 	"processes": "Processos Atualmente em Execução",
@@ -19,10 +20,7 @@
 	"settingsSearchDetails": "Detalhes da Pesquisa de Configurações",
 	"yes": "Sim",
 	"no": "Não",
-	"disableExtensionsLabel": "Tente reproduzir o problema mais tarde",
 	"disableExtensions": "desabilitando todas as extensões e recarregando a janela",
-	"showRunningExtensionsLabel": "Se você suspeita que trata-se de um problema de extensão,",
-	"showRunningExtensions": "ver todas as extensões em execução",
 	"details": "Por favor informe detalhes.",
 	"loadingData": "Carregando dados..."
 }

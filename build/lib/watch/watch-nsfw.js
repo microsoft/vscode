@@ -30,7 +30,7 @@ function watch(root) {
             path: path,
             base: root
         });
-        //@ts-ignore review
+        //@ts-ignore
         file.event = type;
         result.emit('data', file);
     }

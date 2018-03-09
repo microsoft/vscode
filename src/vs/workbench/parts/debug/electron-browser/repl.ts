@@ -44,7 +44,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { memoize } from 'vs/base/common/decorators';
 import { dispose } from 'vs/base/common/lifecycle';
-import { OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
+import { OpenMode, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 
 const $ = dom.$;
 
@@ -135,7 +135,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.createReplInput(this.container);
 
 		this.renderer = this.instantiationService.createInstance(ReplExpressionsRenderer);
-		const controller = this.instantiationService.createInstance(ReplExpressionsController, new ReplExpressionsActionProvider(this.instantiationService), MenuId.DebugConsoleContext, { openMode: OpenMode.SINGLE_CLICK });
+		const controller = this.instantiationService.createInstance(ReplExpressionsController, new ReplExpressionsActionProvider(this.instantiationService, this.replInput), MenuId.DebugConsoleContext, { openMode: OpenMode.SINGLE_CLICK, clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change, to preserve focus behaviour in input field */ });
 		controller.toFocusOnClick = this.replInput;
 
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {

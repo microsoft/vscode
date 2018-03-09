@@ -738,7 +738,7 @@ export interface IInplaceReplaceSupportResult {
  */
 export interface ILink {
 	range: IRange;
-	url: string;
+	url?: string;
 }
 /**
  * A provider of links.
@@ -917,14 +917,14 @@ export interface WorkspaceEdit {
 	rejectReason?: string; // TODO@joh, move to rename
 }
 
-export interface RenameInitialValue {
+export interface RenameInformation {
 	range: IRange;
-	text?: string;
+	text: string;
 }
 
 export interface RenameProvider {
 	provideRenameEdits(model: model.ITextModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
-	resolveInitialRenameValue?(model: model.ITextModel, position: Position, token: CancellationToken): RenameInitialValue | Thenable<RenameInitialValue>;
+	resolveInitialRenameValue?(model: model.ITextModel, position: Position, token: CancellationToken): RenameInformation | Thenable<RenameInformation>;
 }
 
 

@@ -185,15 +185,15 @@ export class PanelViewlet extends Viewlet {
 	}
 
 	private showContextMenu(event: StandardMouseEvent): void {
-		event.stopPropagation();
-		event.preventDefault();
-
 		for (const panelItem of this.panelItems) {
-			// Do not show context menu if requested from inside panel views
+			// Do not show context menu if target is coming from inside panel views
 			if (isAncestor(event.target, panelItem.panel.element)) {
 				return;
 			}
 		}
+
+		event.stopPropagation();
+		event.preventDefault();
 
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
@@ -266,11 +266,14 @@ export class PanelViewlet extends Viewlet {
 		const disposable = combinedDisposable([onDidFocus, styler, onDidChange]);
 		const panelItem: IViewletPanelItem = { panel, disposable };
 
+		const wasSingleView = this.isSingleView();
 		this.panelItems.splice(index, 0, panelItem);
 		this.panelview.addPanel(panel, size, index);
 
 		this.updateViewHeaders();
-		this.updateTitleArea();
+		if (this.isSingleView() !== wasSingleView) {
+			this.updateTitleArea();
+		}
 	}
 
 	removePanel(panel: ViewletPanel): void {
@@ -284,12 +287,15 @@ export class PanelViewlet extends Viewlet {
 			this.lastFocusedPanel = undefined;
 		}
 
+		const wasSingleView = this.isSingleView();
 		this.panelview.removePanel(panel);
 		const [panelItem] = this.panelItems.splice(index, 1);
 		panelItem.disposable.dispose();
 
 		this.updateViewHeaders();
-		this.updateTitleArea();
+		if (wasSingleView !== this.isSingleView()) {
+			this.updateTitleArea();
+		}
 	}
 
 	movePanel(from: ViewletPanel, to: ViewletPanel): void {

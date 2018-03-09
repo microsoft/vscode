@@ -31,6 +31,8 @@ process.lazyEnv = new Promise(function (resolve) {
 	ipc.send('vscode:fetchShellEnv', remote.getCurrentWindow().id);
 });
 
+Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
+
 function onError(error, enableDeveloperTools) {
 	if (enableDeveloperTools) {
 		remote.getCurrentWebContents().openDevTools();
@@ -179,7 +181,7 @@ function main() {
 				bundles[bundle] = json;
 				cb(undefined, json);
 			})
-			.catch(cb);
+				.catch(cb);
 		};
 	}
 

@@ -23,7 +23,7 @@ import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestTextResourceConfigurationService, TestContextService, TestLifecycleService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextResourceConfigurationService, TestContextService, TestLifecycleService, TestEnvironmentService, TestNotificationService } from 'vs/workbench/test/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import URI from 'vs/base/common/uri';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
@@ -46,7 +46,7 @@ import product from 'vs/platform/node/product';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -183,6 +183,7 @@ suite('ExtensionsTipsService Test', () => {
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		testConfigurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, testConfigurationService);
+		instantiationService.stub(INotificationService, new TestNotificationService());
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
 		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onDidInstallExtension', didInstallEvent.event);
@@ -220,12 +221,15 @@ suite('ExtensionsTipsService Test', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, extensionsWorkbenchService);
 
 		prompted = false;
-		instantiationService.stub(IChoiceService, {
-			choose: () => {
+
+		class TestNotificationService2 extends TestNotificationService {
+			public prompt() {
 				prompted = true;
 				return TPromise.as(3);
 			}
-		});
+		}
+
+		instantiationService.stub(INotificationService, new TestNotificationService2());
 
 		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: false, showRecommendationsOnlyOnDemand: false });
 		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, store: () => { } });

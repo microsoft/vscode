@@ -135,6 +135,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/parts/webview",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/parts/welcome",
 			"project": "vscode-workbench"
 		},
@@ -144,6 +148,10 @@
 		},
 		{
 			"name": "vs/workbench/services/configuration",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/configurationResolver",
 			"project": "vscode-workbench"
 		},
 		{

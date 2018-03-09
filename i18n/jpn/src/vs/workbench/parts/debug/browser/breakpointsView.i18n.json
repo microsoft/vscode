@@ -12,6 +12,8 @@
 	"functionBreakPointInputAriaLabel": "関数ブレークポイントを入力します",
 	"breakpointDisabledHover": "無効なブレークポイント",
 	"breakpointUnverifieddHover": "未確認のブレークポイント",
+	"functionBreakpointUnsupported": "このデバッグの種類では関数ブレークポイントはサポートされていません",
 	"breakpointDirtydHover": "未確認のブレークポイント。ファイルは変更されているので、デバッグ セッションを再起動してください。",
-	"conditionalBreakpointUnsupported": "このデバッグの種類では、条件付きブレークポイントはサポートされていません。"
+	"conditionalBreakpointUnsupported": "このデバッグの種類では、条件付きブレークポイントはサポートされていません。",
+	"hitBreakpointUnsupported": "このデバッグの種類では、ヒットした条件付きブレークポイントはサポートされていません。"
 }

@@ -10,9 +10,9 @@ import { resolveCommonProperties } from '../node/commonProperties';
 
 export function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string, version: string, machineId: string, installSourcePath: string): TPromise<{ [name: string]: string }> {
 	return resolveCommonProperties(commit, version, machineId, installSourcePath).then(result => {
-		// __GDPR__COMMON__ "common.version.shell" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		// __GDPR__COMMON__ "common.version.shell" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 		result['common.version.shell'] = process.versions && (<any>process).versions['electron'];
-		// __GDPR__COMMON__ "common.version.renderer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		// __GDPR__COMMON__ "common.version.renderer" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 		result['common.version.renderer'] = process.versions && (<any>process).versions['chrome'];
 
 		const lastSessionDate = storageService.get('telemetry.lastSessionDate');

@@ -100,7 +100,7 @@ export function createApiFactory(
 	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol));
 	const extHostDocumentsAndEditors = rpcProtocol.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(rpcProtocol, extHostWebviews));
 	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
-	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors));
+	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors, extHostLogService));
 	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadTextEditors)));
 	const extHostEditors = rpcProtocol.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostCommands = rpcProtocol.set(ExtHostContext.ExtHostCommands, new ExtHostCommands(rpcProtocol, extHostHeapService, extHostLogService));
@@ -405,8 +405,8 @@ export function createApiFactory(
 			registerDecorationProvider: proposedApiFunction(extension, (provider: vscode.DecorationProvider) => {
 				return extHostDecorations.registerDecorationProvider(provider, extension.id);
 			}),
-			createWebview: proposedApiFunction(extension, (uri: vscode.Uri, column: vscode.ViewColumn, options: vscode.WebviewOptions) => {
-				return extHostWebviews.createWebview(uri, column, options);
+			createWebview: proposedApiFunction(extension, (uri: vscode.Uri, title: string, column: vscode.ViewColumn, options: vscode.WebviewOptions) => {
+				return extHostWebviews.createWebview(uri, title, column, options);
 			}),
 			onDidChangeActiveEditor: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
 				return extHostDocumentsAndEditors.onDidChangeActiveEditor(listener, thisArg, disposables);
@@ -433,9 +433,9 @@ export function createApiFactory(
 			set name(value) {
 				throw errors.readonly();
 			},
-			updateWorkspaceFolders: proposedApiFunction(extension, (index, deleteCount, ...workspaceFoldersToAdd) => {
-				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount, ...workspaceFoldersToAdd);
-			}),
+			updateWorkspaceFolders: (index, deleteCount, ...workspaceFoldersToAdd) => {
+				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount || 0, ...workspaceFoldersToAdd);
+			},
 			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
 				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);
 			},

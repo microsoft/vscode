@@ -266,6 +266,7 @@ export class PieceTreeBase {
 	protected _EOLNormalized: boolean;
 	private _lastChangeBufferPos: BufferCursor;
 	private _searchCache: PieceTreeSearchCache;
+	private _lastVisitedLine: { lineNumber: number, value: string };
 
 	constructor(chunks: StringBuffer[], eol: '\r\n' | '\n', eolNormalized: boolean) {
 		this.create(chunks, eol, eolNormalized);
@@ -303,6 +304,7 @@ export class PieceTreeBase {
 		}
 
 		this._searchCache = new PieceTreeSearchCache(1);
+		this._lastVisitedLine = { lineNumber: 0, value: null };
 		this.computeBufferMetadata();
 	}
 
@@ -499,15 +501,21 @@ export class PieceTreeBase {
 	}
 
 	public getLineContent(lineNumber): string {
-		if (lineNumber === this._lineCnt) {
-			return this.getLineRawContent(lineNumber);
+		if (this._lastVisitedLine.lineNumber === lineNumber) {
+			return this._lastVisitedLine.value;
 		}
 
-		if (this._EOLNormalized) {
-			return this.getLineRawContent(lineNumber, this._EOLLength);
+		this._lastVisitedLine.lineNumber = lineNumber;
+
+		if (lineNumber === this._lineCnt) {
+			this._lastVisitedLine.value = this.getLineRawContent(lineNumber);
+		} else if (this._EOLNormalized) {
+			this._lastVisitedLine.value = this.getLineRawContent(lineNumber, this._EOLLength);
 		} else {
-			return this.getLineRawContent(lineNumber).replace(/(\r\n|\r|\n)$/, '');
+			this._lastVisitedLine.value = this.getLineRawContent(lineNumber).replace(/(\r\n|\r|\n)$/, '');
 		}
+
+		return this._lastVisitedLine.value;
 	}
 
 	public getLineCharCode(lineNumber: number, index: number): number {
@@ -532,6 +540,8 @@ export class PieceTreeBase {
 	// #region Piece Table
 	insert(offset: number, value: string, eolNormalized: boolean = false): void {
 		this._EOLNormalized = this._EOLNormalized && eolNormalized;
+		this._lastVisitedLine.lineNumber = 0;
+		this._lastVisitedLine.value = null;
 
 		if (this.root !== SENTINEL) {
 			let { node, remainder, nodeStartOffset } = this.nodeAt(offset);
@@ -613,6 +623,9 @@ export class PieceTreeBase {
 	}
 
 	delete(offset: number, cnt: number): void {
+		this._lastVisitedLine.lineNumber = 0;
+		this._lastVisitedLine.value = null;
+
 		if (cnt <= 0 || this.root === SENTINEL) {
 			return;
 		}

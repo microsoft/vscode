@@ -18,6 +18,7 @@
 	"zoomReset": "확대/축소 다시 설정",
 	"appPerf": "시작 성능",
 	"reloadWindow": "창 다시 로드",
+	"reloadWindowWithExntesionsDisabled": "확장을 사용하지 않도록 설정하고 창 다시 로드",
 	"switchWindowPlaceHolder": "전환할 창 선택",
 	"current": "현재 창",
 	"close": "창 닫기",
@@ -48,5 +49,6 @@
 	"moveWindowTabToNewWindow": "창 탭을 새 창으로 이동",
 	"mergeAllWindowTabs": "모든 창 병합",
 	"toggleWindowTabsBar": "창 탭 모음 설정/해제",
-	"about": "{0} 정보"
+	"about": "{0} 정보",
+	"inspect context keys": "컨텍스트 키 검사"
 }

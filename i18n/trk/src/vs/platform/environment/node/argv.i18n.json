@@ -33,6 +33,7 @@
 	"inspect-brk-extensions": "Eklentilerde hata ayıklama ve ayrımlamaya eklenti sunucusu başladıktan hemen sonra duraklatılacak şekilde izin ver. Bağlantı URI'ı için geliştirici araçlarını kontrol edin.",
 	"disableGPU": "GPU donanım hızlandırmasını devre dışı bırak.",
 	"uploadLogs": "Geçerli oturumdaki günlükleri güvenli bir uçbirime yükler.",
+	"maxMemory": "Bir pencere için maksimum bellek miktarı (Mbyte olarak).",
 	"usage": "Kullanım",
 	"options": "seçenekler",
 	"paths": "yollar",

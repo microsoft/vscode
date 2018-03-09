@@ -4,129 +4,23 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/PowerShell/EditorSyntax/commit/d605150f48952ba4bd28d7b389e97adc1a5d9b76",
+	"version": "https://github.com/PowerShell/EditorSyntax/commit/90e4b5454f2f1cc06eae4c6c8e12c33d9f5f3a8c",
 	"name": "PowerShell",
 	"scopeName": "source.powershell",
 	"patterns": [
 		{
-			"begin": "(--%)",
-			"beginCaptures": {
-				"1": {
-					"name": "keyword.operator.powershell"
-				}
-			},
-			"comment": "Stop Parsing",
-			"end": "$",
-			"patterns": [
-				{
-					"include": "#lineComment"
-				},
-				{
-					"match": "(.)",
-					"name": "support.other.powershell"
-				}
-			]
-		},
-		{
-			"include": "#illegalBacktick"
-		},
-		{
-			"include": "#lineComment"
-		},
-		{
-			"include": "#blockComment"
-		},
-		{
-			"include": "#stringDoubleQuoted"
-		},
-		{
-			"include": "#stringSingleQuoted"
-		},
-		{
-			"include": "#stringDoubleQuotedHeredoc"
-		},
-		{
-			"include": "#stringSingleQuotedHeredoc"
-		},
-		{
-			"include": "#switch"
-		},
-		{
-			"include": "#scriptBlock"
-		},
-		{
-			"include": "#subExpression"
-		},
-		{
-			"include": "#arrayDeclaration"
-		},
-		{
-			"include": "#redirection"
-		},
-		{
-			"include": "#numericConstant"
-		},
-		{
-			"include": "#operators"
-		},
-		{
-			"include": "#type"
-		},
-		{
-			"include": "#function"
-		},
-		{
-			"include": "#enum"
-		},
-		{
-			"include": "#class"
-		},
-		{
-			"include": "#reservedWords"
-		},
-		{
-			"include": "#controlWords"
-		},
-		{
-			"include": "#commands"
-		},
-		{
-			"include": "#executableFiles"
-		},
-		{
-			"include": "#illegalVariable"
-		},
-		{
-			"include": "#variable"
-		}
-	],
-	"repository": {
-		"arrayDeclaration": {
-			"begin": "(\\@?\\()",
+			"begin": "<#",
 			"beginCaptures": {
 				"0": {
-					"name": "keyword.other.powershell"
+					"name": "punctuation.start.definition.comment.block.powershell"
 				}
 			},
-			"end": "(\\))((\\.[\\w\"']+)*)",
+			"end": "#>",
 			"endCaptures": {
-				"1": {
-					"name": "keyword.other.powershell"
-				},
-				"2": {
-					"name": "entity.other.attribute-name.powershell"
+				"0": {
+					"name": "punctuation.end.definition.comment.block.powershell"
 				}
 			},
-			"name": "meta.array.powershell",
-			"patterns": [
-				{
-					"include": "$self"
-				}
-			]
-		},
-		"blockComment": {
-			"begin": "(<#)",
-			"end": "(#>)",
 			"name": "comment.block.powershell",
 			"patterns": [
 				{
@@ -134,393 +28,147 @@
 				}
 			]
 		},
-		"class": {
-			"begin": "(?<!\\w|-)(?i:(class))\\s+(\\w+)(?:\\s*(:)\\s*(\\w+))?\\s*\\{",
-			"beginCaptures": {
-				"1": {
-					"name": "storage.type.powershell"
-				},
-				"2": {
-					"name": "entity.name.function.powershell"
-				},
-				"3": {
-					"name": "keyword.operator.powershell"
-				},
-				"4": {
-					"name": "entity.other.inherited-class.powershell"
-				}
-			},
-			"comment": "Class",
-			"end": "\\}",
-			"name": "meta.class.powershell",
+		{
+			"begin": "(?<![`\\\\-])#",
+			"end": "$",
+			"name": "comment.line.number-sign.powershell",
 			"patterns": [
 				{
-					"include": "#classReservedWords"
-				},
-				{
-					"include": "#classBaseKeyword"
-				},
-				{
-					"include": "$self"
+					"include": "#commentEmbeddedDocs"
 				}
 			]
 		},
-		"classBaseKeyword": {
-			"captures": {
-				"1": {
-					"name": "keyword.operator.powershell"
-				},
-				"2": {
-					"name": "keyword.control.class.powershell"
-				}
-			},
-			"comment": "The base keyword used in classes.",
-			"match": "(:)\\s*(?i:(base))\\s*(?=\\()"
+		{
+			"match": "[2-6]>&1|>>|>|<<|<|>|>\\||[1-6]>|[1-6]>>",
+			"name": "keyword.operator.redirection.powershell"
 		},
-		"classReservedWords": {
-			"comment": "Reserved words for classes.",
-			"match": "\\b(?i:(hidden|static))\\b",
-			"name": "keyword.other.powershell"
+		{
+			"include": "#commands"
 		},
-		"commandParameter": {
+		{
+			"include": "#variable"
+		},
+		{
+			"include": "#interpolatedStringContent"
+		},
+		{
+			"include": "#function"
+		},
+		{
+			"include": "#attribute"
+		},
+		{
+			"include": "#type"
+		},
+		{
+			"begin": "(?<!(?<!`)\")\"",
+			"end": "\"(?!\")",
+			"name": "string.quoted.double.powershell",
 			"patterns": [
 				{
-					"comment": "-Parameter value",
-					"match": "\\s(-\\w+)(:)?",
-					"name": "variable.parameter.powershell"
+					"include": "#variableNoProperty"
+				},
+				{
+					"include": "#doubleQuotedStringEscapes"
+				},
+				{
+					"include": "#interpolation"
+				},
+				{
+					"match": "`\\s*$",
+					"name": "keyword.other.powershell"
 				}
 			]
 		},
-		"commands": {
+		{
+			"comment": "Needed to parse stuff correctly in 'argument mode'. (See about_parsing.)",
+			"include": "#doubleQuotedStringEscapes"
+		},
+		{
+			"begin": "(?<!')'",
+			"end": "'(?!')",
+			"name": "string.quoted.single.powershell",
 			"patterns": [
 				{
-					"begin": "(?<!\\\\)\\b((?i:(Add|Approve|Assert|Backup|Block|Checkpoint|Clear|Close|Compare|Complete|Compress|Confirm|Connect|Convert|ConvertFrom|ConvertTo|Copy|Debug|Deny|Disable|Disconnect|Dismount|Edit|Enable|Enter|Exit|Expand|Export|Find|Format|Get|Grant|Group|Hide|Import|Initialize|Install|Invoke|Join|Limit|Lock|Measure|Merge|Mount|Move|New|Open|Optimize|Out|Ping|Pop|Protect|Publish|Push|Read|Receive|Redo|Register|Remove|Rename|Repair|Request|Reset|Resize|Resolve|Restart|Restore|Resume|Revoke|Save|Search|Select|Send|Set|Show|Skip|Split|Start|Step|Stop|Submit|Suspend|Switch|Sync|Test|Trace|Unblock|Undo|Uninstall|Unlock|Unprotect|Unpublish|Unregister|Update|Use|Wait|Watch|Write))-(\\w+))\\b(?!\\.|\\\\)",
-					"beginCaptures": {
-						"1": {
-							"name": "support.function.powershell"
-						}
-					},
-					"comment": "Generic function match based on Verb-Noun pair using list of approved verbs.",
-					"end": "((?=\\))|(?=\\})|(?<!`)\\n|(?<!`)\\r|(\\|))",
-					"endCaptures": {
-						"2": {
-							"name": "keyword.operator.powershell"
-						}
-					},
-					"name": "meta.command.powershell",
-					"patterns": [
-						{
-							"include": "#scriptblock"
-						},
-						{
-							"include": "#commandParameter"
-						},
-						{
-							"include": "#lineComment"
-						},
-						{
-							"include": "#redirection"
-						},
-						{
-							"include": "#numericConstant"
-						},
-						{
-							"include": "#operators"
-						},
-						{
-							"include": "#variable"
-						},
-						{
-							"include": "#stringDoubleQuoted"
-						},
-						{
-							"include": "#stringSingleQuoted"
-						},
-						{
-							"include": "#arrayDeclaration"
-						},
-						{
-							"include": "#illegalBacktick"
-						},
-						{
-							"include": "#illegalVariable"
-						}
-					]
-				},
-				{
-					"begin": "(?<!\\\\)\\b(?i:foreach-object|tee-object|where-object|sort-object)\\b(?!\\.|\\\\)",
-					"beginCaptures": {
-						"0": {
-							"name": "support.function.powershell"
-						}
-					},
-					"comment": "Built-in commands that don't adhere to the approved verbs standard.",
-					"end": "((?=\\))|(?=\\})|(?<!`)\\n|(?<!`)\\r|(\\|))",
-					"endCaptures": {
-						"2": {
-							"name": "keyword.operator.powershell"
-						}
-					},
-					"name": "meta.command.powershell",
-					"patterns": [
-						{
-							"include": "#scriptblock"
-						},
-						{
-							"include": "#commandParameter"
-						},
-						{
-							"include": "#lineComment"
-						},
-						{
-							"include": "#redirection"
-						},
-						{
-							"include": "#numericConstant"
-						},
-						{
-							"include": "#operators"
-						},
-						{
-							"include": "#variable"
-						},
-						{
-							"include": "#stringDoubleQuoted"
-						},
-						{
-							"include": "#stringSingleQuoted"
-						},
-						{
-							"include": "#arrayDeclaration"
-						},
-						{
-							"include": "#illegalBacktick"
-						},
-						{
-							"include": "#illegalVariable"
-						}
-					]
-				},
-				{
-					"begin": "(?<!\\\\|\\[)\\b(?i:ac|asnp|cat|cd|cfs|chdir|clc|clear|clhy|cli|clp|cls|clv|cnsn|compare|copy|cp|cpi|cpp|curl|cvpa|dbp|del|diff|dir|dnsn|ebp|echo|epal|epcsv|epsn|erase|etsn|exsn|fc|fhx|fl|ft|fw|gal|gbp|gc|gcb|gci|gcm|gcs|gdr|ghy|gi|gjb|gl|gm|gmo|gp|gps|gpv|group|gsn|gsnp|gsv|gu|gv|gwmi|h|history|icm|iex|ihy|ii|ipal|ipcsv|ipmo|ipsn|irm|ise|iwmi|iwr|kill|lp|ls|man|md|measure|mi|mount|move|mp|mv|nal|ndr|ni|nmo|npssc|nsn|nv|ogv|oh|popd|ps|pushd|r|rbp|rcjb|rcsn|rd|rdr|ren|ri|rjb|rm|rmdir|rmo|rni|rnp|rp|rsn|rsnp|rujb|rv|rvpa|rwmi|sajb|sal|saps|sasv|sbp|sc|scb|select|set|shcm|si|sl|sleep|sls|sort|sp|spjb|spps|spsv|start|sujb|sv|swmi|tee|trcm|type|wget|wjb|write)\\b(?!\\.|\\\\|\\])",
-					"beginCaptures": {
-						"0": {
-							"name": "support.function.powershell"
-						}
-					},
-					"comment": "Built-in aliases",
-					"end": "((?=\\))|(?=\\})|(?<!`)\\n|(?<!`)\\r|(\\|))",
-					"endCaptures": {
-						"2": {
-							"name": "keyword.operator.powershell"
-						}
-					},
-					"name": "meta.command.powershell",
-					"patterns": [
-						{
-							"include": "#scriptblock"
-						},
-						{
-							"include": "#commandParameter"
-						},
-						{
-							"include": "#lineComment"
-						},
-						{
-							"include": "#redirection"
-						},
-						{
-							"include": "#numericConstant"
-						},
-						{
-							"include": "#operators"
-						},
-						{
-							"include": "#variable"
-						},
-						{
-							"include": "#stringDoubleQuoted"
-						},
-						{
-							"include": "#stringSingleQuoted"
-						},
-						{
-							"include": "#arrayDeclaration"
-						},
-						{
-							"include": "#illegalBacktick"
-						},
-						{
-							"include": "#illegalVariable"
-						}
-					]
-				},
-				{
-					"begin": "(\\b(([A-Za-z0-9\\-_\\.]+).(?i:ps1))\\b)",
-					"beginCaptures": {
-						"0": {
-							"name": "support.function.powershell"
-						}
-					},
-					"comment": "External script",
-					"end": "((?=\\))|(?=\\})|(?<!`)\\n|(?<!`)\\r|(\\|))",
-					"endCaptures": {
-						"2": {
-							"name": "keyword.operator.powershell"
-						}
-					},
-					"name": "meta.command.powershell",
-					"patterns": [
-						{
-							"include": "#scriptblock"
-						},
-						{
-							"include": "#commandParameter"
-						},
-						{
-							"include": "#lineComment"
-						},
-						{
-							"include": "#redirection"
-						},
-						{
-							"include": "#numericConstant"
-						},
-						{
-							"include": "#operators"
-						},
-						{
-							"include": "#variable"
-						},
-						{
-							"include": "#stringDoubleQuoted"
-						},
-						{
-							"include": "#stringSingleQuoted"
-						},
-						{
-							"include": "#arrayDeclaration"
-						},
-						{
-							"include": "#illegalBacktick"
-						},
-						{
-							"include": "#illegalVariable"
-						}
-					]
+					"match": "''",
+					"name": "constant.character.escape.powershell"
 				}
 			]
 		},
-		"commentEmbeddedDocs": {
+		{
+			"begin": "\\@\"(?=$)",
+			"end": "^\"@",
+			"name": "string.quoted.double.heredoc.powershell",
 			"patterns": [
 				{
-					"captures": {
-						"1": {
-							"name": "keyword.operator.documentation.powershell"
-						},
-						"2": {
-							"name": "keyword.operator.documentation.powershell"
-						}
-					},
-					"match": "(?i:(\\.)(SYNOPSIS|DESCRIPTION|EXAMPLE|INPUTS|OUTPUTS|NOTES|LINK|COMPONENT|FUNCTIONALITY|ROLE)\\b)",
-					"name": "comment.documentation.embedded.powershell"
+					"include": "#variableNoProperty"
 				},
 				{
-					"captures": {
-						"1": {
-							"name": "keyword.operator.documentation.powershell"
-						},
-						"2": {
-							"name": "keyword.operator.documentation.powershell"
-						},
-						"3": {
-							"name": "constant.string.documentation.powershell"
-						}
-					},
-					"match": "(?i:(\\.)(PARAMETER|FORWARDHELPTARGETNAME|FORWARDHELPCATEGORY|REMOTEHELPRUNSPACE|EXTERNALHELP)\\s+(.+))",
-					"name": "comment.documentation.embedded.powershell"
+					"include": "#doubleQuotedStringEscapes"
 				},
 				{
-					"captures": {
-						"1": {
-							"name": "keyword.operator.documentation.powershell"
-						},
-						"2": {
-							"name": "constant.string.documentation.powershell"
-						}
-					},
-					"comment": "Requires -Version",
-					"match": "(?i:(requires))\\s(-(?i:version)\\s\\d+(\\.\\d+)?)",
-					"name": "comment.documentation.embedded.powershell"
-				},
-				{
-					"captures": {
-						"1": {
-							"name": "keyword.operator.documentation.powershell"
-						},
-						"2": {
-							"name": "constant.string.documentation.powershell"
-						}
-					},
-					"comment": "Requires -PSSnapin",
-					"match": "(?i:(requires))\\s(-(?i:pssnapin)\\s\\w+(\\s*-(?i:version)\\s\\d+(\\.\\d+)?)?)",
-					"name": "comment.documentation.embedded.powershell"
-				},
-				{
-					"captures": {
-						"1": {
-							"name": "keyword.operator.documentation.powershell"
-						},
-						"2": {
-							"name": "constant.string.documentation.powershell"
-						}
-					},
-					"comment": "Requires -Modules",
-					"match": "(?i:(requires))\\s(-(?i:modules)\\s.*)",
-					"name": "comment.documentation.embedded.powershell"
-				},
-				{
-					"captures": {
-						"1": {
-							"name": "keyword.operator.documentation.powershell"
-						},
-						"2": {
-							"name": "constant.string.documentation.powershell"
-						}
-					},
-					"comment": "Requires -ShellId",
-					"match": "(?i:(requires))\\s(-(?i:shellid)\\s.*)",
-					"name": "comment.documentation.embedded.powershell"
-				},
-				{
-					"captures": {
-						"1": {
-							"name": "keyword.operator.documentation.powershell"
-						},
-						"2": {
-							"name": "constant.string.documentation.powershell"
-						}
-					},
-					"comment": "Requires -RunAsAdministrator",
-					"match": "(?i:(requires))\\s(-(?i:runasadministrator))",
-					"name": "comment.documentation.embedded.powershell"
+					"include": "#interpolation"
 				}
 			]
 		},
-		"controlWords": {
-			"match": "(\\b(?<!-|\\$)(?i:begin|process|exit|break|return|catch|finally|for|continue|foreach|throw|from|trap|try|do|if|until|in|using|else|elseif|while|end|where)\\b(?!-|\\.))",
-			"name": "keyword.control.powershell"
+		{
+			"begin": "\\@'(?=$)",
+			"end": "^'@",
+			"name": "string.quoted.single.heredoc.powershell",
+			"patterns": [
+				{
+					"match": "''",
+					"name": "constant.character.escape.powershell"
+				}
+			]
 		},
-		"defaultKeyword": {
+		{
+			"include": "#numericConstant"
+		},
+		{
+			"begin": "@\\(",
 			"captures": {
 				"0": {
 					"name": "keyword.other.powershell"
 				}
 			},
-			"comment": "Default is a reserved word when used in Switch statements. This is kind of a work-around - it will highlight only inside scriptblocks.",
-			"match": "(?i:(default))\\s*(?=\\{)"
+			"end": "\\)",
+			"name": "meta.group.array-expression.powershell",
+			"patterns": [
+				{
+					"include": "$self"
+				}
+			]
 		},
-		"enum": {
+		{
+			"begin": "\\$\\(",
+			"captures": {
+				"0": {
+					"name": "keyword.other.powershell"
+				}
+			},
+			"comment": "TODO: move to repo; make recursive.",
+			"end": "\\)",
+			"name": "meta.group.complex.subexpression.powershell",
+			"patterns": [
+				{
+					"include": "$self"
+				}
+			]
+		},
+		{
+			"match": "(?<!\\w)-([ci]?[lg][te]|eq|ne)",
+			"name": "keyword.operator.logical.powershell"
+		},
+		{
+			"match": "(\\b(([A-Za-z0-9\\-_\\.]+)\\.(?i:exe|com|cmd|bat))\\b)",
+			"name": "support.function.powershell"
+		},
+		{
+			"match": "(?<!\\w)((?i:begin|break|catch|continue|data|define|do|dynamicparam|else|elseif|end|exit|finally|for|foreach(?!-object)|from|if|in|inlinescript|parallel|param|process|return|switch|throw|trap|try|until|using|var|where(?!-object)|while)|%|\\?)(?!\\w)",
+			"name": "keyword.control.powershell"
+		},
+		{
 			"captures": {
 				"1": {
 					"name": "storage.type.powershell"
@@ -530,15 +178,175 @@
 				}
 			},
 			"comment": "capture should be entity.name.type, but it doesn't provide a good color in the default schema.",
-			"match": "(?<!\\w|-)(?i:(enum))\\s+(\\w+)\\s+"
+			"match": "(?<!\\w)((?i:class)|%|\\?)(?:\\s)+((?:\\p{L}|\\d|_|-|)+)\\b"
 		},
-		"executableFiles": {
-			"comment": "Executable files, like exe, com, cmd and bat",
-			"match": "(\\b(([A-Za-z0-9\\-_\\.]+).(?i:exe|com|cmd|bat))\\b)",
-			"name": "support.function.powershell"
+		{
+			"match": "(?<!\\w)-(?i:is(?:not)?|as)\\b",
+			"name": "keyword.operator.comparison.powershell"
+		},
+		{
+			"match": "(?<!\\w)-(?i:[ic]?(?:eq|ne|[gl][te]|(?:not)?(?:like|match|contains|in)|replace))(?!\\p{L})",
+			"name": "keyword.operator.comparison.powershell"
+		},
+		{
+			"match": "(?<!\\w)-(?i:join|split)(?!\\p{L})|!",
+			"name": "keyword.operator.unary.powershell"
+		},
+		{
+			"match": "(?<!\\w)-(?i:and|or|not|xor)(?!\\p{L})|!",
+			"name": "keyword.operator.logical.powershell"
+		},
+		{
+			"match": "(?<!\\w)-(?i:band|bor|bnot|bxor)(?!\\p{L})",
+			"name": "keyword.operator.bitwise.powershell"
+		},
+		{
+			"match": "(?<!\\w)-(?i:f)(?!\\p{L})",
+			"name": "keyword.operator.string-format.powershell"
+		},
+		{
+			"match": "[+%*/-]?=|[+/*%-]",
+			"name": "keyword.operator.assignment.powershell"
+		},
+		{
+			"match": "\\|{2}|&{2}|;",
+			"name": "keyword.other.statement-separator.powershell"
+		},
+		{
+			"match": "&|(?<!\\w)\\.(?= )|`|,|\\|",
+			"name": "keyword.operator.other.powershell"
+		},
+		{
+			"comment": "This is very imprecise, is there a syntax for 'must come after...' ",
+			"match": "(?<!\\s|^)\\.\\.(?=\\d|\\(|\\$)",
+			"name": "keyword.operator.range.powershell"
+		}
+	],
+	"repository": {
+		"attribute": {
+			"begin": "\\[(\\p{L}|\\.|``\\d+)+(?=\\()",
+			"beginCaptures": {
+				"0": {
+					"name": "entity.name.tag"
+				},
+				"1": {
+					"name": "entity.name.tag"
+				}
+			},
+			"end": "\\]",
+			"endCaptures": {
+				"0": {
+					"name": "entity.name.tag"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "\\(",
+					"end": "\\)",
+					"name": "entity.other.attribute-name",
+					"patterns": [
+						{
+							"captures": {
+								"0": {
+									"name": "entity.other.attribute.parameter.powershell"
+								},
+								"1": {
+									"name": "constant.language.powershell"
+								},
+								"2": {
+									"name": "variable.other.powershell"
+								}
+							},
+							"comment": "really we should match the known attributes first",
+							"match": "(\\w+)\\s*=?([^\"']*?|'[^']*?'|\"[^\"]*?\")?(?=,|\\))",
+							"name": "entity.other.attribute-name.powershell"
+						},
+						{
+							"include": "#variable"
+						}
+					]
+				}
+			]
+		},
+		"commands": {
+			"patterns": [
+				{
+					"comment": "Verb-Noun pattern:",
+					"match": "(?:(\\p{L}|\\d|_|-|\\\\|\\:)*\\\\)?\\b(?i:Add|Approve|Assert|Backup|Block|Checkpoint|Clear|Close|Compare|Complete|Compress|Confirm|Connect|Convert|ConvertFrom|ConvertTo|Copy|Debug|Deny|Disable|Disconnect|Dismount|Edit|Enable|Enter|Exit|Expand|Export|Find|Format|Get|Grant|Group|Hide|Import|Initialize|Install|Invoke|Join|Limit|Lock|Measure|Merge|Mount|Move|New|Open|Optimize|Out|Ping|Pop|Protect|Publish|Push|Read|Receive|Redo|Register|Remove|Rename|Repair|Request|Reset|Resize|Resolve|Restart|Restore|Resume|Revoke|Save|Search|Select|Send|Set|Show|Skip|Split|Start|Step|Stop|Submit|Suspend|Switch|Sync|Test|Trace|Unblock|Undo|Uninstall|Unlock|Unprotect|Unpublish|Unregister|Update|Use|Wait|Watch|Write)\\-.+?(?:\\.(?i:exe|cmd|bat|ps1))?\\b",
+					"name": "support.function.powershell"
+				},
+				{
+					"comment": "Builtin cmdlets with reserved verbs",
+					"match": "(?<!\\w)(?i:foreach-object)(?!\\w)",
+					"name": "support.function.powershell"
+				},
+				{
+					"comment": "Builtin cmdlets with reserved verbs",
+					"match": "(?<!\\w)(?i:where-object)(?!\\w)",
+					"name": "support.function.powershell"
+				}
+			]
+		},
+		"commentEmbeddedDocs": {
+			"patterns": [
+				{
+					"captures": {
+						"1": {
+							"name": "constant.string.documentation.powershell"
+						},
+						"2": {
+							"name": "keyword.operator.documentation.powershell"
+						}
+					},
+					"match": "(?i:\\s*(\\.)(SYNOPSIS|DESCRIPTION|EXAMPLE|INPUTS|OUTPUTS|NOTES|LINK|COMPONENT|FUNCTIONALITY))",
+					"name": "comment.documentation.embedded.powershell"
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "constant.string.documentation.powershell"
+						},
+						"2": {
+							"name": "keyword.operator.documentation.powershell"
+						},
+						"3": {
+							"name": "keyword.operator.documentation.powershell"
+						}
+					},
+					"match": "(?i:\\s*(\\.)(PARAMETER|FORWARDHELPTARGETNAME|FORWARDHELPCATEGORY|REMOTEHELPRUNSPACE|EXTERNALHELP)\\s+([a-z0-9-_]+))",
+					"name": "comment.documentation.embedded.powershell"
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "constant.string.documentation.powershell"
+						},
+						"2": {
+							"name": "keyword.operator.documentation.powershell"
+						},
+						"3": {
+							"name": "string.quoted.double.heredoc.powershell"
+						}
+					},
+					"match": "(?i:requires\\s+-(Version\\s+\\d(.\\d+)?|Assembly\\s+(.*)|Module\\s+(.*)|PsSnapIn\\s+(.*)|ShellId\\s+(.*)))",
+					"name": "comment.documentation.embedded.powershell"
+				}
+			]
+		},
+		"doubleQuotedStringEscapes": {
+			"patterns": [
+				{
+					"match": "`[0abnfrvt\"'$`]",
+					"name": "constant.character.escape.powershell"
+				},
+				{
+					"match": "\"\"",
+					"name": "constant.character.escape.powershell"
+				}
+			]
 		},
 		"function": {
-			"begin": "(?<!\\S)(?i)(function|filter|workflow|configuration)\\s+(?:(global|local|script|private):)?((?:\\p{L}|\\d|_|-|\\.)+)",
+			"begin": "(?<!\\S)(?i)(function|filter|configuration|workflow)\\s+(?:(global|local|script|private):)?((?:\\p{L}|\\d|_|-|\\.)+)",
 			"beginCaptures": {
 				"0": {
 					"name": "meta.function"
@@ -553,302 +361,107 @@
 					"name": "entity.name.function.powershell"
 				}
 			},
-			"end": "\\{|\\(",
-			"patterns": [
-				{
-					"include": "#lineComment"
-				}
-			]
+			"end": "\\{|\\("
 		},
-		"hashTable": {
-			"begin": "(@\\{)",
-			"end": "(\\})",
-			"name": "meta.hashtable.powershell",
+		"interpolatedStringContent": {
+			"begin": "\\(",
+			"beginCaptures": {
+				"0": {
+					"name": "keyword.other.powershell"
+				}
+			},
+			"contentName": "interpolated.simple.source.powershell",
+			"end": "\\)",
+			"endCaptures": {
+				"0": {
+					"name": "keyword.other.powershell"
+				}
+			},
 			"patterns": [
 				{
 					"include": "$self"
+				},
+				{
+					"include": "#interpolation"
+				},
+				{
+					"include": "#interpolatedStringContent"
 				}
 			]
 		},
-		"illegalBacktick": {
-			"comment": "Any characters (other than new line) after a back-tick, is illegal in PowerShell.",
-			"match": "(`(?!$))",
-			"name": "invalid.illegal.powershell"
-		},
-		"illegalVariable": {
-			"match": "\\$\\w+:\\s",
-			"name": "invalid.illegal.powershell"
-		},
-		"lineComment": {
-			"begin": "(^#|\\s#)",
-			"comment": "Line comment - must start with new line or at least one whitespace character before the '#'.",
-			"end": "$",
-			"name": "comment.line.number-sign.powershell",
+		"interpolation": {
+			"begin": "(\\$)\\(",
+			"beginCaptures": {
+				"0": {
+					"name": "keyword.other.powershell"
+				}
+			},
+			"contentName": "interpolated.complex.source.powershell",
+			"end": "\\)",
+			"endCaptures": {
+				"0": {
+					"name": "keyword.other.powershell"
+				}
+			},
 			"patterns": [
 				{
-					"include": "#commentEmbeddedDocs"
+					"include": "$self"
+				},
+				{
+					"include": "#interpolation"
+				},
+				{
+					"include": "#interpolatedStringContent"
 				}
 			]
 		},
 		"numericConstant": {
 			"patterns": [
 				{
-					"comment": "Real [(+|-)] digits . digits [e [(+|-)] digits] [(d|l)] [(kb|mb|gb|tb|pb)]",
-					"match": "(?<!\\w)([-+]?)\\d+\\.\\d+(?i:e(\\+|-){0,1}\\d+){0,1}(?i:d|l){0,1}(?i:kb|mb|gb|tb|pb){0,1}(?!\\w|\\d)",
-					"name": "constant.numeric.real.powershell"
-				},
-				{
-					"comment": "Real [(+|-)] . digits [e [(+|-)] digits] [(d|l)] [(kb|mb|gb|tb|pb)]",
-					"match": "(?<!\\.|\\d|\\w)([-+]?)\\.\\d+(?i:e(\\+|-){0,1}\\d+){0,1}(?i:d|l){0,1}(?i:kb|mb|gb|tb|pb){0,1}(?!\\w|\\d)",
-					"name": "constant.numeric.real.powershell"
-				},
-				{
-					"comment": "Real [(+|-)] digits . [e [(+|-)] digits] [(d|l)] [(kb|mb|gb|tb|pb)]",
-					"match": "(?<!\\w)([-+]?)(?<!\\d)\\d+\\.(?i:e(\\+|-){0,1}\\d+){0,1}(?i:d|l){0,1}(?i:kb|mb|gb|tb|pb){0,1}(?!\\w|\\d|\\.)",
-					"name": "constant.numeric.real.powershell"
-				},
-				{
-					"comment": "Integer [(+|-)] digits [(d|l)] [(kb|mb|gb|tb|pb)]",
-					"match": "(?<!\\w|\\w\\.)([-+]?)\\d+(?i:d|l){0,1}(?i:kb|mb|gb|tb|pb){0,1}(?!\\w|\\d)",
-					"name": "constant.numeric.integer.powershell"
-				},
-				{
-					"comment": "Real [(+|-)] digits [e [(+|-)] digits] [(d|l)] [(kb|mb|gb|tb|pb)]",
-					"match": "(?<!\\w|\\.)([-+]?)(?<!\\d)\\d+(?i:e(\\+|-){0,1}\\d+){0,1}(?i:d|l){0,1}(?i:kb|mb|gb|tb|pb){0,1}(?!\\w|\\d|\\.)",
-					"name": "constant.numeric.real.powershell"
-				},
-				{
-					"comment": "Hexadecimal 0x 0-f [l] [kb|mb|gb|tb|pb]",
-					"match": "(?<!\\w|\\d)([-+]?)(?i:0x)(?i:[0-9a-f])+(?i:l){0,1}(?i:kb|mb|gb|tb|pb){0,1}(?!\\w|\\d)",
+					"captures": {
+						"1": {
+							"name": "keyword.operator.math.powershell"
+						},
+						"2": {
+							"name": "support.constant.powershell"
+						},
+						"3": {
+							"name": "keyword.other.powershell"
+						}
+					},
+					"match": "(?<!\\w)(?i:(0x)([a-f0-9]+)((?i:L)?(?i:[kmgtp]b)?))(?!\\w)",
 					"name": "constant.numeric.hexadecimal.powershell"
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "support.constant.powershell"
+						},
+						"2": {
+							"name": "keyword.operator.math.powershell"
+						},
+						"3": {
+							"name": "support.constant.powershell"
+						},
+						"4": {
+							"name": "keyword.other.powershell"
+						},
+						"5": {
+							"name": "keyword.other.powershell"
+						}
+					},
+					"match": "(?<!\\w)(?i:(\\d*\\.?\\d+)(?:((?i:E)[+-]?)(\\d+))?((?i:[DL])?)((?i:[kmgtp]b)?))(?!\\w)",
+					"name": "constant.numeric.scientific.powershell"
 				}
 			]
 		},
-		"operators": {
-			"patterns": [
-				{
-					"comment": "Comparison",
-					"match": "(?<=\\d|\\s|^)-(?i:as|is|isnot|in|notin|join|((c|i)?(eq|ne|gt|lt|ge|le|like|notlike|split|replace|contains|notcontains|match|notmatch))|shl|shr)\\b(?!\\.|\\\\)",
-					"name": "keyword.operator.comparison.powershell"
-				},
-				{
-					"comment": "Bitwise",
-					"match": "(?<=\\d|\\s|^)-(?i:band|bor|bxor|bnot|shr|shl)\\b",
-					"name": "keyword.operator.bitwise.powershell"
-				},
-				{
-					"comment": "Logical",
-					"match": "(?<=\\d|\\s|^)-(?i:and|or|xor)\\b",
-					"name": "keyword.operator.logical.powershell"
-				},
-				{
-					"comment": "Format",
-					"match": "(?<=\\d|\\s|^)-(?i:f)\\b",
-					"name": "keyword.operator.format.powershell"
-				},
-				{
-					"comment": "Assignment",
-					"match": "(=|-=|\\+=|\\*=|/=|%=)",
-					"name": "keyword.operator.assignment.powershell"
-				},
-				{
-					"comment": "Logical NOT",
-					"match": "(?<=\\d|\\s|^)((?i:-not)|!)",
-					"name": "keyword.operator.unary.logical-not.powershell"
-				},
-				{
-					"comment": "Multiplicative",
-					"match": "([*/%])(?!\\.)",
-					"name": "keyword.operator.multiplicative.powershell"
-				},
-				{
-					"comment": "Unary Plus",
-					"match": "([+](?=\\$|\\(|\"))",
-					"name": "keyword.operator.unary-plus.powershell"
-				},
-				{
-					"comment": "Unary Minus",
-					"match": "([-](?=\\$|\\(|\"))",
-					"name": "keyword.operator.unary-minus.powershell"
-				},
-				{
-					"comment": "Additive",
-					"match": "([+-])(?!\\{|\\p{L}|@)",
-					"name": "keyword.operator.additive.powershell"
-				},
-				{
-					"comment": "Range",
-					"match": "(\\.\\.)",
-					"name": "keyword.operator.range.powershell"
-				},
-				{
-					"comment": "Command invocation (Call)",
-					"match": "(&|\\|)",
-					"name": "keyword.operator.other.powershell"
-				}
-			]
-		},
-		"redirection": {
-			"patterns": [
-				{
-					"comment": "Merging redirection",
-					"match": "(?<=\\s|^)([2-6\\*]?>&1)",
-					"name": "keyword.operator.redirection.powershell"
-				},
-				{
-					"comment": "File redirection",
-					"match": "(?<=\\s|^)(([1-6\\*]?>{1,2})|(<))",
-					"name": "keyword.operator.redirection.powershell"
-				}
-			]
-		},
-		"reservedWords": {
-			"match": "(\\b(?<!-|\\$)(?i:configuration|node|enum|filter|sequence|class|data|define|function|dynamicparam|inlinescript|var|parallel|param|workflow)\\b(?!-|\\.))",
-			"name": "keyword.other.powershell"
-		},
-		"scriptBlock": {
-			"begin": "(\\{)",
-			"end": "(\\})",
+		"scriptblock": {
+			"begin": "\\{",
+			"end": "\\}",
 			"name": "meta.scriptblock.powershell",
 			"patterns": [
 				{
 					"include": "$self"
-				},
-				{
-					"include": "#defaultKeyword"
-				}
-			]
-		},
-		"stringDoubleQuoted": {
-			"begin": "((?<!\\\")\\\")",
-			"end": "(\\\"(?!\\\"))",
-			"name": "string.quoted.double.powershell",
-			"patterns": [
-				{
-					"include": "#illegalVariable"
-				},
-				{
-					"include": "#stringEscapeChars"
-				},
-				{
-					"include": "#variableWithoutPropertyHighlighting"
-				},
-				{
-					"include": "#subExpression"
-				}
-			]
-		},
-		"stringDoubleQuotedHeredoc": {
-			"begin": "(\\@\"\\s*$)",
-			"end": "^\"\\@",
-			"name": "string.quoted.double.heredoc.powershell",
-			"patterns": [
-				{
-					"include": "#illegalVariable"
-				},
-				{
-					"include": "#stringEscapeChars"
-				},
-				{
-					"include": "#variableWithoutPropertyHighlighting"
-				},
-				{
-					"include": "#subExpression"
-				},
-				{
-					"include": "#scriptBlock"
-				}
-			]
-		},
-		"stringEscapeChars": {
-			"patterns": [
-				{
-					"match": "(`[0abfnrtv\"'$`])",
-					"name": "constant.character.escape.powershell"
-				},
-				{
-					"match": "(\"\")",
-					"name": "constant.character.escape.powershell"
-				}
-			]
-		},
-		"stringSingleQuoted": {
-			"begin": "((?<!')')",
-			"end": "('(?!'))",
-			"name": "string.quoted.single.powershell",
-			"patterns": [
-				{
-					"include": "#stringSingleQuotedDouble"
-				}
-			]
-		},
-		"stringSingleQuotedDouble": {
-			"match": "('')",
-			"name": "constant.character.escape.powershell"
-		},
-		"stringSingleQuotedHeredoc": {
-			"begin": "(\\@'\\s*$)",
-			"end": "^'\\@",
-			"name": "string.quoted.single.heredoc.powershell",
-			"patterns": [
-				{
-					"include": "#stringSingleQuotedDouble"
-				}
-			]
-		},
-		"subExpression": {
-			"begin": "(\\$\\()",
-			"captures": {
-				"0": {
-					"name": "keyword.other.powershell"
-				}
-			},
-			"end": "(\\))",
-			"name": "meta.subexpression.powershell",
-			"patterns": [
-				{
-					"include": "$self"
-				},
-				{
-					"match": "(.)",
-					"name": "source.powershell"
-				}
-			]
-		},
-		"switch": {
-			"patterns": [
-				{
-					"captures": {
-						"1": {
-							"name": "keyword.control.powershell"
-						},
-						"2": {
-							"name": "variable.parameter.powershell"
-						},
-						"4": {
-							"name": "variable.parameter.powershell"
-						},
-						"5": {
-							"name": "variable.parameter.powershell"
-						}
-					},
-					"comment": "switch [-regex|-wildcard|-exact][-casesensitive] -file filename",
-					"match": "\\b(?i:(switch))\\b\\s+(?i:(-regex|-wildcard|-exact){0,1})\\s*(?i:(-casesensitive){0,1})\\s*(?i:(-file))\\s+"
-				},
-				{
-					"captures": {
-						"1": {
-							"name": "keyword.control.powershell"
-						},
-						"2": {
-							"name": "variable.parameter.powershell"
-						},
-						"3": {
-							"name": "variable.parameter.powershell"
-						}
-					},
-					"comment": "switch [-regex|-wildcard|-exact][-casesensitive] (<value>)",
-					"match": "\\b(?i:(switch))\\b\\s+(?i:(-regex|-wildcard|-exact){0,1})\\s*(?i:(-casesensitive){0,1})\\s*"
 				}
 			]
 		},
@@ -856,78 +469,101 @@
 			"begin": "\\[",
 			"beginCaptures": {
 				"0": {
-					"name": "keyword.other.powershell"
+					"name": "entity.other.attribute-name"
 				}
 			},
-			"comment": "Type []",
-			"end": "(\\])(::[\\w]+)*((\\.[\\w\"']+)*)",
+			"comment": "name should be entity.name.type but default schema doesn't have a good color for it",
+			"end": "\\]",
 			"endCaptures": {
-				"1": {
-					"name": "keyword.other.powershell"
-				},
-				"2": {
-					"name": "meta.method.powershell"
-				},
-				"3": {
-					"name": "entity.other.attribute-name.powershell"
+				"0": {
+					"name": "entity.other.attribute-name"
 				}
 			},
 			"patterns": [
 				{
-					"begin": "\\(",
-					"beginCaptures": {
-						"0": {
-							"name": "keyword.other.powershell"
-						}
-					},
-					"comment": "Parenthesis ()",
-					"end": "\\)",
-					"endCaptures": {
-						"0": {
-							"name": "keyword.other.powershell"
-						}
-					},
-					"patterns": [
-						{
-							"include": "$self"
-						},
-						{
-							"comment": "Reserved words within [( )]",
-							"match": "\\b(?i)(mandatory|valuefrompipeline|valuefrompipelinebypropertyname|valuefromremainingarguments|position|parametersetname|defaultparametersetname|supportsshouldprocess|positionalbinding|helpuri|confirmimpact|helpmessage)\\b",
-							"name": "entity.other.attribute-name.powershell"
-						}
-					]
+					"match": "(\\p{L}|\\.|``\\d+)+?",
+					"name": "entity.other.attribute-name"
 				},
 				{
 					"include": "$self"
-				},
-				{
-					"match": "(.(`){0,2}(\\d){0,2})",
-					"name": "entity.name.type"
 				}
 			]
 		},
 		"variable": {
 			"patterns": [
 				{
-					"comment": "Invalid variable name",
-					"match": "(\\$)(\\w+-\\w+)\\b",
-					"name": "invalid.illegal.powershell"
+					"captures": {
+						"1": {
+							"name": "keyword.other.powershell"
+						},
+						"2": {
+							"name": "constant.language.powershell"
+						}
+					},
+					"comment": "These are special constants.",
+					"match": "(\\$)(?i:(False|Null|True))\\b"
 				},
 				{
 					"captures": {
 						"1": {
-							"name": "constant.language.powershell"
+							"name": "keyword.other.powershell"
 						},
 						"2": {
-							"name": "constant.language.powershell"
+							"name": "support.constant.variable.powershell"
 						},
 						"3": {
-							"name": "entity.other.attribute-name.powershell"
+							"name": "entity.name.function.invocation.powershell"
 						}
 					},
-					"comment": "Automatic variables - read-only.",
-					"match": "(\\$)(?i:(_|args|consolefilename|error|event|eventsubscriber|executioncontext|false|foreach|home|host|input|lastexitcode|matches|myinvocation|nestedpromptlevel|null|pid|psboundparameters|pscmdlet|psculture|psdebugcontext|pshome|psitem|psscriptroot|psuiculture|psversiontable|pwd|sender|shellid|sourceargs|sourceeventargs|switch|this|true))\\b((\\.[\\w\"'\\- @#]+)*)"
+					"comment": "These are the other built-in constants.",
+					"match": "(\\$)(?i:(Error|ExecutionContext|Host|Home|PID|PsHome|PsVersionTable|ShellID))((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?\\b"
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "keyword.other.powershell"
+						},
+						"2": {
+							"name": "support.constant.automatic.powershell"
+						},
+						"3": {
+							"name": "entity.name.function.invocation.powershell"
+						}
+					},
+					"comment": "Automatic variables are not constants, but they are read-only. In monokai (default) color schema support.variable doesn't have color, so we use constant.",
+					"match": "(\\$)(?i:(\\$|\\^|\\?|_|Args|ConsoleFileName|Event|EventArgs|EventSubscriber|ForEach|Input|LastExitCode|Matches|MyInvocation|NestedPromptLevel|Profile|PSBoundParameters|PsCmdlet|PsCulture|PSDebugContext|PSItem|PSCommandPath|PSScriptRoot|PsUICulture|Pwd|Sender|SourceArgs|SourceEventArgs|StackTrace|Switch|This))((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?\\b"
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "keyword.other.powershell"
+						},
+						"2": {
+							"name": "variable.language.powershell"
+						},
+						"3": {
+							"name": "entity.name.function.invocation.powershell"
+						}
+					},
+					"comment": "Style preference variables as language variables so that they stand out.",
+					"match": "(\\$)(?i:(ConfirmPreference|DebugPreference|ErrorActionPreference|ErrorView|FormatEnumerationLimit|MaximumAliasCount|MaximumDriveCount|MaximumErrorCount|MaximumFunctionCount|MaximumHistoryCount|MaximumVariableCount|OFS|OutputEncoding|ProgressPreference|PsCulture|PSDebugContext|PSDefaultParameterValues|PSEmailServer|PSItem|PSModuleAutoloadingPreference|PSSenderInfo|PSSessionApplicationName|PSSessionConfigurationName|PSSessionOption|VerbosePreference|WarningPreference|WhatIfPreference))((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?\\b"
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "keyword.other.powershell"
+						},
+						"2": {
+							"name": "storage.modifier.scope.powershell"
+						},
+						"3": {
+							"name": "variable.other.normal.powershell"
+						},
+						"4": {
+							"name": "entity.name.function.invocation.powershell"
+						}
+					},
+					"match": "(?i:(\\$)(global|local|private|script|using|workflow):((?:\\p{L}|\\d|_)+))((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?"
 				},
 				{
 					"captures": {
@@ -941,14 +577,13 @@
 							"name": "variable.other.readwrite.powershell"
 						},
 						"4": {
-							"name": "variable.other.readwrite.powershell"
+							"name": "keyword.other.powershell"
 						},
 						"5": {
-							"name": "entity.other.attribute-name.powershell"
+							"name": "entity.name.function.invocation.powershell"
 						}
 					},
-					"comment": "$var, $local:var",
-					"match": "(\\$)((?i:global|local|script|private|using|env|function|alias|cert|variable|hkcu|hklm|wsman):)?(\\w+)(:\\w+)?((\\.[\\w\"'\\- @#]+)*)"
+					"match": "(?i:(\\$\\{)(global|local|private|script|using|workflow):([^}]*[^}`])(\\}))((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?"
 				},
 				{
 					"captures": {
@@ -956,23 +591,16 @@
 							"name": "keyword.other.powershell"
 						},
 						"2": {
-							"name": "keyword.other.powershell"
+							"name": "support.variable.drive.powershell"
 						},
 						"3": {
-							"name": "storage.modifier.scope.powershell"
-						},
-						"4": {
 							"name": "variable.other.readwrite.powershell"
 						},
-						"5": {
-							"name": "keyword.other.powershell"
-						},
-						"6": {
-							"name": "entity.other.attribute-name.powershell"
+						"4": {
+							"name": "entity.name.function.invocation.powershell"
 						}
 					},
-					"comment": "${var}, ${script:var}",
-					"match": "(\\$)(\\{)((?i:global|local|script|private|using|env|function|alias|cert|variable|hkcu|hklm|wsman):)?(.+?)(\\})((\\.[\\w\"'\\- @#]+)*)"
+					"match": "(?i:(\\$)((?:\\p{L}|\\d|_)+:)?((?:\\p{L}|\\d|_)+))((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?"
 				},
 				{
 					"captures": {
@@ -980,32 +608,97 @@
 							"name": "keyword.other.powershell"
 						},
 						"2": {
+							"name": "support.variable.drive.powershell"
+						},
+						"3": {
 							"name": "variable.other.readwrite.powershell"
+						},
+						"4": {
+							"name": "keyword.other.powershell"
+						},
+						"5": {
+							"name": "entity.name.function.invocation.powershell"
 						}
 					},
-					"comment": "Splatting",
-					"match": "(@)(\\w+)"
+					"match": "(?i:(\\$\\{)((?:\\p{L}|\\d|_)+:)?([^}]*[^}`])(\\}))((?:\\.(?:\\p{L}|\\d|_)+)*\\b)?"
 				}
 			]
 		},
-		"variableWithoutPropertyHighlighting": {
+		"variableNoProperty": {
 			"patterns": [
 				{
-					"comment": "Invalid variable name",
-					"match": "(\\$)(\\w+-\\w+)\\b",
-					"name": "invalid.illegal.powershell"
-				},
-				{
 					"captures": {
 						"1": {
-							"name": "constant.language.powershell"
+							"name": "keyword.other.powershell"
 						},
 						"2": {
 							"name": "constant.language.powershell"
 						}
 					},
-					"comment": "Automatic variables - read-only.",
-					"match": "(\\$)(?i:(_|args|consolefilename|error|event|eventsubscriber|executioncontext|false|foreach|home|host|input|lastexitcode|matches|myinvocation|nestedpromptlevel|null|pid|psboundparameters|pscmdlet|psculture|psdebugcontext|pshome|psitem|psscriptroot|psuiculture|psversiontable|pwd|sender|shellid|sourceargs|sourceeventargs|switch|this|true))\\b"
+					"comment": "These are special constants.",
+					"match": "(\\$)(?i:(False|Null|True))\\b"
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "keyword.other.powershell"
+						},
+						"2": {
+							"name": "support.constant.variable.powershell"
+						},
+						"3": {
+							"name": "entity.name.function.invocation.powershell"
+						}
+					},
+					"comment": "These are the other built-in constants.",
+					"match": "(\\$)(?i:(Error|ExecutionContext|Host|Home|PID|PsHome|PsVersionTable|ShellID))\\b"
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "keyword.other.powershell"
+						},
+						"2": {
+							"name": "support.variable.automatic.powershell"
+						},
+						"3": {
+							"name": "entity.name.function.invocation.powershell"
+						}
+					},
+					"comment": "Automatic variables are not constants, but they are read-only...",
+					"match": "(\\$)(?i:(\\$|\\^|\\?|_|Args|ConsoleFileName|Event|EventArgs|EventSubscriber|ForEach|Input|LastExitCode|Matches|MyInvocation|NestedPromptLevel|Profile|PSBoundParameters|PsCmdlet|PsCulture|PSDebugContext|PSItem|PSCommandPath|PSScriptRoot|PsUICulture|Pwd|Sender|SourceArgs|SourceEventArgs|StackTrace|Switch|This))\\b"
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "keyword.other.powershell"
+						},
+						"2": {
+							"name": "variable.language.powershell"
+						},
+						"3": {
+							"name": "entity.name.function.invocation.powershell"
+						}
+					},
+					"comment": "Style preference variables as language variables so that they stand out.",
+					"match": "(\\$)(?i:(ConfirmPreference|DebugPreference|ErrorActionPreference|ErrorView|FormatEnumerationLimit|MaximumAliasCount|MaximumDriveCount|MaximumErrorCount|MaximumFunctionCount|MaximumHistoryCount|MaximumVariableCount|OFS|OutputEncoding|ProgressPreference|PsCulture|PSDebugContext|PSDefaultParameterValues|PSEmailServer|PSItem|PSModuleAutoloadingPreference|PSSenderInfo|PSSessionApplicationName|PSSessionConfigurationName|PSSessionOption|VerbosePreference|WarningPreference|WhatIfPreference))\\b"
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "keyword.other.powershell"
+						},
+						"2": {
+							"name": "storage.modifier.scope.powershell"
+						},
+						"3": {
+							"name": "variable.other.normal.powershell"
+						},
+						"4": {
+							"name": "entity.name.function.invocation.powershell"
+						}
+					},
+					"match": "(?i:(\\$)(global|local|private|script|using|workflow):((?:\\p{L}|\\d|_)+))"
 				},
 				{
 					"captures": {
@@ -1019,32 +712,13 @@
 							"name": "variable.other.readwrite.powershell"
 						},
 						"4": {
-							"name": "variable.other.readwrite.powershell"
-						}
-					},
-					"comment": "$var, $local:var",
-					"match": "(\\$)((?i:global|local|script|private|using|env|function|alias|cert|variable|hkcu|hklm|wsman):)?(\\w+)(:\\w+)?"
-				},
-				{
-					"captures": {
-						"1": {
 							"name": "keyword.other.powershell"
-						},
-						"2": {
-							"name": "keyword.other.powershell"
-						},
-						"3": {
-							"name": "storage.modifier.scope.powershell"
-						},
-						"4": {
-							"name": "variable.other.readwrite.powershell"
 						},
 						"5": {
-							"name": "keyword.other.powershell"
+							"name": "entity.name.function.invocation.powershell"
 						}
 					},
-					"comment": "${var}, ${script:var}",
-					"match": "(\\$)(\\{)((?i:global|local|script|private|using|env|function|alias|cert|variable|hkcu|hklm|wsman):)?(.+?)(\\})"
+					"match": "(?i:(\\$\\{)(global|local|private|script|using|workflow):([^}]*[^}`])(\\}))"
 				},
 				{
 					"captures": {
@@ -1052,11 +726,36 @@
 							"name": "keyword.other.powershell"
 						},
 						"2": {
+							"name": "support.variable.drive.powershell"
+						},
+						"3": {
 							"name": "variable.other.readwrite.powershell"
+						},
+						"4": {
+							"name": "entity.name.function.invocation.powershell"
 						}
 					},
-					"comment": "Splatting",
-					"match": "(@)(\\w+)"
+					"match": "(?i:(\\$)((?:\\p{L}|\\d|_)+:)?((?:\\p{L}|\\d|_)+))"
+				},
+				{
+					"captures": {
+						"1": {
+							"name": "keyword.other.powershell"
+						},
+						"2": {
+							"name": "support.variable.drive.powershell"
+						},
+						"3": {
+							"name": "variable.other.readwrite.powershell"
+						},
+						"4": {
+							"name": "keyword.other.powershell"
+						},
+						"5": {
+							"name": "entity.name.function.invocation.powershell"
+						}
+					},
+					"match": "(?i:(\\$\\{)((?:\\p{L}|\\d|_)+:)?([^}]*[^}`])(\\}))"
 				}
 			]
 		}

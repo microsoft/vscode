@@ -9,9 +9,8 @@
 	"typescript.projectConfigNoWorkspace": "Bir TypeScript veya JavaScript projesini kullanmak için lütfen bir klasör açın",
 	"typescript.projectConfigUnsupportedFile": "TypeScript mi yoksa JavaScript mi projesi olduğu tespit edilemedi. Desteklenmeyen dosya türü",
 	"typescript.projectConfigCouldNotGetInfo": "TypeScript mi yoksa JavaScript mi projesi olduğu tespit edilemedi",
-	"typescript.noTypeScriptProjectConfig": "Dosya bir TypeScript projesinin bir parçası değil",
-	"typescript.noJavaScriptProjectConfig": "Dosya bir JavaScript projesinin bir parçası değil",
+	"typescript.noTypeScriptProjectConfig": "Dosya bir TypeScript projesinin parçası değil. Daha fazla bilgi almak için [buraya]({0}) tıklayın.",
+	"typescript.noJavaScriptProjectConfig": "Dosya bir JavaScript projesinin parçası değil. Daha fazla bilgi almak için [buraya]({0}) tıklayın.",
 	"typescript.configureTsconfigQuickPick": "tsconfig.json'u yapılandır",
-	"typescript.configureJsconfigQuickPick": "jsconfig.json'u yapılandır",
-	"typescript.projectConfigLearnMore": "Daha Fazla Bilgi Edin"
+	"typescript.configureJsconfigQuickPick": "jsconfig.json'u yapılandır"
 }

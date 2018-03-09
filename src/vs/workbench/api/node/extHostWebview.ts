@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { Position } from 'vs/platform/editor/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export class ExtHostWebview implements vscode.Webview {
 	public readonly editorType = 'webview';
@@ -127,41 +128,40 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 
 	createWebview(
 		uri: vscode.Uri,
+		title: string,
 		viewColumn: vscode.ViewColumn,
 		options: vscode.WebviewOptions
 	): vscode.Webview {
 		const handle = ExtHostWebviews.handlePool++;
-		if (!this._webviews.has(handle)) {
-			this._proxy.$createWebview(handle, uri, options);
+		this._proxy.$createWebview(handle, uri, title, typeConverters.fromViewColumn(viewColumn), options);
 
-			const webview = new ExtHostWebview(handle, this._proxy, uri, viewColumn, options);
-			this._webviews.set(handle, webview);
-		}
-
-		this._proxy.$show(handle, typeConverters.fromViewColumn(viewColumn));
-		return this._webviews.get(handle);
+		const webview = new ExtHostWebview(handle, this._proxy, uri, viewColumn, options);
+		this._webviews.set(handle, webview);
+		return webview;
 	}
 
 	$onMessage(handle: WebviewHandle, message: any): void {
-		const webview = this._webviews.get(handle);
-
-		webview.onMessageEmitter.fire(message);
-	}
-
-	$onDidChangeActiveWeview(handle: WebviewHandle | undefined): void {
-		const webview = this._webviews.get(handle);
-		this._onDidChangeActiveWebview.fire(webview);
-	}
-
-	$onDidDisposeWeview(handle: WebviewHandle): void {
-		const webview = this._webviews.get(handle);
+		const webview = this.getWebview(handle);
 		if (webview) {
-			webview.onDisposeEmitter.fire();
+			webview.onMessageEmitter.fire(message);
 		}
 	}
 
+	$onDidChangeActiveWeview(handle: WebviewHandle | undefined): void {
+		this._onDidChangeActiveWebview.fire(this.getWebview(handle));
+	}
+
+	$onDidDisposeWeview(handle: WebviewHandle): Thenable<void> {
+		const webview = this.getWebview(handle);
+		if (webview) {
+			webview.onDisposeEmitter.fire();
+			this._webviews.delete(handle);
+		}
+		return TPromise.as(void 0);
+	}
+
 	$onDidChangePosition(handle: WebviewHandle, newPosition: Position): void {
-		const webview = this._webviews.get(handle);
+		const webview = this.getWebview(handle);
 		if (webview) {
 			const newViewColumn = typeConverters.toViewColumn(newPosition);
 			if (webview.viewColumn !== newViewColumn) {
@@ -173,4 +173,8 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 
 	private readonly _onDidChangeActiveWebview = new Emitter<ExtHostWebview | undefined>();
 	public readonly onDidChangeActiveWebview = this._onDidChangeActiveWebview.event;
+
+	private getWebview(handle: WebviewHandle) {
+		return this._webviews.get(handle);
+	}
 }

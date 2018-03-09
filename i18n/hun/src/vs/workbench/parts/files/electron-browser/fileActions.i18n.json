@@ -34,6 +34,7 @@
 	"confirmDeleteMessageFolder": "Törli a(z) '{0}' nevű mappát és annak teljes tartalmát? ",
 	"confirmDeleteMessageFile": "Véglegesen törli a(z) '{0}' nevű fájlt?",
 	"irreversible": "A művelet nem vonható vissza!",
+	"cancel": "Mégse",
 	"permDelete": "Végleges törlés",
 	"importFiles": "Fájlok importálása",
 	"confirmOverwrite": "A célmappában már van ilyen nevű mappa vagy fájl. Le szeretné cserélni?",

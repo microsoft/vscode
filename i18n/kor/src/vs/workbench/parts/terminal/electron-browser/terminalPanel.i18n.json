@@ -9,5 +9,6 @@
 	"copy": "복사",
 	"paste": "붙여넣기",
 	"selectAll": "모두 선택",
-	"clear": "지우기"
+	"clear": "지우기",
+	"split": "분할"
 }

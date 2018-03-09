@@ -115,7 +115,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this._domNode.appendChild(this.scrollableElement.getDomNode());
 		container.appendChild(this._domNode);
 
-		this.disposables = [this.rangeMap, this.gesture, this.scrollableElement];
+		this.disposables = [this.rangeMap, this.gesture, this.scrollableElement, this.cache];
 
 		this.scrollableElement.onScroll(this.onScroll, this, this.disposables);
 		domEvent(this.rowsContainer, TouchEventType.Change)(this.onTouchChange, this, this.disposables);

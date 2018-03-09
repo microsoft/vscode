@@ -32,10 +32,9 @@ function isUpToDate(extension) {
 		return false;
 	}
 
-	const packageContents = fs.readFileSync(packagePath);
+	const packageContents = fs.readFileSync(packagePath, { encoding: 'utf8' });
 
 	try {
-		//@ts-ignore review
 		const diskVersion = JSON.parse(packageContents).version;
 		return (diskVersion === extension.version);
 	} catch (err) {

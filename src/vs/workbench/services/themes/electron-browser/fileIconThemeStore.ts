@@ -45,7 +45,7 @@ export class FileIconThemeStore {
 
 	public get onDidChange(): Event<FileIconThemeData[]> { return this.onDidChangeEmitter.event; }
 
-	constructor( @IExtensionService private extensionService: IExtensionService) {
+	constructor(@IExtensionService private extensionService: IExtensionService) {
 		this.knownIconThemes = [];
 		this.onDidChangeEmitter = new Emitter<FileIconThemeData[]>();
 		this.initialize();

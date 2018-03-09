@@ -15,7 +15,7 @@ import { Dimension, Builder } from 'vs/base/browser/builder';
 import { ArrayNavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { SideBySideEditorInput, EditorOptions, EditorInput } from 'vs/workbench/common/editor';
+import { SideBySideEditorInput, EditorOptions, EditorInput, PREFERENCES_EDITOR_ID } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IEditorControl, Position, Verbosity } from 'vs/platform/editor/common/editor';
@@ -105,7 +105,7 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 
 export class PreferencesEditor extends BaseEditor {
 
-	public static readonly ID: string = 'workbench.editor.preferencesEditor';
+	public static readonly ID: string = PREFERENCES_EDITOR_ID;
 
 	private defaultSettingsEditorContextKey: IContextKey<boolean>;
 	private focusSettingsContextKey: IContextKey<boolean>;

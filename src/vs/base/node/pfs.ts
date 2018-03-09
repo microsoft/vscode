@@ -19,7 +19,7 @@ export function readdir(path: string): TPromise<string[]> {
 }
 
 export function exists(path: string): TPromise<boolean> {
-	return new TPromise(c => fs.exists(path, c));
+	return new TPromise(c => fs.exists(path, c), () => { });
 }
 
 export function chmod(path: string, mode: number): TPromise<boolean> {
@@ -195,4 +195,8 @@ export function whenDeleted(path: string): TPromise<void> {
 			}
 		}, 1000);
 	});
+}
+
+export function copy(source: string, target: string): TPromise<void> {
+	return nfcall(extfs.copy, source, target);
 }

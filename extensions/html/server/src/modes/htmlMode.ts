@@ -22,7 +22,10 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageM
 		configure(options: any) {
 			globalSettings = options;
 		},
-		doComplete(document: TextDocument, position: Position, settings: Settings = globalSettings) {
+		doComplete(document: TextDocument, position: Position, settings: Settings = globalSettings, registeredCompletionParticipants: any[]) {
+			if (registeredCompletionParticipants) {
+				completionParticipants = registeredCompletionParticipants;
+			}
 			let options = settings && settings.html && settings.html.suggest;
 			let doAutoComplete = settings && settings.html && settings.html.autoClosingTags;
 			if (doAutoComplete) {

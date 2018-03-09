@@ -30,7 +30,6 @@
 	"changes": "Modifiche",
 	"commitMessageCountdown": "ancora {0} caratteri disponibili nella riga corrente",
 	"commitMessageWarning": "{0} caratteri rispetto ai {1} disponibili nella riga corrente",
-	"ok": "OK",
 	"neveragain": "Non visualizzare più questo messaggio",
 	"huge": "Il repository git '{0}' ha troppe modifiche attive - verrà attivato solo un sottoinsieme delle funzionalità di Git."
 }

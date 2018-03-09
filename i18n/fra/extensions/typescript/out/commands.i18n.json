@@ -9,9 +9,8 @@
 	"typescript.projectConfigNoWorkspace": "Ouvrez un dossier dans VS Code pour utiliser un projet TypeScript ou JavaScript",
 	"typescript.projectConfigUnsupportedFile": "Impossible de déterminer le projet TypeScript ou JavaScript. Type de fichier non pris en charge",
 	"typescript.projectConfigCouldNotGetInfo": "Impossible de déterminer le projet TypeScript ou JavaScript",
-	"typescript.noTypeScriptProjectConfig": "Le fichier ne fait pas partie d'un projet TypeScript",
-	"typescript.noJavaScriptProjectConfig": "Le fichier ne fait pas partie d'un projet JavaScript",
+	"typescript.noTypeScriptProjectConfig": "Le fichier ne fait pas partie d'un projet TypeScript. Cliquer [ici]({0}) pour en savoir plus.",
+	"typescript.noJavaScriptProjectConfig": "Le fichier ne fait pas partie d'un projet JavaScript. Cliquer [ici]({0}) pour en savoir plus.",
 	"typescript.configureTsconfigQuickPick": "Configurer tsconfig.json",
-	"typescript.configureJsconfigQuickPick": "Configurer jsconfig.json",
-	"typescript.projectConfigLearnMore": "En savoir plus"
+	"typescript.configureJsconfigQuickPick": "Configurer jsconfig.json"
 }

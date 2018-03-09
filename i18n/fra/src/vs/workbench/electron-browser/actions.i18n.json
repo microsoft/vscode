@@ -18,6 +18,7 @@
 	"zoomReset": "Réinitialiser le zoom",
 	"appPerf": "Performance de démarrage",
 	"reloadWindow": "Recharger la fenêtre",
+	"reloadWindowWithExntesionsDisabled": "Recharger la fenêtre avec les extensions désactivées",
 	"switchWindowPlaceHolder": "Sélectionner une fenêtre vers laquelle basculer",
 	"current": "Fenêtre active",
 	"close": "Fermer la fenêtre",
@@ -48,5 +49,6 @@
 	"moveWindowTabToNewWindow": "Déplacer l’onglet de la fenêtre vers la nouvelle fenêtre",
 	"mergeAllWindowTabs": "Fusionner toutes les fenêtres",
 	"toggleWindowTabsBar": "Activer/désactiver la barre de fenêtres d’onglets",
-	"about": "À propos de {0}"
+	"about": "À propos de {0}",
+	"inspect context keys": "Inspecter les clés de contexte"
 }

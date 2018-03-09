@@ -51,7 +51,7 @@
 	"always": "Immer",
 	"no changes": "Keine Änderungen zum Speichern vorhanden.",
 	"commit message": "Commit-Nachricht",
-	"provide commit message": "Geben Sie eine Commit-Nachrichte ein.",
+	"provide commit message": "Geben Sie eine Commit-Nachricht ein.",
 	"select a ref to checkout": "Referenz zum Auschecken auswählen",
 	"branch name": "Branchname",
 	"provide branch name": "Geben Sie einen Branchnamen an.",

@@ -207,7 +207,9 @@ export class FoldingController implements IEditorContribution {
 					let selections = this.editor.getSelections();
 					let selectionLineNumbers = selections ? selections.map(s => s.startLineNumber) : [];
 					return this.getRangeProvider().compute(this.foldingModel.textModel).then(foldingRanges => {
-						this.foldingModel.update(foldingRanges, selectionLineNumbers);
+						if (this.foldingModel) { // null if editor has been disposed, or folding turned off
+							this.foldingModel.update(foldingRanges, selectionLineNumbers);
+						}
 						return this.foldingModel;
 					});
 				}
@@ -238,13 +240,17 @@ export class FoldingController implements IEditorContribution {
 		this.getFoldingModel().then(foldingModel => { // null is returned if folding got disabled in the meantime
 			if (foldingModel) {
 				let selections = this.editor.getSelections();
-				if (selections) {
+				if (selections && selections.length > 0) {
+					let toToggle = [];
 					for (let selection of selections) {
 						let lineNumber = selection.selectionStartLineNumber;
 						if (this.hiddenRangeModel.isHidden(lineNumber)) {
-							let toToggle = foldingModel.getAllRegionsAtLine(lineNumber, r => r.isCollapsed && lineNumber > r.startLineNumber);
-							foldingModel.toggleCollapseState(toToggle);
+							toToggle.push(...foldingModel.getAllRegionsAtLine(lineNumber, r => r.isCollapsed && lineNumber > r.startLineNumber));
 						}
+					}
+					if (toToggle.length) {
+						foldingModel.toggleCollapseState(toToggle);
+						this.reveal(selections[0].getPosition());
 					}
 				}
 			}

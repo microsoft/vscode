@@ -15,6 +15,7 @@
 	"editorWhitespaces": "Cor dos caracteres em branco no editor",
 	"editorIndentGuides": "Cor das guias de indentação do editor.",
 	"editorLineNumbers": "Cor dos números de linha do editor.",
+	"editorActiveLineNumber": "Cor dos números de linhas do editor",
 	"editorRuler": "Cor das réguas do editor.",
 	"editorCodeLensForeground": "Cor do primeiro plano das lentes de código do editor",
 	"editorBracketMatchBackground": "Cor de fundo atrás do colchetes correspondentes",

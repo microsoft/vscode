@@ -21,8 +21,7 @@ export class SearchViewLocationUpdater implements IWorkbenchContribution {
 			if (config.search.location === 'panel') {
 				viewletService.setViewletEnablement(VIEW_ID, false);
 				panelService.setPanelEnablement(VIEW_ID, true);
-			}
-			if (config.search.location === 'sidebar') {
+			} else {
 				panelService.setPanelEnablement(VIEW_ID, false);
 				viewletService.setViewletEnablement(VIEW_ID, true);
 			}

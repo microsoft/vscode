@@ -35,7 +35,7 @@ import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression,
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
-import Constants from 'vs/workbench/parts/markers/common/constants';
+import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { ITaskService, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
 import { TaskError } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
@@ -51,8 +51,11 @@ import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-br
 import { IRemoteConsoleLog, parse, getFirstFrame } from 'vs/base/node/console';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { TaskEvent, TaskEventKind } from 'vs/workbench/parts/tasks/common/tasks';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotificationActions } from 'vs/platform/notification/common/notification';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IAction, Action } from 'vs/base/common/actions';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -80,7 +83,9 @@ export class DebugService implements debug.IDebugService {
 	private breakpointsToSendOnResourceSaved: Set<string>;
 	private launchJsonChanged: boolean;
 	private firstSessionStart: boolean;
+	private skipRunningTask: boolean;
 	private previousState: debug.State;
+	private fetchThreadsSchedulers: Map<string, RunOnceScheduler>;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -89,7 +94,7 @@ export class DebugService implements debug.IDebugService {
 		@IViewletService private viewletService: IViewletService,
 		@IPanelService private panelService: IPanelService,
 		@INotificationService private notificationService: INotificationService,
-		@IChoiceService private choiceService: IChoiceService,
+		@IDialogService private dialogService: IDialogService,
 		@IPartService private partService: IPartService,
 		@IWindowService private windowService: IWindowService,
 		@IBroadcastService private broadcastService: IBroadcastService,
@@ -113,6 +118,7 @@ export class DebugService implements debug.IDebugService {
 		this._onDidCustomEvent = new Emitter<debug.DebugEvent>();
 		this.sessionStates = new Map<string, debug.State>();
 		this.allProcesses = new Map<string, debug.IProcess>();
+		this.fetchThreadsSchedulers = new Map<string, RunOnceScheduler>();
 
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
 		this.toDispose.push(this.configurationManager);
@@ -300,7 +306,18 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidThread(event => {
 			if (event.body.reason === 'started') {
-				this.fetchThreads(session).done(undefined, errors.onUnexpectedError);
+				// debounce to reduce threadsRequest frequency and improve performance
+				let scheduler = this.fetchThreadsSchedulers.get(session.getId());
+				if (!scheduler) {
+					scheduler = new RunOnceScheduler(() => {
+						this.fetchThreads(session).done(undefined, errors.onUnexpectedError);
+					}, 100);
+					this.fetchThreadsSchedulers.set(session.getId(), scheduler);
+					this.toDisposeOnSessionEnd.get(session.getId()).push(scheduler);
+				}
+				if (!scheduler.isScheduled()) {
+					scheduler.schedule();
+				}
 			} else if (event.body.reason === 'exited') {
 				this.model.clearThreads(session.getId(), true, event.body.threadId);
 			}
@@ -788,13 +805,17 @@ export class DebugService implements debug.IDebugService {
 							nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
 					}
 
-					return TPromise.wrapError(errors.create(message, { actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
+					return this.showError(message);
 				}
 
 				this.toDisposeOnSessionEnd.set(sessionId, []);
 
 				const workspace = launch ? launch.workspace : undefined;
-				return this.runPreLaunchTask(sessionId, workspace, resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
+				const debugAnywayAction = new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), undefined, true, () => {
+					return this.doCreateProcess(workspace, resolvedConfig, sessionId);
+				});
+
+				return this.runTask(sessionId, workspace, resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
 					const errorCount = resolvedConfig.preLaunchTask ? this.markerService.getStatistics().errors : 0;
 					const successExitCode = taskSummary && taskSummary.exitCode === 0;
 					const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
@@ -806,34 +827,17 @@ export class DebugService implements debug.IDebugService {
 						errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
 							nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", resolvedConfig.preLaunchTask, taskSummary.exitCode);
 
-					return this.choiceService.choose(severity.Error, message, [nls.localize('debugAnyway', "Debug Anyway"), nls.localize('showErrors', "Show Errors"), nls.localize('cancel', "Cancel")], 2, true).then(choice => {
-						switch (choice) {
-							case 0:
-								return this.doCreateProcess(workspace, resolvedConfig, sessionId);
-							case 1:
-								return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => undefined);
-							default:
-								return undefined;
-						}
+					const showErrorsAction = new Action('debug.showErrors', nls.localize('showErrors', "Show Errors"), undefined, true, () => {
+						return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => undefined);
 					});
+
+					return this.showError(message, [debugAnywayAction, showErrorsAction]);
 				}, (err: TaskError) => {
-					return this.choiceService.choose(severity.Error, err.message, [nls.localize('debugAnyway', "Debug Anyway"), debugactions.ConfigureAction.LABEL, this.taskService.configureAction().label, nls.localize('cancel', "Cancel")], 3, true).then(choice => {
-						switch (choice) {
-							case 0:
-								return this.doCreateProcess(workspace, resolvedConfig, sessionId);
-							case 1:
-								return launch && launch.openConfigFile(false);
-							case 2:
-								return this.taskService.configureAction().run();
-							default:
-								return undefined;
-						}
-					});
+					return this.showError(err.message, [debugAnywayAction, this.taskService.configureAction()]);
 				});
 			}, err => {
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-					this.notificationService.error(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
-					return undefined;
+					return this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
 				}
 
 				return launch && launch.openConfigFile(false).then(editor => void 0);
@@ -962,10 +966,10 @@ export class DebugService implements debug.IDebugService {
 				this.updateStateAndEmit(session.getId(), debug.State.Inactive);
 				if (!session.disconnected) {
 					session.disconnect().done(null, errors.onUnexpectedError);
-				}
-				if (process) {
+				} else if (process) {
 					this.model.removeProcess(process.getId());
 				}
+
 				// Show the repl if some error got logged there #5870
 				if (this.model.getReplElements().length > 0) {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
@@ -974,29 +978,34 @@ export class DebugService implements debug.IDebugService {
 					this.inDebugMode.reset();
 				}
 
-				const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
-
-				let actions: INotificationActions = { primary: [] };
-				if (errors.isErrorWithActions(error)) {
-					actions.primary.push(...error.actions);
-				}
-				actions.primary.push(configureAction);
-
-				this.notificationService.notify({ severity: severity.Error, message: errorMessage, actions });
+				this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
 				return undefined;
 			});
 		});
 	}
 
-	private runPreLaunchTask(sessionId: string, root: IWorkspaceFolder, taskName: string): TPromise<ITaskSummary> {
-		if (!taskName) {
+	private showError(message: string, actions: IAction[] = []): TPromise<any> {
+		const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
+		actions.push(configureAction);
+		return this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length }).then(choice => {
+			if (choice < actions.length) {
+				return actions[choice].run();
+			}
+
+			return TPromise.as(null);
+		});
+	}
+
+	private runTask(sessionId: string, root: IWorkspaceFolder, taskName: string): TPromise<ITaskSummary> {
+		if (!taskName || this.skipRunningTask) {
+			this.skipRunningTask = false;
 			return TPromise.as(null);
 		}
 
 		// run a task before starting a debug session
 		return this.taskService.getTask(root, taskName).then(task => {
 			if (!task) {
-				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'.", taskName)));
+				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the task \'{0}\'.", taskName)));
 			}
 
 			function once(kind: TaskEventKind, event: Event<TaskEvent>): Event<TaskEvent> {
@@ -1040,7 +1049,7 @@ export class DebugService implements debug.IDebugService {
 
 				setTimeout(() => {
 					if (!taskStarted) {
-						e({ severity: severity.Error, message: nls.localize('taskNotTracked', "The preLaunchTask '{0}' cannot be tracked.", taskName) });
+						e({ severity: severity.Error, message: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked.", taskName) });
 					}
 				}, 10000);
 			});
@@ -1058,6 +1067,8 @@ export class DebugService implements debug.IDebugService {
 			}
 			const focusedProcess = this.viewModel.focusedProcess;
 			const preserveFocus = focusedProcess && process.getId() === focusedProcess.getId();
+			// Do not run preLaunch and postDebug tasks for automatic restarts
+			this.skipRunningTask = !!restartData;
 
 			return process.session.disconnect(true).then(() => {
 				if (strings.equalsIgnoreCase(process.configuration.type, 'extensionHost') && process.session.root) {
@@ -1081,6 +1092,7 @@ export class DebugService implements debug.IDebugService {
 							config.noDebug = process.configuration.noDebug;
 						}
 						config.__restart = restartData;
+						this.skipRunningTask = !!restartData;
 						this.startDebugging(launch, config).then(() => c(null), err => e(err));
 					}, 300);
 				});
@@ -1135,6 +1147,9 @@ export class DebugService implements debug.IDebugService {
 		if (process) {
 			process.inactive = true;
 			this._onDidEndProcess.fire(process);
+			if (process.configuration.postDebugTask) {
+				this.runTask(process.getId(), process.session.root, process.configuration.postDebugTask);
+			}
 		}
 
 		this.toDisposeOnSessionEnd.set(session.getId(), lifecycle.dispose(this.toDisposeOnSessionEnd.get(session.getId())));
@@ -1203,6 +1218,8 @@ export class DebugService implements debug.IDebugService {
 			if (breakpointsToSend.length && !rawSource.adapterData) {
 				rawSource.adapterData = breakpointsToSend[0].adapterData;
 			}
+			// Normalize all drive letters going out from vscode to debug adapters so we are consistent with our resolving #43959
+			rawSource.path = normalizeDriveLetter(rawSource.path);
 
 			return session.setBreakpoints({
 				source: rawSource,

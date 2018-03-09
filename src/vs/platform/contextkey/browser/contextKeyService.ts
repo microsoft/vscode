@@ -271,7 +271,7 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 
 	private _toDispose: IDisposable[] = [];
 
-	constructor( @IConfigurationService configurationService: IConfigurationService) {
+	constructor(@IConfigurationService configurationService: IConfigurationService) {
 		super(0);
 		this._lastContextId = 0;
 		this._contexts = Object.create(null);

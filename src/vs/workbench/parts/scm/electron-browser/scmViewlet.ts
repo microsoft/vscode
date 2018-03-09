@@ -47,7 +47,7 @@ import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Command } from 'vs/editor/common/modes';
-import { render as renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as platform from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
@@ -1010,7 +1010,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 class InstallAdditionalSCMProvidersAction extends Action {
 
-	constructor( @IViewletService private viewletService: IViewletService) {
+	constructor(@IViewletService private viewletService: IViewletService) {
 		super('scm.installAdditionalSCMProviders', localize('installAdditionalSCMProviders', "Install Additional SCM Providers..."), '', true);
 	}
 

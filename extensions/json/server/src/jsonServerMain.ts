@@ -7,10 +7,8 @@
 import {
 	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, DocumentColorRequest, ColorPresentationRequest,
 } from 'vscode-languageserver';
-
-import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
 import fs = require('fs');
@@ -74,7 +72,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 
 	clientSnippetSupport = hasClientCapability('textDocument', 'completion', 'completionItem', 'snippetSupport');
 	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
-	let capabilities: ServerCapabilities & CPServerCapabilities & FoldingProviderServerCapabilities = {
+	let capabilities: ServerCapabilities & FoldingProviderServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
 		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : void 0,
@@ -110,6 +108,11 @@ let schemaRequestService = (uri: string): Thenable<string> => {
 		});
 	}
 	if (uri.indexOf('//schema.management.azure.com/') !== -1) {
+		/* __GDPR__
+			"json.schema" : {
+				"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		 */
 		connection.telemetry.logEvent({
 			key: 'json.schema',
 			value: {

@@ -26,8 +26,20 @@ export enum NotificationChangeType {
 }
 
 export interface INotificationChangeEvent {
+
+	/**
+	 * The index this notification has in the list of notifications.
+	 */
 	index: number;
+
+	/**
+	 * The notification this change is about.
+	 */
 	item: INotificationViewItem;
+
+	/**
+	 * The kind of notification change.
+	 */
 	kind: NotificationChangeType;
 }
 

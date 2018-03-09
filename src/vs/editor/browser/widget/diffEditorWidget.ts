@@ -209,7 +209,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 		this._editorWorkerService = editorWorkerService;
 		this._codeEditorService = codeEditorService;
-		this._contextKeyService = contextKeyService.createScoped(domElement);
+		this._contextKeyService = this._register(contextKeyService.createScoped(domElement));
 		this._contextKeyService.createKey('isInDiffEditor', true);
 		this._themeService = themeService;
 		this._notificationService = notificationService;
@@ -313,14 +313,14 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			this._setStrategy(new DiffEdtorWidgetInline(this._createDataSource(), this._enableSplitViewResizing));
 		}
 
-		this._codeEditorService.addDiffEditor(this);
-
 		this._register(themeService.onThemeChange(t => {
 			if (this._strategy && this._strategy.applyColors(t)) {
 				this._updateDecorationsRunner.schedule();
 			}
 			this._containerDomElement.className = DiffEditorWidget._getClassName(this._themeService.getTheme(), this._renderSideBySide);
 		}));
+
+		this._codeEditorService.addDiffEditor(this);
 	}
 
 	public get ignoreTrimWhitespace(): boolean {
@@ -465,19 +465,36 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	public dispose(): void {
 		this._codeEditorService.removeDiffEditor(this);
 
+		if (this._beginUpdateDecorationsTimeout !== -1) {
+			window.clearTimeout(this._beginUpdateDecorationsTimeout);
+			this._beginUpdateDecorationsTimeout = -1;
+		}
+
 		window.clearInterval(this._measureDomElementToken);
 
 		this._cleanViewZonesAndDecorations();
 
+		this._overviewDomElement.removeChild(this._originalOverviewRuler.getDomNode());
 		this._originalOverviewRuler.dispose();
+		this._overviewDomElement.removeChild(this._modifiedOverviewRuler.getDomNode());
 		this._modifiedOverviewRuler.dispose();
+		this._overviewDomElement.removeChild(this._overviewViewportDomElement.domNode);
+		this._containerDomElement.removeChild(this._overviewDomElement);
 
+		this._containerDomElement.removeChild(this._originalDomNode);
 		this.originalEditor.dispose();
+
+		this._containerDomElement.removeChild(this._modifiedDomNode);
 		this.modifiedEditor.dispose();
 
 		this._strategy.dispose();
 
+		this._containerDomElement.removeChild(this._reviewPane.domNode.domNode);
+		this._containerDomElement.removeChild(this._reviewPane.shadow.domNode);
+		this._containerDomElement.removeChild(this._reviewPane.actionBarContainer.domNode);
 		this._reviewPane.dispose();
+
+		this._domElement.removeChild(this._containerDomElement);
 
 		this._onDidDispose.fire();
 

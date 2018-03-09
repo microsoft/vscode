@@ -165,7 +165,7 @@ export function renderRenameBox(debugService: IDebugService, contextViewService:
 				}
 			}
 
-			tree.DOMFocus();
+			tree.domFocus();
 			tree.setFocus(element);
 
 			// need to remove the input box since this template will be reused.
@@ -229,7 +229,7 @@ export class BaseDebugController extends WorkbenchTreeController {
 				}),
 				onHide: (wasCancelled?: boolean) => {
 					if (wasCancelled) {
-						tree.DOMFocus();
+						tree.domFocus();
 					}
 				},
 				getActionsContext: () => element

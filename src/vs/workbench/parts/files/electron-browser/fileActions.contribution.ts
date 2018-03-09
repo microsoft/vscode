@@ -175,7 +175,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: 'navigation',
 	order: 10,
 	command: openToSideCommand,
-	when: ResourceContextKey.HasResource
+	when: ResourceContextKey.IsFile
 });
 
 const revealInOsCommand = {
@@ -208,7 +208,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		title: SAVE_FILE_LABEL,
 		precondition: DirtyEditorContext
 	},
-	when: ContextKeyExpr.and(ResourceContextKey.IsFile, AutoSaveContext.notEqualsTo('afterDelay'))
+	when: ContextKeyExpr.and(ResourceContextKey.IsFile, AutoSaveContext.notEqualsTo('afterDelay') && AutoSaveContext.notEqualsTo(''))
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -219,7 +219,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		title: nls.localize('revert', "Revert File"),
 		precondition: DirtyEditorContext
 	},
-	when: ContextKeyExpr.and(ResourceContextKey.IsFile, AutoSaveContext.notEqualsTo('afterDelay'))
+	when: ContextKeyExpr.and(ResourceContextKey.IsFile, AutoSaveContext.notEqualsTo('afterDelay') && AutoSaveContext.notEqualsTo(''))
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -237,7 +237,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		id: SAVE_ALL_IN_GROUP_COMMAND_ID,
 		title: nls.localize('saveAll', "Save All")
 	},
-	when: ContextKeyExpr.and(OpenEditorsGroupContext, AutoSaveContext.notEqualsTo('afterDelay'))
+	when: ContextKeyExpr.and(OpenEditorsGroupContext, AutoSaveContext.notEqualsTo('afterDelay') && AutoSaveContext.notEqualsTo(''))
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -248,7 +248,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		title: nls.localize('compareWithSaved', "Compare with Saved"),
 		precondition: DirtyEditorContext
 	},
-	when: ContextKeyExpr.and(ResourceContextKey.IsFile, AutoSaveContext.notEqualsTo('afterDelay'), WorkbenchListDoubleSelection.toNegated())
+	when: ContextKeyExpr.and(ResourceContextKey.IsFile, AutoSaveContext.notEqualsTo('afterDelay') && AutoSaveContext.notEqualsTo(''), WorkbenchListDoubleSelection.toNegated())
 });
 
 const compareResourceCommand = {

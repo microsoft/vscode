@@ -27,6 +27,7 @@ if (process.env['VSCODE_NO_SOURCEMAP']) {
 }
 options.rootDir = rootDir;
 options.sourceRoot = util.toFileUri(rootDir);
+options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 'CRLF' : 'LF';
 function createCompile(build, emitError) {
     var opts = _.clone(options);
     opts.inlineSources = !!build;
