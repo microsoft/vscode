@@ -312,15 +312,11 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		this.logger.info(message, data);
 	}
 
-	public warn(message: string, data?: any): void {
-		this.logger.warn(message, data);
-	}
-
 	private error(message: string, data?: any): void {
 		this.logger.error(message, data);
 	}
 
-	public logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
+	private logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
 		this.telemetryReporter.logTelemetry(eventName, properties);
 	}
 
