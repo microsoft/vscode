@@ -541,8 +541,8 @@ export class IssueReporter extends Disposable {
 		} else {
 			typeSelect.innerHTML = [
 				makeOption(IssueType.Bug, localize('bugReporter', "Bug Report")),
-				makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue")),
-				makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request"))
+				makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request")),
+				makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue"))
 			].join('\n');
 		}
 
