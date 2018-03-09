@@ -30,6 +30,7 @@ steps:
   name: build
 
 - powershell: |
+    npm run gulp -- "electron-$(VSCODE_ARCH)"
     .\scripts\test.bat --build --tfs
   name: test
 
