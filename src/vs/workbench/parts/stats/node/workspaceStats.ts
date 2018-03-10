@@ -372,7 +372,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		})).then(hashedRemotes => {
 			/* __GDPR__
 					"workspace.hashedRemotes" : {
-						"remotes" : { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+						"remotes" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
 			this.telemetryService.publicLog('workspace.hashedRemotes', { remotes: hashedRemotes });
