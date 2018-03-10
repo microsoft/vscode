@@ -192,8 +192,7 @@ export function wrapIndividualLinesWithAbbreviation(args: any) {
 		vscode.window.showInformationMessage('Select more than 1 line in each selection and try again.');
 		return;
 	}
-	let rangesToReplace: vscode.Range[] = [];
-	editor.selections.forEach(selection => {
+	let rangesToReplace: PreviewRangesWithContent[] = editor.selections.sort((a: vscode.Selection, b: vscode.Selection) => { return a.start.compareTo(b.start); }).map(selection => {
 		let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
 		if (!rangeToReplace.isSingleLine && rangeToReplace.end.character === 0) {
 			let previousLine = rangeToReplace.end.line - 1;
@@ -202,7 +201,12 @@ export function wrapIndividualLinesWithAbbreviation(args: any) {
 		}
 
 		rangeToReplace = ignoreExtraWhitespaceSelected(rangeToReplace, editor.document);
-		rangesToReplace.push(rangeToReplace);
+		return {
+			originalRange: rangeToReplace,
+			previewRange: rangeToReplace,
+			originalContent: editor.document.getText(rangeToReplace),
+			textToWrapInPreview: editor.document.getText(rangeToReplace).split('\n').map(x => x.trim())
+		};
 	});
 
 	const syntax = getSyntaxFromArgs({ language: editor.document.languageId });
@@ -210,32 +214,56 @@ export function wrapIndividualLinesWithAbbreviation(args: any) {
 		return;
 	}
 
-	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation' });
+	let inPreview = false;
+	let currentValue = '';
+
+	function inputChanged(value: string): string {
+		if (value !== currentValue) {
+			currentValue = value;
+			makeChanges(value, inPreview, false).then((out) => {
+				if (typeof out === 'boolean') {
+					inPreview = out;
+				}
+			});
+		}
+		return '';
+	}
+
+	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation', validateInput: inputChanged });
 	const helper = getEmmetHelper();
 
-	return abbreviationPromise.then(inputAbbreviation => {
-		let expandAbbrInput: ExpandAbbreviationInput[] = [];
-		if (!inputAbbreviation || !inputAbbreviation.trim() || !helper.isAbbreviationValid(syntax, inputAbbreviation)) { return false; }
+	function makeChanges(inputAbbreviation: string | undefined, inPreview: boolean, definitive: boolean): Thenable<boolean> {
+		if (!inputAbbreviation || !inputAbbreviation.trim() || !helper.isAbbreviationValid(syntax, inputAbbreviation)) {
+			return inPreview ? revertPreview(editor, rangesToReplace).then(() => { return false; }) : Promise.resolve(inPreview);
+		}
 
 		let extractedResults = helper.extractAbbreviationFromText(inputAbbreviation);
 		if (!extractedResults) {
-			return false;
+			return Promise.resolve(inPreview);
+		} else if (extractedResults.abbreviation !== inputAbbreviation) {
+			// Not clear what should we do in this case. Warn the user? How?
 		}
-		rangesToReplace.forEach(rangeToReplace => {
-			let lines = editor.document.getText(rangeToReplace).split('\n').map(x => x.trim());
 
-			let { abbreviation, filter } = extractedResults;
-			let input: ExpandAbbreviationInput = {
-				syntax,
-				abbreviation,
-				rangeToReplace,
-				textToWrap: lines,
-				filter
-			};
-			expandAbbrInput.push(input);
+		let { abbreviation, filter } = extractedResults;
+		if (definitive) {
+			const revertPromise = inPreview ? revertPreview(editor, rangesToReplace) : Promise.resolve();
+			return revertPromise.then(() => {
+				const expandAbbrList: ExpandAbbreviationInput[] = rangesToReplace.map(rangesAndContent => {
+					let rangeToReplace = rangesAndContent.originalRange;
+					let textToWrap = rangesAndContent.textToWrapInPreview;
+					return { syntax: syntax || '', abbreviation, rangeToReplace, textToWrap, filter };
+				});
+				return expandAbbreviationInRange(editor, expandAbbrList, false).then(() => { return true; });
+			});
+		}
+		const expandAbbrList: ExpandAbbreviationInput[] = rangesToReplace.map(rangesAndContent => {
+			return { syntax: syntax || '', abbreviation, rangeToReplace: rangesAndContent.originalRange, textToWrap: rangesAndContent.textToWrapInPreview, filter };
 		});
 
-		return expandAbbreviationInRange(editor, expandAbbrInput, false);
+		return applyPreview(editor, expandAbbrList, rangesToReplace);
+	}
+	return abbreviationPromise.then(inputAbbreviation => {
+		return makeChanges(inputAbbreviation, inPreview, true);
 	});
 
 }
