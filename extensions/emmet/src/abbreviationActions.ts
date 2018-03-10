@@ -521,7 +521,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 	// We will not be able to maintain multiple cursors after snippet insertion
 	let insertPromises: Thenable<boolean>[] = [];
 	if (!insertSameSnippet) {
-		expandAbbrList.forEach((expandAbbrInput: ExpandAbbreviationInput) => {
+		expandAbbrList.sort((a: ExpandAbbreviationInput, b: ExpandAbbreviationInput) => { return b.rangeToReplace.start.compareTo(a.rangeToReplace.start); }).forEach((expandAbbrInput: ExpandAbbreviationInput) => {
 			let expandedText = expandAbbr(expandAbbrInput);
 			if (expandedText) {
 				insertPromises.push(editor.insertSnippet(new vscode.SnippetString(expandedText), expandAbbrInput.rangeToReplace, { undoStopBefore: false, undoStopAfter: false }));
