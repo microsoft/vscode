@@ -184,6 +184,14 @@ export function wrapIndividualLinesWithAbbreviation(args: any) {
 	}
 
 	const editor = vscode.window.activeTextEditor;
+	if (editor.selections.length === 1 && editor.selection.isEmpty) {
+		vscode.window.showInformationMessage('Select more than 1 line and try again.');
+		return;
+	}
+	if (editor.selections.find(x => x.isEmpty)) {
+		vscode.window.showInformationMessage('Select more than 1 line in each selection and try again.');
+		return;
+	}
 	let rangesToReplace: vscode.Range[] = [];
 	editor.selections.forEach(selection => {
 		let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
@@ -191,10 +199,6 @@ export function wrapIndividualLinesWithAbbreviation(args: any) {
 			let previousLine = rangeToReplace.end.line - 1;
 			let lastChar = editor.document.lineAt(previousLine).text.length;
 			rangeToReplace = new vscode.Range(rangeToReplace.start, new vscode.Position(previousLine, lastChar));
-		}
-		if (rangeToReplace.isEmpty) {
-			vscode.window.showInformationMessage('Select more than 1 line and try again.');
-			return;
 		}
 
 		rangeToReplace = ignoreExtraWhitespaceSelected(rangeToReplace, editor.document);
