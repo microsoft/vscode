@@ -732,10 +732,10 @@ export class FeedbackWidgetRenderer extends Disposable {
 				"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 				"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"buildNumber" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"buildNumber" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"alts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"autoIngest" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"autoIngest" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 		return this.telemetryService.publicLog('settingsSearchResultFeedback', {

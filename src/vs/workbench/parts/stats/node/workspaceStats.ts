@@ -407,7 +407,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 	/* __GDPR__FRAGMENT__
 		"AzureTags" : {
-			"java" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			"java" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
 	private reportAzureJava(workspaceUris: URI[], tags: Tags): TPromise<Tags> {
