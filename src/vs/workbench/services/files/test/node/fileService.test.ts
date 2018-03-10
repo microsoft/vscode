@@ -317,6 +317,22 @@ suite('FileService', () => {
 		});
 	});
 
+	test('move - source parent of target', function () {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		return service.resolveFile(uri.file(path.join(testDir, 'index.html'))).then(source => {
+			return service.moveFile(uri.file(testDir), uri.file(path.join(testDir, 'binary.txt'))).then(null, (e: Error) => {
+				assert.ok(e);
+
+				assert.ok(!event);
+				toDispose.dispose();
+			});
+		});
+	});
+
 	test('move - FILE_MOVE_CONFLICT', function () {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
