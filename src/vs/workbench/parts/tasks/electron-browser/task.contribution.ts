@@ -2002,15 +2002,15 @@ class TaskService implements ITaskService {
 			return;
 		}
 
-		function handleTerminateResponse(response: TaskTerminateResponse) {
-			if (response.success) {
-				this.emit(TaskServiceEvents.Terminated, {});
-			} else if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
-				this.messageService.show(Severity.Error, nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
-			} else {
-				this.messageService.show(Severity.Error, nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
+		const handleTerminateResponse = (response: TaskTerminateResponse) => {
+			if (!response.success) {
+				if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
+					this.notificationService.error(nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
+				} else {
+					this.notificationService.error(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
+				}
 			}
-		}
+		};
 
 		this.getActiveTasks().then((activeTasks) => {
 			if (Types.isString(arg)) {
