@@ -292,6 +292,7 @@ export interface IOpenFileRequest {
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
 	filesToWait?: IPathsToWaitFor;
+	termProgram?: string;
 }
 
 export interface IAddFoldersRequest {
