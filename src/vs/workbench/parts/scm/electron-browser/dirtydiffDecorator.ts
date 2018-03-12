@@ -24,7 +24,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { ISCMService, ISCMRepository } from 'vs/workbench/services/scm/common/scm';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, themeColorFromId, IThemeService } from 'vs/platform/theme/common/themeService';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, ColorDefaults, darken } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Color, RGBA } from 'vs/base/common/color';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -768,28 +768,48 @@ export class DirtyDiffController implements IEditorContribution {
 	}
 }
 
-export const editorGutterModifiedBackground = registerColor('editorGutter.modifiedBackground', {
+const editorModifiedColors: ColorDefaults = {
 	dark: new Color(new RGBA(12, 125, 157)),
 	light: new Color(new RGBA(102, 175, 224)),
 	hc: new Color(new RGBA(0, 73, 122))
-}, localize('editorGutterModifiedBackground', "Editor gutter background color for lines that are modified."));
+};
 
-export const editorGutterAddedBackground = registerColor('editorGutter.addedBackground', {
+const editorAddedColors: ColorDefaults = {
 	dark: new Color(new RGBA(88, 124, 12)),
 	light: new Color(new RGBA(129, 184, 139)),
 	hc: new Color(new RGBA(27, 82, 37))
-}, localize('editorGutterAddedBackground', "Editor gutter background color for lines that are added."));
+};
 
-export const editorGutterDeletedBackground = registerColor('editorGutter.deletedBackground', {
+const editorDeletedColors: ColorDefaults = {
 	dark: new Color(new RGBA(148, 21, 27)),
 	light: new Color(new RGBA(202, 75, 81)),
 	hc: new Color(new RGBA(141, 14, 20))
-}, localize('editorGutterDeletedBackground', "Editor gutter background color for lines that are deleted."));
+};
 
-const overviewRulerDefault = new Color(new RGBA(0, 122, 204, 0.6));
-export const overviewRulerModifiedForeground = registerColor('editorOverviewRuler.modifiedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerModifiedForeground', 'Overview ruler marker color for modified content.'));
-export const overviewRulerAddedForeground = registerColor('editorOverviewRuler.addedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerAddedForeground', 'Overview ruler marker color for added content.'));
-export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler.deletedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerDeletedForeground', 'Overview ruler marker color for deleted content.'));
+// ----- editor gutter diff colors
+export const editorGutterModifiedBackground = registerColor('editorGutter.modifiedBackground', editorModifiedColors, localize('editorGutterModifiedBackground', "Editor gutter background color for lines that are modified."));
+export const editorGutterAddedBackground = registerColor('editorGutter.addedBackground', editorAddedColors, localize('editorGutterAddedBackground', "Editor gutter background color for lines that are added."));
+export const editorGutterDeletedBackground = registerColor('editorGutter.deletedBackground', editorDeletedColors, localize('editorGutterDeletedBackground', "Editor gutter background color for lines that are deleted."));
+
+// ----- overview ruler diff colors
+// Same colors as editorGutter but slightly darkened or lightened depending on the theme to not demand too much visual attention
+export const overviewRulerModifiedForeground = registerColor('editorOverviewRuler.modifiedForeground', {
+	dark: darken(editorModifiedColors.dark, 0.3),
+	hc: editorModifiedColors.hc,
+	light: editorModifiedColors.light,
+}, nls.localize('overviewRulerModifiedForeground', 'Overview ruler marker color for modified content.'));
+
+export const overviewRulerAddedForeground = registerColor('editorOverviewRuler.addedForeground', {
+	dark: darken(editorAddedColors.dark, 0.3),
+	hc: editorAddedColors.hc,
+	light: editorAddedColors.light,
+}, nls.localize('overviewRulerAddedForeground', 'Overview ruler marker color for added content.'));
+
+export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler.deletedForeground', {
+	dark: darken(editorDeletedColors.dark, 0.3),
+	hc: editorDeletedColors.hc,
+	light: editorDeletedColors.light,
+}, nls.localize('overviewRulerDeletedForeground', 'Overview ruler marker color for deleted content.'));
 
 class DirtyDiffDecorator {
 
