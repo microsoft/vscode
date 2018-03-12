@@ -1384,7 +1384,12 @@ export class Workbench implements IPartService {
 
 	public toggleCenteredEditorLayout(skipLayout?: boolean): void {
 		this.centeredEditorLayoutActive = !this.centeredEditorLayoutActive;
-		this.storageService.store(Workbench.centeredEditorLayoutActiveStorageKey, this.centeredEditorLayoutActive, StorageScope.GLOBAL);
+
+		// don't save the layout if it was centered only because of the zenmode
+		const skipSaving = this.inZenMode && this.zenMode.transitionedToCenteredEditorLayout;
+		if (!skipSaving) {
+			this.storageService.store(Workbench.centeredEditorLayoutActiveStorageKey, this.centeredEditorLayoutActive, StorageScope.GLOBAL);
+		}
 
 		if (!skipLayout) {
 			this.layout();
