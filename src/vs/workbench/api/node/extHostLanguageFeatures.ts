@@ -101,11 +101,16 @@ class CodeLensAdapter {
 	}
 }
 
+
+interface DefinitionProvider extends vscode.DefinitionProvider {
+	resolveDefinitionContext?(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.DefinitionContext>;
+}
+
 class DefinitionAdapter {
 	private _documents: ExtHostDocuments;
-	private _provider: vscode.DefinitionProvider;
+	private _provider: DefinitionProvider;
 
-	constructor(documents: ExtHostDocuments, provider: vscode.DefinitionProvider) {
+	constructor(documents: ExtHostDocuments, provider: DefinitionProvider) {
 		this._documents = documents;
 		this._provider = provider;
 	}
@@ -118,6 +123,21 @@ class DefinitionAdapter {
 				return value.map(TypeConverters.location.from);
 			} else if (value) {
 				return TypeConverters.location.from(value);
+			}
+			return undefined;
+		});
+	}
+
+	resolveDefinitionContext(resource: URI, position: IPosition): TPromise<modes.DefinitionContext> {
+		const doc = this._documents.getDocumentData(resource).document;
+		const pos = TypeConverters.toPosition(position);
+		return asWinJsPromise(token => this._provider.resolveDefinitionContext(doc, pos, token)).then(value => {
+			if (value) {
+				const context: modes.DefinitionContext = {};
+				if (value.definingSymbolRange) {
+					context.definingSymbolRange = TypeConverters.fromRange(value.definingSymbolRange);
+				}
+				return context;
 			}
 			return undefined;
 		});
@@ -933,6 +953,11 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	$provideDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Definition> {
 		return this._withAdapter(handle, DefinitionAdapter, adapter => adapter.provideDefinition(URI.revive(resource), position));
+	}
+
+	$resolveDefinitionContext(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.DefinitionContext | undefined> {
+		return this._withAdapter(handle, DefinitionAdapter, adapter =>
+			adapter.resolveDefinitionContext && adapter.resolveDefinitionContext(URI.revive(resource), position));
 	}
 
 	registerImplementationProvider(selector: vscode.DocumentSelector, provider: vscode.ImplementationProvider): vscode.Disposable {

@@ -140,6 +140,9 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations[handle] = modes.DefinitionProviderRegistry.register(toLanguageSelector(selector), <modes.DefinitionProvider>{
 			provideDefinition: (model, position, token): Thenable<modes.Definition> => {
 				return wireCancellationToken(token, this._proxy.$provideDefinition(handle, model.uri, position)).then(MainThreadLanguageFeatures._reviveLocationDto);
+			},
+			resolveDefinitionContext: (model, position, token): Thenable<modes.DefinitionContext> => {
+				return wireCancellationToken(token, this._proxy.$resolveDefinitionContext(handle, model.uri, position));
 			}
 		});
 	}
