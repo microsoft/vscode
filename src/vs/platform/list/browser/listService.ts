@@ -16,7 +16,6 @@ import { attachListStyler, defaultListStyles, computeStyles } from 'vs/platform/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { mixin } from 'vs/base/common/objects';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -215,19 +214,14 @@ export class WorkbenchList<T> extends List<T> {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(
-			container,
-			delegate,
-			renderers,
-			// mixin magic:
-			// - install list controllers accordingly
-			// - define some custom list options common for all workbench lists
-			// - mixin theme colors from default list styles right on creation
-			mixin(handleListControllers(options, configurationService), mixin({
+		super(container, delegate, renderers,
+			{
 				keyboardSupport: false,
 				selectOnMouseDown: true,
-				styleController: new DefaultStyleController(getSharedListStyleSheet())
-			} as IListOptions<T>, computeStyles(themeService.getTheme(), defaultListStyles), false), false)
+				styleController: new DefaultStyleController(getSharedListStyleSheet()),
+				...computeStyles(themeService.getTheme(), defaultListStyles),
+				...handleListControllers(options, configurationService)
+			} as IListOptions<T>
 		);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -281,19 +275,14 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(
-			container,
-			delegate,
-			renderers,
-			// mixin magic:
-			// - install list controllers accordingly
-			// - define some custom list options common for all workbench lists
-			// - mixin theme colors from default list styles right on creation
-			mixin(handleListControllers(options, configurationService), mixin({
+		super(container, delegate, renderers,
+			{
 				keyboardSupport: false,
 				selectOnMouseDown: true,
-				styleController: new DefaultStyleController(getSharedListStyleSheet())
-			} as IListOptions<T>, computeStyles(themeService.getTheme(), defaultListStyles), false), false)
+				styleController: new DefaultStyleController(getSharedListStyleSheet()),
+				...computeStyles(themeService.getTheme(), defaultListStyles),
+				...handleListControllers(options, configurationService)
+			} as IListOptions<T>
 		);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
@@ -544,7 +533,7 @@ configurationRegistry.registerConfiguration({
 	'title': localize('workbenchConfigurationTitle', "Workbench"),
 	'type': 'object',
 	'properties': {
-		'workbench.list.multiSelectModifier': {
+		[multiSelectModifierSettingKey]: {
 			'type': 'string',
 			'enum': ['ctrlCmd', 'alt'],
 			'enumDescriptions': [
@@ -560,7 +549,7 @@ configurationRegistry.registerConfiguration({
 				]
 			}, "The modifier to be used to add an item in trees and lists to a multi-selection with the mouse (for example in the explorer, open editors and scm view). `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The 'Open to Side' mouse gestures - if supported - will adapt such that they do not conflict with the multiselect modifier.")
 		},
-		'workbench.list.openMode': {
+		[openModeSettingKey]: {
 			'type': 'string',
 			'enum': ['singleClick', 'doubleClick'],
 			'enumDescriptions': [
