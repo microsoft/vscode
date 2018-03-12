@@ -1648,6 +1648,7 @@ suite('Bugs / regression tests', () => {
 		}
 	});
 
+	/*
 	test('Bug 28489', () => {
 		let external = {
 			version: '0.1.0',
@@ -1673,4 +1674,5 @@ suite('Bugs / regression tests', () => {
 			runtime(Tasks.RuntimeType.Shell);
 		testConfiguration(external, builder);
 	});
+	*/
 });
