@@ -54,10 +54,6 @@ steps:
 
     apt-get install -y $DEPS
 
-    if [[ "$ARCH" == "ia32" ]]; then
-      export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
-    fi
-
     # setup xvfb
     cp build/tfs/linux/$(VSCODE_ARCH)/xvfb.init /etc/init.d/xvfb
     chmod +x /etc/init.d/xvfb
@@ -85,6 +81,10 @@ steps:
     node build/tfs/common/installDistro.js
 
 - script: |
+    if [[ "$ARCH" == "ia32" ]]; then
+      export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
+    fi
+
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-linux-$(VSCODE_ARCH)-min
   name: build
 
