@@ -24,6 +24,7 @@ import { DefaultController, IControllerOptions, OpenMode, ClickBehavior } from '
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
+import { ScrollbarVisibility } from '../../../base/common/scrollable';
 
 export type ListWidget = List<any> | PagedList<any> | ITree;
 
@@ -299,7 +300,7 @@ export class WorkbenchTree extends Tree {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(container, handleTreeController(configuration, instantiationService), mixin(options, { keyboardSupport: false } as ITreeOptions, false));
+		super(container, handleTreeController(configuration, instantiationService), { horizontalScrollMode: ScrollbarVisibility.Auto, keyboardSupport: false, ...options });
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);

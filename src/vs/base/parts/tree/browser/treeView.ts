@@ -101,6 +101,7 @@ export class RowCache implements Lifecycle.IDisposable {
 
 export interface IViewContext extends _.ITreeContext {
 	cache: RowCache;
+	horizontalScrolling: boolean;
 }
 
 export class ViewItem implements IViewItem {
@@ -113,6 +114,7 @@ export class ViewItem implements IViewItem {
 
 	public top: number;
 	public height: number;
+	public width: number = 0;
 	public onDragStart: (e: DragEvent) => void;
 
 	public needsRender: boolean;
@@ -251,7 +253,19 @@ export class ViewItem implements IViewItem {
 		}
 
 		if (!skipUserRender) {
+			const style = window.getComputedStyle(this.element);
+			const paddingLeft = parseFloat(style.paddingLeft);
+
+			if (this.context.horizontalScrolling) {
+				this.element.style.width = 'fit-content';
+			}
+
 			this.context.renderer.renderElement(this.context.tree, this.model.getElement(), this.templateId, this.row.templateData);
+
+			if (this.context.horizontalScrolling) {
+				this.width = DOM.getContentWidth(this.element) + paddingLeft;
+				this.element.style.width = '';
+			}
 		}
 	}
 
@@ -384,7 +398,8 @@ export class TreeView extends HeightMap {
 	private msGesture: MSGesture;
 	private lastPointerType: string;
 	private lastClickTimeStamp: number = 0;
-	private contentWidthProvider?: _.IContentWidthProvider;
+
+	private horizontalScrolling: boolean = true;
 	private contentWidthUpdateDelayer = new Delayer<void>(50);
 
 	private lastRenderTop: number;
@@ -423,6 +438,9 @@ export class TreeView extends HeightMap {
 		TreeView.counter++;
 		this.instance = TreeView.counter;
 
+		const horizontalScrollMode = typeof context.options.horizontalScrollMode === 'undefined' ? ScrollbarVisibility.Hidden : context.options.horizontalScrollMode;
+		const horizontalScrolling = horizontalScrollMode !== ScrollbarVisibility.Hidden;
+
 		this.context = {
 			dataSource: context.dataSource,
 			renderer: context.renderer,
@@ -433,7 +451,8 @@ export class TreeView extends HeightMap {
 			tree: context.tree,
 			accessibilityProvider: context.accessibilityProvider,
 			options: context.options,
-			cache: new RowCache(context)
+			cache: new RowCache(context),
+			horizontalScrolling
 		};
 
 		this.modelListeners = [];
@@ -462,9 +481,6 @@ export class TreeView extends HeightMap {
 		if (!this.context.options.paddingOnRow) {
 			DOM.addClass(this.domNode, 'no-row-padding');
 		}
-
-		const horizontalScrollMode = typeof context.options.contentWidthProvider === 'undefined' ? ScrollbarVisibility.Hidden : ScrollbarVisibility.Auto;
-		this.contentWidthProvider = context.options.contentWidthProvider;
 
 		this.wrapper = document.createElement('div');
 		this.wrapper.className = 'monaco-tree-wrapper';
@@ -678,7 +694,7 @@ export class TreeView extends HeightMap {
 		this.viewHeight = height || DOM.getContentHeight(this.wrapper); // render
 		this.scrollHeight = this.getContentHeight();
 
-		if (this.contentWidthProvider) {
+		if (this.horizontalScrolling) {
 			this.viewWidth = DOM.getContentWidth(this.wrapper);
 		}
 	}
@@ -717,7 +733,7 @@ export class TreeView extends HeightMap {
 			this.rowsContainer.style.top = (topItem.top - renderTop) + 'px';
 		}
 
-		if (this.contentWidthProvider) {
+		if (this.horizontalScrolling) {
 			this.rowsContainer.style.left = -scrollLeft + 'px';
 			this.rowsContainer.style.width = `${Math.max(scrollWidth, viewWidth)}px`;
 		}
@@ -763,9 +779,16 @@ export class TreeView extends HeightMap {
 
 		this.scrollTop = scrollTop;
 
-		if (this.contentWidthProvider) {
+		if (this.horizontalScrolling) {
 			this.contentWidthUpdateDelayer.trigger(() => {
-				this.scrollWidth = this.contentWidthProvider.getContentWidth();
+				const keys = Object.keys(this.items);
+				let scrollWidth = 0;
+
+				for (const key of keys) {
+					scrollWidth = Math.max(scrollWidth, this.items[key].width);
+				}
+
+				this.scrollWidth = scrollWidth + 10 /* scrollbar */;
 			});
 		}
 	}

@@ -45,7 +45,8 @@ class TestHeightMap extends HeightMap {
 		return {
 			model: item,
 			top: 0,
-			height: item.getHeight()
+			height: item.getHeight(),
+			width: 0
 		};
 	}
 }

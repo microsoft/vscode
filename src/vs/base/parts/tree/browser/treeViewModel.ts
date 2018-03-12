@@ -10,6 +10,7 @@ export interface IViewItem {
 	model: Item;
 	top: number;
 	height: number;
+	width: number;
 }
 
 export class HeightMap {
