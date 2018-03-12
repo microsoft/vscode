@@ -137,11 +137,14 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		const info = document.createElement('div');
 		const building = document.createElement('div');
 
+		const errorTitle = n => nls.localize('totalErrors', "{0} Errors", n);
+		const warningTitle = n => nls.localize('totalWarnings', "{0} Warnings", n);
+		const infoTitle = n => nls.localize('totalInfos', "{0} Infos", n);
+
 		Dom.addClass(element, 'task-statusbar-item');
 
 		Dom.addClass(label, 'task-statusbar-item-label');
 		element.appendChild(label);
-		element.title = nls.localize('problems', "Problems");
 
 		Dom.addClass(errorIcon, 'task-statusbar-item-label-error');
 		Dom.addClass(errorIcon, 'mask-icon');
@@ -150,6 +153,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 
 		Dom.addClass(error, 'task-statusbar-item-label-counter');
 		error.innerHTML = '0';
+		error.title = errorIcon.title = errorTitle(0);
 		label.appendChild(error);
 
 		Dom.addClass(warningIcon, 'task-statusbar-item-label-warning');
@@ -159,6 +163,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 
 		Dom.addClass(warning, 'task-statusbar-item-label-counter');
 		warning.innerHTML = '0';
+		warning.title = warningIcon.title = warningTitle(0);
 		label.appendChild(warning);
 
 		Dom.addClass(infoIcon, 'task-statusbar-item-label-info');
@@ -186,24 +191,22 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 			}
 		}));
 
-		let updateStatus = (element: HTMLDivElement, icon: HTMLDivElement, stats: number): boolean => {
-			if (stats > 0) {
-				element.innerHTML = stats.toString();
-				$(element).show();
-				$(icon).show();
-				return true;
-			} else {
-				$(element).hide();
-				$(icon).hide();
-				return false;
-			}
-		};
-
-		let manyMarkers = nls.localize('manyMarkers', "99+");
+		const manyProblems = nls.localize('manyProblems', "10K+");
+		const packNumber = n => n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
 		let updateLabel = (stats: MarkerStatistics) => {
-			error.innerHTML = stats.errors < 100 ? stats.errors.toString() : manyMarkers;
-			warning.innerHTML = stats.warnings < 100 ? stats.warnings.toString() : manyMarkers;
-			updateStatus(info, infoIcon, stats.infos);
+			error.innerHTML = packNumber(stats.errors);
+			error.title = errorIcon.title = errorTitle(stats.errors);
+			warning.innerHTML = packNumber(stats.warnings);
+			warning.title = warningIcon.title = warningTitle(stats.warnings);
+			if (stats.infos > 0) {
+				info.innerHTML = packNumber(stats.infos);
+				info.title = infoIcon.title = infoTitle(stats.infos);
+				$(info).show();
+				$(infoIcon).show();
+			} else {
+				$(info).hide();
+				$(infoIcon).hide();
+			}
 		};
 
 		this.markerService.onMarkerChanged((changedResources) => {
