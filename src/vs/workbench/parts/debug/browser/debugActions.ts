@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -23,6 +23,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { first } from 'vs/base/common/arrays';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -116,7 +117,8 @@ export class StartAction extends AbstractDebugAction {
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
 
@@ -126,7 +128,23 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		const launch = this.debugService.getConfigurationManager().selectedConfiguration.launch;
+		const configurationManager = this.debugService.getConfigurationManager();
+		let launch = configurationManager.selectedConfiguration.launch;
+		if (!launch) {
+			const activeEditor = this.editorService.getActiveEditor();
+			const launches = configurationManager.getLaunches();
+			if (isCodeEditor(activeEditor)) {
+				const resource = activeEditor.input.getResource();
+				const root = this.contextService.getWorkspaceFolder(resource);
+				launch = configurationManager.getLaunch(root.uri);
+			}
+			if (!launch) {
+				launch = first(launches, l => !!l.getConfigurationNames().length, launches.length ? launches[0] : undefined);
+			}
+
+			configurationManager.selectConfiguration(launch);
+		}
+
 		return this.debugService.startDebugging(launch, undefined, this.isNoDebug());
 	}
 
