@@ -269,6 +269,18 @@ export class ViewItem implements IViewItem {
 		}
 	}
 
+	updateWidth(): any {
+		if (!this.context.horizontalScrolling) {
+			return;
+		}
+
+		const style = window.getComputedStyle(this.element);
+		const paddingLeft = parseFloat(style.paddingLeft);
+		this.element.style.width = 'fit-content';
+		this.width = DOM.getContentWidth(this.element) + paddingLeft;
+		this.element.style.width = '';
+	}
+
 	public insertInDOM(container: HTMLElement, afterElement: HTMLElement): void {
 		if (!this.row) {
 			this.row = this.context.cache.alloc(this.templateId);
@@ -778,19 +790,24 @@ export class TreeView extends HeightMap {
 		}
 
 		this.scrollTop = scrollTop;
+		this.updateScrollWidth();
+	}
 
-		if (this.horizontalScrolling) {
-			this.contentWidthUpdateDelayer.trigger(() => {
-				const keys = Object.keys(this.items);
-				let scrollWidth = 0;
-
-				for (const key of keys) {
-					scrollWidth = Math.max(scrollWidth, this.items[key].width);
-				}
-
-				this.scrollWidth = scrollWidth + 10 /* scrollbar */;
-			});
+	private updateScrollWidth(): void {
+		if (!this.horizontalScrolling) {
+			return;
 		}
+
+		this.contentWidthUpdateDelayer.trigger(() => {
+			const keys = Object.keys(this.items);
+			let scrollWidth = 0;
+
+			for (const key of keys) {
+				scrollWidth = Math.max(scrollWidth, this.items[key].width);
+			}
+
+			this.scrollWidth = scrollWidth + 10 /* scrollbar */;
+		});
 	}
 
 	public focusNextPage(eventPayload?: any): void {
@@ -1056,6 +1073,21 @@ export class TreeView extends HeightMap {
 			this.onRemoveItems(new MappedIterator(item.getNavigator(), item => item && item.id));
 			this.onRowsChanged();
 		}
+	}
+
+	public updateWidth(item: Model.Item): void {
+		if (!item || !item.isVisible()) {
+			return;
+		}
+
+		const viewItem = this.items[item.id];
+
+		if (!viewItem) {
+			return;
+		}
+
+		viewItem.updateWidth();
+		this.updateScrollWidth();
 	}
 
 	public getRelativeTop(item: Model.Item): number {

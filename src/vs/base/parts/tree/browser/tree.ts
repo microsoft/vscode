@@ -79,6 +79,11 @@ export interface ITree {
 	refresh(element?: any, recursive?: boolean): WinJS.Promise;
 
 	/**
+	 * Updates an element's width.
+	 */
+	updateWidth(element: any): void;
+
+	/**
 	 * Expands an element.
 	 * The returned promise returns a boolean for whether the element was expanded or not.
 	 */

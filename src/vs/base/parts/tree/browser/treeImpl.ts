@@ -158,6 +158,11 @@ export class Tree implements _.ITree {
 		return this.model.refresh(element, recursive);
 	}
 
+	public updateWidth(element: any): void {
+		let item = this.model.getItem(element);
+		return this.view.updateWidth(item);
+	}
+
 	public expand(element: any): WinJS.Promise {
 		return this.model.expand(element);
 	}
