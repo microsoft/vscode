@@ -25,6 +25,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
 	keyboard: { touchbar: { enabled: boolean } };
+	workbench: { tree: { horizontalScrolling: boolean } };
 }
 
 export class SettingsChangeRelauncher implements IWorkbenchContribution {
@@ -36,6 +37,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
 	private touchbarEnabled: boolean;
+	private treeHorizontalScrolling: boolean;
 
 	private firstFolderResource: URI;
 	private extensionHostRestarter: RunOnceScheduler;
@@ -96,6 +98,12 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		// Touchbar config
 		if (config.keyboard && config.keyboard.touchbar && typeof config.keyboard.touchbar.enabled === 'boolean' && config.keyboard.touchbar.enabled !== this.touchbarEnabled) {
 			this.touchbarEnabled = config.keyboard.touchbar.enabled;
+			changed = true;
+		}
+
+		// Tree horizontal scrolling support
+		if (config.workbench && config.workbench.tree && typeof config.workbench.tree.horizontalScrolling === 'boolean' && config.workbench.tree.horizontalScrolling !== this.treeHorizontalScrolling) {
+			this.treeHorizontalScrolling = config.workbench.tree.horizontalScrolling;
 			changed = true;
 		}
 
