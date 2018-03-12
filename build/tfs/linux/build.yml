@@ -53,6 +53,7 @@ steps:
     fi
 
     apt-get install -y $DEPS
+    export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
 
     # setup xvfb
     cp build/tfs/linux/$(VSCODE_ARCH)/xvfb.init /etc/init.d/xvfb
