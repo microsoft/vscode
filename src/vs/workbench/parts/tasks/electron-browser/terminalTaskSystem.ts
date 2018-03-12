@@ -671,8 +671,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 		let dir = path.dirname(command);
 		if (dir !== '.') {
-			// We have a directory. So leave the command as is.
-			return command;
+			// We have a directory. Make the path absolute
+			// to the current working directory
+			return path.join(cwd, command);
 		}
 		// We have a simple file name. We get the path variable from the env
 		// and try to find the executable on the path.
@@ -700,7 +701,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				return withExtension;
 			}
 		}
-		return command;
+		return path.join(cwd, command);
 	}
 
 	private resolveVariables(task: CustomTask | ContributedTask, value: string[]): string[];
