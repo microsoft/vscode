@@ -109,40 +109,33 @@ class MarkerModel {
 		}
 	}
 
-	private move(fwd: boolean): void {
+	public move(fwd: boolean, circle: boolean): boolean {
 		if (!this.canNavigate()) {
 			this._onCurrentMarkerChanged.fire(undefined);
-			return;
+			return false;
 		}
 
+		let old = this._nextIdx;
 		if (this._nextIdx === -1) {
 			this._initIdx(fwd);
-
 		} else if (fwd) {
-			this._nextIdx += 1;
-			if (this._nextIdx >= this._markers.length) {
-				this._nextIdx = 0;
-			}
+			this._nextIdx = (this._nextIdx + 1) % this._markers.length;
 		} else {
-			this._nextIdx -= 1;
-			if (this._nextIdx < 0) {
-				this._nextIdx = this._markers.length - 1;
-			}
+			this._nextIdx = (this._nextIdx - 1 + this._markers.length) % this._markers.length;
 		}
-		const marker = this._markers[this._nextIdx];
-		this._onCurrentMarkerChanged.fire(marker);
+
+		if (circle || old === -1 || fwd && old < this._nextIdx || !fwd && old > this._nextIdx) {
+			const marker = this._markers[this._nextIdx];
+			this._onCurrentMarkerChanged.fire(marker);
+			return false;
+		}
+
+		// we circled, didn't send an event, and return `true`
+		return true;
 	}
 
 	public canNavigate(): boolean {
 		return this._markers.length > 0;
-	}
-
-	public next(): void {
-		this.move(true);
-	}
-
-	public previous(): void {
-		this.move(false);
 	}
 
 	public findMarkerAtPosition(pos: Position): IMarker {
@@ -183,11 +176,7 @@ class MarkerNavigationAction extends EditorAction {
 		}
 
 		const model = controller.getOrCreateModel();
-		if (this._isNext) {
-			model.next();
-		} else {
-			model.previous();
-		}
+		model.move(this._isNext, true);
 	}
 }
 
