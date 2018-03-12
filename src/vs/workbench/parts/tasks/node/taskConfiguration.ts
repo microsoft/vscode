@@ -25,9 +25,47 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as Tasks from '../common/tasks';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 
+export enum ShellQuoting {
+	/**
+	 * Default is character escaping.
+	 */
+	escape = 1,
+
+	/**
+	 * Default is strong quoting
+	 */
+	strong = 2,
+
+	/**
+	 * Default is weak quoting.
+	 */
+	weak = 3
+}
+
+export interface ShellQuotingOptions {
+	/**
+	 * The character used to do character escaping.
+	 */
+	escape?: string | {
+		escapeChar: string;
+		charsToEscape: string;
+	};
+
+	/**
+	 * The character used for string quoting.
+	 */
+	strong?: string;
+
+	/**
+	 * The character used for weak quoting.
+	 */
+	weak?: string;
+}
+
 export interface ShellConfiguration {
 	executable: string;
 	args?: string[];
+	quoting?: ShellQuotingOptions;
 }
 
 export interface CommandOptions {
@@ -144,18 +182,25 @@ export interface LegacyCommandProperties {
 	isShellCommand?: boolean | ShellConfiguration;
 }
 
-export interface BaseCommandProperties {
+export type CommandString = string | { value: string, quoting: 'escape' | 'strong' | 'weak' };
 
-	/**
-	 * Whether the task is a shell task or a process task.
-	 */
-	runtime?: string;
+export namespace CommandString {
+	export function value(value: CommandString): string {
+		if (Types.isString(value)) {
+			return value;
+		} else {
+			return value.value;
+		}
+	}
+}
+
+export interface BaseCommandProperties {
 
 	/**
 	 * The command to be executed. Can be an external program or a shell
 	 * command.
 	 */
-	command?: string;
+	command?: CommandString;
 
 	/**
 	 * The command options used when the command is executed. Can be omitted.
@@ -166,7 +211,7 @@ export interface BaseCommandProperties {
 	 * The arguments passed to the command or additional arguments passed to the
 	 * command when using a global command.
 	 */
-	args?: string[];
+	args?: CommandString[];
 }
 
 
@@ -266,7 +311,7 @@ export interface BaseTaskRunnerConfiguration {
 	 * The command to be executed. Can be an external program or a shell
 	 * command.
 	 */
-	command?: string;
+	command?: CommandString;
 
 	/**
 	 * @deprecated Use type instead
@@ -291,7 +336,7 @@ export interface BaseTaskRunnerConfiguration {
 	/**
 	 * The arguments passed to the command. Can be omitted.
 	 */
-	args?: string[];
+	args?: CommandString[];
 
 	/**
 	 * Controls whether the output view of the running tasks is brought to front or not.
@@ -563,7 +608,7 @@ interface ParseContext {
 
 namespace ShellConfiguration {
 
-	const properties: MetaData<Tasks.ShellConfiguration, void>[] = [{ property: 'executable' }, { property: 'args' }];
+	const properties: MetaData<Tasks.ShellConfiguration, void>[] = [{ property: 'executable' }, { property: 'args' }, { property: 'quoting' }];
 
 	export function is(value: any): value is ShellConfiguration {
 		let candidate: ShellConfiguration = value;
@@ -578,6 +623,10 @@ namespace ShellConfiguration {
 		if (config.args !== void 0) {
 			result.args = config.args.slice();
 		}
+		if (config.quoting !== void 0) {
+			result.quoting = Objects.deepClone(config.quoting);
+		}
+
 		return result;
 	}
 
@@ -726,6 +775,24 @@ namespace CommandConfiguration {
 		}
 	}
 
+	namespace ShellString {
+		export function from(this: void, value: CommandString): Tasks.CommandString {
+			if (value === void 0 || value === null) {
+				return undefined;
+			}
+			if (Types.isString(value)) {
+				return value;
+			}
+			if (Types.isString(value.value)) {
+				return {
+					value: value.value,
+					quoting: Tasks.ShellQuoting.from(value.quoting)
+				};
+			}
+			return undefined;
+		}
+	}
+
 	interface BaseCommandConfiguationShape extends BaseCommandProperties, LegacyCommandProperties {
 	}
 
@@ -764,9 +831,8 @@ namespace CommandConfiguration {
 			runtime: undefined,
 			presentation: undefined
 		};
-		if (Types.isString(config.command)) {
-			result.name = config.command;
-		}
+
+		result.name = ShellString.from(config.command);
 		if (Types.isString(config.type)) {
 			if (config.type === 'shell' || config.type === 'process') {
 				result.runtime = Tasks.RuntimeType.fromString(config.type);
@@ -778,14 +844,16 @@ namespace CommandConfiguration {
 		} else if (config.isShellCommand !== void 0) {
 			result.runtime = !!config.isShellCommand ? Tasks.RuntimeType.Shell : Tasks.RuntimeType.Process;
 		}
-		if (Types.isString(config.runtime)) {
-			result.runtime = Tasks.RuntimeType.fromString(config.runtime);
-		}
+
 		if (config.args !== void 0) {
-			if (Types.isStringArray(config.args)) {
-				result.args = config.args.slice(0);
-			} else {
-				context.problemReporter.error(nls.localize('ConfigurationParser.noargs', 'Error: command arguments must be an array of strings. Provided value is:\n{0}', config.args ? JSON.stringify(config.args, undefined, 4) : 'undefined'));
+			result.args = [];
+			for (let arg of config.args) {
+				let converted = ShellString.from(arg);
+				if (converted !== void 0) {
+					result.args.push(converted);
+				} else {
+					context.problemReporter.error(nls.localize('ConfigurationParser.inValidArg', 'Error: command argument must either be a string or a quoted string. Provided value is:\n{0}', context.problemReporter.error(nls.localize('ConfigurationParser.noargs', 'Error: command arguments must be an array of strings. Provided value is:\n{0}', arg ? JSON.stringify(arg, undefined, 4) : 'undefined'))));
+				}
 			}
 		}
 		if (config.options !== void 0) {
@@ -858,7 +926,7 @@ namespace CommandConfiguration {
 			fillProperty(target, source, 'name');
 			fillProperty(target, source, 'taskSelector');
 			fillProperty(target, source, 'suppressTaskName');
-			let args: string[] = source.args ? source.args.slice() : [];
+			let args: Tasks.CommandString[] = source.args ? source.args.slice() : [];
 			if (!target.suppressTaskName) {
 				if (target.taskSelector !== void 0) {
 					args.push(target.taskSelector + taskName);
@@ -1372,17 +1440,6 @@ namespace TaskParser {
 				if (customTask) {
 					CustomTask.fillGlobals(customTask, globals);
 					CustomTask.fillDefaults(customTask, context);
-					if (context.engine === Tasks.ExecutionEngine.Terminal && customTask.command && customTask.command.name && customTask.command.runtime === Tasks.RuntimeType.Shell && customTask.command.args && customTask.command.args.length > 0) {
-						if (customTask.command.args.some(hasUnescapedSpaces)) {
-							context.problemReporter.warn(
-								nls.localize(
-									'taskConfiguration.shellArgs',
-									'Warning: the task \'{0}\' is a shell command and one of its arguments might have unescaped spaces. To ensure correct command line quoting please merge args into the command.',
-									customTask.name
-								)
-							);
-						}
-					}
 					if (schema2_0_0) {
 						if ((customTask.command === void 0 || customTask.command.name === void 0) && (customTask.dependsOn === void 0 || customTask.dependsOn.length === 0)) {
 							context.problemReporter.error(nls.localize(
@@ -1460,23 +1517,6 @@ namespace TaskParser {
 			target = newTarget;
 		}
 		return target;
-	}
-
-	function hasUnescapedSpaces(this: void, value: string): boolean {
-		let escapeChar = Platform.isWindows ? '`' : '\\';
-
-		if (value.length >= 2 && ((value.charAt(0) === '"' && value.charAt(value.length - 1) === '"') || (value.charAt(0) === '\'' && value.charAt(value.length - 1) === '\''))) {
-			return false;
-		}
-		for (let i = 0; i < value.length; i++) {
-			let ch = value.charAt(i);
-			if (ch === ' ') {
-				if (i === 0 || value.charAt(i - 1) !== escapeChar) {
-					return true;
-				}
-			}
-		}
-		return false;
 	}
 }
 
@@ -1748,13 +1788,14 @@ class ConfigurationParser {
 		if ((!result.custom || result.custom.length === 0) && (globals.command && globals.command.name)) {
 			let matchers: ProblemMatcher[] = ProblemMatcherConverter.from(fileConfig.problemMatcher, context);
 			let isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
+			let name = Tasks.CommandString.value(globals.command.name);
 			let task: Tasks.CustomTask = {
-				_id: context.uuidMap.getUUID(globals.command.name),
+				_id: context.uuidMap.getUUID(name),
 				_source: Objects.assign({}, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
-				_label: globals.command.name,
+				_label: name,
 				type: 'custom',
-				name: globals.command.name,
-				identifier: globals.command.name,
+				name: name,
+				identifier: name,
 				group: Tasks.TaskGroup.Build,
 				command: {
 					name: undefined,

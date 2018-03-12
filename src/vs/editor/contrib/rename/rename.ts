@@ -184,9 +184,9 @@ class RenameController implements IEditorContribution {
 
 		}, err => {
 			this._renameInputVisible.reset();
-			this.editor.focus();
 
 			if (!isPromiseCanceledError(err)) {
+				this.editor.focus();
 				return TPromise.wrapError(err);
 			}
 			return undefined;

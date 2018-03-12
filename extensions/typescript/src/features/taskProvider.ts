@@ -186,7 +186,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 				project.workspaceFolder || vscode.TaskScope.Workspace,
 				localize('buildTscLabel', 'build - {0}', label),
 				'tsc',
-				new vscode.ShellExecution(`${command} -p "${project.path}"`),
+				new vscode.ShellExecution(command, ['-p', project.path]),
 				'$tsc');
 			buildTask.group = vscode.TaskGroup.Build;
 			buildTask.isBackground = false;
@@ -200,7 +200,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 				project.workspaceFolder || vscode.TaskScope.Workspace,
 				localize('buildAndWatchTscLabel', 'watch - {0}', label),
 				'tsc',
-				new vscode.ShellExecution(`${command} --watch -p "${project.path}"`),
+				new vscode.ShellExecution(command, ['--watch', '-p', project.path]),
 				'$tsc-watch');
 			watchTask.group = vscode.TaskGroup.Build;
 			watchTask.isBackground = true;

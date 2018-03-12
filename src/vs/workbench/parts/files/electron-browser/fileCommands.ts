@@ -486,9 +486,16 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: undefined,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S,
-	handler: (accessor, resource: URI | object) => {
+	handler: (accessor, resourceOrObject: URI | object | { from: string }) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
-		return save(getResourceForCommand(resource, accessor.get(IListService), editorService), true, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
+		let resource: URI = undefined;
+		if (resourceOrObject && 'from' in resourceOrObject && resourceOrObject.from === 'menu') {
+			resource = toResource(editorService.getActiveEditorInput());
+		} else {
+			resource = getResourceForCommand(resourceOrObject, accessor.get(IListService), editorService);
+		}
+
+		return save(resource, true, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
 	}
 });
 
