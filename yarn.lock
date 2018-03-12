@@ -5989,9 +5989,9 @@ vscode-nsfw@1.0.17:
     nan "^2.0.0"
     promisify-node "^0.3.0"
 
-vscode-ripgrep@0.7.1-patch.1.1:
-  version "0.7.1-patch.1.1"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-0.7.1-patch.1.1.tgz#d5fd19979998ccd040fd54c144c4190135e9e5c2"
+vscode-ripgrep@^0.8.1:
+  version "0.8.1"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-0.8.1.tgz#861d2ac97a3764e9f40f305620423efc50632ad1"
 
 vscode-textmate@^3.2.0:
   version "3.2.0"
