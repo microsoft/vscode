@@ -177,7 +177,7 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(48, 12),
 		]);
 		let expectedOutput = [
-			'<span class="vs-whitespace" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
+			'<span class="vs-whitespace" style="width:40px">\uffeb\u00a0\u00a0\u00a0</span>',
 			'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
 			'<span class="mtk2">export</span>',
 			'<span class="mtk3">\u00a0</span>',
@@ -852,11 +852,11 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'boundary',
 			[
 				'<span>',
-				'<span class="vs-whitespace" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
-				'<span class="vs-whitespace" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
+				'<span class="vs-whitespace" style="width:40px">\uffeb\u00a0\u00a0\u00a0</span>',
+				'<span class="vs-whitespace" style="width:40px">\uffeb\u00a0\u00a0\u00a0</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="vs-whitespace" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
+				'<span class="vs-whitespace" style="width:40px">\uffeb\u00a0\u00a0\u00a0</span>',
 				'</span>',
 			].join('')
 		);
@@ -874,14 +874,14 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'boundary',
 			[
 				'<span>',
-				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u2192\u00a0</span>',
-				'<span class="vs-whitespace" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
+				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\uffeb\u00a0</span>',
+				'<span class="vs-whitespace" style="width:40px">\uffeb\u00a0\u00a0\u00a0</span>',
 				'<span class="vs-whitespace" style="width:20px">\u00b7\u00b7</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="vs-whitespace" style="width:20px">\u00b7\u2192</span>',
-				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u2192\u00a0</span>',
-				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\u2192</span>',
+				'<span class="vs-whitespace" style="width:20px">\u00b7\uffeb</span>',
+				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\uffeb\u00a0</span>',
+				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\uffeb</span>',
 				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
 				'</span>',
 			].join('')
@@ -905,9 +905,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 				'<span class="vs-whitespace" style="width:20px">\u00b7\u00b7</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="vs-whitespace" style="width:20px">\u00b7\u2192</span>',
-				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u2192\u00a0</span>',
-				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\u2192</span>',
+				'<span class="vs-whitespace" style="width:20px">\u00b7\uffeb</span>',
+				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\uffeb\u00a0</span>',
+				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\uffeb</span>',
 				'<span class="vs-whitespace" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
 				'</span>',
 			].join('')
@@ -931,7 +931,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				'<span class="vs-whitespace">\u00b7\u00b7</span>',
 				'<span class="mtk2">He</span>',
 				'<span class="mtk3">llo\u00a0world!</span>',
-				'<span class="vs-whitespace">\u00b7\u2192\u00b7\u00b7\u2192\u00a0\u00b7\u00b7\u00b7\u2192\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="vs-whitespace">\u00b7\uffeb\u00b7\u00b7\uffeb\u00a0\u00b7\u00b7\u00b7\uffeb\u00b7\u00b7\u00b7\u00b7</span>',
 				'</span>',
 			].join('')
 		);
@@ -980,7 +980,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				'<span class="mtk1">lo</span>',
 				'<span class="vs-whitespace" style="width:10px">\u00b7</span>',
 				'<span class="mtk2">world!</span>',
-				'<span class="vs-whitespace" style="width:30px">\u2192\u00a0\u00a0</span>',
+				'<span class="vs-whitespace" style="width:30px">\uffeb\u00a0\u00a0</span>',
 				'</span>',
 			].join('')
 		);
@@ -1045,7 +1045,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		let expected = [
 			'<span>',
-			'<span class="vs-whitespace before">\u2192\u00a0\u00a0\u00a0</span>',
+			'<span class="vs-whitespace before">\uffeb\u00a0\u00a0\u00a0</span>',
 			'<span class="mtk3">bla</span>',
 			'</span>'
 		].join('');
@@ -1074,7 +1074,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		let expected = [
 			'<span>',
-			'<span class="vs-whitespace" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
+			'<span class="vs-whitespace" style="width:40px">\uffeb\u00a0\u00a0\u00a0</span>',
 			'<span class="mtk3 before">b</span>',
 			'<span class="mtk3">la</span>',
 			'</span>'
@@ -1247,7 +1247,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'<span class="mtk3">=</span>',
 			'<span class="vs-whitespace">\u00b7</span>',
 			'<span class="mtk3">"擦"</span>',
-			'<span class="vs-whitespace">\u2192\u00a0\u2192\u00a0\u00a0\u00a0</span>',
+			'<span class="vs-whitespace">\uffeb\u00a0\uffeb\u00a0\u00a0\u00a0</span>',
 			'<span class="mtk3">#asd</span>',
 			'</span>'
 		].join('');
