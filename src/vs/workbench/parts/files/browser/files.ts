@@ -21,7 +21,7 @@ export function getResourceForCommand(resource: URI | object | { from: string },
 		return resource;
 	}
 	let list = listService.lastFocusedList;
-	if ('from' in resource && resource.from === 'menu') {
+	if (resource && 'from' in resource && resource.from === 'menu') {
 		// Ignore list if the command is triggered from the main menu
 		list = undefined;
 	}
