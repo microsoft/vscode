@@ -30,6 +30,7 @@ export class TreeContext implements _.ITreeContext {
 	public filter: _.IFilter;
 	public sorter: _.ISorter;
 	public accessibilityProvider: _.IAccessibilityProvider;
+	public styler: _.ITreeStyler;
 
 	constructor(tree: _.ITree, configuration: _.ITreeConfiguration, options: _.ITreeOptions = {}) {
 		this.tree = tree;
@@ -47,6 +48,7 @@ export class TreeContext implements _.ITreeContext {
 		this.filter = configuration.filter || new TreeDefaults.DefaultFilter();
 		this.sorter = configuration.sorter || null;
 		this.accessibilityProvider = configuration.accessibilityProvider || new TreeDefaults.DefaultAccessibilityProvider();
+		this.styler = configuration.styler || null;
 	}
 }
 

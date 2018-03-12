@@ -25,6 +25,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDomNodePagePosition } from 'vs/base/browser/dom';
 import { DataTransfers } from 'vs/base/browser/dnd';
+import { DefaultTreestyler } from './treeDefaults';
 
 export interface IRow {
 	element: HTMLElement;
@@ -378,6 +379,7 @@ export class TreeView extends HeightMap {
 	private domNode: HTMLElement;
 	private wrapper: HTMLElement;
 	private styleElement: HTMLStyleElement;
+	private treeStyler: _.ITreeStyler;
 	private rowsContainer: HTMLElement;
 	private scrollableElement: ScrollableElement;
 	private msGesture: MSGesture;
@@ -445,6 +447,11 @@ export class TreeView extends HeightMap {
 		this.domNode.tabIndex = context.options.preventRootFocus ? -1 : 0;
 
 		this.styleElement = DOM.createStyleSheet(this.domNode);
+
+		this.treeStyler = context.styler;
+		if (!this.treeStyler) {
+			this.treeStyler = new DefaultTreestyler(this.styleElement, `monaco-tree-instance-${this.instance}`);
+		}
 
 		// ARIA
 		this.domNode.setAttribute('role', 'tree');
@@ -552,75 +559,7 @@ export class TreeView extends HeightMap {
 	}
 
 	public applyStyles(styles: _.ITreeStyles): void {
-		const content: string[] = [];
-
-		if (styles.listFocusBackground) {
-			content.push(`.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) { background-color: ${styles.listFocusBackground}; }`);
-		}
-
-		if (styles.listFocusForeground) {
-			content.push(`.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) { color: ${styles.listFocusForeground}; }`);
-		}
-
-		if (styles.listActiveSelectionBackground) {
-			content.push(`.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${styles.listActiveSelectionBackground}; }`);
-		}
-
-		if (styles.listActiveSelectionForeground) {
-			content.push(`.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${styles.listActiveSelectionForeground}; }`);
-		}
-
-		if (styles.listFocusAndSelectionBackground) {
-			content.push(`
-				.monaco-tree-drag-image,
-				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused.selected:not(.highlighted) { background-color: ${styles.listFocusAndSelectionBackground}; }
-			`);
-		}
-
-		if (styles.listFocusAndSelectionForeground) {
-			content.push(`
-				.monaco-tree-drag-image,
-				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused.selected:not(.highlighted) { color: ${styles.listFocusAndSelectionForeground}; }
-			`);
-		}
-
-		if (styles.listInactiveSelectionBackground) {
-			content.push(`.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${styles.listInactiveSelectionBackground}; }`);
-		}
-
-		if (styles.listInactiveSelectionForeground) {
-			content.push(`.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${styles.listInactiveSelectionForeground}; }`);
-		}
-
-		if (styles.listHoverBackground) {
-			content.push(`.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) { background-color: ${styles.listHoverBackground}; }`);
-		}
-
-		if (styles.listHoverForeground) {
-			content.push(`.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) { color: ${styles.listHoverForeground}; }`);
-		}
-
-		if (styles.listDropBackground) {
-			content.push(`
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-wrapper.drop-target,
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
-			`);
-		}
-
-		if (styles.listFocusOutline) {
-			content.push(`
-				.monaco-tree-drag-image																															{ border: 1px solid ${styles.listFocusOutline}; background: #000; }
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row 														{ border: 1px solid transparent; }
-				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) 						{ border: 1px dotted ${styles.listFocusOutline}; }
-				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) 						{ border: 1px solid ${styles.listFocusOutline}; }
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted)  							{ border: 1px solid ${styles.listFocusOutline}; }
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused)  	{ border: 1px dashed ${styles.listFocusOutline}; }
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-wrapper.drop-target,
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.drop-target												{ border: 1px dashed ${styles.listFocusOutline}; }
-			`);
-		}
-
-		this.styleElement.innerHTML = content.join('\n');
+		this.treeStyler.style(styles);
 	}
 
 	protected createViewItem(item: Model.Item): IViewItem {

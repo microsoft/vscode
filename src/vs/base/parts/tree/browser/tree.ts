@@ -666,6 +666,7 @@ export interface ITreeConfiguration {
 	filter?: IFilter;
 	sorter?: ISorter;
 	accessibilityProvider?: IAccessibilityProvider;
+	styler?: ITreeStyler;
 }
 
 export interface ITreeOptions extends ITreeStyles {
@@ -680,6 +681,10 @@ export interface ITreeOptions extends ITreeStyles {
 	ariaLabel?: string;
 	keyboardSupport?: boolean;
 	preventRootFocus?: boolean;
+}
+
+export interface ITreeStyler {
+	style(styles: ITreeStyles): void;
 }
 
 export interface ITreeStyles {

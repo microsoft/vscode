@@ -5,14 +5,14 @@
 'use strict';
 
 import { ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
-import { List, IListOptions, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, IMultipleSelectionController, IOpenController } from 'vs/base/browser/ui/list/listWidget';
+import { List, IListOptions, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, IMultipleSelectionController, IOpenController, DefaultStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { PagedList, IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { IDelegate, IRenderer, IListMouseEvent, IListTouchEvent } from 'vs/base/browser/ui/list/list';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { attachListStyler, defaultListStyles, computeStyles } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -20,10 +20,11 @@ import { mixin } from 'vs/base/common/objects';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { DefaultController, IControllerOptions, OpenMode, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultController, IControllerOptions, OpenMode, ClickBehavior, DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
+import { createStyleSheet } from 'vs/base/browser/dom';
 
 export type ListWidget = List<any> | PagedList<any> | ITree;
 
@@ -163,9 +164,31 @@ function handleListControllers<T>(options: IListOptions<T>, configurationService
 	return options;
 }
 
+let sharedListStyleSheet: HTMLStyleElement;
+function getSharedListStyleSheet(): HTMLStyleElement {
+	if (!sharedListStyleSheet) {
+		sharedListStyleSheet = createStyleSheet();
+	}
+
+	return sharedListStyleSheet;
+}
+
+let sharedTreeStyleSheet: HTMLStyleElement;
+function getSharedTreeStyleSheet(): HTMLStyleElement {
+	if (!sharedTreeStyleSheet) {
+		sharedTreeStyleSheet = createStyleSheet();
+	}
+
+	return sharedTreeStyleSheet;
+}
+
 function handleTreeController(configuration: ITreeConfiguration, instantiationService: IInstantiationService): ITreeConfiguration {
 	if (!configuration.controller) {
 		configuration.controller = instantiationService.createInstance(WorkbenchTreeController, {});
+	}
+
+	if (!configuration.styler) {
+		configuration.styler = new DefaultTreestyler(getSharedTreeStyleSheet());
 	}
 
 	return configuration;
@@ -190,7 +213,20 @@ export class WorkbenchList<T> extends List<T> {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(container, delegate, renderers, mixin(handleListControllers(options, configurationService), { keyboardSupport: false, selectOnMouseDown: true } as IListOptions<T>, false));
+		super(
+			container,
+			delegate,
+			renderers,
+			// mixin magic:
+			// - install list controllers accordingly
+			// - define some custom list options common for all workbench lists
+			// - mixin theme colors from default list styles right on creation
+			mixin(handleListControllers(options, configurationService), mixin({
+				keyboardSupport: false,
+				selectOnMouseDown: true,
+				styleController: new DefaultStyleController(getSharedListStyleSheet())
+			} as IListOptions<T>, computeStyles(themeService.getTheme(), defaultListStyles), false), false)
+		);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
@@ -243,7 +279,20 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(container, delegate, renderers, mixin(handleListControllers(options, configurationService), { keyboardSupport: false, selectOnMouseDown: true } as IListOptions<T>, false));
+		super(
+			container,
+			delegate,
+			renderers,
+			// mixin magic:
+			// - install list controllers accordingly
+			// - define some custom list options common for all workbench lists
+			// - mixin theme colors from default list styles right on creation
+			mixin(handleListControllers(options, configurationService), mixin({
+				keyboardSupport: false,
+				selectOnMouseDown: true,
+				styleController: new DefaultStyleController(getSharedListStyleSheet())
+			} as IListOptions<T>, computeStyles(themeService.getTheme(), defaultListStyles), false), false)
+		);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 
@@ -299,7 +348,16 @@ export class WorkbenchTree extends Tree {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(container, handleTreeController(configuration, instantiationService), mixin(options, { keyboardSupport: false } as ITreeOptions, false));
+		super(
+			container,
+			handleTreeController(configuration, instantiationService),
+			// mixin magic:
+			// - define some custom tree options common for all workbench trees
+			// - mixin theme colors from default tree styles right on creation
+			mixin(options, mixin({
+				keyboardSupport: false
+			} as ITreeOptions, computeStyles(themeService.getTheme(), defaultListStyles), false), false)
+		);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
