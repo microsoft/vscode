@@ -73,6 +73,10 @@ steps:
     versionSpec: "1.3.2"
 
 - script: |
+    if [[ "$ARCH" == "ia32" ]]; then
+      export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
+    fi
+
     echo "machine monacotools.visualstudio.com password $(VSO_PAT)" > ~/.netrc
     npm_config_arch="$(VSCODE_ARCH)" yarn
     npm run gulp -- hygiene
@@ -81,10 +85,6 @@ steps:
     node build/tfs/common/installDistro.js
 
 - script: |
-    if [[ "$ARCH" == "ia32" ]]; then
-      export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
-    fi
-
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-linux-$(VSCODE_ARCH)-min
   name: build
 
