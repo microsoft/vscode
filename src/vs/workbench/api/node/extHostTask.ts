@@ -278,17 +278,40 @@ namespace CommandOptions {
 	}
 }
 
+namespace ShellQuoteOptions {
+	export function from(value: vscode.ShellQuotingOptions): TaskSystem.ShellQuotingOptions {
+		if (value === void 0 || value === null) {
+			return undefined;
+		}
+		return {
+			escape: value.escape,
+			strong: value.strong,
+			weak: value.strong
+		};
+	}
+}
+
 namespace ShellConfiguration {
-	export function from(value: { executable?: string, shellArgs?: string[] }): TaskSystem.ShellConfiguration {
+	export function from(value: { executable?: string, shellArgs?: string[], quotes?: vscode.ShellQuotingOptions }): TaskSystem.ShellConfiguration {
 		if (value === void 0 || value === null || !value.executable) {
 			return undefined;
 		}
 
 		let result: TaskSystem.ShellConfiguration = {
 			executable: value.executable,
-			args: Strings.from(value.shellArgs)
+			args: Strings.from(value.shellArgs),
+			quoting: ShellQuoteOptions.from(value.quotes)
 		};
 		return result;
+	}
+}
+
+namespace ShellString {
+	export function from(value: (string | vscode.ShellQuotedString)[]): TaskSystem.CommandString[] {
+		if (value === void 0 || value === null) {
+			return undefined;
+		}
+		return value.slice(0);
 	}
 }
 
@@ -396,18 +419,34 @@ namespace Tasks {
 	}
 
 	function getShellCommand(value: vscode.ShellExecution): TaskSystem.CommandConfiguration {
-		if (typeof value.commandLine !== 'string') {
-			return undefined;
+		if (value.args) {
+			if (typeof value.command !== 'string' && typeof value.command.value !== 'string') {
+				return undefined;
+			}
+			let result: TaskSystem.CommandConfiguration = {
+				name: value.command,
+				args: ShellString.from(value.args),
+				runtime: TaskSystem.RuntimeType.Shell,
+				presentation: undefined
+			};
+			if (value.options) {
+				result.options = CommandOptions.from(value.options);
+			}
+			return result;
+		} else {
+			if (typeof value.commandLine !== 'string') {
+				return undefined;
+			}
+			let result: TaskSystem.CommandConfiguration = {
+				name: value.commandLine,
+				runtime: TaskSystem.RuntimeType.Shell,
+				presentation: undefined
+			};
+			if (value.options) {
+				result.options = CommandOptions.from(value.options);
+			}
+			return result;
 		}
-		let result: TaskSystem.CommandConfiguration = {
-			name: value.commandLine,
-			runtime: TaskSystem.RuntimeType.Shell,
-			presentation: undefined
-		};
-		if (value.options) {
-			result.options = CommandOptions.from(value.options);
-		}
-		return result;
 	}
 }
 

@@ -1585,7 +1585,7 @@ class TaskService implements ITaskService {
 		if (!config.command || this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return false;
 		}
-		return ProcessRunnerDetector.supports(config.command);
+		return ProcessRunnerDetector.supports(TaskConfig.CommandString.value(config.command));
 	}
 
 	public configureAction(): Action {
