@@ -53,7 +53,10 @@ steps:
     fi
 
     apt-get install -y $DEPS
-    export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
+
+    if [[ "$ARCH" == "ia32" ]]; then
+      export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
+    fi
 
     # setup xvfb
     cp build/tfs/linux/$(VSCODE_ARCH)/xvfb.init /etc/init.d/xvfb
