@@ -375,6 +375,11 @@ export interface ConfigurationProperties {
 	presentation?: PresentationOptions;
 
 	/**
+	 * The command options;
+	 */
+	options?: CommandOptions;
+
+	/**
 	 * Whether the task is a background task or not.
 	 */
 	isBackground?: boolean;

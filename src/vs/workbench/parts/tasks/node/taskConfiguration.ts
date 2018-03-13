@@ -281,6 +281,11 @@ export interface ConfigurationProperties {
 	presentation?: PresentationOptions;
 
 	/**
+	 * Controls shell options.
+	 */
+	options?: CommandOptions;
+
+	/**
 	 * The problem matcher(s) to use to capture problems in the tasks
 	 * output.
 	 */
@@ -1111,7 +1116,7 @@ namespace ConfigurationProperties {
 		{ property: 'presentation', type: CommandConfiguration.PresentationOptions }, { property: 'problemMatchers' }
 	];
 
-	export function from(this: void, external: ConfigurationProperties, context: ParseContext, includePresentation: boolean): Tasks.ConfigurationProperties {
+	export function from(this: void, external: ConfigurationProperties, context: ParseContext, includeCommandOptions: boolean): Tasks.ConfigurationProperties {
 		if (!external) {
 			return undefined;
 		}
@@ -1150,8 +1155,11 @@ namespace ConfigurationProperties {
 				result.dependsOn = external.dependsOn.map((task) => { return { workspaceFolder: context.workspaceFolder, task: task }; });
 			}
 		}
-		if (includePresentation && (external.presentation !== void 0 || (external as LegacyCommandProperties).terminal !== void 0)) {
+		if (includeCommandOptions && (external.presentation !== void 0 || (external as LegacyCommandProperties).terminal !== void 0)) {
 			result.presentation = CommandConfiguration.PresentationOptions.from(external, context);
+		}
+		if (includeCommandOptions && (external.options !== void 0)) {
+			result.options = CommandOptions.from(external.options, context);
 		}
 		if (external.problemMatcher) {
 			result.problemMatchers = ProblemMatcherConverter.from(external.problemMatcher, context);
@@ -1396,6 +1404,7 @@ namespace CustomTask {
 		assignProperty(resultConfigProps, configuredProps, 'promptOnClose');
 		result.command.presentation = CommandConfiguration.PresentationOptions.assignProperties(
 			result.command.presentation, configuredProps.presentation);
+		result.command.options = CommandOptions.assignProperties(result.command.options, configuredProps.options);
 
 		let contributedConfigProps: Tasks.ConfigurationProperties = contributedTask;
 		fillProperty(resultConfigProps, contributedConfigProps, 'group');
@@ -1406,6 +1415,7 @@ namespace CustomTask {
 		fillProperty(resultConfigProps, contributedConfigProps, 'promptOnClose');
 		result.command.presentation = CommandConfiguration.PresentationOptions.fillProperties(
 			result.command.presentation, contributedConfigProps.presentation);
+		result.command.options = CommandOptions.fillProperties(result.command.options, contributedConfigProps.options);
 
 		return result;
 	}
