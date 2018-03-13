@@ -135,9 +135,9 @@ export interface IPartService {
 	isEditorLayoutCentered(): boolean;
 
 	/**
-	 * Toggles the workbench in and out of centered editor layout.
+	 * Sets the workbench in and out of centered editor layout.
 	 */
-	toggleCenteredEditorLayout(): void;
+	centerEditorLayout(active: boolean): void;
 
 	/**
 	 * Resizes currently focused part on main access

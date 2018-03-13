@@ -1319,13 +1319,11 @@ export class Workbench implements IPartService {
 		// Check if zen mode transitioned to full screen and if now we are out of zen mode -> we need to go out of full screen
 		let toggleFullScreen = false;
 		// Same goes for the centered editor layout
-		let toggleCenteredEditorLayout = false;
 		if (this.zenMode.active) {
 			const config = this.configurationService.getValue<IZenModeSettings>('zenMode');
 			toggleFullScreen = !browser.isFullscreen() && config.fullScreen;
 			this.zenMode.transitionedToFullScreen = toggleFullScreen;
-			toggleCenteredEditorLayout = !this.isEditorLayoutCentered() && config.centerLayout;
-			this.zenMode.transitionedToCenteredEditorLayout = toggleCenteredEditorLayout;
+			this.zenMode.transitionedToCenteredEditorLayout = !this.isEditorLayoutCentered() && config.centerLayout;
 			this.zenMode.wasSideBarVisible = this.isVisible(Parts.SIDEBAR_PART);
 			this.zenMode.wasPanelVisible = this.isVisible(Parts.PANEL_PART);
 			this.setPanelHidden(true, true).done(void 0, errors.onUnexpectedError);
@@ -1342,13 +1340,19 @@ export class Workbench implements IPartService {
 			if (config.hideTabs) {
 				this.editorPart.hideTabs(true);
 			}
+
+			if (config.centerLayout) {
+				this.centerEditorLayout(true, true);
+			}
 		} else {
 			if (this.zenMode.wasPanelVisible) {
 				this.setPanelHidden(false, true).done(void 0, errors.onUnexpectedError);
 			}
-
 			if (this.zenMode.wasSideBarVisible) {
 				this.setSideBarHidden(false, true).done(void 0, errors.onUnexpectedError);
+			}
+			if (this.zenMode.transitionedToCenteredEditorLayout) {
+				this.centerEditorLayout(false, true);
 			}
 
 			// Status bar and activity bar visibility come from settings -> update their visibility.
@@ -1360,14 +1364,9 @@ export class Workbench implements IPartService {
 			}
 
 			toggleFullScreen = this.zenMode.transitionedToFullScreen && browser.isFullscreen();
-			toggleCenteredEditorLayout = this.zenMode.transitionedToCenteredEditorLayout && this.isEditorLayoutCentered();
 		}
 
 		this.inZenMode.set(this.zenMode.active);
-
-		if (toggleCenteredEditorLayout) {
-			this.toggleCenteredEditorLayout(true);
-		}
 
 		if (!skipLayout) {
 			this.layout();
@@ -1382,8 +1381,8 @@ export class Workbench implements IPartService {
 		return this.centeredEditorLayoutActive;
 	}
 
-	public toggleCenteredEditorLayout(skipLayout?: boolean): void {
-		this.centeredEditorLayoutActive = !this.centeredEditorLayoutActive;
+	public centerEditorLayout(active: boolean, skipLayout?: boolean): void {
+		this.centeredEditorLayoutActive = active;
 		this.storageService.store(Workbench.centeredEditorLayoutActiveStorageKey, this.centeredEditorLayoutActive, StorageScope.GLOBAL);
 
 		if (!skipLayout) {
