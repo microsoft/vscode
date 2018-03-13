@@ -73,6 +73,7 @@ steps:
     versionSpec: "1.3.2"
 
 - script: |
+    ls /usr/lib/i386-linux-gnu/pkgconfig
     if [[ "$ARCH" == "ia32" ]]; then
       export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
     fi
