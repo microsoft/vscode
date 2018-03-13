@@ -16,6 +16,12 @@ declare module 'vscode' {
 	}
 
 	export namespace languages {
+
+		/**
+		 *
+		 */
+		export const onDidChangeDiagnostics: Event<Uri[]>;
+
 		export const diagnostics: DiagnosticInformation;
 	}
 

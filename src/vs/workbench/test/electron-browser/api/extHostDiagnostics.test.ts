@@ -13,6 +13,7 @@ import { Diagnostic, DiagnosticSeverity, Range } from 'vs/workbench/api/node/ext
 import { MainThreadDiagnosticsShape } from 'vs/workbench/api/node/extHost.protocol';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
+import { Emitter } from 'vs/base/common/event';
 
 suite('ExtHostDiagnostics', () => {
 
@@ -27,7 +28,7 @@ suite('ExtHostDiagnostics', () => {
 
 	test('disposeCheck', function () {
 
-		const collection = new DiagnosticCollection('test', new DiagnosticsShape());
+		const collection = new DiagnosticCollection('test', new DiagnosticsShape(), new Emitter());
 
 		collection.dispose();
 		collection.dispose(); // that's OK
@@ -44,13 +45,13 @@ suite('ExtHostDiagnostics', () => {
 
 
 	test('diagnostic collection, forEach, clear, has', function () {
-		let collection = new DiagnosticCollection('test', new DiagnosticsShape());
+		let collection = new DiagnosticCollection('test', new DiagnosticsShape(), new Emitter());
 		assert.equal(collection.name, 'test');
 		collection.dispose();
 		assert.throws(() => collection.name);
 
 		let c = 0;
-		collection = new DiagnosticCollection('test', new DiagnosticsShape());
+		collection = new DiagnosticCollection('test', new DiagnosticsShape(), new Emitter());
 		collection.forEach(() => c++);
 		assert.equal(c, 0);
 
@@ -87,7 +88,7 @@ suite('ExtHostDiagnostics', () => {
 	});
 
 	test('diagnostic collection, immutable read', function () {
-		let collection = new DiagnosticCollection('test', new DiagnosticsShape());
+		let collection = new DiagnosticCollection('test', new DiagnosticsShape(), new Emitter());
 		collection.set(URI.parse('foo:bar'), [
 			new Diagnostic(new Range(0, 0, 1, 1), 'message-1'),
 			new Diagnostic(new Range(0, 0, 1, 1), 'message-2')
@@ -112,7 +113,7 @@ suite('ExtHostDiagnostics', () => {
 
 
 	test('diagnostics collection, set with dupliclated tuples', function () {
-		let collection = new DiagnosticCollection('test', new DiagnosticsShape());
+		let collection = new DiagnosticCollection('test', new DiagnosticsShape(), new Emitter());
 		let uri = URI.parse('sc:hightower');
 		collection.set([
 			[uri, [new Diagnostic(new Range(0, 0, 0, 1), 'message-1')]],
@@ -168,7 +169,7 @@ suite('ExtHostDiagnostics', () => {
 				lastEntries = entries;
 				return super.$changeMany(owner, entries);
 			}
-		});
+		}, new Emitter());
 		let uri = URI.parse('sc:hightower');
 
 		collection.set([[uri, [new Diagnostic(new Range(0, 0, 1, 1), 'error')]]]);
@@ -192,7 +193,7 @@ suite('ExtHostDiagnostics', () => {
 
 	test('diagnostics collection, tuples and undefined (small array), #15585', function () {
 
-		const collection = new DiagnosticCollection('test', new DiagnosticsShape());
+		const collection = new DiagnosticCollection('test', new DiagnosticsShape(), new Emitter());
 		let uri = URI.parse('sc:hightower');
 		let uri2 = URI.parse('sc:nomad');
 		let diag = new Diagnostic(new Range(0, 0, 0, 1), 'ffff');
@@ -213,7 +214,7 @@ suite('ExtHostDiagnostics', () => {
 
 	test('diagnostics collection, tuples and undefined (large array), #15585', function () {
 
-		const collection = new DiagnosticCollection('test', new DiagnosticsShape());
+		const collection = new DiagnosticCollection('test', new DiagnosticsShape(), new Emitter());
 		const tuples: [URI, Diagnostic[]][] = [];
 
 		for (let i = 0; i < 500; i++) {
@@ -242,7 +243,7 @@ suite('ExtHostDiagnostics', () => {
 				lastEntries = entries;
 				return super.$changeMany(owner, entries);
 			}
-		});
+		}, new Emitter());
 		let uri = URI.parse('aa:bb');
 
 		let diagnostics: Diagnostic[] = [];

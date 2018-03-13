@@ -12,24 +12,29 @@ import * as vscode from 'vscode';
 import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from './extHost.protocol';
 import { DiagnosticSeverity } from './extHostTypes';
 import { mergeSort } from 'vs/base/common/arrays';
+import Event, { Emitter, debounceEvent, mapEvent } from 'vs/base/common/event';
+import { keys } from 'vs/base/common/map';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 	private static readonly _maxDiagnosticsPerFile: number = 250;
 
 	private readonly _name: string;
+	private readonly _onDidChangeDiagnostics: Emitter<(vscode.Uri | string)[]>;
 
 	private _proxy: MainThreadDiagnosticsShape;
 	private _isDisposed = false;
 	private _data = new Map<string, vscode.Diagnostic[]>();
 
-	constructor(name: string, proxy: MainThreadDiagnosticsShape) {
+	constructor(name: string, proxy: MainThreadDiagnosticsShape, onDidChangeDiagnostics: Emitter<(vscode.Uri | string)[]>) {
 		this._name = name;
 		this._proxy = proxy;
+		this._onDidChangeDiagnostics = onDidChangeDiagnostics;
 	}
 
 	dispose(): void {
 		if (!this._isDisposed) {
+			this._onDidChangeDiagnostics.fire(keys(this._data));
 			this._proxy.$clear(this.name);
 			this._proxy = undefined;
 			this._data = undefined;
@@ -136,6 +141,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			entries.push([uri, marker]);
 		}
 
+		this._onDidChangeDiagnostics.fire(toSync);
 		this._proxy.$changeMany(this.name, entries);
 	}
 
@@ -147,6 +153,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 	clear(): void {
 		this._checkDisposed();
+		this._onDidChangeDiagnostics.fire(keys(this._data));
 		this._data.clear();
 		this._proxy.$clear(this.name);
 	}
@@ -222,6 +229,36 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 	private readonly _proxy: MainThreadDiagnosticsShape;
 	private readonly _collections: DiagnosticCollection[] = [];
+	private readonly _onDidChangeDiagnostics = new Emitter<(vscode.Uri | string)[]>();
+
+	static _debouncer(last: (vscode.Uri | string)[], current: (vscode.Uri | string)[]): (vscode.Uri | string)[] {
+		if (!last) {
+			return current;
+		} else {
+			return last.concat(current);
+		}
+	}
+
+	static _mapper(last: (vscode.Uri | string)[]): vscode.Uri[] {
+		let res: vscode.Uri[] = [];
+		let map = new Set<string>();
+		for (const uri of last) {
+			if (typeof uri === 'string') {
+				if (!map.has(uri)) {
+					map.add(uri);
+					res.push(URI.parse(uri));
+				}
+			} else {
+				if (!map.has(uri.toString())) {
+					map.add(uri.toString());
+					res.push(uri);
+				}
+			}
+		}
+		return res;
+	}
+
+	readonly onDidChangeDiagnostics: Event<vscode.Uri[]> = mapEvent(debounceEvent(this._onDidChangeDiagnostics.event, ExtHostDiagnostics._debouncer, 50), ExtHostDiagnostics._mapper);
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDiagnostics);
@@ -232,10 +269,10 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 			name = '_generated_diagnostic_collection_name_#' + ExtHostDiagnostics._idPool++;
 		}
 
-		const { _collections, _proxy } = this;
+		const { _collections, _proxy, _onDidChangeDiagnostics } = this;
 		const result = new class extends DiagnosticCollection {
 			constructor() {
-				super(name, _proxy);
+				super(name, _proxy, _onDidChangeDiagnostics);
 				_collections.push(this);
 			}
 			dispose() {

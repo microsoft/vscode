@@ -232,6 +232,10 @@ export function createApiFactory(
 			createDiagnosticCollection(name?: string): vscode.DiagnosticCollection {
 				return extHostDiagnostics.createDiagnosticCollection(name);
 			},
+			get onDidChangeDiagnostics() {
+				checkProposedApiEnabled(extension);
+				return extHostDiagnostics.onDidChangeDiagnostics;
+			},
 			diagnostics: {
 				has: proposedApiFunction(extension, uri => extHostDiagnostics.hasDiagnostics(uri)),
 				get: proposedApiFunction(extension, uri => extHostDiagnostics.getDiagnostics(uri)),
