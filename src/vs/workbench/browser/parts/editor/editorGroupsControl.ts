@@ -148,7 +148,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	private centeredEditorActive: boolean;
 	private centeredEditorSashLeft: Sash;
 	private centeredEditorSashRight: Sash;
-	private centeredEditorPreferedSize: number;
+	private centeredEditorPreferredSize: number;
 	private centeredEditorLeftMarginRatio: number;
 	private centeredEditorDragStartPosition: number;
 	private centeredEditorDragStartSize: number;
@@ -173,7 +173,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IPartService private partService: IPartService,
-		@IStorageService private storageServise: IStorageService,
+		@IStorageService private storageService: IStorageService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -1056,11 +1056,11 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			this.centeredEditorLeftMarginRatio = 0.5;
 
 			// Restore centered layout position and size
-			const centeredLayoutDataString = this.storageServise.get(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, StorageScope.GLOBAL);
+			const centeredLayoutDataString = this.storageService.get(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, StorageScope.GLOBAL);
 			if (centeredLayoutDataString) {
 				const centeredLayout = <CenteredEditorLayoutData>JSON.parse(centeredLayoutDataString);
 				this.centeredEditorLeftMarginRatio = centeredLayout.leftMarginRatio;
-				this.centeredEditorPreferedSize = centeredLayout.size;
+				this.centeredEditorPreferredSize = centeredLayout.size;
 			}
 		}
 	}
@@ -1927,11 +1927,11 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	}
 
 	private get centeredEditorAvailableSize(): number {
-		return this.silosSize[Position.ONE] - EditorGroupsControl.CENTERED_EDITOR_MIN_MARGIN * 2;
+		return this.dimension.width - EditorGroupsControl.CENTERED_EDITOR_MIN_MARGIN * 2;
 	}
 
 	private get centeredEditorSize(): number {
-		return Math.min(this.centeredEditorAvailableSize, this.centeredEditorPreferedSize);
+		return Math.min(this.centeredEditorAvailableSize, this.centeredEditorPreferredSize);
 	}
 
 	private get centeredEditorPosition(): number {
@@ -1953,7 +1953,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		}
 
 		if (size > 3 * this.minSize && size < this.centeredEditorAvailableSize) {
-			this.centeredEditorPreferedSize = size;
+			this.centeredEditorPreferredSize = size;
 			position -= EditorGroupsControl.CENTERED_EDITOR_MIN_MARGIN;
 			position = Math.min(position, this.centeredEditorAvailableSize - this.centeredEditorSize);
 			position = Math.max(0, position);
@@ -1968,7 +1968,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			leftMarginRatio: this.centeredEditorLeftMarginRatio,
 			size: this.centeredEditorSize
 		};
-		this.storageServise.store(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, JSON.stringify(data), StorageScope.GLOBAL);
+		this.storageService.store(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, JSON.stringify(data), StorageScope.GLOBAL);
 	}
 
 	public getVerticalSashTop(sash: Sash): number {
@@ -2139,13 +2139,13 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Layout centered Editor (only in vertical layout when one group is opened)
 		const id = this.visibleEditors[Position.ONE] ? this.visibleEditors[Position.ONE].getId() : undefined;
-		const doCentering = this.layoutVertically && this.partService.isEditorLayoutCentered() && this.stacks.groups.length === 1 && id !== PREFERENCES_EDITOR_ID && id !== TEXT_DIFF_EDITOR_ID;
+		const doCentering = this.partService.isEditorLayoutCentered() && this.stacks.groups.length === 1 && id !== PREFERENCES_EDITOR_ID && id !== TEXT_DIFF_EDITOR_ID;
 		if (doCentering && !this.centeredEditorActive) {
 			this.centeredEditorSashLeft.show();
 			this.centeredEditorSashRight.show();
 
 			// no size set yet. Calculate a default value
-			if (!this.centeredEditorPreferedSize) {
+			if (!this.centeredEditorPreferredSize) {
 				this.resetCenteredEditor(false);
 			}
 		} else if (!doCentering && this.centeredEditorActive) {
@@ -2207,11 +2207,11 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 	private resetCenteredEditor(layout: boolean = true) {
 		this.centeredEditorLeftMarginRatio = 0.5;
-		this.centeredEditorPreferedSize = Math.floor(this.dimension.width * EditorGroupsControl.GOLDEN_RATIO);
+		this.centeredEditorPreferredSize = Math.floor(this.dimension.width * EditorGroupsControl.GOLDEN_RATIO);
 		if (layout) {
 			this.layoutContainers();
 		}
-		this.storageServise.remove(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, StorageScope.GLOBAL);
+		this.storageService.remove(EditorGroupsControl.CENTERED_EDITOR_LAYOUT_DATA_STORAGE_KEY, StorageScope.GLOBAL);
 	}
 
 	public getInstantiationService(position: Position): IInstantiationService {
