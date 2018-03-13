@@ -148,7 +148,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	private centeredEditorActive: boolean;
 	private centeredEditorSashLeft: Sash;
 	private centeredEditorSashRight: Sash;
-	private centeredEditorPreferedSize: number;
+	private centeredEditorPreferredSize: number;
 	private centeredEditorLeftMarginRatio: number;
 	private centeredEditorDragStartPosition: number;
 	private centeredEditorDragStartSize: number;
@@ -1060,7 +1060,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			if (centeredLayoutDataString) {
 				const centeredLayout = <CenteredEditorLayoutData>JSON.parse(centeredLayoutDataString);
 				this.centeredEditorLeftMarginRatio = centeredLayout.leftMarginRatio;
-				this.centeredEditorPreferedSize = centeredLayout.size;
+				this.centeredEditorPreferredSize = centeredLayout.size;
 			}
 		}
 	}
@@ -1931,7 +1931,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	}
 
 	private get centeredEditorSize(): number {
-		return Math.min(this.centeredEditorAvailableSize, this.centeredEditorPreferedSize);
+		return Math.min(this.centeredEditorAvailableSize, this.centeredEditorPreferredSize);
 	}
 
 	private get centeredEditorPosition(): number {
@@ -1953,7 +1953,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		}
 
 		if (size > 3 * this.minSize && size < this.centeredEditorAvailableSize) {
-			this.centeredEditorPreferedSize = size;
+			this.centeredEditorPreferredSize = size;
 			position -= EditorGroupsControl.CENTERED_EDITOR_MIN_MARGIN;
 			position = Math.min(position, this.centeredEditorAvailableSize - this.centeredEditorSize);
 			position = Math.max(0, position);
@@ -2145,7 +2145,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			this.centeredEditorSashRight.show();
 
 			// no size set yet. Calculate a default value
-			if (!this.centeredEditorPreferedSize) {
+			if (!this.centeredEditorPreferredSize) {
 				this.resetCenteredEditor(false);
 			}
 		} else if (!doCentering && this.centeredEditorActive) {
@@ -2207,7 +2207,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 	private resetCenteredEditor(layout: boolean = true) {
 		this.centeredEditorLeftMarginRatio = 0.5;
-		this.centeredEditorPreferedSize = Math.floor(this.dimension.width * EditorGroupsControl.GOLDEN_RATIO);
+		this.centeredEditorPreferredSize = Math.floor(this.dimension.width * EditorGroupsControl.GOLDEN_RATIO);
 		if (layout) {
 			this.layoutContainers();
 		}
