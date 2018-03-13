@@ -147,7 +147,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return validateLocalExtension(zipPath)
 			.then(manifest => {
 				const identifier = { id: getLocalExtensionIdFromManifest(manifest) };
-				return this.unsetUninstalledAndRemove(identifier.id)
+				return this.removeIfExists(identifier.id)
 					.then(
 						() => this.checkOutdated(manifest)
 							.then(validated => {
@@ -171,18 +171,10 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			});
 	}
 
-	private unsetUninstalledAndRemove(id: string): TPromise<void> {
-		return this.isUninstalled(id)
-			.then(isUninstalled => {
-				if (isUninstalled) {
-					this.logService.trace('Removing the extension:', id);
-					const extensionPath = path.join(this.extensionsPath, id);
-					return pfs.rimraf(extensionPath)
-						.then(() => this.unsetUninstalled(id))
-						.then(() => this.logService.info('Removed the extension:', id));
-				}
-				return null;
-			});
+	private removeIfExists(id: string): TPromise<void> {
+		return this.getInstalled(LocalExtensionType.User)
+			.then(installed => installed.filter(i => i.identifier.id === id)[0])
+			.then(existing => existing ? this.removeExtension(existing, 'existing') : null);
 	}
 
 	private checkOutdated(manifest: IExtensionManifest): TPromise<boolean> {
