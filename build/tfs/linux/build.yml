@@ -19,7 +19,7 @@ steps:
       rpm \
     "
 
-    if [[ "$ARCH" == "x64" ]]; then
+    if [[ "$(VSCODE_ARCH)" == "x64" ]]; then
       DEPS="$DEPS \
         dpkg-dev \
         libgconf-2-4 \
@@ -73,13 +73,9 @@ steps:
     versionSpec: "1.3.2"
 
 - script: |
-    ls /usr/lib/i386-linux-gnu/pkgconfig
-    if [[ "$ARCH" == "ia32" ]]; then
-      echo $PKG_CONFIG_PATH
+    if [[ "$(VSCODE_ARCH)" == "ia32" ]]; then
       export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
-      echo $PKG_CONFIG_PATH
     fi
-    echo $PKG_CONFIG_PATH
 
     echo "machine monacotools.visualstudio.com password $(VSO_PAT)" > ~/.netrc
     npm_config_arch="$(VSCODE_ARCH)" yarn
