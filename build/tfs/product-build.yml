@@ -3,7 +3,6 @@ phases:
   queue: Hosted VS2017
   variables:
     VSCODE_BUILD_VERBOSE: true
-    APPVEYOR: true
 
   steps:
   - task: NodeTool@0

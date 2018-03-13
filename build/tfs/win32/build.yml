@@ -1,6 +1,5 @@
 variables:
   VSCODE_BUILD_VERBOSE: true
-  APPVEYOR: true
 
 steps:
 
