@@ -303,8 +303,12 @@ class MarkerNavigationAction extends EditorAction {
 		}
 
 		// try with the next/prev file
-		let oldMarker = model.currentMarker || { resource: editor.getModel().uri, severity: Severity.Error, startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
 		let markers = markerService.read().sort(MarkerNavigationAction.compareMarker);
+		if (markers.length === 0) {
+			return undefined;
+		}
+
+		let oldMarker = model.currentMarker || { resource: editor.getModel().uri, severity: Severity.Error, startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
 		let idx = binarySearch(markers, oldMarker, MarkerNavigationAction.compareMarker);
 		if (idx < 0) {
 			// find best match...
