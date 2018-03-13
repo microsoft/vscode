@@ -143,6 +143,9 @@ export default class ErrorTelemetry {
 
 	private _flushBuffer(): void {
 		for (let error of this._buffer) {
+			delete error.count;
+			delete error.filename;
+
 			/* __GDPR__
 			"UnhandledError" : {
 					"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
