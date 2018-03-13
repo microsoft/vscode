@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -24,6 +24,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { first } from 'vs/base/common/arrays';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -118,7 +119,7 @@ export class StartAction extends AbstractDebugAction {
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IHistoryService private historyService: IHistoryService
 	) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
 
@@ -131,14 +132,10 @@ export class StartAction extends AbstractDebugAction {
 		const configurationManager = this.debugService.getConfigurationManager();
 		let launch = configurationManager.selectedConfiguration.launch;
 		if (!launch) {
-			const activeEditor = this.editorService.getActiveEditor();
-			const launches = configurationManager.getLaunches();
-			if (isCodeEditor(activeEditor)) {
-				const resource = activeEditor.input.getResource();
-				const root = this.contextService.getWorkspaceFolder(resource);
-				launch = configurationManager.getLaunch(root.uri);
-			}
+			const rootUri = this.historyService.getLastActiveWorkspaceRoot();
+			launch = configurationManager.getLaunch(rootUri);
 			if (!launch) {
+				const launches = configurationManager.getLaunches();
 				launch = first(launches, l => !!l.getConfigurationNames().length, launches.length ? launches[0] : undefined);
 			}
 
