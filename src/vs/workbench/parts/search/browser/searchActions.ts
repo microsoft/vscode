@@ -121,48 +121,6 @@ export class ShowPreviousSearchIncludeAction extends Action {
 	}
 }
 
-export class ShowNextSearchExcludeAction extends Action {
-
-	public static readonly ID = 'search.history.showNextExcludePattern';
-	public static readonly LABEL = nls.localize('nextSearchExcludePattern', "Show Next Search Exclude Pattern");
-
-	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService,
-		@IContextKeyService private contextKeyService: IContextKeyService
-	) {
-		super(id, label);
-		this.enabled = this.contextKeyService.contextMatchesRules(Constants.SearchViewVisibleKey);
-	}
-
-	public run(): TPromise<any> {
-		const searchView = getSearchView(this.viewletService, this.panelService);
-		searchView.searchExcludePattern.showNextTerm();
-		return TPromise.as(null);
-	}
-}
-
-export class ShowPreviousSearchExcludeAction extends Action {
-
-	public static readonly ID = 'search.history.showPreviousExcludePattern';
-	public static readonly LABEL = nls.localize('previousSearchExcludePattern', "Show Previous Search Exclude Pattern");
-
-	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IPanelService private panelService: IPanelService
-	) {
-		super(id, label);
-		this.enabled = this.contextKeyService.contextMatchesRules(Constants.SearchViewVisibleKey);
-	}
-
-	public run(): TPromise<any> {
-		const searchView = getSearchView(this.viewletService, this.panelService);
-		searchView.searchExcludePattern.showPreviousTerm();
-		return TPromise.as(null);
-	}
-}
-
 export class ShowNextSearchTermAction extends Action {
 
 	public static readonly ID = 'search.history.showNext';
