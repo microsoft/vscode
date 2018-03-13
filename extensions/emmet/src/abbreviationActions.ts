@@ -474,6 +474,10 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 	let valid = true;
 	let foundSpace = false; // If < is found before finding whitespace, then its valid abbreviation. Eg: <div|
 	let i = textToBackTrack.length - 1;
+	if (textToBackTrack[i] === startAngle) {
+		return false;
+	}
+
 	while (i >= 0) {
 		const char = textToBackTrack[i];
 		i--;

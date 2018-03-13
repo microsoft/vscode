@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { HtmlNode, Node } from 'EmmetNode';
+import { Node } from 'EmmetNode';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
-import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, getEmmetConfiguration, getEmmetMode, isStyleSheet } from './util';
-
-const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template'];
+import { getEmmetHelper, getNode, getMappingForIncludedLanguages, parseDocument, getEmmetConfiguration, getEmmetMode, isStyleSheet } from './util';
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
@@ -35,7 +33,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			return;
 		}
 
-		let validateLocation = isSyntaxMapped && syntax === 'html';
+		let validateLocation = syntax === 'html';
 		let currentNode: Node | null = null;
 
 		// If document can be css parsed, get currentNode
