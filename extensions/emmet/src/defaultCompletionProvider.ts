@@ -35,27 +35,22 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			return;
 		}
 
-		if (isSyntaxMapped
-			&& syntax === 'html'
-			&& !isValidLocationForEmmetAbbreviation(document, null, syntax, position, extractAbbreviationResults.abbreviationRange)) {
-			return;
-		}
+		let validateLocation = isSyntaxMapped && syntax === 'html';
+		let currentNode: Node | null = null;
 
-		// If document can be css parsed, validate syntax and location
+		// If document can be css parsed, get currentNode
 		if (isStyleSheet(document.languageId)) {
 			const rootNode = parseDocument(document, false);
 			if (!rootNode) {
 				return;
 			}
 
-			// Use syntaxHelper to update sytnax if needed
-			const currentNode = getNode(rootNode, position, true);
-			syntax = this.syntaxHelper(syntax, currentNode, position);
+			currentNode = getNode(rootNode, position, true);
+			validateLocation = true;
+		}
 
-			// Validate location
-			if (!syntax || !isValidLocationForEmmetAbbreviation(document, currentNode, syntax, position, extractAbbreviationResults.abbreviationRange)) {
-				return;
-			}
+		if (validateLocation && !isValidLocationForEmmetAbbreviation(document, currentNode, syntax, position, extractAbbreviationResults.abbreviationRange)) {
+			return;
 		}
 
 		let noiseCheckPromise: Thenable<any> = Promise.resolve();
@@ -104,34 +99,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		});
 	}
 
-	/**
-	 * Parses given document to check whether given position is valid for emmet abbreviation and returns appropriate syntax
-	 * @param syntax string language mode of current document
-	 * @param currentNode node in the document that contains the position
-	 * @param position vscode.Position position of the abbreviation that needs to be expanded
-	 */
-	private syntaxHelper(syntax: string | undefined, currentNode: Node | null, position: vscode.Position): string | undefined {
-		if (syntax && !isStyleSheet(syntax)) {
-			const currentHtmlNode = <HtmlNode>currentNode;
-			if (currentHtmlNode && currentHtmlNode.close) {
-				const innerRange = getInnerRange(currentHtmlNode);
-				if (innerRange && innerRange.contains(position)) {
-					if (currentHtmlNode.name === 'style') {
-						return 'css';
-					}
-					if (currentHtmlNode.name === 'script') {
-						if (currentHtmlNode.attributes
-							&& currentHtmlNode.attributes.some(x => x.name.toString() === 'type' && allowedMimeTypesInScriptTag.indexOf(x.value.toString()) > -1)) {
-							return syntax;
-						}
-						return;
-					}
-				}
-			}
-		}
 
-		return syntax;
-	}
 
 
 
