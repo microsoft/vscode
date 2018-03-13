@@ -35,6 +35,12 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			return;
 		}
 
+		if (isSyntaxMapped
+			&& syntax === 'html'
+			&& !isValidLocationForEmmetAbbreviation(document, null, syntax, position, extractAbbreviationResults.abbreviationRange)) {
+			return;
+		}
+
 		// If document can be css parsed, validate syntax and location
 		if (isStyleSheet(document.languageId)) {
 			const rootNode = parseDocument(document, false);
