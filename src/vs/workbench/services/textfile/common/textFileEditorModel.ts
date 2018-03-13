@@ -370,7 +370,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					"fileGet" : {
 						"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+						"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
 				this.telemetryService.publicLog('fileGet', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.resource.fsPath), path: this.hashService.createSHA1(this.resource.fsPath) });
