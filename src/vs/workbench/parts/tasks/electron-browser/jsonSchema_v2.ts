@@ -164,6 +164,11 @@ const command: IJSONSchema = {
 				quoting: {
 					type: 'string',
 					enum: ['escape', 'strong', 'weak'],
+					enumDescriptions: [
+						nls.localize('JsonSchema.tasks.quoting.escape', 'Escapes characters using the shell\'s escape character (e.g. ` under PowerShell and \\ under bash).'),
+						nls.localize('JsonSchema.tasks.quoting.strong', 'Quotes the argument using the shell\'s strong quote character (e.g. " under PowerShell and bash).'),
+						nls.localize('JsonSchema.tasks.quoting.weak', 'Quotes the argument using the shell\'s weak quote character (e.g. \' under PowerShell and bash).'),
+					],
 					default: 'strong',
 					description: nls.localize('JsonSchema.command.quotesString.quote', 'How the command value should be quoted.')
 				}
@@ -191,6 +196,11 @@ const args: IJSONSchema = {
 					quoting: {
 						type: 'string',
 						enum: ['escape', 'strong', 'weak'],
+						enumDescriptions: [
+							nls.localize('JsonSchema.tasks.quoting.escape', 'Escapes characters using the shell\'s escape character (e.g. ` under PowerShell and \\ under bash).'),
+							nls.localize('JsonSchema.tasks.quoting.strong', 'Quotes the argument using the shell\'s strong quote character (e.g. " under PowerShell and bash).'),
+							nls.localize('JsonSchema.tasks.quoting.weak', 'Quotes the argument using the shell\'s weak quote character (e.g. \' under PowerShell and bash).'),
+						],
 						default: 'strong',
 						description: nls.localize('JsonSchema.args.quotesString.quote', 'How the argument value should be quoted.')
 					}
@@ -218,6 +228,9 @@ const identifier: IJSONSchema = {
 	description: nls.localize('JsonSchema.tasks.identifier', 'A user defined identifier to reference the task in launch.json or a dependsOn clause.')
 };
 
+const options: IJSONSchema = Objects.deepClone(commonSchema.definitions.options);
+options.properties.shell = Objects.deepClone(commonSchema.definitions.shellConfiguration);
+
 let taskConfiguration: IJSONSchema = {
 	type: 'object',
 	additionalProperties: false,
@@ -244,6 +257,7 @@ let taskConfiguration: IJSONSchema = {
 			default: false
 		},
 		presentation: Objects.deepClone(presentation),
+		options: options,
 		problemMatcher: {
 			$ref: '#/definitions/problemMatcherType',
 			description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
