@@ -159,6 +159,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 		input.claimWebview(this);
 		webview.options = {
 			allowScripts: input.options.enableScripts,
+			allowSvgs: true,
 			enableWrappedPostMessage: true,
 			useSameOriginForRoot: false,
 			localResourceRoots: (input && input.options.localResourceRoots) || this._contextService.getWorkspace().folders.map(x => x.uri)
