@@ -49,6 +49,7 @@ steps:
         gir1.2-glib-2.0:i386 \
         gir1.2-secret-1:i386 \
         libsecret-1-dev:i386 \
+        libgtk2.0-0:i386 \
       "
     fi
 
