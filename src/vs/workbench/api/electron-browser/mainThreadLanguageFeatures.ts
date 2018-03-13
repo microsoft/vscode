@@ -256,8 +256,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			provideRenameEdits: (model: ITextModel, position: EditorPosition, newName: string, token: CancellationToken): Thenable<modes.WorkspaceEdit> => {
 				return wireCancellationToken(token, this._proxy.$provideRenameEdits(handle, model.uri, position, newName)).then(reviveWorkspaceEditDto);
 			},
-			resolveInitialRenameValue: supportsResolveInitialValues
-				? (model: ITextModel, position: EditorPosition, token: CancellationToken): Thenable<modes.RenameInformation> => wireCancellationToken(token, this._proxy.$resolveInitialRenameValue(handle, model.uri, position))
+			resolveRenameContext: supportsResolveInitialValues
+				? (model: ITextModel, position: EditorPosition, token: CancellationToken): Thenable<modes.RenameContext> => wireCancellationToken(token, this._proxy.$resolveRenameContext(handle, model.uri, position))
 				: undefined
 		});
 	}

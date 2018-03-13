@@ -23,7 +23,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { WorkspaceEdit, RenameProviderRegistry, RenameInformation, RenameProvider } from 'vs/editor/common/modes';
+import { WorkspaceEdit, RenameProviderRegistry, RenameContext, RenameProvider } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
@@ -47,13 +47,13 @@ class RenameSkeleton {
 		return this._provider.length > 0;
 	}
 
-	async resolveRenameInformation(): TPromise<RenameInformation> {
+	async resolveRenameInformation(): TPromise<RenameContext> {
 
 		let [provider] = this._provider;
-		let information: RenameInformation;
+		let information: RenameContext;
 
-		if (provider.resolveInitialRenameValue) {
-			information = await asWinJsPromise(token => provider.resolveInitialRenameValue(this.model, this.position, token));
+		if (provider.resolveRenameContext) {
+			information = await asWinJsPromise(token => provider.resolveRenameContext(this.model, this.position, token));
 		}
 
 		if (!information) {

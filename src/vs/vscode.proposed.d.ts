@@ -348,9 +348,18 @@ declare module 'vscode' {
 		logger: Logger;
 	}
 
-	export interface RenameInitialValue {
+	export class RenameContext {
 		range: Range;
-		text?: string;
+		newName?: string;
+		constructor(range: Range, newName?: string);
+	}
+
+	export interface RenameProvider2 extends RenameProvider {
+
+		/**
+		 * Optional function to resolve and validate a rename location.
+		 */
+		resolveRenameContext?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameContext>;
 	}
 
 	export namespace languages {
@@ -367,11 +376,8 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerFoldingProvider(selector: DocumentSelector, provider: FoldingProvider): Disposable;
-
-		export interface RenameProvider2 extends RenameProvider {
-			resolveInitialRenameValue?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameInitialValue>;
-		}
 	}
+
 	export interface FoldingProvider {
 		/**
 		 * Returns a list of folding ranges or null if the provider does not want to participate or was cancelled.
