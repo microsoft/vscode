@@ -77,8 +77,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 		}
 
 		const lineEnding = this._getEndOfLine(eol);
-		const text = this._pieceTree.getValueInRange(range);
-		return text.replace(/\r\n|\r|\n/g, lineEnding);
+		return this._pieceTree.getValueInRange(range, lineEnding);
 	}
 
 	public getValueLengthInRange(range: Range, eol: EndOfLinePreference = EndOfLinePreference.TextDefined): number {

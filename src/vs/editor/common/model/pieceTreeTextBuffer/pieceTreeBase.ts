@@ -448,7 +448,7 @@ export class PieceTreeBase {
 		return new Position(1, 1);
 	}
 
-	public getValueInRange(range: Range): string {
+	public getValueInRange(range: Range, eol?: string): string {
 		if (range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn) {
 			return '';
 		}
@@ -456,7 +456,21 @@ export class PieceTreeBase {
 		let startPosition = this.nodeAt2(range.startLineNumber, range.startColumn);
 		let endPosition = this.nodeAt2(range.endLineNumber, range.endColumn);
 
-		return this.getValueInRange2(startPosition, endPosition);
+		let value = this.getValueInRange2(startPosition, endPosition);
+		if (eol) {
+			if (eol !== this._EOL || !this._EOLNormalized) {
+				return value.replace(/\r\n|\r|\n/g, eol);
+			}
+
+			if (eol === this.getEOL() && this._EOLNormalized) {
+				if (eol === '\r\n') {
+
+				}
+				return value;
+			}
+			return value.replace(/\r\n|\r|\n/g, eol);
+		}
+		return value;
 	}
 
 	public getValueInRange2(startPosition: NodePosition, endPosition: NodePosition): string {
