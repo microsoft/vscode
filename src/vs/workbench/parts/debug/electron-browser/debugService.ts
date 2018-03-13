@@ -56,6 +56,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IAction, Action } from 'vs/base/common/actions';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import product from 'vs/platform/node/product';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -893,6 +894,7 @@ export class DebugService implements debug.IDebugService {
 
 			return session.initialize({
 				clientID: 'vscode',
+				clientName: product.nameLong,
 				adapterID: configuration.type,
 				pathFormat: 'path',
 				linesStartAt1: true,
