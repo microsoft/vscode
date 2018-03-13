@@ -35,8 +35,8 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			return;
 		}
 
-		// If document can be html/css parsed, validate syntax and location
-		if (document.languageId === 'html' || isStyleSheet(document.languageId)) {
+		// If document can be css parsed, validate syntax and location
+		if (isStyleSheet(document.languageId)) {
 			const rootNode = parseDocument(document, false);
 			if (!rootNode) {
 				return;
