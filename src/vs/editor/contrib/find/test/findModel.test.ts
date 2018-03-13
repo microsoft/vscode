@@ -14,12 +14,14 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 
 suite('FindModel', () => {
 
 	function findTest(testName: string, callback: (editor: ICodeEditor, cursor: Cursor) => void): void {
 		test(testName, () => {
-			withTestCodeEditor([
+			const textArr = [
 				'// my cool header',
 				'#include "cool.h"',
 				'#include <iostream>',
@@ -32,7 +34,19 @@ suite('FindModel', () => {
 				'}',
 				'// blablablaciao',
 				''
-			], {}, callback);
+			];
+			withTestCodeEditor(textArr, {}, callback);
+
+			const text = textArr.join('\n');
+			const ptBuilder = new PieceTreeTextBufferBuilder();
+			ptBuilder.acceptChunk(text.substr(0, 94));
+			ptBuilder.acceptChunk(text.substr(94, 101));
+			ptBuilder.acceptChunk(text.substr(195, 59));
+			const factory = ptBuilder.finish();
+			withTestCodeEditor([],
+				{
+					model: new TextModel(factory, TextModel.DEFAULT_CREATION_OPTIONS, null, null)
+				}, callback);
 		});
 	}
 
