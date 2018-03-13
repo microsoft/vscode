@@ -85,7 +85,7 @@ export class ConfigurationModel implements IConfigurationModel {
 				if (override) {
 					this.mergeContents(override.contents, otherOverride.contents);
 				} else {
-					overrides.push(otherOverride);
+					overrides.push(objects.deepClone(otherOverride));
 				}
 			}
 			for (const key of other.keys) {
