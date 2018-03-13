@@ -16,10 +16,14 @@ export default class MarkdownFoldingProvider implements vscode.FoldingProvider {
 
 	public async provideFoldingRanges(
 		document: vscode.TextDocument,
+		context: vscode.FoldingContext,
 		_token: vscode.CancellationToken
 	): Promise<vscode.FoldingRangeList> {
 		const tocProvider = new TableOfContentsProvider(this.engine, document);
-		const toc = await tocProvider.getToc();
+		let toc = await tocProvider.getToc();
+		if (context.maxRanges && toc.length > context.maxRanges) {
+			toc = toc.slice(0, context.maxRanges);
+		}
 
 		const foldingRanges = toc.map((entry, startIndex) => {
 			const start = entry.line;
@@ -34,6 +38,7 @@ export default class MarkdownFoldingProvider implements vscode.FoldingProvider {
 				start,
 				typeof end === 'number' ? end : document.lineCount - 1);
 		});
+
 
 		return new vscode.FoldingRangeList(foldingRanges);
 	}

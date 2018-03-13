@@ -827,6 +827,13 @@ export interface DocumentColorProvider {
 }
 
 /**
+ * @internal
+ */
+export interface FoldingContext {
+	maxRanges?: number;
+}
+
+/**
  * A provider of colors for editor models.
  */
 /**
@@ -836,7 +843,7 @@ export interface FoldingProvider {
 	/**
 	 * Provides the color ranges for a specific model.
 	 */
-	provideFoldingRanges(model: model.ITextModel, token: CancellationToken): IFoldingRangeList | Thenable<IFoldingRangeList>;
+	provideFoldingRanges(model: model.ITextModel, context: FoldingContext, token: CancellationToken): IFoldingRangeList | Thenable<IFoldingRangeList>;
 }
 /**
  * @internal

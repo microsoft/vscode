@@ -8,12 +8,19 @@ import { TextDocument, Position, CancellationToken } from 'vscode-languageserver
 import { createScanner, SyntaxKind, ScanError } from 'jsonc-parser';
 import { FoldingRangeType, FoldingRange, FoldingRangeList } from './protocol/foldingProvider.proposed';
 
-export function getFoldingRegions(document: TextDocument, cancellationToken: CancellationToken | null) {
+export function getFoldingRegions(document: TextDocument, maxRanges: number | undefined, cancellationToken: CancellationToken | null) {
 	let ranges: FoldingRange[] = [];
+	let nestingLevels: number[] = [];
 	let stack: FoldingRange[] = [];
 	let prevStart = -1;
 	let scanner = createScanner(document.getText(), false);
 	let token = scanner.scan();
+
+	function addRange(range: FoldingRange) {
+		ranges.push(range);
+		nestingLevels.push(stack.length);
+	}
+
 	while (token !== SyntaxKind.EOF) {
 		if (cancellationToken && cancellationToken.isCancellationRequested) {
 			return null;
@@ -34,7 +41,7 @@ export function getFoldingRegions(document: TextDocument, cancellationToken: Can
 					let line = document.positionAt(scanner.getTokenOffset()).line;
 					if (range && line > range.startLine + 1 && prevStart !== range.startLine) {
 						range.endLine = line - 1;
-						ranges.push(range);
+						addRange(range);
 						prevStart = range.startLine;
 					}
 				}
@@ -48,7 +55,7 @@ export function getFoldingRegions(document: TextDocument, cancellationToken: Can
 					scanner.setPosition(document.offsetAt(Position.create(startLine + 1, 0)));
 				} else {
 					if (startLine < endLine) {
-						ranges.push({ startLine, endLine, type: FoldingRangeType.Comment });
+						addRange({ startLine, endLine, type: FoldingRangeType.Comment });
 						prevStart = startLine;
 					}
 				}
@@ -73,7 +80,7 @@ export function getFoldingRegions(document: TextDocument, cancellationToken: Can
 							stack.length = i;
 							if (line > range.startLine && prevStart !== range.startLine) {
 								range.endLine = line;
-								ranges.push(range);
+								addRange(range);
 								prevStart = range.startLine;
 							}
 						}
@@ -84,6 +91,27 @@ export function getFoldingRegions(document: TextDocument, cancellationToken: Can
 
 		}
 		token = scanner.scan();
+	}
+	if (maxRanges && ranges.length > maxRanges) {
+		let counts: number[] = [];
+		for (let level of nestingLevels) {
+			if (level < 30) {
+				counts[level] = (counts[level] || 0) + 1;
+			}
+		}
+		let entries = 0;
+		let maxLevel = 0;
+		for (let i = 0; i < counts.length; i++) {
+			let n = counts[i];
+			if (n) {
+				if (n + entries > maxRanges) {
+					maxLevel = i;
+					break;
+				}
+				entries += n;
+			}
+		}
+		ranges = ranges.filter((r, index) => nestingLevels[index] < maxLevel);
 	}
 	return <FoldingRangeList>{ ranges };
 }

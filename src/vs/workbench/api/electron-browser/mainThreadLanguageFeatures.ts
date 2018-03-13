@@ -351,8 +351,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	$registerFoldingProvider(handle: number, selector: vscode.DocumentSelector): void {
 		const proxy = this._proxy;
 		this._registrations[handle] = modes.FoldingProviderRegistry.register(toLanguageSelector(selector), <modes.FoldingProvider>{
-			provideFoldingRanges: (model, token) => {
-				return wireCancellationToken(token, proxy.$provideFoldingRanges(handle, model.uri));
+			provideFoldingRanges: (model, context, token) => {
+				return wireCancellationToken(token, proxy.$provideFoldingRanges(handle, model.uri, context));
 			}
 		});
 	}

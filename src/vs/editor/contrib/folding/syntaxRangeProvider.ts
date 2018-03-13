@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { FoldingProvider, IFoldingRange } from 'vs/editor/common/modes';
+import { FoldingProvider, IFoldingRange, FoldingContext } from 'vs/editor/common/modes';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { toThenable } from 'vs/base/common/async';
 import { ITextModel } from 'vs/editor/common/model';
@@ -19,6 +19,10 @@ const MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT = 5000;
 export interface IFoldingRangeData extends IFoldingRange {
 	rank: number;
 }
+
+const foldingContext: FoldingContext = {
+	maxRanges: MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT
+};
 
 export class SyntaxRangeProvider implements RangeProvider {
 
@@ -38,7 +42,7 @@ export class SyntaxRangeProvider implements RangeProvider {
 }
 
 function collectSyntaxRanges(providers: FoldingProvider[], model: ITextModel, cancellationToken: CancellationToken): Thenable<IFoldingRangeData[] | null> {
-	let promises = providers.map(provider => toThenable(provider.provideFoldingRanges(model, cancellationToken)));
+	let promises = providers.map(provider => toThenable(provider.provideFoldingRanges(model, foldingContext, cancellationToken)));
 	return TPromise.join(promises).then(lists => {
 		let rangeData: IFoldingRangeData[] = null;
 		if (cancellationToken.isCancellationRequested) {

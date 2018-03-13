@@ -398,11 +398,15 @@ declare module 'vscode' {
 		export function registerFoldingProvider(selector: DocumentSelector, provider: FoldingProvider): Disposable;
 	}
 
+	export interface FoldingContext {
+		maxRanges?: number;
+	}
+	
 	export interface FoldingProvider {
 		/**
 		 * Returns a list of folding ranges or null if the provider does not want to participate or was cancelled.
 		 */
-		provideFoldingRanges(document: TextDocument, token: CancellationToken): ProviderResult<FoldingRangeList>;
+		provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRangeList>;
 	}
 
 	/**

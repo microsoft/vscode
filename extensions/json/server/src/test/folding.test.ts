@@ -16,9 +16,9 @@ interface ExpectedIndentRange {
 	type?: string;
 }
 
-function assertRanges(lines: string[], expected: ExpectedIndentRange[]): void {
+function assertRanges(lines: string[], expected: ExpectedIndentRange[], nRanges?: number): void {
 	let document = TextDocument.create('test://foo/bar.json', 'json', 1, lines.join('\n'));
-	let actual = getFoldingRegions(document, null)!.ranges;
+	let actual = getFoldingRegions(document, nRanges, null)!.ranges;
 
 	let actualRanges = [];
 	for (let i = 0; i < actual.length; i++) {
@@ -34,27 +34,27 @@ function r(startLine: number, endLine: number, type?: string): ExpectedIndentRan
 
 suite('Object Folding', () => {
 	test('Fold one level', () => {
-		let range = [
+		let input = [
 			/*0*/'{',
 			/*1*/'"foo":"bar"',
 			/*2*/'}'
 		];
-		assertRanges(range, [r(0, 1, 'object')]);
+		assertRanges(input, [r(0, 1, 'object')]);
 	});
 
 	test('Fold two level', () => {
-		let range = [
+		let input = [
 			/*0*/'[',
 			/*1*/'{',
 			/*2*/'"foo":"bar"',
 			/*3*/'}',
 			/*4*/']'
 		];
-		assertRanges(range, [r(0, 3, 'array'), r(1, 2, 'object')]);
+		assertRanges(input, [r(0, 3, 'array'), r(1, 2, 'object')]);
 	});
 
 	test('Fold Arrays', () => {
-		let range = [
+		let input = [
 			/*0*/'[',
 			/*1*/'[',
 			/*2*/'],[',
@@ -62,11 +62,11 @@ suite('Object Folding', () => {
 			/*4*/']',
 			/*5*/']'
 		];
-		assertRanges(range, [r(0, 4, 'array'), r(2, 3, 'array')]);
+		assertRanges(input, [r(0, 4, 'array'), r(2, 3, 'array')]);
 	});
 
 	test('Filter start on same line', () => {
-		let range = [
+		let input = [
 			/*0*/'[[',
 			/*1*/'[',
 			/*2*/'],[',
@@ -74,36 +74,71 @@ suite('Object Folding', () => {
 			/*4*/']',
 			/*5*/']]'
 		];
-		assertRanges(range, [r(0, 4, 'array'), r(2, 3, 'array')]);
+		assertRanges(input, [r(0, 4, 'array'), r(2, 3, 'array')]);
 	});
 
 	test('Fold commment', () => {
-		let range = [
+		let input = [
 			/*0*/'/*',
 			/*1*/' multi line',
 			/*2*/'*/',
 		];
-		assertRanges(range, [r(0, 2, 'comment')]);
+		assertRanges(input, [r(0, 2, 'comment')]);
 	});
 
 	test('Incomplete commment', () => {
-		let range = [
+		let input = [
 			/*0*/'/*',
 			/*1*/'{',
 			/*2*/'"foo":"bar"',
 			/*3*/'}',
 		];
-		assertRanges(range, [r(1, 2, 'object')]);
+		assertRanges(input, [r(1, 2, 'object')]);
 	});
 
 	test('Fold regions', () => {
-		let range = [
+		let input = [
 			/*0*/'// #region',
 			/*1*/'{',
 			/*2*/'}',
 			/*3*/'// #endregion',
 		];
-		assertRanges(range, [r(0, 3, 'region')]);
+		assertRanges(input, [r(0, 3, 'region')]);
+	});
+
+	test('Test limit', () => {
+		let input = [
+			/* 0*/'[',
+			/* 1*/' [',
+			/* 2*/'  [',
+			/* 3*/'  ',
+			/* 4*/'  ],',
+			/* 5*/'  [',
+			/* 6*/'   [',
+			/* 7*/'  ',
+			/* 8*/'   ],',
+			/* 9*/'   [',
+			/*10*/'  ',
+			/*11*/'   ],',
+			/*12*/'  ],',
+			/*13*/'  [',
+			/*14*/'  ',
+			/*15*/'  ],',
+			/*16*/'  [',
+			/*17*/'  ',
+			/*18*/'  ]',
+			/*19*/' ]',
+			/*20*/']',
+		];
+		assertRanges(input, [r(0, 19, 'array'), r(1, 18, 'array'), r(2, 3, 'array'), r(5, 11, 'array'), r(6, 7, 'array'), r(9, 10, 'array'), r(13, 14, 'array'), r(16, 17, 'array')], void 0);
+		assertRanges(input, [r(0, 19, 'array'), r(1, 18, 'array'), r(2, 3, 'array'), r(5, 11, 'array'), r(6, 7, 'array'), r(9, 10, 'array'), r(13, 14, 'array'), r(16, 17, 'array')], 8);
+		assertRanges(input, [r(0, 19, 'array'), r(1, 18, 'array'), r(2, 3, 'array'), r(5, 11, 'array'), r(13, 14, 'array'), r(16, 17, 'array')], 7);
+		assertRanges(input, [r(0, 19, 'array'), r(1, 18, 'array'), r(2, 3, 'array'), r(5, 11, 'array'), r(13, 14, 'array'), r(16, 17, 'array')], 6);
+		assertRanges(input, [r(0, 19, 'array'), r(1, 18, 'array')], 5);
+		assertRanges(input, [r(0, 19, 'array'), r(1, 18, 'array')], 4);
+		assertRanges(input, [r(0, 19, 'array'), r(1, 18, 'array')], 3);
+		assertRanges(input, [r(0, 19, 'array'), r(1, 18, 'array')], 2);
+		assertRanges(input, [r(0, 19, 'array')], 1);
 	});
 
 });

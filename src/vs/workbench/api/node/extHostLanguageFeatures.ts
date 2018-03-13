@@ -810,9 +810,9 @@ class FoldingProviderAdapter {
 		private _provider: vscode.FoldingProvider
 	) { }
 
-	provideFoldingRanges(resource: URI): TPromise<modes.IFoldingRangeList> {
+	provideFoldingRanges(resource: URI, context: modes.FoldingContext): TPromise<modes.IFoldingRangeList> {
 		const doc = this._documents.getDocumentData(resource).document;
-		return asWinJsPromise(token => this._provider.provideFoldingRanges(doc, token)).then(list => {
+		return asWinJsPromise(token => this._provider.provideFoldingRanges(doc, context, token)).then(list => {
 			if (!Array.isArray(list.ranges)) {
 				return void 0;
 			}
@@ -1132,8 +1132,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideFoldingRanges(handle: number, resource: UriComponents): TPromise<modes.IFoldingRangeList> {
-		return this._withAdapter(handle, FoldingProviderAdapter, adapter => adapter.provideFoldingRanges(URI.revive(resource)));
+	$provideFoldingRanges(handle: number, resource: UriComponents, context: vscode.FoldingContext): TPromise<modes.IFoldingRangeList> {
+		return this._withAdapter(handle, FoldingProviderAdapter, adapter => adapter.provideFoldingRanges(URI.revive(resource), context));
 	}
 
 	// --- configuration
