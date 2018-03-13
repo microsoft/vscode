@@ -244,7 +244,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				error => this.onDidInstallExtensions([extension], [], [error]));
 	}
 
-	reinstall(extension: ILocalExtension): TPromise<ILocalExtension> {
+	reinstallFromGallery(extension: ILocalExtension): TPromise<ILocalExtension> {
 		if (!this.galleryService.isEnabled()) {
 			return TPromise.wrapError(new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled")));
 		}

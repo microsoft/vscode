@@ -280,7 +280,7 @@ export interface IExtensionManagementService {
 	install(zipPath: string): TPromise<ILocalExtension>;
 	installFromGallery(extension: IGalleryExtension): TPromise<ILocalExtension>;
 	uninstall(extension: ILocalExtension, force?: boolean): TPromise<void>;
-	reinstall(extension: ILocalExtension): TPromise<ILocalExtension>;
+	reinstallFromGallery(extension: ILocalExtension): TPromise<ILocalExtension>;
 	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]>;
 	getExtensionsReport(): TPromise<IReportedExtension[]>;
 

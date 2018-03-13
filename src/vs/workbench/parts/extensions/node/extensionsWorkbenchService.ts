@@ -670,7 +670,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
 			tooltip: `${local.identifier.id}`
-		}, () => this.extensionService.reinstall(local).then(() => null));
+		}, () => this.extensionService.reinstallFromGallery(local).then(() => null));
 	}
 
 	private promptAndSetEnablement(extension: IExtension, enablementState: EnablementState, enable: boolean): TPromise<any> {
