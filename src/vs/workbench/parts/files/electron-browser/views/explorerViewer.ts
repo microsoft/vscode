@@ -826,7 +826,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				}
 
 				if (source.isRoot && target instanceof FileStat && !target.isRoot) {
-					return true; // Root folder can not be moved to a non root file stat. Do not allow root folder move when multi selection drag.
+					return true; // Root folder can not be moved to a non root file stat.
 				}
 
 				if (source.resource.toString() === target.resource.toString()) {
@@ -970,7 +970,6 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		const folders = this.contextService.getWorkspace().folders;
 		let targetIndex: number;
 		const workspaceCreationData: IWorkspaceFolderCreationData[] = [];
-		const targetUri = target instanceof FileStat ? target.resource : folders[folders.length - 1].uri;
 		const rootsToMove: IWorkspaceFolderCreationData[] = [];
 
 		for (let index = 0; index < folders.length; index++) {
@@ -978,23 +977,21 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				name: folders[index].name,
 				uri: folders[index].uri
 			};
-			if (folders[index].uri.toString() === targetUri.toString()) {
+			if (target instanceof FileStat && folders[index].uri.toString() === target.resource.toString()) {
 				targetIndex = workspaceCreationData.length;
-				workspaceCreationData.push(data);
-			} else if (roots.every(r => r.resource.toString() !== folders[index].uri.toString())) {
+			}
+
+			if (roots.every(r => r.resource.toString() !== folders[index].uri.toString())) {
 				workspaceCreationData.push(data);
 			} else {
 				rootsToMove.push(data);
 			}
 		}
-
-		if (target instanceof FileStat) {
-			rootsToMove.push(workspaceCreationData[targetIndex]);
-		} else {
-			rootsToMove.unshift(workspaceCreationData[targetIndex]);
+		if (target instanceof Model) {
+			targetIndex = workspaceCreationData.length;
 		}
 
-		workspaceCreationData.splice(targetIndex, 1, ...rootsToMove);
+		workspaceCreationData.splice(targetIndex, 0, ...rootsToMove);
 		return this.workspaceEditingService.updateFolders(0, workspaceCreationData.length, workspaceCreationData);
 	}
 
