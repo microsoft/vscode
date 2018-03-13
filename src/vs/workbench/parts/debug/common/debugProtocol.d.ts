@@ -295,6 +295,8 @@ declare module DebugProtocol {
 	export interface InitializeRequestArguments {
 		/** The ID of the (frontend) client using this adapter. */
 		clientID?: string;
+		/** The human readable name of the (frontend) client using this adapter. */
+		clientName?: string;
 		/** The ID of the debug adapter. */
 		adapterID: string;
 		/** The ISO-639 locale of the (frontend) client using this adapter, e.g. en-US or de-CH. */
