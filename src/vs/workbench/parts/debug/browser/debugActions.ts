@@ -107,7 +107,12 @@ export class ConfigureAction extends AbstractDebugAction {
 		}
 
 		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-		return this.debugService.getConfigurationManager().selectedConfiguration.launch.openConfigFile(sideBySide);
+		const configurationManager = this.debugService.getConfigurationManager();
+		if (!configurationManager.selectedConfiguration.launch) {
+			configurationManager.selectConfiguration(configurationManager.getLaunches()[0]);
+		}
+
+		return configurationManager.selectedConfiguration.launch.openConfigFile(sideBySide);
 	}
 }
 
