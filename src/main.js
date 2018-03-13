@@ -282,7 +282,7 @@ function getNLSConfiguration(locale) {
 
 	let isCoreLangaguage = true;
 	if (locale) {
-		isCoreLangaguage = ['de', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'tr', 'zh-cn', 'zh-tw'].some((language) => {
+		isCoreLangaguage = ['de', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-cn', 'zh-tw'].some((language) => {
 			return locale === language || locale.startsWith(language + '-');
 		});
 	}
