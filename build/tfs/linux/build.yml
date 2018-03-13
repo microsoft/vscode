@@ -82,7 +82,7 @@ steps:
     yarn
     npm run gulp -- hygiene
     npm run monaco-compile-check
-    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin "electron-$(VSCODE_ARCH)"
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
     node build/tfs/common/installDistro.js
 
 - script: |
@@ -90,6 +90,7 @@ steps:
   name: build
 
 - script: |
+    npm run gulp -- "electron-$(VSCODE_ARCH)"
     DISPLAY=:10 ./scripts/test.sh --build --tfs
   name: test
 
