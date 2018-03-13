@@ -149,6 +149,59 @@ const taskType: IJSONSchema = {
 	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell.')
 };
 
+const command: IJSONSchema = {
+	oneOf: [
+		{
+			type: 'string',
+		},
+		{
+			type: 'object',
+			properties: {
+				value: {
+					type: 'string',
+					description: nls.localize('JsonSchema.command.quotedString.value', 'The actual command value')
+				},
+				quoting: {
+					type: 'string',
+					enum: ['escape', 'strong', 'weak'],
+					default: 'strong',
+					description: nls.localize('JsonSchema.command.quotesString.quote', 'How the command value should be quoted.')
+				}
+			}
+
+		}
+	],
+	description: nls.localize('JsonSchema.command', 'The command to be executed. Can be an external program or a shell command.')
+};
+
+const args: IJSONSchema = {
+	type: 'array',
+	items: {
+		oneOf: [
+			{
+				type: 'string',
+			},
+			{
+				type: 'object',
+				properties: {
+					value: {
+						type: 'string',
+						description: nls.localize('JsonSchema.args.quotedString.value', 'The actual argument value')
+					},
+					quoting: {
+						type: 'string',
+						enum: ['escape', 'strong', 'weak'],
+						default: 'strong',
+						description: nls.localize('JsonSchema.args.quotesString.quote', 'How the argument value should be quoted.')
+					}
+				}
+
+			}
+		]
+	},
+	description: nls.localize('JsonSchema.tasks.args', 'Arguments passed to the command when this task is invoked.')
+};
+
 const label: IJSONSchema = {
 	type: 'string',
 	description: nls.localize('JsonSchema.tasks.label', "The task's user interface label")
@@ -231,6 +284,8 @@ let definitions = Objects.deepClone(commonSchema.definitions);
 let taskDescription: IJSONSchema = definitions.taskDescription;
 taskDescription.required = ['label'];
 taskDescription.properties.label = Objects.deepClone(label);
+taskDescription.properties.command = Objects.deepClone(command);
+taskDescription.properties.args = Objects.deepClone(args);
 taskDescription.properties.isShellCommand = Objects.deepClone(shellCommand);
 taskDescription.properties.dependsOn = dependsOn;
 taskDescription.properties.identifier = Objects.deepClone(identifier);

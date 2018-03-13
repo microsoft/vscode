@@ -922,8 +922,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const recommendationsData = extRecommendations[active.extension.id.toLowerCase()] ? { recommendationReason: extRecommendations[active.extension.id.toLowerCase()].reasonId } : {};
 		/* __GDPR__
 			"extensionGallery:install" : {
-				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
@@ -933,8 +933,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		*/
 		/* __GDPR__
 			"extensionGallery:update" : {
-				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
@@ -944,8 +944,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		*/
 		/* __GDPR__
 			"extensionGallery:uninstall" : {
-				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [

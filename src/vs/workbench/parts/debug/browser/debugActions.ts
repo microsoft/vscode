@@ -23,6 +23,8 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { first } from 'vs/base/common/arrays';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -116,7 +118,8 @@ export class StartAction extends AbstractDebugAction {
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IHistoryService private historyService: IHistoryService
 	) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
 
@@ -126,7 +129,19 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		const launch = this.debugService.getConfigurationManager().selectedConfiguration.launch;
+		const configurationManager = this.debugService.getConfigurationManager();
+		let launch = configurationManager.selectedConfiguration.launch;
+		if (!launch) {
+			const rootUri = this.historyService.getLastActiveWorkspaceRoot();
+			launch = configurationManager.getLaunch(rootUri);
+			if (!launch) {
+				const launches = configurationManager.getLaunches();
+				launch = first(launches, l => !!l.getConfigurationNames().length, launches.length ? launches[0] : undefined);
+			}
+
+			configurationManager.selectConfiguration(launch);
+		}
+
 		return this.debugService.startDebugging(launch, undefined, this.isNoDebug());
 	}
 

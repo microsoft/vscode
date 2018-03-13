@@ -79,9 +79,9 @@ export class KeymapExtensions implements IWorkbenchContribution {
 				};
 				/* __GDPR__
 					"disableOtherKeymaps" : {
-						"newKeymap" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"newKeymap": { "${inline}": [ "${ExtensionIdentifier}" ] },
 						"oldKeymaps": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"confirmed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"confirmed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 				*/
 				this.telemetryService.publicLog('disableOtherKeymaps', telemetryData);

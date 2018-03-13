@@ -815,7 +815,12 @@ export class FileService implements IFileService {
 
 	private doMoveOrCopyFile(sourcePath: string, targetPath: string, keepCopy: boolean, overwrite: boolean): TPromise<boolean /* exists */> {
 
-		// 1.) check if target exists
+		// 1.) validate operation
+		if (isParent(targetPath, sourcePath, !isLinux)) {
+			return TPromise.wrapError<boolean>(new Error('Unable to move/copy when source path is parent of target path'));
+		}
+
+		// 2.) check if target exists
 		return pfs.exists(targetPath).then(exists => {
 			const isCaseRename = sourcePath.toLowerCase() === targetPath.toLowerCase();
 			const isSameFile = sourcePath === targetPath;
@@ -825,7 +830,7 @@ export class FileService implements IFileService {
 				return TPromise.wrapError<boolean>(new FileOperationError(nls.localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), FileOperationResult.FILE_MOVE_CONFLICT));
 			}
 
-			// 2.) make sure target is deleted before we move/copy unless this is a case rename of the same file
+			// 3.) make sure target is deleted before we move/copy unless this is a case rename of the same file
 			let deleteTargetPromise = TPromise.wrap<void>(void 0);
 			if (exists && !isCaseRename) {
 				if (isEqualOrParent(sourcePath, targetPath, !isLinux /* ignorecase */)) {
@@ -837,7 +842,7 @@ export class FileService implements IFileService {
 
 			return deleteTargetPromise.then(() => {
 
-				// 3.) make sure parents exists
+				// 4.) make sure parents exists
 				return pfs.mkdirp(paths.dirname(targetPath)).then(() => {
 
 					// 4.) copy/move

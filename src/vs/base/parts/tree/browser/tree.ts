@@ -79,6 +79,11 @@ export interface ITree {
 	refresh(element?: any, recursive?: boolean): WinJS.Promise;
 
 	/**
+	 * Updates an element's width.
+	 */
+	updateWidth(element: any): void;
+
+	/**
 	 * Expands an element.
 	 * The returned promise returns a boolean for whether the element was expanded or not.
 	 */
@@ -666,6 +671,7 @@ export interface ITreeConfiguration {
 	filter?: IFilter;
 	sorter?: ISorter;
 	accessibilityProvider?: IAccessibilityProvider;
+	styler?: ITreeStyler;
 }
 
 export interface ITreeOptions extends ITreeStyles {
@@ -673,6 +679,7 @@ export interface ITreeOptions extends ITreeStyles {
 	showTwistie?: boolean;
 	indentPixels?: number;
 	verticalScrollMode?: ScrollbarVisibility;
+	horizontalScrollMode?: ScrollbarVisibility;
 	alwaysFocused?: boolean;
 	autoExpandSingleChildren?: boolean;
 	useShadows?: boolean;
@@ -680,6 +687,10 @@ export interface ITreeOptions extends ITreeStyles {
 	ariaLabel?: string;
 	keyboardSupport?: boolean;
 	preventRootFocus?: boolean;
+}
+
+export interface ITreeStyler {
+	style(styles: ITreeStyles): void;
 }
 
 export interface ITreeStyles {

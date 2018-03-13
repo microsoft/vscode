@@ -1585,7 +1585,7 @@ class TaskService implements ITaskService {
 		if (!config.command || this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return false;
 		}
-		return ProcessRunnerDetector.supports(config.command);
+		return ProcessRunnerDetector.supports(TaskConfig.CommandString.value(config.command));
 	}
 
 	public configureAction(): Action {
@@ -2092,6 +2092,12 @@ class TaskService implements ITaskService {
 						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
 					}
 					configFileCreated = true;
+					/* __GDPR__
+						"taskService.template" : {
+							"templateId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"autoDetect" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+						}
+					*/
 					return this.fileService.createFile(resource, content).then((result): URI => {
 						this.telemetryService.publicLog(TaskService.TemplateTelemetryEventName, {
 							templateId: selection.id,

@@ -169,11 +169,11 @@ export function rgErrorMsgForDisplay(msg: string): string | undefined {
 }
 
 export class RipgrepParser extends EventEmitter {
-	private static readonly RESULT_REGEX = /^\u001b\[m(\d+)\u001b\[m:(.*)(\r?)/;
-	private static readonly FILE_REGEX = /^\u001b\[m(.+)\u001b\[m$/;
+	private static readonly RESULT_REGEX = /^\u001b\[0m(\d+)\u001b\[0m:(.*)(\r?)/;
+	private static readonly FILE_REGEX = /^\u001b\[0m(.+)\u001b\[0m$/;
 
-	public static readonly MATCH_START_MARKER = '\u001b[m\u001b[31m';
-	public static readonly MATCH_END_MARKER = '\u001b[m';
+	public static readonly MATCH_START_MARKER = '\u001b[0m\u001b[31m';
+	public static readonly MATCH_END_MARKER = '\u001b[0m';
 
 	private fileMatch: FileMatch;
 	private remainder: string;

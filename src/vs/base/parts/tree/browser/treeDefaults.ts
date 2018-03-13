@@ -444,6 +444,87 @@ export class DefaultAccessibilityProvider implements _.IAccessibilityProvider {
 	}
 }
 
+export class DefaultTreestyler implements _.ITreeStyler {
+
+	constructor(private styleElement: HTMLStyleElement, private selectorSuffix?: string) { }
+
+	style(styles: _.ITreeStyles): void {
+		const suffix = this.selectorSuffix ? `.${this.selectorSuffix}` : '';
+		const content: string[] = [];
+
+		if (styles.listFocusBackground) {
+			content.push(`.monaco-tree${suffix}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) { background-color: ${styles.listFocusBackground}; }`);
+		}
+
+		if (styles.listFocusForeground) {
+			content.push(`.monaco-tree${suffix}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) { color: ${styles.listFocusForeground}; }`);
+		}
+
+		if (styles.listActiveSelectionBackground) {
+			content.push(`.monaco-tree${suffix}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${styles.listActiveSelectionBackground}; }`);
+		}
+
+		if (styles.listActiveSelectionForeground) {
+			content.push(`.monaco-tree${suffix}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${styles.listActiveSelectionForeground}; }`);
+		}
+
+		if (styles.listFocusAndSelectionBackground) {
+			content.push(`
+				.monaco-tree-drag-image,
+				.monaco-tree${suffix}.focused .monaco-tree-rows > .monaco-tree-row.focused.selected:not(.highlighted) { background-color: ${styles.listFocusAndSelectionBackground}; }
+			`);
+		}
+
+		if (styles.listFocusAndSelectionForeground) {
+			content.push(`
+				.monaco-tree-drag-image,
+				.monaco-tree${suffix}.focused .monaco-tree-rows > .monaco-tree-row.focused.selected:not(.highlighted) { color: ${styles.listFocusAndSelectionForeground}; }
+			`);
+		}
+
+		if (styles.listInactiveSelectionBackground) {
+			content.push(`.monaco-tree${suffix} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${styles.listInactiveSelectionBackground}; }`);
+		}
+
+		if (styles.listInactiveSelectionForeground) {
+			content.push(`.monaco-tree${suffix} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${styles.listInactiveSelectionForeground}; }`);
+		}
+
+		if (styles.listHoverBackground) {
+			content.push(`.monaco-tree${suffix} .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) { background-color: ${styles.listHoverBackground}; }`);
+		}
+
+		if (styles.listHoverForeground) {
+			content.push(`.monaco-tree${suffix} .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) { color: ${styles.listHoverForeground}; }`);
+		}
+
+		if (styles.listDropBackground) {
+			content.push(`
+				.monaco-tree${suffix} .monaco-tree-wrapper.drop-target,
+				.monaco-tree${suffix} .monaco-tree-rows > .monaco-tree-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
+			`);
+		}
+
+		if (styles.listFocusOutline) {
+			content.push(`
+				.monaco-tree-drag-image																															{ border: 1px solid ${styles.listFocusOutline}; background: #000; }
+				.monaco-tree${suffix} .monaco-tree-rows > .monaco-tree-row 														{ border: 1px solid transparent; }
+				.monaco-tree${suffix}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) 						{ border: 1px dotted ${styles.listFocusOutline}; }
+				.monaco-tree${suffix}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) 						{ border: 1px solid ${styles.listFocusOutline}; }
+				.monaco-tree${suffix} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted)  							{ border: 1px solid ${styles.listFocusOutline}; }
+				.monaco-tree${suffix} .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused)  	{ border: 1px dashed ${styles.listFocusOutline}; }
+				.monaco-tree${suffix} .monaco-tree-wrapper.drop-target,
+				.monaco-tree${suffix} .monaco-tree-rows > .monaco-tree-row.drop-target												{ border: 1px dashed ${styles.listFocusOutline}; }
+			`);
+		}
+
+		const newStyles = content.join('\n');
+		if (newStyles !== this.styleElement.innerHTML) {
+			this.styleElement.innerHTML = newStyles;
+		}
+	}
+}
+
 export class CollapseAllAction extends Action {
 
 	constructor(private viewer: _.ITree, enabled: boolean) {

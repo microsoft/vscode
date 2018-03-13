@@ -56,6 +56,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IAction, Action } from 'vs/base/common/actions';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import product from 'vs/platform/node/product';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -893,6 +894,7 @@ export class DebugService implements debug.IDebugService {
 
 			return session.initialize({
 				clientID: 'vscode',
+				clientName: product.nameLong,
 				adapterID: configuration.type,
 				pathFormat: 'path',
 				linesStartAt1: true,
@@ -932,12 +934,12 @@ export class DebugService implements debug.IDebugService {
 				/* __GDPR__
 					"debugSessionStart" : {
 						"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"exceptionBreakpoints": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-						"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"extensionName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
-						"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"launchJsonExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true},
+						"launchJsonExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 				*/
 				return this.telemetryService.publicLog('debugSessionStart', {
@@ -1129,10 +1131,10 @@ export class DebugService implements debug.IDebugService {
 		/* __GDPR__
 			"debugSessionStop" : {
 				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"success": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"sessionLengthInSeconds": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"success": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"sessionLengthInSeconds": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.publicLog('debugSessionStop', {

@@ -350,7 +350,7 @@ export class PreferencesEditor extends BaseEditor {
 					"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"durations" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"counts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"requestCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"requestCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 				}
 			*/
 			this.telemetryService.publicLog('defaultSettings.filter', data);
@@ -717,10 +717,10 @@ class PreferencesRenderersController extends Disposable {
 			"defaultSettingsActions.copySetting" : {
 				"userConfigurationKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"query" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"displayIdx" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"editableSide" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"displayIdx" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"editableSide" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.publicLog('defaultSettingsActions.copySetting', data);

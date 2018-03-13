@@ -7,20 +7,20 @@
 import {
 	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, DocumentColorRequest, ColorPresentationRequest,
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, DocumentColorRequest, ColorPresentationRequest
 } from 'vscode-languageserver';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
-import fs = require('fs');
+import * as fs from 'fs';
 import URI from 'vscode-uri';
 import * as URL from 'url';
-import Strings = require('./utils/strings');
+import { startsWith } from './utils/strings';
 import { formatError, runSafe, runSafeAsync } from './utils/errors';
 import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-import { createScanner, SyntaxKind } from 'jsonc-parser';
+import { getFoldingRegions } from './jsonFolding';
 
-import { FoldingRangeType, FoldingRangesRequest, FoldingRange, FoldingRangeList, FoldingProviderServerCapabilities } from './protocol/foldingProvider.proposed';
+import { FoldingRangesRequest, FoldingProviderServerCapabilities } from './protocol/foldingProvider.proposed';
 
 interface ISchemaAssociations {
 	[pattern: string]: string[];
@@ -93,14 +93,14 @@ let workspaceContext = {
 };
 
 let schemaRequestService = (uri: string): Thenable<string> => {
-	if (Strings.startsWith(uri, 'file://')) {
+	if (startsWith(uri, 'file://')) {
 		let fsPath = URI.parse(uri).fsPath;
 		return new Promise<string>((c, e) => {
 			fs.readFile(fsPath, 'UTF-8', (err, result) => {
 				err ? e('') : c(result.toString());
 			});
 		});
-	} else if (Strings.startsWith(uri, 'vscode://')) {
+	} else if (startsWith(uri, 'vscode://')) {
 		return connection.sendRequest(VSCodeContentRequest.type, uri).then(responseText => {
 			return responseText;
 		}, error => {
@@ -260,17 +260,21 @@ function validateTextDocument(textDocument: TextDocument): void {
 		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: [] });
 		return;
 	}
-	try {
-		let jsonDocument = getJSONDocument(textDocument);
+	let jsonDocument = getJSONDocument(textDocument);
+	let version = textDocument.version;
 
-		let documentSettings: DocumentLanguageSettings = textDocument.languageId === 'jsonc' ? { comments: 'ignore', trailingCommas: 'ignore' } : { comments: 'error', trailingCommas: 'error' };
-		languageService.doValidation(textDocument, jsonDocument, documentSettings).then(diagnostics => {
-			// Send the computed diagnostics to VSCode.
-			connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
-		});
-	} catch (e) {
-		connection.console.error(formatError(`Error while validating ${textDocument.uri}`, e));
-	}
+	let documentSettings: DocumentLanguageSettings = textDocument.languageId === 'jsonc' ? { comments: 'ignore', trailingCommas: 'ignore' } : { comments: 'error', trailingCommas: 'error' };
+	languageService.doValidation(textDocument, jsonDocument, documentSettings).then(diagnostics => {
+		setTimeout(() => {
+			let currDocument = documents.get(textDocument.uri);
+			if (currDocument && currDocument.version === version) {
+				// Send the computed diagnostics to VSCode.
+				connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+			}
+		}, 100);
+	}, error => {
+		connection.console.error(formatError(`Error while validating ${textDocument.uri}`, error));
+	});
 }
 
 connection.onDidChangeWatchedFiles((change) => {
@@ -282,7 +286,7 @@ connection.onDidChangeWatchedFiles((change) => {
 		}
 	});
 	if (hasChanges) {
-		documents.all().forEach(validateTextDocument);
+		documents.all().forEach(triggerValidation);
 	}
 });
 
@@ -320,19 +324,19 @@ connection.onHover(textDocumentPositionParams => {
 	}, null, `Error while computing hover for ${textDocumentPositionParams.textDocument.uri}`);
 });
 
-connection.onDocumentSymbol(documentSymbolParams => {
+connection.onDocumentSymbol((documentSymbolParams, token) => {
 	return runSafe(() => {
 		let document = documents.get(documentSymbolParams.textDocument.uri);
 		let jsonDocument = getJSONDocument(document);
 		return languageService.findDocumentSymbols(document, jsonDocument);
-	}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`);
+	}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`, token);
 });
 
-connection.onDocumentRangeFormatting(formatParams => {
+connection.onDocumentRangeFormatting((formatParams, token) => {
 	return runSafe(() => {
 		let document = documents.get(formatParams.textDocument.uri);
 		return languageService.format(document, formatParams.range, formatParams.options);
-	}, [], `Error while formatting range for ${formatParams.textDocument.uri}`);
+	}, [], `Error while formatting range for ${formatParams.textDocument.uri}`, token);
 });
 
 connection.onRequest(DocumentColorRequest.type, params => {
@@ -346,7 +350,7 @@ connection.onRequest(DocumentColorRequest.type, params => {
 	}, [], `Error while computing document colors for ${params.textDocument.uri}`);
 });
 
-connection.onRequest(ColorPresentationRequest.type, params => {
+connection.onRequest(ColorPresentationRequest.type, (params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
@@ -354,86 +358,17 @@ connection.onRequest(ColorPresentationRequest.type, params => {
 			return languageService.getColorPresentations(document, jsonDocument, params.color, params.range);
 		}
 		return [];
-	}, [], `Error while computing color presentations for ${params.textDocument.uri}`);
+	}, [], `Error while computing color presentations for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest(FoldingRangesRequest.type, params => {
+connection.onRequest(FoldingRangesRequest.type, (params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
-			let ranges: FoldingRange[] = [];
-			let stack: FoldingRange[] = [];
-			let prevStart = -1;
-			let scanner = createScanner(document.getText(), false);
-			let token = scanner.scan();
-			while (token !== SyntaxKind.EOF) {
-				switch (token) {
-					case SyntaxKind.OpenBraceToken:
-					case SyntaxKind.OpenBracketToken: {
-						let startLine = document.positionAt(scanner.getTokenOffset()).line;
-						let range = { startLine, endLine: startLine, type: token === SyntaxKind.OpenBraceToken ? 'object' : 'array' };
-						stack.push(range);
-						break;
-					}
-					case SyntaxKind.CloseBraceToken:
-					case SyntaxKind.CloseBracketToken: {
-						let type = token === SyntaxKind.CloseBraceToken ? 'object' : 'array';
-						if (stack.length > 0 && stack[stack.length - 1].type === type) {
-							let range = stack.pop();
-							let line = document.positionAt(scanner.getTokenOffset()).line;
-							if (range && line > range.startLine + 1 && prevStart !== range.startLine) {
-								range.endLine = line - 1;
-								ranges.push(range);
-								prevStart = range.startLine;
-							}
-						}
-						break;
-					}
-
-					case SyntaxKind.BlockCommentTrivia: {
-						let startLine = document.positionAt(scanner.getTokenOffset()).line;
-						let endLine = document.positionAt(scanner.getTokenOffset() + scanner.getTokenLength()).line;
-						if (startLine < endLine) {
-							ranges.push({ startLine, endLine, type: FoldingRangeType.Comment });
-							prevStart = startLine;
-						}
-						break;
-					}
-
-					case SyntaxKind.LineCommentTrivia: {
-						let text = document.getText().substr(scanner.getTokenOffset(), scanner.getTokenLength());
-						let m = text.match(/^\/\/\s*#(region\b)|(endregion\b)/);
-						if (m) {
-							let line = document.positionAt(scanner.getTokenOffset()).line;
-							if (m[1]) { // start pattern match
-								let range = { startLine: line, endLine: line, type: FoldingRangeType.Region };
-								stack.push(range);
-							} else {
-								let i = stack.length - 1;
-								while (i >= 0 && stack[i].type !== FoldingRangeType.Region) {
-									i--;
-								}
-								if (i >= 0) {
-									let range = stack[i];
-									stack.length = i;
-									if (line > range.startLine && prevStart !== range.startLine) {
-										range.endLine = line;
-										ranges.push(range);
-										prevStart = range.startLine;
-									}
-								}
-							}
-						}
-						break;
-					}
-
-				}
-				token = scanner.scan();
-			}
-			return <FoldingRangeList>{ ranges };
+			return getFoldingRegions(document, token);
 		}
 		return null;
-	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`);
+	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
 });
 
 // Listen on the connection

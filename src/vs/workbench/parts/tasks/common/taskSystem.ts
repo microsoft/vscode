@@ -42,8 +42,8 @@ export class TaskError {
 		"runner": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"taskKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"command": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"success": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"exitCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		"success": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"exitCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 	}
 */
 export interface TelemetryEvent {

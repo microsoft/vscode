@@ -114,9 +114,9 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 		data['infos'] = this.markersWorkbenchService.markersModel.filterOptions.filterInfos;
 		/* __GDPR__
 			"problems.filter" : {
-				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"warnings": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"infos": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"warnings": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"infos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.publicLog('problems.filter', data);

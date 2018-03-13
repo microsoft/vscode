@@ -206,7 +206,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 									currentDecoration = !!message ? Severity.Error : void 0;
 									const newPick = message || defaultMessage;
 									if (newPick !== currentPick) {
-										options.valueSelection = [lastValue.length, lastValue.length];
+										options.valueSelection = null;
 										currentPick = newPick;
 										resolve(new TPromise<any>(init));
 									}

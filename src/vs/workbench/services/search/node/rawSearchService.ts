@@ -144,6 +144,7 @@ export class SearchService implements IRawSearchService {
 				.then(result => {
 					c([result, results]);
 					if (this.telemetryPipe) {
+						// __GDPR__TODO__ classify event
 						this.telemetryPipe({
 							eventName: 'fileSearch',
 							data: result.stats

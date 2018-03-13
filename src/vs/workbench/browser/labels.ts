@@ -25,6 +25,7 @@ import { Schemas } from 'vs/base/common/network';
 import { FileKind, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { ITextModel } from 'vs/editor/common/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export interface IResourceLabel {
 	name: string;
@@ -38,11 +39,15 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 }
 
 export class ResourceLabel extends IconLabel {
+
 	private toDispose: IDisposable[];
 	private label: IResourceLabel;
 	private options: IResourceLabelOptions;
 	private computedIconClasses: string[];
 	private lastKnownConfiguredLangId: string;
+
+	private _onDidRender = new Emitter<void>();
+	readonly onDidRender: Event<void> = this._onDidRender.event;
 
 	constructor(
 		container: HTMLElement,
@@ -217,6 +222,7 @@ export class ResourceLabel extends IconLabel {
 		}
 
 		this.setValue(label, this.label.description, iconLabelOptions);
+		this._onDidRender.fire();
 	}
 
 	public dispose(): void {

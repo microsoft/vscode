@@ -255,6 +255,15 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 		return this.viewletState;
 	}
 
+	focus(): void {
+		const explorerView = this.getExplorerView();
+		if (explorerView && explorerView.isExpanded()) {
+			explorerView.focus();
+		} else {
+			super.focus();
+		}
+	}
+
 	protected loadViewsStates(): void {
 		super.loadViewsStates();
 

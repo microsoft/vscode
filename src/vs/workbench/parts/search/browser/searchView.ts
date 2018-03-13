@@ -82,6 +82,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private fileMatchFocused: IContextKey<boolean>;
 	private folderMatchFocused: IContextKey<boolean>;
 	private matchFocused: IContextKey<boolean>;
+	private hasSearchResultsKey: IContextKey<boolean>;
 	private searchSubmitted: boolean;
 	private searching: boolean;
 
@@ -137,6 +138,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.fileMatchFocused = Constants.FileFocusKey.bindTo(contextKeyService);
 		this.folderMatchFocused = Constants.FolderFocusKey.bindTo(contextKeyService);
 		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
+		this.hasSearchResultsKey = Constants.HasSearchResults.bindTo(this.contextKeyService);
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
@@ -1297,6 +1299,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private updateSearchResultCount(): void {
 		const fileCount = this.viewModel.searchResult.fileCount();
+		this.hasSearchResultsKey.set(fileCount > 0);
+
 		const msgWasHidden = this.messages.isHidden();
 		if (fileCount > 0) {
 			const div = this.clearMessage();

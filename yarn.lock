@@ -5989,9 +5989,9 @@ vscode-nsfw@1.0.17:
     nan "^2.0.0"
     promisify-node "^0.3.0"
 
-vscode-ripgrep@0.7.1-patch.0.1:
-  version "0.7.1-patch.0.1"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-0.7.1-patch.0.1.tgz#f05d2f093fd7f6a9d10fb935171e72620feaf999"
+vscode-ripgrep@^0.8.1:
+  version "0.8.1"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-0.8.1.tgz#861d2ac97a3764e9f40f305620423efc50632ad1"
 
 vscode-textmate@^3.2.0:
   version "3.2.0"
@@ -6000,9 +6000,9 @@ vscode-textmate@^3.2.0:
     fast-plist "^0.1.2"
     oniguruma "^6.0.1"
 
-vscode-xterm@3.3.0-beta4:
-  version "3.3.0-beta4"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.3.0-beta4.tgz#560c039c3addebe6aa3a81c5b79d2869de87ecc5"
+vscode-xterm@3.3.0-beta5:
+  version "3.3.0-beta5"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.3.0-beta5.tgz#4477c0ede38e2f39098f410bb7737a62832fb9e0"
 
 vso-node-api@^6.1.2-preview:
   version "6.1.2-preview"

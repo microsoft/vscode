@@ -128,7 +128,7 @@ export class ProductContribution implements IWorkbenchContribution {
 		// was there an update? if so, open release notes
 		if (!environmentService.skipReleaseNotes && product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
 			showReleaseNotes(instantiationService, lastVersion)
-				.then(() => {
+				.then(undefined, () => {
 					notificationService.notify({
 						severity: severity.Info,
 						message: nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),

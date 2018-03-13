@@ -44,9 +44,9 @@
     "vscode-chokidar": "1.6.2",
     "vscode-debugprotocol": "1.27.0",
     "vscode-nsfw": "1.0.17",
-    "vscode-ripgrep": "0.7.1-patch.0.1",
+    "vscode-ripgrep": "^0.8.1",
     "vscode-textmate": "^3.2.0",
-    "vscode-xterm": "3.3.0-beta4",
+    "vscode-xterm": "3.3.0-beta5",
     "yauzl": "2.8.0"
   },
   "devDependencies": {

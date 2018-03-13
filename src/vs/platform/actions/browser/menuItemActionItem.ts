@@ -19,7 +19,7 @@ import { IdGenerator } from 'vs/base/common/idGenerator';
 import { createCSSRule } from 'vs/base/browser/dom';
 import URI from 'vs/base/common/uri';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 
 // The alternative key on all platforms is alt. On windows we also support shift as an alternative key #44136
 class AlternativeKeyEmitter extends Emitter<boolean> {
@@ -31,7 +31,7 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 		super();
 
 		this._subscriptions.push(domEvent(document.body, 'keydown')(e => {
-			this.isPressed = e.altKey || (isWindows && e.shiftKey);
+			this.isPressed = e.altKey || ((isWindows || isLinux) && e.shiftKey);
 		}));
 		this._subscriptions.push(domEvent(document.body, 'keyup')(e => this.isPressed = false));
 		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => this.isPressed = false));

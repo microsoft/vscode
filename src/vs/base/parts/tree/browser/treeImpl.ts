@@ -30,6 +30,7 @@ export class TreeContext implements _.ITreeContext {
 	public filter: _.IFilter;
 	public sorter: _.ISorter;
 	public accessibilityProvider: _.IAccessibilityProvider;
+	public styler: _.ITreeStyler;
 
 	constructor(tree: _.ITree, configuration: _.ITreeConfiguration, options: _.ITreeOptions = {}) {
 		this.tree = tree;
@@ -47,6 +48,7 @@ export class TreeContext implements _.ITreeContext {
 		this.filter = configuration.filter || new TreeDefaults.DefaultFilter();
 		this.sorter = configuration.sorter || null;
 		this.accessibilityProvider = configuration.accessibilityProvider || new TreeDefaults.DefaultAccessibilityProvider();
+		this.styler = configuration.styler || null;
 	}
 }
 
@@ -158,6 +160,11 @@ export class Tree implements _.ITree {
 		return this.model.refresh(element, recursive);
 	}
 
+	public updateWidth(element: any): void {
+		let item = this.model.getItem(element);
+		return this.view.updateWidth(item);
+	}
+
 	public expand(element: any): WinJS.Promise {
 		return this.model.expand(element);
 	}
@@ -212,7 +219,7 @@ export class Tree implements _.ITree {
 	}
 
 	getContentHeight(): number {
-		return this.view.getTotalHeight();
+		return this.view.getContentHeight();
 	}
 
 	public setHighlight(element?: any, eventPayload?: any): void {

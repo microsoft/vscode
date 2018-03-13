@@ -1593,8 +1593,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 					// TODO@Ben remove me after a while
 					/* __GDPR__
 						"editorGroupMoved" : {
-							"source" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"to": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							"source" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"to": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 						}
 					*/
 					this.telemetryService.publicLog('editorGroupMoved', { source: position, to: moveTo });
@@ -2139,7 +2139,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Layout centered Editor (only in vertical layout when one group is opened)
 		const id = this.visibleEditors[Position.ONE] ? this.visibleEditors[Position.ONE].getId() : undefined;
-		const doCentering = this.partService.isEditorLayoutCentered() && this.stacks.groups.length === 1 && id !== PREFERENCES_EDITOR_ID && id !== TEXT_DIFF_EDITOR_ID;
+		const doCentering = this.layoutVertically && this.partService.isEditorLayoutCentered() && this.stacks.groups.length === 1 && id !== PREFERENCES_EDITOR_ID && id !== TEXT_DIFF_EDITOR_ID;
 		if (doCentering && !this.centeredEditorActive) {
 			this.centeredEditorSashLeft.show();
 			this.centeredEditorSashRight.show();

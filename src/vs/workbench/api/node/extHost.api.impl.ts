@@ -638,6 +638,7 @@ export function createApiFactory(
 			TaskGroup: extHostTypes.TaskGroup,
 			ProcessExecution: extHostTypes.ProcessExecution,
 			ShellExecution: extHostTypes.ShellExecution,
+			ShellQuoting: extHostTypes.ShellQuoting,
 			TaskScope: extHostTypes.TaskScope,
 			Task: extHostTypes.Task,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,

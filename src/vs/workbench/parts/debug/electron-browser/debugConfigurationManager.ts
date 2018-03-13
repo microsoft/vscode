@@ -8,7 +8,6 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
-import { first } from 'vs/base/common/arrays';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
@@ -247,8 +246,10 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.registerListeners(lifecycleService);
 		this.initLaunches();
 		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
-		const filtered = this.launches.filter(l => l.uri.toString() === previousSelectedRoot);
-		this.selectConfiguration(filtered.length ? filtered[0] : undefined, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
+		const previousSelectedLaunch = this.launches.filter(l => l.uri.toString() === previousSelectedRoot).pop();
+		if (previousSelectedLaunch) {
+			this.selectConfiguration(previousSelectedLaunch, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
+		}
 	}
 
 	public registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void {
@@ -347,12 +348,12 @@ export class ConfigurationManager implements IConfigurationManager {
 
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => {
 			this.initLaunches();
-			this.selectConfiguration();
+			this.selectConfiguration(this.selectedLaunch);
 			this.setCompoundSchemaValues();
 		}));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('launch')) {
-				this.selectConfiguration();
+				this.selectConfiguration(this.selectedLaunch);
 				this.setCompoundSchemaValues();
 			}
 		}));
@@ -416,13 +417,9 @@ export class ConfigurationManager implements IConfigurationManager {
 		return undefined;
 	}
 
-	public selectConfiguration(launch?: ILaunch, name?: string, debugStarted?: boolean): void {
+	public selectConfiguration(launch: ILaunch, name?: string): void {
 		const previousLaunch = this.selectedLaunch;
 		const previousName = this.selectedName;
-
-		if (!launch) {
-			launch = this.selectedLaunch && this.selectedLaunch.getConfigurationNames().length ? this.selectedLaunch : first(this.launches, l => !!l.getConfigurationNames().length, this.launches.length ? this.launches[0] : undefined);
-		}
 
 		this.selectedLaunch = launch;
 		const names = launch ? launch.getConfigurationNames() : [];

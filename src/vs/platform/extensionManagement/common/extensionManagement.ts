@@ -146,6 +146,12 @@ export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifie
 		&& (!thing.uuid || typeof thing.uuid === 'string');
 }
 
+/* __GDPR__FRAGMENT__
+	"ExtensionIdentifier" : {
+		"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"uuid": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	}
+ */
 export interface IExtensionIdentifier {
 	id: string;
 	uuid?: string;

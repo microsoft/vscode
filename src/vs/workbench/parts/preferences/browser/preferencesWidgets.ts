@@ -728,8 +728,8 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 	public render() {
 		this._domNode = DOM.$('.floating-click-widget');
 		this._register(attachStylerCallback(this.themeService, { buttonBackground, buttonForeground }, colors => {
-			this._domNode.style.backgroundColor = colors.buttonBackground;
-			this._domNode.style.color = colors.buttonForeground;
+			this._domNode.style.backgroundColor = colors.buttonBackground ? colors.buttonBackground.toString() : null;
+			this._domNode.style.color = colors.buttonForeground ? colors.buttonForeground.toString() : null;
 		}));
 
 		DOM.append(this._domNode, DOM.$('')).textContent = this.label;

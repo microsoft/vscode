@@ -240,6 +240,7 @@ export class QuickOpenWidget implements IModelProvider {
 						indentPixels: 0,
 						alwaysFocused: true,
 						verticalScrollMode: ScrollbarVisibility.Visible,
+						horizontalScrollMode: ScrollbarVisibility.Hidden,
 						ariaLabel: nls.localize('treeAriaLabel', "Quick Picker"),
 						keyboardSupport: this.options.keyboardSupport,
 						preventRootFocus: true
@@ -810,11 +811,13 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 	}
 
-	public setValue(value: string, selection?: [number, number]): void {
+	public setValue(value: string, selectionOrStableHint?: [number, number] | null): void {
 		if (this.inputBox) {
 			this.inputBox.value = value;
-			if (Array.isArray(selection)) {
-				const [start, end] = selection;
+			if (selectionOrStableHint === null) {
+				// null means stable-selection
+			} else if (Array.isArray(selectionOrStableHint)) {
+				const [start, end] = selectionOrStableHint;
 				this.inputBox.select({ start, end });
 			} else {
 				this.inputBox.select();

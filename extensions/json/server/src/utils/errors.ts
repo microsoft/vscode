@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { CancellationToken, ResponseError, ErrorCodes } from 'vscode-languageserver';
+
 export function formatError(message: string, err: any): string {
 	if (err instanceof Error) {
 		let error = <Error>err;
@@ -23,11 +25,31 @@ export function runSafeAsync<T>(func: () => Thenable<T>, errorVal: T, errorMessa
 		return errorVal;
 	});
 }
-export function runSafe<T>(func: () => T, errorVal: T, errorMessage: string): T {
-	try {
-		return func();
-	} catch (e) {
-		console.error(formatError(errorMessage, e));
-		return errorVal;
-	}
+export function runSafe<T, E>(func: () => T, errorVal: T, errorMessage: string, token: CancellationToken): Thenable<T | ResponseError<E>> {
+	return new Promise<T | ResponseError<E>>((resolve, reject) => {
+		setTimeout(() => {
+			if (token.isCancellationRequested) {
+				resolve(cancelValue());
+			} else {
+				try {
+					let result = func();
+					if (token.isCancellationRequested) {
+						resolve(cancelValue());
+						return;
+					} else {
+						resolve(result);
+					}
+
+				} catch (e) {
+					console.error(formatError(errorMessage, e));
+					resolve(errorVal);
+				}
+			}
+		}, 100);
+	});
+}
+
+function cancelValue<E>() {
+	console.log('cancelled');
+	return new ResponseError<E>(ErrorCodes.RequestCancelled, 'Request cancelled');
 }

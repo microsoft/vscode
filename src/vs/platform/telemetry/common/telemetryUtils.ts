@@ -42,7 +42,7 @@ export const NullAppender: ITelemetryAppender = { log: () => null };
 	"URIDescriptor" : {
 		"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+		"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	}
 */
 export interface URIDescriptor {

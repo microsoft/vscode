@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Diagnostic, DiagnosticCollection, languages, Uri } from 'vscode';
-import { ITypeScriptServiceClient } from '../typescriptService';
 
 class DiagnosticSet {
 	private _map: ObjectMap<Diagnostic[]> = Object.create(null);
@@ -39,8 +38,7 @@ export default class DiagnosticsManager {
 	private _validate: boolean = true;
 
 	constructor(
-		language: string,
-		private readonly client: ITypeScriptServiceClient
+		language: string
 	) {
 		this.syntaxDiagnostics = new DiagnosticSet();
 		this.semanticDiagnostics = new DiagnosticSet();
@@ -81,8 +79,8 @@ export default class DiagnosticsManager {
 		this.currentDiagnostics.set(file, diagnostics);
 	}
 
-	public delete(file: string): void {
-		this.currentDiagnostics.delete(this.client.asUrl(file));
+	public delete(resource: Uri): void {
+		this.currentDiagnostics.delete(resource);
 	}
 
 	private updateCurrentDiagnostics(file: Uri) {

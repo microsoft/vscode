@@ -170,14 +170,15 @@ export class ProcessRunnerDetector {
 	}
 
 	public detect(list: boolean = false, detectSpecific?: string): TPromise<DetectorResult> {
-		if (this.taskConfiguration && this.taskConfiguration.command && ProcessRunnerDetector.supports(this.taskConfiguration.command)) {
-			let config = ProcessRunnerDetector.detectorConfig(this.taskConfiguration.command);
+		let commandExecutable = TaskConfig.CommandString.value(this.taskConfiguration.command);
+		if (this.taskConfiguration && this.taskConfiguration.command && ProcessRunnerDetector.supports(commandExecutable)) {
+			let config = ProcessRunnerDetector.detectorConfig(commandExecutable);
 			let args = (this.taskConfiguration.args || []).concat(config.arg);
 			let options: CommandOptions = this.taskConfiguration.options ? this.resolveCommandOptions(this._workspaceRoot, this.taskConfiguration.options) : { cwd: this._cwd };
 			let isShellCommand = !!this.taskConfiguration.isShellCommand;
 			return this.runDetection(
-				new LineProcess(this.taskConfiguration.command, this.configurationResolverService.resolve(this._workspaceRoot, args), isShellCommand, options),
-				this.taskConfiguration.command, isShellCommand, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
+				new LineProcess(commandExecutable, this.configurationResolverService.resolve(this._workspaceRoot, args.map(a => TaskConfig.CommandString.value(a))), isShellCommand, options),
+				commandExecutable, isShellCommand, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
 		} else {
 			if (detectSpecific) {
 				let detectorPromise: TPromise<DetectorResult>;

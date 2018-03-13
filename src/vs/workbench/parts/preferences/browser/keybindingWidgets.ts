@@ -206,7 +206,11 @@ export class DefineKeybindingWidget extends Widget {
 		dom.append(this._domNode.domNode, dom.$('.message', null, nls.localize('defineKeybinding.initial', "Press desired key combination and then press ENTER.")));
 
 		this._register(attachStylerCallback(this.themeService, { editorWidgetBackground, widgetShadow }, colors => {
-			this._domNode.domNode.style.backgroundColor = colors.editorWidgetBackground;
+			if (colors.editorWidgetBackground) {
+				this._domNode.domNode.style.backgroundColor = colors.editorWidgetBackground.toString();
+			} else {
+				this._domNode.domNode.style.backgroundColor = null;
+			}
 
 			if (colors.widgetShadow) {
 				this._domNode.domNode.style.boxShadow = `0 2px 8px ${colors.widgetShadow}`;

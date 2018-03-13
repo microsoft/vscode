@@ -207,6 +207,10 @@ export class ActivityActionItem extends BaseActionItem {
 	}
 
 	protected updateBadge(badge: IBadge, clazz?: string): void {
+		if (!this.$badge || !this.$badgeContent) {
+			return;
+		}
+
 		this.badgeDisposable.dispose();
 		this.badgeDisposable = empty;
 

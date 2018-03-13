@@ -6,7 +6,6 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import lifecycle = require('vs/base/common/lifecycle');
 import objects = require('vs/base/common/objects');
 import DOM = require('vs/base/browser/dom');
 import URI from 'vs/base/common/uri';
@@ -20,7 +19,7 @@ import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import glob = require('vs/base/common/glob');
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationError, FileOperationResult, IFileService, FileKind } from 'vs/platform/files/common/files';
@@ -179,6 +178,7 @@ export class ActionRunner extends BaseActionRunner implements IActionRunner {
 }
 
 export interface IFileTemplateData {
+	elementDisposable: IDisposable;
 	label: FileLabel;
 	container: HTMLElement;
 }
@@ -228,12 +228,15 @@ export class FileRenderer implements IRenderer {
 	}
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): IFileTemplateData {
+		const elementDisposable = EmptyDisposable;
 		const label = this.instantiationService.createInstance(FileLabel, container, void 0);
 
-		return { label, container };
+		return { elementDisposable, label, container };
 	}
 
 	public renderElement(tree: ITree, stat: FileStat, templateId: string, templateData: IFileTemplateData): void {
+		templateData.elementDisposable.dispose();
+
 		const editableData: IEditableData = this.state.getEditableData(stat);
 
 		// File Label
@@ -246,12 +249,17 @@ export class FileRenderer implements IRenderer {
 				extraClasses,
 				fileDecorations: this.config.explorer.decorations
 			});
+
+			templateData.elementDisposable = templateData.label.onDidRender(() => {
+				tree.updateWidth(stat);
+			});
 		}
 
 		// Input Box
 		else {
 			templateData.label.element.style.display = 'none';
 			this.renderInputBox(templateData.container, tree, stat, editableData);
+			templateData.elementDisposable = EmptyDisposable;
 		}
 	}
 
@@ -296,7 +304,7 @@ export class FileRenderer implements IRenderer {
 				if (!blur) { // https://github.com/Microsoft/vscode/issues/20269
 					tree.domFocus();
 				}
-				lifecycle.dispose(toDispose);
+				dispose(toDispose);
 				container.removeChild(label.element);
 			}, 0);
 		});

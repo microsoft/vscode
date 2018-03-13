@@ -1311,14 +1311,30 @@ export class ProcessExecution implements vscode.ProcessExecution {
 export class ShellExecution implements vscode.ShellExecution {
 
 	private _commandLine: string;
+	private _command: string | vscode.ShellQuotedString;
+	private _args: (string | vscode.ShellQuotedString)[];
 	private _options: vscode.ShellExecutionOptions;
 
-	constructor(commandLine: string, options?: vscode.ShellExecutionOptions) {
-		if (typeof commandLine !== 'string') {
-			throw illegalArgument('commandLine');
+	constructor(commandLine: string, options?: vscode.ShellExecutionOptions);
+	constructor(command: string | vscode.ShellQuotedString, args: (string | vscode.ShellQuotedString)[], options?: vscode.ShellExecutionOptions);
+	constructor(arg0: string | vscode.ShellQuotedString, arg1?: vscode.ShellExecutionOptions | (string | vscode.ShellQuotedString)[], arg2?: vscode.ShellExecutionOptions) {
+		if (Array.isArray(arg1)) {
+			if (!arg0) {
+				throw illegalArgument('command can\'t be undefined or null');
+			}
+			if (typeof arg0 !== 'string' && typeof arg0.value !== 'string') {
+				throw illegalArgument('command');
+			}
+			this._command = arg0;
+			this._args = arg1 as (string | vscode.ShellQuotedString)[];
+			this._options = arg2;
+		} else {
+			if (typeof arg0 !== 'string') {
+				throw illegalArgument('commandLine');
+			}
+			this._commandLine = arg0;
+			this._options = arg1;
 		}
-		this._commandLine = commandLine;
-		this._options = options;
 	}
 
 	get commandLine(): string {
@@ -1332,6 +1348,25 @@ export class ShellExecution implements vscode.ShellExecution {
 		this._commandLine = value;
 	}
 
+	get command(): string | vscode.ShellQuotedString {
+		return this._command;
+	}
+
+	set command(value: string | vscode.ShellQuotedString) {
+		if (typeof value !== 'string' && typeof value.value !== 'string') {
+			throw illegalArgument('command');
+		}
+		this._command = value;
+	}
+
+	get args(): (string | vscode.ShellQuotedString)[] {
+		return this._args;
+	}
+
+	set args(value: (string | vscode.ShellQuotedString)[]) {
+		this._args = value || [];
+	}
+
 	get options(): vscode.ShellExecutionOptions {
 		return this._options;
 	}
@@ -1339,6 +1374,12 @@ export class ShellExecution implements vscode.ShellExecution {
 	set options(value: vscode.ShellExecutionOptions) {
 		this._options = value;
 	}
+}
+
+export enum ShellQuoting {
+	Escape = 1,
+	Strong = 2,
+	Weak = 3
 }
 
 export enum TaskScope {
