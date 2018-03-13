@@ -280,12 +280,8 @@ export class ExtHostApiCommands {
 			resource,
 			position: position && typeConverters.fromPosition(position)
 		};
-		return this._commands.executeCommand<modes.Location[]>('_executeDefinitionProvider', args).then(value => {
-			if (Array.isArray(value)) {
-				return value.map(typeConverters.location.to);
-			}
-			return undefined;
-		});
+		return this._commands.executeCommand<modes.Location[]>('_executeDefinitionProvider', args)
+			.then(tryMapWith(typeConverters.location.to));
 	}
 
 	private _executeImplementationProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
@@ -293,12 +289,8 @@ export class ExtHostApiCommands {
 			resource,
 			position: position && typeConverters.fromPosition(position)
 		};
-		return this._commands.executeCommand<modes.Location[]>('_executeImplementationProvider', args).then(value => {
-			if (Array.isArray(value)) {
-				return value.map(typeConverters.location.to);
-			}
-			return undefined;
-		});
+		return this._commands.executeCommand<modes.Location[]>('_executeImplementationProvider', args)
+			.then(tryMapWith(typeConverters.location.to));
 	}
 
 	private _executeHoverProvider(resource: URI, position: types.Position): Thenable<types.Hover[]> {
@@ -306,12 +298,8 @@ export class ExtHostApiCommands {
 			resource,
 			position: position && typeConverters.fromPosition(position)
 		};
-		return this._commands.executeCommand<modes.Hover[]>('_executeHoverProvider', args).then(value => {
-			if (Array.isArray(value)) {
-				return value.map(typeConverters.toHover);
-			}
-			return undefined;
-		});
+		return this._commands.executeCommand<modes.Hover[]>('_executeHoverProvider', args)
+			.then(tryMapWith(typeConverters.toHover));
 	}
 
 	private _executeDocumentHighlights(resource: URI, position: types.Position): Thenable<types.DocumentHighlight[]> {
@@ -319,12 +307,8 @@ export class ExtHostApiCommands {
 			resource,
 			position: position && typeConverters.fromPosition(position)
 		};
-		return this._commands.executeCommand<modes.DocumentHighlight[]>('_executeDocumentHighlights', args).then(value => {
-			if (Array.isArray(value)) {
-				return value.map(typeConverters.toDocumentHighlight);
-			}
-			return undefined;
-		});
+		return this._commands.executeCommand<modes.DocumentHighlight[]>('_executeDocumentHighlights', args)
+			.then(tryMapWith(typeConverters.toDocumentHighlight));
 	}
 
 	private _executeReferenceProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
@@ -332,12 +316,8 @@ export class ExtHostApiCommands {
 			resource,
 			position: position && typeConverters.fromPosition(position)
 		};
-		return this._commands.executeCommand<modes.Location[]>('_executeReferenceProvider', args).then(value => {
-			if (Array.isArray(value)) {
-				return value.map(typeConverters.location.to);
-			}
-			return undefined;
-		});
+		return this._commands.executeCommand<modes.Location[]>('_executeReferenceProvider', args)
+			.then(tryMapWith(typeConverters.location.to));
 	}
 
 	private _executeDocumentRenameProvider(resource: URI, position: types.Position, newName: string): Thenable<types.WorkspaceEdit> {
@@ -403,11 +383,8 @@ export class ExtHostApiCommands {
 			resource,
 			range: typeConverters.fromRange(range)
 		};
-		return this._commands.executeCommand<CustomCodeAction[]>('_executeCodeActionProvider', args).then(value => {
-			if (!Array.isArray(value)) {
-				return undefined;
-			}
-			return value.map(codeAction => {
+		return this._commands.executeCommand<CustomCodeAction[]>('_executeCodeActionProvider', args)
+			.then(tryMapWith(codeAction => {
 				if (codeAction._isSynthetic) {
 					return this._commands.converter.fromInternal(codeAction.command);
 				} else {
@@ -423,22 +400,18 @@ export class ExtHostApiCommands {
 					}
 					return ret;
 				}
-			});
-		});
+			}));
 	}
 
 	private _executeCodeLensProvider(resource: URI): Thenable<vscode.CodeLens[]> {
 		const args = { resource };
-		return this._commands.executeCommand<modes.ICodeLensSymbol[]>('_executeCodeLensProvider', args).then(value => {
-			if (Array.isArray(value)) {
-				return value.map(item => {
-					return new types.CodeLens(
-						typeConverters.toRange(item.range),
-						this._commands.converter.fromInternal(item.command));
-				});
-			}
-			return undefined;
-		});
+		return this._commands.executeCommand<modes.ICodeLensSymbol[]>('_executeCodeLensProvider', args)
+			.then(tryMapWith(item => {
+				return new types.CodeLens(
+					typeConverters.toRange(item.range),
+					this._commands.converter.fromInternal(item.command));
+			}));
+
 	}
 
 	private _executeFormatDocumentProvider(resource: URI, options: vscode.FormattingOptions): Thenable<vscode.TextEdit[]> {
@@ -446,12 +419,8 @@ export class ExtHostApiCommands {
 			resource,
 			options
 		};
-		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatDocumentProvider', args).then(value => {
-			if (Array.isArray(value)) {
-				return value.map(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text));
-			}
-			return undefined;
-		});
+		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatDocumentProvider', args)
+			.then(tryMapWith(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text)));
 	}
 
 	private _executeFormatRangeProvider(resource: URI, range: types.Range, options: vscode.FormattingOptions): Thenable<vscode.TextEdit[]> {
@@ -460,12 +429,8 @@ export class ExtHostApiCommands {
 			range: typeConverters.fromRange(range),
 			options
 		};
-		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatRangeProvider', args).then(value => {
-			if (Array.isArray(value)) {
-				return value.map(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text));
-			}
-			return undefined;
-		});
+		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatRangeProvider', args)
+			.then(tryMapWith(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text)));
 	}
 
 	private _executeFormatOnTypeProvider(resource: URI, position: types.Position, ch: string, options: vscode.FormattingOptions): Thenable<vscode.TextEdit[]> {
@@ -475,20 +440,21 @@ export class ExtHostApiCommands {
 			ch,
 			options
 		};
-		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatOnTypeProvider', args).then(value => {
-			if (Array.isArray(value)) {
-				return value.map(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text));
-			}
-			return undefined;
-		});
+		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatOnTypeProvider', args)
+			.then(tryMapWith(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text)));
 	}
 
 	private _executeDocumentLinkProvider(resource: URI): Thenable<vscode.DocumentLink[]> {
-		return this._commands.executeCommand<modes.ILink[]>('_executeLinkProvider', resource).then(value => {
-			if (Array.isArray(value)) {
-				return value.map(typeConverters.DocumentLink.to);
-			}
-			return undefined;
-		});
+		return this._commands.executeCommand<modes.ILink[]>('_executeLinkProvider', resource)
+			.then(tryMapWith(typeConverters.DocumentLink.to));
 	}
+}
+
+function tryMapWith<T, R>(f: (x: T) => R) {
+	return (value: T[]) => {
+		if (Array.isArray(value)) {
+			return value.map(f);
+		}
+		return undefined;
+	};
 }
