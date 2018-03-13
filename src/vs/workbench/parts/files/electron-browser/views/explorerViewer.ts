@@ -974,7 +974,6 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 		for (let index = 0; index < folders.length; index++) {
 			const data = {
-				name: folders[index].name,
 				uri: folders[index].uri
 			};
 			if (target instanceof FileStat && folders[index].uri.toString() === target.resource.toString()) {
