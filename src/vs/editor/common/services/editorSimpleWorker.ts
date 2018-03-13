@@ -589,6 +589,9 @@ export function create(): IRequestHandler {
 	return new EditorSimpleWorkerImpl(null);
 }
 
+// This is only available in a Web Worker
+declare function importScripts(...urls: string[]): void;
+
 if (typeof importScripts === 'function') {
 	// Running in a web worker
 	globals.monaco = createMonacoBaseAPI();
