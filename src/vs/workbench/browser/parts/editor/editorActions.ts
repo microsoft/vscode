@@ -543,6 +543,50 @@ export class CloseEditorAction extends Action {
 	}
 }
 
+export class CloseOneEditorAction extends Action {
+
+	public static readonly ID = 'workbench.action.closeActiveEditor';
+	public static readonly LABEL = nls.localize('closeOneEditor', "Close");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService
+	) {
+		super(id, label, 'close-editor-action');
+	}
+
+	public run(context?: IEditorCommandsContext): TPromise<any> {
+		const model = this.editorGroupService.getStacksModel();
+
+		const group = context ? model.getGroup(context.groupId) : null;
+		const position = group ? model.positionOfGroup(group) : null;
+
+		// Close Active Editor
+		if (typeof position !== 'number') {
+			const activeEditor = this.editorService.getActiveEditor();
+			if (activeEditor) {
+				return this.editorService.closeEditor(activeEditor.position, activeEditor.input);
+			}
+		}
+
+		// Close Specific Editor
+		const editor = group && context && typeof context.editorIndex === 'number' ? group.getEditor(context.editorIndex) : null;
+		if (editor) {
+			return this.editorService.closeEditor(position, editor);
+		}
+
+		// Close First Editor at Position
+		const visibleEditors = this.editorService.getVisibleEditors();
+		if (visibleEditors[position]) {
+			return this.editorService.closeEditor(position, visibleEditors[position].input);
+		}
+
+		return TPromise.as(false);
+	}
+}
+
 export class RevertAndCloseEditorAction extends Action {
 
 	public static readonly ID = 'workbench.action.revertAndCloseActiveEditor';
