@@ -90,14 +90,27 @@ export class KeybindingsEditorModel extends EditorModel {
 
 	public fetch(searchValue: string, sortByPrecedence: boolean = false): IKeybindingItemEntry[] {
 		searchValue = searchValue.trim();
+		const quoteAtFirstChar = searchValue.charAt(0) === '"';
+		const quoteAtLastChar = searchValue.charAt(searchValue.length - 1) === '"';
+		if (quoteAtFirstChar) {
+			searchValue = searchValue.substring(1);
+		}
+		if (quoteAtLastChar) {
+			searchValue = searchValue.substring(0, searchValue.length - 1);
+		}
+		searchValue = searchValue.trim();
+		return this.fetchKeybindingItems(sortByPrecedence ? this._keybindingItemsSortedByPrecedence : this._keybindingItems, searchValue, quoteAtFirstChar && quoteAtLastChar);
+	}
+
+	private fetchKeybindingItems(keybindingItems: IKeybindingItem[], searchValue: string, completeMatch: boolean): IKeybindingItemEntry[] {
+		if (!searchValue) {
+			return keybindingItems.map(keybindingItem => ({ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
+		}
 
 		if (this.isSourceFilterApplied(searchValue)) {
-			searchValue = this.getSourceFilterValue(searchValue);
-			searchValue = this.parseSearchValue(searchValue);
-			return this.fetchKeybindingItemsBySource(sortByPrecedence ? this._keybindingItemsSortedByPrecedence : this._keybindingItems, searchValue, this.quoteAtFirst(searchValue) && this.quoteAtLast(searchValue));
+			return this.filterBySource(keybindingItems, this.getSourceFilterValue(searchValue), completeMatch);
 		}
-		searchValue = this.parseSearchValue(searchValue);
-		return this.fetchKeybindingItemsByText(sortByPrecedence ? this._keybindingItemsSortedByPrecedence : this._keybindingItems, searchValue, this.quoteAtFirst(searchValue) && this.quoteAtLast(searchValue));
+		return this.filterByText(keybindingItems, searchValue, completeMatch);
 	}
 
 	private isSourceFilterApplied(searchValue: string): boolean {
@@ -108,31 +121,7 @@ export class KeybindingsEditorModel extends EditorModel {
 		return searchValue.split('@source:')[1].trim() || '';
 	}
 
-	private quoteAtFirst(searchValue: string) {
-		return searchValue.charAt(0) === '"';
-	}
-
-	private quoteAtLast(searchValue: string) {
-		return searchValue.charAt(searchValue.length - 1) === '"';
-	}
-
-	private parseSearchValue(searchValue: string) {
-		const quoteAtFirstChar = this.quoteAtFirst(searchValue);
-		const quoteAtLastChar = this.quoteAtLast(searchValue);
-		if (quoteAtFirstChar) {
-			searchValue = searchValue.substring(1);
-		}
-		if (quoteAtLastChar) {
-			searchValue = searchValue.substring(0, searchValue.length - 1);
-		}
-		return searchValue.trim();
-	}
-
-	private fetchKeybindingItemsBySource(keybindingItems: IKeybindingItem[], searchValue: string, completeMatch: boolean): IKeybindingItemEntry[] {
-		if (!searchValue) {
-			return keybindingItems.map(keybindingItem => ({ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
-		}
-
+	private filterBySource(keybindingItems: IKeybindingItem[], searchValue: string, completeMatch: boolean): IKeybindingItemEntry[] {
 		const result: IKeybindingItemEntry[] = [];
 		const words = searchValue.split(' ');
 		const keybindingWords = this.splitKeybindingWords(words);
@@ -155,11 +144,7 @@ export class KeybindingsEditorModel extends EditorModel {
 		return result;
 	}
 
-	private fetchKeybindingItemsByText(keybindingItems: IKeybindingItem[], searchValue: string, completeMatch: boolean): IKeybindingItemEntry[] {
-		if (!searchValue) {
-			return keybindingItems.map(keybindingItem => ({ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
-		}
-
+	private filterByText(keybindingItems: IKeybindingItem[], searchValue: string, completeMatch: boolean): IKeybindingItemEntry[] {
 		const result: IKeybindingItemEntry[] = [];
 		const words = searchValue.split(' ');
 		const keybindingWords = this.splitKeybindingWords(words);
