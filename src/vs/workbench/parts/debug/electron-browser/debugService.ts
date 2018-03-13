@@ -935,9 +935,9 @@ export class DebugService implements debug.IDebugService {
 					"debugSessionStart" : {
 						"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"exceptionBreakpoints": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+						"exceptionBreakpoints": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"extensionName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+						"extensionName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true},
 						"launchJsonExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
@@ -947,7 +947,7 @@ export class DebugService implements debug.IDebugService {
 					breakpointCount: this.model.getBreakpoints().length,
 					exceptionBreakpoints: this.model.getExceptionBreakpoints(),
 					watchExpressionsCount: this.model.getWatchExpressions().length,
-					extensionName: `${adapter.extensionDescription.publisher}.${adapter.extensionDescription.name}`,
+					extensionName: adapter.extensionDescription.id,
 					isBuiltin: adapter.extensionDescription.isBuiltin,
 					launchJsonExists: root && !!this.configurationService.getValue<debug.IGlobalConfig>('launch', { resource: root.uri })
 				});
