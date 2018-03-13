@@ -220,12 +220,11 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 	private static _idPool: number = 0;
 
-	private _proxy: MainThreadDiagnosticsShape;
-	private _collections: DiagnosticCollection[];
+	private readonly _proxy: MainThreadDiagnosticsShape;
+	private readonly _collections: DiagnosticCollection[] = [];
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDiagnostics);
-		this._collections = [];
 	}
 
 	createDiagnosticCollection(name: string): vscode.DiagnosticCollection {
@@ -251,7 +250,39 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		return result;
 	}
 
-	forEach(callback: (collection: DiagnosticCollection) => any): void {
-		this._collections.forEach(callback);
+	hasDiagnostics(resource: vscode.Uri): boolean {
+		for (const collection of this._collections) {
+			if (collection.has(resource)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	getDiagnostics(resource: vscode.Uri): vscode.Diagnostic[] {
+		let res: vscode.Diagnostic[] = [];
+		for (const collection of this._collections) {
+			if (collection.has(resource)) {
+				res = res.concat(collection.get(resource));
+			}
+		}
+		return res;
+	}
+
+	getAllDiagnostics(): [vscode.Uri, vscode.Diagnostic[]][] {
+		let map = new Map<string, number>();
+		let res: [vscode.Uri, vscode.Diagnostic[]][] = [];
+		for (const collection of this._collections) {
+			collection.forEach((resource: vscode.Uri, diagnostics: vscode.Diagnostic[]) => {
+				let index = map.get(resource.toString());
+				if (typeof index === 'undefined') {
+					index = res.length;
+					res.push([resource, []]);
+					map.set(resource.toString(), index);
+				}
+				res[index][1] = res[index][1].concat(diagnostics);
+			});
+		}
+		return res;
 	}
 }

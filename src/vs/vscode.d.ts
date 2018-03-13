@@ -3783,7 +3783,7 @@ declare module 'vscode' {
 		 * modify the diagnostics-array returned from this call.
 		 *
 		 * @param uri A resource identifier.
-		 * @returns An immutable array of [diagnostics](#Diagnostic) or `undefined`.
+		 * @returns An immutable array of [diagnostics](#Diagnxostic) or `undefined`.
 		 */
 		get(uri: Uri): Diagnostic[] | undefined;
 

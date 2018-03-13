@@ -280,15 +280,11 @@ class CodeActionAdapter {
 		const ran = <vscode.Range>TypeConverters.toRange(range);
 		const allDiagnostics: vscode.Diagnostic[] = [];
 
-		this._diagnostics.forEach(collection => {
-			if (collection.has(resource)) {
-				for (let diagnostic of collection.get(resource)) {
-					if (ran.contains(diagnostic.range)) {
-						allDiagnostics.push(diagnostic);
-					}
-				}
+		for (const diagnostic of this._diagnostics.getDiagnostics(resource)) {
+			if (ran.contains(diagnostic.range)) {
+				allDiagnostics.push(diagnostic);
 			}
-		});
+		}
 
 		const codeActionContext: vscode.CodeActionContext = {
 			diagnostics: allDiagnostics,

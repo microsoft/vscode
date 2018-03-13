@@ -7,6 +7,20 @@
 
 declare module 'vscode' {
 
+	//#region "read diagnostics"
+
+	export interface DiagnosticInformation {
+		has(uri: Uri): boolean;
+		get(uri: Uri): Diagnostic[] | undefined;
+		all(): [Uri, Diagnostic[]][];
+	}
+
+	export namespace languages {
+		export const diagnostics: DiagnosticInformation;
+	}
+
+	//#endregion
+
 	export class FoldingRangeList {
 
 		/**

@@ -232,6 +232,11 @@ export function createApiFactory(
 			createDiagnosticCollection(name?: string): vscode.DiagnosticCollection {
 				return extHostDiagnostics.createDiagnosticCollection(name);
 			},
+			diagnostics: {
+				has: proposedApiFunction(extension, uri => extHostDiagnostics.hasDiagnostics(uri)),
+				get: proposedApiFunction(extension, uri => extHostDiagnostics.getDiagnostics(uri)),
+				all: proposedApiFunction(extension, () => extHostDiagnostics.getAllDiagnostics())
+			},
 			getLanguages(): TPromise<string[]> {
 				return extHostLanguages.getLanguages();
 			},
