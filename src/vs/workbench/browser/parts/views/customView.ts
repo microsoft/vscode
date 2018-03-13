@@ -133,7 +133,7 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 				onDidChange = dataProvider.onDidChange;
 				onDispose = dataProvider.onDispose;
 				getChildren(node?: ITreeItem): TPromise<ITreeItem[]> {
-					if (node.children) {
+					if (node && node.children) {
 						return TPromise.as(node.children);
 					}
 					const promise = node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node);
@@ -464,7 +464,7 @@ class Aligner extends Disposable {
 		if (this.hasIcon(parent)) {
 			return false;
 		}
-		return parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIcon(c));
+		return parent.children && parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIcon(c));
 	}
 
 	private hasIcon(node: ITreeItem): boolean {
