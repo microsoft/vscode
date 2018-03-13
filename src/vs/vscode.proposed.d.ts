@@ -373,6 +373,9 @@ declare module 'vscode' {
 		}
 	}
 	export interface FoldingProvider {
+		/**
+		 * Returns a list of folding ranges or null if the provider does not want to participate or was cancelled.
+		 */
 		provideFoldingRanges(document: TextDocument, token: CancellationToken): ProviderResult<FoldingRangeList>;
 	}
 

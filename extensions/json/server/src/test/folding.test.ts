@@ -8,7 +8,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import { TextDocument } from 'vscode-languageserver';
-import { getFoldingRegions } from '../folding';
+import { getFoldingRegions } from '../jsonFolding';
 
 interface ExpectedIndentRange {
 	startLine: number;
@@ -18,8 +18,7 @@ interface ExpectedIndentRange {
 
 function assertRanges(lines: string[], expected: ExpectedIndentRange[]): void {
 	let document = TextDocument.create('test://foo/bar.json', 'json', 1, lines.join('\n'));
-	let actual = getFoldingRegions(document).ranges;
-
+	let actual = getFoldingRegions(document, null)!.ranges;
 
 	let actualRanges = [];
 	for (let i = 0; i < actual.length; i++) {

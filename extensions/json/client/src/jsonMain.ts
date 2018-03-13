@@ -9,7 +9,7 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfiguration, TextDocument, FoldingRangeList, FoldingRange, Disposable } from 'vscode';
-import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
+import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, CancellationToken } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import { FoldingRangesRequest } from './protocol/foldingProvider.proposed';
@@ -154,11 +154,14 @@ export function activate(context: ExtensionContext) {
 		if (enable) {
 			if (!foldingProviderRegistration) {
 				foldingProviderRegistration = languages.registerFoldingProvider(documentSelector, {
-					provideFoldingRanges(document: TextDocument) {
-						return client.sendRequest(FoldingRangesRequest.type, { textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document) }).then(res => {
+					provideFoldingRanges(document: TextDocument, token: CancellationToken) {
+						return client.sendRequest(FoldingRangesRequest.type, { textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document) }, token).then(res => {
 							if (res && Array.isArray(res.ranges)) {
 								return new FoldingRangeList(res.ranges.map(r => new FoldingRange(r.startLine, r.endLine, r.type)));
 							}
+							return null;
+						}, error => {
+							client.logFailedRequest(FoldingRangesRequest.type, error);
 							return null;
 						});
 					}

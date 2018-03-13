@@ -18,7 +18,7 @@ import { startsWith } from './utils/strings';
 import { formatError, runSafe, runSafeAsync } from './utils/errors';
 import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-import { getFoldingRegions } from './folding';
+import { getFoldingRegions } from './jsonFolding';
 
 import { FoldingRangesRequest, FoldingProviderServerCapabilities } from './protocol/foldingProvider.proposed';
 
@@ -260,17 +260,21 @@ function validateTextDocument(textDocument: TextDocument): void {
 		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: [] });
 		return;
 	}
-	try {
-		let jsonDocument = getJSONDocument(textDocument);
+	let jsonDocument = getJSONDocument(textDocument);
+	let version = textDocument.version;
 
-		let documentSettings: DocumentLanguageSettings = textDocument.languageId === 'jsonc' ? { comments: 'ignore', trailingCommas: 'ignore' } : { comments: 'error', trailingCommas: 'error' };
-		languageService.doValidation(textDocument, jsonDocument, documentSettings).then(diagnostics => {
-			// Send the computed diagnostics to VSCode.
-			connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
-		});
-	} catch (e) {
-		connection.console.error(formatError(`Error while validating ${textDocument.uri}`, e));
-	}
+	let documentSettings: DocumentLanguageSettings = textDocument.languageId === 'jsonc' ? { comments: 'ignore', trailingCommas: 'ignore' } : { comments: 'error', trailingCommas: 'error' };
+	languageService.doValidation(textDocument, jsonDocument, documentSettings).then(diagnostics => {
+		setTimeout(() => {
+			let currDocument = documents.get(textDocument.uri);
+			if (currDocument && currDocument.version === version) {
+				// Send the computed diagnostics to VSCode.
+				connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+			}
+		}, 100);
+	}, error => {
+		connection.console.error(formatError(`Error while validating ${textDocument.uri}`, error));
+	});
 }
 
 connection.onDidChangeWatchedFiles((change) => {
@@ -282,7 +286,7 @@ connection.onDidChangeWatchedFiles((change) => {
 		}
 	});
 	if (hasChanges) {
-		documents.all().forEach(validateTextDocument);
+		documents.all().forEach(triggerValidation);
 	}
 });
 
@@ -320,19 +324,19 @@ connection.onHover(textDocumentPositionParams => {
 	}, null, `Error while computing hover for ${textDocumentPositionParams.textDocument.uri}`);
 });
 
-connection.onDocumentSymbol(documentSymbolParams => {
+connection.onDocumentSymbol((documentSymbolParams, token) => {
 	return runSafe(() => {
 		let document = documents.get(documentSymbolParams.textDocument.uri);
 		let jsonDocument = getJSONDocument(document);
 		return languageService.findDocumentSymbols(document, jsonDocument);
-	}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`);
+	}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`, token);
 });
 
-connection.onDocumentRangeFormatting(formatParams => {
+connection.onDocumentRangeFormatting((formatParams, token) => {
 	return runSafe(() => {
 		let document = documents.get(formatParams.textDocument.uri);
 		return languageService.format(document, formatParams.range, formatParams.options);
-	}, [], `Error while formatting range for ${formatParams.textDocument.uri}`);
+	}, [], `Error while formatting range for ${formatParams.textDocument.uri}`, token);
 });
 
 connection.onRequest(DocumentColorRequest.type, params => {
@@ -346,7 +350,7 @@ connection.onRequest(DocumentColorRequest.type, params => {
 	}, [], `Error while computing document colors for ${params.textDocument.uri}`);
 });
 
-connection.onRequest(ColorPresentationRequest.type, params => {
+connection.onRequest(ColorPresentationRequest.type, (params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
@@ -354,17 +358,17 @@ connection.onRequest(ColorPresentationRequest.type, params => {
 			return languageService.getColorPresentations(document, jsonDocument, params.color, params.range);
 		}
 		return [];
-	}, [], `Error while computing color presentations for ${params.textDocument.uri}`);
+	}, [], `Error while computing color presentations for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest(FoldingRangesRequest.type, params => {
+connection.onRequest(FoldingRangesRequest.type, (params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
-			return getFoldingRegions(document);
+			return getFoldingRegions(document, token);
 		}
 		return null;
-	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`);
+	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
 });
 
 // Listen on the connection

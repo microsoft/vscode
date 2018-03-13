@@ -4,17 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TextDocument, Position } from 'vscode-languageserver';
+import { TextDocument, Position, CancellationToken } from 'vscode-languageserver';
 import { createScanner, SyntaxKind, ScanError } from 'jsonc-parser';
 import { FoldingRangeType, FoldingRange, FoldingRangeList } from './protocol/foldingProvider.proposed';
 
-export function getFoldingRegions(document: TextDocument) {
+export function getFoldingRegions(document: TextDocument, cancellationToken: CancellationToken | null) {
 	let ranges: FoldingRange[] = [];
 	let stack: FoldingRange[] = [];
 	let prevStart = -1;
 	let scanner = createScanner(document.getText(), false);
 	let token = scanner.scan();
 	while (token !== SyntaxKind.EOF) {
+		if (cancellationToken && cancellationToken.isCancellationRequested) {
+			return null;
+		}
 		switch (token) {
 			case SyntaxKind.OpenBraceToken:
 			case SyntaxKind.OpenBracketToken: {

@@ -12,11 +12,12 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { RangeProvider } from './folding';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT = 5000;
 
 export class IndentRangeProvider implements RangeProvider {
-	compute(editorModel: ITextModel): TPromise<FoldingRegions> {
+	compute(editorModel: ITextModel, cancelationToken: CancellationToken): Thenable<FoldingRegions> {
 		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editorModel.getLanguageIdentifier().id);
 		let offSide = foldingRules && foldingRules.offSide;
 		let markers = foldingRules && foldingRules.markers;
