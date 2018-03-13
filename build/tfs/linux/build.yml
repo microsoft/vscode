@@ -89,9 +89,9 @@ steps:
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-linux-$(VSCODE_ARCH)-min
   name: build
 
-# - script: |
-#     DISPLAY=:10 ./scripts/test.sh --build --tfs
-#   name: test
+- script: |
+    DISPLAY=:10 ./scripts/test.sh --build --tfs
+  name: test
 
 - script: |
     npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-deb"
