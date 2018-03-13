@@ -75,8 +75,11 @@ steps:
 - script: |
     ls /usr/lib/i386-linux-gnu/pkgconfig
     if [[ "$ARCH" == "ia32" ]]; then
+      echo $PKG_CONFIG_PATH
       export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
+      echo $PKG_CONFIG_PATH
     fi
+    echo $PKG_CONFIG_PATH
 
     echo "machine monacotools.visualstudio.com password $(VSO_PAT)" > ~/.netrc
     npm_config_arch="$(VSCODE_ARCH)" yarn
