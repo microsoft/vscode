@@ -9,8 +9,9 @@ import { Position } from 'vs/editor/common/core/position';
 import * as strings from 'vs/base/common/strings';
 import { IValidatedEditOperation } from 'vs/editor/common/model/linesTextBuffer/linesTextBuffer';
 import { PieceTreeBase, StringBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
-import { IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange } from 'vs/editor/common/model';
+import { IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange, FindMatch } from 'vs/editor/common/model';
 import { ITextSnapshot } from 'vs/platform/files/common/files';
+import { SearchData } from 'vs/editor/common/model/textModelSearch';
 
 export class PieceTreeTextBuffer implements ITextBuffer {
 	private _pieceTree: PieceTreeBase;
@@ -408,6 +409,10 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			});
 		}
 		return contentChanges;
+	}
+
+	findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[] {
+		return this._pieceTree.findMatchesLineByLine(searchRange, searchData, captureMatches, limitResultCount);
 	}
 
 	// #endregion

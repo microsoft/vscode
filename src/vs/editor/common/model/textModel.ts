@@ -30,7 +30,7 @@ import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { ModelLinesTokens, ModelTokensChangedEventBuilder } from 'vs/editor/common/model/textModelTokens';
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
+import { TextModelSearch, SearchParams, SearchData } from 'vs/editor/common/model/textModelSearch';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IStringStream, ITextSnapshot } from 'vs/platform/files/common/files';
 import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
@@ -983,6 +983,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return new Range(1, 1, lineCount, this.getLineMaxColumn(lineCount));
 	}
 
+	private findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): model.FindMatch[] {
+		return this._buffer.findMatchesLineByLine(searchRange, searchData, captureMatches, limitResultCount);
+	}
+
 	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): model.FindMatch[] {
 		this._assertNotDisposed();
 
@@ -991,6 +995,18 @@ export class TextModel extends Disposable implements model.ITextModel {
 			searchRange = this.validateRange(rawSearchScope);
 		} else {
 			searchRange = this.getFullModelRange();
+		}
+
+		if (!isRegex && searchString.indexOf('\n') < 0 && OPTIONS.TEXT_BUFFER_IMPLEMENTATION === TextBufferType.PieceTree) {
+			// not regex, not multi line
+			const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
+			const searchData = searchParams.parseSearchRequest();
+
+			if (!searchData) {
+				return [];
+			}
+
+			return this.findMatchesLineByLine(searchRange, searchData, captureMatches, limitResultCount);
 		}
 
 		return TextModelSearch.findMatches(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchRange, captureMatches, limitResultCount);
