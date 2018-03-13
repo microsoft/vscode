@@ -266,18 +266,11 @@ suite('WorkbenchEditorService', () => {
 		delegate.setEditorOpenHandler((input: IEditorInput, options?: EditorOptions) => {
 			assert.strictEqual(input, inp);
 
+			done();
+
 			return TPromise.as(ed);
 		});
 
-		delegate.setEditorCloseHandler((position, input) => {
-			assert.strictEqual(input, inp);
-
-			done();
-
-			return TPromise.as(void 0);
-		});
-
 		delegate.openEditor(inp);
-		delegate.closeEditor(0, inp);
 	});
 });
