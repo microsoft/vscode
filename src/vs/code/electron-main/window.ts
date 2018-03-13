@@ -878,7 +878,9 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	public send(channel: string, ...args: any[]): void {
-		this._win.webContents.send(channel, ...args);
+		if (this._win) {
+			this._win.webContents.send(channel, ...args);
+		}
 	}
 
 	public updateTouchBar(groups: ICommandAction[][]): void {

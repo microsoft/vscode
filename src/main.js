@@ -10,6 +10,8 @@ perf.mark('main:started');
 // Perf measurements
 global.perfStartTime = Date.now();
 
+Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
+
 //#region Add support for using node_modules.asar
 (function () {
 	const path = require('path');
@@ -366,7 +368,7 @@ function getNLSConfiguration(locale) {
 								}
 								target[module] = targetStrings;
 							}
-							writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g,'!') + '.nls.json'), JSON.stringify(target)));
+							writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g, '!') + '.nls.json'), JSON.stringify(target)));
 						}
 						writes.push(writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
 						return Promise.all(writes);
