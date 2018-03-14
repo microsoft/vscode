@@ -935,8 +935,10 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
 		if (confirmDragAndDrop) {
 			confirmPromise = this.dialogService.confirm({
-				message: sources.length > 1 ? getConfirmMessage(nls.localize('confirmMultiMove', "Are you sure you want to move the following {0} files?", sources.length), sources.map(s => s.resource))
-					: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", sources[0].name),
+				message: sources.length > 1 && sources.every(s => s.isRoot) ? nls.localize('confirmRootsMove', "Are you sure you want to change the order of multiple root folders in your workspace?")
+					: sources.length > 1 ? getConfirmMessage(nls.localize('confirmMultiMove', "Are you sure you want to move the following {0} files?", sources.length), sources.map(s => s.resource))
+						: sources[0].isRoot ? nls.localize('confirmRootMove', "Are you sure you want to change the order of root folder '{0}' in your workspace?", sources[0].name)
+							: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", sources[0].name),
 				checkbox: {
 					label: nls.localize('doNotAskAgain', "Do not ask me again")
 				},
