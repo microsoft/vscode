@@ -5,7 +5,7 @@
 'use strict';
 
 import { isWindows } from 'vs/base/common/platform';
-import { beginsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
+import { beginsWithIgnoreCase, equalsIgnoreCase, rtrim } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 
 /**
@@ -323,7 +323,7 @@ export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boo
 		return false;
 	}
 
-	return equalsIgnoreCase(pathA, pathB);
+	return equalsIgnoreCase(rtrim(pathA, sep), rtrim(pathB, sep));
 }
 
 export function isEqualOrParent(path: string, candidate: string, ignoreCase?: boolean): boolean {
@@ -339,6 +339,8 @@ export function isEqualOrParent(path: string, candidate: string, ignoreCase?: bo
 		return false;
 	}
 
+	path = rtrim(path, sep);
+	candidate = rtrim(candidate, sep);
 	if (ignoreCase) {
 		const beginsWith = beginsWithIgnoreCase(path, candidate);
 		if (!beginsWith) {
