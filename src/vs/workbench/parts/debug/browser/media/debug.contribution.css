@@ -60,13 +60,12 @@
 .monaco-editor .debug-breakpoint-column::before,
 .monaco-editor .debug-top-stack-frame-column::before {
 	content: " ";
-	width: 0.9em;
-	height: 0.8em;
+	width: 1.3em;
+	height: 1.3em;
 	display: inline-block;
+	vertical-align: text-bottom;
 	margin-right: 2px;
 	margin-left: 2px;
-	background-size: 110% !important;
-	background-position: initial !important;
 }
 
 .debug-function-breakpoint {
