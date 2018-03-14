@@ -389,7 +389,6 @@ phases:
 
 - phase: macOS
   queue: Hosted macOS Preview
-  variables:
   steps:
   - task: NodeTool@0
     inputs:
