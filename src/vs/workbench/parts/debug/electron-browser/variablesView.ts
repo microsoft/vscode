@@ -27,7 +27,7 @@ import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
-import { OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
+import { OpenMode, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
@@ -88,7 +88,7 @@ export class VariablesView extends TreeViewsViewletPanel {
 			dataSource: new VariablesDataSource(),
 			renderer: this.instantiationService.createInstance(VariablesRenderer),
 			accessibilityProvider: new VariablesAccessibilityProvider(),
-			controller: this.instantiationService.createInstance(VariablesController, new VariablesActionProvider(this.debugService, this.keybindingService), MenuId.DebugVariablesContext, { openMode: OpenMode.SINGLE_CLICK })
+			controller: this.instantiationService.createInstance(VariablesController, new VariablesActionProvider(this.debugService, this.keybindingService), MenuId.DebugVariablesContext, { openMode: OpenMode.SINGLE_CLICK, clickBehavior: ClickBehavior.ON_MOUSE_UP })
 		}, {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 				twistiePixels
