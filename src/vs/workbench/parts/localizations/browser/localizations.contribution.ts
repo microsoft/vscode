@@ -31,7 +31,7 @@ export class LocalesSchemaUpdater extends Disposable implements IWorkbenchContri
 
 	private update(): void {
 		this.localizationService.getLanguageIds()
-			.then(languageIds => registerLocaleDefinitionSchema(languageIds));
+			.then(languageIds => registerLocaleDefinitionSchema([...languageIds, 'zh-cn', 'zh-tw']));
 	}
 }
 
