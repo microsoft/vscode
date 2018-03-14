@@ -30,7 +30,10 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 	}
 
 	provideDecorations(resource: URI): IDecorationData {
-		let markers = this._markerService.read({ resource });
+		let markers = this._markerService.read({
+			resource,
+			severities: MarkerSeverity.Error | MarkerSeverity.Warning
+		});
 		let first: IMarker;
 		for (const marker of markers) {
 			if (!first || marker.severity > first.severity) {
