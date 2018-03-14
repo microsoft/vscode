@@ -101,8 +101,6 @@ interface InstallableExtension {
 
 export class ExtensionManagementService extends Disposable implements IExtensionManagementService {
 
-	private static readonly RENAME_RETRY_TIME = 5 * 1000;
-
 	_serviceBrand: any;
 
 	private extensionsPath: string;
@@ -429,7 +427,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private completeInstall(id: string, extractPath: string): TPromise<void> {
-		return this.renameWithRetry(id, extractPath)
+		return this.rename(id, extractPath, Date.now() + (5 * 1000) /* Retry for 5 seconds */)
 			.then(
 				() => this.logService.info('Installation compelted.', id),
 				e => {
@@ -439,23 +437,12 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				});
 	}
 
-	private renameWithRetry(id: string, extractPath: string): TPromise<void> {
-		const retry = (task: () => TPromise<any>, shouldRetry: (err: any) => boolean) => {
-			return task().then(
-				null,
-				err => {
-					if (shouldRetry(err)) {
-						return retry(task, shouldRetry);
-					} else {
-						throw err;
-					}
-				});
-		};
-
-		const retryUntil = Date.now() + ExtensionManagementService.RENAME_RETRY_TIME;
-		return retry(
-			() => pfs.rename(extractPath, path.join(this.extensionsPath, id)),
-			err => isWindows && err && err.code === 'EPERM' && Date.now() < retryUntil);
+	private rename(id: string, extractPath: string, retryUntil: number): TPromise<void> {
+		return pfs.rename(extractPath, path.join(this.extensionsPath, id))
+			.then(null, error =>
+				isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil
+					? this.rename(id, extractPath, retryUntil)
+					: TPromise.wrapError(error));
 	}
 
 	private rollback(extensions: IGalleryExtension[]): TPromise<void> {
