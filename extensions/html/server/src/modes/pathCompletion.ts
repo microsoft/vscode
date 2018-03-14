@@ -5,17 +5,17 @@
 'use strict';
 
 import { TextDocument, CompletionList, CompletionItemKind, CompletionItem, TextEdit, Range, Position } from 'vscode-languageserver-types';
-import { Proposed } from 'vscode-languageserver-protocol';
+import { WorkspaceFolder } from 'vscode-languageserver';
 import * as path from 'path';
 import * as fs from 'fs';
 import URI from 'vscode-uri';
-import { ICompletionParticipant } from 'vscode-html-languageservice/lib/htmlLanguageService';
+import { ICompletionParticipant } from 'vscode-html-languageservice';
 import { startsWith } from '../utils/strings';
 import { contains } from '../utils/arrays';
 
 export function getPathCompletionParticipant(
 	document: TextDocument,
-	workspaceFolders: Proposed.WorkspaceFolder[] | undefined,
+	workspaceFolders: WorkspaceFolder[] | undefined,
 	result: CompletionList
 ): ICompletionParticipant {
 	return {
@@ -104,7 +104,7 @@ const isDir = (p: string) => {
 	return fs.statSync(p).isDirectory();
 };
 
-function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: Proposed.WorkspaceFolder[]): string | undefined {
+function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: WorkspaceFolder[]): string | undefined {
 	for (let i = 0; i < workspaceFolders.length; i++) {
 		if (startsWith(activeDoc.uri, workspaceFolders[i].uri)) {
 			return path.resolve(URI.parse(workspaceFolders[i].uri).fsPath);
