@@ -386,6 +386,7 @@ phases:
       # enqueue the unsigned build
       AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
       AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
-      node build/tfs/common/enqueue.js "$(VSCODE_QUALITY)"
+        node build/tfs/common/enqueue.js "$(VSCODE_QUALITY)"
 
-      npm run gulp -- upload-vscode-configuration
+      AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
+        npm run gulp -- upload-vscode-configuration
