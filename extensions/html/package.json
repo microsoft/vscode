@@ -70,12 +70,6 @@
         }
       }
     ],
-    "folding": {
-      "markers": {
-        "start": "^\\s*<!--\\s*#region\\b\\s*(.*?)-->/",
-        "end": "^\\s*<!--\\s*#endregion\\b\\s*(.*?)-->/"
-      }
-    },
     "snippets": [
       {
         "language": "html",
