@@ -107,6 +107,37 @@ export class KeybindingsEditorModel extends EditorModel {
 			return keybindingItems.map(keybindingItem => ({ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
 		}
 
+		if (this.isSourceFilterApplied(searchValue)) {
+			return this.filterBySource(keybindingItems, this.getSourceFilterValue(searchValue), completeMatch);
+		}
+		return this.filterByText(keybindingItems, searchValue, completeMatch);
+	}
+
+	private isSourceFilterApplied(searchValue: string): boolean {
+		return /^@source:/i.test(searchValue);
+	}
+
+	private getSourceFilterValue(searchValue: string): string {
+		return searchValue.split('@source:')[1].trim() || '';
+	}
+
+	private matchSource(itemSource: string, searchValue: string): boolean {
+		return itemSource.toLowerCase() === searchValue.toLowerCase();
+	}
+
+	private filterBySource(keybindingItems: IKeybindingItem[], searchValue: string, completeMatch: boolean): IKeybindingItemEntry[] {
+		return <IKeybindingItemEntry[]>keybindingItems
+			.filter((keybindingItem: IKeybindingItem) => this.matchSource(keybindingItem.source, searchValue))
+			.map((keybindingItem: IKeybindingItem) => (
+				{
+					id: KeybindingsEditorModel.getId(keybindingItem),
+					templateId: KEYBINDING_ENTRY_TEMPLATE_ID,
+					keybindingItem,
+				}
+			));
+	}
+
+	private filterByText(keybindingItems: IKeybindingItem[], searchValue: string, completeMatch: boolean): IKeybindingItemEntry[] {
 		const result: IKeybindingItemEntry[] = [];
 		const words = searchValue.split(' ');
 		const keybindingWords = this.splitKeybindingWords(words);
