@@ -472,7 +472,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 	_serviceBrand: any;
 
 	private _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
-	public onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
+	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	private _configuration: Configuration;
 

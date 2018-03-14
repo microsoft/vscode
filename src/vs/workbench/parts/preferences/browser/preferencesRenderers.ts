@@ -465,7 +465,7 @@ export class BracesHidingRenderer extends Disposable implements HiddenAreasProvi
 class DefaultSettingsHeaderRenderer extends Disposable {
 
 	private settingsHeaderWidget: DefaultSettingsHeaderWidget;
-	public onClick: Event<void>;
+	public readonly onClick: Event<void>;
 
 	constructor(editor: ICodeEditor, scope: ConfigurationScope) {
 		super();

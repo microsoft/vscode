@@ -118,10 +118,10 @@ export class FileMatch extends Disposable {
 	}
 
 	private _onChange = this._register(new Emitter<boolean>());
-	public onChange: Event<boolean> = this._onChange.event;
+	public readonly onChange: Event<boolean> = this._onChange.event;
 
 	private _onDispose = this._register(new Emitter<void>());
-	public onDispose: Event<void> = this._onDispose.event;
+	public readonly onDispose: Event<void> = this._onDispose.event;
 
 	private _resource: URI;
 	private _model: ITextModel;
@@ -338,10 +338,10 @@ export interface IChangeEvent {
 export class FolderMatch extends Disposable {
 
 	private _onChange = this._register(new Emitter<IChangeEvent>());
-	public onChange: Event<IChangeEvent> = this._onChange.event;
+	public readonly onChange: Event<IChangeEvent> = this._onChange.event;
 
 	private _onDispose = this._register(new Emitter<void>());
-	public onDispose: Event<void> = this._onDispose.event;
+	public readonly onDispose: Event<void> = this._onDispose.event;
 
 	private _fileMatches: ResourceMap<FileMatch>;
 	private _unDisposedFileMatches: ResourceMap<FileMatch>;
@@ -499,7 +499,7 @@ export class FolderMatch extends Disposable {
 export class SearchResult extends Disposable {
 
 	private _onChange = this._register(new Emitter<IChangeEvent>());
-	public onChange: Event<IChangeEvent> = this._onChange.event;
+	public readonly onChange: Event<IChangeEvent> = this._onChange.event;
 
 	private _folderMatches: FolderMatch[] = [];
 	private _folderMatchesMap: TernarySearchTree<FolderMatch> = TernarySearchTree.forPaths<FolderMatch>();
@@ -683,7 +683,7 @@ export class SearchModel extends Disposable {
 	private _replacePattern: ReplacePattern = null;
 
 	private _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
-	public onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
+	public readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
 
 	private currentRequest: PPromise<ISearchComplete, ISearchProgressItem>;
 

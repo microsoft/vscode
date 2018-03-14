@@ -399,7 +399,7 @@ class PreferencesRenderersController extends Disposable {
 	private _lastFilterResult: IFilterResult;
 
 	private _onDidFilterResultsCountChange: Emitter<IPreferencesCount> = this._register(new Emitter<IPreferencesCount>());
-	public onDidFilterResultsCountChange: Event<IPreferencesCount> = this._onDidFilterResultsCountChange.event;
+	public readonly onDidFilterResultsCountChange: Event<IPreferencesCount> = this._onDidFilterResultsCountChange.event;
 
 	constructor(
 		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,

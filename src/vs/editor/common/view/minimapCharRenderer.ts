@@ -21,7 +21,7 @@ export class MinimapTokensColorTracker {
 	private _backgroundIsLight: boolean;
 
 	private _onDidChange = new Emitter<void>();
-	public onDidChange: Event<void> = this._onDidChange.event;
+	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private constructor() {
 		this._updateColorMap();

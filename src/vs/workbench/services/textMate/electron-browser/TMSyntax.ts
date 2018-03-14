@@ -29,7 +29,7 @@ export class TMScopeRegistry {
 	private _encounteredLanguages: boolean[];
 
 	private _onDidEncounterLanguage: Emitter<LanguageId> = new Emitter<LanguageId>();
-	public onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
+	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
 
 	constructor() {
 		this._scopeNameToLanguageRegistration = Object.create(null);
@@ -122,7 +122,7 @@ export class TextMateService implements ITextMateService {
 
 	private _currentTokenColors: ITokenColorizationRule[];
 
-	public onDidEncounterLanguage: Event<LanguageId>;
+	public readonly onDidEncounterLanguage: Event<LanguageId>;
 
 	constructor(
 		@IModeService modeService: IModeService,

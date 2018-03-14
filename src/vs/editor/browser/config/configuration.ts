@@ -102,7 +102,7 @@ class CSSBasedConfiguration extends Disposable {
 	private _evictUntrustedReadingsTimeout: number;
 
 	private _onDidChange = this._register(new Emitter<void>());
-	public onDidChange: Event<void> = this._onDidChange.event;
+	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor() {
 		super();

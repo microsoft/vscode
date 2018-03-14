@@ -58,7 +58,7 @@ suite('TokenizationSupport2Adapter', () => {
 				}
 			};
 		}
-		public onThemeChange: Event<ITheme> = null;
+		public readonly onThemeChange: Event<ITheme> = null;
 	}
 
 	class MockState implements IState {

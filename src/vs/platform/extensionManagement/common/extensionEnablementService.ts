@@ -23,7 +23,7 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 	private disposables: IDisposable[] = [];
 
 	private _onEnablementChanged = new Emitter<IExtensionIdentifier>();
-	public onEnablementChanged: Event<IExtensionIdentifier> = this._onEnablementChanged.event;
+	public readonly onEnablementChanged: Event<IExtensionIdentifier> = this._onEnablementChanged.event;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,

@@ -64,23 +64,23 @@ export class FindInput extends Widget {
 	public domNode: HTMLElement;
 	public inputBox: InputBox;
 
-	private _onDidOptionChange = this._register(new Emitter<boolean>());
-	public onDidOptionChange: Event<boolean /* via keyboard */> = this._onDidOptionChange.event;
+	private readonly _onDidOptionChange = this._register(new Emitter<boolean>());
+	public readonly onDidOptionChange: Event<boolean /* via keyboard */> = this._onDidOptionChange.event;
 
-	private _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	public onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+	private readonly _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
+	public readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
 
-	private _onMouseDown = this._register(new Emitter<IMouseEvent>());
-	public onMouseDown: Event<IMouseEvent> = this._onMouseDown.event;
+	private readonly _onMouseDown = this._register(new Emitter<IMouseEvent>());
+	public readonly onMouseDown: Event<IMouseEvent> = this._onMouseDown.event;
 
-	private _onInput = this._register(new Emitter<void>());
-	public onInput: Event<void> = this._onInput.event;
+	private readonly _onInput = this._register(new Emitter<void>());
+	public readonly onInput: Event<void> = this._onInput.event;
 
-	private _onKeyUp = this._register(new Emitter<IKeyboardEvent>());
-	public onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
+	private readonly _onKeyUp = this._register(new Emitter<IKeyboardEvent>());
+	public readonly onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
 
 	private _onCaseSensitiveKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	public onCaseSensitiveKeyDown: Event<IKeyboardEvent> = this._onCaseSensitiveKeyDown.event;
+	public readonly onCaseSensitiveKeyDown: Event<IKeyboardEvent> = this._onCaseSensitiveKeyDown.event;
 
 	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options?: IFindInputOptions) {
 		super();

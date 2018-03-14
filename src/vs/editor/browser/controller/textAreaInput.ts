@@ -53,37 +53,37 @@ export interface ITextAreaInputHost {
 export class TextAreaInput extends Disposable {
 
 	private _onFocus = this._register(new Emitter<void>());
-	public onFocus: Event<void> = this._onFocus.event;
+	public readonly onFocus: Event<void> = this._onFocus.event;
 
 	private _onBlur = this._register(new Emitter<void>());
-	public onBlur: Event<void> = this._onBlur.event;
+	public readonly onBlur: Event<void> = this._onBlur.event;
 
 	private _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	public onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+	public readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
 
 	private _onKeyUp = this._register(new Emitter<IKeyboardEvent>());
-	public onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
+	public readonly onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
 
 	private _onCut = this._register(new Emitter<void>());
-	public onCut: Event<void> = this._onCut.event;
+	public readonly onCut: Event<void> = this._onCut.event;
 
 	private _onPaste = this._register(new Emitter<IPasteData>());
-	public onPaste: Event<IPasteData> = this._onPaste.event;
+	public readonly onPaste: Event<IPasteData> = this._onPaste.event;
 
 	private _onType = this._register(new Emitter<ITypeData>());
-	public onType: Event<ITypeData> = this._onType.event;
+	public readonly onType: Event<ITypeData> = this._onType.event;
 
 	private _onCompositionStart = this._register(new Emitter<void>());
-	public onCompositionStart: Event<void> = this._onCompositionStart.event;
+	public readonly onCompositionStart: Event<void> = this._onCompositionStart.event;
 
 	private _onCompositionUpdate = this._register(new Emitter<ICompositionData>());
-	public onCompositionUpdate: Event<ICompositionData> = this._onCompositionUpdate.event;
+	public readonly onCompositionUpdate: Event<ICompositionData> = this._onCompositionUpdate.event;
 
 	private _onCompositionEnd = this._register(new Emitter<void>());
-	public onCompositionEnd: Event<void> = this._onCompositionEnd.event;
+	public readonly onCompositionEnd: Event<void> = this._onCompositionEnd.event;
 
 	private _onSelectionChangeRequest = this._register(new Emitter<Selection>());
-	public onSelectionChangeRequest: Event<Selection> = this._onSelectionChangeRequest.event;
+	public readonly onSelectionChangeRequest: Event<Selection> = this._onSelectionChangeRequest.event;
 
 	// ---
 

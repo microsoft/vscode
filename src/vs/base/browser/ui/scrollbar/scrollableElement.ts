@@ -164,7 +164,7 @@ export abstract class AbstractScrollableElement extends Widget {
 	private _shouldRender: boolean;
 
 	private readonly _onScroll = this._register(new Emitter<ScrollEvent>());
-	public onScroll: Event<ScrollEvent> = this._onScroll.event;
+	public readonly onScroll: Event<ScrollEvent> = this._onScroll.event;
 
 	protected constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable?: Scrollable) {
 		super();

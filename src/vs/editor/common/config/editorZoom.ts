@@ -17,7 +17,7 @@ export const EditorZoom: IEditorZoom = new class implements IEditorZoom {
 	private _zoomLevel: number = 0;
 
 	private _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
-	public onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
+	public readonly onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
 
 	public getZoomLevel(): number {
 		return this._zoomLevel;

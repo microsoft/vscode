@@ -249,5 +249,5 @@ export class MockSession implements ISession {
 		return TPromise.as(null);
 	}
 
-	public onDidStop: Event<DebugProtocol.StoppedEvent> = null;
+	public readonly onDidStop: Event<DebugProtocol.StoppedEvent> = null;
 }

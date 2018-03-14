@@ -102,7 +102,7 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 export class DefaultSettingsHeaderWidget extends SettingsHeaderWidget {
 
 	private _onClick = this._register(new Emitter<void>());
-	public onClick: Event<void> = this._onClick.event;
+	public readonly onClick: Event<void> = this._onClick.event;
 
 	protected create() {
 		super.create();
@@ -130,7 +130,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	private title: HTMLElement;
 
 	private _onToggled = this._register(new Emitter<boolean>());
-	public onToggled: Event<boolean> = this._onToggled.event;
+	public readonly onToggled: Event<boolean> = this._onToggled.event;
 
 	private previousPosition: Position;
 
@@ -706,7 +706,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 	private _domNode: HTMLElement;
 
 	private _onClick: Emitter<void> = this._register(new Emitter<void>());
-	public onClick: Event<void> = this._onClick.event;
+	public readonly onClick: Event<void> = this._onClick.event;
 
 	constructor(
 		private editor: ICodeEditor,

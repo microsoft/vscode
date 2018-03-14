@@ -17,7 +17,7 @@ class WindowManager {
 	private _lastZoomLevelChangeTime: number = 0;
 	private _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
 
-	public onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
+	public readonly onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
 	public getZoomLevel(): number {
 		return this._zoomLevel;
 	}
@@ -63,7 +63,7 @@ class WindowManager {
 	private _fullscreen: boolean;
 	private _onDidChangeFullscreen: Emitter<void> = new Emitter<void>();
 
-	public onDidChangeFullscreen: Event<void> = this._onDidChangeFullscreen.event;
+	public readonly onDidChangeFullscreen: Event<void> = this._onDidChangeFullscreen.event;
 	public setFullscreen(fullscreen: boolean): void {
 		if (this._fullscreen === fullscreen) {
 			return;
@@ -80,7 +80,7 @@ class WindowManager {
 	private _accessibilitySupport = Platform.AccessibilitySupport.Unknown;
 	private _onDidChangeAccessibilitySupport: Emitter<void> = new Emitter<void>();
 
-	public onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
+	public readonly onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
 	public setAccessibilitySupport(accessibilitySupport: Platform.AccessibilitySupport): void {
 		if (this._accessibilitySupport === accessibilitySupport) {
 			return;
