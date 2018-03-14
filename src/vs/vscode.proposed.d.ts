@@ -7,7 +7,11 @@
 
 declare module 'vscode' {
 
-	//#region "read diagnostics"
+	export namespace window {
+		export function sampleFunction(): Thenable<any>;
+	}
+
+	//#region Joh: readable diagnostics
 
 	export interface DiagnosticChangeEvent {
 		uris: Uri[];
@@ -27,6 +31,8 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region Aeschli: folding
 
 	export class FoldingRangeList {
 
@@ -84,6 +90,37 @@ declare module 'vscode' {
 		 */
 		Region = 'region'
 	}
+
+	export namespace languages {
+
+		/**
+		 * Register a folding provider.
+		 *
+		 * Multiple folding can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A folding provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerFoldingProvider(selector: DocumentSelector, provider: FoldingProvider): Disposable;
+	}
+
+	export interface FoldingContext {
+		maxRanges?: number;
+	}
+
+	export interface FoldingProvider {
+		/**
+		 * Returns a list of folding ranges or null if the provider does not want to participate or was cancelled.
+		 */
+		provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRangeList>;
+	}
+
+	//#endregion
+
+	//#region Joh: file system provider
 
 	// export enum FileErrorCodes {
 	// 	/**
@@ -237,10 +274,9 @@ declare module 'vscode' {
 		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
 	}
 
-	export namespace window {
+	//#endregion
 
-		export function sampleFunction(): Thenable<any>;
-	}
+	//#region Joao: diff command
 
 	/**
 	 * The contiguous set of modified lines in a diff.
@@ -271,7 +307,9 @@ declare module 'vscode' {
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 	}
 
-	//#region decorations
+	//#endregion
+
+	//#region Joh: decorations
 
 	//todo@joh -> make class
 	export interface DecorationData {
@@ -299,6 +337,8 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region André: debug
 
 	/**
 	 * Represents a debug adapter executable and optional arguments passed to it.
@@ -332,6 +372,10 @@ declare module 'vscode' {
 		 */
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
+
+	//#endregion
+
+	//#region Rob, Matt: logging
 
 	/**
 	 * The severity level of a log message
@@ -369,6 +413,10 @@ declare module 'vscode' {
 		logger: Logger;
 	}
 
+	//#endregion
+
+	//#region Joh: rename context
+
 	export class RenameContext {
 		range: Range;
 		newName?: string;
@@ -383,32 +431,9 @@ declare module 'vscode' {
 		resolveRenameContext?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameContext>;
 	}
 
-	export namespace languages {
+	//#endregion
 
-		/**
-		 * Register a folding provider.
-		 *
-		 * Multiple folding can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
-		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A folding provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerFoldingProvider(selector: DocumentSelector, provider: FoldingProvider): Disposable;
-	}
-
-	export interface FoldingContext {
-		maxRanges?: number;
-	}
-
-	export interface FoldingProvider {
-		/**
-		 * Returns a list of folding ranges or null if the provider does not want to participate or was cancelled.
-		 */
-		provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRangeList>;
-	}
+	//#region Joao: SCM validation
 
 	/**
 	 * Represents the validation type of the Source Control input.
@@ -455,6 +480,10 @@ declare module 'vscode' {
 		 */
 		validateInput?(value: string, cursorPosition: number): ProviderResult<SourceControlInputBoxValidation | undefined | null>;
 	}
+
+	//#endregion
+
+	//#region Matt: WebView
 
 	/**
 	 * Content settings for a webview.
@@ -601,6 +630,10 @@ declare module 'vscode' {
 		export const onDidChangeActiveEditor: Event<TextEditor | Webview | undefined>;
 	}
 
+	//#endregion
+
+	//#region Sandeep: TreeView
+
 	export namespace window {
 
 		/**
@@ -667,7 +700,9 @@ declare module 'vscode' {
 		getParent?(element: T): ProviderResult<T>;
 	}
 
-	//#region TextEditor.visibleRange and related event
+	//#endregion
+
+	//#region Alex: TextEditor.visibleRange and related event
 
 	export interface TextEditor {
 		/**
