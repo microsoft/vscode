@@ -2777,7 +2777,7 @@ declare namespace monaco {
 			lightbulb?: IEditorLightbulbOptions;
 			/**
 			 * Enable code folding
-			 * Defaults to true in vscode and to false in monaco-editor.
+			 * Defaults to true.
 			 */
 			folding?: boolean;
 			/**

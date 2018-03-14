@@ -21,7 +21,6 @@ if (typeof global.Promise === 'undefined') {
 
 // Set defaults for standalone editor
 (<any>EDITOR_DEFAULTS).wrappingIndent = WrappingIndent.None;
-(<any>EDITOR_DEFAULTS.contribInfo).folding = false;
 (<any>EDITOR_DEFAULTS.viewInfo).glyphMargin = false;
 (<any>EDITOR_DEFAULTS).autoIndent = false;
 
