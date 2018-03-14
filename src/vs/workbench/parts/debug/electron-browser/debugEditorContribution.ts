@@ -42,11 +42,10 @@ import { first } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
+import { memoize } from '../../../../base/common/decorators';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
-const UPDATE_INLINE_VALUE_DECORATIONS_DELAY = 200;
-const REMOVE_INLINE_VALUE_DECORATIONS_DELAY = 100;
 const INLINE_VALUE_DECORATION_KEY = 'inlinevaluedecoration';
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
@@ -56,10 +55,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private toDispose: lifecycle.IDisposable[];
 	private hoverWidget: DebugHoverWidget;
-	private showHoverScheduler: RunOnceScheduler;
-	private hideHoverScheduler: RunOnceScheduler;
-	private updateInlineValueDecorationsScheduler: RunOnceScheduler;
-	private removeInlineValueDecorationsScheduler: RunOnceScheduler;
 	private hoverRange: Range;
 
 	private breakpointHintDecoration: string[];
@@ -87,19 +82,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.breakpointHintDecoration = [];
 		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, this.instantiationService, themeService);
 		this.toDispose = [];
-		this.showHoverScheduler = new RunOnceScheduler(() => this.showHover(this.hoverRange, false), HOVER_DELAY);
-		this.hideHoverScheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
-		this.updateInlineValueDecorationsScheduler = new RunOnceScheduler(
-			() => {
-				this.wordToLineNumbersMap = null;
-				this.updateInlineValueDecorations(this.debugService.getViewModel().focusedStackFrame);
-			},
-			UPDATE_INLINE_VALUE_DECORATIONS_DELAY
-		);
-		this.removeInlineValueDecorationsScheduler = new RunOnceScheduler(
-			() => this.editor.removeDecorations(INLINE_VALUE_DECORATION_KEY),
-			REMOVE_INLINE_VALUE_DECORATIONS_DELAY
-		);
 		this.registerListeners();
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.updateConfigurationWidgetVisibility();
@@ -226,7 +208,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}));
 		this.toDispose.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onKeyDown(e)));
 		this.toDispose.push(this.editor.onDidChangeModelContent(() => {
-			this.updateInlineValueDecorationsScheduler.schedule();
+			this.wordToLineNumbersMap = null;
+			this.updateInlineValuesScheduler.schedule();
 		}));
 		this.toDispose.push(this.editor.onDidChangeModel(() => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
@@ -236,7 +219,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.toggleExceptionWidget();
 			this.hideHoverWidget();
 			this.updateConfigurationWidgetVisibility();
-			this.updateInlineValueDecorationsScheduler.schedule();
+			this.wordToLineNumbersMap = null;
+			this.updateInlineValueDecorations(stackFrame);
 		}));
 		this.toDispose.push(this.editor.onDidScrollChange(() => this.hideHoverWidget));
 		this.toDispose.push(this.debugService.onDidChangeState((state: State) => {
@@ -300,6 +284,16 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 
 		this.updateInlineValueDecorations(sf);
+	}
+
+	@memoize
+	private get showHoverScheduler(): RunOnceScheduler {
+		return new RunOnceScheduler(() => this.showHover(this.hoverRange, false), HOVER_DELAY);
+	}
+
+	@memoize
+	private get hideHoverScheduler(): RunOnceScheduler {
+		return new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
 	}
 
 	private hideHoverWidget(): void {
@@ -485,17 +479,34 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	};
 
 	// Inline Decorations
+
+	@memoize
+	private get removeInlineValuesScheduler(): RunOnceScheduler {
+		return new RunOnceScheduler(
+			() => this.editor.removeDecorations(INLINE_VALUE_DECORATION_KEY),
+			100
+		);
+	}
+
+	@memoize
+	private get updateInlineValuesScheduler(): RunOnceScheduler {
+		return new RunOnceScheduler(
+			() => this.updateInlineValueDecorations(this.debugService.getViewModel().focusedStackFrame),
+			200
+		);
+	}
+
 	private updateInlineValueDecorations(stackFrame: IStackFrame): void {
 		const model = this.editor.getModel();
 		if (!this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues ||
 			!model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
-			if (!this.removeInlineValueDecorationsScheduler.isScheduled()) {
-				this.removeInlineValueDecorationsScheduler.schedule();
+			if (!this.removeInlineValuesScheduler.isScheduled()) {
+				this.removeInlineValuesScheduler.schedule();
 			}
 			return;
 		}
 
-		this.removeInlineValueDecorationsScheduler.cancel();
+		this.removeInlineValuesScheduler.cancel();
 
 		stackFrame.getMostSpecificScopes(stackFrame.range)
 			// Get all top level children in the scope chain
