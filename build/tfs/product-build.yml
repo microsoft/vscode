@@ -1,5 +1,6 @@
 phases:
 - phase: Windows
+  condition: eq(variables['VSCODE_BUILD_WIN32'], 'true')
   queue:
     name: Hosted VS2017
     parallel: 2
@@ -222,6 +223,7 @@ phases:
       node build/tfs/common/publish.js $Quality "$global:assetPlatform" setup "VSCodeSetup-$(VSCODE_ARCH)-$Version.exe" $Version true $Exe
 
 - phase: Linux
+  condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
   queue:
     name: Hosted Linux Preview
     parallel: 2
@@ -307,6 +309,7 @@ phases:
       ./build/tfs/linux/release2.sh "$(VSCODE_ARCH)" "$(LINUX_REPO_PASSWORD)"
 
 - phase: macOS
+  condition: eq(variables['VSCODE_BUILD_MACOS'], 'true')
   queue: Hosted macOS Preview
   steps:
   - task: NodeTool@0
