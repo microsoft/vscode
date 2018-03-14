@@ -262,9 +262,9 @@ export class MarkerService implements IMarkerService {
 		}
 	}
 
-	read(filter: { owner?: string; resource?: URI; take?: number; } = Object.create(null)): IMarker[] {
+	read(filter: { owner?: string; resource?: URI; severities?: number, take?: number; } = Object.create(null)): IMarker[] {
 
-		let { owner, resource, take } = filter;
+		let { owner, resource, severities, take } = filter;
 
 		if (!take || take < 0) {
 			take = -1;
@@ -272,11 +272,20 @@ export class MarkerService implements IMarkerService {
 
 		if (owner && resource) {
 			// exactly one owner AND resource
-			const result = MapMap.get(this._byResource, resource.toString(), owner);
-			if (!result) {
+			const data = MapMap.get(this._byResource, resource.toString(), owner);
+			if (!data) {
 				return [];
 			} else {
-				return result.slice(0, take > 0 ? take : undefined);
+				const result: IMarker[] = [];
+				for (const marker of data) {
+					if (MarkerService._accept(marker, severities)) {
+						const newLen = result.push(marker);
+						if (take > 0 && newLen === take) {
+							break;
+						}
+					}
+				}
+				return result;
 			}
 
 		} else if (!owner && !resource) {
@@ -285,10 +294,11 @@ export class MarkerService implements IMarkerService {
 			for (const key1 in this._byResource) {
 				for (const key2 in this._byResource[key1]) {
 					for (const data of this._byResource[key1][key2]) {
-						const newLen = result.push(data);
-
-						if (take > 0 && newLen === take) {
-							return result;
+						if (MarkerService._accept(data, severities)) {
+							const newLen = result.push(data);
+							if (take > 0 && newLen === take) {
+								return result;
+							}
 						}
 					}
 				}
@@ -308,15 +318,20 @@ export class MarkerService implements IMarkerService {
 			const result: IMarker[] = [];
 			for (const key in map) {
 				for (const data of map[key]) {
-					const newLen = result.push(data);
-
-					if (take > 0 && newLen === take) {
-						return result;
+					if (MarkerService._accept(data, severities)) {
+						const newLen = result.push(data);
+						if (take > 0 && newLen === take) {
+							return result;
+						}
 					}
 				}
 			}
 			return result;
 		}
+	}
+
+	private static _accept(marker: IMarker, severities?: number): boolean {
+		return severities === void 0 || (severities & marker.severity) === marker.severity;
 	}
 
 	// --- event debounce logic
