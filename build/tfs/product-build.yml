@@ -357,7 +357,9 @@ phases:
       node build/tfs/common/installDistro.js
 
   - script: |
-      VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-darwin-min
+      VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
+      AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
+      npm run gulp -- vscode-darwin-min upload-vscode-sourcemaps
     name: build
 
   - script: |
@@ -386,7 +388,7 @@ phases:
       # enqueue the unsigned build
       AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
       AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
-        node build/tfs/common/enqueue.js "$(VSCODE_QUALITY)"
+      node build/tfs/common/enqueue.js "$(VSCODE_QUALITY)"
 
       AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
-        npm run gulp -- upload-vscode-configuration
+      npm run gulp -- upload-vscode-configuration
