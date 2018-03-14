@@ -22,6 +22,7 @@ import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import Event, { Emitter } from 'vs/base/common/event';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export interface ICompositeActivity {
 	badge: IBadge;
@@ -141,7 +142,12 @@ export class ActivityActionItem extends BaseActionItem {
 		if (this.$label && this.options.icon) {
 			const background = theme.getColor(this.options.colors.backgroundColor);
 
-			this.$label.style('background-color', background ? background.toString() : null);
+			// TODO@Ben workaround for https://github.com/Microsoft/vscode/issues/45700
+			if (isMacintosh) {
+				this.$label.style('background-color', '#FFFFFF');
+			} else {
+				this.$label.style('background-color', background ? background.toString() : null);
+			}
 		}
 
 		// Badge
