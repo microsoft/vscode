@@ -6,7 +6,7 @@
 import nls = require('vs/nls');
 import cp = require('child_process');
 import net = require('net');
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import objects = require('vs/base/common/objects');
 import { Action } from 'vs/base/common/actions';

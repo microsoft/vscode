@@ -11,7 +11,7 @@ import * as vscode from 'vscode';
 import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from './extHost.protocol';
 import { DiagnosticSeverity } from './extHostTypes';
 import { mergeSort } from 'vs/base/common/arrays';
-import Event, { Emitter, debounceEvent, mapEvent } from 'vs/base/common/event';
+import { Event, Emitter, debounceEvent, mapEvent } from 'vs/base/common/event';
 import { keys } from 'vs/base/common/map';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {

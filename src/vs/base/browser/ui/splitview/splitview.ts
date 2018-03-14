@@ -7,7 +7,7 @@
 
 import 'vs/css!./splitview';
 import { IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import Event, { mapEvent, Emitter } from 'vs/base/common/event';
+import { Event, mapEvent, Emitter } from 'vs/base/common/event';
 import types = require('vs/base/common/types');
 import dom = require('vs/base/browser/dom');
 import { clamp } from 'vs/base/common/numbers';

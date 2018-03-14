@@ -16,7 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { isValidLocalization, ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import product from 'vs/platform/node/product';
 import { distinct, equals } from 'vs/base/common/arrays';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 interface ILanguagePack {
 	hash: string;

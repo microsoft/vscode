@@ -12,7 +12,7 @@ import { CommandService } from 'vs/workbench/services/commands/common/commandSer
 import { IExtensionService, ExtensionPointContribution, IExtensionDescription, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { NullLogService } from 'vs/platform/log/common/log';
 
 class SimpleExtensionService implements IExtensionService {

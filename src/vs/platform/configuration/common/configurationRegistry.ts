@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/registry/common/platform';
 import types = require('vs/base/common/types');

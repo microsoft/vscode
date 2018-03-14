@@ -11,7 +11,7 @@ import platform = require('vs/base/common/platform');
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import uri from 'vs/base/common/uri';
 import { IRawFileChange, toFileChangesEvent, normalize } from 'vs/workbench/services/files/node/watcher/common';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 class TestFileWatcher {
 	private readonly _onFileChanges: Emitter<FileChangesEvent>;

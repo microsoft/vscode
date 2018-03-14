@@ -5,7 +5,7 @@
 
 'use strict';
 
-import Event, { mapEvent, chain, echo, Emitter, anyEvent, fromNodeEventEmitter } from 'vs/base/common/event';
+import { Event, mapEvent, chain, echo, Emitter, anyEvent, fromNodeEventEmitter } from 'vs/base/common/event';
 import { IURLService } from 'vs/platform/url/common/url';
 import product from 'vs/platform/node/product';
 import { app } from 'electron';

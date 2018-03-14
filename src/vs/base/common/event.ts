@@ -14,16 +14,14 @@ import { LinkedList } from 'vs/base/common/linkedList';
  * To an event a function with one or zero parameters
  * can be subscribed. The event is the subscriber function itself.
  */
-interface Event<T> {
+export interface Event<T> {
 	(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
 }
 
-namespace Event {
+export namespace Event {
 	const _disposable = { dispose() { } };
 	export const None: Event<any> = function () { return _disposable; };
 }
-
-export default Event;
 
 type Listener = [Function, any] | Function;
 

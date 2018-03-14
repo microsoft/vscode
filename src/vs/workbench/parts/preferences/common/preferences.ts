@@ -15,7 +15,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { join } from 'vs/base/common/paths';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 

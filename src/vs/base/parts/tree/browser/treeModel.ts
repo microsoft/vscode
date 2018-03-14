@@ -11,7 +11,7 @@ import arrays = require('vs/base/common/arrays');
 import { INavigator } from 'vs/base/common/iterator';
 import WinJS = require('vs/base/common/winjs.base');
 import _ = require('./tree');
-import Event, { Emitter, once, EventMultiplexer, Relay } from 'vs/base/common/event';
+import { Event, Emitter, once, EventMultiplexer, Relay } from 'vs/base/common/event';
 
 interface IMap<T> { [id: string]: T; }
 interface IItemMap extends IMap<Item> { }

@@ -8,7 +8,7 @@
 import { ExtHostContext, ObjectIdentifier, IExtHostContext } from '../node/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { isThenable } from 'vs/base/common/async';

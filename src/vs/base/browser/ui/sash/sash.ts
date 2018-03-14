@@ -14,7 +14,7 @@ import types = require('vs/base/common/types');
 import DOM = require('vs/base/browser/dom');
 import { EventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export interface ISashLayoutProvider { }
 

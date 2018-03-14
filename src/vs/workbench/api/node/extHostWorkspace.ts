@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { normalize } from 'vs/base/common/paths';
 import { delta as arrayDelta } from 'vs/base/common/arrays';
 import { relative, dirname } from 'path';

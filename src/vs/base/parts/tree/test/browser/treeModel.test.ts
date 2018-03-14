@@ -11,7 +11,7 @@ import _ = require('vs/base/parts/tree/browser/tree');
 import WinJS = require('vs/base/common/winjs.base');
 import model = require('vs/base/parts/tree/browser/treeModel');
 import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export class FakeRenderer {
 

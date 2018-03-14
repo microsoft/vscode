@@ -5,7 +5,7 @@
 'use strict';
 
 import vscode = require('vscode');
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext } from './extHost.protocol';
 
 export class ExtHostTerminal implements vscode.Terminal {

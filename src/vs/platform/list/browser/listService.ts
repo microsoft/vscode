@@ -22,7 +22,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'v
 import { DefaultController, IControllerOptions, OpenMode, ClickBehavior, DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { createStyleSheet } from 'vs/base/browser/dom';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 

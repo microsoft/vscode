@@ -11,7 +11,7 @@ import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { createConnection } from 'net';
-import Event, { filterEvent } from 'vs/base/common/event';
+import { Event, filterEvent } from 'vs/base/common/event';
 
 interface IRendererConnection {
 	protocol: IMessagePassingProtocol;

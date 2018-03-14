@@ -5,7 +5,7 @@
 'use strict';
 
 import * as Platform from 'vs/base/common/platform';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 class WindowManager {

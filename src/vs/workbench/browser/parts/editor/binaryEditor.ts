@@ -6,7 +6,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';

@@ -9,7 +9,7 @@ import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import platform = require('vs/platform/registry/common/platform');
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
 

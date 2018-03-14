@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';

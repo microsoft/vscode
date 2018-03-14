@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/editorGroupsControl';
 import arrays = require('vs/base/common/arrays');
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import types = require('vs/base/common/types');
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';

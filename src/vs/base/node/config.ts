@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import { dirname, basename } from 'path';
 import * as objects from 'vs/base/common/objects';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import * as extfs from 'vs/base/node/extfs';
 import { isWindows } from 'vs/base/common/platform';

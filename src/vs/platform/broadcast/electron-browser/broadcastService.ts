@@ -6,7 +6,7 @@
 'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 import { ipcRenderer as ipc } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
