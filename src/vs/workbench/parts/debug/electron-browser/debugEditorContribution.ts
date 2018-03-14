@@ -45,7 +45,8 @@ import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
-const REMOVE_INLINE_VALUES_DELAY = 100;
+const UPDATE_INLINE_VALUE_DECORATIONS_DELAY = 200;
+const REMOVE_INLINE_VALUE_DECORATIONS_DELAY = 100;
 const INLINE_VALUE_DECORATION_KEY = 'inlinevaluedecoration';
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
@@ -57,7 +58,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private hoverWidget: DebugHoverWidget;
 	private showHoverScheduler: RunOnceScheduler;
 	private hideHoverScheduler: RunOnceScheduler;
-	private removeInlineValuesScheduler: RunOnceScheduler;
+	private updateInlineValueDecorationsScheduler: RunOnceScheduler;
+	private removeInlineValueDecorationsScheduler: RunOnceScheduler;
 	private hoverRange: Range;
 
 	private breakpointHintDecoration: string[];
@@ -87,7 +89,17 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose = [];
 		this.showHoverScheduler = new RunOnceScheduler(() => this.showHover(this.hoverRange, false), HOVER_DELAY);
 		this.hideHoverScheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
-		this.removeInlineValuesScheduler = new RunOnceScheduler(() => this.editor.removeDecorations(INLINE_VALUE_DECORATION_KEY), REMOVE_INLINE_VALUES_DELAY);
+		this.updateInlineValueDecorationsScheduler = new RunOnceScheduler(
+			() => {
+				this.wordToLineNumbersMap = null;
+				this.updateInlineValueDecorations(this.debugService.getViewModel().focusedStackFrame);
+			},
+			UPDATE_INLINE_VALUE_DECORATIONS_DELAY
+		);
+		this.removeInlineValueDecorationsScheduler = new RunOnceScheduler(
+			() => this.editor.removeDecorations(INLINE_VALUE_DECORATION_KEY),
+			REMOVE_INLINE_VALUE_DECORATIONS_DELAY
+		);
 		this.registerListeners();
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.updateConfigurationWidgetVisibility();
@@ -214,18 +226,17 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}));
 		this.toDispose.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onKeyDown(e)));
 		this.toDispose.push(this.editor.onDidChangeModelContent(() => {
-			this.wordToLineNumbersMap = null;
+			this.updateInlineValueDecorationsScheduler.schedule();
 		}));
 		this.toDispose.push(this.editor.onDidChangeModel(() => {
-			const sf = this.debugService.getViewModel().focusedStackFrame;
+			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 			const model = this.editor.getModel();
-			this.editor.updateOptions({ hover: !sf || !model || model.uri.toString() !== sf.source.uri.toString() });
+			this.editor.updateOptions({ hover: !stackFrame || !model || model.uri.toString() !== stackFrame.source.uri.toString() });
 			this.closeBreakpointWidget();
 			this.toggleExceptionWidget();
 			this.hideHoverWidget();
 			this.updateConfigurationWidgetVisibility();
-			this.wordToLineNumbersMap = null;
-			this.updateInlineDecorations(sf);
+			this.updateInlineValueDecorationsScheduler.schedule();
 		}));
 		this.toDispose.push(this.editor.onDidScrollChange(() => this.hideHoverWidget));
 		this.toDispose.push(this.debugService.onDidChangeState((state: State) => {
@@ -288,7 +299,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.hideHoverWidget();
 		}
 
-		this.updateInlineDecorations(sf);
+		this.updateInlineValueDecorations(sf);
 	}
 
 	private hideHoverWidget(): void {
@@ -474,17 +485,17 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	};
 
 	// Inline Decorations
-	private updateInlineDecorations(stackFrame: IStackFrame): void {
+	private updateInlineValueDecorations(stackFrame: IStackFrame): void {
 		const model = this.editor.getModel();
 		if (!this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues ||
 			!model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
-			if (!this.removeInlineValuesScheduler.isScheduled()) {
-				this.removeInlineValuesScheduler.schedule();
+			if (!this.removeInlineValueDecorationsScheduler.isScheduled()) {
+				this.removeInlineValueDecorationsScheduler.schedule();
 			}
 			return;
 		}
 
-		this.removeInlineValuesScheduler.cancel();
+		this.removeInlineValueDecorationsScheduler.cancel();
 
 		stackFrame.getMostSpecificScopes(stackFrame.range)
 			// Get all top level children in the scope chain
