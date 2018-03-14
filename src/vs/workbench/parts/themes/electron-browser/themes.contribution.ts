@@ -185,7 +185,7 @@ class GenerateColorThemeAction extends Action {
 
 	run(): TPromise<any> {
 		let theme = this.themeService.getColorTheme();
-		let colorRegistry = <IColorRegistry>Registry.as(ColorRegistryExtensions.ColorContribution);
+		let colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 		let resultingColors = {};
 		colorRegistry.getColors().map(c => {
 			let color = theme.getColor(c.id, false);

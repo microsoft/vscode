@@ -57,7 +57,7 @@ suite('ConfigurationEditingService', () => {
 	let workspaceSettingsDir;
 
 	suiteSetup(() => {
-		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration({
 			'id': '_test',
 			'type': 'object',

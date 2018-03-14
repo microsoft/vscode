@@ -373,7 +373,7 @@ suite('WorkspaceContextService - Workspace', () => {
 suite('WorkspaceService - Initialization', () => {
 
 	let parentResource: string, workspaceConfigPath: string, testObject: WorkspaceService, globalSettingsFile: string;
-	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
@@ -626,7 +626,7 @@ suite('WorkspaceService - Initialization', () => {
 suite('WorkspaceConfigurationService - Folder', () => {
 
 	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IWorkspaceConfigurationService, globalSettingsFile: string;
-	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
@@ -912,7 +912,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 suite('WorkspaceConfigurationService - Multiroot', () => {
 
 	let parentResource: string, workspaceContextService: IWorkspaceContextService, environmentService: IEnvironmentService, jsonEditingServce: IJSONEditingService, testObject: IWorkspaceConfigurationService;
-	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({

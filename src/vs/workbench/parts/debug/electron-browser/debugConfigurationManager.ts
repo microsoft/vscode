@@ -215,7 +215,7 @@ const schema: IJSONSchema = {
 	}
 };
 
-const jsonRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
+const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, schema);
 const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
 const DEBUG_SELECTED_ROOT = 'debug.selectedroot';

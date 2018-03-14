@@ -19,7 +19,7 @@ const VS_THEME_NAME = 'vs';
 const VS_DARK_THEME_NAME = 'vs-dark';
 const HC_BLACK_THEME_NAME = 'hc-black';
 
-const colorRegistry = <IColorRegistry>Registry.as(Extensions.ColorContribution);
+const colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
 
 class StandaloneTheme implements IStandaloneTheme {

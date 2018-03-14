@@ -166,7 +166,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 }
 
-const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 const editorConfiguration: IConfigurationNode = {
 	'id': 'editor',
 	'order': 5,

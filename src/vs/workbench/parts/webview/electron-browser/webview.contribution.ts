@@ -10,7 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { WebviewInput } from './webviewInput';
 import { localize } from 'vs/nls';
 
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(
+(Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(
 	WebviewEditor,
 	WebviewEditor.ID,
 	localize('webview.editor.label', "webview editor")),

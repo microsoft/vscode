@@ -16,7 +16,7 @@ import { ShowWebViewEditorFindTermCommand, HideWebViewEditorFindCommand, OpenWeb
 
 const webviewDeveloperCategory = nls.localize('developer', "Developer");
 
-const actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
 const showNextFindWdigetCommand = new ShowWebViewEditorFindWidgetCommand({
 	id: ShowWebViewEditorFindWidgetCommand.ID,

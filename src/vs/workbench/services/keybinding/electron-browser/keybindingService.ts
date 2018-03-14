@@ -567,10 +567,10 @@ let schema: IJSONSchema = {
 	}
 };
 
-let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
+let schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
 
-const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigExtensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigExtensions.Configuration);
 const keyboardConfiguration: IConfigurationNode = {
 	'id': 'keyboard',
 	'order': 15,

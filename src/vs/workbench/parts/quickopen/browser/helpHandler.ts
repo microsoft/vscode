@@ -69,7 +69,7 @@ export class HelpHandler extends QuickOpenHandler {
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
-		const registry = (<IQuickOpenRegistry>Registry.as(Extensions.Quickopen));
+		const registry = (Registry.as<IQuickOpenRegistry>(Extensions.Quickopen));
 		const handlerDescriptors = registry.getQuickOpenHandlers();
 
 		const defaultHandler = registry.getDefaultQuickOpenHandler();

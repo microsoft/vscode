@@ -10,7 +10,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import { Extensions as ThemeingExtensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 
-let themingRegistry = <IColorRegistry>Registry.as(ThemeingExtensions.ColorContribution);
+let themingRegistry = Registry.as<IColorRegistry>(ThemeingExtensions.ColorContribution);
 let textMateScopes = [
 	'comment',
 	'comment.block',
@@ -204,7 +204,7 @@ const schema: IJSONSchema = {
 };
 
 export function register() {
-	let schemaRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
+	let schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 	schemaRegistry.registerSchema(schemaId, schema);
 }
 

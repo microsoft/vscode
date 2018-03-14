@@ -27,7 +27,6 @@ export interface IRegistry {
 	 * Returns the extension functions and properties defined by the specified key or null.
 	 * @param id an extension identifier
 	 */
-	as(id: string): any;
 	as<T>(id: string): T;
 }
 

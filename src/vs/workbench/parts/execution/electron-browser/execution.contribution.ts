@@ -38,7 +38,7 @@ if (env.isWindows) {
 }
 
 getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
-	let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
+	let configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	configurationRegistry.registerConfiguration({
 		'id': 'externalTerminal',
 		'order': 100,

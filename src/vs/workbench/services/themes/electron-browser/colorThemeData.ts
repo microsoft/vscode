@@ -22,7 +22,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { WorkbenchThemeService, IColorCustomizations } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
-let colorRegistry = <IColorRegistry>Registry.as(Extensions.ColorContribution);
+let colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 
 const tokenGroupToScopesMap: { [setting: string]: string[] } = {
 	comments: ['comment'],

@@ -66,7 +66,7 @@ suite('Workbench QuickOpen', () => {
 	}
 
 	test('QuickOpen Handler and Registry', () => {
-		let registry = (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen));
+		let registry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));
 		let handler = new QuickOpenHandlerDescriptor(
 			TestHandler,
 			'testhandler',

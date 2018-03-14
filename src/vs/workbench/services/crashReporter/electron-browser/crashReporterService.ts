@@ -27,7 +27,7 @@ export interface ICrashReporterConfig {
 	enableCrashReporter: boolean;
 }
 
-const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
 	'order': 110,
