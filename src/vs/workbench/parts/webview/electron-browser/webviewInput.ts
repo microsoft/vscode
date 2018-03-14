@@ -184,8 +184,8 @@ export class WebviewInput extends EditorInput {
 	public releaseWebview(owner: any) {
 		if (this._webviewOwner === owner) {
 			this._webviewOwner = undefined;
-			if (this._options.retainContextWhenHidden) {
-				this.container.style.visibility = 'hidden';
+			if (this._options.retainContextWhenHidden && this._container) {
+				this._container.style.visibility = 'hidden';
 			} else {
 				this.disposeWebview();
 			}
@@ -202,7 +202,10 @@ export class WebviewInput extends EditorInput {
 		this._webviewDisposables = dispose(this._webviewDisposables);
 
 		this._webviewOwner = undefined;
-		this.container.style.visibility = 'hidden';
+
+		if (this._container) {
+			this._container.style.visibility = 'hidden';
+		}
 
 		this._currentWebviewHtml = '';
 	}
