@@ -159,7 +159,7 @@ export class KeybindingsEditorModel extends EditorModel {
 	private splitKeybindingWords(wordsSeparatedBySpaces: string[]): string[] {
 		const result = [];
 		for (const word of wordsSeparatedBySpaces) {
-			result.push(...word.split('+'));
+			result.push(...word.split('+').filter(w => !!w));
 		}
 		return result;
 	}
