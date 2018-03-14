@@ -45,39 +45,40 @@ function limitRanges(ranges: FoldingRange[], maxRanges: number) {
 	let nestingLevels: number[] = [];
 	let nestingLevelCounts: number[] = [];
 
-	let setNestingLevel = (level: number) => {
-		nestingLevels.push(level);
+	let setNestingLevel = (index: number, level: number) => {
+		nestingLevels[index] = level;
 		if (level < 30) {
 			nestingLevelCounts[level] = (nestingLevelCounts[level] || 0) + 1;
 		}
 	};
 
+	// compute nesting levels and sanitize
 	for (let i = 0; i < ranges.length; i++) {
 		let entry = ranges[i];
 		if (!top) {
 			top = entry;
-			setNestingLevel(0);
+			setNestingLevel(i, 0);
 		} else {
 			if (entry.startLine > top.startLine) {
 				if (entry.endLine <= top.endLine) {
 					previous.push(top);
 					top = entry;
-					setNestingLevel(previous.length);
-				} else if (entry.startLine > top.startLine) {
+					setNestingLevel(i, previous.length);
+				} else if (entry.startLine > top.endLine) {
 					do {
 						top = previous.pop();
 					} while (top && entry.startLine > top.endLine);
 					previous.push(top);
 					top = entry;
-					setNestingLevel(previous.length);
+					setNestingLevel(i, previous.length);
 				}
 			}
 		}
 	}
 	let entries = 0;
 	let maxLevel = 0;
-	for (let i = 0; i < nestingLevels.length; i++) {
-		let n = nestingLevels[i];
+	for (let i = 0; i < nestingLevelCounts.length; i++) {
+		let n = nestingLevelCounts[i];
 		if (n) {
 			if (n + entries > maxRanges) {
 				maxLevel = i;

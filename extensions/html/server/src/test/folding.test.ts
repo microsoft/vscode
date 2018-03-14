@@ -17,7 +17,7 @@ interface ExpectedIndentRange {
 	type?: string;
 }
 
-function assertRanges(lines: string[], expected: ExpectedIndentRange[], nRanges?: number): void {
+function assertRanges(lines: string[], expected: ExpectedIndentRange[], message?: string, nRanges?: number): void {
 	let document = TextDocument.create('test://foo/bar.json', 'json', 1, lines.join('\n'));
 	let languageModes = getLanguageModes({ css: true, javascript: true });
 	let actual = getFoldingRegions(languageModes, document, nRanges, null)!.ranges;
@@ -27,7 +27,7 @@ function assertRanges(lines: string[], expected: ExpectedIndentRange[], nRanges?
 		actualRanges[i] = r(actual[i].startLine, actual[i].endLine, actual[i].type);
 	}
 	actualRanges = actualRanges.sort((r1, r2) => r1.startLine - r2.startLine);
-	assert.deepEqual(actualRanges, expected);
+	assert.deepEqual(actualRanges, expected, message);
 }
 
 function r(startLine: number, endLine: number, type?: string): ExpectedIndentRange {
@@ -102,39 +102,39 @@ suite('Object Folding', () => {
 	// 	assertRanges(input, [r(0, 3, 'region')]);
 	// });
 
-	// test('Test limit', () => {
-	// 	let input = [
-	// 		/* 0*/'[',
-	// 		/* 1*/' [',
-	// 		/* 2*/'  [',
-	// 		/* 3*/'  ',
-	// 		/* 4*/'  ],',
-	// 		/* 5*/'  [',
-	// 		/* 6*/'   [',
-	// 		/* 7*/'  ',
-	// 		/* 8*/'   ],',
-	// 		/* 9*/'   [',
-	// 		/*10*/'  ',
-	// 		/*11*/'   ],',
-	// 		/*12*/'  ],',
-	// 		/*13*/'  [',
-	// 		/*14*/'  ',
-	// 		/*15*/'  ],',
-	// 		/*16*/'  [',
-	// 		/*17*/'  ',
-	// 		/*18*/'  ]',
-	// 		/*19*/' ]',
-	// 		/*20*/']',
-	// 	];
-	// 	assertRanges(input, [r(0, 19, 'array'), r(1, 18, 'array'), r(2, 3, 'array'), r(5, 11, 'array'), r(6, 7, 'array'), r(9, 10, 'array'), r(13, 14, 'array'), r(16, 17, 'array')], void 0);
-	// 	assertRanges(input, [r(0, 19, 'array'), r(1, 18, 'array'), r(2, 3, 'array'), r(5, 11, 'array'), r(6, 7, 'array'), r(9, 10, 'array'), r(13, 14, 'array'), r(16, 17, 'array')], 8);
-	// 	assertRanges(input, [r(0, 19, 'array'), r(1, 18, 'array'), r(2, 3, 'array'), r(5, 11, 'array'), r(13, 14, 'array'), r(16, 17, 'array')], 7);
-	// 	assertRanges(input, [r(0, 19, 'array'), r(1, 18, 'array'), r(2, 3, 'array'), r(5, 11, 'array'), r(13, 14, 'array'), r(16, 17, 'array')], 6);
-	// 	assertRanges(input, [r(0, 19, 'array'), r(1, 18, 'array')], 5);
-	// 	assertRanges(input, [r(0, 19, 'array'), r(1, 18, 'array')], 4);
-	// 	assertRanges(input, [r(0, 19, 'array'), r(1, 18, 'array')], 3);
-	// 	assertRanges(input, [r(0, 19, 'array'), r(1, 18, 'array')], 2);
-	// 	assertRanges(input, [r(0, 19, 'array')], 1);
-	// });
+	test('Test limit', () => {
+		let input = [
+			/* 0*/'<div>',
+			/* 1*/' <span>',
+			/* 2*/'  <b>',
+			/* 3*/'  ',
+			/* 4*/'  </b>,',
+			/* 5*/'  <b>',
+			/* 6*/'   <pre>',
+			/* 7*/'  ',
+			/* 8*/'   </pre>,',
+			/* 9*/'   <pre>',
+			/*10*/'  ',
+			/*11*/'   </pre>,',
+			/*12*/'  </b>,',
+			/*13*/'  <b>',
+			/*14*/'  ',
+			/*15*/'  </b>,',
+			/*16*/'  <b>',
+			/*17*/'  ',
+			/*18*/'  </b>',
+			/*19*/' </span>',
+			/*20*/'</div>',
+		];
+		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(9, 10), r(13, 14), r(16, 17)], 'no limit', void 0);
+		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(9, 10), r(13, 14), r(16, 17)], 'limit 8', 8);
+		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(13, 14), r(16, 17)], 'limit 7',7);
+		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(13, 14), r(16, 17)], 'limit 6',6);
+		assertRanges(input, [r(0, 19), r(1, 18)], 'limit 5', 5);
+		assertRanges(input, [r(0, 19), r(1, 18)], 'limit 4', 4);
+		assertRanges(input, [r(0, 19), r(1, 18)], 'limit 3', 3);
+		assertRanges(input, [r(0, 19), r(1, 18)], 'limit 2', 2);
+		assertRanges(input, [r(0, 19)], 'limit 1', 1);
+	});
 
 });
