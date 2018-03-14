@@ -6,7 +6,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import objects = require('vs/base/common/objects');
+import * as objects from 'vs/base/common/objects';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';

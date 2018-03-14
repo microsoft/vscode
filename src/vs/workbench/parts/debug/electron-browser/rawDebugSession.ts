@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import cp = require('child_process');
-import net = require('net');
+import * as nls from 'vs/nls';
+import * as cp from 'child_process';
+import * as net from 'net';
 import { Event, Emitter } from 'vs/base/common/event';
-import platform = require('vs/base/common/platform');
-import objects = require('vs/base/common/objects');
+import * as platform from 'vs/base/common/platform';
+import * as objects from 'vs/base/common/objects';
 import { Action } from 'vs/base/common/actions';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import stdfork = require('vs/base/node/stdFork');
+import * as stdfork from 'vs/base/node/stdFork';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITerminalService as IExternalTerminalService } from 'vs/workbench/parts/execution/common/execution';
-import debug = require('vs/workbench/parts/debug/common/debug');
+import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { V8Protocol } from 'vs/workbench/parts/debug/node/v8Protocol';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';

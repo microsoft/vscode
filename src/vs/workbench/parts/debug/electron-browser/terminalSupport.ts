@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
-import cp = require('child_process');
+import * as cp from 'child_process';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITerminalService, ITerminalInstance, ITerminalConfiguration } from 'vs/workbench/parts/terminal/common/terminal';

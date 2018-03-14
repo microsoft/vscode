@@ -5,7 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import network = require('vs/base/common/network');
+import * as network from 'vs/base/common/network';
 import { Event, Emitter } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';

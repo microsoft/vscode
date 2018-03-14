@@ -5,10 +5,10 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import paths = require('vs/base/common/paths');
-import strings = require('vs/base/common/strings');
+import * as paths from 'vs/base/common/paths';
+import * as strings from 'vs/base/common/strings';
 import { isWindows } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { ConfirmResult } from 'vs/workbench/common/editor';

@@ -5,30 +5,30 @@
 
 'use strict';
 
-import paths = require('path');
-import fs = require('fs');
-import os = require('os');
-import crypto = require('crypto');
-import assert = require('assert');
+import * as paths from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as crypto from 'crypto';
+import * as assert from 'assert';
 import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot } from 'vs/platform/files/common/files';
 import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
-import arrays = require('vs/base/common/arrays');
-import baseMime = require('vs/base/common/mime');
+import * as arrays from 'vs/base/common/arrays';
+import * as baseMime from 'vs/base/common/mime';
 import { TPromise } from 'vs/base/common/winjs.base';
-import objects = require('vs/base/common/objects');
-import extfs = require('vs/base/node/extfs');
+import * as objects from 'vs/base/common/objects';
+import * as extfs from 'vs/base/node/extfs';
 import { nfcall, ThrottledDelayer } from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import pfs = require('vs/base/node/pfs');
-import encoding = require('vs/base/node/encoding');
+import * as pfs from 'vs/base/node/pfs';
+import * as encoding from 'vs/base/node/encoding';
 import { detectMimeAndEncodingFromBuffer, IMimeAndEncoding } from 'vs/base/node/mime';
-import flow = require('vs/base/node/flow');
+import * as flow from 'vs/base/node/flow';
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
 import { toFileChangesEvent, normalize, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
@@ -40,9 +40,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { getBaseLabel } from 'vs/base/common/labels';
-import { assign } from 'vs/base/common/objects';
 import { Readable } from 'stream';
-import { IWriteFileOptions, IStatAndLink } from 'vs/base/node/extfs';
 import { Schemas } from 'vs/base/common/network';
 
 export interface IEncodingOverride {
@@ -602,7 +600,7 @@ export class FileService implements IFileService {
 		let writeFilePromise: TPromise<void>;
 
 		// Configure encoding related options as needed
-		const writeFileOptions: IWriteFileOptions = options ? options : Object.create(null);
+		const writeFileOptions: extfs.IWriteFileOptions = options ? options : Object.create(null);
 		if (addBOM || encodingToWrite !== encoding.UTF8) {
 			writeFileOptions.encoding = {
 				charset: encodingToWrite,
@@ -654,7 +652,7 @@ export class FileService implements IFileService {
 
 		// 1.) check file
 		return this.checkFile(absolutePath, options, options.overwriteReadonly /* ignore readonly if we overwrite readonly, this is handled via sudo later */).then(exists => {
-			const writeOptions: IUpdateContentOptions = assign(Object.create(null), options);
+			const writeOptions: IUpdateContentOptions = objects.assign(Object.create(null), options);
 			writeOptions.writeElevated = false;
 			writeOptions.encoding = this.getEncoding(resource, options.encoding);
 
@@ -1241,7 +1239,7 @@ export class StatResolver {
 						extfs.statLink(fileResource.fsPath, this);
 					},
 
-					function countChildren(this: any, statAndLink: IStatAndLink): void {
+					function countChildren(this: any, statAndLink: extfs.IStatAndLink): void {
 						fileStat = statAndLink.stat;
 						isSymbolicLink = statAndLink.isSymbolicLink;
 

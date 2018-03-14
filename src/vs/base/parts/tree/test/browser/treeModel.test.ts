@@ -5,12 +5,12 @@
 
 'use strict';
 
-import assert = require('assert');
-import lifecycle = require('vs/base/common/lifecycle');
-import _ = require('vs/base/parts/tree/browser/tree');
-import WinJS = require('vs/base/common/winjs.base');
-import model = require('vs/base/parts/tree/browser/treeModel');
-import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
+import * as assert from 'assert';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as _ from 'vs/base/parts/tree/browser/tree';
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as model from 'vs/base/parts/tree/browser/treeModel';
+import * as TreeDefaults from 'vs/base/parts/tree/browser/treeDefaults';
 import { Event, Emitter } from 'vs/base/common/event';
 
 export class FakeRenderer {

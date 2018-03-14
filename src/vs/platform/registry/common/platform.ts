@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Types = require('vs/base/common/types');
-import Assert = require('vs/base/common/assert');
+import * as Types from 'vs/base/common/types';
+import * as Assert from 'vs/base/common/assert';
 
 export interface IRegistry {
 

@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelIdentifier } from 'vs/workbench/parts/output/common/output';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';

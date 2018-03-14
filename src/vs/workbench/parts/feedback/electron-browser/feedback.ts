@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/feedback';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Dropdown } from 'vs/base/browser/ui/dropdown/dropdown';
