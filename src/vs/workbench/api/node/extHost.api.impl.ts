@@ -236,11 +236,9 @@ export function createApiFactory(
 				checkProposedApiEnabled(extension);
 				return extHostDiagnostics.onDidChangeDiagnostics;
 			},
-			diagnostics: {
-				has: proposedApiFunction(extension, uri => extHostDiagnostics.hasDiagnostics(uri)),
-				get: proposedApiFunction(extension, uri => extHostDiagnostics.getDiagnostics(uri)),
-				all: proposedApiFunction(extension, () => extHostDiagnostics.getAllDiagnostics())
-			},
+			getDiagnostics: proposedApiFunction(extension, resource => {
+				return extHostDiagnostics.getDiagnostics(resource);
+			}),
 			getLanguages(): TPromise<string[]> {
 				return extHostLanguages.getLanguages();
 			},

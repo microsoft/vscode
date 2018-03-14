@@ -9,12 +9,6 @@ declare module 'vscode' {
 
 	//#region "read diagnostics"
 
-	export interface DiagnosticInformation {
-		has(uri: Uri): boolean;
-		get(uri: Uri): Diagnostic[] | undefined;
-		all(): [Uri, Diagnostic[]][];
-	}
-
 	export interface DiagnosticChangeEvent {
 		uris: Uri[];
 	}
@@ -26,7 +20,10 @@ declare module 'vscode' {
 		 */
 		export const onDidChangeDiagnostics: Event<DiagnosticChangeEvent>;
 
-		export const diagnostics: DiagnosticInformation;
+		/**
+		 *
+		 */
+		export function getDiagnostics(resource?: Uri): Diagnostic[];
 	}
 
 	//#endregion
