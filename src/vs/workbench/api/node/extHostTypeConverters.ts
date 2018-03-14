@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Severity from 'vs/base/common/severity';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -21,6 +20,7 @@ import * as htmlContent from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { LanguageSelector, LanguageFilter } from 'vs/editor/common/modes/languageSelector';
 import { WorkspaceEditDto, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
+import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 export interface PositionLike {
 	line: number;
@@ -83,29 +83,29 @@ export function fromPosition(position: types.Position): IPosition {
 	return { lineNumber: position.line + 1, column: position.character + 1 };
 }
 
-export function fromDiagnosticSeverity(value: number): Severity {
+export function fromDiagnosticSeverity(value: number): MarkerSeverity {
 	switch (value) {
 		case types.DiagnosticSeverity.Error:
-			return Severity.Error;
+			return MarkerSeverity.Error;
 		case types.DiagnosticSeverity.Warning:
-			return Severity.Warning;
+			return MarkerSeverity.Warning;
 		case types.DiagnosticSeverity.Information:
-			return Severity.Info;
+			return MarkerSeverity.Info;
 		case types.DiagnosticSeverity.Hint:
-			return Severity.Ignore;
+			return MarkerSeverity.Hint;
 	}
-	return Severity.Error;
+	return MarkerSeverity.Error;
 }
 
-export function toDiagnosticSeverty(value: Severity): types.DiagnosticSeverity {
+export function toDiagnosticSeverty(value: MarkerSeverity): types.DiagnosticSeverity {
 	switch (value) {
-		case Severity.Info:
+		case MarkerSeverity.Info:
 			return types.DiagnosticSeverity.Information;
-		case Severity.Warning:
+		case MarkerSeverity.Warning:
 			return types.DiagnosticSeverity.Warning;
-		case Severity.Error:
+		case MarkerSeverity.Error:
 			return types.DiagnosticSeverity.Error;
-		case Severity.Ignore:
+		case MarkerSeverity.Hint:
 			return types.DiagnosticSeverity.Hint;
 	}
 	return types.DiagnosticSeverity.Error;

@@ -25,7 +25,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { SettingsGroupTitleWidget, EditPreferenceWidget, SettingsHeaderWidget, DefaultSettingsHeaderWidget, FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
-import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
+import { IMarkerService, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -40,7 +40,7 @@ import { IssueType, ISettingsSearchIssueReporterData, ISettingSearchResult } fro
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
@@ -1355,7 +1355,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 						// Show warnings for executable settings
 						if (configurationRegistry[setting.key] && configurationRegistry[setting.key].isExecutable) {
 							markerData.push({
-								severity: Severity.Warning,
+								severity: MarkerSeverity.Warning,
 								startLineNumber: setting.keyRange.startLineNumber,
 								startColumn: setting.keyRange.startColumn,
 								endLineNumber: setting.keyRange.endLineNumber,

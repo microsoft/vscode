@@ -5,10 +5,9 @@
 'use strict';
 
 import * as paths from 'vs/base/common/paths';
-import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { IMarker } from 'vs/platform/markers/common/markers';
+import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy } from 'vs/base/common/filters';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { Schemas } from 'vs/base/common/network';
@@ -49,7 +48,7 @@ export class Resource {
 		let [firstMarkerOfB] = b.markers;
 		let res = 0;
 		if (firstMarkerOfA && firstMarkerOfB) {
-			res = Severity.compare(firstMarkerOfA.raw.severity, firstMarkerOfB.raw.severity);
+			res = MarkerSeverity.compare(firstMarkerOfA.raw.severity, firstMarkerOfB.raw.severity);
 		}
 		if (res === 0) {
 			res = a.path.localeCompare(b.path) || a.name.localeCompare(b.name);
@@ -80,7 +79,7 @@ export class Marker {
 	public toString(): string {
 		return [
 			`file: '${this.raw.resource}'`,
-			`severity: '${Severity.toString(this.raw.severity)}'`,
+			`severity: '${MarkerSeverity.toString(this.raw.severity)}'`,
 			`message: '${this.raw.message}'`,
 			`at: '${this.raw.startLineNumber},${this.raw.startColumn}'`,
 			`source: '${this.raw.source ? this.raw.source : ''}'`,
@@ -89,7 +88,7 @@ export class Marker {
 	}
 
 	static compare(a: Marker, b: Marker): number {
-		return Severity.compare(a.raw.severity, b.raw.severity)
+		return MarkerSeverity.compare(a.raw.severity, b.raw.severity)
 			|| Range.compareRangesUsingStarts(a.raw, b.raw);
 	}
 }
@@ -275,13 +274,13 @@ export class MarkersModel {
 		if (marker.resource.scheme === Schemas.walkThrough || marker.resource.scheme === Schemas.walkThroughSnippet) {
 			return false;
 		}
-		if (this._filterOptions.filterErrors && Severity.Error === marker.severity) {
+		if (this._filterOptions.filterErrors && MarkerSeverity.Error === marker.severity) {
 			return true;
 		}
-		if (this._filterOptions.filterWarnings && Severity.Warning === marker.severity) {
+		if (this._filterOptions.filterWarnings && MarkerSeverity.Warning === marker.severity) {
 			return true;
 		}
-		if (this._filterOptions.filterInfos && Severity.Info === marker.severity) {
+		if (this._filterOptions.filterInfos && MarkerSeverity.Info === marker.severity) {
 			return true;
 		}
 		if (!!FilterOptions._fuzzyFilter(this._filterOptions.filter, marker.message)) {

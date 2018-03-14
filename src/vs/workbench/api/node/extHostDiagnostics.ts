@@ -5,9 +5,8 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import URI from 'vs/base/common/uri';
-import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
 import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from './extHost.protocol';
 import { DiagnosticSeverity } from './extHostTypes';
@@ -126,7 +125,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 					// add 'signal' marker for showing omitted errors/warnings
 					marker.push({
-						severity: Severity.Error,
+						severity: MarkerSeverity.Error,
 						message: localize({ key: 'limitHit', comment: ['amount of errors/warning skipped due to limits'] }, "Not showing {0} further errors and warnings.", diagnostics.length - DiagnosticCollection._maxDiagnosticsPerFile),
 						startLineNumber: marker[marker.length - 1].startLineNumber,
 						startColumn: marker[marker.length - 1].startColumn,
@@ -202,13 +201,13 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		};
 	}
 
-	private static _convertDiagnosticsSeverity(severity: number): Severity {
+	private static _convertDiagnosticsSeverity(severity: number): MarkerSeverity {
 		switch (severity) {
-			case 0: return Severity.Error;
-			case 1: return Severity.Warning;
-			case 2: return Severity.Info;
-			case 3: return Severity.Ignore;
-			default: return Severity.Error;
+			case 0: return MarkerSeverity.Error;
+			case 1: return MarkerSeverity.Warning;
+			case 2: return MarkerSeverity.Info;
+			case 3: return MarkerSeverity.Hint;
+			default: return MarkerSeverity.Error;
 		}
 	}
 

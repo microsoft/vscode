@@ -9,10 +9,9 @@ import network = require('vs/base/common/network');
 import Event, { Emitter } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
+import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
@@ -120,20 +119,20 @@ class ModelMarkerHandler {
 		let darkColor: ThemeColor;
 
 		switch (marker.severity) {
-			case Severity.Ignore:
+			case MarkerSeverity.Hint:
 				// do something
 				break;
-			case Severity.Warning:
+			case MarkerSeverity.Warning:
 				className = ClassName.EditorWarningDecoration;
 				color = themeColorFromId(overviewRulerWarning);
 				darkColor = themeColorFromId(overviewRulerWarning);
 				break;
-			case Severity.Info:
+			case MarkerSeverity.Info:
 				className = ClassName.EditorInfoDecoration;
 				color = themeColorFromId(overviewRulerInfo);
 				darkColor = themeColorFromId(overviewRulerInfo);
 				break;
-			case Severity.Error:
+			case MarkerSeverity.Error:
 			default:
 				className = ClassName.EditorErrorDecoration;
 				color = themeColorFromId(overviewRulerError);

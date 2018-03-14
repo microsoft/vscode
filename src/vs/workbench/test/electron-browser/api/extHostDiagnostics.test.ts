@@ -7,11 +7,10 @@
 
 import * as assert from 'assert';
 import URI, { UriComponents } from 'vs/base/common/uri';
-import Severity from 'vs/base/common/severity';
 import { DiagnosticCollection } from 'vs/workbench/api/node/extHostDiagnostics';
 import { Diagnostic, DiagnosticSeverity, Range } from 'vs/workbench/api/node/extHostTypes';
 import { MainThreadDiagnosticsShape } from 'vs/workbench/api/node/extHost.protocol';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { Emitter, toPromise } from 'vs/base/common/event';
 
@@ -257,9 +256,9 @@ suite('ExtHostDiagnostics', () => {
 		assert.equal(collection.get(uri).length, 500);
 		assert.equal(lastEntries.length, 1);
 		assert.equal(lastEntries[0][1].length, 251);
-		assert.equal(lastEntries[0][1][0].severity, Severity.Error);
-		assert.equal(lastEntries[0][1][200].severity, Severity.Warning);
-		assert.equal(lastEntries[0][1][250].severity, Severity.Error);
+		assert.equal(lastEntries[0][1][0].severity, MarkerSeverity.Error);
+		assert.equal(lastEntries[0][1][200].severity, MarkerSeverity.Warning);
+		assert.equal(lastEntries[0][1][250].severity, MarkerSeverity.Error);
 	});
 
 	test('diagnostic eventing', async function () {

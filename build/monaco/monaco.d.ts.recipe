@@ -32,6 +32,14 @@ declare module monaco {
 		Error = 3,
 	}
 
+	export enum MarkerSeverity {
+		Hint = 1,
+		Info = 2,
+		Warning = 4,
+		Error = 8,
+	}
+
+
 #include(vs/base/common/winjs.base.d.ts): TValueCallback, ProgressCallback, Promise
 #include(vs/base/common/cancellation): CancellationTokenSource, CancellationToken
 #include(vs/base/common/uri): URI, UriComponents

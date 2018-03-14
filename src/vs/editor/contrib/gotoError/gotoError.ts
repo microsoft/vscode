@@ -9,10 +9,9 @@ import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
+import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -308,7 +307,7 @@ class MarkerNavigationAction extends EditorAction {
 			return undefined;
 		}
 
-		let oldMarker = model.currentMarker || { resource: editor.getModel().uri, severity: Severity.Error, startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+		let oldMarker = model.currentMarker || <IMarker>{ resource: editor.getModel().uri, severity: MarkerSeverity.Error, startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
 		let idx = binarySearch(markers, oldMarker, MarkerNavigationAction.compareMarker);
 		if (idx < 0) {
 			// find best match...
@@ -346,7 +345,7 @@ class MarkerNavigationAction extends EditorAction {
 	static compareMarker(a: IMarker, b: IMarker): number {
 		let res = compare(a.resource.toString(), b.resource.toString());
 		if (res === 0) {
-			res = Severity.compare(a.severity, b.severity);
+			res = MarkerSeverity.compare(a.severity, b.severity);
 		}
 		if (res === 0) {
 			res = Range.compareRangesUsingStarts(a, b);

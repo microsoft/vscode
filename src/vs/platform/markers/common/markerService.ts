@@ -10,8 +10,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEmptyObject } from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
-import Severity from 'vs/base/common/severity';
-import { IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics } from './markers';
+import { IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics, MarkerSeverity } from './markers';
 
 interface MapMap<V> {
 	[key: string]: { [key: string]: V };
@@ -88,11 +87,11 @@ class MarkerStats implements MarkerStatistics {
 		}
 
 		for (const { severity } of this._service.read({ resource })) {
-			if (severity === Severity.Error) {
+			if (severity === MarkerSeverity.Error) {
 				result.errors += 1;
-			} else if (severity === Severity.Warning) {
+			} else if (severity === MarkerSeverity.Warning) {
 				result.warnings += 1;
-			} else if (severity === Severity.Info) {
+			} else if (severity === MarkerSeverity.Info) {
 				result.infos += 1;
 			} else {
 				result.unknowns += 1;

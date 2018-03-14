@@ -32,6 +32,14 @@ declare module monaco {
 		Error = 3,
 	}
 
+	export enum MarkerSeverity {
+		Hint = 1,
+		Info = 2,
+		Warning = 4,
+		Error = 8,
+	}
+
+
 
 
 	export type TValueCallback<T = any> = (value: T | PromiseLike<T>) => void;
@@ -1068,7 +1076,7 @@ declare module monaco.editor {
 	export interface IMarker {
 		owner: string;
 		resource: Uri;
-		severity: Severity;
+		severity: MarkerSeverity;
 		code?: string;
 		message: string;
 		source?: string;
@@ -1084,7 +1092,7 @@ declare module monaco.editor {
 	 */
 	export interface IMarkerData {
 		code?: string;
-		severity: Severity;
+		severity: MarkerSeverity;
 		message: string;
 		source?: string;
 		startLineNumber: number;
