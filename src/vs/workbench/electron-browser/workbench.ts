@@ -994,10 +994,11 @@ export class Workbench implements IPartService {
 		if (restoreZenMode) {
 			this.storageService.store(Workbench.zenModeActiveStorageKey, true, StorageScope.WORKSPACE);
 		} else {
-			if (this.zenMode.active) {
-				this.toggleZenMode(true);
-			}
 			this.storageService.remove(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE);
+		}
+
+		if (this.zenMode.active) {
+			this.toggleZenMode(true);
 		}
 
 		// Dispose bindings
