@@ -15,12 +15,16 @@ declare module 'vscode' {
 		all(): [Uri, Diagnostic[]][];
 	}
 
+	export interface DiagnosticChangeEvent {
+		uris: Uri[];
+	}
+
 	export namespace languages {
 
 		/**
 		 *
 		 */
-		export const onDidChangeDiagnostics: Event<Uri[]>;
+		export const onDidChangeDiagnostics: Event<DiagnosticChangeEvent>;
 
 		export const diagnostics: DiagnosticInformation;
 	}

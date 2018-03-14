@@ -239,26 +239,26 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		}
 	}
 
-	static _mapper(last: (vscode.Uri | string)[]): vscode.Uri[] {
-		let res: vscode.Uri[] = [];
+	static _mapper(last: (vscode.Uri | string)[]): { uris: vscode.Uri[] } {
+		let uris: vscode.Uri[] = [];
 		let map = new Set<string>();
 		for (const uri of last) {
 			if (typeof uri === 'string') {
 				if (!map.has(uri)) {
 					map.add(uri);
-					res.push(URI.parse(uri));
+					uris.push(URI.parse(uri));
 				}
 			} else {
 				if (!map.has(uri.toString())) {
 					map.add(uri.toString());
-					res.push(uri);
+					uris.push(uri);
 				}
 			}
 		}
-		return res;
+		return { uris };
 	}
 
-	readonly onDidChangeDiagnostics: Event<vscode.Uri[]> = mapEvent(debounceEvent(this._onDidChangeDiagnostics.event, ExtHostDiagnostics._debouncer, 50), ExtHostDiagnostics._mapper);
+	readonly onDidChangeDiagnostics: Event<vscode.DiagnosticChangeEvent> = mapEvent(debounceEvent(this._onDidChangeDiagnostics.event, ExtHostDiagnostics._debouncer, 50), ExtHostDiagnostics._mapper);
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDiagnostics);
