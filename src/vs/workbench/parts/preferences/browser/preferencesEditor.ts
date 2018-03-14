@@ -347,7 +347,7 @@ export class PreferencesEditor extends BaseEditor {
 
 			/* __GDPR__
 				"defaultSettings.filter" : {
-					"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"filter": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 					"durations.nlpresult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"counts.nlpresult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"durations.filterresult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
