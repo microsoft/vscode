@@ -62,6 +62,7 @@ import { IPanel } from 'vs/workbench/common/panel';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { splitGlobAware } from 'vs/base/common/glob';
 
 export class SearchView extends Viewlet implements IViewlet, IPanel {
 
@@ -174,7 +175,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.createSearchWidget(this.searchWidgetsContainer);
 
 		const filePatterns = this.viewletSettings['query.filePatterns'] || '';
-		const patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
+		const patternExclusions = this.viewletSettings['query.folderExclusions'] || 'foo, bar/**/*.js';
+		delete this.viewletSettings['query.folderExclusions']; // Migrating from versions that have dedicated exclusions persisted
 		const patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
 		const patternIncludesHistory = this.viewletSettings['query.folderIncludesHistory'] || [];
 		const queryDetailsExpanded = this.viewletSettings['query.queryDetailsExpanded'] || '';
@@ -205,14 +207,18 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 					placeholder: nls.localize('searchIncludeExclude.placeholder', "Examples: src, !*.ts, test/**/*.log")
 				});
 
-
+				// For migrating from versions that have dedicated exclusions persisted
 				let mergedIncludeExcludes = patternIncludes;
 				if (patternExclusions) {
 					if (mergedIncludeExcludes) {
 						mergedIncludeExcludes += ', ';
 					}
 
-					mergedIncludeExcludes += patternExclusions;
+					mergedIncludeExcludes += splitGlobAware(patternExclusions, ',')
+						.map(s => s.trim())
+						.filter(s => !!s.length)
+						.map(s => '!' + s)
+						.join(', ');
 				}
 
 				this.inputPatternIncludes.setValue(mergedIncludeExcludes);
