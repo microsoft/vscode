@@ -238,7 +238,8 @@ phases:
       # dependencies
       dpkg --add-architecture i386
       apt-get update
-      apt-get install -y \
+
+      DEPS=" \
         gcc-multilib g++-multilib \
         pkg-config \
         dbus \
@@ -247,16 +248,43 @@ phases:
         bc \
         bsdmainutils \
         rpm \
-        dpkg-dev \
-        libgconf-2-4 \
-        libnss3 \
-        libasound2 \
-        libxtst6 \
-        libx11-dev \
-        libxkbfile-dev \
-        libxss1 \
-        libx11-xcb-dev \
-        libsecret-1-dev \
+      "
+
+      if [[ "$(VSCODE_ARCH)" == "x64" ]]; then
+        DEPS="$DEPS \
+          dpkg-dev \
+          libgconf-2-4 \
+          libnss3 \
+          libasound2 \
+          libxtst6 \
+          libx11-dev \
+          libxkbfile-dev \
+          libxss1 \
+          libx11-xcb-dev \
+          libsecret-1-dev \
+        "
+      else
+        DEPS="$DEPS \
+          dpkg-dev:i386 \
+          libgconf-2-4:i386 \
+          libnss3:i386 \
+          libasound2:i386 \
+          libxtst6:i386 \
+          libnotify4:i386 \
+          libx11-dev:i386 \
+          libxkbfile-dev:i386 \
+          libxss1:i386 \
+          libx11-xcb-dev:i386 \
+          libgl1-mesa-glx:i386 libgl1-mesa-dri:i386 \
+          libgirepository-1.0-1:i386 \
+          gir1.2-glib-2.0:i386 \
+          gir1.2-secret-1:i386 \
+          libsecret-1-dev:i386 \
+          libgtk2.0-0:i386 \
+        "
+      fi
+
+      apt-get install -y $DEPS
 
       # setup xvfb
       cp build/tfs/linux/$(VSCODE_ARCH)/xvfb.init /etc/init.d/xvfb
