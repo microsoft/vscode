@@ -147,12 +147,23 @@ export class LifecycleService implements ILifecycleService {
 		app.on('before-quit', e => {
 			this.logService.trace('Lifecycle#before-quit');
 
-			if (!this.quitRequested) {
-				this.logService.trace('Lifecycle#onBeforeShutdown.fire()');
-				this._onBeforeShutdown.fire(); // only send this if this is the first quit request we have
+			if (this.quitRequested) {
+				this.logService.trace('Lifecycle#before-quit - returning because quit was already requested');
+				return;
 			}
 
 			this.quitRequested = true;
+
+			// Emit event to indicate that we are about to shutdown
+			this.logService.trace('Lifecycle#onBeforeShutdown.fire()');
+			this._onBeforeShutdown.fire();
+
+			// macOS: can run without any window open. in that case we fire
+			// the onShutdown() event directly because there is no veto to be expected.
+			if (isMacintosh && this.windowCounter === 0) {
+				this.logService.trace('Lifecycle#onShutdown.fire()');
+				this._onShutdown.fire();
+			}
 		});
 
 		// window-all-closed
@@ -338,13 +349,6 @@ export class LifecycleService implements ILifecycleService {
 						this.pendingQuitPromise = null;
 					}
 				});
-
-				// macOS: can run without any window open. in that case we fire the onShutdown() event
-				// directly because there is no veto to be expected.
-				if (isMacintosh && this.windowCounter === 0) {
-					this.logService.trace('Lifecycle#onShutdown.fire()');
-					this._onShutdown.fire();
-				}
 
 				// Calling app.quit() will trigger the close handlers of each opened window
 				// and only if no window vetoed the shutdown, we will get the will-quit event
