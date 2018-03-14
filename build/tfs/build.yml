@@ -1,8 +1,6 @@
 phases:
 - phase: Windows
   queue: Hosted VS2017
-  variables:
-    VSCODE_BUILD_VERBOSE: true
   steps:
   - task: NodeTool@0
     inputs:
@@ -27,8 +25,6 @@ phases:
 
 - phase: Linux
   queue: Hosted Linux Preview
-  variables:
-    VSCODE_BUILD_VERBOSE: true
   steps:
   - script: |
       apt-get update
@@ -63,8 +59,6 @@ phases:
 
 - phase: macOS
   queue: Hosted macOS Preview
-  variables:
-    VSCODE_BUILD_VERBOSE: true
   steps:
   - task: NodeTool@0
     inputs:

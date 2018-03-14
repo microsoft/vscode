@@ -3,7 +3,6 @@ phases:
   queue: Hosted VS2017
   variables:
     VSCODE_ARCH: x64
-    VSCODE_BUILD_VERBOSE: true
 
   steps:
   - task: NodeTool@0
@@ -221,7 +220,6 @@ phases:
   queue: Hosted VS2017
   variables:
     VSCODE_ARCH: ia32
-    VSCODE_BUILD_VERBOSE: true
 
   steps:
   - task: NodeTool@0
@@ -439,7 +437,6 @@ phases:
   queue: Hosted Linux Preview
   variables:
     VSCODE_ARCH: x64
-    VSCODE_BUILD_VERBOSE: true
 
   steps:
   - script: |
@@ -520,7 +517,6 @@ phases:
   queue: Hosted Linux Preview
   variables:
     VSCODE_ARCH: ia32
-    VSCODE_BUILD_VERBOSE: true
 
   steps:
   - script: |
@@ -606,7 +602,6 @@ phases:
 - phase: macOS
   queue: Hosted macOS Preview
   variables:
-    VSCODE_BUILD_VERBOSE: true
   steps:
   - task: NodeTool@0
     inputs:

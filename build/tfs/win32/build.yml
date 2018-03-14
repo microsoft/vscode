@@ -1,6 +1,3 @@
-variables:
-  VSCODE_BUILD_VERBOSE: true
-
 steps:
 
 - task: NodeTool@0
