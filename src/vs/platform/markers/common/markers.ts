@@ -26,6 +26,18 @@ export interface IMarkerService {
 }
 
 /**
+ *
+ */
+export interface IRelatedInformation {
+	resource: URI;
+	message: string;
+	startLineNumber: number;
+	startColumn: number;
+	endLineNumber: number;
+	endColumn: number;
+}
+
+/**
  * A structure defining a problem/warning/etc.
  */
 export interface IMarkerData {
@@ -37,6 +49,7 @@ export interface IMarkerData {
 	startColumn: number;
 	endLineNumber: number;
 	endColumn: number;
+	relatedInformation?: IRelatedInformation[];
 }
 
 export interface IResourceMarker {
@@ -55,6 +68,7 @@ export interface IMarker {
 	startColumn: number;
 	endLineNumber: number;
 	endColumn: number;
+	relatedInformation?: IRelatedInformation[];
 }
 
 export interface MarkerStatistics {

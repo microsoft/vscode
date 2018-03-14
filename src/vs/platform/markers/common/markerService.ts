@@ -180,7 +180,12 @@ export class MarkerService implements IMarkerService {
 	}
 
 	private static _toMarker(owner: string, resource: URI, data: IMarkerData): IMarker {
-		let { code, severity, message, source, startLineNumber, startColumn, endLineNumber, endColumn } = data;
+		let {
+			code, severity,
+			message, source,
+			startLineNumber, startColumn, endLineNumber, endColumn,
+			relatedInformation
+		} = data;
 
 		if (!message) {
 			return undefined;
@@ -203,7 +208,8 @@ export class MarkerService implements IMarkerService {
 			startLineNumber,
 			startColumn,
 			endLineNumber,
-			endColumn
+			endColumn,
+			relatedInformation
 		};
 	}
 

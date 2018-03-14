@@ -58,7 +58,7 @@ export interface ICommandHandler {
 }
 #include(vs/platform/contextkey/common/contextkey): IContextKey
 #include(vs/editor/standalone/browser/standaloneServices): IEditorOverrideServices
-#include(vs/platform/markers/common/markers): IMarker, IMarkerData
+#include(vs/platform/markers/common/markers): IMarker, IMarkerData, IRelatedInformation
 #include(vs/editor/standalone/browser/colorizer): IColorizerOptions, IColorizerElementOptions
 #include(vs/base/common/scrollable): ScrollbarVisibility
 #include(vs/platform/theme/common/themeService): ThemeColor

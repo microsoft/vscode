@@ -1076,6 +1076,7 @@ declare module monaco.editor {
 		startColumn: number;
 		endLineNumber: number;
 		endColumn: number;
+		relatedInformation?: IRelatedInformation[];
 	}
 
 	/**
@@ -1086,6 +1087,19 @@ declare module monaco.editor {
 		severity: Severity;
 		message: string;
 		source?: string;
+		startLineNumber: number;
+		startColumn: number;
+		endLineNumber: number;
+		endColumn: number;
+		relatedInformation?: IRelatedInformation[];
+	}
+
+	/**
+	 *
+	 */
+	export interface IRelatedInformation {
+		resource: Uri;
+		message: string;
 		startLineNumber: number;
 		startColumn: number;
 		endLineNumber: number;
