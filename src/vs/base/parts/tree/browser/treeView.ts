@@ -413,7 +413,7 @@ export class TreeView extends HeightMap {
 	private lastPointerType: string;
 	private lastClickTimeStamp: number = 0;
 
-	private horizontalScrolling: boolean = true;
+	private horizontalScrolling: boolean;
 	private contentWidthUpdateDelayer = new Delayer<void>(50);
 
 	private lastRenderTop: number;
@@ -453,7 +453,7 @@ export class TreeView extends HeightMap {
 		this.instance = TreeView.counter;
 
 		const horizontalScrollMode = typeof context.options.horizontalScrollMode === 'undefined' ? ScrollbarVisibility.Hidden : context.options.horizontalScrollMode;
-		const horizontalScrolling = horizontalScrollMode !== ScrollbarVisibility.Hidden;
+		this.horizontalScrolling = horizontalScrollMode !== ScrollbarVisibility.Hidden;
 
 		this.context = {
 			dataSource: context.dataSource,
@@ -466,7 +466,7 @@ export class TreeView extends HeightMap {
 			accessibilityProvider: context.accessibilityProvider,
 			options: context.options,
 			cache: new RowCache(context),
-			horizontalScrolling
+			horizontalScrolling: this.horizontalScrolling
 		};
 
 		this.modelListeners = [];
