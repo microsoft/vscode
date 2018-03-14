@@ -8,7 +8,7 @@ import {
 	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities
 } from 'vscode-languageserver';
 
-import { TextDocument } from 'vscode-languageserver-types';
+import { TextDocument, CompletionList } from 'vscode-languageserver-types';
 
 import { ConfigurationRequest } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
 import { WorkspaceFolder } from 'vscode-languageserver-protocol/lib/protocol.workspaceFolders.proposed';
@@ -18,6 +18,7 @@ import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, 
 import { getLanguageModelCache } from './languageModelCache';
 import { formatError, runSafe } from './utils/errors';
 import uri from 'vscode-uri';
+import { getPathCompletionParticipant } from './pathCompletion';
 
 export interface Settings {
 	css: LanguageSettings;
@@ -184,7 +185,17 @@ function validateTextDocument(textDocument: TextDocument): void {
 connection.onCompletion(textDocumentPosition => {
 	return runSafe(() => {
 		let document = documents.get(textDocumentPosition.textDocument.uri);
-		return getLanguageService(document).doComplete(document, textDocumentPosition.position, stylesheets.get(document))!; /* TODO: remove ! once LS has null annotations */
+		const cssLS = getLanguageService(document);
+		const pathCompletionList: CompletionList = {
+			isIncomplete: false,
+			items: []
+		};
+		cssLS.setCompletionParticipants([getPathCompletionParticipant(document, workspaceFolders, pathCompletionList)]);
+		const result = getLanguageService(document).doComplete(document, textDocumentPosition.position, stylesheets.get(document))!; /* TODO: remove ! once LS has null annotations */
+		return {
+			isIncomplete: result.isIncomplete,
+			items: [...pathCompletionList.items, ...result.items]
+		};
 	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`);
 });
 
