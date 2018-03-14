@@ -184,7 +184,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				enabled: true,
 				id: KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS,
 				run: (): TPromise<any> => {
-					this.searchWidget.setValue('@source: default');
+					this.searchWidget.setValue('@source:default');
 					return TPromise.as(null);
 				}
 			},
@@ -193,7 +193,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				enabled: true,
 				id: KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS,
 				run: (): TPromise<any> => {
-					this.searchWidget.setValue('@source: user');
+					this.searchWidget.setValue('@source:user');
 					return TPromise.as(null);
 				}
 			}

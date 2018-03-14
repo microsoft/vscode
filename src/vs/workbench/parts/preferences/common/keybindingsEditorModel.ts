@@ -23,6 +23,9 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 export const KEYBINDING_ENTRY_TEMPLATE_ID = 'keybinding.entry.template';
 export const KEYBINDING_HEADER_TEMPLATE_ID = 'keybinding.header.template';
 
+const SOURCE_DEFAULT = localize('default', "Default");
+const SOURCE_USER = localize('user', "User");
+
 export interface KeybindingMatch {
 	ctrlKey?: boolean;
 	shiftKey?: boolean;
@@ -89,9 +92,35 @@ export class KeybindingsEditorModel extends EditorModel {
 	}
 
 	public fetch(searchValue: string, sortByPrecedence: boolean = false): IKeybindingItemEntry[] {
+		let keybindingItems = sortByPrecedence ? this._keybindingItemsSortedByPrecedence : this._keybindingItems;
+
+		if (/@source:\s*(user|default)/i.test(searchValue)) {
+			keybindingItems = this.filterBySource(keybindingItems, searchValue);
+			searchValue = searchValue.replace(/@source:\s*(user|default)/i, '');
+		}
+
 		searchValue = searchValue.trim();
+		if (!searchValue) {
+			return keybindingItems.map(keybindingItem => ({ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
+		}
+
+		return this.filterByText(keybindingItems, searchValue);
+	}
+
+	private filterBySource(keybindingItems: IKeybindingItem[], searchValue: string): IKeybindingItem[] {
+		if (/@source:\s*default/i.test(searchValue)) {
+			return keybindingItems.filter(k => k.source === SOURCE_DEFAULT);
+		}
+		if (/@source:\s*user/i.test(searchValue)) {
+			return keybindingItems.filter(k => k.source === SOURCE_USER);
+		}
+		return keybindingItems;
+	}
+
+	private filterByText(keybindingItems: IKeybindingItem[], searchValue: string): IKeybindingItemEntry[] {
 		const quoteAtFirstChar = searchValue.charAt(0) === '"';
 		const quoteAtLastChar = searchValue.charAt(searchValue.length - 1) === '"';
+		const completeMatch = quoteAtFirstChar && quoteAtLastChar;
 		if (quoteAtFirstChar) {
 			searchValue = searchValue.substring(1);
 		}
@@ -99,45 +128,7 @@ export class KeybindingsEditorModel extends EditorModel {
 			searchValue = searchValue.substring(0, searchValue.length - 1);
 		}
 		searchValue = searchValue.trim();
-		return this.fetchKeybindingItems(sortByPrecedence ? this._keybindingItemsSortedByPrecedence : this._keybindingItems, searchValue, quoteAtFirstChar && quoteAtLastChar);
-	}
 
-	private fetchKeybindingItems(keybindingItems: IKeybindingItem[], searchValue: string, completeMatch: boolean): IKeybindingItemEntry[] {
-		if (!searchValue) {
-			return keybindingItems.map(keybindingItem => ({ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
-		}
-
-		if (this.isSourceFilterApplied(searchValue)) {
-			return this.filterBySource(keybindingItems, this.getSourceFilterValue(searchValue), completeMatch);
-		}
-		return this.filterByText(keybindingItems, searchValue, completeMatch);
-	}
-
-	private isSourceFilterApplied(searchValue: string): boolean {
-		return /^@source:/i.test(searchValue);
-	}
-
-	private getSourceFilterValue(searchValue: string): string {
-		return searchValue.split('@source:')[1].trim() || '';
-	}
-
-	private matchSource(itemSource: string, searchValue: string): boolean {
-		return itemSource.toLowerCase() === searchValue.toLowerCase();
-	}
-
-	private filterBySource(keybindingItems: IKeybindingItem[], searchValue: string, completeMatch: boolean): IKeybindingItemEntry[] {
-		return <IKeybindingItemEntry[]>keybindingItems
-			.filter((keybindingItem: IKeybindingItem) => this.matchSource(keybindingItem.source, searchValue))
-			.map((keybindingItem: IKeybindingItem) => (
-				{
-					id: KeybindingsEditorModel.getId(keybindingItem),
-					templateId: KEYBINDING_ENTRY_TEMPLATE_ID,
-					keybindingItem,
-				}
-			));
-	}
-
-	private filterByText(keybindingItems: IKeybindingItem[], searchValue: string, completeMatch: boolean): IKeybindingItemEntry[] {
 		const result: IKeybindingItemEntry[] = [];
 		const words = searchValue.split(' ');
 		const keybindingWords = this.splitKeybindingWords(words);
@@ -235,7 +226,7 @@ export class KeybindingsEditorModel extends EditorModel {
 			commandLabel: KeybindingsEditorModel.getCommandLabel(menuCommand, editorActionLabel),
 			commandDefaultLabel: KeybindingsEditorModel.getCommandDefaultLabel(menuCommand, workbenchActionsRegistry),
 			when: keybindingItem.when ? keybindingItem.when.serialize() : '',
-			source: keybindingItem.isDefault ? localize('default', "Default") : localize('user', "User")
+			source: keybindingItem.isDefault ? SOURCE_DEFAULT : SOURCE_USER
 		};
 	}
 
