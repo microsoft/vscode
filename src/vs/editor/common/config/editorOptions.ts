@@ -1984,31 +1984,31 @@ export class InternalEditorOptionsFactory {
  * @internal
  */
 export interface IEditorLayoutProviderOpts {
-	outerWidth: number;
-	outerHeight: number;
+	readonly outerWidth: number;
+	readonly outerHeight: number;
 
-	showGlyphMargin: boolean;
-	lineHeight: number;
+	readonly showGlyphMargin: boolean;
+	readonly lineHeight: number;
 
-	showLineNumbers: boolean;
-	lineNumbersMinChars: number;
-	lineNumbersDigitCount: number;
+	readonly showLineNumbers: boolean;
+	readonly lineNumbersMinChars: number;
+	readonly lineNumbersDigitCount: number;
 
-	lineDecorationsWidth: number;
+	readonly lineDecorationsWidth: number;
 
-	typicalHalfwidthCharacterWidth: number;
-	maxDigitWidth: number;
+	readonly typicalHalfwidthCharacterWidth: number;
+	readonly maxDigitWidth: number;
 
-	verticalScrollbarWidth: number;
-	verticalScrollbarHasArrows: boolean;
-	scrollbarArrowSize: number;
-	horizontalScrollbarHeight: number;
+	readonly verticalScrollbarWidth: number;
+	readonly verticalScrollbarHasArrows: boolean;
+	readonly scrollbarArrowSize: number;
+	readonly horizontalScrollbarHeight: number;
 
-	minimap: boolean;
-	minimapSide: string;
-	minimapRenderCharacters: boolean;
-	minimapMaxColumn: number;
-	pixelRatio: number;
+	readonly minimap: boolean;
+	readonly minimapSide: string;
+	readonly minimapRenderCharacters: boolean;
+	readonly minimapMaxColumn: number;
+	readonly pixelRatio: number;
 }
 
 /**
