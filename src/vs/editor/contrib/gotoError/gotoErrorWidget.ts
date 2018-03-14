@@ -22,6 +22,7 @@ import { editorErrorForeground, editorErrorBorder, editorWarningForeground, edit
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { basename } from 'vs/base/common/paths';
 
 class MessageWidget {
 
@@ -57,7 +58,7 @@ class MessageWidget {
 		dispose(this._disposables);
 	}
 
-	update({ source, message }: IMarker): void {
+	update({ source, message, relatedInformation }: IMarker): void {
 
 		if (source) {
 			this.lines = 0;
@@ -77,6 +78,13 @@ class MessageWidget {
 		} else {
 			this.lines = 1;
 			this.longestLineLength = message.length;
+		}
+
+		if (Array.isArray(relatedInformation)) {
+			for (const related of relatedInformation) {
+				this.lines += 1;
+				message += `\n${related.message} - ${basename(related.resource.path)}:${related.startLineNumber}`;
+			}
 		}
 
 		this._domNode.innerText = message;
