@@ -6,6 +6,7 @@
 /* Activity Bar */
 .monaco-workbench > .activitybar .monaco-action-bar .action-label.explore {
 	-webkit-mask: url('files-dark.svg') no-repeat 50% 50%;
+	backface-visibility: hidden; /* workaround for https://github.com/Microsoft/vscode/issues/45700 */
 }
 
 /* --- Explorer viewlet --- */

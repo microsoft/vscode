@@ -6,6 +6,7 @@
 /* Activity Bar */
 .monaco-workbench > .activitybar .monaco-action-bar .action-label.debug {
 	-webkit-mask: url('debug-dark.svg') no-repeat 50% 50%;
+	backface-visibility: hidden; /* workaround for https://github.com/Microsoft/vscode/issues/45700 */
 	-webkit-mask-size: 28px;
 }
 
