@@ -121,27 +121,20 @@ export class KeybindingsEditorModel extends EditorModel {
 		return searchValue.split('@source:')[1].trim() || '';
 	}
 
+	private matchSource(itemSource: string, searchValue: string): boolean {
+		return itemSource.toLowerCase() === searchValue.toLowerCase();
+	}
+
 	private filterBySource(keybindingItems: IKeybindingItem[], searchValue: string, completeMatch: boolean): IKeybindingItemEntry[] {
-		const result: IKeybindingItemEntry[] = [];
-		const words = searchValue.split(' ');
-		const keybindingWords = this.splitKeybindingWords(words);
-		for (const keybindingItem of keybindingItems) {
-			let keybindingMatches = new KeybindingItemMatches(this.modifierLabels, keybindingItem, searchValue, words, keybindingWords, completeMatch);
-			if (keybindingMatches.sourceMatches) {
-				result.push({
+		return <IKeybindingItemEntry[]>keybindingItems
+			.filter((keybindingItem: IKeybindingItem) => this.matchSource(keybindingItem.source, searchValue))
+			.map((keybindingItem: IKeybindingItem) => (
+				{
 					id: KeybindingsEditorModel.getId(keybindingItem),
 					templateId: KEYBINDING_ENTRY_TEMPLATE_ID,
-					commandLabelMatches: keybindingMatches.commandLabelMatches,
-					commandDefaultLabelMatches: keybindingMatches.commandDefaultLabelMatches,
 					keybindingItem,
-					keybindingMatches: keybindingMatches.keybindingMatches,
-					commandIdMatches: keybindingMatches.commandIdMatches,
-					sourceMatches: keybindingMatches.sourceMatches,
-					whenMatches: keybindingMatches.whenMatches
-				});
-			}
-		}
-		return result;
+				}
+			));
 	}
 
 	private filterByText(keybindingItems: IKeybindingItem[], searchValue: string, completeMatch: boolean): IKeybindingItemEntry[] {
