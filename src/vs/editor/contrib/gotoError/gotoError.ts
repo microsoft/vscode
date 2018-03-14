@@ -273,7 +273,10 @@ class MarkerController implements editorCommon.IEditorContribution {
 	}
 
 	private _getMarkers(): IMarker[] {
-		return this._markerService.read({ resource: this._editor.getModel().uri });
+		return this._markerService.read({
+			resource: this._editor.getModel().uri,
+			severities: MarkerSeverity.Error | MarkerSeverity.Warning
+		});
 	}
 }
 
@@ -302,7 +305,7 @@ class MarkerNavigationAction extends EditorAction {
 		}
 
 		// try with the next/prev file
-		let markers = markerService.read().sort(MarkerNavigationAction.compareMarker);
+		let markers = markerService.read({ severities: MarkerSeverity.Error | MarkerSeverity.Warning }).sort(MarkerNavigationAction.compareMarker);
 		if (markers.length === 0) {
 			return undefined;
 		}
