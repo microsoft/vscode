@@ -40,7 +40,7 @@ export class MarkdownContentProvider {
 		private readonly engine: MarkdownEngine,
 		private readonly context: vscode.ExtensionContext,
 		private readonly cspArbiter: ContentSecurityPolicyArbiter,
-		private readonly extensionPreviewResourceProvider: MarkdownContributions,
+		private readonly contributions: MarkdownContributions,
 		private readonly logger: Logger
 	) { }
 
@@ -125,7 +125,7 @@ export class MarkdownContentProvider {
 	}
 
 	private computeCustomStyleSheetIncludes(resource: vscode.Uri, config: MarkdownPreviewConfiguration): string {
-		if (config.styles && Array.isArray(config.styles)) {
+		if (Array.isArray(config.styles)) {
 			return config.styles.map(style => {
 				return `<link rel="stylesheet" class="code-user-style" data-source="${style.replace(/"/g, '&quot;')}" href="${this.fixHref(resource, style)}" type="text/css" media="screen">`;
 			}).join('\n');
@@ -144,17 +144,18 @@ export class MarkdownContentProvider {
 	}
 
 	private getStyles(resource: vscode.Uri, nonce: string, config: MarkdownPreviewConfiguration): string {
-		const baseStyles = this.extensionPreviewResourceProvider.previewStyles.map(resource => resource.toString());
+		const baseStyles = this.contributions.previewStyles
+			.map(resource => `<link rel="stylesheet" type="text/css" href="${resource.toString()}">`)
+			.join('\n');
 
-		return `${baseStyles.map(href => `<link rel="stylesheet" type="text/css" href="${href}">`).join('\n')}
+		return `${baseStyles}
 			${this.getSettingsOverrideStyles(nonce, config)}
 			${this.computeCustomStyleSheetIncludes(resource, config)}`;
 	}
 
 	private getScripts(nonce: string): string {
-		const scripts = this.extensionPreviewResourceProvider.previewScripts.map(resource => resource.toString());
-		return scripts
-			.map(source => `<script async src="${source}" nonce="${nonce}" charset="UTF-8"></script>`)
+		return this.contributions.previewScripts
+			.map(resource => `<script async src="${resource.toString()}" nonce="${nonce}" charset="UTF-8"></script>`)
 			.join('\n');
 	}
 
