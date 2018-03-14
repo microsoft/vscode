@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter, filterEvent } from 'vs/base/common/event';
 import { ColorIdentifier, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { attachStyler, IColorMapping, IThemable } from 'vs/platform/theme/common/styler';
+import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { append, $, trackFocus, toggleClass, EventType, isAncestor } from 'vs/base/browser/dom';
@@ -34,15 +34,6 @@ export interface IPanelColors extends IColorMapping {
 	headerForeground?: ColorIdentifier;
 	headerBackground?: ColorIdentifier;
 	headerHighContrastBorder?: ColorIdentifier;
-}
-
-export function attachPanelStyler(widget: IThemable, themeService: IThemeService) {
-	return attachStyler<IPanelColors>(themeService, {
-		headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,
-		headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
-		headerHighContrastBorder: contrastBorder,
-		dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
-	}, widget);
 }
 
 export interface IViewletPanelOptions extends IPanelOptions {
@@ -262,8 +253,14 @@ export class PanelViewlet extends Viewlet {
 				this.lastFocusedPanel = undefined;
 			}
 		}, null, disposables);
-		const styler = attachPanelStyler(panel, this.themeService);
-		const disposable = combinedDisposable([onDidFocus, styler, onDidChange]);
+
+		const panelStyler = attachStyler<IPanelColors>(this.themeService, {
+			headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,
+			headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
+			headerHighContrastBorder: index === 0 ? null : contrastBorder,
+			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
+		}, panel);
+		const disposable = combinedDisposable([onDidFocus, panelStyler, onDidChange]);
 		const panelItem: IViewletPanelItem = { panel, disposable };
 
 		const wasSingleView = this.isSingleView();
