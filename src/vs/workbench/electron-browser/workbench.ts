@@ -384,14 +384,14 @@ export class Workbench implements IPartService {
 			restorePromises.push(this.panelPart.openPanel(panelId, false));
 		}
 
+		// Restore Centered layout
+		if (this.storageService.getBoolean(Workbench.centeredEditorLayoutActiveStorageKey, StorageScope.GLOBAL, false)) {
+			this.centeredEditorLayoutActive = true;
+		}
+
 		// Restore Zen Mode if active
 		if (this.storageService.getBoolean(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE, false)) {
 			this.toggleZenMode(true);
-		}
-
-		// Restore Forced Editor Center Mode
-		if (this.storageService.getBoolean(Workbench.centeredEditorLayoutActiveStorageKey, StorageScope.GLOBAL, false)) {
-			this.centeredEditorLayoutActive = true;
 		}
 
 		const onRestored = (error?: Error): IWorkbenchStartedInfo => {
