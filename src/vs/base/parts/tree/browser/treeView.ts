@@ -253,7 +253,7 @@ export class ViewItem implements IViewItem {
 			}
 		}
 
-		if (!skipUserRender) {
+		if (!skipUserRender && this.element) {
 			const style = window.getComputedStyle(this.element);
 			const paddingLeft = parseFloat(style.paddingLeft);
 
@@ -271,7 +271,7 @@ export class ViewItem implements IViewItem {
 	}
 
 	updateWidth(): any {
-		if (!this.context.horizontalScrolling) {
+		if (!this.context.horizontalScrolling || !this.element) {
 			return;
 		}
 
