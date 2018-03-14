@@ -132,10 +132,11 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		uri: vscode.Uri,
 		title: string,
 		viewColumn: vscode.ViewColumn,
-		options: vscode.WebviewOptions
+		options: vscode.WebviewOptions,
+		extensionFolderPath: string
 	): vscode.Webview {
 		const handle = ExtHostWebviews.handlePool++;
-		this._proxy.$createWebview(handle, uri, title, typeConverters.fromViewColumn(viewColumn), options);
+		this._proxy.$createWebview(handle, uri, title, typeConverters.fromViewColumn(viewColumn), options, extensionFolderPath);
 
 		const webview = new ExtHostWebview(handle, this._proxy, uri, viewColumn, options);
 		this._webviews.set(handle, webview);

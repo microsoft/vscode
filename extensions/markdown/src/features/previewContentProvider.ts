@@ -13,6 +13,7 @@ const localize = nls.loadMessageBundle();
 import { Logger } from '../logger';
 import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from '../security';
 import { MarkdownPreviewConfigurationManager, MarkdownPreviewConfiguration } from './previewConfig';
+import { MarkdownContributions } from '../markdownExtensions';
 
 /**
  * Strings used inside the markdown preview.
@@ -35,23 +36,13 @@ const previewStrings = {
 };
 
 export class MarkdownContentProvider {
-	private readonly extraStyles: Array<vscode.Uri> = [];
-	private readonly extraScripts: Array<vscode.Uri> = [];
-
 	constructor(
 		private readonly engine: MarkdownEngine,
 		private readonly context: vscode.ExtensionContext,
 		private readonly cspArbiter: ContentSecurityPolicyArbiter,
+		private readonly extensionPreviewResourceProvider: MarkdownContributions,
 		private readonly logger: Logger
 	) { }
-
-	public addScript(resource: vscode.Uri): void {
-		this.extraScripts.push(resource);
-	}
-
-	public addStyle(resource: vscode.Uri): void {
-		this.extraStyles.push(resource);
-	}
 
 	public async provideTextDocumentContent(
 		markdownDocument: vscode.TextDocument,
@@ -85,7 +76,7 @@ export class MarkdownContentProvider {
 				<meta id="vscode-markdown-preview-data" data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}" data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}">
 				<script src="${this.extensionResourcePath('pre.js')}" nonce="${nonce}"></script>
 				${this.getStyles(sourceUri, nonce, config)}
-				<base href="${markdownDocument.uri.with({ scheme: 'vscode-workspace-resource' }).toString(true)}">
+				<base href="${markdownDocument.uri.with({ scheme: 'vscode-resource' }).toString(true)}">
 			</head>
 			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
 				${body}
@@ -97,7 +88,7 @@ export class MarkdownContentProvider {
 
 	private extensionResourcePath(mediaFile: string): string {
 		return vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile)))
-			.with({ scheme: 'vscode-extension-resource' })
+			.with({ scheme: 'vscode-resource' })
 			.toString();
 	}
 
@@ -115,7 +106,7 @@ export class MarkdownContentProvider {
 		// Use href as file URI if it is absolute
 		if (path.isAbsolute(href) || hrefUri.scheme === 'file') {
 			return vscode.Uri.file(href)
-				.with({ scheme: 'vscode-workspace-resource' })
+				.with({ scheme: 'vscode-resource' })
 				.toString();
 		}
 
@@ -123,13 +114,13 @@ export class MarkdownContentProvider {
 		let root = vscode.workspace.getWorkspaceFolder(resource);
 		if (root) {
 			return vscode.Uri.file(path.join(root.uri.fsPath, href))
-				.with({ scheme: 'vscode-workspace-resource' })
+				.with({ scheme: 'vscode-resource' })
 				.toString();
 		}
 
 		// Otherwise look relative to the markdown file
 		return vscode.Uri.file(path.join(path.dirname(resource.fsPath), href))
-			.with({ scheme: 'vscode-workspace-resource' })
+			.with({ scheme: 'vscode-resource' })
 			.toString();
 	}
 
@@ -153,10 +144,7 @@ export class MarkdownContentProvider {
 	}
 
 	private getStyles(resource: vscode.Uri, nonce: string, config: MarkdownPreviewConfiguration): string {
-		const baseStyles = [
-			this.extensionResourcePath('markdown.css'),
-			this.extensionResourcePath('tomorrow.css')
-		].concat(this.extraStyles.map(resource => resource.toString()));
+		const baseStyles = this.extensionPreviewResourceProvider.previewStyles.map(resource => resource.toString());
 
 		return `${baseStyles.map(href => `<link rel="stylesheet" type="text/css" href="${href}">`).join('\n')}
 			${this.getSettingsOverrideStyles(nonce, config)}
@@ -164,7 +152,7 @@ export class MarkdownContentProvider {
 	}
 
 	private getScripts(nonce: string): string {
-		const scripts = [this.extensionResourcePath('index.js')].concat(this.extraScripts.map(resource => resource.toString()));
+		const scripts = this.extensionPreviewResourceProvider.previewScripts.map(resource => resource.toString());
 		return scripts
 			.map(source => `<script async src="${source}" nonce="${nonce}" charset="UTF-8"></script>`)
 			.join('\n');
@@ -173,14 +161,14 @@ export class MarkdownContentProvider {
 	private getCspForResource(resource: vscode.Uri, nonce: string): string {
 		switch (this.cspArbiter.getSecurityLevelForResource(resource)) {
 			case MarkdownPreviewSecurityLevel.AllowInsecureContent:
-				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-workspace-resource: vscode-extension-resource: http: https: data:; media-src vscode-workspace-resource: vscode-extension-resource: http: https: data:; script-src 'nonce-${nonce}'; style-src vscode-workspace-resource: 'unsafe-inline' http: https: data: vscode-extension-resource:; font-src vscode-workspace-resource: vscode-extension-resource: http: https: data:;">`;
+				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-resource: http: https: data:; media-src vscode-resource: http: https: data:; script-src 'nonce-${nonce}'; style-src vscode-resource: 'unsafe-inline' http: https: data:; font-src vscode-resource: http: https: data:;">`;
 
 			case MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent:
 				return '';
 
 			case MarkdownPreviewSecurityLevel.Strict:
 			default:
-				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-workspace-resource: vscode-extension-resource: https: data:; media-src vscode-workspace-resource: vscode-extension-resource: https: data:; script-src 'nonce-${nonce}'; style-src vscode-workspace-resource: 'unsafe-inline' https: data: vscode-extension-resource:; font-src vscode-workspace-resource: vscode-extension-resource: https: data:;">`;
+				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-resource: https: data:; media-src vscode-resource: https: data:; script-src 'nonce-${nonce}'; style-src vscode-resource: 'unsafe-inline' https: data:; font-src vscode-resource: https: data:;">`;
 		}
 	}
 }

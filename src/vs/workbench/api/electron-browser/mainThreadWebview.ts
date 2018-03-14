@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as map from 'vs/base/common/map';
 import { MainThreadWebviewsShape, MainContext, IExtHostContext, ExtHostContext, ExtHostWebviewsShape, WebviewHandle } from 'vs/workbench/api/node/extHost.protocol';
@@ -47,7 +46,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	$createWebview(handle: WebviewHandle, uri: URI, title: string, column: Position, options: vscode.WebviewOptions): void {
+	$createWebview(handle: WebviewHandle, uri: URI, title: string, column: Position, options: vscode.WebviewOptions, extensionFolderPath: string): void {
 		const webviewInput = new WebviewInput(URI.revive(uri), title, options, '', {
 			onMessage: message => this._proxy.$onMessage(handle, message),
 			onDidChangePosition: position => this._proxy.$onDidChangePosition(handle, position),

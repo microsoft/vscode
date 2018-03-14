@@ -12,6 +12,7 @@ import { disposeAll } from '../util/dispose';
 import { MarkdownFileTopmostLineMonitor } from '../util/topmostLineMonitor';
 import { isMarkdownFile } from '../util/file';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
+import { MarkdownContributions } from '../markdownExtensions';
 
 export class MarkdownPreviewManager {
 	private static readonly markdownPreviewActiveContextKey = 'markdownPreviewFocus';
@@ -24,7 +25,8 @@ export class MarkdownPreviewManager {
 
 	public constructor(
 		private readonly contentProvider: MarkdownContentProvider,
-		private readonly logger: Logger
+		private readonly logger: Logger,
+		private readonly contributions: MarkdownContributions
 	) {
 		vscode.window.onDidChangeActiveEditor(editor => {
 			vscode.commands.executeCommand('setContext', MarkdownPreviewManager.markdownPreviewActiveContextKey,
@@ -122,7 +124,8 @@ export class MarkdownPreviewManager {
 			this.contentProvider,
 			this.previewConfigurations,
 			this.logger,
-			this.topmostLineMonitor);
+			this.topmostLineMonitor,
+			this.contributions);
 
 		preview.onDispose(() => {
 			const existing = this.previews.indexOf(preview!);

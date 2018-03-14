@@ -519,9 +519,9 @@ declare module 'vscode' {
 		readonly retainContextWhenHidden?: boolean;
 
 		/**
-		 * Root paths from which the webview can load local (filesystem) resources using the `vscode-workspace-resource:` scheme.
+		 * Root paths from which the webview can load local (filesystem) resources using the `vscode-resource:` scheme.
 		 *
-		 * Default to the root folders of the current workspace.
+		 * Default to the root folders of the current workspace plus the extension's install directory.
 		 *
 		 * Pass in an empty array to disallow access to any local resources.
 		 */

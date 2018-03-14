@@ -22,6 +22,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import DOM = require('vs/base/browser/dom');
 import Event, { Emitter } from 'vs/base/common/event';
 import { WebviewInput } from 'vs/workbench/parts/webview/electron-browser/webviewInput';
+import URI from 'vs/base/common/uri';
 
 export class WebviewEditor extends BaseWebviewEditor {
 
@@ -162,7 +163,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 			allowSvgs: true,
 			enableWrappedPostMessage: true,
 			useSameOriginForRoot: false,
-			localResourceRoots: (input && input.options.localResourceRoots) || this._contextService.getWorkspace().folders.map(x => x.uri)
+			localResourceRoots: input.options.localResourceRoots || this.getDefaultLocalResourceRoots()
 		};
 		input.setHtml(input.html);
 
@@ -171,6 +172,14 @@ export class WebviewEditor extends BaseWebviewEditor {
 		}
 
 		this.doUpdateContainer();
+	}
+
+	private getDefaultLocalResourceRoots(): URI[] {
+		const rootPaths = this._contextService.getWorkspace().folders.map(x => x.uri);
+		if ((this.input as WebviewInput).extensionFolderPath) {
+			rootPaths.push((this.input as WebviewInput).extensionFolderPath);
+		}
+		return rootPaths;
 	}
 
 	private getWebview(input: WebviewInput): Webview {
