@@ -63,8 +63,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private disposed: boolean;
 	private lastSaveAttemptTime: number;
 	private createTextEditorModelPromise: TPromise<TextFileEditorModel>;
-	private _onDidContentChange: Emitter<StateChange>;
-	private _onDidStateChange: Emitter<StateChange>;
+	private readonly _onDidContentChange: Emitter<StateChange>;
+	private readonly _onDidStateChange: Emitter<StateChange>;
 
 	private inConflictMode: boolean;
 	private inOrphanMode: boolean;

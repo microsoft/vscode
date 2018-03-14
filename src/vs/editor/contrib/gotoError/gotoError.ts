@@ -34,8 +34,8 @@ class MarkerModel {
 	private _nextIdx: number;
 	private _toUnbind: IDisposable[];
 	private _ignoreSelectionChange: boolean;
-	private _onCurrentMarkerChanged: Emitter<IMarker>;
-	private _onMarkerSetChanged: Emitter<MarkerModel>;
+	private readonly _onCurrentMarkerChanged: Emitter<IMarker>;
+	private readonly _onMarkerSetChanged: Emitter<MarkerModel>;
 
 	constructor(editor: ICodeEditor, markers: IMarker[]) {
 		this._editor = editor;

@@ -31,7 +31,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 	private editorFrame: HTMLElement;
 	private content: HTMLElement;
 	private webviewContent: HTMLElement | undefined;
-	private _onDidFocusWebview: Emitter<void>;
+	private readonly _onDidFocusWebview: Emitter<void>;
 	private _webviewFocusTracker?: DOM.IFocusTracker;
 	private _webviewFocusListenerDisposable?: IDisposable;
 

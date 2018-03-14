@@ -174,7 +174,7 @@ export class Workbench implements IPartService {
 
 	private static readonly fontAliasingConfigurationKey = 'workbench.fontAliasing';
 
-	private _onTitleBarVisibilityChange: Emitter<void>;
+	private readonly _onTitleBarVisibilityChange: Emitter<void>;
 
 	public _serviceBrand: any;
 

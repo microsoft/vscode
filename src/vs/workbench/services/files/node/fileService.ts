@@ -119,8 +119,8 @@ export class FileService implements IFileService {
 	private tmpPath: string;
 	private options: IFileServiceOptions;
 
-	private _onFileChanges: Emitter<FileChangesEvent>;
-	private _onAfterOperation: Emitter<FileOperationEvent>;
+	private readonly _onFileChanges: Emitter<FileChangesEvent>;
+	private readonly _onAfterOperation: Emitter<FileOperationEvent>;
 
 	private toDispose: IDisposable[];
 

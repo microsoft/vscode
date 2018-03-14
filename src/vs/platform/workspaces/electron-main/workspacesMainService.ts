@@ -37,8 +37,8 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 	protected workspacesHome: string;
 
-	private _onWorkspaceSaved: Emitter<IWorkspaceSavedEvent>;
-	private _onUntitledWorkspaceDeleted: Emitter<IWorkspaceIdentifier>;
+	private readonly _onWorkspaceSaved: Emitter<IWorkspaceSavedEvent>;
+	private readonly _onUntitledWorkspaceDeleted: Emitter<IWorkspaceIdentifier>;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,

@@ -78,10 +78,10 @@ export class TerminalInstance implements ITerminalInstance {
 	private _processState: ProcessState;
 	private _processReady: TPromise<void>;
 	private _isDisposed: boolean;
-	private _onDisposed: Emitter<ITerminalInstance>;
-	private _onFocused: Emitter<ITerminalInstance>;
-	private _onProcessIdReady: Emitter<ITerminalInstance>;
-	private _onTitleChanged: Emitter<string>;
+	private readonly _onDisposed: Emitter<ITerminalInstance>;
+	private readonly _onFocused: Emitter<ITerminalInstance>;
+	private readonly _onProcessIdReady: Emitter<ITerminalInstance>;
+	private readonly _onTitleChanged: Emitter<string>;
 	private _process: cp.ChildProcess;
 	private _processId: number;
 	private _skipTerminalCommands: string[];

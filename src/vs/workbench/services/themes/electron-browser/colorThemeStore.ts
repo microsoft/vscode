@@ -47,7 +47,7 @@ let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPo
 export class ColorThemeStore {
 
 	private extensionsColorThemes: ColorThemeData[];
-	private onDidChangeEmitter: Emitter<ColorThemeData[]>;
+	private readonly onDidChangeEmitter: Emitter<ColorThemeData[]>;
 
 	public get onDidChange(): Event<ColorThemeData[]> { return this.onDidChangeEmitter.event; }
 

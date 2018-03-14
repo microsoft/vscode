@@ -36,7 +36,7 @@ export class NotificationsCenter extends Themable {
 	private notificationsList: NotificationsList;
 	private _isVisible: boolean;
 	private workbenchDimensions: Dimension;
-	private _onDidChangeVisibility: Emitter<void>;
+	private readonly _onDidChangeVisibility: Emitter<void>;
 	private notificationsCenterVisibleContextKey: IContextKey<boolean>;
 
 	constructor(

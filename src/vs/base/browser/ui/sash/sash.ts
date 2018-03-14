@@ -301,7 +301,7 @@ export class VSash extends Disposable implements IVerticalSashLayoutProvider {
 	private position: number;
 	private dimension: Dimension;
 
-	private _onPositionChange: Emitter<number> = new Emitter<number>();
+	private readonly _onPositionChange: Emitter<number> = new Emitter<number>();
 	public get onPositionChange(): Event<number> { return this._onPositionChange.event; }
 
 	constructor(container: HTMLElement, private minWidth: number) {

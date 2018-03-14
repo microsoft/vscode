@@ -194,7 +194,7 @@ export interface INotificationService {
 export class NoOpNotification implements INotificationHandle {
 	readonly progress = new NoOpProgress();
 
-	private _onDidDispose: Emitter<void> = new Emitter();
+	private readonly _onDidDispose: Emitter<void> = new Emitter();
 
 	public get onDidDispose(): Event<void> {
 		return this._onDidDispose.event;

@@ -16,7 +16,7 @@ export class URLService implements IURLService {
 
 	_serviceBrand: any;
 
-	private openUrlEmitter: Emitter<string> = new Emitter<string>();
+	private readonly openUrlEmitter: Emitter<string> = new Emitter<string>();
 	onOpenURL: Event<URI>;
 
 	constructor(

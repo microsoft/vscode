@@ -39,7 +39,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 
 export class ExtensionHostProcessWorker {
 
-	private _onCrashed: Emitter<[number, string]> = new Emitter<[number, string]>();
+	private readonly _onCrashed: Emitter<[number, string]> = new Emitter<[number, string]>();
 	public readonly onCrashed: Event<[number, string]> = this._onCrashed.event;
 
 	private readonly _toDispose: IDisposable[];

@@ -98,7 +98,7 @@ export class ExtHostTerminal implements vscode.Terminal {
 
 export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
-	private _onDidCloseTerminal: Emitter<vscode.Terminal>;
+	private readonly _onDidCloseTerminal: Emitter<vscode.Terminal>;
 	private _proxy: MainThreadTerminalServiceShape;
 	private _terminals: ExtHostTerminal[];
 

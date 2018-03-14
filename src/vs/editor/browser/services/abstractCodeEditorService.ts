@@ -14,12 +14,12 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 
 	_serviceBrand: any;
 
-	private _onCodeEditorAdd: Emitter<ICodeEditor>;
-	private _onCodeEditorRemove: Emitter<ICodeEditor>;
+	private readonly _onCodeEditorAdd: Emitter<ICodeEditor>;
+	private readonly _onCodeEditorRemove: Emitter<ICodeEditor>;
 	private _codeEditors: { [editorId: string]: ICodeEditor; };
 
-	private _onDiffEditorAdd: Emitter<IDiffEditor>;
-	private _onDiffEditorRemove: Emitter<IDiffEditor>;
+	private readonly _onDiffEditorAdd: Emitter<IDiffEditor>;
+	private readonly _onDiffEditorRemove: Emitter<IDiffEditor>;
 	private _diffEditors: { [editorId: string]: IDiffEditor; };
 
 	constructor() {

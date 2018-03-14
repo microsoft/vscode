@@ -37,7 +37,7 @@ export interface ICompositeBarOptions {
 
 export class CompositeBar implements ICompositeBar {
 
-	private _onDidContextMenu: Emitter<MouseEvent>;
+	private readonly _onDidContextMenu: Emitter<MouseEvent>;
 
 	private dimension: Dimension;
 	private toDispose: IDisposable[];

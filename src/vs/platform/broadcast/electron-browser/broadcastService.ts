@@ -29,7 +29,7 @@ export interface IBroadcastService {
 export class BroadcastService implements IBroadcastService {
 	public _serviceBrand: any;
 
-	private _onBroadcast: Emitter<IBroadcast>;
+	private readonly _onBroadcast: Emitter<IBroadcast>;
 
 	constructor(
 		private windowId: number,

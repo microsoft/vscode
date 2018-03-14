@@ -21,7 +21,7 @@ export default class LanguageFeatureRegistry<T> {
 
 	private _clock: number = 0;
 	private _entries: Entry<T>[] = [];
-	private _onDidChange: Emitter<number> = new Emitter<number>();
+	private readonly _onDidChange: Emitter<number> = new Emitter<number>();
 
 	constructor() {
 	}

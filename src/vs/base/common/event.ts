@@ -163,7 +163,7 @@ export class Emitter<T> {
 
 export class EventMultiplexer<T> implements IDisposable {
 
-	private emitter: Emitter<T>;
+	private readonly emitter: Emitter<T>;
 	private hasListeners = false;
 	private events: { event: Event<T>; listener: IDisposable; }[] = [];
 

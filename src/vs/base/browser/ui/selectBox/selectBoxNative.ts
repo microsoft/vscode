@@ -16,7 +16,7 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 	private selectElement: HTMLSelectElement;
 	private options: string[];
 	private selected: number;
-	private _onDidSelect: Emitter<ISelectData>;
+	private readonly _onDidSelect: Emitter<ISelectData>;
 	private toDispose: IDisposable[];
 	private styles: ISelectBoxStyles;
 

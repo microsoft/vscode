@@ -14,9 +14,9 @@ export class ViewModel implements IViewModel {
 	private _focusedThread: IThread;
 	private selectedExpression: IExpression;
 	private selectedFunctionBreakpoint: IFunctionBreakpoint;
-	private _onDidFocusProcess: Emitter<IProcess | undefined>;
-	private _onDidFocusStackFrame: Emitter<{ stackFrame: IStackFrame, explicit: boolean }>;
-	private _onDidSelectExpression: Emitter<IExpression>;
+	private readonly _onDidFocusProcess: Emitter<IProcess | undefined>;
+	private readonly _onDidFocusStackFrame: Emitter<{ stackFrame: IStackFrame, explicit: boolean }>;
+	private readonly _onDidSelectExpression: Emitter<IExpression>;
 	private multiProcessView: boolean;
 	private expressionSelectedContextKey: IContextKey<boolean>;
 	private breakpointSelectedContextKey: IContextKey<boolean>;

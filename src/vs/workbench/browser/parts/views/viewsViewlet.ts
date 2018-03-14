@@ -194,7 +194,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 	protected viewsStates: Map<string, IViewState> = new Map<string, IViewState>();
 	private areExtensionsReady: boolean = false;
 
-	private _onDidChangeViewVisibilityState: Emitter<string> = new Emitter<string>();
+	private readonly _onDidChangeViewVisibilityState: Emitter<string> = new Emitter<string>();
 	readonly onDidChangeViewVisibilityState: Event<string> = this._onDidChangeViewVisibilityState.event;
 
 	constructor(

@@ -79,7 +79,7 @@ export class WorkspaceConfiguration extends Disposable {
 	private _workspaceConfigurationWatcher: ConfigWatcher<WorkspaceConfigurationModelParser>;
 	private _workspaceConfigurationWatcherDisposables: IDisposable[] = [];
 
-	private _onDidUpdateConfiguration: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidUpdateConfiguration: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidUpdateConfiguration: Event<void> = this._onDidUpdateConfiguration.event;
 
 	private _workspaceConfigurationModelParser: WorkspaceConfigurationModelParser = new WorkspaceConfigurationModelParser(this._workspaceConfigPath ? this._workspaceConfigPath.fsPath : '');
@@ -182,7 +182,7 @@ export class FolderConfiguration extends Disposable {
 	private _cache: ConfigurationModel = new ConfigurationModel();
 
 	private reloadConfigurationScheduler: RunOnceScheduler;
-	private reloadConfigurationEventEmitter: Emitter<ConfigurationModel> = new Emitter<ConfigurationModel>();
+	private readonly reloadConfigurationEventEmitter: Emitter<ConfigurationModel> = new Emitter<ConfigurationModel>();
 
 	constructor(private folder: URI, private configFolderRelativePath: string, workbenchState: WorkbenchState) {
 		super();

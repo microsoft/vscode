@@ -113,7 +113,7 @@ const NO_OP_VOID_PROMISE = TPromise.wrap<void>(void 0);
 export class ExtensionService extends Disposable implements IExtensionService {
 	public _serviceBrand: any;
 
-	private _onDidRegisterExtensions: Emitter<void>;
+	private readonly _onDidRegisterExtensions: Emitter<void>;
 
 	private _registry: ExtensionDescriptionRegistry;
 	private readonly _installedExtensionsReady: Barrier;

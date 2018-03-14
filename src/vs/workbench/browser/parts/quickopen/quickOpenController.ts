@@ -84,8 +84,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 	private static readonly ID = 'workbench.component.quickopen';
 
-	private _onShow: Emitter<void>;
-	private _onHide: Emitter<void>;
+	private readonly _onShow: Emitter<void>;
+	private readonly _onHide: Emitter<void>;
 
 	private quickOpenWidget: QuickOpenWidget;
 	private pickOpenWidget: QuickOpenWidget;

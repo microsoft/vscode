@@ -54,16 +54,16 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 	private _capabilities: DebugProtocol.Capabilities;
 	private allThreadsContinued: boolean;
 
-	private _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
-	private _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
-	private _onDidContinued: Emitter<DebugProtocol.ContinuedEvent>;
-	private _onDidTerminateDebugee: Emitter<SessionTerminatedEvent>;
-	private _onDidExitAdapter: Emitter<SessionExitedEvent>;
-	private _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
-	private _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
-	private _onDidBreakpoint: Emitter<DebugProtocol.BreakpointEvent>;
-	private _onDidCustomEvent: Emitter<debug.DebugEvent>;
-	private _onDidEvent: Emitter<DebugProtocol.Event>;
+	private readonly _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
+	private readonly _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
+	private readonly _onDidContinued: Emitter<DebugProtocol.ContinuedEvent>;
+	private readonly _onDidTerminateDebugee: Emitter<SessionTerminatedEvent>;
+	private readonly _onDidExitAdapter: Emitter<SessionExitedEvent>;
+	private readonly _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
+	private readonly _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
+	private readonly _onDidBreakpoint: Emitter<DebugProtocol.BreakpointEvent>;
+	private readonly _onDidCustomEvent: Emitter<debug.DebugEvent>;
+	private readonly _onDidEvent: Emitter<DebugProtocol.Event>;
 
 	constructor(
 		id: string,

@@ -74,11 +74,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private colorThemeStore: ColorThemeStore;
 	private currentColorTheme: ColorThemeData;
 	private container: HTMLElement;
-	private onColorThemeChange: Emitter<IColorTheme>;
+	private readonly onColorThemeChange: Emitter<IColorTheme>;
 
 	private iconThemeStore: FileIconThemeStore;
 	private currentIconTheme: IFileIconTheme;
-	private onFileIconThemeChange: Emitter<IFileIconTheme>;
+	private readonly onFileIconThemeChange: Emitter<IFileIconTheme>;
 
 	private themingParticipantChangeListener: IDisposable;
 	private _configurationWriter: ConfigurationWriter;

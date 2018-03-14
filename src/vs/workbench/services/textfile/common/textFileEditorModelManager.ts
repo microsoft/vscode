@@ -17,14 +17,14 @@ import { ResourceMap } from 'vs/base/common/map';
 export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 	private toUnbind: IDisposable[];
 
-	private _onModelDisposed: Emitter<URI>;
-	private _onModelContentChanged: Emitter<TextFileModelChangeEvent>;
-	private _onModelDirty: Emitter<TextFileModelChangeEvent>;
-	private _onModelSaveError: Emitter<TextFileModelChangeEvent>;
-	private _onModelSaved: Emitter<TextFileModelChangeEvent>;
-	private _onModelReverted: Emitter<TextFileModelChangeEvent>;
-	private _onModelEncodingChanged: Emitter<TextFileModelChangeEvent>;
-	private _onModelOrphanedChanged: Emitter<TextFileModelChangeEvent>;
+	private readonly _onModelDisposed: Emitter<URI>;
+	private readonly _onModelContentChanged: Emitter<TextFileModelChangeEvent>;
+	private readonly _onModelDirty: Emitter<TextFileModelChangeEvent>;
+	private readonly _onModelSaveError: Emitter<TextFileModelChangeEvent>;
+	private readonly _onModelSaved: Emitter<TextFileModelChangeEvent>;
+	private readonly _onModelReverted: Emitter<TextFileModelChangeEvent>;
+	private readonly _onModelEncodingChanged: Emitter<TextFileModelChangeEvent>;
+	private readonly _onModelOrphanedChanged: Emitter<TextFileModelChangeEvent>;
 
 	private _onModelsDirtyEvent: Event<TextFileModelChangeEvent[]>;
 	private _onModelsSaveError: Event<TextFileModelChangeEvent[]>;

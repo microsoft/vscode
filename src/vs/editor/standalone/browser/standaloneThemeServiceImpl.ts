@@ -118,7 +118,7 @@ export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 	private _knownThemes: Map<string, StandaloneTheme>;
 	private _styleElement: HTMLStyleElement;
 	private _theme: IStandaloneTheme;
-	private _onThemeChange: Emitter<IStandaloneTheme>;
+	private readonly _onThemeChange: Emitter<IStandaloneTheme>;
 
 
 	constructor() {

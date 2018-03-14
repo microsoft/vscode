@@ -119,7 +119,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	private _settingsGroups: ISettingsGroup[];
 	protected settingsModel: ITextModel;
 
-	private _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
 
 	constructor(reference: IReference<ITextEditorModel>, private _configurationTarget: ConfigurationTarget) {
@@ -597,7 +597,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	private _model: ITextModel;
 
-	private _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
 
 	constructor(

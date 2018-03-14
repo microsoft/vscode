@@ -68,10 +68,10 @@ export class DebugService implements debug.IDebugService {
 	public _serviceBrand: any;
 
 	private sessionStates: Map<string, debug.State>;
-	private _onDidChangeState: Emitter<debug.State>;
-	private _onDidNewProcess: Emitter<debug.IProcess>;
-	private _onDidEndProcess: Emitter<debug.IProcess>;
-	private _onDidCustomEvent: Emitter<debug.DebugEvent>;
+	private readonly _onDidChangeState: Emitter<debug.State>;
+	private readonly _onDidNewProcess: Emitter<debug.IProcess>;
+	private readonly _onDidEndProcess: Emitter<debug.IProcess>;
+	private readonly _onDidCustomEvent: Emitter<debug.DebugEvent>;
 	private model: Model;
 	private viewModel: ViewModel;
 	private allProcesses: Map<string, debug.IProcess>;

@@ -98,7 +98,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private currentSelectedFileMatch: FileMatch;
 
-	private selectCurrentMatchEmitter: Emitter<string>;
+	private readonly selectCurrentMatchEmitter: Emitter<string>;
 	private delayedRefresh: Delayer<void>;
 	private changedWhileHidden: boolean;
 

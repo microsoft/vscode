@@ -14,7 +14,7 @@ export class UserConfiguration extends Disposable {
 
 	private userConfigModelWatcher: ConfigWatcher<ConfigurationModelParser>;
 
-	private _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
+	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
 	constructor(settingsPath: string) {

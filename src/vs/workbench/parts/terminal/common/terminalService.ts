@@ -31,7 +31,7 @@ export abstract class TerminalService implements ITerminalService {
 	protected abstract _terminalInstances: ITerminalInstance[];
 
 	private _activeTabIndex: number;
-	private _onActiveTabChanged: Emitter<void>;
+	private readonly _onActiveTabChanged: Emitter<void>;
 
 	public get activeTabIndex(): number { return this._activeTabIndex; }
 	public get onActiveTabChanged(): Event<void> { return this._onActiveTabChanged.event; }

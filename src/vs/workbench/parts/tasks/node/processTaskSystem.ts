@@ -54,7 +54,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 	private activeTask: CustomTask;
 	private activeTaskPromise: TPromise<ITaskSummary>;
 
-	private _onDidStateChange: Emitter<TaskEvent>;
+	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
 	constructor(markerService: IMarkerService, modelService: IModelService, telemetryService: ITelemetryService,
 		outputService: IOutputService, configurationResolverService: IConfigurationResolverService, outputChannelId: string) {

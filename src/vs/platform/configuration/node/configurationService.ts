@@ -23,7 +23,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	private _configuration: Configuration;
 	private userConfiguration: UserConfiguration;
 
-	private _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
+	private readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
 	readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	constructor(

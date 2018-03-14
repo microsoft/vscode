@@ -455,7 +455,7 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 	private _hasFocus: boolean;
 	private _domFocusTracker: dom.IFocusTracker;
 
-	private _onChange: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onChange: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onChange: Event<void> = this._onChange.event;
 
 	constructor(domElement: HTMLElement) {

@@ -453,7 +453,7 @@ class TaskService implements ITaskService {
 	private _recentlyUsedTasks: LinkedMap<string, string>;
 
 	private _outputChannel: IOutputChannel;
-	private _onDidStateChange: Emitter<TaskEvent>;
+	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,

@@ -28,7 +28,7 @@ export class TMScopeRegistry {
 	private _scopeNameToLanguageRegistration: { [scopeName: string]: TMLanguageRegistration; };
 	private _encounteredLanguages: boolean[];
 
-	private _onDidEncounterLanguage: Emitter<LanguageId> = new Emitter<LanguageId>();
+	private readonly _onDidEncounterLanguage: Emitter<LanguageId> = new Emitter<LanguageId>();
 	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
 
 	constructor() {

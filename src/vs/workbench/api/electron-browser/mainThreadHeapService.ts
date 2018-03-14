@@ -32,7 +32,7 @@ export class HeapService implements IHeapService {
 
 	_serviceBrand: any;
 
-	private _onGarbageCollection: Emitter<number[]> = new Emitter<number[]>();
+	private readonly _onGarbageCollection: Emitter<number[]> = new Emitter<number[]>();
 	public readonly onGarbageCollection: Event<number[]> = this._onGarbageCollection.event;
 
 	private _activeSignals = new WeakMap<any, object>();

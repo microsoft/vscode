@@ -28,9 +28,9 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	private toDispose: IDisposable[];
 
 	private dirty: boolean;
-	private _onDidChangeContent: Emitter<void>;
-	private _onDidChangeDirty: Emitter<void>;
-	private _onDidChangeEncoding: Emitter<void>;
+	private readonly _onDidChangeContent: Emitter<void>;
+	private readonly _onDidChangeDirty: Emitter<void>;
+	private readonly _onDidChangeEncoding: Emitter<void>;
 
 	private versionId: number;
 

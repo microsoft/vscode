@@ -20,7 +20,7 @@ export class KeyboardLayoutMonitor {
 
 	public static readonly INSTANCE = new KeyboardLayoutMonitor();
 
-	private _emitter: Emitter<void>;
+	private readonly _emitter: Emitter<void>;
 	private _registered: boolean;
 
 	private constructor() {

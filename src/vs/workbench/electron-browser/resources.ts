@@ -19,7 +19,7 @@ export class ResourceGlobMatcher {
 
 	private static readonly NO_ROOT: string = null;
 
-	private _onExpressionChange: Emitter<void>;
+	private readonly _onExpressionChange: Emitter<void>;
 	private toUnbind: IDisposable[];
 	private mapRootToParsedExpression: Map<string, ParsedExpression>;
 	private mapRootToExpressionConfig: Map<string, IExpression>;

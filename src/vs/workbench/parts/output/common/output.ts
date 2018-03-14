@@ -165,10 +165,10 @@ export interface IOutputChannelRegistry {
 class OutputChannelRegistry implements IOutputChannelRegistry {
 	private channels = new Map<string, IOutputChannelIdentifier>();
 
-	private _onDidRegisterChannel: Emitter<string> = new Emitter<string>();
+	private readonly _onDidRegisterChannel: Emitter<string> = new Emitter<string>();
 	readonly onDidRegisterChannel: Event<string> = this._onDidRegisterChannel.event;
 
-	private _onDidRemoveChannel: Emitter<string> = new Emitter<string>();
+	private readonly _onDidRemoveChannel: Emitter<string> = new Emitter<string>();
 	readonly onDidRemoveChannel: Event<string> = this._onDidRemoveChannel.event;
 
 	public registerChannel(id: string, label: string, file?: URI): void {

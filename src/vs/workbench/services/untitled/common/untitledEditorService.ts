@@ -110,10 +110,10 @@ export class UntitledEditorService implements IUntitledEditorService {
 	private mapResourceToInput = new ResourceMap<UntitledEditorInput>();
 	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
 
-	private _onDidChangeContent: Emitter<URI>;
-	private _onDidChangeDirty: Emitter<URI>;
-	private _onDidChangeEncoding: Emitter<URI>;
-	private _onDidDisposeModel: Emitter<URI>;
+	private readonly _onDidChangeContent: Emitter<URI>;
+	private readonly _onDidChangeDirty: Emitter<URI>;
+	private readonly _onDidChangeEncoding: Emitter<URI>;
+	private readonly _onDidDisposeModel: Emitter<URI>;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,

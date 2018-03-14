@@ -160,7 +160,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 	private visibleEditorFocusTrackerDisposable: IDisposable[];
 
-	private _onGroupFocusChanged: Emitter<void>;
+	private readonly _onGroupFocusChanged: Emitter<void>;
 
 	private onStacksChangeScheduler: RunOnceScheduler;
 	private stacksChangedBuffer: IStacksModelChangeEvent[];

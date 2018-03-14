@@ -14,7 +14,7 @@ import { IRawFileChange, toFileChangesEvent, normalize } from 'vs/workbench/serv
 import Event, { Emitter } from 'vs/base/common/event';
 
 class TestFileWatcher {
-	private _onFileChanges: Emitter<FileChangesEvent>;
+	private readonly _onFileChanges: Emitter<FileChangesEvent>;
 
 	constructor() {
 		this._onFileChanges = new Emitter<FileChangesEvent>();

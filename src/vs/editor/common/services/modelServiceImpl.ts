@@ -193,9 +193,9 @@ export class ModelServiceImpl implements IModelService {
 	private _configurationService: IConfigurationService;
 	private _configurationServiceSubscription: IDisposable;
 
-	private _onModelAdded: Emitter<ITextModel>;
-	private _onModelRemoved: Emitter<ITextModel>;
-	private _onModelModeChanged: Emitter<{ model: ITextModel; oldModeId: string; }>;
+	private readonly _onModelAdded: Emitter<ITextModel>;
+	private readonly _onModelRemoved: Emitter<ITextModel>;
+	private readonly _onModelModeChanged: Emitter<{ model: ITextModel; oldModeId: string; }>;
 
 	private _modelCreationOptionsByLanguageAndResource: {
 		[languageAndResource: string]: ITextModelCreationOptions;

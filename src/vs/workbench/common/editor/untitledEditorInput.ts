@@ -35,8 +35,8 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	private cachedModel: UntitledEditorModel;
 	private modelResolve: TPromise<UntitledEditorModel>;
 
-	private _onDidModelChangeContent: Emitter<void>;
-	private _onDidModelChangeEncoding: Emitter<void>;
+	private readonly _onDidModelChangeContent: Emitter<void>;
+	private readonly _onDidModelChangeEncoding: Emitter<void>;
 
 	private toUnbind: IDisposable[];
 

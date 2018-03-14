@@ -185,7 +185,7 @@ export class MainThreadTextEditor {
 	private _codeEditorListeners: IDisposable[];
 
 	private _properties: MainThreadTextEditorProperties;
-	private _onPropertiesChanged: Emitter<IEditorPropertiesChangeData>;
+	private readonly _onPropertiesChanged: Emitter<IEditorPropertiesChangeData>;
 
 	constructor(
 		id: string,

@@ -51,10 +51,10 @@ export abstract class TextFileService implements ITextFileService {
 	private toUnbind: IDisposable[];
 	private _models: TextFileEditorModelManager;
 
-	private _onFilesAssociationChange: Emitter<void>;
+	private readonly _onFilesAssociationChange: Emitter<void>;
 	private currentFilesAssociationConfig: { [key: string]: string; };
 
-	private _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration>;
+	private readonly _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration>;
 	private configuredAutoSaveDelay: number;
 	private configuredAutoSaveOnFocusChange: boolean;
 	private configuredAutoSaveOnWindowChange: boolean;

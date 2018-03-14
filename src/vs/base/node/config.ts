@@ -50,7 +50,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private loaded: boolean;
 	private timeoutHandle: NodeJS.Timer;
 	private disposables: IDisposable[];
-	private _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
+	private readonly _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
 	private configName: string;
 
 	constructor(private _path: string, private options: IConfigOptions<T> = { changeBufferDelay: 0, defaultConfig: Object.create(null), onError: error => console.error(error) }) {

@@ -100,7 +100,7 @@ export interface IThemingRegistry {
 
 class ThemingRegistry implements IThemingRegistry {
 	private themingParticipants: IThemingParticipant[] = [];
-	private onThemingParticipantAddedEmitter: Emitter<IThemingParticipant>;
+	private readonly onThemingParticipantAddedEmitter: Emitter<IThemingParticipant>;
 
 	constructor() {
 		this.themingParticipants = [];
