@@ -5,9 +5,9 @@
 
 'use strict';
 
-import * as assert from 'assert';
+import assert = require('assert');
 
-import * as stream from 'vs/base/node/stream';
+import stream = require('vs/base/node/stream');
 
 suite('Stream', () => {
 	test('readExactlyByFile - ANSI', function () {

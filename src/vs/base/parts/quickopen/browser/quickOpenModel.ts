@@ -5,9 +5,9 @@
 
 'use strict';
 
-import * as nls from 'vs/nls';
+import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as types from 'vs/base/common/types';
+import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -16,7 +16,7 @@ import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { compareAnything } from 'vs/base/common/comparers';
 import { ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import * as DOM from 'vs/base/browser/dom';
+import DOM = require('vs/base/browser/dom');
 import { IQuickOpenStyles } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { OS } from 'vs/base/common/platform';

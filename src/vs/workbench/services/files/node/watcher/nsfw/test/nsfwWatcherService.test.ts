@@ -5,8 +5,8 @@
 
 'use strict';
 
-import * as assert from 'assert';
-import * as platform from 'vs/base/common/platform';
+import assert = require('assert');
+import platform = require('vs/base/common/platform');
 
 import { NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/nsfwWatcherService';
 import { IWatcherRequest } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';

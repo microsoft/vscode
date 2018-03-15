@@ -5,7 +5,7 @@
 
 'use strict';
 
-import * as nls from 'vs/nls';
+import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';

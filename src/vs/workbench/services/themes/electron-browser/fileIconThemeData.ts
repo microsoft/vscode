@@ -5,12 +5,12 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
+import nls = require('vs/nls');
 import * as Paths from 'path';
-import * as Json from 'vs/base/common/json';
+import Json = require('vs/base/common/json');
 import { ExtensionData, IThemeExtensionPoint, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as pfs from 'vs/base/node/pfs';
+import pfs = require('vs/base/node/pfs');
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 

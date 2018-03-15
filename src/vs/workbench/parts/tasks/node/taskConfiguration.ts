@@ -6,7 +6,7 @@
 
 import * as crypto from 'crypto';
 
-import * as nls from 'vs/nls';
+import nls = require('vs/nls');
 
 import * as Objects from 'vs/base/common/objects';
 import { IStringDictionary } from 'vs/base/common/collections';

@@ -5,8 +5,8 @@
 
 'use strict';
 
-import * as env from 'vs/base/common/platform';
-import * as nls from 'vs/nls';
+import env = require('vs/base/common/platform');
+import nls = require('vs/nls');
 import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions } from 'vs/workbench/browser/quickopen';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';

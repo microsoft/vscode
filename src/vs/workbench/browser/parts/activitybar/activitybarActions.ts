@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/activityaction';
-import * as DOM from 'vs/base/browser/dom';
+import DOM = require('vs/base/browser/dom');
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';

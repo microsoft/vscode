@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
-import * as paths from 'vs/base/common/paths';
+import paths = require('vs/base/common/paths');
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';

@@ -7,10 +7,10 @@
 
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
-import * as pfs from 'vs/base/node/pfs';
+import fs = require('fs');
+import os = require('os');
+import path = require('path');
+import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';

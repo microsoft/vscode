@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as nls from 'vs/nls';
+import nls = require('vs/nls');
 import Severity from 'vs/base/common/severity';
 import { Action, IAction } from 'vs/base/common/actions';
 import { MainThreadMessageServiceShape, MainContext, IExtHostContext, MainThreadMessageOptions } from '../node/extHost.protocol';
@@ -14,6 +14,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { once } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
@@ -70,11 +71,11 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 			let source: string;
 			if (extension) {
-				source = nls.localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name);
+				source = localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name);
 			}
 
 			if (!source) {
-				source = nls.localize('defaultSource', "Extension");
+				source = localize('defaultSource', "Extension");
 			}
 
 			const secondaryActions: IAction[] = [];

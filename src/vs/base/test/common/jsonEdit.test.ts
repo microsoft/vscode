@@ -6,7 +6,7 @@
 
 import { FormattingOptions, Edit } from 'vs/base/common/jsonFormatter';
 import { setProperty, removeProperty } from 'vs/base/common/jsonEdit';
-import * as assert from 'assert';
+import assert = require('assert');
 
 suite('JSON - edits', () => {
 

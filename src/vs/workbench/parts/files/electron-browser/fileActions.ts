@@ -7,16 +7,16 @@
 
 import 'vs/css!./media/fileactions';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as nls from 'vs/nls';
+import nls = require('vs/nls');
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { sequence, ITask, always } from 'vs/base/common/async';
-import * as paths from 'vs/base/common/paths';
-import * as resources from 'vs/base/common/resources';
+import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import URI from 'vs/base/common/uri';
-import * as errors from 'vs/base/common/errors';
+import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import * as strings from 'vs/base/common/strings';
-import * as diagnostics from 'vs/base/common/diagnostics';
+import strings = require('vs/base/common/strings');
+import diagnostics = require('vs/base/common/diagnostics');
 import { Action, IAction } from 'vs/base/common/actions';
 import { MessageType, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ITree, IHighlightEvent } from 'vs/base/parts/tree/browser/tree';
@@ -49,6 +49,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IListService, ListWidget } from 'vs/platform/list/browser/listService';
 import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { distinctParents, basenameOrAuthority } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -590,7 +591,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 			primaryButton = nls.localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete");
 		}
 
-		const distinctElements = resources.distinctParents(this.elements, e => e.resource);
+		const distinctElements = distinctParents(this.elements, e => e.resource);
 
 		// Handle dirty
 		let confirmDirtyPromise: TPromise<boolean> = TPromise.as(true);
@@ -992,7 +993,7 @@ export class DuplicateFileAction extends BaseFileAction {
 }
 
 function findValidPasteFileTarget(targetFolder: FileStat, fileToPaste: { resource: URI, isDirectory?: boolean }): URI {
-	let name = resources.basenameOrAuthority(fileToPaste.resource);
+	let name = basenameOrAuthority(fileToPaste.resource);
 
 	let candidate = targetFolder.resource.with({ path: paths.join(targetFolder.resource.path, name) });
 	while (true) {
@@ -1618,7 +1619,7 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 
-	return TPromise.join(resources.distinctParents(clipboardService.readFiles(), r => r).map(toCopy => {
+	return TPromise.join(distinctParents(clipboardService.readFiles(), r => r).map(toCopy => {
 		const pasteFileAction = instantationService.createInstance(PasteFileAction, listService.lastFocusedList, explorerContext.stat);
 		return pasteFileAction.run(toCopy);
 	}));

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as types from 'vs/base/common/types';
+import types = require('vs/base/common/types');
 
 suite('Types', () => {
 	test('isFunction', () => {

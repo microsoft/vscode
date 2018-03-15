@@ -6,10 +6,10 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as paths from 'vs/base/common/paths';
+import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import * as pfs from 'vs/base/node/pfs';
+import pfs = require('vs/base/node/pfs');
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchThemeService, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';

@@ -5,9 +5,9 @@
 
 'use strict';
 
-import * as assert from 'assert';
+import assert = require('assert');
 
-import * as platform from 'vs/base/common/platform';
+import platform = require('vs/base/common/platform');
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import uri from 'vs/base/common/uri';
 import { IRawFileChange, toFileChangesEvent, normalize } from 'vs/workbench/services/files/node/watcher/common';

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as uuid from 'vs/base/common/uuid';
+import uuid = require('vs/base/common/uuid');
 
 suite('UUID', () => {
 	test('generation', () => {

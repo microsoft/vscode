@@ -6,7 +6,7 @@
 'use strict';
 
 import * as fs from 'fs';
-import * as gracefulFs from 'graceful-fs';
+import gracefulFs = require('graceful-fs');
 gracefulFs.gracefulify(fs);
 
 import { onUnexpectedError } from 'vs/base/common/errors';

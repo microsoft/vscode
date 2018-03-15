@@ -4,25 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as Platform from 'vs/base/common/platform';
-import * as Browser from 'vs/base/browser/browser';
-import * as WinJS from 'vs/base/common/winjs.base';
-import * as Lifecycle from 'vs/base/common/lifecycle';
-import * as DOM from 'vs/base/browser/dom';
-import * as Diff from 'vs/base/common/diff/diff';
-import * as Touch from 'vs/base/browser/touch';
-import * as strings from 'vs/base/common/strings';
-import * as Mouse from 'vs/base/browser/mouseEvent';
-import * as Keyboard from 'vs/base/browser/keyboardEvent';
-import * as Model from 'vs/base/parts/tree/browser/treeModel';
-import * as dnd from './treeDnd';
+import Platform = require('vs/base/common/platform');
+import Browser = require('vs/base/browser/browser');
+import WinJS = require('vs/base/common/winjs.base');
+import Lifecycle = require('vs/base/common/lifecycle');
+import DOM = require('vs/base/browser/dom');
+import Diff = require('vs/base/common/diff/diff');
+import Touch = require('vs/base/browser/touch');
+import strings = require('vs/base/common/strings');
+import Mouse = require('vs/base/browser/mouseEvent');
+import Keyboard = require('vs/base/browser/keyboardEvent');
+import Model = require('vs/base/parts/tree/browser/treeModel');
+import dnd = require('./treeDnd');
 import { ArrayIterator, MappedIterator } from 'vs/base/common/iterator';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { HeightMap, IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
-import * as _ from 'vs/base/parts/tree/browser/tree';
+import _ = require('vs/base/parts/tree/browser/tree');
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Event, Emitter } from 'vs/base/common/event';
+import { IDomNodePagePosition } from 'vs/base/browser/dom';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { DefaultTreestyler } from './treeDefaults';
 import { Delayer } from 'vs/base/common/async';
@@ -1251,7 +1252,7 @@ export class TreeView extends HeightMap {
 			var keyboardEvent = new Keyboard.StandardKeyboardEvent(<KeyboardEvent>event);
 			element = this.model.getFocus();
 
-			var position: DOM.IDomNodePagePosition;
+			var position: IDomNodePagePosition;
 
 			if (!element) {
 				element = this.model.getInput();

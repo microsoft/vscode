@@ -5,7 +5,7 @@
 
 'use strict';
 
-import * as net from 'net';
+import net = require('net');
 
 /**
  * @returns Returns a random port between 1025 and 65535.

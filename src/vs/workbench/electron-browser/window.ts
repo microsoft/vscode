@@ -5,14 +5,14 @@
 
 'use strict';
 
-import * as nls from 'vs/nls';
+import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
-import * as errors from 'vs/base/common/errors';
-import * as types from 'vs/base/common/types';
+import errors = require('vs/base/common/errors');
+import types = require('vs/base/common/types');
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as arrays from 'vs/base/common/arrays';
-import * as objects from 'vs/base/common/objects';
-import * as DOM from 'vs/base/browser/dom';
+import arrays = require('vs/base/common/arrays');
+import objects = require('vs/base/common/objects');
+import DOM = require('vs/base/browser/dom');
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Action } from 'vs/base/common/actions';
 import { AutoSaveConfiguration, IFileService } from 'vs/platform/files/common/files';

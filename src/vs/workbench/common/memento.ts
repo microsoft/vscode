@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as types from 'vs/base/common/types';
+import types = require('vs/base/common/types');
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 /**

@@ -6,11 +6,11 @@
 
 import 'vs/css!./inputBox';
 
-import * as nls from 'vs/nls';
+import nls = require('vs/nls');
 import * as Bal from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { RenderOptions, renderFormattedText, renderText } from 'vs/base/browser/htmlContentRenderer';
-import * as aria from 'vs/base/browser/ui/aria/aria';
+import aria = require('vs/base/browser/ui/aria/aria');
 import { IAction } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextViewProvider, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';

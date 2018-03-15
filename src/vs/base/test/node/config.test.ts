@@ -5,12 +5,12 @@
 
 'use strict';
 
-import * as assert from 'assert';
-import * as os from 'os';
+import assert = require('assert');
+import os = require('os');
 
-import * as path from 'path';
-import * as fs from 'fs';
-import * as uuid from 'vs/base/common/uuid';
+import path = require('path');
+import fs = require('fs');
+import uuid = require('vs/base/common/uuid');
 import { ConfigWatcher } from 'vs/base/node/config';
 import { testFile } from 'vs/base/test/node/utils';
 

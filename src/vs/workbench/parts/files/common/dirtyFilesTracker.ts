@@ -5,8 +5,8 @@
 
 'use strict';
 
-import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
+import nls = require('vs/nls');
+import errors = require('vs/base/common/errors');
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { TextFileModelChangeEvent, ITextFileService, AutoSaveMode, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
@@ -21,7 +21,7 @@ import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import * as arrays from 'vs/base/common/arrays';
+import arrays = require('vs/base/common/arrays');
 
 export class DirtyFilesTracker implements IWorkbenchContribution {
 	private isDocumentedEdited: boolean;

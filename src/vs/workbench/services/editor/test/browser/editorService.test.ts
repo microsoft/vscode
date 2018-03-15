@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import * as paths from 'vs/base/common/paths';
+import paths = require('vs/base/common/paths');
 import { Position, IEditor, IEditorInput } from 'vs/platform/editor/common/editor';
 import URI from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';

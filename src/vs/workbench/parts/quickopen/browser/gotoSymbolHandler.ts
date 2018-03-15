@@ -7,14 +7,14 @@
 
 import 'vs/css!./media/gotoSymbolHandler';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
-import * as types from 'vs/base/common/types';
-import * as strings from 'vs/base/common/strings';
+import nls = require('vs/nls');
+import errors = require('vs/base/common/errors');
+import types = require('vs/base/common/types');
+import strings = require('vs/base/common/strings');
 import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, EditorQuickOpenEntryGroup, QuickOpenAction } from 'vs/workbench/browser/quickopen';
-import * as filters from 'vs/base/common/filters';
+import filters = require('vs/base/common/filters');
 import { IEditor, IDiffEditorModel, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';

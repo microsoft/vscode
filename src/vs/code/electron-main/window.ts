@@ -7,7 +7,7 @@
 
 import * as path from 'path';
 import * as objects from 'vs/base/common/objects';
-import * as nls from 'vs/nls';
+import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/common/state';
 import { shell, screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage } from 'electron';

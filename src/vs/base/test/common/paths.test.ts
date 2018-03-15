@@ -5,8 +5,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as paths from 'vs/base/common/paths';
-import * as platform from 'vs/base/common/platform';
+import paths = require('vs/base/common/paths');
+import platform = require('vs/base/common/platform');
 
 suite('Paths', () => {
 

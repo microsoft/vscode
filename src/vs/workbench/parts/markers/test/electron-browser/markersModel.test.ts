@@ -5,7 +5,7 @@
 
 'use strict';
 
-import * as assert from 'assert';
+import assert = require('assert');
 import URI from 'vs/base/common/uri';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { MarkersModel, Marker, Resource } from 'vs/workbench/parts/markers/electron-browser/markersModel';

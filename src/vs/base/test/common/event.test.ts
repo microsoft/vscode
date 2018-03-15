@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { Event, Emitter, debounceEvent, EventBufferer, once, fromPromise, stopwatch, buffer, echo, EventMultiplexer } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import * as Errors from 'vs/base/common/errors';
+import Errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
 
 namespace Samples {

@@ -6,7 +6,7 @@
 'use strict';
 
 import { Registry } from 'vs/platform/registry/common/platform';
-import * as nls from 'vs/nls';
+import nls = require('vs/nls');
 import product from 'vs/platform/node/product';
 import * as os from 'os';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';

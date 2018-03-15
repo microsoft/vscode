@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as nls from 'vs/nls';
-import * as types from 'vs/base/common/types';
-import * as arrays from 'vs/base/common/arrays';
+import nls = require('vs/nls');
+import types = require('vs/base/common/types');
+import arrays = require('vs/base/common/arrays');
 
 function exceptionToErrorMessage(exception: any, verbose: boolean): string {
 	if (exception.message) {

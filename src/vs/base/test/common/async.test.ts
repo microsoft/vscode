@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import * as Async from 'vs/base/common/async';
+import Async = require('vs/base/common/async');
 import URI from 'vs/base/common/uri';
 
 suite('Async', () => {

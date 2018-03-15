@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as platform from 'vs/platform/registry/common/platform';
+import platform = require('vs/platform/registry/common/platform');
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Color, RGBA } from 'vs/base/common/color';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 
-import * as nls from 'vs/nls';
+import nls = require('vs/nls');
 
 //  ------ API types
 

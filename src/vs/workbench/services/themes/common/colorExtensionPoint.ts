@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as nls from 'vs/nls';
+import nls = require('vs/nls');
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { registerColor, getColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import * as assert from 'assert';
+import assert = require('assert');
 import { ArrayIterator } from 'vs/base/common/iterator';
 import { HeightMap, IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
 

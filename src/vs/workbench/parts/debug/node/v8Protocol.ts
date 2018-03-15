@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as stream from 'stream';
+import stream = require('stream');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { canceled } from 'vs/base/common/errors';
 

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as paths from 'vs/base/common/paths';
-import * as strings from 'vs/base/common/strings';
+import paths = require('vs/base/common/paths');
+import strings = require('vs/base/common/strings');
 import { match } from 'vs/base/common/glob';
 
 export const MIME_TEXT = 'text/plain';

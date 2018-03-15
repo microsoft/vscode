@@ -6,7 +6,7 @@
 
 import * as matchers from 'vs/workbench/parts/tasks/common/problemMatcher';
 
-import * as assert from 'assert';
+import assert = require('assert');
 import { ValidationState, IProblemReporter, ValidationStatus } from 'vs/base/common/parsers';
 
 class ProblemReporter implements IProblemReporter {

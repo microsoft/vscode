@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as nls from 'vs/nls';
+import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';

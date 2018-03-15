@@ -6,12 +6,12 @@
 'use strict';
 
 import 'vs/css!./media/resourceviewer';
-import * as nls from 'vs/nls';
-import * as mimes from 'vs/base/common/mime';
+import nls = require('vs/nls');
+import mimes = require('vs/base/common/mime');
 import URI from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
+import paths = require('vs/base/common/paths');
 import { Builder, $, Dimension } from 'vs/base/browser/builder';
-import * as DOM from 'vs/base/browser/dom';
+import DOM = require('vs/base/browser/dom');
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { LRUCache } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as _ from 'vs/base/parts/tree/browser/tree';
-import * as Mouse from 'vs/base/browser/mouseEvent';
+import _ = require('vs/base/parts/tree/browser/tree');
+import Mouse = require('vs/base/browser/mouseEvent');
 
 export class ElementsDragAndDropData implements _.IDragAndDropData {
 

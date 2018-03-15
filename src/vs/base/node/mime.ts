@@ -5,11 +5,11 @@
 
 'use strict';
 
-import * as mime from 'vs/base/common/mime';
+import mime = require('vs/base/common/mime');
 import { TPromise } from 'vs/base/common/winjs.base';
 
-import * as stream from 'vs/base/node/stream';
-import * as encoding from 'vs/base/node/encoding';
+import stream = require('vs/base/node/stream');
+import encoding = require('vs/base/node/encoding');
 
 /**
  * Lots of binary file types exists where the type can be determined by matching the first few bytes against some "magic patterns".

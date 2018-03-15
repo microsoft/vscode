@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as nls from 'vs/nls';
+import nls = require('vs/nls');
 import * as Objects from 'vs/base/common/objects';
 import * as Paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as Strings from 'vs/base/common/strings';
-import * as Collections from 'vs/base/common/collections';
+import Strings = require('vs/base/common/strings');
+import Collections = require('vs/base/common/collections');
 
 import { CommandOptions, Source, ErrorData } from 'vs/base/common/processes';
 import { LineProcess } from 'vs/base/node/processes';

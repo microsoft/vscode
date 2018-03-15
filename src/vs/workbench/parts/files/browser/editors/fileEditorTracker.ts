@@ -6,9 +6,9 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import * as errors from 'vs/base/common/errors';
+import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
+import paths = require('vs/base/common/paths');
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { toResource, SideBySideEditorInput, IEditorGroup, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';

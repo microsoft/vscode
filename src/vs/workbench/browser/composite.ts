@@ -14,7 +14,7 @@ import { IEditorControl } from 'vs/platform/editor/common/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import * as DOM from 'vs/base/browser/dom';
+import DOM = require('vs/base/browser/dom');
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 /**

@@ -5,20 +5,20 @@
 
 'use strict';
 
-import * as assert from 'assert';
-import * as os from 'os';
-import * as path from 'path';
-import * as fs from 'fs';
+import assert = require('assert');
+import os = require('os');
+import path = require('path');
+import fs = require('fs');
 import * as json from 'vs/base/common/json';
 import { OS } from 'vs/base/common/platform';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCodes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import * as extfs from 'vs/base/node/extfs';
+import extfs = require('vs/base/node/extfs');
 import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService, TestContextService, TestTextResourceConfigurationService, TestHashService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 import { IWorkspaceContextService, Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
-import * as uuid from 'vs/base/common/uuid';
+import uuid = require('vs/base/common/uuid');
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { IFileService } from 'vs/platform/files/common/files';

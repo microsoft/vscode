@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as nls from 'vs/nls';
-import * as strings from 'vs/base/common/strings';
+import nls = require('vs/nls');
+import strings = require('vs/base/common/strings');
 
 enum Severity {
 	Ignore = 0,

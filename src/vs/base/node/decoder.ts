@@ -5,7 +5,7 @@
 
 'use strict';
 
-import * as sd from 'string_decoder';
+import sd = require('string_decoder');
 import { CharCode } from 'vs/base/common/charCode';
 
 /**

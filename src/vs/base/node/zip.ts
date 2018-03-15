@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import nls = require('vs/nls');
 import * as path from 'path';
 import { createWriteStream } from 'fs';
 import { Readable } from 'stream';

@@ -6,8 +6,8 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
-import * as resources from 'vs/base/common/resources';
+import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import { ResourceMap } from 'vs/base/common/map';
 import { isLinux } from 'vs/base/common/platform';
 import { IFileStat } from 'vs/platform/files/common/files';

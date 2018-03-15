@@ -6,8 +6,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as labels from 'vs/base/common/labels';
-import * as platform from 'vs/base/common/platform';
+import labels = require('vs/base/common/labels');
+import platform = require('vs/base/common/platform');
+import { getBaseLabel } from 'vs/base/common/labels';
 
 suite('Labels', () => {
 	test('shorten - windows', () => {
@@ -150,9 +151,9 @@ suite('Labels', () => {
 			return;
 		}
 
-		assert.equal(labels.getBaseLabel('/some/folder/file.txt'), 'file.txt');
-		assert.equal(labels.getBaseLabel('/some/folder'), 'folder');
-		assert.equal(labels.getBaseLabel('/'), '/');
+		assert.equal(getBaseLabel('/some/folder/file.txt'), 'file.txt');
+		assert.equal(getBaseLabel('/some/folder'), 'folder');
+		assert.equal(getBaseLabel('/'), '/');
 	});
 
 	test('getBaseLabel - windows', () => {
@@ -161,9 +162,9 @@ suite('Labels', () => {
 			return;
 		}
 
-		assert.equal(labels.getBaseLabel('c:'), 'C:');
-		assert.equal(labels.getBaseLabel('c:\\'), 'C:');
-		assert.equal(labels.getBaseLabel('c:\\some\\folder\\file.txt'), 'file.txt');
-		assert.equal(labels.getBaseLabel('c:\\some\\folder'), 'folder');
+		assert.equal(getBaseLabel('c:'), 'C:');
+		assert.equal(getBaseLabel('c:\\'), 'C:');
+		assert.equal(getBaseLabel('c:\\some\\folder\\file.txt'), 'file.txt');
+		assert.equal(getBaseLabel('c:\\some\\folder'), 'folder');
 	});
 });

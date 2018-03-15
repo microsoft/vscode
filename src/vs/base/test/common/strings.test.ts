@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as strings from 'vs/base/common/strings';
+import strings = require('vs/base/common/strings');
 
 suite('Strings', () => {
 	test('equalsIgnoreCase', function () {

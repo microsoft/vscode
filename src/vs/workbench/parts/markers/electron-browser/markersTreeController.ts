@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as mouse from 'vs/base/browser/mouseEvent';
-import * as tree from 'vs/base/parts/tree/browser/tree';
+import tree = require('vs/base/parts/tree/browser/tree');
 import { MarkersModel } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';

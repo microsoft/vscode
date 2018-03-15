@@ -5,14 +5,14 @@
 
 'use strict';
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as assert from 'assert';
+import fs = require('fs');
+import path = require('path');
+import assert = require('assert');
 
 import { StatResolver } from 'vs/workbench/services/files/node/fileService';
 import uri from 'vs/base/common/uri';
 import { isLinux } from 'vs/base/common/platform';
-import * as utils from 'vs/workbench/services/files/test/node/utils';
+import utils = require('vs/workbench/services/files/test/node/utils');
 
 function create(relativePath: string): StatResolver {
 	let basePath = require.toUrl('./fixtures/resolver');

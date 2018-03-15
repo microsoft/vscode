@@ -6,9 +6,9 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as nls from 'vs/nls';
-import * as arrays from 'vs/base/common/arrays';
-import * as types from 'vs/base/common/types';
+import nls = require('vs/nls');
+import arrays = require('vs/base/common/arrays');
+import types = require('vs/base/common/types');
 import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';

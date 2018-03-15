@@ -6,7 +6,7 @@
 'use strict';
 
 import Uri from 'vs/base/common/uri';
-import * as errors from 'vs/base/common/errors';
+import errors = require('vs/base/common/errors');
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextFileService, TextFileModelChangeEvent, StateChange } from 'vs/workbench/services/textfile/common/textfiles';

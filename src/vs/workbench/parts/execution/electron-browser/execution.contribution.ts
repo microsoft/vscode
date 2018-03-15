@@ -9,7 +9,7 @@ import * as env from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import * as paths from 'vs/base/common/paths';
+import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import { ITerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';

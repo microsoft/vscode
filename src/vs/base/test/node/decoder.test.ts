@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as decoder from 'vs/base/node/decoder';
+import decoder = require('vs/base/node/decoder');
 
 suite('Decoder', () => {
 

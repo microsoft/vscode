@@ -5,10 +5,10 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as errors from 'vs/base/common/errors';
-import * as nls from 'vs/nls';
-import * as paths from 'vs/base/common/paths';
-import * as labels from 'vs/base/common/labels';
+import errors = require('vs/base/common/errors');
+import nls = require('vs/nls');
+import paths = require('vs/base/common/paths');
+import labels = require('vs/base/common/labels');
 import * as objects from 'vs/base/common/objects';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import URI from 'vs/base/common/uri';

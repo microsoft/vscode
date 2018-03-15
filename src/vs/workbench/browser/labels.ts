@@ -6,7 +6,7 @@
 'use strict';
 
 import uri from 'vs/base/common/uri';
-import * as resources from 'vs/base/common/resources';
+import resources = require('vs/base/common/resources');
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';

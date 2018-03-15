@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as flow from 'vs/base/node/flow';
+import flow = require('vs/base/node/flow');
 
 const loop = flow.loop;
 const sequence = flow.sequence;

@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/activitybarpart';
-import * as nls from 'vs/nls';
+import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { illegalArgument } from 'vs/base/common/errors';
 import { Builder, $, Dimension } from 'vs/base/browser/builder';

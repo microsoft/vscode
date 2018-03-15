@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import * as platform from 'vs/base/common/platform';
+import platform = require('vs/base/common/platform');
 import { nativeSep, normalize, isEqualOrParent, isEqual, basename as pathsBasename, join } from 'vs/base/common/paths';
 import { endsWith, ltrim } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';

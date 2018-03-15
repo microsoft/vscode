@@ -6,17 +6,17 @@
 'use strict';
 
 import 'vs/css!./media/searchview';
-import * as nls from 'vs/nls';
+import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
-import * as errors from 'vs/base/common/errors';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import * as env from 'vs/base/common/platform';
+import errors = require('vs/base/common/errors');
+import aria = require('vs/base/browser/ui/aria/aria');
+import env = require('vs/base/common/platform');
 import { Delayer } from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
-import * as strings from 'vs/base/common/strings';
+import strings = require('vs/base/common/strings');
 import * as paths from 'vs/base/common/paths';
-import * as dom from 'vs/base/browser/dom';
+import dom = require('vs/base/browser/dom');
 import { IAction } from 'vs/base/common/actions';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';

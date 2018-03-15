@@ -7,11 +7,11 @@
 
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
-import * as crypto from 'crypto';
-import * as os from 'os';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as pfs from 'vs/base/node/pfs';
+import crypto = require('crypto');
+import os = require('os');
+import fs = require('fs');
+import path = require('path');
+import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';

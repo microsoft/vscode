@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as env from 'vs/base/common/platform';
+import env = require('vs/base/common/platform');
 import * as pfs from 'vs/base/node/pfs';
 import { TPromise } from 'vs/base/common/winjs.base';
 

@@ -8,8 +8,8 @@
 import 'vs/css!./splitview';
 import { IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, mapEvent, Emitter } from 'vs/base/common/event';
-import * as types from 'vs/base/common/types';
-import * as dom from 'vs/base/browser/dom';
+import types = require('vs/base/common/types');
+import dom = require('vs/base/browser/dom');
 import { clamp } from 'vs/base/common/numbers';
 import { range, firstIndex } from 'vs/base/common/arrays';
 import { Sash, Orientation, ISashEvent as IBaseSashEvent } from 'vs/base/browser/ui/sash/sash';

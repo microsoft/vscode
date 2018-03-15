@@ -5,11 +5,11 @@
 
 'use strict';
 
-import * as path from 'path';
-import * as assert from 'assert';
+import path = require('path');
+import assert = require('assert');
 
 import * as arrays from 'vs/base/common/arrays';
-import * as platform from 'vs/base/common/platform';
+import platform = require('vs/base/common/platform');
 
 import { RipgrepParser, getAbsoluteGlob, fixDriveC } from 'vs/workbench/services/search/node/ripgrepTextSearch';
 import { ISerializedFileMatch } from 'vs/workbench/services/search/node/search';

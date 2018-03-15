@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as path from 'path';
+import path = require('path');
 import * as cp from 'child_process';
 import { fork } from 'vs/base/node/stdFork';
-import * as nls from 'vs/nls';
+import nls = require('vs/nls');
 import { PPromise, TPromise, TValueCallback, TProgressCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import * as Types from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
