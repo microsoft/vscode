@@ -10,11 +10,11 @@ import 'vs/workbench/browser/parts/editor/editor.contribution';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
-import nls = require('vs/nls');
-import strings = require('vs/base/common/strings');
-import arrays = require('vs/base/common/arrays');
-import types = require('vs/base/common/types');
-import errors = require('vs/base/common/errors');
+import * as nls from 'vs/nls';
+import * as strings from 'vs/base/common/strings';
+import * as arrays from 'vs/base/common/arrays';
+import * as types from 'vs/base/common/types';
+import * as errors from 'vs/base/common/errors';
 import * as objects from 'vs/base/common/objects';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -46,9 +46,7 @@ import { join } from 'vs/base/common/paths';
 import { IEditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { ThrottledEmitter } from 'vs/base/common/async';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { isUndefinedOrNull } from 'vs/base/common/types';
 import { INotificationService, Severity, INotificationActions } from 'vs/platform/notification/common/notification';
-import { isErrorWithActions } from 'vs/base/common/errors';
 
 class ProgressMonitor {
 
@@ -550,7 +548,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Report error only if this was not us restoring previous error state
 		if (this.partService.isCreated() && !errors.isPromiseCanceledError(error)) {
 			const actions: INotificationActions = { primary: [] };
-			if (isErrorWithActions(error)) {
+			if (errors.isErrorWithActions(error)) {
 				actions.primary = error.actions;
 			}
 
@@ -702,7 +700,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Then check for array of positions to close
-		if (Array.isArray(positionsOrEditors) || isUndefinedOrNull(positionsOrEditors)) {
+		if (Array.isArray(positionsOrEditors) || types.isUndefinedOrNull(positionsOrEditors)) {
 			return this.doCloseAllEditorsAtPositions(positionsOrEditors as Position[]);
 		}
 

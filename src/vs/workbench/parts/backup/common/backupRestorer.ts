@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';

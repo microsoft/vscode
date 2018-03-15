@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';

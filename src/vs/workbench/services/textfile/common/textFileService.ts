@@ -7,11 +7,11 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
-import errors = require('vs/base/common/errors');
-import objects = require('vs/base/common/objects');
+import * as paths from 'vs/base/common/paths';
+import * as errors from 'vs/base/common/errors';
+import * as objects from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
-import platform = require('vs/base/common/platform');
+import * as platform from 'vs/base/common/platform';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext } from 'vs/workbench/services/textfile/common/textfiles';

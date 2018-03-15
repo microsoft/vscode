@@ -50,7 +50,7 @@ import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
-import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
+import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import { IStatusbarItem, IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor, StatusbarAlignment } from 'vs/workbench/browser/parts/statusbar/statusbar';

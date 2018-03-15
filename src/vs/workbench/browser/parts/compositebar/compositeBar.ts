@@ -5,7 +5,7 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { illegalArgument } from 'vs/base/common/errors';
 import * as dom from 'vs/base/browser/dom';

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 export default class Messages {

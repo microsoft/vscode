@@ -19,7 +19,7 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import DOM = require('vs/base/browser/dom');
+import * as DOM from 'vs/base/browser/dom';
 import { Event, Emitter } from 'vs/base/common/event';
 import { WebviewInput } from 'vs/workbench/parts/webview/electron-browser/webviewInput';
 import URI from 'vs/base/common/uri';

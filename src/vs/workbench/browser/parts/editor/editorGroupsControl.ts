@@ -6,16 +6,16 @@
 'use strict';
 
 import 'vs/css!./media/editorGroupsControl';
-import arrays = require('vs/base/common/arrays');
+import * as arrays from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import { Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import DOM = require('vs/base/browser/dom');
-import errors = require('vs/base/common/errors');
+import * as DOM from 'vs/base/browser/dom';
+import * as errors from 'vs/base/common/errors';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';

@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import paths = require('vs/base/common/paths');
-import encoding = require('vs/base/node/encoding');
-import errors = require('vs/base/common/errors');
+import * as paths from 'vs/base/common/paths';
+import * as encoding from 'vs/base/node/encoding';
+import * as errors from 'vs/base/common/errors';
 import uri from 'vs/base/common/uri';
 import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IResolveFileResult, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent, ICreateFileOptions, ITextSnapshot } from 'vs/platform/files/common/files';
 import { FileService as NodeFileService, IFileServiceOptions, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';

@@ -5,9 +5,9 @@
 'use strict';
 
 
-import assert = require('assert');
+import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import markerService = require('vs/platform/markers/common/markerService');
+import * as markerService from 'vs/platform/markers/common/markerService';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 function randomMarkerData(severity = MarkerSeverity.Error): IMarkerData {

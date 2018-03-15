@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import WinJS = require('vs/base/common/winjs.base');
-import Touch = require('vs/base/browser/touch');
-import Mouse = require('vs/base/browser/mouseEvent');
-import Keyboard = require('vs/base/browser/keyboardEvent');
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as Touch from 'vs/base/browser/touch';
+import * as Mouse from 'vs/base/browser/mouseEvent';
+import * as Keyboard from 'vs/base/browser/keyboardEvent';
 import { INavigator } from 'vs/base/common/iterator';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Event } from 'vs/base/common/event';

@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
-import platform = require('vs/base/common/platform');
-import touch = require('vs/base/browser/touch');
-import errors = require('vs/base/common/errors');
-import dom = require('vs/base/browser/dom');
-import mouse = require('vs/base/browser/mouseEvent');
+import * as platform from 'vs/base/common/platform';
+import * as touch from 'vs/base/browser/touch';
+import * as errors from 'vs/base/common/errors';
+import * as dom from 'vs/base/browser/dom';
+import * as mouse from 'vs/base/browser/mouseEvent';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import _ = require('vs/base/parts/tree/browser/tree');
+import * as _ from 'vs/base/parts/tree/browser/tree';
 import { KeyCode, KeyMod, Keybinding, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 
 export interface IKeyBindingCallback {

@@ -7,15 +7,15 @@
 
 import 'vs/css!./media/quickopen';
 import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { Dimension, withElementById } from 'vs/base/browser/builder';
-import strings = require('vs/base/common/strings');
-import DOM = require('vs/base/browser/dom');
+import * as strings from 'vs/base/common/strings';
+import * as DOM from 'vs/base/browser/dom';
 import URI from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -23,7 +23,7 @@ import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel
 import { QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup, compareEntries, QuickOpenItemAccessorClass } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenWidget, HideReason } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
-import labels = require('vs/base/common/labels');
+import * as labels from 'vs/base/common/labels';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
@@ -35,7 +35,7 @@ import { Component } from 'vs/workbench/common/component';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPickOpenEntry, IFilePickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions, IShowOptions, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -51,7 +51,6 @@ import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
-import { getBaseLabel } from 'vs/base/common/labels';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { matchesFuzzyOcticonAware, parseOcticons, IParsedOcticons } from 'vs/base/common/octicon';
 import { IMatch } from 'vs/base/common/filters';
@@ -1292,7 +1291,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		} else {
 			const resourceInput = input as IResourceInput;
 			this.resource = resourceInput.resource;
-			this.label = getBaseLabel(resourceInput.resource);
+			this.label = labels.getBaseLabel(resourceInput.resource);
 			this.description = labels.getPathLabel(resources.dirname(this.resource), contextService, environmentService);
 			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
 

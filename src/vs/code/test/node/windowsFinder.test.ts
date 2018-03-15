@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import path = require('path');
+import * as assert from 'assert';
+import * as path from 'path';
 import { findBestWindowOrFolderForFile, ISimpleWindow, IBestWindowOrFolderOptions } from 'vs/code/node/windowsFinder';
 import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';

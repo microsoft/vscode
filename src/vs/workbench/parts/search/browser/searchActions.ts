@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import DOM = require('vs/base/browser/dom');
+import * as nls from 'vs/nls';
+import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';

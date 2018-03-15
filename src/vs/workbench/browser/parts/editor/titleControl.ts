@@ -6,15 +6,15 @@
 'use strict';
 
 import 'vs/css!./media/titlecontrol';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { IAction, Action, IRunEvent } from 'vs/base/common/actions';
-import errors = require('vs/base/common/errors');
-import DOM = require('vs/base/browser/dom');
+import * as errors from 'vs/base/common/errors';
+import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import arrays = require('vs/base/common/arrays');
+import * as arrays from 'vs/base/common/arrays';
 import { IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IStacksModelChangeEvent, toResource, IEditorCommandsContext } from 'vs/workbench/common/editor';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
