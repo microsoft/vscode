@@ -10,7 +10,6 @@ import * as path from 'path';
 import Uri from 'vscode-uri';
 import { TextDocument, CompletionList, CompletionItemKind, } from 'vscode-languageserver-types';
 import { getLanguageModes } from '../modes/languageModes';
-import { applyEdits } from '../utils/edits';
 import { getPathCompletionParticipant } from '../modes/pathCompletion';
 import { WorkspaceFolder } from 'vscode-languageserver';
 
@@ -43,7 +42,7 @@ suite('Completions', () => {
 			assert.equal(match.kind, expected.kind);
 		}
 		if (expected.resultText && match.textEdit) {
-			assert.equal(applyEdits(document, [match.textEdit]), expected.resultText);
+			assert.equal(TextDocument.applyEdits(document, [match.textEdit]), expected.resultText);
 		}
 	};
 

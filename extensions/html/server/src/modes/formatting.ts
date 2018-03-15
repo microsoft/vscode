@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { applyEdits } from '../utils/edits';
 import { TextDocument, Range, TextEdit, FormattingOptions, Position } from 'vscode-languageserver-types';
 import { LanguageModes, Settings, LanguageModeRange } from './languageModes';
 import { pushAll } from '../utils/arrays';
@@ -57,7 +56,7 @@ export function format(languageModes: LanguageModes, document: TextDocument, for
 	// perform a html format and apply changes to a new document
 	let htmlMode = languageModes.getMode('html')!;
 	let htmlEdits = htmlMode.format!(document, formatRange, formattingOptions, settings);
-	let htmlFormattedContent = applyEdits(document, htmlEdits);
+	let htmlFormattedContent = TextDocument.applyEdits(document, htmlEdits);
 	let newDocument = TextDocument.create(document.uri + '.tmp', document.languageId, document.version, htmlFormattedContent);
 	try {
 		// run embedded formatters on html formatted content: - formatters see correct initial indent
@@ -83,7 +82,7 @@ export function format(languageModes: LanguageModes, document: TextDocument, for
 		}
 
 		// apply all embedded format edits and create a single edit for all changes
-		let resultContent = applyEdits(newDocument, embeddedEdits);
+		let resultContent = TextDocument.applyEdits(newDocument, embeddedEdits);
 		let resultReplaceText = resultContent.substring(document.offsetAt(formatRange.start), resultContent.length - afterFormatRangeLength);
 
 		result.push(TextEdit.replace(formatRange, resultReplaceText));

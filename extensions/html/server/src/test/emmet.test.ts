@@ -26,16 +26,16 @@ suite('Emmet Support', () => {
 		const document = TextDocument.create('test://test/test.' + syntax, syntax, 0, value);
 		const position = document.positionAt(offset);
 		const documentRegions = getLanguageModelCache<embeddedSupport.HTMLDocumentRegions>(10, 60, document => embeddedSupport.getDocumentRegions(htmlLanguageService, document));
-		const mode = syntax == 'html' ? getHTMLMode(htmlLanguageService) : getCSSMode(documentRegions);
+		const mode = syntax === 'html' ? getHTMLMode(htmlLanguageService) : getCSSMode(documentRegions);
 		const emmetCompletionList: CompletionList = {
 			isIncomplete: true,
 			items: undefined
-		}
-		mode.setCompletionParticipants([getEmmetCompletionParticipants(document, position, document.languageId, {}, emmetCompletionList)])
+		};
+		mode.setCompletionParticipants([getEmmetCompletionParticipants(document, position, document.languageId, {}, emmetCompletionList)]);
 
 		const list = mode.doComplete!(document, position);
 		assert.ok(list);
-		assert.ok(emmetCompletionList)
+		assert.ok(emmetCompletionList);
 
 
 		if (expectedProposal && expectedProposalDoc) {
