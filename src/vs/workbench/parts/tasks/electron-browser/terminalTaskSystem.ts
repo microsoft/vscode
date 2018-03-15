@@ -649,6 +649,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 		let commandLine = result.join(' ');
 		// There are special rules quoted command line in cmd.exe
+		if (Platform.isWindows) {
+			if (basename === 'cmd' && commandQuoted && argQuoted) {
+				commandLine = '"' + commandLine + '"';
+			} else if (basename === 'powershell' && commandQuoted) {
+				commandLine = '& ' + commandLine;
+			}
+		}
+
 		if (basename === 'cmd' && Platform.isWindows && commandQuoted && argQuoted) {
 			commandLine = '"' + commandLine + '"';
 		}
