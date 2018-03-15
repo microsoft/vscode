@@ -236,7 +236,7 @@ export function createApiFactory(
 				checkProposedApiEnabled(extension);
 				return extHostDiagnostics.onDidChangeDiagnostics;
 			},
-			getDiagnostics: proposedApiFunction(extension, resource => {
+			getDiagnostics: <any>proposedApiFunction(extension, (resource?) => {
 				return extHostDiagnostics.getDiagnostics(resource);
 			}),
 			getLanguages(): TPromise<string[]> {

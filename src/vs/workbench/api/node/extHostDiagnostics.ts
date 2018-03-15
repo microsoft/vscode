@@ -261,17 +261,34 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		return result;
 	}
 
-	getDiagnostics(resource?: vscode.Uri): vscode.Diagnostic[] {
+	getDiagnostics(resource: vscode.Uri): vscode.Diagnostic[];
+	getDiagnostics(): [vscode.Uri, vscode.Diagnostic[]][];
+	getDiagnostics(resource?: vscode.Uri): vscode.Diagnostic[] | [vscode.Uri, vscode.Diagnostic[]][] {
+		if (resource) {
+			return this._getDiagnostics(resource);
+		} else {
+			let index = new Map<string, number>();
+			let res: [vscode.Uri, vscode.Diagnostic[]][] = [];
+			for (const collection of this._collections) {
+				collection.forEach((uri, diagnostics) => {
+					let idx = index.get(uri.toString());
+					if (typeof idx === 'undefined') {
+						idx = res.length;
+						index.set(uri.toString(), idx);
+						res.push([uri, []]);
+					}
+					res[idx][1] = res[idx][1].concat(...diagnostics);
+				});
+			}
+			return res;
+		}
+	}
+
+	private _getDiagnostics(resource: vscode.Uri): vscode.Diagnostic[] {
 		let res: vscode.Diagnostic[] = [];
 		for (const collection of this._collections) {
-			if (resource) {
-				// filtered
-				if (collection.has(resource)) {
-					res = res.concat(collection.get(resource));
-				}
-			} else {
-				// all
-				collection.forEach((uri, diag) => res = res.concat(diag));
+			if (collection.has(resource)) {
+				res = res.concat(collection.get(resource));
 			}
 		}
 		return res;

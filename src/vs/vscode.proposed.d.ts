@@ -27,7 +27,12 @@ declare module 'vscode' {
 		/**
 		 *
 		 */
-		export function getDiagnostics(resource?: Uri): Diagnostic[];
+		export function getDiagnostics(resource: Uri): Diagnostic[];
+
+		/**
+		 *
+		 */
+		export function getDiagnostics(): [Uri, Diagnostic[]][];
 	}
 
 	//#endregion
