@@ -238,24 +238,26 @@ export interface IBreakpointUpdateData extends DebugProtocol.Breakpoint {
 	hitCondition?: string;
 }
 
-export interface IBreakpoint extends IEnablement {
+export interface IBaseBreakpoint extends IEnablement {
+	condition: string;
+	hitCondition: string;
+}
+
+export interface IBreakpoint extends IBaseBreakpoint {
 	uri: uri;
 	lineNumber: number;
 	endLineNumber?: number;
 	column: number;
 	endColumn?: number;
-	condition: string;
-	hitCondition: string;
 	verified: boolean;
 	idFromAdapter: number;
 	message: string;
 }
 
-export interface IFunctionBreakpoint extends IEnablement {
+export interface IFunctionBreakpoint extends IBaseBreakpoint {
 	name: string;
 	verified: boolean;
 	idFromAdapter: number;
-	hitCondition: string;
 }
 
 export interface IExceptionBreakpoint extends IEnablement {

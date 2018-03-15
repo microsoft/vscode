@@ -472,7 +472,7 @@ export class DebugService implements debug.IDebugService {
 		let result: FunctionBreakpoint[];
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((fb: any) => {
-				return new FunctionBreakpoint(fb.name, fb.enabled, fb.hitCondition);
+				return new FunctionBreakpoint(fb.name, fb.enabled, fb.hitCondition, fb.condition);
 			});
 		} catch (e) { }
 

@@ -697,7 +697,7 @@ export class FunctionBreakpoint implements IFunctionBreakpoint {
 	public verified: boolean;
 	public idFromAdapter: number;
 
-	constructor(public name: string, public enabled: boolean, public hitCondition: string, private id = generateUuid()) {
+	constructor(public name: string, public enabled: boolean, public hitCondition: string, public condition: string, private id = generateUuid()) {
 		this.verified = false;
 	}
 
