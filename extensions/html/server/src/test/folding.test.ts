@@ -95,15 +95,15 @@ suite('Object Folding', () => {
 		assertRanges(input, [r(0, 2, 'comment'), r(3, 4, 'comment')]);
 	});
 
-	// test('Fold regions', () => {
-	// 	let input = [
-	// 		/*0*/'// #region',
-	// 		/*1*/'{',
-	// 		/*2*/'}',
-	// 		/*3*/'// #endregion',
-	// 	];
-	// 	assertRanges(input, [r(0, 3, 'region')]);
-	// });
+	test('Fold regions', () => {
+		let input = [
+			/*0*/'<!-- #region -->',
+			/*1*/'<!-- #region -->',
+			/*2*/'<!-- #endregion -->',
+			/*3*/'<!-- #endregion -->',
+		];
+		assertRanges(input, [r(0, 3, 'region'), r(1, 2, 'region')]);
+	});
 
 	test('Test limit', () => {
 		let input = [
