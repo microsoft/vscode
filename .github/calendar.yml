@@ -7,5 +7,7 @@
   '2018-02-26 18:00, US/Pacific':    'endgame',
   '2018-03-07 12:00, US/Pacific':    'release', # 1.21.0
   '2018-03-12 12:00, US/Pacific':    'development',
+  '2018-03-15 12:00, US/Pacific':    'release', # 1.21.1
+  '2018-03-20 12:00, US/Pacific':    'development',
   '2018-03-26 18:00, US/Pacific':    'endgame',
 }
