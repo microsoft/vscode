@@ -230,17 +230,20 @@ export interface IBreakpointData {
 	column?: number;
 	enabled?: boolean;
 	condition?: string;
+	logMessage?: string;
 	hitCondition?: string;
 }
 
 export interface IBreakpointUpdateData extends DebugProtocol.Breakpoint {
 	condition?: string;
 	hitCondition?: string;
+	logMessage?: string;
 }
 
 export interface IBaseBreakpoint extends IEnablement {
 	condition: string;
 	hitCondition: string;
+	logMessage: string;
 }
 
 export interface IBreakpoint extends IBaseBreakpoint {

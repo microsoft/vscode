@@ -74,7 +74,6 @@
 
 .debug-function-breakpoint-unverified {
 	background: url('breakpoint-function-unverified.svg') center center no-repeat;
-
 }
 
 .debug-function-breakpoint-disabled {
@@ -86,6 +85,19 @@
 	background: url('breakpoint-conditional.svg') center center no-repeat;
 }
 
+.debug-breakpoint-log,
+.monaco-editor .debug-breakpoint-column.debug-breakpoint-log-column::before {
+	background: url('breakpoint-log.svg') center center no-repeat;
+}
+
+.debug-breakpoint-log-disabled {
+	background: url('breakpoint-log-disabled.svg') center center no-repeat;
+}
+
+.debug-breakpoint-log-unverified {
+	background: url('breakpoint-log-unverified.svg') center center no-repeat;
+}
+
 .debug-breakpoint-unsupported,
 .monaco-editor .debug-breakpoint-column.debug-breakpoint-unsupported-column::before {
 	background: url('breakpoint-unsupported.svg') center center no-repeat;
@@ -93,12 +105,14 @@
 
 .monaco-editor .debug-top-stack-frame.debug-breakpoint,
 .monaco-editor .debug-top-stack-frame.debug-breakpoint-conditional,
+.monaco-editor .debug-top-stack-frame.debug-breakpoint-log,
 .monaco-editor .debug-breakpoint-column.debug-breakpoint-column.debug-top-stack-frame-column::before {
 	background: url('current-and-breakpoint.svg') center center no-repeat;
 }
 
 .monaco-editor .debug-focused-stack-frame.debug-breakpoint,
-.monaco-editor .debug-focused-stack-frame.debug-breakpoint-conditional {
+.monaco-editor .debug-focused-stack-frame.debug-breakpoint-conditional,
+.monaco-editor .debug-focused-stack-frame.debug-breakpoint-log {
 	background: url('stackframe-and-breakpoint.svg') center center no-repeat;
 }
 
