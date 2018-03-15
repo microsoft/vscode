@@ -1695,6 +1695,10 @@ export class EditorOptionsValidator {
 		} else {
 			quickSuggestions = _boolean(opts.quickSuggestions, defaults.quickSuggestions);
 		}
+		// Compatibility support for acceptSuggestionOnEnter
+		if (typeof opts.acceptSuggestionOnEnter === 'boolean') {
+			opts.acceptSuggestionOnEnter = opts.acceptSuggestionOnEnter ? 'on' : 'off';
+		}
 		const find = this._santizeFindOpts(opts.find, defaults.find);
 		return {
 			selectionClipboard: _boolean(opts.selectionClipboard, defaults.selectionClipboard),
@@ -1708,7 +1712,7 @@ export class EditorOptionsValidator {
 			formatOnType: _boolean(opts.formatOnType, defaults.formatOnType),
 			formatOnPaste: _boolean(opts.formatOnPaste, defaults.formatOnPaste),
 			suggestOnTriggerCharacters: _boolean(opts.suggestOnTriggerCharacters, defaults.suggestOnTriggerCharacters),
-			acceptSuggestionOnEnter: typeof opts.acceptSuggestionOnEnter === 'string' ? _stringSet<'on' | 'smart' | 'off'>(opts.acceptSuggestionOnEnter, defaults.acceptSuggestionOnEnter, ['on', 'smart', 'off']) : opts.acceptSuggestionOnEnter ? 'on' : 'off',
+			acceptSuggestionOnEnter: _stringSet<'on' | 'smart' | 'off'>(opts.acceptSuggestionOnEnter, defaults.acceptSuggestionOnEnter, ['on', 'smart', 'off']),
 			acceptSuggestionOnCommitCharacter: _boolean(opts.acceptSuggestionOnCommitCharacter, defaults.acceptSuggestionOnCommitCharacter),
 			snippetSuggestions: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippetSuggestions, ['top', 'bottom', 'inline', 'none']),
 			wordBasedSuggestions: _boolean(opts.wordBasedSuggestions, defaults.wordBasedSuggestions),
