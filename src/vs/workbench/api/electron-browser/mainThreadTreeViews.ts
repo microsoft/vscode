@@ -87,8 +87,8 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 	}
 
 	refresh(itemsToRefreshByHandle: { [treeItemHandle: string]: ITreeItem }) {
+		const itemsToRefresh: ITreeItem[] = [];
 		if (itemsToRefreshByHandle) {
-			const itemsToRefresh: ITreeItem[] = [];
 			for (const treeItemHandle of Object.keys(itemsToRefreshByHandle)) {
 				const currentTreeItem = this.itemsMap.get(treeItemHandle);
 				if (currentTreeItem) { // Refresh only if the item exists
@@ -101,13 +101,16 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 						// Update maps when handle is changed and refresh parent
 						this.itemsMap.delete(treeItemHandle);
 						this.itemsMap.set(currentTreeItem.handle, currentTreeItem);
-						itemsToRefresh.push(this.itemsMap.get(treeItem.parentHandle));
+						const parent = treeItem.parentHandle ? this.itemsMap.get(treeItem.parentHandle) : null;
+						if (parent) {
+							itemsToRefresh.push(parent);
+						}
 					}
 				}
-				if (itemsToRefresh.length) {
-					this._onDidChange.fire(itemsToRefresh);
-				}
 			}
+		}
+		if (itemsToRefresh.length) {
+			this._onDidChange.fire(itemsToRefresh);
 		} else {
 			this._onDidChange.fire();
 		}
