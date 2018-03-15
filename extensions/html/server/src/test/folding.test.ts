@@ -69,19 +69,20 @@ suite('Object Folding', () => {
 		assertRanges(input, [r(0, 6), r(1, 2), r(4, 5)]);
 	});
 
-	// test('Fold self-closing tags', () => {
-	// 	let input = [
-	// 		/*0*/'<div>',
-	// 		/*1*/'<a src="top">',
-	// 		/*2*/'<img ',
-	// 		/*3*/'</head>',
-	// 		/*4*/'<body class="f">',
-	// 		/*5*/'Body',
-	// 		/*6*/'</body>',
-	// 		/*7*/'</html>'
-	// 	];
-	// 	assertRanges(input, [r(0, 6), r(1, 2), r(4, 5)]);
-	// });
+	test('Fold self-closing tags', () => {
+		let input = [
+			/*0*/'<div>',
+			/*1*/'<a href="top"/>',
+			/*2*/'<img src="s">',
+			/*3*/'<br/>',
+			/*4*/'<br>',
+			/*5*/'<img class="c"',
+			/*6*/'     src="top"',
+			/*7*/'>',
+			/*8*/'</div>'
+		];
+		assertRanges(input, [r(0, 7), r(5, 6)]);
+	});
 
 	// test('Fold commment', () => {
 	// 	let input = [

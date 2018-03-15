@@ -8,6 +8,7 @@ import { LanguageService as HTMLLanguageService, TokenType, Range } from 'vscode
 
 import { FoldingRangeType, FoldingRange, FoldingRangeList } from '../protocol/foldingProvider.proposed';
 import { LanguageModes } from './languageModes';
+import { binarySearch } from '../utils/arrays';
 
 export function getFoldingRegions(languageModes: LanguageModes, document: TextDocument, maxRanges: number | undefined, cancellationToken: CancellationToken | null): FoldingRangeList {
 	let htmlMode = languageModes.getMode('html');
@@ -90,6 +91,11 @@ function limitRanges(ranges: FoldingRange[], maxRanges: number) {
 	return ranges.filter((r, index) => (typeof nestingLevels[index] === 'number') && nestingLevels[index] < maxLevel);
 }
 
+export const EMPTY_ELEMENTS: string[] = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr'];
+
+export function isEmptyElement(e: string): boolean {
+	return !!e && binarySearch(EMPTY_ELEMENTS, e.toLowerCase(), (s1: string, s2: string) => s1.localeCompare(s2)) >= 0;
+}
 
 export function getHTMLFoldingRegions(htmlLanguageService: HTMLLanguageService, document: TextDocument, range: Range): FoldingRange[] {
 	const scanner = htmlLanguageService.createScanner(document.getText());
@@ -121,6 +127,11 @@ export function getHTMLFoldingRegions(htmlLanguageService: HTMLLanguageService, 
 				lastTagName = scanner.getTokenText();
 				break;
 			}
+			case TokenType.StartTagClose:
+				if (!isEmptyElement(lastTagName)) {
+					break;
+				}
+			// fallthrough
 			case TokenType.EndTagClose:
 			case TokenType.StartTagSelfClose: {
 				let name = elementNames.pop();
