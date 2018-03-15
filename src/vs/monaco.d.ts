@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export namespace monaco {
+declare namespace monaco {
 
 	export type Thenable<T> = PromiseLike<T>;
 
@@ -758,7 +758,7 @@ export namespace monaco {
 	}
 }
 
-export namespace monaco.editor {
+declare namespace monaco.editor {
 
 
 	/**
@@ -3896,7 +3896,7 @@ export namespace monaco.editor {
 	export type IModel = ITextModel;
 }
 
-export namespace monaco.languages {
+declare namespace monaco.languages {
 
 
 	/**
@@ -5119,7 +5119,7 @@ export namespace monaco.languages {
 
 }
 
-export namespace monaco.worker {
+declare namespace monaco.worker {
 
 
 	export interface IMirrorModel {
