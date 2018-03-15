@@ -6,9 +6,23 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-const resolveExtensionResources = (extension: vscode.Extension<any>, resourcePath: string): vscode.Uri => {
+const resolveExtensionResource = (extension: vscode.Extension<any>, resourcePath: string): vscode.Uri => {
 	return vscode.Uri.file(path.join(extension.extensionPath, resourcePath))
 		.with({ scheme: 'vscode-resource' });
+};
+
+const resolveExtensionResources = (extension: vscode.Extension<any>, resourcePaths: any): vscode.Uri[] => {
+	const result: vscode.Uri[] = [];
+	if (Array.isArray(resourcePaths)) {
+		for (const resource of resourcePaths) {
+			try {
+				result.push(resolveExtensionResource(extension, resource));
+			} catch (e) {
+				// noop
+			}
+		}
+	}
+	return result;
 };
 
 export interface MarkdownContributions {
@@ -86,32 +100,14 @@ class MarkdownExtensionContributions implements MarkdownContributions {
 		contributes: any,
 		extension: vscode.Extension<any>
 	) {
-		const scripts = contributes['markdown.previewScripts'];
-		if (scripts && Array.isArray(scripts)) {
-			for (const script of scripts) {
-				try {
-					this._scripts.push(resolveExtensionResources(extension, script));
-				} catch (e) {
-					// noop
-				}
-			}
-		}
+		this._scripts.push(...resolveExtensionResources(extension, contributes['markdown.previewScripts']));
 	}
 
 	private tryLoadPreviewStyles(
 		contributes: any,
 		extension: vscode.Extension<any>
 	) {
-		const styles = contributes['markdown.previewStyles'];
-		if (styles && Array.isArray(styles)) {
-			for (const style of styles) {
-				try {
-					this._styles.push(resolveExtensionResources(extension, style));
-				} catch (e) {
-					// noop
-				}
-			}
-		}
+		this._styles.push(...resolveExtensionResources(extension, contributes['markdown.previewStyles']));
 	}
 }
 
