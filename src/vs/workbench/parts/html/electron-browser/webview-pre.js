@@ -6,6 +6,7 @@
 (function () {
 	'use strict';
 
+	// @ts-ignore
 	const ipcRenderer = require('electron').ipcRenderer;
 
 	// state
@@ -26,18 +27,12 @@
 		body.classList.add(initData.activeTheme);
 	}
 
-	/**
-	 * @return {HTMLIFrameElement}
-	 */
 	function getActiveFrame() {
-		return document.getElementById('active-frame');
+		return /** @type {HTMLIFrameElement} */ (document.getElementById('active-frame'));
 	}
 
-	/**
-	 * @return {HTMLIFrameElement}
-	 */
 	function getPendingFrame() {
-		return document.getElementById('pending-frame');
+		return /** @type {HTMLIFrameElement} */ (document.getElementById('pending-frame'));
 	}
 
 	/**
