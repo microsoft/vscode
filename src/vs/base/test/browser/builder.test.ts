@@ -612,14 +612,6 @@ suite('Builder', () => {
 
 		assert.strictEqual(b.style('width'), '100px');
 		assert.strictEqual(b.style('height'), '200px');
-
-		b.minSize(300, 400);
-		b.maxSize(500, 600);
-
-		assert.strictEqual(b.style('minWidth'), '300px');
-		assert.strictEqual(b.style('minHeight'), '400px');
-		assert.strictEqual(b.style('maxWidth'), '500px');
-		assert.strictEqual(b.style('maxHeight'), '600px');
 	});
 
 	test('Builder.show() and .hide()', function () {

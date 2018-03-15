@@ -918,50 +918,6 @@ export class Builder implements IDisposable {
 	}
 
 	/**
-	 *  Sets the CSS property min-size.
-	 */
-	public minSize(size: string): Builder;
-	public minSize(width: number, height?: number): Builder;
-	public minSize(width: string, height?: string): Builder;
-	public minSize(width: any, height?: any): Builder {
-		if (types.isString(width) && width.indexOf(' ') >= 0) {
-			return this.minSize.apply(this, width.split(' '));
-		}
-
-		if (!types.isUndefinedOrNull(width)) {
-			this.currentElement.style.minWidth = this.toPixel(width);
-		}
-
-		if (!types.isUndefinedOrNull(height)) {
-			this.currentElement.style.minHeight = this.toPixel(height);
-		}
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property max-size.
-	 */
-	public maxSize(size: string): Builder;
-	public maxSize(width: number, height?: number): Builder;
-	public maxSize(width: string, height?: string): Builder;
-	public maxSize(width: any, height?: any): Builder {
-		if (types.isString(width) && width.indexOf(' ') >= 0) {
-			return this.maxSize.apply(this, width.split(' '));
-		}
-
-		if (!types.isUndefinedOrNull(width)) {
-			this.currentElement.style.maxWidth = this.toPixel(width);
-		}
-
-		if (!types.isUndefinedOrNull(height)) {
-			this.currentElement.style.maxHeight = this.toPixel(height);
-		}
-
-		return this;
-	}
-
-	/**
 	 *  Sets the CSS property display.
 	 */
 	public display(display: string): Builder {
