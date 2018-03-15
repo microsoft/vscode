@@ -61,6 +61,8 @@ export const MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in
 
 export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
 
+export const CONTEXT_ACTIVE_LOG_OUTPUT = new RawContextKey<boolean>('activeLogOutput', false);
+
 export const IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
 
 /**

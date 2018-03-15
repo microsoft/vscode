@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelIdentifier } from 'vs/workbench/parts/output/common/output';
+import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelIdentifier, COMMAND_OPEN_LOG_VIEWER } from 'vs/workbench/parts/output/common/output';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -18,6 +18,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { groupBy } from 'vs/base/common/arrays';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import URI from 'vs/base/common/uri';
 
 export class ToggleOutputAction extends TogglePanelAction {
 
@@ -155,5 +157,37 @@ export class SwitchOutputActionItem extends SelectActionItem {
 			}
 		}
 		this.setOptions(options, Math.max(0, selected), separatorIndex !== -1 ? separatorIndex : void 0);
+	}
+}
+
+export class OpenLogOutputFile extends Action {
+
+	public static readonly ID = 'workbench.output.action.openLogOutputFile';
+	public static readonly LABEL = nls.localize('openInLogViewer', "Open Log File");
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		@ICommandService private commandService: ICommandService,
+		@IOutputService private outputService: IOutputService
+	) {
+		super(OpenLogOutputFile.ID, OpenLogOutputFile.LABEL, 'output-action open-log-file');
+		this.outputService.onActiveOutputChannel(this.update, this, this.disposables);
+		this.update();
+	}
+
+	private update(): void {
+		const logFile = this.getActiveLogChannelFile();
+		this.enabled = !!logFile;
+	}
+
+	public run(): TPromise<any> {
+		return this.commandService.executeCommand(COMMAND_OPEN_LOG_VIEWER, this.getActiveLogChannelFile());
+	}
+
+	private getActiveLogChannelFile(): URI {
+		const channel = this.outputService.getActiveChannel();
+		const identifier = channel ? this.outputService.getChannels().filter(c => c.id === channel.id)[0] : null;
+		return identifier ? identifier.file : null;
 	}
 }
