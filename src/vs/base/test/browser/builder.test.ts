@@ -664,41 +664,6 @@ suite('Builder', () => {
 		});
 	});
 
-	test('Builder.border(), .borderTop(), .borderBottom(), .borderLeft(), .borderRight()', function () {
-		let b = Build.withElementById(fixtureId);
-		b.div();
-
-		b.border('1px solid red');
-
-		assert.strictEqual(b.style('border-width'), '1px');
-		assert.strictEqual(b.style('border-color'), 'red');
-		assert.strictEqual(b.style('border-style'), 'solid');
-
-		b.borderTop('2px dotted yellow');
-
-		assert.strictEqual(b.style('border-top-width'), '2px');
-		assert.strictEqual(b.style('border-top-color'), 'yellow');
-		assert.strictEqual(b.style('border-top-style'), 'dotted');
-
-		b.borderRight('3px dashed green');
-
-		assert.strictEqual(b.style('border-right-width'), '3px');
-		assert.strictEqual(b.style('border-right-color'), 'green');
-		assert.strictEqual(b.style('border-right-style'), 'dashed');
-
-		b.borderBottom('4px solid blue');
-
-		assert.strictEqual(b.style('border-bottom-width'), '4px');
-		assert.strictEqual(b.style('border-bottom-color'), 'blue');
-		assert.strictEqual(b.style('border-bottom-style'), 'solid');
-
-		b.borderLeft('5px dashed white');
-
-		assert.strictEqual(b.style('border-left-width'), '5px');
-		assert.strictEqual(b.style('border-left-color'), 'white');
-		assert.strictEqual(b.style('border-left-style'), 'dashed');
-	});
-
 	test('Builder.innerHtml()', function () {
 		let b = Build.withElementById(fixtureId);
 		b.div();
