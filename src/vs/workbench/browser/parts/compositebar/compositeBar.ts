@@ -100,6 +100,7 @@ export class CompositeBar implements ICompositeBar {
 
 		this.options.composites = this.options.composites.filter(c => c.id !== id);
 		this.unpin(id);
+		this.pullComposite(id);
 	}
 
 	public activateComposite(id: string): void {
