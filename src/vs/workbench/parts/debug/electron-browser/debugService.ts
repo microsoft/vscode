@@ -681,7 +681,14 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeWatchExpressions(id);
 	}
 
-	public startDebugging(launch: debug.ILaunch, configOrName?: debug.IConfig | string, noDebug = false): TPromise<any> {
+	public startDebugging(launch: debug.ILaunch, configOrName?: debug.IConfig | string, noDebug = false): TPromise<void> {
+		const sessionId = generateUuid();
+		this.updateStateAndEmit(sessionId, debug.State.Initializing);
+		const wrapUpState = () => {
+			if (this.sessionStates.get(sessionId) === debug.State.Initializing) {
+				this.updateStateAndEmit(sessionId, debug.State.Inactive);
+			}
+		};
 
 		// make sure to save all files and that the configuration is up to date
 		return this.extensionService.activateByEvent('onDebug').then(() => this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined).then(() =>
@@ -759,14 +766,6 @@ export class DebugService implements debug.IDebugService {
 					config.noDebug = true;
 				}
 
-				const sessionId = generateUuid();
-				this.updateStateAndEmit(sessionId, debug.State.Initializing);
-				const wrapUpState = () => {
-					if (this.sessionStates.get(sessionId) === debug.State.Initializing) {
-						this.updateStateAndEmit(sessionId, debug.State.Inactive);
-					}
-				};
-
 				return (type ? TPromise.as(null) : this.configurationManager.guessAdapter().then(a => type = a && a.type)).then(() =>
 					(type ? this.extensionService.activateByEvent(`onDebugResolve:${type}`) : TPromise.as(null)).then(() =>
 						this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
@@ -779,12 +778,12 @@ export class DebugService implements debug.IDebugService {
 								return launch.openConfigFile(false, type).done(undefined, errors.onUnexpectedError);
 							}
 						})
-					).then(() => wrapUpState(), err => {
-						wrapUpState();
-						return <any>TPromise.wrapError(err);
-					}));
+					)).then(() => undefined);
 			})
-		)));
+		))).then(() => wrapUpState(), err => {
+			wrapUpState();
+			return TPromise.wrapError(err);
+		});
 	}
 
 	private createProcess(launch: debug.ILaunch, config: debug.IConfig, sessionId: string): TPromise<void> {
