@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare namespace monaco {
+export namespace monaco {
 
 	export type Thenable<T> = PromiseLike<T>;
 
@@ -52,9 +52,9 @@ declare namespace monaco {
 #include(vs/editor/common/core/range): IRange, Range
 #include(vs/editor/common/core/selection): ISelection, Selection, SelectionDirection
 #include(vs/editor/common/core/token): Token
+}
 
-
-namespace editor {
+export namespace monaco.editor {
 
 #includeAll(vs/editor/standalone/browser/standaloneEditor;modes.=>languages.;editorCommon.=>):
 #include(vs/editor/standalone/common/standaloneThemeService): BuiltinTheme, IStandaloneThemeData, IColors
@@ -83,7 +83,7 @@ export type IReadOnlyModel = ITextModel;
 export type IModel = ITextModel;
 }
 
-namespace languages {
+export namespace monaco.languages {
 
 #includeAll(vs/editor/standalone/browser/standaloneLanguages;modes.=>;editorCommon.=>editor.;model.=>editor.;IMarkerData=>editor.IMarkerData):
 #includeAll(vs/editor/common/modes/languageConfiguration):
@@ -93,10 +93,8 @@ namespace languages {
 
 }
 
-namespace worker {
+export namespace monaco.worker {
 
 #includeAll(vs/editor/common/services/editorSimpleWorker;):
-
-}
 
 }
