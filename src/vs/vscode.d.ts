@@ -3675,6 +3675,32 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a related message and source code location for a diagnostic. This should be
+	 * used to point to code locations that cause or related to a diagnostics, e.g when duplicating
+	 * a symbol in a scope.
+	 */
+	export class DiagnosticRelatedInformation {
+
+		/**
+		 * The location of this related diagnostic information.
+		 */
+		location: Location;
+
+		/**
+		 * The message of this related diagnostic information.
+		 */
+		message: string;
+
+		/**
+		 * Creates a new related diagnostic information object.
+		 *
+		 * @param location The location.
+		 * @param message The message.
+		 */
+		constructor(location: Location, message: string);
+	}
+
+	/**
 	 * Represents a diagnostic, such as a compiler error or warning. Diagnostic objects
 	 * are only valid in the scope of a file.
 	 */
@@ -3707,6 +3733,12 @@ declare module 'vscode' {
 		 * providing [code actions](#CodeActionContext).
 		 */
 		code: string | number;
+
+		/**
+		 * An array of related diagnostic information, e.g. when symbol-names within
+		 * a scope collide all definitions can be marked via this property.
+		 */
+		relatedInformation: DiagnosticRelatedInformation[];
 
 		/**
 		 * Creates a new diagnostic object.

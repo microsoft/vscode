@@ -599,6 +599,7 @@ export function createApiFactory(
 			CompletionTriggerKind: extHostTypes.CompletionTriggerKind,
 			DebugAdapterExecutable: extHostTypes.DebugAdapterExecutable,
 			Diagnostic: extHostTypes.Diagnostic,
+			DiagnosticRelatedInformation: extHostTypes.DiagnosticRelatedInformation,
 			DiagnosticSeverity: extHostTypes.DiagnosticSeverity,
 			Disposable: extHostTypes.Disposable,
 			DocumentHighlight: extHostTypes.DocumentHighlight,

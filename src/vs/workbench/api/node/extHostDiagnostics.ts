@@ -10,6 +10,7 @@ import URI from 'vs/base/common/uri';
 import * as vscode from 'vscode';
 import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from './extHost.protocol';
 import { DiagnosticSeverity } from './extHostTypes';
+import * as converter from './extHostTypeConverters';
 import { mergeSort } from 'vs/base/common/arrays';
 import { Event, Emitter, debounceEvent, mapEvent } from 'vs/base/common/event';
 import { keys } from 'vs/base/common/map';
@@ -115,7 +116,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 					orderLoop: for (let i = 0; i < 4; i++) {
 						for (let diagnostic of diagnostics) {
 							if (diagnostic.severity === order[i]) {
-								const len = marker.push(DiagnosticCollection.toMarkerData(diagnostic));
+								const len = marker.push(converter.fromDiagnostic(diagnostic));
 								if (len === DiagnosticCollection._maxDiagnosticsPerFile) {
 									break orderLoop;
 								}
@@ -133,7 +134,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 						endColumn: marker[marker.length - 1].endColumn
 					});
 				} else {
-					marker = diagnostics.map(DiagnosticCollection.toMarkerData);
+					marker = diagnostics.map(converter.fromDiagnostic);
 				}
 			}
 
@@ -182,32 +183,6 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 	private _checkDisposed() {
 		if (this._isDisposed) {
 			throw new Error('illegal state - object is disposed');
-		}
-	}
-
-	public static toMarkerData(diagnostic: vscode.Diagnostic): IMarkerData {
-
-		let range = diagnostic.range;
-
-		return <IMarkerData>{
-			startLineNumber: range.start.line + 1,
-			startColumn: range.start.character + 1,
-			endLineNumber: range.end.line + 1,
-			endColumn: range.end.character + 1,
-			message: diagnostic.message,
-			source: diagnostic.source,
-			severity: DiagnosticCollection._convertDiagnosticsSeverity(diagnostic.severity),
-			code: String(diagnostic.code)
-		};
-	}
-
-	private static _convertDiagnosticsSeverity(severity: number): MarkerSeverity {
-		switch (severity) {
-			case 0: return MarkerSeverity.Error;
-			case 1: return MarkerSeverity.Warning;
-			case 2: return MarkerSeverity.Info;
-			case 3: return MarkerSeverity.Hint;
-			default: return MarkerSeverity.Error;
 		}
 	}
 

@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { DiagnosticCollection } from 'vs/workbench/api/node/extHostDiagnostics';
-import { Diagnostic, DiagnosticSeverity, Range } from 'vs/workbench/api/node/extHostTypes';
+import { Diagnostic, DiagnosticSeverity, Range, DiagnosticRelatedInformation, Location } from 'vs/workbench/api/node/extHostTypes';
 import { MainThreadDiagnosticsShape } from 'vs/workbench/api/node/extHost.protocol';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
@@ -297,5 +297,31 @@ suite('ExtHostDiagnostics', () => {
 		});
 		collection.clear();
 		await p;
+	});
+
+	test('diagnostics with related information', function (done) {
+
+		let collection = new DiagnosticCollection('ddd', new class extends DiagnosticsShape {
+			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]) {
+
+				let [[, data]] = entries;
+				assert.equal(entries.length, 1);
+				assert.equal(data.length, 1);
+
+				let [diag] = data;
+				assert.equal(diag.relatedInformation.length, 2);
+				assert.equal(diag.relatedInformation[0].message, 'more1');
+				assert.equal(diag.relatedInformation[1].message, 'more2');
+				done();
+			}
+		}, new Emitter<any>());
+
+		let diag = new Diagnostic(new Range(0, 0, 1, 1), 'Foo');
+		diag.relatedInformation = [
+			new DiagnosticRelatedInformation(new Location(URI.parse('cc:dd'), new Range(0, 0, 0, 0)), 'more1'),
+			new DiagnosticRelatedInformation(new Location(URI.parse('cc:ee'), new Range(0, 0, 0, 0)), 'more2')
+		];
+
+		collection.set(URI.parse('aa:bb'), [diag]);
 	});
 });

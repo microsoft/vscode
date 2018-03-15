@@ -20,7 +20,7 @@ import * as htmlContent from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { LanguageSelector, LanguageFilter } from 'vs/editor/common/modes/languageSelector';
 import { WorkspaceEditDto, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
-import { MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
 
 export interface PositionLike {
 	line: number;
@@ -83,6 +83,30 @@ export function fromPosition(position: types.Position): IPosition {
 	return { lineNumber: position.line + 1, column: position.character + 1 };
 }
 
+
+export function fromDiagnostic(value: vscode.Diagnostic): IMarkerData {
+	return {
+		...fromRange(value.range),
+		message: value.message,
+		source: value.source,
+		code: String(value.code),
+		severity: fromDiagnosticSeverity(value.severity),
+		relatedInformation: value.relatedInformation && value.relatedInformation.map(fromDiagnosticRelatedInformation)
+	};
+}
+
+export function fromDiagnosticRelatedInformation(value: types.DiagnosticRelatedInformation): IRelatedInformation {
+	return {
+		...fromRange(value.location.range),
+		message: value.message,
+		resource: value.location.uri
+	};
+}
+
+export function toDiagnosticRelatedInformation(value: IRelatedInformation): types.DiagnosticRelatedInformation {
+	return new types.DiagnosticRelatedInformation(new types.Location(value.resource, toRange(value)), value.message);
+}
+
 export function fromDiagnosticSeverity(value: number): MarkerSeverity {
 	switch (value) {
 		case types.DiagnosticSeverity.Error:
@@ -110,6 +134,7 @@ export function toDiagnosticSeverty(value: MarkerSeverity): types.DiagnosticSeve
 	}
 	return types.DiagnosticSeverity.Error;
 }
+
 
 export function fromViewColumn(column?: vscode.ViewColumn): EditorPosition {
 	let editorColumn = EditorPosition.ONE;
