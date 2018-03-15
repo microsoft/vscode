@@ -108,7 +108,10 @@ export class FileDataSource implements IDataSource {
 
 				return stat.children;
 			}, (e: any) => {
-				this.notificationService.error(e);
+				// Do not show error for roots since we already use an explorer decoration to notify user
+				if (!(stat instanceof FileStat && stat.isRoot)) {
+					this.notificationService.error(e);
+				}
 
 				return []; // we could not resolve any children because of an error
 			});
