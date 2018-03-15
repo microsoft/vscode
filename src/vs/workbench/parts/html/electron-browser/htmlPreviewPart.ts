@@ -48,8 +48,8 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 	private _modelChangeSubscription = EmptyDisposable;
 	private _themeChangeSubscription = EmptyDisposable;
 
-	private content: HTMLElement;
-	private scrollYPercentage: number = 0;
+	private _content: HTMLElement;
+	private _scrollYPercentage: number = 0;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -57,10 +57,10 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IPartService private readonly partService: IPartService,
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IPartService private readonly _partService: IPartService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextModelService private readonly _textModelResolverService: ITextModelService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService, themeService, contextKeyService);
 	}
@@ -79,10 +79,10 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 	}
 
 	protected createEditor(parent: Builder): void {
-		this.content = document.createElement('div');
-		this.content.style.position = 'absolute';
-		this.content.classList.add(HtmlPreviewPart.class);
-		parent.getHTMLElement().appendChild(this.content);
+		this._content = document.createElement('div');
+		this._content.style.position = 'absolute';
+		this._content.classList.add(HtmlPreviewPart.class);
+		parent.getHTMLElement().appendChild(this._content);
 	}
 
 	private get webview(): Webview {
@@ -93,7 +93,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 			}
 
 			this._webview = new Webview(
-				this.partService.getContainer(Parts.EDITOR_PART),
+				this._partService.getContainer(Parts.EDITOR_PART),
 				this.themeService,
 				this._environmentService,
 				this._contextViewService,
@@ -103,21 +103,21 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 					...webviewOptions,
 					useSameOriginForRoot: true
 				});
-			this._webview.mountTo(this.content);
+			this._webview.mountTo(this._content);
 
 			if (this.input && this.input instanceof HtmlInput) {
 				const state = this.loadViewState(this.input.getResource());
-				this.scrollYPercentage = state ? state.scrollYPercentage : 0;
-				this.webview.initialScrollProgress = this.scrollYPercentage;
+				this._scrollYPercentage = state ? state.scrollYPercentage : 0;
+				this.webview.initialScrollProgress = this._scrollYPercentage;
 
 				const resourceUri = this.input.getResource();
 				this.webview.baseUrl = resourceUri.toString(true);
 			}
 			this._webviewDisposables = [
 				this._webview,
-				this._webview.onDidClickLink(uri => this.openerService.open(uri)),
+				this._webview.onDidClickLink(uri => this._openerService.open(uri)),
 				this._webview.onDidScroll(data => {
-					this.scrollYPercentage = data.scrollYPercentage;
+					this._scrollYPercentage = data.scrollYPercentage;
 				}),
 			];
 		}
@@ -160,8 +160,8 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 
 	public layout(dimension: Dimension): void {
 		const { width, height } = dimension;
-		this.content.style.width = `${width}px`;
-		this.content.style.height = `${height}px`;
+		this._content.style.width = `${width}px`;
+		this._content.style.height = `${height}px`;
 
 		super.layout(dimension);
 	}
@@ -169,7 +169,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 	public clearInput(): void {
 		if (this.input instanceof HtmlInput) {
 			this.saveViewState(this.input.getResource(), {
-				scrollYPercentage: this.scrollYPercentage
+				scrollYPercentage: this._scrollYPercentage
 			});
 		}
 		dispose(this._modelRef);
@@ -180,7 +180,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 	public shutdown(): void {
 		if (this.input instanceof HtmlInput) {
 			this.saveViewState(this.input.getResource(), {
-				scrollYPercentage: this.scrollYPercentage
+				scrollYPercentage: this._scrollYPercentage
 			});
 		}
 		super.shutdown();
@@ -201,7 +201,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		if (this.input instanceof HtmlInput) {
 			oldOptions = this.input.options;
 			this.saveViewState(this.input.getResource(), {
-				scrollYPercentage: this.scrollYPercentage
+				scrollYPercentage: this._scrollYPercentage
 			});
 		}
 
@@ -216,7 +216,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 
 		return super.setInput(input, options).then(() => {
 			const resourceUri = input.getResource();
-			return this.textModelResolverService.createModelReference(resourceUri).then(ref => {
+			return this._textModelResolverService.createModelReference(resourceUri).then(ref => {
 				const model = ref.object;
 
 				if (model instanceof BaseTextEditorModel) {
@@ -233,16 +233,16 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 
 				this._modelChangeSubscription = this.model.onDidChangeContent(() => {
 					if (this.model) {
-						this.scrollYPercentage = 0;
+						this._scrollYPercentage = 0;
 						this.webview.contents = this.model.getLinesContent().join('\n');
 					}
 				});
 				const state = this.loadViewState(resourceUri);
-				this.scrollYPercentage = state ? state.scrollYPercentage : 0;
+				this._scrollYPercentage = state ? state.scrollYPercentage : 0;
 				this.webview.baseUrl = resourceUri.toString(true);
 				this.webview.options = input.options;
 				this.webview.contents = this.model.getLinesContent().join('\n');
-				this.webview.initialScrollProgress = this.scrollYPercentage;
+				this.webview.initialScrollProgress = this._scrollYPercentage;
 				return undefined;
 			});
 		});
