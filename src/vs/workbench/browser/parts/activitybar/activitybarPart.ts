@@ -29,6 +29,9 @@ import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, 
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
+import { isMacintosh } from 'vs/base/common/platform';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { createStyleSheet } from 'vs/base/browser/dom';
 
 export class ActivitybarPart extends Part {
 
@@ -56,11 +59,13 @@ export class ActivitybarPart extends Part {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
 		this.globalActivityIdToActions = Object.create(null);
+
 		this.compositeBar = this.instantiationService.createInstance(CompositeBar, {
 			icon: true,
 			storageId: ActivitybarPart.PINNED_VIEWLETS,
@@ -75,6 +80,7 @@ export class ActivitybarPart extends Part {
 			colors: ActivitybarPart.COLORS,
 			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		});
+
 		this.registerListeners();
 	}
 
@@ -127,6 +133,18 @@ export class ActivitybarPart extends Part {
 
 		// Top Actionbar with action items for each viewlet action
 		this.createGlobalActivityActionBar($('.global-activity').appendTo($result).getHTMLElement());
+
+		// TODO@Ben: workaround for https://github.com/Microsoft/vscode/issues/45700
+		// It looks like there are rendering glitches on macOS with Chrome 61 when
+		// using --webkit-mask with a background color that is different from the image
+		// The workaround is to promote the element onto its own drawing layer. We do
+		// this only after the workbench has loaded because otherwise there is ugly flicker.
+		if (isMacintosh) {
+			this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+				const styles = createStyleSheet($el.getHTMLElement());
+				styles.innerHTML = '.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-label { will-change: transform; }';
+			});
+		}
 
 		return $result;
 	}
