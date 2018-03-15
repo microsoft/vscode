@@ -1714,6 +1714,45 @@ export class MaliciousStatusLabelAction extends Action {
 	}
 }
 
+export class DisabledStatusLabelAction extends Action {
+
+	private static readonly Class = 'disable-status';
+
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+
+	private disposables: IDisposable[] = [];
+	private throttler: Throttler = new Throttler();
+
+	constructor(
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionService private extensionService: IExtensionService
+	) {
+		super('extensions.install', localize('disabled', "Disabled"), `${DisabledStatusLabelAction.Class} hide`, false);
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.update();
+	}
+
+	private update(): void {
+		this.throttler.queue(() => this.extensionService.getExtensions()
+			.then(runningExtensions => {
+				this.class = `${DisabledStatusLabelAction.Class} hide`;
+				this.tooltip = '';
+				if (this.extension && !this.extension.isMalicious && !runningExtensions.some(e => e.id === this.extension.id)) {
+					if (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) {
+						this.class = `${DisabledStatusLabelAction.Class}`;
+						this.tooltip = this.extension.enablementState === EnablementState.Disabled ? localize('disabled globally', "Disabled") : localize('disabled workspace', "Disabled for this Workspace");
+					}
+				}
+			}));
+	}
+
+	run(): TPromise<any> {
+		return TPromise.as(null);
+	}
+}
+
 export class DisableAllAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.disableAll';

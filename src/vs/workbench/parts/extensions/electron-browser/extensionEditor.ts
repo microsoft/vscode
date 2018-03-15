@@ -32,7 +32,7 @@ import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/
 import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { Webview } from 'vs/workbench/parts/html/electron-browser/webview';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -354,6 +354,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.transientDisposables.push(ratings);
 
 		const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, true);
+		const disabledStatusAction = this.instantiationService.createInstance(DisabledStatusLabelAction);
 		const installAction = this.instantiationService.createInstance(CombinedInstallAction);
 		const updateAction = this.instantiationService.createInstance(UpdateAction);
 		const enableAction = this.instantiationService.createInstance(EnableAction);
@@ -362,14 +363,15 @@ export class ExtensionEditor extends BaseEditor {
 
 		installAction.extension = extension;
 		maliciousStatusAction.extension = extension;
+		disabledStatusAction.extension = extension;
 		updateAction.extension = extension;
 		enableAction.extension = extension;
 		disableAction.extension = extension;
 		reloadAction.extension = extension;
 
 		this.extensionActionBar.clear();
-		this.extensionActionBar.push([reloadAction, updateAction, enableAction, disableAction, installAction, maliciousStatusAction], { icon: true, label: true });
-		this.transientDisposables.push(enableAction, updateAction, reloadAction, disableAction, installAction, maliciousStatusAction);
+		this.extensionActionBar.push([disabledStatusAction, reloadAction, updateAction, enableAction, disableAction, installAction, maliciousStatusAction], { icon: true, label: true });
+		this.transientDisposables.push(enableAction, updateAction, reloadAction, disableAction, installAction, maliciousStatusAction, disabledStatusAction);
 
 		this.content.innerHTML = ''; // Clear content before setting navbar actions.
 
