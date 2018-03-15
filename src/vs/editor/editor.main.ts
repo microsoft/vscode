@@ -19,9 +19,7 @@ import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEd
 import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
 import { EDITOR_DEFAULTS, WrappingIndent } from 'vs/editor/common/config/editorOptions';
 
-declare var exports: any;
 var global: any = self;
-global.monaco = exports;
 
 // When missing, polyfill the native promise
 // with our winjs-based polyfill
@@ -36,14 +34,25 @@ if (typeof global.Promise === 'undefined') {
 (<any>EDITOR_DEFAULTS.viewInfo).glyphMargin = false;
 (<any>EDITOR_DEFAULTS).autoIndent = false;
 
-let base = createMonacoBaseAPI();
-for (let prop in base) {
-	if (base.hasOwnProperty(prop)) {
-		exports[prop] = (base as any)[prop];
-	}
-}
-exports.editor = createMonacoEditorAPI();
-exports.languages = createMonacoLanguagesAPI();
+const api = createMonacoBaseAPI();
+api.editor = createMonacoEditorAPI();
+api.languages = createMonacoLanguagesAPI();
+export const CancellationTokenSource = api.CancellationTokenSource;
+export const Emitter = api.Emitter;
+export const KeyCode = api.KeyCode;
+export const KeyMod = api.KeyMod;
+export const Position = api.Position;
+export const Range = api.Range;
+export const Selection = api.Selection;
+export const SelectionDirection = api.SelectionDirection;
+export const Severity = api.Severity;
+export const Promise = api.Promise;
+export const Uri = api.Uri;
+export const Token = api.Token;
+export const editor = api.editor;
+export const languages = api.languages;
+
+global.monaco = api;
 
 if (typeof global.require !== 'undefined' && typeof global.require.config === 'function') {
 	global.require.config({

@@ -2,14 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import octiconLabel = require('vs/base/browser/ui/octiconLabel/octiconLabel');
 import { escape } from 'vs/base/common/strings';
 
-function render(text: string): string {
+export function render(text: string): string {
 	return escape(text);
 }
 
-class MockOcticonLabel {
+export class OcticonLabel {
 
 	private _container: HTMLElement;
 
@@ -22,9 +21,3 @@ class MockOcticonLabel {
 	}
 
 }
-
-var mock: typeof octiconLabel = {
-	renderOcticons: render,
-	OcticonLabel: <any>MockOcticonLabel
-};
-export = mock;
