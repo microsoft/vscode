@@ -356,6 +356,10 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				get logger() {
 					checkProposedApiEnabled(extensionDescription);
 					return that._extHostLogService.getExtLogger(extensionDescription.id);
+				},
+				get logDirectory() {
+					checkProposedApiEnabled(extensionDescription);
+					return that._extHostLogService.getLogDirectory(extensionDescription.id);
 				}
 			});
 		});
