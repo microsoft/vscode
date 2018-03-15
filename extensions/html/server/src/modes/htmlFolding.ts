@@ -149,12 +149,12 @@ export function getHTMLFoldingRegions(htmlLanguageService: HTMLLanguageService, 
 				break;
 			}
 			case TokenType.Comment: {
+				let startLine = document.positionAt(scanner.getTokenOffset()).line;
 				let text = scanner.getTokenText();
 				let m = text.match(/^\s*#(region\b)|(endregion\b)/);
 				if (m) {
-					let line = document.positionAt(scanner.getTokenOffset()).line;
 					if (m[1]) { // start pattern match
-						let range = { startLine: line, endLine: line, type: FoldingRangeType.Region };
+						let range = { startLine, endLine: startLine, type: FoldingRangeType.Region };
 						stack.push(range);
 						elementNames.push('');
 					} else {
@@ -165,12 +165,18 @@ export function getHTMLFoldingRegions(htmlLanguageService: HTMLLanguageService, 
 						if (i >= 0) {
 							let range = stack[i];
 							stack.length = i;
-							if (line > range.startLine && prevStart !== range.startLine) {
-								range.endLine = line;
+							if (startLine > range.startLine && prevStart !== range.startLine) {
+								range.endLine = startLine;
 								addRange(range);
 								prevStart = range.startLine;
 							}
 						}
+					}
+				} else {
+					let endLine = document.positionAt(scanner.getTokenOffset() + scanner.getTokenLength()).line;
+					if (startLine < endLine) {
+						addRange({ startLine, endLine, type: FoldingRangeType.Comment });
+						prevStart = startLine;
 					}
 				}
 				break;

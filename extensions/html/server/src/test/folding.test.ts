@@ -84,14 +84,16 @@ suite('Object Folding', () => {
 		assertRanges(input, [r(0, 7), r(5, 6)]);
 	});
 
-	// test('Fold commment', () => {
-	// 	let input = [
-	// 		/*0*/'/*',
-	// 		/*1*/' multi line',
-	// 		/*2*/'*/',
-	// 	];
-	// 	assertRanges(input, [r(0, 2, 'comment')]);
-	// });
+	test('Fold commment', () => {
+		let input = [
+			/*0*/'<!--',
+			/*1*/' multi line',
+			/*2*/'-->',
+			/*3*/'<!-- some stuff',
+			/*4*/' some more stuff -->',
+		];
+		assertRanges(input, [r(0, 2, 'comment'), r(3, 4, 'comment')]);
+	});
 
 	// test('Fold regions', () => {
 	// 	let input = [
