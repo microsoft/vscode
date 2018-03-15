@@ -196,6 +196,11 @@ export interface PresentationOptions {
 	 * every task execution (new). Defaults to `TaskInstanceKind.Shared`
 	 */
 	panel: PanelKind;
+
+	/**
+	 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
+	 */
+	reuseMessage: boolean;
 }
 
 export enum RuntimeType {
@@ -401,11 +406,6 @@ export interface ConfigurationProperties {
 	 * The problem watchers to use for this task
 	 */
 	problemMatchers?: (string | ProblemMatcher)[];
-
-	/**
-	 * Whether to show `Terminal will be reused by tasks, press any key to close it` message.
-	 */
-	showTerminalReuseAlert?: boolean;
 }
 
 export interface CommonTask {

@@ -66,7 +66,8 @@ const presentation: IJSONSchema = {
 		echo: true,
 		reveal: 'always',
 		focus: false,
-		panel: 'shared'
+		panel: 'shared',
+		reuseMessage: true
 	},
 	description: nls.localize('JsonSchema.tasks.presentation', 'Configures the panel that is used to present the task\'s ouput and reads its input.'),
 	additionalProperties: false,
@@ -97,6 +98,11 @@ const presentation: IJSONSchema = {
 			enum: ['shared', 'dedicated', 'new'],
 			default: 'shared',
 			description: nls.localize('JsonSchema.tasks.presentation.instance', 'Controls if the panel is shared between tasks, dedicated to this task or a new one is created on every run.')
+		},
+		reuseMessage: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('JsonSchema.tasks.presentation.reuseMessage', 'Controls whether to show the `Terminal will be reused by tasks, press any key to close it` message.')
 		}
 	}
 };
@@ -273,11 +279,6 @@ let taskConfiguration: IJSONSchema = {
 		isBackground: {
 			type: 'boolean',
 			description: nls.localize('JsonSchema.tasks.background', 'Whether the executed task is kept alive and is running in the background.'),
-			default: true
-		},
-		showTerminalReuseAlert: {
-			type: 'boolean',
-			description: nls.localize('JsonSchema.tasks.showTerminalReuseAlert', 'Whether to show the `Terminal will be reused by tasks, press any key to close it` message.'),
 			default: true
 		},
 		promptOnClose: {

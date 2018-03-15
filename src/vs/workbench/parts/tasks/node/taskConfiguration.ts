@@ -108,6 +108,11 @@ export interface PresentationOptions {
 	 * Controls whether the task runs in a new terminal
 	 */
 	panel?: string;
+
+	/**
+	 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
+	 */
+	reuseMessage: boolean;
 }
 
 export interface TaskIdentifier {
@@ -296,11 +301,6 @@ export interface ConfigurationProperties {
 	 * output.
 	 */
 	problemMatcher?: ProblemMatcherConfig.ProblemMatcherType;
-
-	/**
-	 * Whether to show the `Terminal will be reused by tasks, press any key to close it` message.
-	 */
-	showTerminalReuseAlert?: boolean;
 }
 
 export interface CustomTask extends CommandProperties, ConfigurationProperties {
@@ -429,12 +429,6 @@ export interface BaseTaskRunnerConfiguration {
 	 * Problem matcher declarations
 	 */
 	declares?: ProblemMatcherConfig.NamedProblemMatcher[];
-
-	/**
-	 * Controls whether the message `Terminal will be reused by tasks, press any key to close it` is shown or not.
-	 * If omitted true is used.
-	 */
-	showTerminalReuseAlert?: boolean;
 }
 
 /**
@@ -738,7 +732,7 @@ namespace CommandOptions {
 namespace CommandConfiguration {
 
 	export namespace PresentationOptions {
-		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'panel' }];
+		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'panel' }, { property: 'reuseMessage' }];
 
 		interface PresentationOptionsShape extends LegacyCommandProperties {
 			presentation?: PresentationOptions;
@@ -749,6 +743,7 @@ namespace CommandConfiguration {
 			let reveal: Tasks.RevealKind;
 			let focus: boolean;
 			let panel: Tasks.PanelKind;
+			let reuseMessage: boolean;
 			if (Types.isBoolean(config.echoCommand)) {
 				echo = config.echoCommand;
 			}
@@ -769,11 +764,14 @@ namespace CommandConfiguration {
 				if (Types.isString(presentation.panel)) {
 					panel = Tasks.PanelKind.fromString(presentation.panel);
 				}
+				if (Types.isBoolean(presentation.reuseMessage)) {
+					reuseMessage = presentation.reuseMessage;
+				}
 			}
-			if (echo === void 0 && reveal === void 0 && focus === void 0 && panel === void 0) {
+			if (echo === void 0 && reveal === void 0 && focus === void 0 && panel === void 0 && reuseMessage === void 0) {
 				return undefined;
 			}
-			return { echo, reveal, focus, panel };
+			return { echo, reveal, focus, panel, reuseMessage };
 		}
 
 		export function assignProperties(target: Tasks.PresentationOptions, source: Tasks.PresentationOptions): Tasks.PresentationOptions {
@@ -786,7 +784,7 @@ namespace CommandConfiguration {
 
 		export function fillDefaults(value: Tasks.PresentationOptions, context: ParseContext): Tasks.PresentationOptions {
 			let defaultEcho = context.engine === Tasks.ExecutionEngine.Terminal ? true : false;
-			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared }, properties, context);
+			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, reuseMessage: true }, properties, context);
 		}
 
 		export function freeze(value: Tasks.PresentationOptions): Readonly<Tasks.PresentationOptions> {
