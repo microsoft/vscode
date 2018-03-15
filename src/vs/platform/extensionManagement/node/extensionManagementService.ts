@@ -711,8 +711,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	private scanExtensions(root: string, type: LocalExtensionType): TPromise<ILocalExtension[]> {
 		const limiter = new Limiter(10);
 		return pfs.readdir(root)
-			.then(extensionsFolders => TPromise.join(extensionsFolders.map(extensionFolder => limiter.queue(() => this.scanExtension(extensionFolder, root, type)))))
-			.then(extensions => coalesce(extensions));
+			.then(extensionsFolders => TPromise.join<ILocalExtension>(extensionsFolders.map(extensionFolder => limiter.queue(() => this.scanExtension(extensionFolder, root, type)))))
+			.then(extensions => extensions.filter(e => e && e.identifier));
 	}
 
 	private scanExtension(folderName: string, root: string, type: LocalExtensionType): TPromise<ILocalExtension> {
