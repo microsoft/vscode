@@ -17,6 +17,7 @@ import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures';
+import * as TaskSystem from 'vs/workbench/parts/tasks/common/tasks';
 
 export class ExtHostApiCommands {
 
@@ -168,6 +169,11 @@ export class ExtHostApiCommands {
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
 			],
 			returns: 'A promise that resolves to an array of DocumentLink-instances.'
+		});
+		this._register('vscode.executeTaskProvider', this._executeTaskProvider, {
+			description: 'Execute task provider',
+			args: [],
+			returns: 'An array of task handles'
 		});
 
 		this._register('vscode.previewHtml', (uri: URI, position?: vscode.ViewColumn, label?: string, options?: any) => {
@@ -464,6 +470,22 @@ export class ExtHostApiCommands {
 	private _executeDocumentLinkProvider(resource: URI): Thenable<vscode.DocumentLink[]> {
 		return this._commands.executeCommand<modes.ILink[]>('_executeLinkProvider', resource)
 			.then(tryMapWith(typeConverters.DocumentLink.to));
+	}
+
+	private _executeTaskProvider(): Thenable<vscode.TaskHandle[]> {
+		return this._commands.executeCommand<TaskSystem.TaskHandleTransfer[]>('_executeTaskProvider').then<vscode.TaskHandle[]>((values) => {
+			return values.map(handle => {
+				return {
+					id: handle.id,
+					label: handle.label,
+					workspaceFolder: {
+						name: handle.workspaceFolder.name,
+						index: handle.workspaceFolder.index,
+						uri: URI.revive(handle.workspaceFolder.uri)
+					}
+				};
+			});
+		});
 	}
 }
 
