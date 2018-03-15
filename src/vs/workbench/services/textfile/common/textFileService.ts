@@ -484,8 +484,8 @@ export abstract class TextFileService implements ITextFileService {
 	private doSaveAllFiles(resources?: URI[], options: ISaveOptions = Object.create(null)): TPromise<ITextFileOperationResult> {
 		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(resources) ? resources : void 0 /* Save All */)
 			.filter(model => {
-				if (model.hasState(ModelState.CONFLICT) && (options.reason === SaveReason.AUTO || options.reason === SaveReason.FOCUS_CHANGE || options.reason === SaveReason.WINDOW_CHANGE)) {
-					return false; // if model is in save conflict, do not save unless save reason is explicit or not provided at all
+				if ((model.hasState(ModelState.CONFLICT) || model.hasState(ModelState.ERROR)) && (options.reason === SaveReason.AUTO || options.reason === SaveReason.FOCUS_CHANGE || options.reason === SaveReason.WINDOW_CHANGE)) {
+					return false; // if model is in save conflict or error, do not save unless save reason is explicit or not provided at all
 				}
 
 				return true;
