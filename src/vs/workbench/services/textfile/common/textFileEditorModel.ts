@@ -5,17 +5,16 @@
 'use strict';
 
 import * as path from 'vs/base/common/paths';
-import nls = require('vs/nls');
-import Event, { Emitter } from 'vs/base/common/event';
+import * as nls from 'vs/nls';
+import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import paths = require('vs/base/common/paths');
-import diagnostics = require('vs/base/common/diagnostics');
-import types = require('vs/base/common/types');
+import * as diagnostics from 'vs/base/common/diagnostics';
+import * as types from 'vs/base/common/types';
 import { IMode } from 'vs/editor/common/modes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -63,8 +62,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private disposed: boolean;
 	private lastSaveAttemptTime: number;
 	private createTextEditorModelPromise: TPromise<TextFileEditorModel>;
-	private _onDidContentChange: Emitter<StateChange>;
-	private _onDidStateChange: Emitter<StateChange>;
+	private readonly _onDidContentChange: Emitter<StateChange>;
+	private readonly _onDidStateChange: Emitter<StateChange>;
 
 	private inConflictMode: boolean;
 	private inOrphanMode: boolean;
@@ -293,7 +292,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			if (!!backup) {
 				const content: IRawTextContent = {
 					resource: this.resource,
-					name: paths.basename(this.resource.fsPath),
+					name: path.basename(this.resource.fsPath),
 					mtime: Date.now(),
 					etag: void 0,
 					value: createTextBufferFactory(''), /* will be filled later from backup */
@@ -370,10 +369,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					"fileGet" : {
 						"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+						"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
-				this.telemetryService.publicLog('fileGet', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.resource.fsPath), path: this.hashService.createSHA1(this.resource.fsPath) });
+				this.telemetryService.publicLog('fileGet', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: path.extname(this.resource.fsPath), path: this.hashService.createSHA1(this.resource.fsPath) });
 			}
 
 			return model;
@@ -725,7 +724,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 							"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						}
 					*/
-					this.telemetryService.publicLog('filePUT', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.lastResolvedDiskStat.resource.fsPath) });
+					this.telemetryService.publicLog('filePUT', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: path.extname(this.lastResolvedDiskStat.resource.fsPath) });
 				}
 
 				// Update dirty state unless model has changed meanwhile
@@ -773,7 +772,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Check for workspace settings file
 		return this.contextService.getWorkspace().folders.some(folder => {
-			return paths.isEqualOrParent(this.resource.fsPath, path.join(folder.uri.fsPath, '.vscode'));
+			return path.isEqualOrParent(this.resource.fsPath, path.join(folder.uri.fsPath, '.vscode'));
 		});
 	}
 
@@ -1082,10 +1081,10 @@ export class SaveSequentializer {
 
 class DefaultSaveErrorHandler implements ISaveErrorHandler {
 
-	constructor( @INotificationService private notificationService: INotificationService) { }
+	constructor(@INotificationService private notificationService: INotificationService) { }
 
 	public onSaveError(error: any, model: TextFileEditorModel): void {
-		this.notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(model.getResource().fsPath), toErrorMessage(error, false)));
+		this.notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", path.basename(model.getResource().fsPath), toErrorMessage(error, false)));
 	}
 }
 

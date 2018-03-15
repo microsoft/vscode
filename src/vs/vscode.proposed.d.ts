@@ -7,6 +7,33 @@
 
 declare module 'vscode' {
 
+	export namespace window {
+		export function sampleFunction(): Thenable<any>;
+	}
+
+	//#region Joh: readable diagnostics
+
+	export interface DiagnosticChangeEvent {
+		uris: Uri[];
+	}
+
+	export namespace languages {
+
+		/**
+		 *
+		 */
+		export const onDidChangeDiagnostics: Event<DiagnosticChangeEvent>;
+
+		/**
+		 *
+		 */
+		export function getDiagnostics(resource?: Uri): Diagnostic[];
+	}
+
+	//#endregion
+
+	//#region Aeschli: folding
+
 	export class FoldingRangeList {
 
 		/**
@@ -63,6 +90,37 @@ declare module 'vscode' {
 		 */
 		Region = 'region'
 	}
+
+	export namespace languages {
+
+		/**
+		 * Register a folding provider.
+		 *
+		 * Multiple folding can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A folding provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerFoldingProvider(selector: DocumentSelector, provider: FoldingProvider): Disposable;
+	}
+
+	export interface FoldingContext {
+		maxRanges?: number;
+	}
+
+	export interface FoldingProvider {
+		/**
+		 * Returns a list of folding ranges or null if the provider does not want to participate or was cancelled.
+		 */
+		provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRangeList>;
+	}
+
+	//#endregion
+
+	//#region Joh: file system provider
 
 	// export enum FileErrorCodes {
 	// 	/**
@@ -216,10 +274,9 @@ declare module 'vscode' {
 		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
 	}
 
-	export namespace window {
+	//#endregion
 
-		export function sampleFunction(): Thenable<any>;
-	}
+	//#region Joao: diff command
 
 	/**
 	 * The contiguous set of modified lines in a diff.
@@ -250,7 +307,9 @@ declare module 'vscode' {
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 	}
 
-	//#region decorations
+	//#endregion
+
+	//#region Joh: decorations
 
 	//todo@joh -> make class
 	export interface DecorationData {
@@ -278,6 +337,8 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region André: debug
 
 	/**
 	 * Represents a debug adapter executable and optional arguments passed to it.
@@ -311,6 +372,10 @@ declare module 'vscode' {
 		 */
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
+
+	//#endregion
+
+	//#region Rob, Matt: logging
 
 	/**
 	 * The severity level of a log message
@@ -348,33 +413,27 @@ declare module 'vscode' {
 		logger: Logger;
 	}
 
-	export interface RenameInitialValue {
+	//#endregion
+
+	//#region Joh: rename context
+
+	export class RenameContext {
 		range: Range;
-		text?: string;
+		newName?: string;
+		constructor(range: Range, newName?: string);
 	}
 
-	export namespace languages {
+	export interface RenameProvider2 extends RenameProvider {
 
 		/**
-		 * Register a folding provider.
-		 *
-		 * Multiple folding can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
-		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A folding provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 * Optional function to resolve and validate a rename location.
 		 */
-		export function registerFoldingProvider(selector: DocumentSelector, provider: FoldingProvider): Disposable;
+		resolveRenameContext?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameContext>;
+	}
 
-		export interface RenameProvider2 extends RenameProvider {
-			resolveInitialRenameValue?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameInitialValue>;
-		}
-	}
-	export interface FoldingProvider {
-		provideFoldingRanges(document: TextDocument, token: CancellationToken): ProviderResult<FoldingRangeList>;
-	}
+	//#endregion
+
+	//#region Joao: SCM validation
 
 	/**
 	 * Represents the validation type of the Source Control input.
@@ -422,6 +481,10 @@ declare module 'vscode' {
 		validateInput?(value: string, cursorPosition: number): ProviderResult<SourceControlInputBoxValidation | undefined | null>;
 	}
 
+	//#endregion
+
+	//#region Matt: WebView
+
 	/**
 	 * Content settings for a webview.
 	 */
@@ -456,9 +519,9 @@ declare module 'vscode' {
 		readonly retainContextWhenHidden?: boolean;
 
 		/**
-		 * Root paths from which the webview can load local (filesystem) resources using the `vscode-workspace-resource:` scheme.
+		 * Root paths from which the webview can load local (filesystem) resources using the `vscode-resource:` scheme.
 		 *
-		 * Default to the root folders of the current workspace.
+		 * Default to the root folders of the current workspace plus the extension's install directory.
 		 *
 		 * Pass in an empty array to disallow access to any local resources.
 		 */
@@ -567,6 +630,10 @@ declare module 'vscode' {
 		export const onDidChangeActiveEditor: Event<TextEditor | Webview | undefined>;
 	}
 
+	//#endregion
+
+	//#region Sandeep: TreeView
+
 	export namespace window {
 
 		/**
@@ -633,7 +700,9 @@ declare module 'vscode' {
 		getParent?(element: T): ProviderResult<T>;
 	}
 
-	//#region TextEditor.visibleRange and related event
+	//#endregion
+
+	//#region Alex: TextEditor.visibleRange and related event
 
 	export interface TextEditor {
 		/**

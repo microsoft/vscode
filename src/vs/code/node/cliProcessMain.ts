@@ -144,15 +144,15 @@ class Main {
 
 							return this.extensionManagementService.installFromGallery(extension)
 								.then(
-								() => console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version)),
-								error => {
-									if (isPromiseCanceledError(error)) {
-										console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", id));
-										return null;
-									} else {
-										return TPromise.wrapError(error);
-									}
-								});
+									() => console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version)),
+									error => {
+										if (isPromiseCanceledError(error)) {
+											console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", id));
+											return null;
+										} else {
+											return TPromise.wrapError(error);
+										}
+									});
 						});
 				});
 			});

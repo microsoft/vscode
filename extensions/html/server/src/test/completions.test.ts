@@ -12,7 +12,7 @@ import { TextDocument, CompletionList, CompletionItemKind, } from 'vscode-langua
 import { getLanguageModes } from '../modes/languageModes';
 import { applyEdits } from '../utils/edits';
 import { getPathCompletionParticipant } from '../modes/pathCompletion';
-import { Proposed } from 'vscode-languageserver-protocol';
+import { WorkspaceFolder } from 'vscode-languageserver';
 
 export interface ItemDescription {
 	label: string;
@@ -49,7 +49,7 @@ suite('Completions', () => {
 
 	const testUri = 'test://test/test.html';
 
-	function assertCompletions(value: string, expected: { count?: number, items?: ItemDescription[] }, uri = testUri, workspaceFolders?: Proposed.WorkspaceFolder[]): void {
+	function assertCompletions(value: string, expected: { count?: number, items?: ItemDescription[] }, uri = testUri, workspaceFolders?: WorkspaceFolder[]): void {
 		let offset = value.indexOf('|');
 		value = value.substr(0, offset) + value.substr(offset + 1);
 

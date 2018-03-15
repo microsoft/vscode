@@ -5,10 +5,9 @@
 
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 
-import encoding = require('vs/base/node/encoding');
-import { encodingExists } from 'vs/base/node/encoding';
+import * as encoding from 'vs/base/node/encoding';
 
 suite('Encoding', () => {
 	test('detectBOM UTF-8', () => {
@@ -52,17 +51,17 @@ suite('Encoding', () => {
 	});
 
 	test('resolve terminal encoding (detect)', function () {
-		return encoding.resolveTerminalEncoding().then(encoding => {
-			assert.ok(encodingExists(encoding));
+		return encoding.resolveTerminalEncoding().then(enc => {
+			assert.ok(encoding.encodingExists(enc));
 		});
 	});
 
 	test('resolve terminal encoding (environment)', function () {
 		process.env['VSCODE_CLI_ENCODING'] = 'utf16le';
 
-		return encoding.resolveTerminalEncoding().then(encoding => {
-			assert.ok(encodingExists(encoding));
-			assert.equal(encoding, 'utf16le');
+		return encoding.resolveTerminalEncoding().then(enc => {
+			assert.ok(encoding.encodingExists(enc));
+			assert.equal(enc, 'utf16le');
 		});
 	});
 });

@@ -12,6 +12,8 @@ import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { PieceTreeBase } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { SENTINEL, NodeColor, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
 
@@ -1674,4 +1676,104 @@ suite('search offset cache', () => {
 		assertTreeInvariants(pieceTable);
 	});
 
+});
+
+function getValueInSnapshot(snapshot: ITextSnapshot) {
+	let ret = '';
+	let tmp = snapshot.read();
+
+	while (tmp !== null) {
+		ret += tmp;
+		tmp = snapshot.read();
+	}
+
+	return ret;
+}
+suite('snapshot', () => {
+	test('bug #45564, piece tree pieces should be immutable', () => {
+		const model = TextModel.createFromString('\n');
+		model.applyEdits([
+			{
+				range: new Range(2, 1, 2, 1),
+				text: '!'
+			}
+		]);
+		const snapshot = model.createSnapshot();
+		const snapshot1 = model.createSnapshot();
+		assert.equal(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+
+		model.applyEdits([
+			{
+				range: new Range(2, 1, 2, 2),
+				text: ''
+			}
+		]);
+		model.applyEdits([
+			{
+				range: new Range(2, 1, 2, 1),
+				text: '!'
+			}
+		]);
+
+		assert.equal(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot1));
+	});
+
+	test('immutable snapshot 1', () => {
+		const model = TextModel.createFromString('abc\ndef');
+		const snapshot = model.createSnapshot();
+		model.applyEdits([
+			{
+				range: new Range(2, 1, 2, 4),
+				text: ''
+			}
+		]);
+
+		model.applyEdits([
+			{
+				range: new Range(1, 1, 2, 1),
+				text: 'abc\ndef'
+			}
+		]);
+
+		assert.equal(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+	});
+
+	test('immutable snapshot 2', () => {
+		const model = TextModel.createFromString('abc\ndef');
+		const snapshot = model.createSnapshot();
+		model.applyEdits([
+			{
+				range: new Range(2, 1, 2, 1),
+				text: '!'
+			}
+		]);
+
+		model.applyEdits([
+			{
+				range: new Range(2, 1, 2, 2),
+				text: ''
+			}
+		]);
+
+		assert.equal(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+	});
+
+	test('immutable snapshot 3', () => {
+		const model = TextModel.createFromString('abc\ndef');
+		model.applyEdits([
+			{
+				range: new Range(2, 4, 2, 4),
+				text: '!'
+			}
+		]);
+		const snapshot = model.createSnapshot();
+		model.applyEdits([
+			{
+				range: new Range(2, 5, 2, 5),
+				text: '!'
+			}
+		]);
+
+		assert.notEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+	});
 });

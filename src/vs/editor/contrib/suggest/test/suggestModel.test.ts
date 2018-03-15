@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TextModel } from 'vs/editor/common/model/textModel';

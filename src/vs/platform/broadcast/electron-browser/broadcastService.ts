@@ -6,7 +6,7 @@
 'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 import { ipcRenderer as ipc } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -29,7 +29,7 @@ export interface IBroadcastService {
 export class BroadcastService implements IBroadcastService {
 	public _serviceBrand: any;
 
-	private _onBroadcast: Emitter<IBroadcast>;
+	private readonly _onBroadcast: Emitter<IBroadcast>;
 
 	constructor(
 		private windowId: number,

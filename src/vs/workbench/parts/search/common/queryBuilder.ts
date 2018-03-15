@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import * as collections from 'vs/base/common/collections';
@@ -180,6 +180,28 @@ export class QueryBuilder {
 		}
 
 		return Object.keys(excludeExpression).length ? excludeExpression : undefined;
+	}
+
+	/**
+	 * A helper that splits positive and negative patterns from a string that combines both.
+	 */
+	public parseIncludeExcludePattern(pattern: string): { includePattern?: string, excludePattern?: string } {
+		const grouped = collections.groupBy(
+			splitGlobPattern(pattern),
+			s => strings.startsWith(s, '!') ? 'excludePattern' : 'includePattern');
+
+		const result = {};
+		if (grouped.includePattern) {
+			result['includePattern'] = grouped.includePattern.join(', ');
+		}
+
+		if (grouped.excludePattern) {
+			result['excludePattern'] = grouped.excludePattern
+				.map(s => strings.ltrim(s, '!'))
+				.join(', ');
+		}
+
+		return result;
 	}
 
 	private mergeExcludesFromFolderQueries(folderQueries: IFolderQuery[]): glob.IExpression | undefined {

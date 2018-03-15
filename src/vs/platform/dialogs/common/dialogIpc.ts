@@ -18,7 +18,7 @@ export interface IDialogChannel extends IChannel {
 
 export class DialogChannel implements IDialogChannel {
 
-	constructor( @IDialogService private dialogService: IDialogService) {
+	constructor(@IDialogService private dialogService: IDialogService) {
 	}
 
 	call(command: string, args?: any[]): TPromise<any> {

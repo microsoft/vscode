@@ -6,14 +6,13 @@
 'use strict';
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IMarkerService, IMarker } from 'vs/platform/markers/common/markers';
+import { IMarkerService, IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IDecorationsService, IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import Severity from 'vs/base/common/severity';
 import { editorErrorForeground, editorWarningForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -31,7 +30,10 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 	}
 
 	provideDecorations(resource: URI): IDecorationData {
-		let markers = this._markerService.read({ resource });
+		let markers = this._markerService.read({
+			resource,
+			severities: MarkerSeverity.Error | MarkerSeverity.Warning
+		});
 		let first: IMarker;
 		for (const marker of markers) {
 			if (!first || marker.severity > first.severity) {
@@ -48,7 +50,7 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 			bubble: true,
 			tooltip: markers.length === 1 ? localize('tooltip.1', "1 problem in this file") : localize('tooltip.N', "{0} problems in this file", markers.length),
 			letter: markers.length < 10 ? markers.length.toString() : '+9',
-			color: first.severity === Severity.Error ? editorErrorForeground : editorWarningForeground,
+			color: first.severity === MarkerSeverity.Error ? editorErrorForeground : editorWarningForeground,
 		};
 	}
 }

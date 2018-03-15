@@ -32,6 +32,14 @@ declare module monaco {
 		Error = 3,
 	}
 
+	export enum MarkerSeverity {
+		Hint = 1,
+		Info = 2,
+		Warning = 4,
+		Error = 8,
+	}
+
+
 
 
 	export type TValueCallback<T = any> = (value: T | PromiseLike<T>) => void;
@@ -1068,7 +1076,7 @@ declare module monaco.editor {
 	export interface IMarker {
 		owner: string;
 		resource: Uri;
-		severity: Severity;
+		severity: MarkerSeverity;
 		code?: string;
 		message: string;
 		source?: string;
@@ -1076,6 +1084,7 @@ declare module monaco.editor {
 		startColumn: number;
 		endLineNumber: number;
 		endColumn: number;
+		relatedInformation?: IRelatedInformation[];
 	}
 
 	/**
@@ -1083,9 +1092,22 @@ declare module monaco.editor {
 	 */
 	export interface IMarkerData {
 		code?: string;
-		severity: Severity;
+		severity: MarkerSeverity;
 		message: string;
 		source?: string;
+		startLineNumber: number;
+		startColumn: number;
+		endLineNumber: number;
+		endColumn: number;
+		relatedInformation?: IRelatedInformation[];
+	}
+
+	/**
+	 *
+	 */
+	export interface IRelatedInformation {
+		resource: Uri;
+		message: string;
 		startLineNumber: number;
 		startColumn: number;
 		endLineNumber: number;
@@ -4964,14 +4986,14 @@ declare module monaco.languages {
 		rejectReason?: string;
 	}
 
-	export interface RenameInformation {
+	export interface RenameContext {
 		range: IRange;
 		text: string;
 	}
 
 	export interface RenameProvider {
 		provideRenameEdits(model: editor.ITextModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
-		resolveInitialRenameValue?(model: editor.ITextModel, position: Position, token: CancellationToken): RenameInformation | Thenable<RenameInformation>;
+		resolveRenameContext?(model: editor.ITextModel, position: Position, token: CancellationToken): RenameContext | Thenable<RenameContext>;
 	}
 
 	export interface Command {

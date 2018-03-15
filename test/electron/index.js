@@ -8,7 +8,10 @@ const { tmpdir } = require('os');
 const { join } = require('path');
 const path = require('path');
 const mocha = require('mocha');
+const JUnitReporter = require('mocha-junit-reporter');
 const events = require('events');
+
+const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
 
 const optimist = require('optimist')
 	.describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
@@ -17,7 +20,9 @@ const optimist = require('optimist')
 	.describe('build', 'run with build output (out-build)').boolean('build')
 	.describe('coverage', 'generate coverage report').boolean('coverage')
 	.describe('debug', 'open dev tools, keep window open, reuse app data').string('debug')
-	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', process.platform === 'win32' ? 'dot' : 'spec')
+	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', defaultReporterName)
+	.describe('reporter-options', 'the mocha reporter options').string('reporter-options').default('reporter-options', '')
+	.describe('tfs').boolean('tfs')
 	.describe('help', 'show the help').alias('help', 'h');
 
 const argv = optimist.argv;
@@ -33,6 +38,9 @@ if (!argv.debug) {
 
 function deserializeSuite(suite) {
 	return {
+		root: suite.root,
+		suites: suite.suites,
+		tests: suite.tests,
 		title: suite.title,
 		fullTitle: () => suite.fullTitle,
 		timeout: () => suite.timeout,
@@ -84,6 +92,31 @@ class IPCRunner extends events.EventEmitter {
 	}
 }
 
+function parseReporterOption(value) {
+	let r = /^([^=]+)=(.*)$/.exec(value);
+	return r ? { [r[1]]: r[2] } : {};
+}
+
+class TFSReporter extends mocha.reporters.Base {
+
+	constructor(runner) {
+		super(runner);
+
+		runner.on('pending', test => {
+			console.log('PEND', test.fullTitle());
+		});
+		runner.on('pass', test => {
+			console.log('OK  ', test.fullTitle(), `(${test.duration}ms)`);
+		});
+		runner.on('fail', test => {
+			console.log('FAIL', test.fullTitle(), `(${test.duration}ms)`);
+		});
+		runner.once('end', () => {
+			this.epilogue();
+		});
+	}
+}
+
 app.on('ready', () => {
 
 	const win = new BrowserWindow({
@@ -106,18 +139,36 @@ app.on('ready', () => {
 
 	win.loadURL(`file://${__dirname}/renderer.html`);
 
-	const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
-	let Reporter;
-
-	try {
-		Reporter = require(reporterPath);
-	} catch (err) {
-		console.warn(`could not load reporter: ${argv.reporter}`);
-		Reporter = process.platform === 'win32' ? mocha.reporters.Dot : mocha.reporters.Spec;
-	}
-
 	const runner = new IPCRunner();
-	new Reporter(runner);
+
+	if (argv.tfs) {
+		new TFSReporter(runner);
+		new JUnitReporter(runner, {
+			reporterOptions: {
+				mochaFile: '.build/tests/unit-test-results.xml'
+			}
+		});
+	} else {
+		const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
+		let Reporter;
+
+		try {
+			Reporter = require(reporterPath);
+		} catch (err) {
+			try {
+				Reporter = require(argv.reporter);
+			} catch (err) {
+				Reporter = process.platform === 'win32' ? mocha.reporters.List : mocha.reporters.Spec;
+				console.warn(`could not load reporter: ${argv.reporter}, using ${Reporter.name}`);
+			}
+		}
+
+		let reporterOptions = argv['reporter-options'];
+		reporterOptions = typeof reporterOptions === 'string' ? [reporterOptions] : reporterOptions;
+		reporterOptions = reporterOptions.reduce((r, o) => Object.assign(r, parseReporterOption(o)), {});
+
+		new Reporter(runner, { reporterOptions });
+	}
 
 	if (!argv.debug) {
 		ipcMain.on('all done', () => app.exit(runner.didFail ? 1 : 0));

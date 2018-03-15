@@ -82,6 +82,11 @@ export interface FoldingRangeRequestParam {
 	 * The text document.
 	 */
 	textDocument: TextDocumentIdentifier;
+
+	/**
+	 * The maximum number of ranges to provide
+	 */
+	maxRanges?: number;
 }
 
 export namespace FoldingRangesRequest {

@@ -5,14 +5,14 @@
 'use strict';
 
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, CUSTOM_EDITOR_SCOPE_COLORS_SETTING, DETECT_HC_SETTING, HC_THEME_ID } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -22,10 +22,10 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
 
 import { $ } from 'vs/base/browser/builder';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
-import colorThemeSchema = require('vs/workbench/services/themes/common/colorThemeSchema');
-import fileIconThemeSchema = require('vs/workbench/services/themes/common/fileIconThemeSchema');
+import * as colorThemeSchema from 'vs/workbench/services/themes/common/colorThemeSchema';
+import * as fileIconThemeSchema from 'vs/workbench/services/themes/common/fileIconThemeSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IBroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
 import { ColorThemeStore } from 'vs/workbench/services/themes/electron-browser/colorThemeStore';
@@ -74,11 +74,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private colorThemeStore: ColorThemeStore;
 	private currentColorTheme: ColorThemeData;
 	private container: HTMLElement;
-	private onColorThemeChange: Emitter<IColorTheme>;
+	private readonly onColorThemeChange: Emitter<IColorTheme>;
 
 	private iconThemeStore: FileIconThemeStore;
 	private currentIconTheme: IFileIconTheme;
-	private onFileIconThemeChange: Emitter<IFileIconTheme>;
+	private readonly onFileIconThemeChange: Emitter<IFileIconTheme>;
 
 	private themingParticipantChangeListener: IDisposable;
 	private _configurationWriter: ConfigurationWriter;
@@ -361,7 +361,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 					"activatePlugin" : {
 						"id" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-						"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"publisherDisplayName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
 						"themeId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
 					}
@@ -465,7 +465,7 @@ colorThemeSchema.register();
 fileIconThemeSchema.register();
 
 class ConfigurationWriter {
-	constructor( @IConfigurationService private configurationService: IConfigurationService) {
+	constructor(@IConfigurationService private configurationService: IConfigurationService) {
 	}
 
 	public writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget): TPromise<void> {

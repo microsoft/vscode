@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector, TextDocumentPositionParams, ServerCapabilities, Position, CompletionTriggerKind } from 'vscode-languageserver';
+import {
+	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType,
+	DocumentRangeFormattingRequest, Disposable, DocumentSelector, TextDocumentPositionParams, ServerCapabilities,
+	Position, CompletionTriggerKind, ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
+	WorkspaceFolder, DocumentColorRequest, ColorInformation, ColorPresentationRequest
+} from 'vscode-languageserver';
 import { TextDocument, Diagnostic, DocumentLink, SymbolInformation, CompletionList } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
-
-import { ConfigurationRequest, ConfigurationParams } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
-import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorInformation, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
-import { DidChangeWorkspaceFoldersNotification, WorkspaceFolder } from 'vscode-languageserver-protocol/lib/protocol.workspaceFolders.proposed';
 
 import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
@@ -21,6 +22,7 @@ import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExten
 import { getPathCompletionParticipant } from './modes/pathCompletion';
 
 import { FoldingRangesRequest, FoldingProviderServerCapabilities } from './protocol/foldingProvider.proposed';
+import { getFoldingRegions } from './modes/htmlFolding';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
@@ -113,7 +115,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
 	scopedSettingsSupport = hasClientCapability('workspace', 'configuration');
 	workspaceFoldersSupport = hasClientCapability('workspace', 'workspaceFolders');
-	let capabilities: ServerCapabilities & CPServerCapabilities & FoldingProviderServerCapabilities = {
+	let capabilities: ServerCapabilities & FoldingProviderServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
 		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: [...emmetTriggerCharacters, '.', ':', '<', '"', '=', '/'] } : undefined,
@@ -469,15 +471,11 @@ connection.onRequest(TagCloseRequest.type, params => {
 	}, null, `Error while computing tag close actions for ${params.textDocument.uri}`);
 });
 
-connection.onRequest(FoldingRangesRequest.type, params => {
+connection.onRequest(FoldingRangesRequest.type, (params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
-			let mode = languageModes.getMode('html');
-			if (mode && mode.getFoldingRanges) {
-				return mode.getFoldingRanges(document);
-			}
-			return null;
+			return getFoldingRegions(languageModes, document, params.maxRanges, token);
 		}
 		return null;
 	}, null, `Error while computing folding regions for ${params.textDocument.uri}`);

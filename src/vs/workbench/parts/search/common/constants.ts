@@ -27,6 +27,7 @@ export const ReplaceInputBoxFocusedKey = new RawContextKey<boolean>('replaceInpu
 export const PatternIncludesFocusedKey = new RawContextKey<boolean>('patternIncludesInputBoxFocus', false);
 export const PatternExcludesFocusedKey = new RawContextKey<boolean>('patternExcludesInputBoxFocus', false);
 export const ReplaceActiveKey = new RawContextKey<boolean>('replaceActive', false);
+export const HasSearchResults = new RawContextKey<boolean>('hasSearchResult', false);
 
 export const FirstMatchFocusKey = new RawContextKey<boolean>('firstMatchFocus', false);
 export const FileMatchOrMatchFocusKey = new RawContextKey<boolean>('fileMatchOrMatchFocus', false);

@@ -42,7 +42,7 @@ export class ExtensionsHandler extends QuickOpenHandler {
 
 	public static readonly ID = 'workbench.picker.extensions';
 
-	constructor( @IViewletService private viewletService: IViewletService) {
+	constructor(@IViewletService private viewletService: IViewletService) {
 		super();
 	}
 

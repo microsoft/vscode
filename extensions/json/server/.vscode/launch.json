@@ -8,7 +8,8 @@
 			"request": "attach",
 			"port": 6004,
 			"sourceMaps": true,
-			"outDir": "${workspaceFolder}/out"
+			"outFiles": ["${workspaceFolder}/out/**/*js"],
+			"preLaunchTask": "npm: compile"
 		},
 		{
 			"name": "Unit Tests",
@@ -26,7 +27,8 @@
 			"runtimeArgs": [],
 			"env": {},
 			"sourceMaps": true,
-			"outDir": "${workspaceFolder}/out"
+			"outFiles": ["${workspaceFolder}/out/**/*js"],
+			"preLaunchTask": "npm: compile"
 		}
 	]
 }

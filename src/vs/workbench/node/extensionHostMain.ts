@@ -5,8 +5,8 @@
 
 'use strict';
 
-import nls = require('vs/nls');
-import pfs = require('vs/base/node/pfs');
+import * as nls from 'vs/nls';
+import * as pfs from 'vs/base/node/pfs';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'path';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';

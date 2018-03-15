@@ -523,7 +523,7 @@ class CallStackRenderer implements IRenderer {
 
 class CallstackAccessibilityProvider implements IAccessibilityProvider {
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		// noop
 	}
 

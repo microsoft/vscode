@@ -250,6 +250,49 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+	// --- type definition
+
+	test('Type Definition, invalid arguments', function () {
+		const promises = [
+			commands.executeCommand('vscode.executeTypeDefinitionProvider'),
+			commands.executeCommand('vscode.executeTypeDefinitionProvider', null),
+			commands.executeCommand('vscode.executeTypeDefinitionProvider', undefined),
+			commands.executeCommand('vscode.executeTypeDefinitionProvider', true, false)
+		];
+
+		return TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
+			assert.equal(err.length, 4);
+		});
+	});
+
+	test('Type Definition, back and forth', function () {
+
+		disposables.push(extHost.registerTypeDefinitionProvider(defaultSelector, <vscode.TypeDefinitionProvider>{
+			provideTypeDefinition(doc: any): any {
+				return new types.Location(doc.uri, new types.Range(0, 0, 0, 0));
+			}
+		}));
+		disposables.push(extHost.registerTypeDefinitionProvider(defaultSelector, <vscode.TypeDefinitionProvider>{
+			provideTypeDefinition(doc: any): any {
+				return [
+					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+				];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.Location[]>('vscode.executeTypeDefinitionProvider', model.uri, new types.Position(0, 0)).then(values => {
+				assert.equal(values.length, 4);
+				for (const v of values) {
+					assert.ok(v.uri instanceof URI);
+					assert.ok(v.range instanceof types.Range);
+				}
+			});
+		});
+	});
+
 	// --- references
 
 	test('reference search, back and forth', function () {

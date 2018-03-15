@@ -8,9 +8,8 @@
 import 'vs/css!./gotoErrorWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import Severity from 'vs/base/common/severity';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IMarker } from 'vs/platform/markers/common/markers';
+import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -23,6 +22,7 @@ import { editorErrorForeground, editorErrorBorder, editorWarningForeground, edit
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { basename } from 'vs/base/common/paths';
 
 class MessageWidget {
 
@@ -58,7 +58,7 @@ class MessageWidget {
 		dispose(this._disposables);
 	}
 
-	update({ source, message }: IMarker): void {
+	update({ source, message, relatedInformation }: IMarker): void {
 
 		if (source) {
 			this.lines = 0;
@@ -80,6 +80,13 @@ class MessageWidget {
 			this.longestLineLength = message.length;
 		}
 
+		if (Array.isArray(relatedInformation)) {
+			for (const related of relatedInformation) {
+				this.lines += 1;
+				message += `\n${related.message} - ${basename(related.resource.path)}:${related.startLineNumber}`;
+			}
+		}
+
 		this._domNode.innerText = message;
 		this._editor.applyFontInfo(this._domNode);
 		const width = Math.floor(this._editor.getConfiguration().fontInfo.typicalFullwidthCharacterWidth * this.longestLineLength);
@@ -98,7 +105,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 	private _title: HTMLElement;
 	private _message: MessageWidget;
 	private _callOnDispose: IDisposable[] = [];
-	private _severity: Severity;
+	private _severity: MarkerSeverity;
 	private _backgroundColor: Color;
 
 	constructor(
@@ -106,7 +113,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 		private _themeService: IThemeService
 	) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
-		this._severity = Severity.Warning;
+		this._severity = MarkerSeverity.Warning;
 		this._backgroundColor = Color.white;
 
 		this._applyTheme(_themeService.getTheme());
@@ -118,9 +125,9 @@ export class MarkerNavigationWidget extends ZoneWidget {
 	private _applyTheme(theme: ITheme) {
 		this._backgroundColor = theme.getColor(editorMarkerNavigationBackground);
 		let colorId = editorMarkerNavigationError;
-		if (this._severity === Severity.Warning) {
+		if (this._severity === MarkerSeverity.Warning) {
 			colorId = editorMarkerNavigationWarning;
-		} else if (this._severity === Severity.Info) {
+		} else if (this._severity === MarkerSeverity.Info) {
 			colorId = editorMarkerNavigationInfo;
 		}
 		let frameColor = theme.getColor(colorId);

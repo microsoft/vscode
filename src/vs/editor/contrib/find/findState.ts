@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 
@@ -70,7 +70,7 @@ export class FindReplaceState implements IDisposable {
 	private _matchesPosition: number;
 	private _matchesCount: number;
 	private _currentMatch: Range;
-	private _onFindReplaceStateChange: Emitter<FindReplaceStateChangedEvent>;
+	private readonly _onFindReplaceStateChange: Emitter<FindReplaceStateChangedEvent>;
 
 	public get searchString(): string { return this._searchString; }
 	public get replaceString(): string { return this._replaceString; }

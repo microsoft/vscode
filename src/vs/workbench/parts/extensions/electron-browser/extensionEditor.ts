@@ -12,7 +12,7 @@ import { marked } from 'vs/base/common/marked/marked';
 import { always } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
 import { OS } from 'vs/base/common/platform';
-import Event, { Emitter, once, chain } from 'vs/base/common/event';
+import { Event, Emitter, once, chain } from 'vs/base/common/event';
 import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -305,7 +305,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		/* __GDPR__
 			"extensionGallery:openExtension" : {
-				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]

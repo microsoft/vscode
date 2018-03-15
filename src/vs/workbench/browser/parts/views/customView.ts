@@ -133,7 +133,7 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 				onDidChange = dataProvider.onDidChange;
 				onDispose = dataProvider.onDispose;
 				getChildren(node?: ITreeItem): TPromise<ITreeItem[]> {
-					if (node.children) {
+					if (node && node.children) {
 						return TPromise.as(node.children);
 					}
 					const promise = node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node);
@@ -406,7 +406,7 @@ class TreeRenderer implements IRenderer {
 		templateData.actionBar.context = (<TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle });
 		templateData.actionBar.push(this.menus.getResourceActions(node), { icon: true, label: false });
 
-		templateData.aligner.align(node);
+		templateData.aligner.treeItem = node;
 	}
 
 	private getFileKind(node: ITreeItem): FileKind {
@@ -430,7 +430,7 @@ class TreeRenderer implements IRenderer {
 
 class Aligner extends Disposable {
 
-	private node: ITreeItem;
+	private _treeItem: ITreeItem;
 
 	constructor(
 		private container: HTMLElement,
@@ -438,65 +438,47 @@ class Aligner extends Disposable {
 		private themeService: IWorkbenchThemeService
 	) {
 		super();
-		this._register(this.themeService.onDidFileIconThemeChange(() => this.alignByTheme()));
+		this._register(this.themeService.onDidFileIconThemeChange(() => this.render()));
 	}
 
-	align(treeItem: ITreeItem): void {
-		this.node = treeItem;
-		this.alignByTheme();
+	set treeItem(treeItem: ITreeItem) {
+		this._treeItem = treeItem;
+		this.render();
 	}
 
-	private alignByTheme(): void {
-		if (this.node) {
-			DOM.toggleClass(this.container, 'align-with-twisty', this.hasToAlignWithTwisty());
+	private render(): void {
+		if (this._treeItem) {
+			DOM.toggleClass(this.container, 'align-icon-with-twisty', this.hasToAlignIconWithTwisty());
 		}
 	}
 
-	private hasToAlignWithTwisty(): boolean {
-		if (this.hasParentHasIcon()) {
+	private hasToAlignIconWithTwisty(): boolean {
+		if (this._treeItem.collapsibleState !== TreeItemCollapsibleState.None) {
 			return false;
 		}
+		if (!this.hasIcon(this._treeItem)) {
+			return false;
 
-		const fileIconTheme = this.themeService.getFileIconTheme();
-		if (!(fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons)) {
+		}
+		const parent: ITreeItem = this.tree.getNavigator(this._treeItem).parent() || this.tree.getInput();
+		if (this.hasIcon(parent)) {
 			return false;
 		}
-		if (this.node.collapsibleState !== TreeItemCollapsibleState.None) {
-			return false;
-		}
-		const icon = this.themeService.getTheme().type === LIGHT ? this.node.icon : this.node.iconDark;
-		const hasIcon = !!icon || !!this.node.resourceUri;
-		if (!hasIcon) {
-			return false;
-		}
-
-		const siblingsWithChildren = this.getSiblings().filter(s => s.collapsibleState !== TreeItemCollapsibleState.None);
-		for (const s of siblingsWithChildren) {
-			const icon = this.themeService.getTheme().type === LIGHT ? s.icon : s.iconDark;
-			if (icon) {
-				return false;
-			}
-		}
-
-		return true;
+		return parent.children && parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIcon(c));
 	}
 
-	private getSiblings(): ITreeItem[] {
-		const parent: ITreeItem = this.tree.getNavigator(this.node).parent() || this.tree.getInput();
-		return parent.children;
-	}
-
-	private hasParentHasIcon(): boolean {
-		const parent = this.tree.getNavigator(this.node).parent() || this.tree.getInput();
-		const icon = this.themeService.getTheme().type === LIGHT ? parent.icon : parent.iconDark;
+	private hasIcon(node: ITreeItem): boolean {
+		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
 		if (icon) {
 			return true;
 		}
-		if (parent.resourceUri) {
+		if (node.resourceUri || node.themeIcon) {
 			const fileIconTheme = this.themeService.getFileIconTheme();
-			if (fileIconTheme.hasFileIcons && fileIconTheme.hasFolderIcons) {
-				return true;
+			const isFolder = node.themeIcon ? node.themeIcon.id === FolderThemeIcon.id : node.collapsibleState !== TreeItemCollapsibleState.None;
+			if (isFolder) {
+				return fileIconTheme.hasFileIcons && fileIconTheme.hasFolderIcons;
 			}
+			return fileIconTheme.hasFileIcons;
 		}
 		return false;
 	}

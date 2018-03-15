@@ -277,8 +277,7 @@ export class CodeApplication {
 			this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 			// Spawn shared process
-			this.sharedProcess = new SharedProcess(this.environmentService, machineId, this.userEnv, this.logService);
-			this.toDispose.push(this.sharedProcess);
+			this.sharedProcess = new SharedProcess(this.environmentService, this.lifecycleService, this.logService, machineId, this.userEnv);
 			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
 			// Services
@@ -346,16 +345,6 @@ export class CodeApplication {
 	private openFirstWindow(accessor: ServicesAccessor): void {
 		const appInstantiationService = accessor.get(IInstantiationService);
 
-		// TODO@Joao: unfold this
-		this.windowsMainService = accessor.get(IWindowsMainService);
-
-		// TODO@Joao: so ugly...
-		this.windowsMainService.onWindowsCountChanged(e => {
-			if (!platform.isMacintosh && e.newCount === 0) {
-				this.sharedProcess.dispose();
-			}
-		});
-
 		// Register more Main IPC services
 		const launchService = accessor.get(ILaunchService);
 		const launchChannel = new LaunchChannel(launchService);
@@ -392,6 +381,7 @@ export class CodeApplication {
 		this.lifecycleService.ready();
 
 		// Propagate to clients
+		this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this
 		this.windowsMainService.ready(this.userEnv);
 
 		// Open our first window

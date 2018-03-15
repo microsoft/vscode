@@ -8,11 +8,11 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfiguration, TextDocument, FoldingRangeList, FoldingRange, Disposable } from 'vscode';
-import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
+import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfiguration, TextDocument, FoldingRangeList, FoldingRange, Disposable, FoldingContext } from 'vscode';
+import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, CancellationToken } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-import { FoldingRangesRequest } from './protocol/foldingProvider.proposed';
+import { FoldingRangesRequest, FoldingRangeRequestParam } from './protocol/foldingProvider.proposed';
 
 import { hash } from './utils/hash';
 
@@ -70,7 +70,7 @@ export function activate(context: ExtensionContext) {
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'jsonServerMain.js'));
 	// The debug options for the server
-	let debugOptions = { execArgv: ['--nolazy', '--inspect=6046'] };
+	let debugOptions = { execArgv: ['--nolazy', '--inspect=' + (9000 + Math.round(Math.random() * 10000))] };
 
 	// If the extension is launch in debug mode the debug server options are use
 	// Otherwise the run options are used
@@ -154,11 +154,18 @@ export function activate(context: ExtensionContext) {
 		if (enable) {
 			if (!foldingProviderRegistration) {
 				foldingProviderRegistration = languages.registerFoldingProvider(documentSelector, {
-					provideFoldingRanges(document: TextDocument) {
-						return client.sendRequest(FoldingRangesRequest.type, { textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document) }).then(res => {
+					provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken) {
+						const param: FoldingRangeRequestParam = {
+							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+							maxRanges: context.maxRanges
+						};
+						return client.sendRequest(FoldingRangesRequest.type, param, token).then(res => {
 							if (res && Array.isArray(res.ranges)) {
 								return new FoldingRangeList(res.ranges.map(r => new FoldingRange(r.startLine, r.endLine, r.type)));
 							}
+							return null;
+						}, error => {
+							client.logFailedRequest(FoldingRangesRequest.type, error);
 							return null;
 						});
 					}

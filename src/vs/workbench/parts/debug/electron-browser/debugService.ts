@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as resources from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -56,6 +56,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IAction, Action } from 'vs/base/common/actions';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import product from 'vs/platform/node/product';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -67,10 +68,10 @@ export class DebugService implements debug.IDebugService {
 	public _serviceBrand: any;
 
 	private sessionStates: Map<string, debug.State>;
-	private _onDidChangeState: Emitter<debug.State>;
-	private _onDidNewProcess: Emitter<debug.IProcess>;
-	private _onDidEndProcess: Emitter<debug.IProcess>;
-	private _onDidCustomEvent: Emitter<debug.DebugEvent>;
+	private readonly _onDidChangeState: Emitter<debug.State>;
+	private readonly _onDidNewProcess: Emitter<debug.IProcess>;
+	private readonly _onDidEndProcess: Emitter<debug.IProcess>;
+	private readonly _onDidCustomEvent: Emitter<debug.DebugEvent>;
 	private model: Model;
 	private viewModel: ViewModel;
 	private allProcesses: Map<string, debug.IProcess>;
@@ -893,6 +894,7 @@ export class DebugService implements debug.IDebugService {
 
 			return session.initialize({
 				clientID: 'vscode',
+				clientName: product.nameLong,
 				adapterID: configuration.type,
 				pathFormat: 'path',
 				linesStartAt1: true,
@@ -932,12 +934,12 @@ export class DebugService implements debug.IDebugService {
 				/* __GDPR__
 					"debugSessionStart" : {
 						"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"exceptionBreakpoints": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-						"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"extensionName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
-						"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"launchJsonExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"exceptionBreakpoints": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"extensionName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+						"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true},
+						"launchJsonExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 				*/
 				return this.telemetryService.publicLog('debugSessionStart', {
@@ -945,7 +947,7 @@ export class DebugService implements debug.IDebugService {
 					breakpointCount: this.model.getBreakpoints().length,
 					exceptionBreakpoints: this.model.getExceptionBreakpoints(),
 					watchExpressionsCount: this.model.getWatchExpressions().length,
-					extensionName: `${adapter.extensionDescription.publisher}.${adapter.extensionDescription.name}`,
+					extensionName: adapter.extensionDescription.id,
 					isBuiltin: adapter.extensionDescription.isBuiltin,
 					launchJsonExists: root && !!this.configurationService.getValue<debug.IGlobalConfig>('launch', { resource: root.uri })
 				});
@@ -966,10 +968,10 @@ export class DebugService implements debug.IDebugService {
 				this.updateStateAndEmit(session.getId(), debug.State.Inactive);
 				if (!session.disconnected) {
 					session.disconnect().done(null, errors.onUnexpectedError);
-				}
-				if (process) {
+				} else if (process) {
 					this.model.removeProcess(process.getId());
 				}
+
 				// Show the repl if some error got logged there #5870
 				if (this.model.getReplElements().length > 0) {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
@@ -1129,10 +1131,10 @@ export class DebugService implements debug.IDebugService {
 		/* __GDPR__
 			"debugSessionStop" : {
 				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"success": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"sessionLengthInSeconds": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"success": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"sessionLengthInSeconds": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.publicLog('debugSessionStop', {

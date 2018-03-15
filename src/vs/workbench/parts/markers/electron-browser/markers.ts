@@ -11,7 +11,7 @@ import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/co
 import { localize } from 'vs/nls';
 import Constants from './constants';
 import URI from 'vs/base/common/uri';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export const IMarkersWorkbenchService = createDecorator<IMarkersWorkbenchService>('markersWorkbenchService');

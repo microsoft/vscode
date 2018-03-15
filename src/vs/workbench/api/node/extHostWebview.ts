@@ -5,7 +5,7 @@
 
 import { MainContext, MainThreadWebviewsShape, IMainContext, ExtHostWebviewsShape, WebviewHandle } from './extHost.protocol';
 import * as vscode from 'vscode';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { Position } from 'vs/platform/editor/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -99,10 +99,12 @@ export class ExtHostWebview implements vscode.Webview {
 	}
 
 	public postMessage(message: any): Thenable<boolean> {
+		this.assertNotDisposed();
 		return this._proxy.$sendMessage(this._handle, message);
 	}
 
 	public show(viewColumn: vscode.ViewColumn): void {
+		this.assertNotDisposed();
 		this._proxy.$show(this._handle, typeConverters.fromViewColumn(viewColumn));
 	}
 
@@ -130,10 +132,11 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		uri: vscode.Uri,
 		title: string,
 		viewColumn: vscode.ViewColumn,
-		options: vscode.WebviewOptions
+		options: vscode.WebviewOptions,
+		extensionFolderPath: string
 	): vscode.Webview {
 		const handle = ExtHostWebviews.handlePool++;
-		this._proxy.$createWebview(handle, uri, title, typeConverters.fromViewColumn(viewColumn), options);
+		this._proxy.$createWebview(handle, uri, title, typeConverters.fromViewColumn(viewColumn), options, extensionFolderPath);
 
 		const webview = new ExtHostWebview(handle, this._proxy, uri, viewColumn, options);
 		this._webviews.set(handle, webview);

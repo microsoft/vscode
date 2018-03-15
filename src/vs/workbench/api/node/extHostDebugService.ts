@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { asWinJsPromise } from 'vs/base/common/async';
 import {
 	MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID,
@@ -29,19 +29,19 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	private _debugServiceProxy: MainThreadDebugServiceShape;
 	private _debugSessions: Map<DebugSessionUUID, ExtHostDebugSession> = new Map<DebugSessionUUID, ExtHostDebugSession>();
 
-	private _onDidStartDebugSession: Emitter<vscode.DebugSession>;
+	private readonly _onDidStartDebugSession: Emitter<vscode.DebugSession>;
 	get onDidStartDebugSession(): Event<vscode.DebugSession> { return this._onDidStartDebugSession.event; }
 
-	private _onDidTerminateDebugSession: Emitter<vscode.DebugSession>;
+	private readonly _onDidTerminateDebugSession: Emitter<vscode.DebugSession>;
 	get onDidTerminateDebugSession(): Event<vscode.DebugSession> { return this._onDidTerminateDebugSession.event; }
 
-	private _onDidChangeActiveDebugSession: Emitter<vscode.DebugSession | undefined>;
+	private readonly _onDidChangeActiveDebugSession: Emitter<vscode.DebugSession | undefined>;
 	get onDidChangeActiveDebugSession(): Event<vscode.DebugSession | undefined> { return this._onDidChangeActiveDebugSession.event; }
 
 	private _activeDebugSession: ExtHostDebugSession | undefined;
 	get activeDebugSession(): ExtHostDebugSession | undefined { return this._activeDebugSession; }
 
-	private _onDidReceiveDebugSessionCustomEvent: Emitter<vscode.DebugSessionCustomEvent>;
+	private readonly _onDidReceiveDebugSessionCustomEvent: Emitter<vscode.DebugSessionCustomEvent>;
 	get onDidReceiveDebugSessionCustomEvent(): Event<vscode.DebugSessionCustomEvent> { return this._onDidReceiveDebugSessionCustomEvent.event; }
 
 	private _activeDebugConsole: ExtHostDebugConsole;
@@ -50,7 +50,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	private _breakpoints: Map<string, vscode.Breakpoint>;
 	private _breakpointEventsActive: boolean;
 
-	private _onDidChangeBreakpoints: Emitter<vscode.BreakpointsChangeEvent>;
+	private readonly _onDidChangeBreakpoints: Emitter<vscode.BreakpointsChangeEvent>;
 
 
 	constructor(mainContext: IMainContext, workspace: ExtHostWorkspace) {

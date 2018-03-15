@@ -12,7 +12,7 @@ import { Reader, ICallback } from './utils/wireProtocol';
 
 import { workspace, window, Uri, CancellationToken, Disposable, Memento, MessageItem, EventEmitter, Event, commands, env } from 'vscode';
 import * as Proto from './protocol';
-import { ITypeScriptServiceClient, ITypeScriptServiceClientHost } from './typescriptService';
+import { ITypeScriptServiceClient } from './typescriptService';
 import { TypeScriptServerPlugin } from './utils/plugins';
 import Logger from './utils/logger';
 
@@ -28,6 +28,7 @@ import { TypeScriptVersionPicker } from './utils/versionPicker';
 import * as fileSchemes from './utils/fileSchemes';
 import { inferredProjectConfig } from './utils/tsconfig';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
+import { disposeAll } from './utils/dipose';
 
 const localize = nls.loadMessageBundle();
 
@@ -127,7 +128,7 @@ class ForkedTsServerProcess {
 
 	public createReader(
 		callback: ICallback<Proto.Response>,
-		onError: (error: any) => void = () => ({})
+		onError: (error: any) => void
 	) {
 		// tslint:disable-next-line:no-unused-expression
 		new Reader<Proto.Response>(this.childProcess.stdout, callback, onError);
@@ -136,6 +137,11 @@ class ForkedTsServerProcess {
 	public kill() {
 		this.childProcess.kill();
 	}
+}
+
+export interface TsDiagnostics {
+	readonly resource: Uri;
+	readonly diagnostics: Proto.Diagnostic[];
 }
 
 export default class TypeScriptServiceClient implements ITypeScriptServiceClient {
@@ -181,7 +187,6 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private readonly disposables: Disposable[] = [];
 
 	constructor(
-		private readonly host: ITypeScriptServiceClientHost,
 		private readonly workspaceState: Memento,
 		private readonly onDidChangeTypeScriptVersion: (version: TypeScriptVersion) => void,
 		public readonly plugins: TypeScriptServerPlugin[],
@@ -232,6 +237,18 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		this.disposables.push(this.telemetryReporter);
 	}
 
+	private _onSyntaxDiagnosticsReceived = new EventEmitter<TsDiagnostics>();
+	public get onSyntaxDiagnosticsReceived(): Event<TsDiagnostics> { return this._onSyntaxDiagnosticsReceived.event; }
+
+	private _onSemanticDiagnosticsReceived = new EventEmitter<TsDiagnostics>();
+	public get onSemanticDiagnosticsReceived(): Event<TsDiagnostics> { return this._onSemanticDiagnosticsReceived.event; }
+
+	private _onConfigDiagnosticsReceived = new EventEmitter<Proto.ConfigFileDiagnosticEvent>();
+	public get onConfigDiagnosticsReceived(): Event<Proto.ConfigFileDiagnosticEvent> { return this._onConfigDiagnosticsReceived.event; }
+
+	private _onResendModelsRequested = new EventEmitter<void>();
+	public get onResendModelsRequested(): Event<void> { return this._onResendModelsRequested.event; }
+
 	public get configuration() {
 		return this._configuration;
 	}
@@ -243,12 +260,11 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			}).then(undefined, () => void 0);
 		}
 
-		while (this.disposables.length) {
-			const obj = this.disposables.pop();
-			if (obj) {
-				obj.dispose();
-			}
-		}
+		disposeAll(this.disposables);
+		this._onSyntaxDiagnosticsReceived.dispose();
+		this._onSemanticDiagnosticsReceived.dispose();
+		this._onConfigDiagnosticsReceived.dispose();
+		this._onResendModelsRequested.dispose();
 	}
 
 	public restartTsServer(): void {
@@ -301,15 +317,11 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		this.logger.info(message, data);
 	}
 
-	public warn(message: string, data?: any): void {
-		this.logger.warn(message, data);
-	}
-
 	private error(message: string, data?: any): void {
 		this.logger.error(message, data);
 	}
 
-	public logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
+	private logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
 		this.telemetryReporter.logTelemetry(eventName, properties);
 	}
 
@@ -491,7 +503,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		this.execute('configure', configureOptions);
 		this.setCompilerOptionsForInferredProjects(this._configuration);
 		if (resendModels) {
-			this.host.populateService();
+			this._onResendModelsRequested.fire();
 		}
 	}
 
@@ -786,15 +798,29 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private dispatchEvent(event: Proto.Event) {
 		switch (event.event) {
 			case 'syntaxDiag':
-				this.host.syntaxDiagnosticsReceived(event as Proto.DiagnosticEvent);
-				break;
-
+				{
+					const diagnosticEvent: Proto.DiagnosticEvent = event;
+					if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
+						this._onSyntaxDiagnosticsReceived.fire({
+							resource: this.asUrl(diagnosticEvent.body.file),
+							diagnostics: diagnosticEvent.body.diagnostics
+						});
+					}
+					break;
+				}
 			case 'semanticDiag':
-				this.host.semanticDiagnosticsReceived(event as Proto.DiagnosticEvent);
-				break;
-
+				{
+					const diagnosticEvent: Proto.DiagnosticEvent = event;
+					if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
+						this._onSemanticDiagnosticsReceived.fire({
+							resource: this.asUrl(diagnosticEvent.body.file),
+							diagnostics: diagnosticEvent.body.diagnostics
+						});
+					}
+					break;
+				}
 			case 'configFileDiag':
-				this.host.configFileDiagnosticsReceived(event as Proto.ConfigFileDiagnosticEvent);
+				this._onConfigDiagnosticsReceived.fire(event as Proto.ConfigFileDiagnosticEvent);
 				break;
 
 			case 'telemetry':

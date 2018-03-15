@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { join, normalize } from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -28,8 +28,8 @@ export class TMScopeRegistry {
 	private _scopeNameToLanguageRegistration: { [scopeName: string]: TMLanguageRegistration; };
 	private _encounteredLanguages: boolean[];
 
-	private _onDidEncounterLanguage: Emitter<LanguageId> = new Emitter<LanguageId>();
-	public onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
+	private readonly _onDidEncounterLanguage: Emitter<LanguageId> = new Emitter<LanguageId>();
+	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
 
 	constructor() {
 		this._scopeNameToLanguageRegistration = Object.create(null);
@@ -122,7 +122,7 @@ export class TextMateService implements ITextMateService {
 
 	private _currentTokenColors: ITokenColorizationRule[];
 
-	public onDidEncounterLanguage: Event<LanguageId>;
+	public readonly onDidEncounterLanguage: Event<LanguageId>;
 
 	constructor(
 		@IModeService modeService: IModeService,

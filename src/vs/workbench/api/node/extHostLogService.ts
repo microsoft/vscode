@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'vs/base/common/paths';
 import { mkdirp, dirExists } from 'vs/base/node/pfs';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { LogLevel } from 'vs/workbench/api/node/extHostTypes';
 import { ILogService, DelegatedLogService } from 'vs/platform/log/common/log';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
