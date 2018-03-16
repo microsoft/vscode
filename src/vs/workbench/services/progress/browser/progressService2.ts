@@ -150,7 +150,7 @@ export class ProgressService2 implements IProgressService2 {
 		}
 	}
 
-	private _withNotificationProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, worked?: number }>) => P, onDidCancel?: () => void): P {
+	private _withNotificationProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, percentage?: number }>) => P, onDidCancel?: () => void): P {
 		const toDispose: IDisposable[] = [];
 
 		const cancelAction = new class extends Action {
@@ -168,7 +168,7 @@ export class ProgressService2 implements IProgressService2 {
 		};
 		toDispose.push(cancelAction);
 
-		const createNotification = (message: string, worked?: number): INotificationHandle => {
+		const createNotification = (message: string, percentage?: number): INotificationHandle => {
 			if (!message) {
 				return undefined; // we need a message at least
 			}
@@ -182,7 +182,7 @@ export class ProgressService2 implements IProgressService2 {
 				}
 			});
 
-			updateProgress(handle, options.total, worked);
+			updateProgress(handle, percentage);
 
 			once(handle.onDidDispose)(() => {
 				dispose(toDispose);
@@ -191,29 +191,26 @@ export class ProgressService2 implements IProgressService2 {
 			return handle;
 		};
 
-		const updateProgress = (notification: INotificationHandle, total?: number, worked?: number): void => {
-			if (typeof options.total === 'number' && options.total > 0) {
-				notification.progress.total(options.total);
-
-				if (typeof worked === 'number' && worked > 0) {
-					notification.progress.worked(worked);
-				}
+		const updateProgress = (notification: INotificationHandle, percentage?: number): void => {
+			if (typeof percentage === 'number' && percentage > 0) {
+				notification.progress.total(100); // always percentage based
+				notification.progress.worked(percentage);
 			} else {
 				notification.progress.infinite();
 			}
 		};
 
 		let handle: INotificationHandle;
-		const updateNotification = (message?: string, worked?: number): void => {
+		const updateNotification = (message?: string, percentage?: number): void => {
 			if (!handle) {
-				handle = createNotification(message, worked);
+				handle = createNotification(message, percentage);
 			} else {
 				if (typeof message === 'string') {
 					handle.updateMessage(message);
 				}
 
-				if (typeof worked === 'number') {
-					updateProgress(handle, options.total, worked);
+				if (typeof percentage === 'number') {
+					updateProgress(handle, percentage);
 				}
 			}
 		};
@@ -224,7 +221,7 @@ export class ProgressService2 implements IProgressService2 {
 		// Update based on progress
 		const p = callback({
 			report: progress => {
-				updateNotification(progress.message, progress.worked);
+				updateNotification(progress.message, progress.percentage);
 			}
 		});
 
@@ -238,7 +235,7 @@ export class ProgressService2 implements IProgressService2 {
 		return p;
 	}
 
-	private _withViewletProgress<P extends Thenable<R>, R=any>(viewletId: string, task: (progress: IProgress<{ message?: string, worked?: number }>) => P): P {
+	private _withViewletProgress<P extends Thenable<R>, R=any>(viewletId: string, task: (progress: IProgress<{ message?: string }>) => P): P {
 
 		const promise = task(emptyProgress);
 

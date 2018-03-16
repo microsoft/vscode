@@ -5153,16 +5153,17 @@ declare module 'vscode' {
 		 * progress should show (and other details) is defined via the passed [`ProgressOptions`](#ProgressOptions).
 		 *
 		 * @param task A callback returning a promise. Progress state can be reported with
-		 * the provided [progress](#Progress)-object. To report discrete progress, use `worked` to indicate how much
-		 * work has completed. This requires the [`ProgressOptions`](#ProgressOptions) to be created with an initial
-		 * `total` value. Use the provided token to find out if cancellation was signaled.
+		 * the provided [progress](#Progress)-object.
+		 *
+		 * To report discrete progress, use `percentage` to indicate how much work has been completed. Each call with
+		 * a `percentage` value will be summed up and reflected as overall progress until 100% is reached.
 		 *
 		 * Note; not all progress locations support discrete progress or cancellation. Refer to the [`ProgressLocation`](#ProgressLocation)
 		 * documentation to find out more.
 		 *
 		 * @return The thenable the task-callback returned.
 		 */
-		export function withProgress<R>(options: ProgressOptions, task: (progress: Progress<{ message?: string; worked?: number }>, token: CancellationToken) => Thenable<R>): Thenable<R>;
+		export function withProgress<R>(options: ProgressOptions, task: (progress: Progress<{ message?: string; percentage?: number }>, token: CancellationToken) => Thenable<R>): Thenable<R>;
 
 		/**
 		 * Creates a status bar [item](#StatusBarItem).
@@ -5391,11 +5392,6 @@ declare module 'vscode' {
 		 * operation.
 		 */
 		title?: string;
-
-		/**
-		 * The total amount of work that is anticipated for the task.
-		 */
-		total?: number;
 	}
 
 	/**

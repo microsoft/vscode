@@ -79,7 +79,7 @@ export interface IProgressOptions {
 
 export interface IProgressStep {
 	message?: string;
-	worked?: number;
+	percentage?: number;
 }
 
 export const IProgressService2 = createDecorator<IProgressService2>('progressService2');

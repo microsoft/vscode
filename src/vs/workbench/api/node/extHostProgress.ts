@@ -24,9 +24,9 @@ export class ExtHostProgress implements ExtHostProgressShape {
 
 	withProgress<R>(extension: IExtensionDescription, options: ProgressOptions, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>): Thenable<R> {
 		const handle = this._handles++;
-		const { title, location, total } = options;
+		const { title, location } = options;
 		const source = localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name);
-		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, total });
+		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source });
 		return this._withProgress(handle, task);
 	}
 
