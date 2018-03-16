@@ -230,17 +230,21 @@ function isValidationEnabled(languageId: string, settings: Settings = globalSett
 
 async function validateTextDocument(textDocument: TextDocument) {
 	try {
+		let version = textDocument.version;
 		let diagnostics: Diagnostic[] = [];
 		if (textDocument.languageId === 'html') {
 			let modes = languageModes.getAllModesInDocument(textDocument);
 			let settings = await getDocumentSettings(textDocument, () => modes.some(m => !!m.doValidation));
-			modes.forEach(mode => {
-				if (mode.doValidation && isValidationEnabled(mode.getId(), settings)) {
-					pushAll(diagnostics, mode.doValidation(textDocument, settings));
-				}
-			});
+			textDocument = documents.get(textDocument.uri);
+			if (textDocument && textDocument.version === version) { // check no new version has come in after in after the async op
+				modes.forEach(mode => {
+					if (mode.doValidation && isValidationEnabled(mode.getId(), settings)) {
+						pushAll(diagnostics, mode.doValidation(textDocument, settings));
+					}
+				});
+				connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+			}
 		}
-		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
 	} catch (e) {
 		connection.console.error(formatError(`Error while validating ${textDocument.uri}`, e));
 	}
