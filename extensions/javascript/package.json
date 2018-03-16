@@ -58,6 +58,9 @@
           "meta.tag.without-attributes.js": "jsx-tags",
           "meta.tag.attributes.js.jsx": "javascriptreact",
           "meta.embedded.expression.js": "javascriptreact"
+        },
+        "tokenTypes": {
+          "entity.name.type.instance.jsdoc": "other"
         }
       },
       {
@@ -69,6 +72,9 @@
           "meta.tag.without-attributes.js": "jsx-tags",
           "meta.tag.attributes.js": "javascript",
           "meta.embedded.expression.js": "javascript"
+        },
+        "tokenTypes": {
+          "entity.name.type.instance.jsdoc": "other"
         }
       },
       {
