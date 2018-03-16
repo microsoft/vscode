@@ -175,7 +175,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.createSearchWidget(this.searchWidgetsContainer);
 
 		const filePatterns = this.viewletSettings['query.filePatterns'] || '';
-		const patternExclusions = this.viewletSettings['query.folderExclusions'] || 'foo, bar/**/*.js';
+		const patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
 		delete this.viewletSettings['query.folderExclusions']; // Migrating from versions that have dedicated exclusions persisted
 		const patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
 		const patternIncludesHistory = this.viewletSettings['query.folderIncludesHistory'] || [];
