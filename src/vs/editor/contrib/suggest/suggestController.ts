@@ -222,7 +222,7 @@ export class SuggestController implements IEditorContribution {
 
 		} else if (suggestion.command.id === TriggerSuggestAction.id) {
 			// retigger
-			this._model.trigger({ auto: this._model.state === State.Auto }, true);
+			this._model.trigger({ auto: true }, true);
 
 		} else {
 			// exec command, done
