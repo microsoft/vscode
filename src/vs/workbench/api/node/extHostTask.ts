@@ -455,6 +455,17 @@ interface HandlerData {
 	extension: IExtensionDescription;
 }
 
+class TaskExecutionImpl implements vscode.TaskExecution {
+	start(): void {
+		throw new Error('Method not implemented.');
+	}
+	onTerminate: vscode.Event<void>;
+	onLineData: vscode.Event<string>;
+	terminate(): void {
+		throw new Error('Method not implemented.');
+	}
+}
+
 export class ExtHostTask implements ExtHostTaskShape {
 
 	private _proxy: MainThreadTaskShape;
@@ -480,6 +491,10 @@ export class ExtHostTask implements ExtHostTaskShape {
 			this._handlers.delete(handle);
 			this._proxy.$unregisterTaskProvider(handle);
 		});
+	}
+
+	public createTaskExecution(task: string | vscode.TaskItem | vscode.Task): vscode.TaskExecution {
+
 	}
 
 	public $provideTasks(handle: number): TPromise<TaskSystem.TaskSet> {

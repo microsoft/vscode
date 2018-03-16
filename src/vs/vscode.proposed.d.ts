@@ -771,5 +771,132 @@ declare module 'vscode' {
 		readonly workspaceFolder: WorkspaceFolder | undefined;
 	}
 
+	/**
+	 * An object representing an executed Task. It can be used
+	 * to terminate a task.
+	 */
+	export interface TaskExecution {
+
+		/**
+		 * A human readable label of the task.
+		 */
+		readonly label: string;
+
+		/**
+		 * The task definition.
+		 */
+		readonly definition: TaskDefinition;
+
+		/**
+		 * The workspace folder the task belongs to. Is undefined
+		 * to tasks that aren't scoped to a workspace folder.
+		 */
+		readonly workspaceFolder: WorkspaceFolder | undefined;
+	}
+
+	/**
+	 * An event signaling the start of a task execution.
+	 */
+	interface TaskExecuteEvent {
+		/**
+		 * The task execution representing the task.
+		 */
+		execution: TaskExecution;
+	}
+
+	/**
+	 * An event signaling the terminate of a executed task.
+	 */
+	interface TaskTerminateEvent {
+		/**
+		 * The task execution representing the task.
+		 */
+		execution: TaskExecution;
+	}
+
+	export namespace workspace {
+
+		/**
+		 * Executes a task that is managed by VS Code. The returned
+		 * task handle can be used to terminate the task.
+		 *
+		 * @param task the task to execute
+		 */
+		export function executeTask(task: string | TaskItem): TaskExecution;
+
+		/**
+		 * Fires when a task starts.
+		 */
+		export const onDidExecuteTask: Event<TaskExecuteEvent>;
+
+		/**
+		 * Terminates a task that was privously started using `executeTask`
+		 *
+		 * @param task the task to terminate
+		 */
+		export function terminateTask(task: TaskExecution): void;
+
+
+		/**
+		 * Fires when a task terminates.
+		 */
+		export const onDidTerminateTask: Event<TaskTerminateEvent>;
+	}
+
+
+	// /**
+	//  * A task execution provides support to `start` and to
+	//  * `terminate` a task. I also support events to get
+	//  * notified when the task terminates.
+	//  */
+	// export interface TaskExecutor {
+
+	// 	/**
+	// 	 * Starts the task.
+	// 	 */
+	// 	start(): void;
+
+	// 	/**
+	// 	 * An event that fires when the task terminates. Terminate
+	// 	 * events are unbuffered. If a listener is registered after
+	// 	 * the task terminate no event is sent.
+	// 	 */
+	// 	onDidTerminate: Event<void>;
+
+	// 	/**
+	// 	 * An event that fires if the task write a new line to stdout.
+	// 	 * Note that if the task is executed in a terminal and the
+	// 	 * ouput uses ANSI control squences to place the cursor lines
+	// 	 * can occur multiple times in the output. The line data event
+	// 	 * is unbuffered. If a listener is regsitered after the task
+	// 	 * has been started only the line data from that point in time
+	// 	 * is provided.
+	// 	 */
+	// 	onDidWriteLine: Event<string>;
+
+	// 	/**
+	// 	 * Terminates the task.
+	// 	 */
+	// 	terminate(): void;
+	// }
+
+
+
+	// export namespace workspace {
+	// 	export function createTaskExecutor(task: Task): TaskExecutor;
+	// }
+
+	export interface TaskFilter {
+		type: string;
+	}
+
+	export interface TaskExecutionProvider {
+		executeTask(task: Task);
+	}
+
+	export namespace workspace {
+		export function registerTaskExecutionProvider(filter: TaskFilter);
+	}
+
 	//#endregion
 }
