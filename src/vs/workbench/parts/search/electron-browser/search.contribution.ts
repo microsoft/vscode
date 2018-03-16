@@ -86,6 +86,18 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: Constants.OpenMatch,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.FileMatchOrMatchFocusKey),
+	primary: void 0,
+	handler: (accessor, args: any) => {
+		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		const tree: ITree = searchView.getControl();
+		searchView.open(tree.getFocus(), false, false, true);
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.OpenMatchToSide,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.FileMatchOrMatchFocusKey),
