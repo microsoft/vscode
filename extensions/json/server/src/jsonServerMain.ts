@@ -15,7 +15,7 @@ import * as fs from 'fs';
 import URI from 'vscode-uri';
 import * as URL from 'url';
 import { startsWith } from './utils/strings';
-import { formatError, runSafe, runSafeAsync } from './utils/errors';
+import { formatError, runSafe, runSafeAsync } from './utils/runner';
 import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { getFoldingRegions } from './jsonFolding';
@@ -42,8 +42,12 @@ namespace SchemaContentChangeNotification {
 let connection: IConnection = createConnection();
 
 process.on('unhandledRejection', (e: any) => {
-	connection.console.error(formatError(`Unhandled exception`, e));
+	console.error(formatError(`Unhandled exception`, e));
 });
+process.on('uncaughtException', (e: any) => {
+	console.error(formatError(`Unhandled exception`, e));
+});
+
 
 console.log = connection.console.log.bind(connection.console);
 console.error = connection.console.error.bind(connection.console);
@@ -302,26 +306,26 @@ function getJSONDocument(document: TextDocument): JSONDocument {
 	return jsonDocuments.get(document);
 }
 
-connection.onCompletion(textDocumentPosition => {
+connection.onCompletion((textDocumentPosition, token) => {
 	return runSafeAsync(() => {
 		let document = documents.get(textDocumentPosition.textDocument.uri);
 		let jsonDocument = getJSONDocument(document);
 		return languageService.doComplete(document, textDocumentPosition.position, jsonDocument);
-	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`);
+	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`, token);
 });
 
-connection.onCompletionResolve(completionItem => {
+connection.onCompletionResolve((completionItem, token) => {
 	return runSafeAsync(() => {
 		return languageService.doResolve(completionItem);
-	}, completionItem, `Error while resolving completion proposal`);
+	}, completionItem, `Error while resolving completion proposal`, token);
 });
 
-connection.onHover(textDocumentPositionParams => {
+connection.onHover((textDocumentPositionParams, token) => {
 	return runSafeAsync(() => {
 		let document = documents.get(textDocumentPositionParams.textDocument.uri);
 		let jsonDocument = getJSONDocument(document);
 		return languageService.doHover(document, textDocumentPositionParams.position, jsonDocument);
-	}, null, `Error while computing hover for ${textDocumentPositionParams.textDocument.uri}`);
+	}, null, `Error while computing hover for ${textDocumentPositionParams.textDocument.uri}`, token);
 });
 
 connection.onDocumentSymbol((documentSymbolParams, token) => {
@@ -339,7 +343,7 @@ connection.onDocumentRangeFormatting((formatParams, token) => {
 	}, [], `Error while formatting range for ${formatParams.textDocument.uri}`, token);
 });
 
-connection.onRequest(DocumentColorRequest.type, params => {
+connection.onRequest(DocumentColorRequest.type, (params, token) => {
 	return runSafeAsync(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
@@ -347,7 +351,7 @@ connection.onRequest(DocumentColorRequest.type, params => {
 			return languageService.findDocumentColors(document, jsonDocument);
 		}
 		return Promise.resolve([]);
-	}, [], `Error while computing document colors for ${params.textDocument.uri}`);
+	}, [], `Error while computing document colors for ${params.textDocument.uri}`, token);
 });
 
 connection.onRequest(ColorPresentationRequest.type, (params, token) => {
