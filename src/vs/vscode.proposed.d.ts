@@ -743,26 +743,32 @@ declare module 'vscode' {
 	//#region Tasks
 
 	/**
-	 * A task handle represents a task in the system. It can be used to
-	 * present task and to execute them.
+	 * A task item represents a task in the system. It can be used to
+	 * present task information in the user interface or to execute the
+	 * underlying task.
 	 */
-	export interface TaskHandle {
+	export interface TaskItem {
 
 		/**
-		 * A unique ID.
+		 * A unique ID representing the underlying task.
 		 */
-		id: string;
+		readonly id: string;
 
 		/**
 		 * A human readable label of the task.
 		 */
-		label: string;
+		readonly label: string;
+
+		/**
+		 * The task definition.
+		 */
+		readonly definition: TaskDefinition;
 
 		/**
 		 * The workspace folder the task belongs to. Is undefined
 		 * to tasks that aren't scoped to a workspace folder.
 		 */
-		workspaceFolder: WorkspaceFolder | undefined;
+		readonly workspaceFolder: WorkspaceFolder | undefined;
 	}
 
 	//#endregion

@@ -125,6 +125,10 @@ class ExtHostWorkspaceImpl extends Workspace {
 		}
 		return this._structure.findSubstr(uri.toString());
 	}
+
+	resolveWorkspaceFolder(uri: URI): vscode.WorkspaceFolder {
+		return this._structure.get(uri.toString());
+	}
 }
 
 export class ExtHostWorkspace implements ExtHostWorkspaceShape {
@@ -237,6 +241,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			return undefined;
 		}
 		return this._actualWorkspace.getWorkspaceFolder(uri, resolveParent);
+	}
+
+	resolveWorkspaceFolder(uri: vscode.Uri): vscode.WorkspaceFolder {
+		if (!this._actualWorkspace) {
+			return undefined;
+		}
+		return this._actualWorkspace.resolveWorkspaceFolder(uri);
 	}
 
 	getPath(): string {

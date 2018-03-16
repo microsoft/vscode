@@ -132,7 +132,7 @@ export function createApiFactory(
 	const extHostLanguages = new ExtHostLanguages(rpcProtocol);
 
 	// Register API-ish commands
-	ExtHostApiCommands.register(extHostCommands);
+	ExtHostApiCommands.register(extHostCommands, extHostWorkspace);
 
 	return function (extension: IExtensionDescription): typeof vscode {
 

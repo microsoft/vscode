@@ -62,7 +62,7 @@ import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
@@ -74,7 +74,7 @@ import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, T
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskIdentifier, TaskSorter, TaskHandleTransfer
+	TaskIdentifier, TaskSorter, TaskItemTransfer
 } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, ITaskProvider, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
@@ -582,18 +582,21 @@ class TaskService implements ITaskService {
 
 		CommandsRegistry.registerCommand('_executeTaskProvider', (accessor, args) => {
 			return this.tasks().then((tasks) => {
-				let result: TaskHandleTransfer[] = [];
+				let result: TaskItemTransfer[] = [];
 				for (let task of tasks) {
-					let folder = Task.getWorkspaceFolder(task);
-					let folderData: IWorkspaceFolderData = folder ? {
-						name: folder.name,
-						uri: folder.uri,
-						index: folder.index
-					} : undefined;
-					let handle: TaskHandleTransfer = {
+					let folder: IWorkspaceFolder = Task.getWorkspaceFolder(task);
+					let folderUri = folder ? folder.uri : undefined;
+					let definition: TaskIdentifier;
+					if (ContributedTask.is(task)) {
+						definition = task.defines;
+					} else if (CustomTask.is(task) && task.command !== void 0) {
+						definition = CustomTask.getDefinition(task);
+					}
+					let handle: TaskItemTransfer = {
 						id: task._id,
 						label: task._label,
-						workspaceFolder: folderData
+						definition: definition,
+						workspaceFolderUri: folderUri
 					};
 					result.push(handle);
 				}
