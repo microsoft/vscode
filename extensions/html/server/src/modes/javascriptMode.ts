@@ -12,6 +12,7 @@ import { HTMLDocumentRegions } from './embeddedSupport';
 
 import * as ts from 'typescript';
 import { join } from 'path';
+import { FoldingRange, FoldingRangeType } from '../protocol/foldingProvider.proposed';
 
 const FILE_NAME = 'vscode://javascript/1';  // the same 'file' is used for all contents
 const JQUERY_D_TS = join(__dirname, '../../lib/jquery.d.ts');
@@ -278,6 +279,27 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				return result;
 			}
 			return [];
+		},
+		getFoldingRanges(document: TextDocument, range: Range): FoldingRange[] {
+			updateCurrentTextDocument(document);
+			let spans = jsLanguageService.getOutliningSpans(FILE_NAME);
+			let rangeStartLine = range.start.line;
+			let rangeEndLine = range.end.line;
+			let ranges: FoldingRange[] = [];
+			for (let span of spans) {
+				let curr = convertRange(currentTextDocument, span.textSpan);
+				let startLine = curr.start.line;
+				let endLine = curr.end.line;
+				if (startLine < endLine && startLine >= rangeStartLine && endLine < rangeEndLine) {
+					let foldingRange: FoldingRange = { startLine, endLine };
+					let match = document.getText(curr).match(/^\s*\/(\/\s*#(?:end)?region\b)|([\*\/])/);
+					if (match) {
+						foldingRange.type = match[1].length ? FoldingRangeType.Region : FoldingRangeType.Comment;
+					}
+					ranges.push(foldingRange);
+				}
+			}
+			return ranges;
 		},
 		onDocumentRemoved(document: TextDocument) {
 			jsDocuments.onDocumentRemoved(document);

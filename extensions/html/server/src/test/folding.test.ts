@@ -105,6 +105,89 @@ suite('Object Folding', () => {
 		assertRanges(input, [r(0, 3, 'region'), r(1, 2, 'region')]);
 	});
 
+	test('Embedded JavaScript', () => {
+		let input = [
+			/*0*/'<html>',
+			/*1*/'<head>',
+			/*2*/'<script>',
+			/*3*/'function f() {',
+			/*4*/'}',
+			/*5*/'</script>',
+			/*6*/'</head>',
+			/*7*/'</html>',
+		];
+		assertRanges(input, [r(0, 6), r(1, 5), r(2, 4), r(3, 4)]);
+	});
+
+	test('Embedded JavaScript - mutiple areas', () => {
+		let input = [
+			/* 0*/'<html>',
+			/* 1*/'<head>',
+			/* 2*/'<script>',
+			/* 3*/'  var x = {',
+			/* 4*/'    foo: true,',
+			/* 5*/'    bar: {}',
+			/* 6*/'  };',
+			/* 7*/'</script>',
+			/* 8*/'<script>',
+			/* 9*/'  test(() => {',
+			/*10*/'    f();',
+			/*11*/'  });',
+			/*12*/'</script>',
+			/*13*/'</head>',
+			/*14*/'</html>',
+		];
+		assertRanges(input, [r(0, 13), r(1, 12), r(2, 6), r(3, 6), r(8, 11), r(9, 11)]);
+	});
+
+	test('Embedded JavaScript - incomplete', () => {
+		let input = [
+			/* 0*/'<html>',
+			/* 1*/'<head>',
+			/* 2*/'<script>',
+			/* 3*/'  var x = {',
+			/* 4*/'</script>',
+			/* 5*/'<script>',
+			/* 6*/'  });',
+			/* 7*/'</script>',
+			/* 8*/'</head>',
+			/* 9*/'</html>',
+		];
+		assertRanges(input, [r(0, 8), r(1, 7), r(2, 3), r(5, 6)]);
+	});
+
+	test('Embedded JavaScript - regions', () => {
+		let input = [
+			/* 0*/'<html>',
+			/* 1*/'<head>',
+			/* 2*/'<script>',
+			/* 3*/'  // #region Lalala',
+			/* 4*/'   //  #region',
+			/* 5*/'   x = 9;',
+			/* 6*/'  //  #endregion',
+			/* 7*/'  // #endregion Lalala',
+			/* 8*/'</script>',
+			/* 9*/'</head>',
+			/*10*/'</html>',
+		];
+		assertRanges(input, [r(0, 9), r(1, 8), r(2, 7), r(3, 7, 'region'), r(4, 6, 'region')]);
+	});
+
+	// test('Embedded JavaScript - mulit line comment', () => {
+	// 	let input = [
+	// 		/* 0*/'<html>',
+	// 		/* 1*/'<head>',
+	// 		/* 2*/'<script>',
+	// 		/* 3*/'  /*',
+	// 		/* 4*/'   * Hello',
+	// 		/* 5*/'   */',
+	// 		/* 6*/'</script>',
+	// 		/* 7*/'</head>',
+	// 		/* 8*/'</html>',
+	// 	];
+	// 	assertRanges(input, [r(0, 7), r(1, 6), r(2, 5), r(3, 5, 'comment')]);
+	// });
+
 	test('Test limit', () => {
 		let input = [
 			/* 0*/'<div>',
