@@ -662,9 +662,14 @@ export interface IDebugService {
 }
 
 // Editor interfaces
+export enum BreakpointWidgetContext {
+	CONDITION = 0,
+	HIT_COUNT = 1,
+	LOG_MESSAGE = 2
+}
 export interface IDebugEditorContribution extends IEditorContribution {
 	showHover(range: Range, focus: boolean): TPromise<void>;
-	showBreakpointWidget(lineNumber: number, column: number): void;
+	showBreakpointWidget(lineNumber: number, column: number, context?: BreakpointWidgetContext): void;
 	closeBreakpointWidget(): void;
 	addLaunchConfiguration(): TPromise<any>;
 }
