@@ -408,7 +408,6 @@ declare module 'vscode' {
 	export interface Logger {
 		readonly onDidChangeLogLevel: Event<LogLevel>;
 		readonly currentLevel: LogLevel;
-		readonly logDirectory: Thenable<string>;
 
 		trace(message: string, ...args: any[]): void;
 		debug(message: string, ...args: any[]): void;
@@ -423,6 +422,13 @@ declare module 'vscode' {
 		 * This extension's logger
 		 */
 		logger: Logger;
+
+		/**
+		 * Path where an extension can write log files.
+		 *
+		 * Extensions must create this directory before writing to it. The parent directory will always exist.
+		 */
+		readonly logDirectory: string;
 	}
 
 	//#endregion
