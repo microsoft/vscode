@@ -1746,6 +1746,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		const tokenIndex = lineTokens.findTokenIndexAtOffset(offset);
 		const languageId = lineTokens.getLanguageId(tokenIndex);
 
+		// First try checking right biased word
 		// go left until a different language is hit
 		let startOffset: number;
 		for (let i = tokenIndex; i >= 0 && lineTokens.getLanguageId(i) === languageId; i--) {
@@ -1758,12 +1759,40 @@ export class TextModel extends Disposable implements model.ITextModel {
 			endOffset = lineTokens.getEndOffset(i);
 		}
 
-		return getWordAtText(
+		const rightBiasedWord = getWordAtText(
 			position.column,
 			LanguageConfigurationRegistry.getWordDefinition(languageId),
 			lineContent.substring(startOffset, endOffset),
 			startOffset
 		);
+
+		if (rightBiasedWord) {
+			return rightBiasedWord;
+		}
+
+		if (tokenIndex === 0) {
+			return null;
+		}
+
+		// Else, if we were at a language boundary, check the left biased word
+		const cursorLang = lineTokens.getLanguageId(tokenIndex);
+		const preLang = lineTokens.getLanguageId(tokenIndex - 1);
+		if (cursorLang !== preLang && tokenIndex < lineTokens.getCount()) {
+			// go left until a different language is hit
+			let startOffset: number;
+			for (let i = tokenIndex - 1; i >= 0 && lineTokens.getLanguageId(i) === preLang; i--) {
+				startOffset = lineTokens.getStartOffset(i);
+			}
+
+			return getWordAtText(
+				position.column,
+				LanguageConfigurationRegistry.getWordDefinition(languageId),
+				lineContent.substring(startOffset, lineTokens.getEndOffset(tokenIndex)),
+				startOffset
+			);
+		}
+
+		return null;
 	}
 
 	public getWordUntilPosition(position: IPosition): model.IWordAtPosition {
