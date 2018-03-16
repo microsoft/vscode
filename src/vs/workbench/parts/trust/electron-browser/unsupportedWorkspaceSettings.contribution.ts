@@ -75,5 +75,5 @@ class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution
 	}
 }
 
-const workbenchRegistry = <IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench);
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(UnsupportedWorkspaceSettingsContribution, LifecyclePhase.Running);

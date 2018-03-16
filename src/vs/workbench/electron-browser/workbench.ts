@@ -10,13 +10,13 @@ import 'vs/css!./media/workbench';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
-import DOM = require('vs/base/browser/dom');
+import { Event, Emitter } from 'vs/base/common/event';
+import * as DOM from 'vs/base/browser/dom';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
 import * as perf from 'vs/base/common/performance';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -174,7 +174,7 @@ export class Workbench implements IPartService {
 
 	private static readonly fontAliasingConfigurationKey = 'workbench.fontAliasing';
 
-	private _onTitleBarVisibilityChange: Emitter<void>;
+	private readonly _onTitleBarVisibilityChange: Emitter<void>;
 
 	public _serviceBrand: any;
 
@@ -990,10 +990,13 @@ export class Workbench implements IPartService {
 
 		// Preserve zen mode only on reload. Real quit gets out of zen mode so novice users do not get stuck in zen mode.
 		const zenConfig = this.configurationService.getValue<IZenModeSettings>('zenMode');
-		const zenModeActive = (zenConfig.restore || reason === ShutdownReason.RELOAD) && this.zenMode.active;
-		if (zenModeActive) {
+		const restoreZenMode = this.zenMode.active && (zenConfig.restore || reason === ShutdownReason.RELOAD);
+		if (restoreZenMode) {
 			this.storageService.store(Workbench.zenModeActiveStorageKey, true, StorageScope.WORKSPACE);
 		} else {
+			if (this.zenMode.active) {
+				this.toggleZenMode(true);
+			}
 			this.storageService.remove(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE);
 		}
 

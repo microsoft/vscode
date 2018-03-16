@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import fs = require('fs');
-import path = require('path');
+import * as fs from 'fs';
+import * as path from 'path';
 
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
@@ -16,7 +16,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as TPath from 'vs/base/common/paths';
 
@@ -91,7 +91,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private idleTaskTerminals: LinkedMap<string, string>;
 	private sameTaskTerminals: IStringDictionary<string>;
 
-	private _onDidStateChange: Emitter<TaskEvent>;
+	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
 	constructor(private terminalService: ITerminalService, private outputService: IOutputService,
 		private markerService: IMarkerService, private modelService: IModelService,
@@ -576,6 +576,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private buildShellCommandLine(shellExecutable: string, shellOptions: ShellConfiguration, command: CommandString, args: CommandString[]): string {
+		// If we have no args and the command is a string then use the
+		// command to stay backwards compatible with the old command line
+		// model.
+		if ((!args || args.length === 0) && Types.isString(command)) {
+			return command;
+		}
 		let basename = path.parse(shellExecutable).name.toLowerCase();
 		let shellQuoteOptions = this.getOuotingOptions(basename, shellOptions);
 
@@ -643,6 +649,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 		let commandLine = result.join(' ');
 		// There are special rules quoted command line in cmd.exe
+		if (Platform.isWindows) {
+			if (basename === 'cmd' && commandQuoted && argQuoted) {
+				commandLine = '"' + commandLine + '"';
+			} else if (basename === 'powershell' && commandQuoted) {
+				commandLine = '& ' + commandLine;
+			}
+		}
+
 		if (basename === 'cmd' && Platform.isWindows && commandQuoted && argQuoted) {
 			commandLine = '"' + commandLine + '"';
 		}

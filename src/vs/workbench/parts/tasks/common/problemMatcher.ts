@@ -20,7 +20,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ValidationStatus, ValidationState, IProblemReporter, Parser } from 'vs/base/common/parsers';
 import { IStringDictionary } from 'vs/base/common/collections';
 
-import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 export enum FileLocationKind {
@@ -339,7 +339,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 		return { startLineNumber: startLine, startCharacter: 1, endLineNumber: startLine, endCharacter: Number.MAX_VALUE };
 	}
 
-	private getSeverity(data: ProblemData): Severity {
+	private getSeverity(data: ProblemData): MarkerSeverity {
 		let result: Severity = null;
 		if (data.severity) {
 			let value = data.severity;
@@ -363,7 +363,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 		if (result === null || result === Severity.Ignore) {
 			result = this.matcher.severity || Severity.Error;
 		}
-		return result;
+		return MarkerSeverity.fromSeverity(result);
 	}
 }
 

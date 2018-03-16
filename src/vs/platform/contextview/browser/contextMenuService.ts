@@ -7,7 +7,7 @@
 import { ContextMenuHandler } from './contextMenuHandler';
 import { IContextViewService, IContextMenuService } from './contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 

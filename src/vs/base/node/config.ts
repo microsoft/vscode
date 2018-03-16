@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import { dirname, basename } from 'path';
 import * as objects from 'vs/base/common/objects';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import * as extfs from 'vs/base/node/extfs';
 import { isWindows } from 'vs/base/common/platform';
@@ -50,7 +50,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private loaded: boolean;
 	private timeoutHandle: NodeJS.Timer;
 	private disposables: IDisposable[];
-	private _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
+	private readonly _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
 	private configName: string;
 
 	constructor(private _path: string, private options: IConfigOptions<T> = { changeBufferDelay: 0, defaultConfig: Object.create(null), onError: error => console.error(error) }) {

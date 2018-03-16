@@ -6,7 +6,7 @@
 'use strict';
 
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TPromise } from 'vs/base/common/winjs.base';

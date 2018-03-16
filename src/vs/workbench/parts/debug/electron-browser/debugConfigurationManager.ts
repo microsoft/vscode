@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -215,7 +215,7 @@ const schema: IJSONSchema = {
 	}
 };
 
-const jsonRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
+const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, schema);
 const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
 const DEBUG_SELECTED_ROOT = 'debug.selectedroot';

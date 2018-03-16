@@ -5,7 +5,7 @@
 
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IPager } from 'vs/base/common/paging';
 import { IQueryOptions, IExtensionManifest, LocalExtensionType, EnablementState, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';

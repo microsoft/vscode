@@ -5,9 +5,9 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/parts/output/common/output';
+import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelIdentifier, COMMAND_OPEN_LOG_VIEWER } from 'vs/workbench/parts/output/common/output';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -17,6 +17,9 @@ import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { groupBy } from 'vs/base/common/arrays';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import URI from 'vs/base/common/uri';
 
 export class ToggleOutputAction extends TogglePanelAction {
 
@@ -107,6 +110,8 @@ export class SwitchOutputAction extends Action {
 
 export class SwitchOutputActionItem extends SelectActionItem {
 
+	private static readonly SEPARATOR = '─────────';
+
 	constructor(
 		action: IAction,
 		@IOutputService private outputService: IOutputService,
@@ -115,35 +120,74 @@ export class SwitchOutputActionItem extends SelectActionItem {
 	) {
 		super(null, action, [], 0, contextViewService);
 
-		let outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);
-		this.toDispose.push(outputChannelRegistry.onDidRegisterChannel(() => this.updateOtions()));
-		this.toDispose.push(outputChannelRegistry.onDidRemoveChannel(() => this.updateOtions()));
-		this.toDispose.push(this.outputService.onActiveOutputChannel(activeChannelId => this.setOptions(this.getOptions(), this.getSelected(activeChannelId))));
+		let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
+		this.toDispose.push(outputChannelRegistry.onDidRegisterChannel(() => this.updateOtions(this.outputService.getActiveChannel().id)));
+		this.toDispose.push(outputChannelRegistry.onDidRemoveChannel(() => this.updateOtions(this.outputService.getActiveChannel().id)));
+		this.toDispose.push(this.outputService.onActiveOutputChannel(activeChannelId => this.updateOtions(activeChannelId)));
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 
-		this.setOptions(this.getOptions(), this.getSelected(this.outputService.getActiveChannel().id));
+		this.updateOtions(this.outputService.getActiveChannel().id);
 	}
 
 	protected getActionContext(option: string): string {
 		const channel = this.outputService.getChannels().filter(channelData => channelData.label === option).pop();
-
 		return channel ? channel.id : option;
 	}
 
-	private getOptions(): string[] {
-		return this.outputService.getChannels().map(c => c.label);
-	}
-
-	private updateOtions(): void {
-		const activeChannelIndex = this.getSelected(this.outputService.getActiveChannel().id);
-		this.setOptions(this.getOptions(), activeChannelIndex);
-	}
-
-	private getSelected(outputId: string): number {
-		if (!outputId) {
-			return undefined;
+	private updateOtions(selectedChannel: string): void {
+		const groups = groupBy(this.outputService.getChannels(), (c1: IOutputChannelIdentifier, c2: IOutputChannelIdentifier) => {
+			if (!c1.file && c2.file) {
+				return -1;
+			}
+			if (c1.file && !c2.file) {
+				return 1;
+			}
+			return 0;
+		});
+		const channels = groups[0] || [];
+		const fileChannels = groups[1] || [];
+		const showSeparator = channels.length && fileChannels.length;
+		const separatorIndex = showSeparator ? channels.length : -1;
+		const options: string[] = [...channels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionItem.SEPARATOR] : []), ...fileChannels.map(c => c.label)];
+		let selected = 0;
+		if (selectedChannel) {
+			selected = channels.map(c => c.id).indexOf(selectedChannel);
+			if (selected === -1) {
+				selected = separatorIndex + 1 + fileChannels.map(c => c.id).indexOf(selectedChannel);
+			}
 		}
+		this.setOptions(options, Math.max(0, selected), separatorIndex !== -1 ? separatorIndex : void 0);
+	}
+}
 
-		return Math.max(0, this.outputService.getChannels().map(c => c.id).indexOf(outputId));
+export class OpenLogOutputFile extends Action {
+
+	public static readonly ID = 'workbench.output.action.openLogOutputFile';
+	public static readonly LABEL = nls.localize('openInLogViewer', "Open Log File");
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		@ICommandService private commandService: ICommandService,
+		@IOutputService private outputService: IOutputService
+	) {
+		super(OpenLogOutputFile.ID, OpenLogOutputFile.LABEL, 'output-action open-log-file');
+		this.outputService.onActiveOutputChannel(this.update, this, this.disposables);
+		this.update();
+	}
+
+	private update(): void {
+		const logFile = this.getActiveLogChannelFile();
+		this.enabled = !!logFile;
+	}
+
+	public run(): TPromise<any> {
+		return this.commandService.executeCommand(COMMAND_OPEN_LOG_VIEWER, this.getActiveLogChannelFile());
+	}
+
+	private getActiveLogChannelFile(): URI {
+		const channel = this.outputService.getActiveChannel();
+		const identifier = channel ? this.outputService.getChannels().filter(c => c.id === channel.id)[0] : null;
+		return identifier ? identifier.file : null;
 	}
 }

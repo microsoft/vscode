@@ -5,10 +5,10 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import errors = require('vs/base/common/errors');
+import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import { Action } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';

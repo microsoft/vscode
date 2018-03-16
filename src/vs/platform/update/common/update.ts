@@ -5,7 +5,7 @@
 
 'use strict';
 
-import Event, { NodeEventEmitter } from 'vs/base/common/event';
+import { Event, NodeEventEmitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 

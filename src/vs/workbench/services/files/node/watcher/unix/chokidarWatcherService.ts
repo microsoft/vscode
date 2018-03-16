@@ -5,19 +5,19 @@
 
 'use strict';
 
-import chokidar = require('vscode-chokidar');
-import fs = require('fs');
+import * as chokidar from 'vscode-chokidar';
+import * as fs from 'fs';
 
-import gracefulFs = require('graceful-fs');
+import * as gracefulFs from 'graceful-fs';
 gracefulFs.gracefulify(fs);
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import { realcaseSync } from 'vs/base/node/extfs';
 import { isMacintosh } from 'vs/base/common/platform';
-import watcher = require('vs/workbench/services/files/node/watcher/common');
+import * as watcher from 'vs/workbench/services/files/node/watcher/common';
 import { IWatcherRequest, IWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcher';
 
 export class ChokidarWatcherService implements IWatcherService {

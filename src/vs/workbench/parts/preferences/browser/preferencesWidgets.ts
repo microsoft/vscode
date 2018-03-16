@@ -10,7 +10,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Widget } from 'vs/base/browser/ui/widget';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, IViewZone, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -102,7 +102,7 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 export class DefaultSettingsHeaderWidget extends SettingsHeaderWidget {
 
 	private _onClick = this._register(new Emitter<void>());
-	public onClick: Event<void> = this._onClick.event;
+	public readonly onClick: Event<void> = this._onClick.event;
 
 	protected create() {
 		super.create();
@@ -130,7 +130,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	private title: HTMLElement;
 
 	private _onToggled = this._register(new Emitter<boolean>());
-	public onToggled: Event<boolean> = this._onToggled.event;
+	public readonly onToggled: Event<boolean> = this._onToggled.event;
 
 	private previousPosition: Position;
 
@@ -461,7 +461,7 @@ export class SettingsTargetsWidget extends Widget {
 
 	private _settingsTarget: SettingsTarget;
 
-	private _onDidTargetChange: Emitter<SettingsTarget> = new Emitter<SettingsTarget>();
+	private readonly _onDidTargetChange: Emitter<SettingsTarget> = new Emitter<SettingsTarget>();
 	public readonly onDidTargetChange: Event<SettingsTarget> = this._onDidTargetChange.event;
 
 	constructor(
@@ -573,10 +573,10 @@ export class SearchWidget extends Widget {
 	private inputBox: InputBox;
 	private controlsDiv: HTMLElement;
 
-	private _onDidChange: Emitter<string> = this._register(new Emitter<string>());
+	private readonly _onDidChange: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onDidChange: Event<string> = this._onDidChange.event;
 
-	private _onFocus: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onFocus: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onFocus: Event<void> = this._onFocus.event;
 
 	constructor(parent: HTMLElement, protected options: SearchOptions,
@@ -705,8 +705,8 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
 	private _domNode: HTMLElement;
 
-	private _onClick: Emitter<void> = this._register(new Emitter<void>());
-	public onClick: Event<void> = this._onClick.event;
+	private readonly _onClick: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onClick: Event<void> = this._onClick.event;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -766,7 +766,7 @@ export class EditPreferenceWidget<T> extends Disposable {
 
 	private _editPreferenceDecoration: string[];
 
-	private _onClick: Emitter<IEditorMouseEvent> = new Emitter<IEditorMouseEvent>();
+	private readonly _onClick: Emitter<IEditorMouseEvent> = new Emitter<IEditorMouseEvent>();
 	public get onClick(): Event<IEditorMouseEvent> { return this._onClick.event; }
 
 	constructor(private editor: ICodeEditor

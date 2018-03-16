@@ -31,7 +31,7 @@ import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/workbench/services/key
 import { WindowsKeyboardMapper, IWindowsKeyboardMapping, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -46,8 +46,8 @@ export class KeyboardMapperFactory {
 	private _keyboardMapper: IKeyboardMapper;
 	private _initialized: boolean;
 
-	private _onDidChangeKeyboardMapper: Emitter<void> = new Emitter<void>();
-	public onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
+	private readonly _onDidChangeKeyboardMapper: Emitter<void> = new Emitter<void>();
+	public readonly onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
 
 	private constructor() {
 		this._layoutInfo = null;
@@ -567,10 +567,10 @@ let schema: IJSONSchema = {
 	}
 };
 
-let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
+let schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
 
-const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigExtensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigExtensions.Configuration);
 const keyboardConfiguration: IConfigurationNode = {
 	'id': 'keyboard',
 	'order': 15,

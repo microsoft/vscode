@@ -11,7 +11,7 @@ import * as Objects from 'vs/base/common/objects';
 
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/workbench/parts/tasks/common/problemMatcher';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder, IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 
 
 export enum ShellQuoting {
@@ -594,6 +594,11 @@ export namespace Task {
 	}
 }
 
+export interface TaskHandleTransfer {
+	id: string;
+	label: string;
+	workspaceFolder: IWorkspaceFolderData;
+}
 
 export enum ExecutionEngine {
 	Process = 1,

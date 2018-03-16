@@ -11,10 +11,10 @@ import { Component } from 'vs/workbench/common/component';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IComposite } from 'vs/workbench/common/composite';
 import { IEditorControl } from 'vs/platform/editor/common/editor';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import DOM = require('vs/base/browser/dom');
+import * as DOM from 'vs/base/browser/dom';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 /**
@@ -28,8 +28,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
  * layout and focus call, but only one create and dispose call.
  */
 export abstract class Composite extends Component implements IComposite {
-	private _onTitleAreaUpdate: Emitter<void>;
-	private _onDidFocus: Emitter<void>;
+	private readonly _onTitleAreaUpdate: Emitter<void>;
+	private readonly _onDidFocus: Emitter<void>;
 
 	private _focusTracker?: DOM.IFocusTracker;
 	private _focusListenerDisposable?: IDisposable;

@@ -26,6 +26,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IFileService } from 'vs/platform/files/common/files';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 const REPLACE_PREVIEW = 'replacePreview';
 
@@ -95,6 +96,7 @@ export class ReplaceService implements IReplaceService {
 
 	constructor(
 		@IFileService private fileService: IFileService,
+		@ITextFileService private textFileService: ITextFileService,
 		@IEditorService private editorService: IWorkbenchEditorService,
 		@ITextModelService private textModelResolverService: ITextModelService
 	) { }
@@ -104,11 +106,13 @@ export class ReplaceService implements IReplaceService {
 	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>;
 	public replace(arg: any, progress: IProgressRunner = null, resource: URI = null): TPromise<any> {
 
+		const edits: ResourceTextEdit[] = [];
+
 		let bulkEdit = new BulkEdit(null, progress, this.textModelResolverService, this.fileService);
 
 		if (arg instanceof Match) {
 			let match = <Match>arg;
-			bulkEdit.add([this.createEdit(match, match.replaceString, resource)]);
+			edits.push(this.createEdit(match, match.replaceString, resource));
 		}
 
 		if (arg instanceof FileMatch) {
@@ -119,14 +123,13 @@ export class ReplaceService implements IReplaceService {
 			arg.forEach(element => {
 				let fileMatch = <FileMatch>element;
 				if (fileMatch.count() > 0) {
-					fileMatch.matches().forEach(match => {
-						bulkEdit.add([this.createEdit(match, match.replaceString, resource)]);
-					});
+					edits.push(...fileMatch.matches().map(match => this.createEdit(match, match.replaceString, resource)));
 				}
 			});
 		}
 
-		return bulkEdit.perform();
+		bulkEdit.add(edits);
+		return bulkEdit.perform().then(() => this.textFileService.saveAll(edits.map(e => e.resource)));
 	}
 
 	public openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {

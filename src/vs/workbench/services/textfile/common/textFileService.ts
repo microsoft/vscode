@@ -7,11 +7,11 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
-import errors = require('vs/base/common/errors');
-import objects = require('vs/base/common/objects');
-import Event, { Emitter } from 'vs/base/common/event';
-import platform = require('vs/base/common/platform');
+import * as paths from 'vs/base/common/paths';
+import * as errors from 'vs/base/common/errors';
+import * as objects from 'vs/base/common/objects';
+import { Event, Emitter } from 'vs/base/common/event';
+import * as platform from 'vs/base/common/platform';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext } from 'vs/workbench/services/textfile/common/textfiles';
@@ -51,10 +51,10 @@ export abstract class TextFileService implements ITextFileService {
 	private toUnbind: IDisposable[];
 	private _models: TextFileEditorModelManager;
 
-	private _onFilesAssociationChange: Emitter<void>;
+	private readonly _onFilesAssociationChange: Emitter<void>;
 	private currentFilesAssociationConfig: { [key: string]: string; };
 
-	private _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration>;
+	private readonly _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration>;
 	private configuredAutoSaveDelay: number;
 	private configuredAutoSaveOnFocusChange: boolean;
 	private configuredAutoSaveOnWindowChange: boolean;
@@ -484,8 +484,8 @@ export abstract class TextFileService implements ITextFileService {
 	private doSaveAllFiles(resources?: URI[], options: ISaveOptions = Object.create(null)): TPromise<ITextFileOperationResult> {
 		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(resources) ? resources : void 0 /* Save All */)
 			.filter(model => {
-				if (model.hasState(ModelState.CONFLICT) && (options.reason === SaveReason.AUTO || options.reason === SaveReason.FOCUS_CHANGE || options.reason === SaveReason.WINDOW_CHANGE)) {
-					return false; // if model is in save conflict, do not save unless save reason is explicit or not provided at all
+				if ((model.hasState(ModelState.CONFLICT) || model.hasState(ModelState.ERROR)) && (options.reason === SaveReason.AUTO || options.reason === SaveReason.FOCUS_CHANGE || options.reason === SaveReason.WINDOW_CHANGE)) {
+					return false; // if model is in save conflict or error, do not save unless save reason is explicit or not provided at all
 				}
 
 				return true;

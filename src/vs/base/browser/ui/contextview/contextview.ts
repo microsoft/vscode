@@ -8,7 +8,7 @@
 
 import 'vs/css!./contextview';
 import { Builder, $ } from 'vs/base/browser/builder';
-import DOM = require('vs/base/browser/dom');
+import * as DOM from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export interface IAnchor {

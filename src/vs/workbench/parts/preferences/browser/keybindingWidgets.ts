@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { OS } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';

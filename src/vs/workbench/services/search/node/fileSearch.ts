@@ -8,22 +8,22 @@
 import * as childProcess from 'child_process';
 import { StringDecoder, NodeStringDecoder } from 'string_decoder';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import fs = require('fs');
-import path = require('path');
+import * as fs from 'fs';
+import * as path from 'path';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { Readable } from 'stream';
 import { TPromise } from 'vs/base/common/winjs.base';
 
-import objects = require('vs/base/common/objects');
-import arrays = require('vs/base/common/arrays');
-import platform = require('vs/base/common/platform');
-import strings = require('vs/base/common/strings');
-import types = require('vs/base/common/types');
-import glob = require('vs/base/common/glob');
+import * as objects from 'vs/base/common/objects';
+import * as arrays from 'vs/base/common/arrays';
+import * as platform from 'vs/base/common/platform';
+import * as strings from 'vs/base/common/strings';
+import * as types from 'vs/base/common/types';
+import * as glob from 'vs/base/common/glob';
 import { IProgress, IUncachedSearchStats } from 'vs/platform/search/common/search';
 
-import extfs = require('vs/base/node/extfs');
-import flow = require('vs/base/node/flow');
+import * as extfs from 'vs/base/node/extfs';
+import * as flow from 'vs/base/node/flow';
 import { IRawFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine, IFolderSearch } from './search';
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
 import { rgErrorMsgForDisplay } from './ripgrepTextSearch';

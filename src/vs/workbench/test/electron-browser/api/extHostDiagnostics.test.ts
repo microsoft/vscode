@@ -7,13 +7,12 @@
 
 import * as assert from 'assert';
 import URI, { UriComponents } from 'vs/base/common/uri';
-import Severity from 'vs/base/common/severity';
 import { DiagnosticCollection } from 'vs/workbench/api/node/extHostDiagnostics';
-import { Diagnostic, DiagnosticSeverity, Range } from 'vs/workbench/api/node/extHostTypes';
+import { Diagnostic, DiagnosticSeverity, Range, DiagnosticRelatedInformation, Location } from 'vs/workbench/api/node/extHostTypes';
 import { MainThreadDiagnosticsShape } from 'vs/workbench/api/node/extHost.protocol';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, toPromise } from 'vs/base/common/event';
 
 suite('ExtHostDiagnostics', () => {
 
@@ -257,8 +256,72 @@ suite('ExtHostDiagnostics', () => {
 		assert.equal(collection.get(uri).length, 500);
 		assert.equal(lastEntries.length, 1);
 		assert.equal(lastEntries[0][1].length, 251);
-		assert.equal(lastEntries[0][1][0].severity, Severity.Error);
-		assert.equal(lastEntries[0][1][200].severity, Severity.Warning);
-		assert.equal(lastEntries[0][1][250].severity, Severity.Error);
+		assert.equal(lastEntries[0][1][0].severity, MarkerSeverity.Error);
+		assert.equal(lastEntries[0][1][200].severity, MarkerSeverity.Warning);
+		assert.equal(lastEntries[0][1][250].severity, MarkerSeverity.Error);
+	});
+
+	test('diagnostic eventing', async function () {
+		let emitter = new Emitter<(string | URI)[]>();
+		let collection = new DiagnosticCollection('ddd', new DiagnosticsShape(), emitter);
+
+		let diag1 = new Diagnostic(new Range(1, 1, 2, 3), 'diag1');
+		let diag2 = new Diagnostic(new Range(1, 1, 2, 3), 'diag2');
+		let diag3 = new Diagnostic(new Range(1, 1, 2, 3), 'diag3');
+
+		let p = toPromise(emitter.event).then(a => {
+			assert.equal(a.length, 1);
+			assert.equal(a[0].toString(), 'aa:bb');
+			assert.ok(URI.isUri(a[0]));
+		});
+		collection.set(URI.parse('aa:bb'), []);
+		await p;
+
+		p = toPromise(emitter.event).then(e => {
+			assert.equal(e.length, 2);
+			assert.ok(URI.isUri(e[0]));
+			assert.ok(URI.isUri(e[1]));
+			assert.equal(e[0].toString(), 'aa:bb');
+			assert.equal(e[1].toString(), 'aa:cc');
+		});
+		collection.set([
+			[URI.parse('aa:bb'), [diag1]],
+			[URI.parse('aa:cc'), [diag2, diag3]],
+		]);
+		await p;
+
+		p = toPromise(emitter.event).then(e => {
+			assert.equal(e.length, 2);
+			assert.ok(typeof e[0] === 'string');
+			assert.ok(typeof e[1] === 'string');
+		});
+		collection.clear();
+		await p;
+	});
+
+	test('diagnostics with related information', function (done) {
+
+		let collection = new DiagnosticCollection('ddd', new class extends DiagnosticsShape {
+			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]) {
+
+				let [[, data]] = entries;
+				assert.equal(entries.length, 1);
+				assert.equal(data.length, 1);
+
+				let [diag] = data;
+				assert.equal(diag.relatedInformation.length, 2);
+				assert.equal(diag.relatedInformation[0].message, 'more1');
+				assert.equal(diag.relatedInformation[1].message, 'more2');
+				done();
+			}
+		}, new Emitter<any>());
+
+		let diag = new Diagnostic(new Range(0, 0, 1, 1), 'Foo');
+		diag.relatedInformation = [
+			new DiagnosticRelatedInformation(new Location(URI.parse('cc:dd'), new Range(0, 0, 0, 0)), 'more1'),
+			new DiagnosticRelatedInformation(new Location(URI.parse('cc:ee'), new Range(0, 0, 0, 0)), 'more2')
+		];
+
+		collection.set(URI.parse('aa:bb'), [diag]);
 	});
 });

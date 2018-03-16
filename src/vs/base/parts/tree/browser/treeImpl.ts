@@ -5,17 +5,15 @@
 'use strict';
 
 import 'vs/css!./tree';
-import WinJS = require('vs/base/common/winjs.base');
-import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import Model = require('vs/base/parts/tree/browser/treeModel');
-import View = require('./treeView');
-import _ = require('vs/base/parts/tree/browser/tree');
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as TreeDefaults from 'vs/base/parts/tree/browser/treeDefaults';
+import * as Model from 'vs/base/parts/tree/browser/treeModel';
+import * as View from './treeView';
+import * as _ from 'vs/base/parts/tree/browser/tree';
 import { INavigator, MappedNavigator } from 'vs/base/common/iterator';
-import Event, { Emitter, Relay } from 'vs/base/common/event';
+import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
-import { ISelectionEvent, IFocusEvent, IHighlightEvent } from 'vs/base/parts/tree/browser/tree';
-import { IItemCollapseEvent, IItemExpandEvent } from 'vs/base/parts/tree/browser/treeModel';
 
 export class TreeContext implements _.ITreeContext {
 
@@ -71,16 +69,16 @@ export class Tree implements _.ITree {
 	private model: Model.TreeModel;
 	private view: View.TreeView;
 
-	private _onDidChangeFocus = new Relay<IFocusEvent>();
-	readonly onDidChangeFocus: Event<IFocusEvent> = this._onDidChangeFocus.event;
-	private _onDidChangeSelection = new Relay<ISelectionEvent>();
-	readonly onDidChangeSelection: Event<ISelectionEvent> = this._onDidChangeSelection.event;
-	private _onHighlightChange = new Relay<IHighlightEvent>();
-	readonly onDidChangeHighlight: Event<IHighlightEvent> = this._onHighlightChange.event;
-	private _onDidExpandItem = new Relay<IItemExpandEvent>();
-	readonly onDidExpandItem: Event<IItemExpandEvent> = this._onDidExpandItem.event;
-	private _onDidCollapseItem = new Relay<IItemCollapseEvent>();
-	readonly onDidCollapseItem: Event<IItemCollapseEvent> = this._onDidCollapseItem.event;
+	private _onDidChangeFocus = new Relay<_.IFocusEvent>();
+	readonly onDidChangeFocus: Event<_.IFocusEvent> = this._onDidChangeFocus.event;
+	private _onDidChangeSelection = new Relay<_.ISelectionEvent>();
+	readonly onDidChangeSelection: Event<_.ISelectionEvent> = this._onDidChangeSelection.event;
+	private _onHighlightChange = new Relay<_.IHighlightEvent>();
+	readonly onDidChangeHighlight: Event<_.IHighlightEvent> = this._onHighlightChange.event;
+	private _onDidExpandItem = new Relay<Model.IItemExpandEvent>();
+	readonly onDidExpandItem: Event<Model.IItemExpandEvent> = this._onDidExpandItem.event;
+	private _onDidCollapseItem = new Relay<Model.IItemCollapseEvent>();
+	readonly onDidCollapseItem: Event<Model.IItemCollapseEvent> = this._onDidCollapseItem.event;
 	private _onDispose = new Emitter<void>();
 	readonly onDidDispose: Event<void> = this._onDispose.event;
 

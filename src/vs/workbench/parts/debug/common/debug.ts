@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -230,32 +230,37 @@ export interface IBreakpointData {
 	column?: number;
 	enabled?: boolean;
 	condition?: string;
+	logMessage?: string;
 	hitCondition?: string;
 }
 
 export interface IBreakpointUpdateData extends DebugProtocol.Breakpoint {
 	condition?: string;
 	hitCondition?: string;
+	logMessage?: string;
 }
 
-export interface IBreakpoint extends IEnablement {
+export interface IBaseBreakpoint extends IEnablement {
+	condition: string;
+	hitCondition: string;
+	logMessage: string;
+}
+
+export interface IBreakpoint extends IBaseBreakpoint {
 	uri: uri;
 	lineNumber: number;
 	endLineNumber?: number;
 	column: number;
 	endColumn?: number;
-	condition: string;
-	hitCondition: string;
 	verified: boolean;
 	idFromAdapter: number;
 	message: string;
 }
 
-export interface IFunctionBreakpoint extends IEnablement {
+export interface IFunctionBreakpoint extends IBaseBreakpoint {
 	name: string;
 	verified: boolean;
 	idFromAdapter: number;
-	hitCondition: string;
 }
 
 export interface IExceptionBreakpoint extends IEnablement {
@@ -628,7 +633,7 @@ export interface IDebugService {
 	 * Also saves all files, manages if compounds are present in the configuration
 	 * and resolveds configurations via DebugConfigurationProviders.
 	 */
-	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
+	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): TPromise<void>;
 
 	/**
 	 * Restarts a process or creates a new one if there is no active session.

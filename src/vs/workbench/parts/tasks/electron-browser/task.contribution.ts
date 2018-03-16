@@ -17,7 +17,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
 import * as Dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as Builder from 'vs/base/browser/builder';
 import * as Types from 'vs/base/common/types';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -50,7 +50,7 @@ import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
-import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
+import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import { IStatusbarItem, IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor, StatusbarAlignment } from 'vs/workbench/browser/parts/statusbar/statusbar';
@@ -62,7 +62,7 @@ import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
@@ -71,7 +71,11 @@ import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent, TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier, TaskSorter } from 'vs/workbench/parts/tasks/common/tasks';
+import {
+	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
+	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
+	TaskIdentifier, TaskSorter, TaskHandleTransfer
+} from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, ITaskProvider, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -137,11 +141,14 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		const info = document.createElement('div');
 		const building = document.createElement('div');
 
+		const errorTitle = n => nls.localize('totalErrors', "{0} Errors", n);
+		const warningTitle = n => nls.localize('totalWarnings', "{0} Warnings", n);
+		const infoTitle = n => nls.localize('totalInfos', "{0} Infos", n);
+
 		Dom.addClass(element, 'task-statusbar-item');
 
 		Dom.addClass(label, 'task-statusbar-item-label');
 		element.appendChild(label);
-		element.title = nls.localize('problems', "Problems");
 
 		Dom.addClass(errorIcon, 'task-statusbar-item-label-error');
 		Dom.addClass(errorIcon, 'mask-icon');
@@ -150,6 +157,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 
 		Dom.addClass(error, 'task-statusbar-item-label-counter');
 		error.innerHTML = '0';
+		error.title = errorIcon.title = errorTitle(0);
 		label.appendChild(error);
 
 		Dom.addClass(warningIcon, 'task-statusbar-item-label-warning');
@@ -159,6 +167,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 
 		Dom.addClass(warning, 'task-statusbar-item-label-counter');
 		warning.innerHTML = '0';
+		warning.title = warningIcon.title = warningTitle(0);
 		label.appendChild(warning);
 
 		Dom.addClass(infoIcon, 'task-statusbar-item-label-info');
@@ -186,24 +195,22 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 			}
 		}));
 
-		let updateStatus = (element: HTMLDivElement, icon: HTMLDivElement, stats: number): boolean => {
-			if (stats > 0) {
-				element.innerHTML = stats.toString();
-				$(element).show();
-				$(icon).show();
-				return true;
-			} else {
-				$(element).hide();
-				$(icon).hide();
-				return false;
-			}
-		};
-
-		let manyMarkers = nls.localize('manyMarkers', "99+");
+		const manyProblems = nls.localize('manyProblems', "10K+");
+		const packNumber = n => n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
 		let updateLabel = (stats: MarkerStatistics) => {
-			error.innerHTML = stats.errors < 100 ? stats.errors.toString() : manyMarkers;
-			warning.innerHTML = stats.warnings < 100 ? stats.warnings.toString() : manyMarkers;
-			updateStatus(info, infoIcon, stats.infos);
+			error.innerHTML = packNumber(stats.errors);
+			error.title = errorIcon.title = errorTitle(stats.errors);
+			warning.innerHTML = packNumber(stats.warnings);
+			warning.title = warningIcon.title = warningTitle(stats.warnings);
+			if (stats.infos > 0) {
+				info.innerHTML = packNumber(stats.infos);
+				info.title = infoIcon.title = infoTitle(stats.infos);
+				$(info).show();
+				$(infoIcon).show();
+			} else {
+				$(info).hide();
+				$(infoIcon).hide();
+			}
 		};
 
 		this.markerService.onMarkerChanged((changedResources) => {
@@ -450,7 +457,7 @@ class TaskService implements ITaskService {
 	private _recentlyUsedTasks: LinkedMap<string, string>;
 
 	private _outputChannel: IOutputChannel;
-	private _onDidStateChange: Emitter<TaskEvent>;
+	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -571,6 +578,27 @@ class TaskService implements ITaskService {
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.showTasks', () => {
 			this.runShowTasks();
+		});
+
+		CommandsRegistry.registerCommand('_executeTaskProvider', (accessor, args) => {
+			return this.tasks().then((tasks) => {
+				let result: TaskHandleTransfer[] = [];
+				for (let task of tasks) {
+					let folder = Task.getWorkspaceFolder(task);
+					let folderData: IWorkspaceFolderData = folder ? {
+						name: folder.name,
+						uri: folder.uri,
+						index: folder.index
+					} : undefined;
+					let handle: TaskHandleTransfer = {
+						id: task._id,
+						label: task._label,
+						workspaceFolder: folderData
+					};
+					result.push(handle);
+				}
+				return result;
+			});
 		});
 	}
 
@@ -2318,14 +2346,14 @@ MenuRegistry.addCommand({ id: 'workbench.action.tasks.configureDefaultTestTask',
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.clean', title: nls.localize('CleanAction.label', 'Run Clean Task'), category: tasksCategory });
 
 // Tasks Output channel. Register it before using it in Task Service.
-let outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);
+let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
 outputChannelRegistry.registerChannel(TaskService.OutputChannelId, TaskService.OutputChannelLabel);
 
 // Task Service
 registerSingleton(ITaskService, TaskService);
 
 // Register Quick Open
-const quickOpenRegistry = (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen));
+const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));
 const tasksPickerContextKey = 'inTasksPicker';
 
 quickOpenRegistry.registerQuickOpenHandler(
@@ -2342,7 +2370,7 @@ const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Ac
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
 
 // Status bar
-let statusbarRegistry = <IStatusbarRegistry>Registry.as(StatusbarExtensions.Statusbar);
+let statusbarRegistry = Registry.as<IStatusbarRegistry>(StatusbarExtensions.Statusbar);
 statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(BuildStatusBarItem, StatusbarAlignment.LEFT, 50 /* Medium Priority */));
 statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(TaskStatusBarItem, StatusbarAlignment.LEFT, 50 /* Medium Priority */));
 

@@ -236,11 +236,9 @@ export function createApiFactory(
 				checkProposedApiEnabled(extension);
 				return extHostDiagnostics.onDidChangeDiagnostics;
 			},
-			diagnostics: {
-				has: proposedApiFunction(extension, uri => extHostDiagnostics.hasDiagnostics(uri)),
-				get: proposedApiFunction(extension, uri => extHostDiagnostics.getDiagnostics(uri)),
-				all: proposedApiFunction(extension, () => extHostDiagnostics.getAllDiagnostics())
-			},
+			getDiagnostics: <any>proposedApiFunction(extension, (resource?) => {
+				return extHostDiagnostics.getDiagnostics(resource);
+			}),
 			getLanguages(): TPromise<string[]> {
 				return extHostLanguages.getLanguages();
 			},
@@ -415,7 +413,7 @@ export function createApiFactory(
 				return extHostDecorations.registerDecorationProvider(provider, extension.id);
 			}),
 			createWebview: proposedApiFunction(extension, (uri: vscode.Uri, title: string, column: vscode.ViewColumn, options: vscode.WebviewOptions) => {
-				return extHostWebviews.createWebview(uri, title, column, options);
+				return extHostWebviews.createWebview(uri, title, column, options, extension.extensionFolderPath);
 			}),
 			onDidChangeActiveEditor: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
 				return extHostDocumentsAndEditors.onDidChangeActiveEditor(listener, thisArg, disposables);
@@ -601,6 +599,7 @@ export function createApiFactory(
 			CompletionTriggerKind: extHostTypes.CompletionTriggerKind,
 			DebugAdapterExecutable: extHostTypes.DebugAdapterExecutable,
 			Diagnostic: extHostTypes.Diagnostic,
+			DiagnosticRelatedInformation: extHostTypes.DiagnosticRelatedInformation,
 			DiagnosticSeverity: extHostTypes.DiagnosticSeverity,
 			Disposable: extHostTypes.Disposable,
 			DocumentHighlight: extHostTypes.DocumentHighlight,

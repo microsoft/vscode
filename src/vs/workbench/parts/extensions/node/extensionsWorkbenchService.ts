@@ -5,11 +5,11 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { readFile } from 'vs/base/node/pfs';
 import * as semver from 'semver';
 import * as path from 'path';
-import Event, { Emitter, chain } from 'vs/base/common/event';
+import { Event, Emitter, chain } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
 import { assign } from 'vs/base/common/objects';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -358,7 +358,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private autoUpdateDelayer: ThrottledDelayer<void>;
 	private disposables: IDisposable[] = [];
 
-	private _onChange: Emitter<void> = new Emitter<void>();
+	private readonly _onChange: Emitter<void> = new Emitter<void>();
 	get onChange(): Event<void> { return this._onChange.event; }
 
 	private _extensionAllowedBadgeProviders: string[];

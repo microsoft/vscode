@@ -5,19 +5,19 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import objects = require('vs/base/common/objects');
-import DOM = require('vs/base/browser/dom');
+import * as nls from 'vs/nls';
+import * as objects from 'vs/base/common/objects';
+import * as DOM from 'vs/base/browser/dom';
 import URI from 'vs/base/common/uri';
 import { once } from 'vs/base/common/functional';
-import paths = require('vs/base/common/paths');
-import resources = require('vs/base/common/resources');
-import errors = require('vs/base/common/errors');
+import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
+import * as errors from 'vs/base/common/errors';
 import { IAction, ActionRunner as BaseActionRunner, IActionRunner } from 'vs/base/common/actions';
-import comparers = require('vs/base/common/comparers');
+import * as comparers from 'vs/base/common/comparers';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
-import glob = require('vs/base/common/glob');
+import * as glob from 'vs/base/common/glob';
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
@@ -50,7 +50,6 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { extractResources, SimpleFileResourceDragAndDrop, CodeDataTransfers, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
 import { relative } from 'path';
-import { distinctParents } from 'vs/base/common/resources';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { DataTransfers } from 'vs/base/browser/dnd';
@@ -108,7 +107,10 @@ export class FileDataSource implements IDataSource {
 
 				return stat.children;
 			}, (e: any) => {
-				this.notificationService.error(e);
+				// Do not show error for roots since we already use an explorer decoration to notify user
+				if (!(stat instanceof FileStat && stat.isRoot)) {
+					this.notificationService.error(e);
+				}
 
 				return []; // we could not resolve any children because of an error
 			});
@@ -926,7 +928,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	private handleExplorerDrop(tree: ITree, data: IDragAndDropData, target: FileStat | Model, originalEvent: DragMouseEvent): TPromise<void> {
-		const sources: FileStat[] = distinctParents(data.getData(), s => s.resource);
+		const sources: FileStat[] = resources.distinctParents(data.getData(), s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
 		let confirmPromise: TPromise<IConfirmationResult>;
@@ -935,8 +937,10 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
 		if (confirmDragAndDrop) {
 			confirmPromise = this.dialogService.confirm({
-				message: sources.length > 1 ? getConfirmMessage(nls.localize('confirmMultiMove', "Are you sure you want to move the following {0} files?", sources.length), sources.map(s => s.resource))
-					: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", sources[0].name),
+				message: sources.length > 1 && sources.every(s => s.isRoot) ? nls.localize('confirmRootsMove', "Are you sure you want to change the order of multiple root folders in your workspace?")
+					: sources.length > 1 ? getConfirmMessage(nls.localize('confirmMultiMove', "Are you sure you want to move the following {0} files?", sources.length), sources.map(s => s.resource))
+						: sources[0].isRoot ? nls.localize('confirmRootMove', "Are you sure you want to change the order of root folder '{0}' in your workspace?", sources[0].name)
+							: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", sources[0].name),
 				checkbox: {
 					label: nls.localize('doNotAskAgain', "Do not ask me again")
 				},

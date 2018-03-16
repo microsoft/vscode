@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import * as os from 'os';
-import extfs = require('vs/base/node/extfs');
+import * as extfs from 'vs/base/node/extfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';

@@ -22,18 +22,21 @@ import { attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/c
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
-const EXPRESSION_PLACEHOLDER = nls.localize('breakpointWidgetExpressionPlaceholder', "Break when expression evaluates to true. 'Enter' to accept, 'esc' to cancel.");
-const EXPRESSION_ARIA_LABEL = nls.localize('breakpointWidgetAriaLabel', "The program will only stop here if this condition is true. Press Enter to accept or Escape to cancel.");
-const HIT_COUNT_PLACEHOLDER = nls.localize('breakpointWidgetHitCountPlaceholder', "Break when hit count condition is met. 'Enter' to accept, 'esc' to cancel.");
-const HIT_COUNT_ARIA_LABEL = nls.localize('breakpointWidgetHitCountAriaLabel', "The program will only stop here if the hit count is met. Press Enter to accept or Escape to cancel.");
+
+enum Context {
+	CONDITION = 0,
+	HIT_COUNT = 1,
+	LOG_MESSAGE = 2
+}
 
 export class BreakpointWidget extends ZoneWidget {
 
 	private inputBox: InputBox;
 	private toDispose: lifecycle.IDisposable[];
-	private hitCountContext: boolean;
-	private hitCountInput: string;
-	private conditionInput: string;
+	private context: Context;
+	private conditionInput = '';
+	private hitCountInput = '';
+	private logMessageInput = '';
 	private breakpoint: IBreakpoint;
 
 	constructor(editor: ICodeEditor, private lineNumber: number, private column: number,
@@ -44,8 +47,6 @@ export class BreakpointWidget extends ZoneWidget {
 		super(editor, { showFrame: true, showArrow: false, frameWidth: 1 });
 
 		this.toDispose = [];
-		this.hitCountInput = '';
-		this.conditionInput = '';
 		const uri = this.editor.getModel().uri;
 		this.breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.column === this.column && bp.uri.toString() === uri.toString()).pop();
 
@@ -58,35 +59,70 @@ export class BreakpointWidget extends ZoneWidget {
 	}
 
 	private get placeholder(): string {
-		return this.hitCountContext ? HIT_COUNT_PLACEHOLDER : EXPRESSION_PLACEHOLDER;
+		switch (this.context) {
+			case Context.LOG_MESSAGE:
+				return nls.localize('breakpointWidgetLogMessagePlaceholder', "Message to log when breakpoint is hit. 'Enter' to accept, 'esc' to cancel.");
+			case Context.HIT_COUNT:
+				return nls.localize('breakpointWidgetHitCountPlaceholder', "Break when hit count condition is met. 'Enter' to accept, 'esc' to cancel.");
+			default:
+				return nls.localize('breakpointWidgetExpressionPlaceholder', "Break when expression evaluates to true. 'Enter' to accept, 'esc' to cancel.");
+		}
 	}
 
 	private get ariaLabel(): string {
-		return this.hitCountContext ? HIT_COUNT_ARIA_LABEL : EXPRESSION_ARIA_LABEL;
+		switch (this.context) {
+			case Context.LOG_MESSAGE:
+				return nls.localize('breakpointWidgetLogMessageAriaLabel', "The program will log this message everytime this breakpoint is hit. Press Enter to accept or Escape to cancel.");
+			case Context.HIT_COUNT:
+				return nls.localize('breakpointWidgetHitCountAriaLabel', "The program will only stop here if the hit count is met. Press Enter to accept or Escape to cancel.");
+			default:
+				return nls.localize('breakpointWidgetAriaLabel', "The program will only stop here if this condition is true. Press Enter to accept or Escape to cancel.");
+		}
 	}
 
 	private getInputBoxValue(breakpoint: IBreakpoint): string {
-		if (this.hitCountContext) {
-			return breakpoint && breakpoint.hitCondition ? breakpoint.hitCondition : this.hitCountInput;
+		switch (this.context) {
+			case Context.LOG_MESSAGE:
+				return breakpoint && breakpoint.logMessage ? breakpoint.logMessage : this.logMessageInput;
+			case Context.HIT_COUNT:
+				return breakpoint && breakpoint.hitCondition ? breakpoint.hitCondition : this.hitCountInput;
+			default:
+				return breakpoint && breakpoint.condition ? breakpoint.condition : this.conditionInput;
 		}
+	}
 
-		return breakpoint && breakpoint.condition ? breakpoint.condition : this.conditionInput;
+	private rememberInput(): void {
+		switch (this.context) {
+			case Context.LOG_MESSAGE:
+				this.logMessageInput = this.inputBox.value;
+				break;
+			case Context.HIT_COUNT:
+				this.hitCountInput = this.inputBox.value;
+				break;
+			default:
+				this.conditionInput = this.inputBox.value;
+		}
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('breakpoint-widget');
-		this.hitCountContext = this.breakpoint && this.breakpoint.hitCondition && !this.breakpoint.condition;
-		const selected = this.hitCountContext ? 1 : 0;
-		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count")], selected, this.contextViewService);
+		let selected: number;
+		if (this.breakpoint && !this.breakpoint.condition && !this.breakpoint.hitCondition && this.breakpoint.logMessage) {
+			this.context = Context.LOG_MESSAGE;
+			selected = 2;
+		} else if (this.breakpoint && !this.breakpoint.condition && this.breakpoint.hitCondition) {
+			this.context = Context.HIT_COUNT;
+			selected = 1;
+		} else {
+			this.context = Context.CONDITION;
+			selected = 0;
+		}
+		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count"), nls.localize('logMessage', "Log Message")], selected, this.contextViewService);
 		this.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
 		selectBox.render(dom.append(container, $('.breakpoint-select-container')));
 		selectBox.onDidSelect(e => {
-			this.hitCountContext = e.selected === 'Hit Count';
-			if (this.hitCountContext) {
-				this.conditionInput = this.inputBox.value;
-			} else {
-				this.hitCountInput = this.inputBox.value;
-			}
+			this.rememberInput();
+			this.context = e.index;
 
 			this.inputBox.setAriaLabel(this.ariaLabel);
 			this.inputBox.setPlaceHolder(this.placeholder);
@@ -115,17 +151,17 @@ export class BreakpointWidget extends ZoneWidget {
 
 					let condition = this.breakpoint && this.breakpoint.condition;
 					let hitCondition = this.breakpoint && this.breakpoint.hitCondition;
+					let logMessage = this.breakpoint && this.breakpoint.logMessage;
+					this.rememberInput();
 
-					if (this.hitCountContext) {
-						hitCondition = this.inputBox.value;
-						if (this.conditionInput) {
-							condition = this.conditionInput;
-						}
-					} else {
-						condition = this.inputBox.value;
-						if (this.hitCountInput) {
-							hitCondition = this.hitCountInput;
-						}
+					if (this.conditionInput) {
+						condition = this.conditionInput;
+					}
+					if (this.hitCountInput) {
+						hitCondition = this.hitCountInput;
+					}
+					if (this.logMessageInput) {
+						logMessage = this.logMessageInput;
 					}
 
 					if (this.breakpoint) {
@@ -133,7 +169,8 @@ export class BreakpointWidget extends ZoneWidget {
 							[this.breakpoint.getId()]: {
 								condition,
 								hitCondition,
-								verified: this.breakpoint.verified
+								verified: this.breakpoint.verified,
+								logMessage
 							}
 						}, false);
 					} else {
@@ -142,7 +179,8 @@ export class BreakpointWidget extends ZoneWidget {
 							column: this.breakpoint ? this.breakpoint.column : undefined,
 							enabled: true,
 							condition,
-							hitCondition
+							hitCondition,
+							logMessage
 						}]).done(null, errors.onUnexpectedError);
 					}
 				}

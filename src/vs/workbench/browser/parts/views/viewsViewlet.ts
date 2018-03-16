@@ -28,7 +28,7 @@ import { IPanelOptions } from 'vs/base/browser/ui/splitview/panelview';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { localize } from 'vs/nls';
@@ -194,7 +194,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 	protected viewsStates: Map<string, IViewState> = new Map<string, IViewState>();
 	private areExtensionsReady: boolean = false;
 
-	private _onDidChangeViewVisibilityState: Emitter<string> = new Emitter<string>();
+	private readonly _onDidChangeViewVisibilityState: Emitter<string> = new Emitter<string>();
 	readonly onDidChangeViewVisibilityState: Event<string> = this._onDidChangeViewVisibilityState.event;
 
 	constructor(

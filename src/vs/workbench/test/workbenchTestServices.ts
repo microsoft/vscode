@@ -15,7 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { IEditorGroup, ConfirmResult, IEditorOpeningEvent } from 'vs/workbench/common/editor';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -77,9 +77,9 @@ export class TestContextService implements IWorkspaceContextService {
 	private workspace: IWorkbenchWorkspace;
 	private options: any;
 
-	private _onDidChangeWorkspaceName: Emitter<void>;
-	private _onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent>;
-	private _onDidChangeWorkbenchState: Emitter<WorkbenchState>;
+	private readonly _onDidChangeWorkspaceName: Emitter<void>;
+	private readonly _onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent>;
+	private readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState>;
 
 	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
@@ -475,12 +475,12 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	private stacksModel: EditorStacksModel;
 
-	private _onEditorsChanged: Emitter<void>;
-	private _onEditorOpening: Emitter<IEditorOpeningEvent>;
-	private _onEditorOpenFail: Emitter<IEditorInput>;
-	private _onEditorsMoved: Emitter<void>;
-	private _onGroupOrientationChanged: Emitter<void>;
-	private _onTabOptionsChanged: Emitter<IEditorTabOptions>;
+	private readonly _onEditorsChanged: Emitter<void>;
+	private readonly _onEditorOpening: Emitter<IEditorOpeningEvent>;
+	private readonly _onEditorOpenFail: Emitter<IEditorInput>;
+	private readonly _onEditorsMoved: Emitter<void>;
+	private readonly _onGroupOrientationChanged: Emitter<void>;
+	private readonly _onTabOptionsChanged: Emitter<IEditorTabOptions>;
 
 	constructor(callback?: (method: string) => void) {
 		this._onEditorsMoved = new Emitter<void>();
@@ -679,8 +679,8 @@ export class TestFileService implements IFileService {
 
 	public _serviceBrand: any;
 
-	private _onFileChanges: Emitter<FileChangesEvent>;
-	private _onAfterOperation: Emitter<FileOperationEvent>;
+	private readonly _onFileChanges: Emitter<FileChangesEvent>;
+	private readonly _onAfterOperation: Emitter<FileOperationEvent>;
 
 	private content = 'Hello Html';
 

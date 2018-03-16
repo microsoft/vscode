@@ -5,7 +5,7 @@
 'use strict';
 
 import Severity from 'vs/base/common/severity';
-import vscode = require('vscode');
+import * as vscode from 'vscode';
 import { MainContext, MainThreadMessageServiceShape, MainThreadMessageOptions, IMainContext } from './extHost.protocol';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 

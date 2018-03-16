@@ -7,7 +7,7 @@
 import { DocumentContext } from 'vscode-html-languageservice';
 import { endsWith, startsWith } from '../utils/strings';
 import * as url from 'url';
-import { WorkspaceFolder } from 'vscode-languageserver-protocol/lib/protocol.workspaceFolders.proposed';
+import { WorkspaceFolder } from 'vscode-languageserver';
 
 export function getDocumentContext(documentUri: string, workspaceFolders: WorkspaceFolder[]): DocumentContext {
 	function getRootFolder(): string | undefined {

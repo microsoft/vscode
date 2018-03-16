@@ -11,7 +11,7 @@ import { Logger } from './logger';
 import { CommandManager } from './commandManager';
 import * as commands from './commands/index';
 import { loadDefaultTelemetryReporter } from './telemetryReporter';
-import { loadMarkdownExtensions } from './markdownExtensions';
+import { getMarkdownExtensionContributions } from './markdownExtensions';
 import LinkProvider from './features/documentLinkProvider';
 import MDDocumentSymbolProvider from './features/documentSymbolProvider';
 import { MarkdownContentProvider } from './features/previewContentProvider';
@@ -23,16 +23,17 @@ export function activate(context: vscode.ExtensionContext) {
 	const telemetryReporter = loadDefaultTelemetryReporter();
 	context.subscriptions.push(telemetryReporter);
 
+	const contributions = getMarkdownExtensionContributions();
+
 	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
-	const engine = new MarkdownEngine();
+	const engine = new MarkdownEngine(contributions);
 	const logger = new Logger();
 
 	const selector = 'markdown';
 
-	const contentProvider = new MarkdownContentProvider(engine, context, cspArbiter, logger);
-	loadMarkdownExtensions(contentProvider, engine);
+	const contentProvider = new MarkdownContentProvider(engine, context, cspArbiter, contributions, logger);
 
-	const previewManager = new MarkdownPreviewManager(contentProvider, logger);
+	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions);
 	context.subscriptions.push(previewManager);
 
 	context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(selector, new MDDocumentSymbolProvider(engine)));

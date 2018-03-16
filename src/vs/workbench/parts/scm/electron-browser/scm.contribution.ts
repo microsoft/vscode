@@ -45,10 +45,10 @@ const viewletDescriptor = new ViewletDescriptor(
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
 	.registerViewlet(viewletDescriptor);
 
-Registry.as(WorkbenchExtensions.Workbench)
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Running);
 
-Registry.as(WorkbenchExtensions.Workbench)
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(StatusBarController, LifecyclePhase.Running);
 
 // Register Action to Open Viewlet

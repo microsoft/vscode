@@ -13,13 +13,13 @@ import { Color } from 'vs/base/common/color';
 import { Extensions, IColorRegistry, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ThemingExtensions, IThemingRegistry, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 const VS_THEME_NAME = 'vs';
 const VS_DARK_THEME_NAME = 'vs-dark';
 const HC_BLACK_THEME_NAME = 'hc-black';
 
-const colorRegistry = <IColorRegistry>Registry.as(Extensions.ColorContribution);
+const colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
 
 class StandaloneTheme implements IStandaloneTheme {
@@ -118,7 +118,7 @@ export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 	private _knownThemes: Map<string, StandaloneTheme>;
 	private _styleElement: HTMLStyleElement;
 	private _theme: IStandaloneTheme;
-	private _onThemeChange: Emitter<IStandaloneTheme>;
+	private readonly _onThemeChange: Emitter<IStandaloneTheme>;
 
 
 	constructor() {

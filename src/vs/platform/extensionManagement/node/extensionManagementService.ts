@@ -5,13 +5,13 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { flatten, distinct, coalesce } from 'vs/base/common/arrays';
+import { flatten, distinct } from 'vs/base/common/arrays';
 import { extract, buffer } from 'vs/base/node/zip';
 import { TPromise } from 'vs/base/common/winjs.base';
 import {
@@ -26,7 +26,7 @@ import { getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, areSameExten
 import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Limiter, always } from 'vs/base/common/async';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as semver from 'semver';
 import URI from 'vs/base/common/uri';
 import pkg from 'vs/platform/node/package';
@@ -100,8 +100,6 @@ interface InstallableExtension {
 }
 
 export class ExtensionManagementService extends Disposable implements IExtensionManagementService {
-
-	private static readonly RENAME_RETRY_TIME = 5 * 1000;
 
 	_serviceBrand: any;
 
@@ -429,7 +427,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private completeInstall(id: string, extractPath: string): TPromise<void> {
-		return this.renameWithRetry(id, extractPath)
+		return this.rename(id, extractPath, Date.now() + (5 * 1000) /* Retry for 5 seconds */)
 			.then(
 				() => this.logService.info('Installation compelted.', id),
 				e => {
@@ -439,23 +437,12 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				});
 	}
 
-	private renameWithRetry(id: string, extractPath: string): TPromise<void> {
-		const retry = (task: () => TPromise<any>, shouldRetry: (err: any) => boolean) => {
-			return task().then(
-				null,
-				err => {
-					if (shouldRetry(err)) {
-						return retry(task, shouldRetry);
-					} else {
-						throw err;
-					}
-				});
-		};
-
-		const retryUntil = Date.now() + ExtensionManagementService.RENAME_RETRY_TIME;
-		return retry(
-			() => pfs.rename(extractPath, path.join(this.extensionsPath, id)),
-			err => isWindows && err && err.code === 'EPERM' && Date.now() < retryUntil);
+	private rename(id: string, extractPath: string, retryUntil: number): TPromise<void> {
+		return pfs.rename(extractPath, path.join(this.extensionsPath, id))
+			.then(null, error =>
+				isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil
+					? this.rename(id, extractPath, retryUntil)
+					: TPromise.wrapError(error));
 	}
 
 	private rollback(extensions: IGalleryExtension[]): TPromise<void> {
@@ -724,8 +711,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	private scanExtensions(root: string, type: LocalExtensionType): TPromise<ILocalExtension[]> {
 		const limiter = new Limiter(10);
 		return pfs.readdir(root)
-			.then(extensionsFolders => TPromise.join(extensionsFolders.map(extensionFolder => limiter.queue(() => this.scanExtension(extensionFolder, root, type)))))
-			.then(extensions => coalesce(extensions));
+			.then(extensionsFolders => TPromise.join<ILocalExtension>(extensionsFolders.map(extensionFolder => limiter.queue(() => this.scanExtension(extensionFolder, root, type)))))
+			.then(extensions => extensions.filter(e => e && e.identifier));
 	}
 
 	private scanExtension(folderName: string, root: string, type: LocalExtensionType): TPromise<ILocalExtension> {

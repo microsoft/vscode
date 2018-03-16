@@ -17,7 +17,7 @@
 		},
 		{
 			"id": "properties",
-			"extensions": [ ".properties", ".gitconfig", ".cfg", ".conf" ],
+			"extensions": [ ".properties", ".cfg", ".conf", ".desktop", ".directory" ],
 			"filenames": [ "config", ".gitattributes", ".gitconfig", "gitconfig", ".editorconfig" ],
 			"aliases": [ "Properties", "properties" ],
 			"configuration": "./properties.language-configuration.json"

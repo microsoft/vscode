@@ -13,7 +13,7 @@ import * as browser from 'vs/base/browser/browser';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CharCode } from 'vs/base/common/charCode';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 
 export function clearNode(node: HTMLElement) {

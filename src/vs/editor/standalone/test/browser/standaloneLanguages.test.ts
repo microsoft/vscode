@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { TokenizationSupport2Adapter, TokensProvider, ILineTokens, IToken } from 'vs/editor/standalone/browser/standaloneLanguages';
 import { IStandaloneThemeService, IStandaloneThemeData, IStandaloneTheme } from 'vs/editor/standalone/common/standaloneThemeService';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { ITheme, LIGHT } from 'vs/platform/theme/common/themeService';
 import { LanguageIdentifier, LanguageId, IState, MetadataConsts } from 'vs/editor/common/modes';
 import { Token } from 'vs/editor/common/core/token';
@@ -58,7 +58,7 @@ suite('TokenizationSupport2Adapter', () => {
 				}
 			};
 		}
-		public onThemeChange: Event<ITheme> = null;
+		public readonly onThemeChange: Event<ITheme> = null;
 	}
 
 	class MockState implements IState {

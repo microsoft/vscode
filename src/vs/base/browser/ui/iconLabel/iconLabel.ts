@@ -6,11 +6,11 @@
 'use strict';
 
 import 'vs/css!./iconlabel';
-import dom = require('vs/base/browser/dom');
+import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMatch } from 'vs/base/common/filters';
 import uri from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import { IWorkspaceFolderProvider, getPathLabel, IUserHomeProvider, getBaseLabel } from 'vs/base/common/labels';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 

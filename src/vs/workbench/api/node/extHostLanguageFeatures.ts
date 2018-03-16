@@ -15,7 +15,7 @@ import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
-import { ExtHostDiagnostics, DiagnosticCollection } from 'vs/workbench/api/node/extHostDiagnostics';
+import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, SymbolInformationDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
@@ -313,7 +313,7 @@ class CodeActionAdapter {
 					result.push({
 						title: candidate.title,
 						command: candidate.command && this._commands.toInternal(candidate.command),
-						diagnostics: candidate.diagnostics && candidate.diagnostics.map(DiagnosticCollection.toMarkerData),
+						diagnostics: candidate.diagnostics && candidate.diagnostics.map(TypeConverters.fromDiagnostic),
 						edit: candidate.edit && TypeConverters.WorkspaceEdit.from(candidate.edit),
 						kind: candidate.kind && candidate.kind.value
 					});

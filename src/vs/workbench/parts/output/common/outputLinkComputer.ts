@@ -8,9 +8,9 @@ import { IMirrorModel, IWorkerContext } from 'vs/editor/common/services/editorSi
 import { ILink } from 'vs/editor/common/modes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
-import strings = require('vs/base/common/strings');
-import arrays = require('vs/base/common/arrays');
+import * as paths from 'vs/base/common/paths';
+import * as strings from 'vs/base/common/strings';
+import * as arrays from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
 
 export interface ICreateData {

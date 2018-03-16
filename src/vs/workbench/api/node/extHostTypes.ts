@@ -728,6 +728,27 @@ export class Location {
 	}
 }
 
+export class DiagnosticRelatedInformation {
+
+	static is(thing: any): thing is DiagnosticRelatedInformation {
+		if (!thing) {
+			return false;
+		}
+		return typeof (<DiagnosticRelatedInformation>thing).message === 'string'
+			&& (<DiagnosticRelatedInformation>thing).location
+			&& Range.isRange((<DiagnosticRelatedInformation>thing).location.range)
+			&& URI.isUri((<DiagnosticRelatedInformation>thing).location.uri);
+	}
+
+	location: Location;
+	message: string;
+
+	constructor(location: Location, message: string) {
+		this.location = location;
+		this.message = message;
+	}
+}
+
 export class Diagnostic {
 
 	range: Range;
@@ -735,6 +756,7 @@ export class Diagnostic {
 	source: string;
 	code: string | number;
 	severity: DiagnosticSeverity;
+	relatedInformation: DiagnosticRelatedInformation[];
 
 	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
 		this.range = range;

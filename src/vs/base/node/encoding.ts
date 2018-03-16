@@ -5,8 +5,8 @@
 
 'use strict';
 
-import stream = require('vs/base/node/stream');
-import iconv = require('iconv-lite');
+import * as stream from 'vs/base/node/stream';
+import * as iconv from 'iconv-lite';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { exec } from 'child_process';

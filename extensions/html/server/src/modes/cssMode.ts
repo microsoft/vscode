@@ -9,7 +9,7 @@ import { TextDocument, Position, Range } from 'vscode-languageserver-types';
 import { getCSSLanguageService, Stylesheet, ICompletionParticipant } from 'vscode-css-languageservice';
 import { LanguageMode, Settings } from './languageModes';
 import { HTMLDocumentRegions, CSS_STYLE_RULE } from './embeddedSupport';
-import { Color } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
+import { Color } from 'vscode-languageserver';
 import { extractAbbreviation } from 'vscode-emmet-helper';
 
 export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>): LanguageMode {

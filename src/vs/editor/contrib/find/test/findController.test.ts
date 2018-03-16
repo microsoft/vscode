@@ -28,7 +28,7 @@ export class TestFindController extends CommonFindController {
 	public delayUpdateHistory: boolean = false;
 	public delayedUpdateHistoryPromise: TPromise<void>;
 
-	private _delayedUpdateHistoryEvent: Emitter<void> = new Emitter<void>();
+	private readonly _delayedUpdateHistoryEvent: Emitter<void> = new Emitter<void>();
 
 	constructor(
 		editor: ICodeEditor,

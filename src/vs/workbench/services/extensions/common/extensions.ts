@@ -8,7 +8,7 @@ import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 
 export interface IExtensionDescription {
 	readonly id: string;
