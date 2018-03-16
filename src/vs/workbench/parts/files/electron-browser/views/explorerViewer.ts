@@ -518,7 +518,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		return true;
 	}
 
-	public openEditor(stat: FileStat, options: { preserveFocus: boolean; sideBySide: boolean; pinned: boolean; }): void {
+	private openEditor(stat: FileStat, options: { preserveFocus: boolean; sideBySide: boolean; pinned: boolean; }): void {
 		if (stat && !stat.isDirectory) {
 			/* __GDPR__
 				"workbenchActionExecuted" : {

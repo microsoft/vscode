@@ -441,12 +441,8 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getSelection();
 
-				if (Array.isArray(element) && element[0] instanceof FileStat) {
-					if (element[0].isDirectory) {
-						this.explorerViewer.toggleExpansion(element[0]);
-					}
-
-					controller.openEditor(element[0], { pinned: false, sideBySide: false, preserveFocus: false });
+				if (Array.isArray(element) && element[0] instanceof FileStat && element[0].isDirectory) {
+					this.explorerViewer.toggleExpansion(element[0]);
 				}
 			}
 		}));

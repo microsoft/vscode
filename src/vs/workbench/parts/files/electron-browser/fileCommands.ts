@@ -16,7 +16,7 @@ import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExplorerFocusCondition, FileOnDiskContentProvider, VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
+import { ExplorerFocusCondition, FileOnDiskContentProvider, VIEWLET_ID, FilesExplorerFocusCondition, ExplorerFolderContext } from 'vs/workbench/parts/files/common/files';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -25,7 +25,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -41,6 +41,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 // Commands
 
@@ -567,5 +568,41 @@ CommandsRegistry.registerCommand({
 		);
 
 		return workspaceEditingService.removeFolders(resources);
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'explorer.open',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(10),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerFolderContext.toNegated()),
+	primary: KeyCode.Enter,
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
+	handler: (accessor, resource: URI | object) => {
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
+		if (resources.length === 0) {
+			return TPromise.as(true);
+		}
+
+		const fileService = accessor.get(IFileService);
+		const editorService = accessor.get(IWorkbenchEditorService);
+		const telemetryService = accessor.get(ITelemetryService);
+
+		return fileService.resolveFiles(resources.map(r => ({ resource: r }))).then(resolved => {
+			const editors = resolved.filter(r => r.success && !r.stat.isDirectory).map(r => ({
+				input: {
+					resource: r.stat.resource,
+					options: { preserveFocus: false }
+				}
+			}));
+			/* __GDPR__
+				"workbenchActionExecuted" : {
+					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
+
+			return editorService.openEditors(editors);
+		});
 	}
 });
