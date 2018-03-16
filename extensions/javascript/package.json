@@ -60,7 +60,9 @@
           "meta.embedded.expression.js": "javascriptreact"
         },
         "tokenTypes": {
-          "entity.name.type.instance.jsdoc": "other"
+          "entity.name.type.instance.jsdoc": "other",
+          "entity.name.function.tagged-template.js": "other",
+          "entity.name.function.tagged-template.js.jsx": "other"
         }
       },
       {
@@ -74,7 +76,9 @@
           "meta.embedded.expression.js": "javascript"
         },
         "tokenTypes": {
-          "entity.name.type.instance.jsdoc": "other"
+          "entity.name.type.instance.jsdoc": "other",
+          "entity.name.function.tagged-template.js": "other",
+          "entity.name.function.tagged-template.js.jsx": "other"
         }
       },
       {

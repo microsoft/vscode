@@ -44,7 +44,9 @@
         "scopeName": "source.ts",
         "path": "./syntaxes/TypeScript.tmLanguage.json",
         "tokenTypes": {
-          "entity.name.type.instance.jsdoc": "other"
+          "entity.name.type.instance.jsdoc": "other",
+          "entity.name.function.tagged-template.ts": "other",
+          "entity.name.function.tagged-template.tsx": "other"
         }
       },
       {
@@ -58,7 +60,9 @@
           "meta.embedded.expression.tsx": "typescriptreact"
         },
         "tokenTypes": {
-          "entity.name.type.instance.jsdoc": "other"
+          "entity.name.type.instance.jsdoc": "other",
+          "entity.name.function.tagged-template.ts": "other",
+          "entity.name.function.tagged-template.tsx": "other"
         }
       }
     ],
