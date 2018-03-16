@@ -725,21 +725,22 @@ export interface ExtHostTaskShape {
 	$provideTasks(handle: number): TPromise<TaskSet>;
 }
 
-export interface IFunctionBreakpointDto {
-	type: 'function';
+export interface IBreakpointDto {
+	type: string;
 	id?: string;
 	enabled: boolean;
 	condition?: string;
 	hitCondition?: string;
+	logMessage?: string;
+}
+
+export interface IFunctionBreakpointDto extends IBreakpointDto {
+	type: 'function';
 	functionName: string;
 }
 
-export interface ISourceBreakpointDto {
+export interface ISourceBreakpointDto extends IBreakpointDto {
 	type: 'source';
-	id?: string;
-	enabled: boolean;
-	condition?: string;
-	hitCondition?: string;
 	uri: UriComponents;
 	line: number;
 	character: number;
@@ -759,6 +760,7 @@ export interface ISourceMultiBreakpointDto {
 		enabled: boolean;
 		condition?: string;
 		hitCondition?: string;
+		logMessage?: string;
 		line: number;
 		character: number;
 	}[];

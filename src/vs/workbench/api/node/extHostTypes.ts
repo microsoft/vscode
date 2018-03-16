@@ -1673,8 +1673,9 @@ export class Breakpoint {
 	readonly enabled: boolean;
 	readonly condition?: string;
 	readonly hitCondition?: string;
+	readonly logMessage?: string;
 
-	protected constructor(enabled?: boolean, condition?: string, hitCondition?: string) {
+	protected constructor(enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
 		this.enabled = typeof enabled === 'boolean' ? enabled : true;
 		if (typeof condition === 'string') {
 			this.condition = condition;
@@ -1682,14 +1683,17 @@ export class Breakpoint {
 		if (typeof hitCondition === 'string') {
 			this.hitCondition = hitCondition;
 		}
+		if (typeof logMessage === 'string') {
+			this.logMessage = logMessage;
+		}
 	}
 }
 
 export class SourceBreakpoint extends Breakpoint {
 	readonly location: Location;
 
-	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string) {
-		super(enabled, condition, hitCondition);
+	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
+		super(enabled, condition, hitCondition, logMessage);
 		if (location === null) {
 			throw illegalArgument('location');
 		}
@@ -1700,8 +1704,8 @@ export class SourceBreakpoint extends Breakpoint {
 export class FunctionBreakpoint extends Breakpoint {
 	readonly functionName: string;
 
-	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string) {
-		super(enabled, condition, hitCondition);
+	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
+		super(enabled, condition, hitCondition, logMessage);
 		if (!functionName) {
 			throw illegalArgument('functionName');
 		}

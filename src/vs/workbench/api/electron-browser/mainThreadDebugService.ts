@@ -101,7 +101,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 						lineNumber: l.line + 1,
 						column: l.character > 0 ? l.character + 1 : 0,
 						condition: l.condition,
-						hitCondition: l.hitCondition
+						hitCondition: l.hitCondition,
+						logMessage: l.logMessage
 					}
 				);
 				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps);
@@ -126,9 +127,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 					type: 'function',
 					id: fbp.getId(),
 					enabled: fbp.enabled,
-					functionName: fbp.name,
+					condition: fbp.condition,
 					hitCondition: fbp.hitCondition,
-					/* condition: fbp.condition */
+					logMessage: fbp.logMessage,
+					functionName: fbp.name
 				};
 			} else {
 				const sbp = <IBreakpoint>bp;
@@ -138,6 +140,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 					enabled: sbp.enabled,
 					condition: sbp.condition,
 					hitCondition: sbp.hitCondition,
+					logMessage: sbp.logMessage,
 					uri: sbp.uri,
 					line: sbp.lineNumber > 0 ? sbp.lineNumber - 1 : 0,
 					character: (typeof sbp.column === 'number' && sbp.column > 0) ? sbp.column - 1 : 0,
