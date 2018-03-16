@@ -16,6 +16,9 @@ const inlineElements = ['a', 'abbr', 'acronym', 'applet', 'b', 'basefont', 'bdo'
 	's', 'samp', 'select', 'small', 'span', 'strike', 'strong', 'sub', 'sup',
 	'textarea', 'tt', 'u', 'var'];
 
+let previousAbbreviation = '';
+let previousAbbreviationIndividualLines = '';
+
 interface ExpandAbbreviationInput {
 	syntax: string;
 	abbreviation: string;
@@ -161,13 +164,26 @@ function doWrapping(individualLines: boolean, args: any) {
 		let extractedResults = helper.extractAbbreviationFromText(inputAbbreviation);
 		if (!extractedResults) {
 			return Promise.resolve(inPreview);
-		} else if (extractedResults.abbreviation !== inputAbbreviation) {
-			// Not clear what should we do in this case. Warn the user? How?
+		} else if (extractedResults.abbreviation !== inputAbbreviation.replace(/\|[a-zA-Z]+/g, '')) {
+			if (definitive && inPreview) {
+				// If the final text is not a complete abbreviation, we revert any previews made.
+				return revertPreview().then(() => {
+					vscode.window.showErrorMessage('Failed to expand abbreviation ' + inputAbbreviation + '\n' + '  Please check it\'s complete before pressing enter.', 'Ok');
+					return false;
+				});
+			}
+			// If the text is not a complete abbreviation yet, we don't modify the preview.
+			return Promise.resolve(inPreview);
 		}
 
 		let { abbreviation, filter } = extractedResults;
 		if (definitive) {
 			const revertPromise = inPreview ? revertPreview() : Promise.resolve();
+			if (individualLines) {
+				previousAbbreviationIndividualLines = inputAbbreviation;
+			} else {
+				previousAbbreviation = inputAbbreviation;
+			}
 			return revertPromise.then(() => {
 				const expandAbbrList: ExpandAbbreviationInput[] = rangesToReplace.map(rangesAndContent => {
 					let rangeToReplace = rangesAndContent.originalRange;
@@ -201,7 +217,8 @@ function doWrapping(individualLines: boolean, args: any) {
 		}
 		return '';
 	}
-	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation', validateInput: inputChanged });
+	let value = individualLines ? previousAbbreviationIndividualLines : previousAbbreviation;
+	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation', validateInput: inputChanged, value, valueSelection: [value.length, value.length] });
 	return abbreviationPromise.then(inputAbbreviation => {
 		return makeChanges(inputAbbreviation, true);
 	});
