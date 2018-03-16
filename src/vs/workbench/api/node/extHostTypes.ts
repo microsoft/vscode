@@ -1588,6 +1588,7 @@ export class Task implements vscode.Task {
 export enum ProgressLocation {
 	SourceControl = 1,
 	Window = 10,
+	Notification = 15
 }
 
 export class TreeItem {
