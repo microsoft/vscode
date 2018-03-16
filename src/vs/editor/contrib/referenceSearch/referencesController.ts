@@ -178,6 +178,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		let source = this._model.nearestReference(this._editor.getModel().uri, this._widget.position);
 		let target = this._model.nextOrPreviousReference(source, fwd);
 		this._gotoReference(target);
+		this._widget.setSelection(target);
 		this._editor.focus();
 	}
 
