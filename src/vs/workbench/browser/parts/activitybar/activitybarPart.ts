@@ -24,14 +24,15 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { createStyleSheet } from 'vs/base/browser/dom';
+import { scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { Color } from 'vs/base/common/color';
 
 export class ActivitybarPart extends Part {
 
@@ -141,8 +142,17 @@ export class ActivitybarPart extends Part {
 		// this only after the workbench has loaded because otherwise there is ugly flicker.
 		if (isMacintosh) {
 			this.lifecycleService.when(LifecyclePhase.Running).then(() => {
-				const styles = createStyleSheet($el.getHTMLElement());
-				styles.innerHTML = '.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-label { will-change: transform; }';
+				scheduleAtNextAnimationFrame(() => { // another delay...
+					scheduleAtNextAnimationFrame(() => { // ...to prevent more flickering on startup
+						registerThemingParticipant((theme, collector) => {
+							const activityBarForeground = theme.getColor(ACTIVITY_BAR_FOREGROUND);
+							if (activityBarForeground && !activityBarForeground.equals(Color.white)) {
+								// only apply this workaround if the color is different from the image one (white)
+								collector.addRule('.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-label { will-change: transform; }');
+							}
+						});
+					});
+				});
 			});
 		}
 
