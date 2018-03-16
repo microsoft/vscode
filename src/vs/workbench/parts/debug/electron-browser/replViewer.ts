@@ -352,7 +352,13 @@ export class ReplExpressionsRenderer implements IRenderer {
 						}
 
 						currentToken = token;
-						tokensContainer.appendChild(token);
+
+						// get child until deepest nested node is found
+						let childPointer: Node = tokensContainer;
+						while (childPointer.hasChildNodes() && childPointer.firstChild.nodeName !== '#text') {
+							childPointer = childPointer.firstChild;
+						}
+						childPointer.appendChild(token);
 
 						i = index;
 					}
