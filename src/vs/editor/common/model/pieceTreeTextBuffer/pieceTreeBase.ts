@@ -616,8 +616,9 @@ export class PieceTreeBase {
 			if (lineBreakCnt >= 1) {
 				// last line break position
 				let lineStarts = this._buffers[currentNode.piece.bufferIndex].lineStarts;
+				let startOffsetInBuffer = this.offsetInBuffer(currentNode.piece.bufferIndex, currentNode.piece.start);
 				let nextLineStartOffset = lineStarts[start.line + lineBreakCnt];
-				resultLen = this.findMatchesInNode(currentNode, searcher, startLineNumber, start, this.positionInBuffer(currentNode, nextLineStartOffset), searchData, captureMatches, limitResultCount, resultLen, result);
+				resultLen = this.findMatchesInNode(currentNode, searcher, startLineNumber, start, this.positionInBuffer(currentNode, nextLineStartOffset - startOffsetInBuffer), searchData, captureMatches, limitResultCount, resultLen, result);
 
 				if (resultLen >= limitResultCount) {
 					return result;
