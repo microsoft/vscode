@@ -17,7 +17,7 @@ export default class LogDirectoryProvider {
 		const root = this.logDirectory();
 		if (root) {
 			try {
-				return fs.mkdtempSync(path.join(root.fsPath, `tsserver-log-`));
+				return fs.mkdtempSync(path.join(root, `tsserver-log-`));
 			} catch (e) {
 				return undefined;
 			}
@@ -26,9 +26,9 @@ export default class LogDirectoryProvider {
 	}
 
 	@memoize
-	private logDirectory(): vscode.Uri | undefined {
+	private logDirectory(): string | undefined {
 		try {
-			const path = this.context.logDirectory.fsPath;
+			const path = this.context.logDirectory;
 			if (!fs.existsSync(path)) {
 				fs.mkdirSync(path);
 			}

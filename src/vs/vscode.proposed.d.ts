@@ -421,7 +421,7 @@ declare module 'vscode' {
 		 *
 		 * Extensions must create this directory before writing to it. The parent directory will always exist.
 		 */
-		readonly logDirectory: Uri;
+		readonly logDirectory: string;
 	}
 
 	//#endregion

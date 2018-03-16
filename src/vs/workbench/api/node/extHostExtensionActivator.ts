@@ -11,7 +11,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostLogger } from 'vs/workbench/api/node/extHostLogService';
-import URI from 'vs/base/common/uri';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = TPromise.wrap<void>(void 0);
@@ -29,7 +28,7 @@ export interface IExtensionContext {
 	storagePath: string;
 	asAbsolutePath(relativePath: string): string;
 	logger: ExtHostLogger;
-	readonly logDirectory: URI;
+	readonly logDirectory: string;
 }
 
 /**

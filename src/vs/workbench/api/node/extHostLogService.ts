@@ -12,7 +12,6 @@ import { ILogService, DelegatedLogService } from 'vs/platform/log/common/log';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtHostLogServiceShape } from 'vs/workbench/api/node/extHost.protocol';
-import URI from 'vs/base/common/uri';
 
 
 export class ExtHostLogService extends DelegatedLogService implements ILogService, ExtHostLogServiceShape {
@@ -40,13 +39,13 @@ export class ExtHostLogService extends DelegatedLogService implements ILogServic
 		return logger;
 	}
 
-	getLogDirectory(extensionID: string): URI {
-		return URI.file(join(this._environmentService.logsPath, `${extensionID}_${this._windowId}`));
+	getLogDirectory(extensionID: string): string {
+		return join(this._environmentService.logsPath, `${extensionID}_${this._windowId}`);
 	}
 
 	private createLogger(extensionID: string): ExtHostLogger {
 		const logsDirPath = this.getLogDirectory(extensionID);
-		const logService = createSpdLogService(extensionID, this.getLevel(), logsDirPath.fsPath);
+		const logService = createSpdLogService(extensionID, this.getLevel(), logsDirPath);
 		this._register(this.onDidChangeLogLevel(level => logService.setLevel(level)));
 		return new ExtHostLogger(logService);
 	}
