@@ -103,26 +103,22 @@ export function getHTMLFoldingRegions(htmlLanguageService: HTMLLanguageService, 
 	const scanner = htmlLanguageService.createScanner(document.getText());
 	let token = scanner.scan();
 	let ranges: FoldingRange[] = [];
-	let stack: FoldingRange[] = [];
-	let elementNames: string[] = [];
+	let stack: { startLine: number, tagName: string }[] = [];
 	let lastTagName = null;
 	let prevStart = -1;
 
 	function addRange(range: FoldingRange) {
 		ranges.push(range);
+		prevStart = range.startLine;
 	}
 
 	while (token !== TokenType.EOS) {
 		switch (token) {
-			case TokenType.StartTagOpen: {
-				let startLine = document.positionAt(scanner.getTokenOffset()).line;
-				let range = { startLine, endLine: startLine };
-				stack.push(range);
-				break;
-			}
 			case TokenType.StartTag: {
-				lastTagName = scanner.getTokenText();
-				elementNames.push(lastTagName);
+				let tagName = scanner.getTokenText();
+				let startLine = document.positionAt(scanner.getTokenOffset()).line;
+				stack.push({ startLine, tagName });
+				lastTagName = tagName;
 				break;
 			}
 			case TokenType.EndTag: {
@@ -136,17 +132,19 @@ export function getHTMLFoldingRegions(htmlLanguageService: HTMLLanguageService, 
 			// fallthrough
 			case TokenType.EndTagClose:
 			case TokenType.StartTagSelfClose: {
-				let name = elementNames.pop();
-				let range = stack.pop();
-				while (name && name !== lastTagName) {
-					name = elementNames.pop();
-					range = stack.pop();
+				let i = stack.length - 1;
+				while (i >= 0 && stack[i].tagName !== lastTagName) {
+					i--;
 				}
-				let line = document.positionAt(scanner.getTokenOffset()).line;
-				if (range && line > range.startLine + 1 && prevStart !== range.startLine) {
-					range.endLine = line - 1;
-					addRange(range);
-					prevStart = range.startLine;
+				if (i >= 0) {
+					let stackElement = stack[i];
+					stack.length = i;
+					let line = document.positionAt(scanner.getTokenOffset()).line;
+					let startLine = stackElement.startLine;
+					let endLine = line - 1;
+					if (endLine > startLine && prevStart !== startLine) {
+						addRange({ startLine, endLine });
+					}
 				}
 				break;
 			}
@@ -156,21 +154,19 @@ export function getHTMLFoldingRegions(htmlLanguageService: HTMLLanguageService, 
 				let m = text.match(/^\s*#(region\b)|(endregion\b)/);
 				if (m) {
 					if (m[1]) { // start pattern match
-						let range = { startLine, endLine: startLine, type: FoldingRangeType.Region };
-						stack.push(range);
-						elementNames.push('');
+						stack.push({ startLine, tagName: '' }); // empty tagName marks region
 					} else {
 						let i = stack.length - 1;
-						while (i >= 0 && stack[i].type !== FoldingRangeType.Region) {
+						while (i >= 0 && stack[i].tagName.length) {
 							i--;
 						}
 						if (i >= 0) {
-							let range = stack[i];
+							let stackElement = stack[i];
 							stack.length = i;
-							if (startLine > range.startLine && prevStart !== range.startLine) {
-								range.endLine = startLine;
-								addRange(range);
-								prevStart = range.startLine;
+							let endLine = startLine;
+							startLine = stackElement.startLine;
+							if (endLine > startLine && prevStart !== startLine) {
+								addRange({ startLine, endLine, type: FoldingRangeType.Region });
 							}
 						}
 					}
@@ -178,7 +174,6 @@ export function getHTMLFoldingRegions(htmlLanguageService: HTMLLanguageService, 
 					let endLine = document.positionAt(scanner.getTokenOffset() + scanner.getTokenLength()).line;
 					if (startLine < endLine) {
 						addRange({ startLine, endLine, type: FoldingRangeType.Comment });
-						prevStart = startLine;
 					}
 				}
 				break;

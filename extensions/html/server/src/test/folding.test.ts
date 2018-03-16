@@ -188,6 +188,39 @@ suite('Object Folding', () => {
 	// 	assertRanges(input, [r(0, 7), r(1, 6), r(2, 5), r(3, 5, 'comment')]);
 	// });
 
+	test('Fold incomplete', () => {
+		let input = [
+			/*0*/'<body>',
+			/*1*/'<div></div>',
+			/*2*/'Hello',
+			/*3*/'</div>',
+			/*4*/'</body>',
+		];
+		assertRanges(input, [r(0, 3)]);
+	});
+
+	test('Fold incomplete 2', () => {
+		let input = [
+			/*0*/'<be><div>',
+			/*1*/'<!-- #endregion -->',
+			/*2*/'</div>',
+		];
+		assertRanges(input, [r(0, 1)]);
+	});	
+
+	test('Fold intersecting region', () => {
+		let input = [
+			/*0*/'<body>',
+			/*1*/'<!-- #region -->',
+			/*2*/'Hello',
+			/*3*/'<div></div>',
+			/*4*/'</body>',
+			/*5*/'<!-- #endregion -->',
+		];
+		assertRanges(input, [r(0, 3)]);
+	});	
+
+
 	test('Test limit', () => {
 		let input = [
 			/* 0*/'<div>',
