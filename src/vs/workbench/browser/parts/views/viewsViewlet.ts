@@ -608,7 +608,6 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 			if (currentState) {
 				currentState.collapsed = collapsed;
 				currentState.size = collapsed ? currentState.size : panelSize;
-				currentState.order = order;
 			} else {
 				this.viewsStates.set(view.id, {
 					collapsed,
