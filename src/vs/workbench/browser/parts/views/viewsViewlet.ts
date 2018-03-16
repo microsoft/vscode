@@ -603,8 +603,8 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 			}
 
 			const collapsed = !view.isExpanded();
-			const order = this.viewsViewletPanels.indexOf(view);
 			const panelSize = this.getPanelSize(view);
+			// Do not save order because views can come late.
 			if (currentState) {
 				currentState.collapsed = collapsed;
 				currentState.size = collapsed ? currentState.size : panelSize;
@@ -613,7 +613,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 					collapsed,
 					size: this.didLayout ? panelSize : void 0,
 					isHidden: false,
-					order,
+					order: void 0
 				});
 			}
 		}
