@@ -39,7 +39,7 @@ export class KeybindingIO {
 	}
 
 	public static readUserKeybindingItem(input: IUserFriendlyKeybinding, OS: OperatingSystem): IUserKeybindingItem {
-		const [firstPart, chordPart] = (typeof input.key === 'string' ? this._readUserBinding(input.key) : [null, null]);
+		const [firstPart, chordPart] = this._readUserPlatformBinding(input, OS);
 		const when = (typeof input.when === 'string' ? ContextKeyExpr.deserialize(input.when) : null);
 		const command = (typeof input.command === 'string' ? input.command : null);
 		const commandArgs = (typeof input.args !== 'undefined' ? input.args : null);
@@ -150,6 +150,27 @@ export class KeybindingIO {
 		}
 		const keyCode = KeyCodeUtils.fromUserSettings(mods.key);
 		return [new SimpleKeybinding(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
+	}
+
+	private static _platformKeyFromBinding(binding: IUserFriendlyKeybinding, OS: OperatingSystem): string {
+		if (!binding) {
+			return null;
+		}
+
+		let platformKey: string = binding.key;
+		if (OS === OperatingSystem.Windows && binding.win) {
+			platformKey = binding.win;
+		} else if (OS === OperatingSystem.Macintosh && binding.mac) {
+			platformKey = binding.mac;
+		} else if (OS === OperatingSystem.Linux && binding.linux) {
+			platformKey = binding.linux;
+		}
+		return typeof platformKey === 'string' ? platformKey : null;
+	}
+
+	private static _readUserPlatformBinding(input: IUserFriendlyKeybinding, OS: OperatingSystem): [SimpleKeybinding | ScanCodeBinding, SimpleKeybinding | ScanCodeBinding] {
+		let platformKey = this._platformKeyFromBinding(input, OS);
+		return platformKey ? this._readUserBinding(platformKey) : [null, null];
 	}
 
 	static _readUserBinding(input: string): [SimpleKeybinding | ScanCodeBinding, SimpleKeybinding | ScanCodeBinding] {
