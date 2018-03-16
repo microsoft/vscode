@@ -19,7 +19,7 @@ suite('Emmet Support', () => {
 
 	const htmlLanguageService = getLanguageService();
 
-	function assertCompletions(syntax: string, value: string, expectedProposal: string, expectedProposalDoc: string): void {
+	function assertCompletions(syntax: string, value: string, expectedProposal: string | null, expectedProposalDoc: string | null): void {
 		const offset = value.indexOf('|');
 		value = value.substr(0, offset) + value.substr(offset + 1);
 
@@ -27,24 +27,21 @@ suite('Emmet Support', () => {
 		const position = document.positionAt(offset);
 		const documentRegions = getLanguageModelCache<embeddedSupport.HTMLDocumentRegions>(10, 60, document => embeddedSupport.getDocumentRegions(htmlLanguageService, document));
 		const mode = syntax === 'html' ? getHTMLMode(htmlLanguageService) : getCSSMode(documentRegions);
-		const emmetCompletionList: CompletionList = {
-			isIncomplete: true,
-			items: undefined
-		};
-		mode.setCompletionParticipants([getEmmetCompletionParticipants(document, position, document.languageId, {}, emmetCompletionList)]);
+
+		const emmetCompletionList = CompletionList.create([], false);
+		mode.setCompletionParticipants!([getEmmetCompletionParticipants(document, position, document.languageId, {}, emmetCompletionList)]);
 
 		const list = mode.doComplete!(document, position);
 		assert.ok(list);
 		assert.ok(emmetCompletionList);
 
-
 		if (expectedProposal && expectedProposalDoc) {
-			let actualLabels = emmetCompletionList!.items.map(c => c.label).sort();
-			let actualDocs = emmetCompletionList!.items.map(c => c.documentation).sort();
+			let actualLabels = emmetCompletionList.items.map(c => c.label).sort();
+			let actualDocs = emmetCompletionList.items.map(c => c.documentation).sort();
 			assert.ok(actualLabels.indexOf(expectedProposal) !== -1, 'Not found:' + expectedProposal + ' is ' + actualLabels.join(', '));
 			assert.ok(actualDocs.indexOf(expectedProposalDoc) !== -1, 'Not found:' + expectedProposalDoc + ' is ' + actualDocs.join(', '));
 		} else {
-			assert.ok(!emmetCompletionList || !emmetCompletionList.items);
+			assert.ok(!emmetCompletionList.items.length && !emmetCompletionList.isIncomplete);
 		}
 
 	}

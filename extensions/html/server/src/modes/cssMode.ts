@@ -28,7 +28,7 @@ export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegio
 			let embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.doValidation(embedded, cssStylesheets.get(embedded), settings && settings.css);
 		},
-		doComplete(document: TextDocument, position: Position, settings: Settings, registeredCompletionParticipants: ICompletionParticipant[]) {
+		doComplete(document: TextDocument, position: Position, settings?: Settings, registeredCompletionParticipants?: ICompletionParticipant[]) {
 			let embedded = embeddedCSSDocuments.get(document);
 			const stylesheet = cssStylesheets.get(embedded);
 

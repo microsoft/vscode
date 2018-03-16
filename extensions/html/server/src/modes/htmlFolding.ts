@@ -41,7 +41,7 @@ function limitRanges(ranges: FoldingRange[], maxRanges: number) {
 
 	// compute each range's nesting level in 'nestingLevels'.
 	// count the number of ranges for each level in 'nestingLevelCounts'
-	let top: FoldingRange | null = null;
+	let top: FoldingRange | undefined = void 0;
 	let previous: FoldingRange[] = [];
 	let nestingLevels: number[] = [];
 	let nestingLevelCounts: number[] = [];
@@ -69,7 +69,9 @@ function limitRanges(ranges: FoldingRange[], maxRanges: number) {
 					do {
 						top = previous.pop();
 					} while (top && entry.startLine > top.endLine);
-					previous.push(top);
+					if (top) {
+						previous.push(top);
+					}
 					top = entry;
 					setNestingLevel(i, previous.length);
 				}
@@ -128,7 +130,7 @@ export function getHTMLFoldingRegions(htmlLanguageService: HTMLLanguageService, 
 				break;
 			}
 			case TokenType.StartTagClose:
-				if (!isEmptyElement(lastTagName)) {
+				if (!lastTagName || !isEmptyElement(lastTagName)) {
 					break;
 				}
 			// fallthrough

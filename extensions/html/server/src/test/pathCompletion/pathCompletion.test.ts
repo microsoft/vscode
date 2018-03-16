@@ -40,23 +40,23 @@ function assertSuggestions(actual: CompletionItem[], expected: PathSuggestion[])
 		if (expected[i].kind) {
 			assert.equal(actual[i].kind,
 				expected[i].kind,
-				`Suggestion ${actual[i].label} has type ${CompletionItemKind[actual[i].kind]} but should have label ${CompletionItemKind[expected[i].kind]}`
+				`Suggestion ${actual[i].label} has kind ${actual[i].kind} but should have ${expected[i].kind}`
 			);
 		}
 		if (expected[i].textEdit) {
-			assert.equal(actual[i].textEdit.newText, expected[i].textEdit.newText);
-			assert.deepEqual(actual[i].textEdit.range, expected[i].textEdit.range);
+			assert.equal(actual[i].textEdit!.newText, expected[i].textEdit!.newText);
+			assert.deepEqual(actual[i].textEdit!.range, expected[i].textEdit!.range);
 		}
 		if (expected[i].command) {
 			assert.equal(
-				actual[i].command.title,
-				expected[i].command.title,
-				`Suggestion ${actual[i].label} has command title ${actual[i].command.title} but should have command title ${expected[i].command.title}`
+				actual[i].command!.title,
+				expected[i].command!.title,
+				`Suggestion ${actual[i].label} has command title ${actual[i].command!.title} but should have command title ${expected[i].command!.title}`
 			);
 			assert.equal(
-				actual[i].command.command,
-				expected[i].command.command,
-				`Suggestion ${actual[i].label} has command ${actual[i].command.command} but should have command ${expected[i].command.command}`
+				actual[i].command!.command,
+				expected[i].command!.command,
+				`Suggestion ${actual[i].label} has command ${actual[i].command!.command} but should have command ${expected[i].command!.command}`
 			);
 		}
 	}
@@ -112,7 +112,7 @@ suite('Path Completion - Absolute Path:', () => {
 		const suggestions1 = providePathSuggestions(value, mockRange, activeFileFsPath1, fixtureRoot);
 		const suggestions2 = providePathSuggestions(value, mockRange, activeFileFsPath2, fixtureRoot);
 
-		const verify = (suggestions) => {
+		const verify = (suggestions: CompletionItem[]) => {
 			assertSuggestions(suggestions, [
 				{ label: 'about/', kind: CompletionItemKind.Folder },
 				{ label: 'index.html', kind: CompletionItemKind.File },
@@ -145,9 +145,9 @@ suite('Path Completion - Folder Commands:', () => {
 		const suggestions = providePathSuggestions(value, mockRange, activeFileFsPath);
 
 		assertSuggestions(suggestions, [
-			{ label: 'about/', command: { title: 'Suggest', command: 'editor.action.triggerSuggest'} },
+			{ label: 'about/', command: { title: 'Suggest', command: 'editor.action.triggerSuggest' } },
 			{ label: 'index.html' },
-			{ label: 'src/', command: { title: 'Suggest', command: 'editor.action.triggerSuggest'} },
+			{ label: 'src/', command: { title: 'Suggest', command: 'editor.action.triggerSuggest' } },
 		]);
 	});
 });

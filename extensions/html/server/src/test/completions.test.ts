@@ -56,7 +56,7 @@ suite('Completions', () => {
 		let position = document.positionAt(offset);
 
 		var languageModes = getLanguageModes({ css: true, javascript: true });
-		var mode = languageModes.getModeAtPosition(document, position);
+		var mode = languageModes.getModeAtPosition(document, position)!;
 
 		if (!workspaceFolders) {
 			workspaceFolders = [{ name: 'x', uri: path.dirname(uri) }];
@@ -67,7 +67,7 @@ suite('Completions', () => {
 			mode.setCompletionParticipants([getPathCompletionParticipant(document, workspaceFolders, participantResult)]);
 		}
 
-		let list = mode.doComplete!(document, position);
+		let list = mode.doComplete!(document, position)!;
 		list.items = list.items.concat(participantResult.items);
 
 		if (expected.count) {

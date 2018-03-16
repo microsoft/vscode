@@ -37,7 +37,7 @@ export interface LanguageMode {
 	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
 	doComplete?: (document: TextDocument, position: Position, settings?: Settings, registeredCompletionParticipants?: any[]) => CompletionList | null;
 	setCompletionParticipants?: (registeredCompletionParticipants: any[]) => void;
-	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem | null;
+	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem;
 	doHover?: (document: TextDocument, position: Position) => Hover | null;
 	doSignatureHelp?: (document: TextDocument, position: Position) => SignatureHelp | null;
 	findDocumentHighlight?: (document: TextDocument, position: Position) => DocumentHighlight[];

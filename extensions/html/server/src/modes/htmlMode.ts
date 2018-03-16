@@ -5,7 +5,7 @@
 'use strict';
 
 import { getLanguageModelCache } from '../languageModelCache';
-import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration } from 'vscode-html-languageservice';
+import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration, ICompletionParticipant } from 'vscode-html-languageservice';
 import { TextDocument, Position, Range } from 'vscode-languageserver-types';
 import { LanguageMode, Settings } from './languageModes';
 
@@ -15,7 +15,7 @@ import { getHTMLFoldingRegions } from './htmlFolding';
 export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageMode {
 	let globalSettings: Settings = {};
 	let htmlDocuments = getLanguageModelCache<HTMLDocument>(10, 60, document => htmlLanguageService.parseHTMLDocument(document));
-	let completionParticipants = [];
+	let completionParticipants: ICompletionParticipant[] = [];
 	return {
 		getId() {
 			return 'html';
@@ -23,7 +23,7 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageM
 		configure(options: any) {
 			globalSettings = options;
 		},
-		doComplete(document: TextDocument, position: Position, settings: Settings = globalSettings, registeredCompletionParticipants: any[]) {
+		doComplete(document: TextDocument, position: Position, settings: Settings = globalSettings, registeredCompletionParticipants?: ICompletionParticipant[]) {
 			if (registeredCompletionParticipants) {
 				completionParticipants = registeredCompletionParticipants;
 			}
