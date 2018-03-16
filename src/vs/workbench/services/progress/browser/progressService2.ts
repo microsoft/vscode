@@ -192,10 +192,10 @@ export class ProgressService2 implements IProgressService2 {
 		};
 
 		const updateProgress = (notification: INotificationHandle, total?: number, worked?: number): void => {
-			if (typeof options.total === 'number') {
+			if (typeof options.total === 'number' && options.total > 0) {
 				notification.progress.total(options.total);
 
-				if (typeof worked === 'number') {
+				if (typeof worked === 'number' && worked > 0) {
 					notification.progress.worked(worked);
 				}
 			} else {
