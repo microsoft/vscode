@@ -17,7 +17,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
 import * as Dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event, Emitter, once } from 'vs/base/common/event';
 import * as Builder from 'vs/base/browser/builder';
 import * as Types from 'vs/base/common/types';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -1718,7 +1718,8 @@ class TaskService implements ITaskService {
 						'workbench.action.tasks.terminate',
 						nls.localize('TerminateAction.label', "Terminate Task"),
 						undefined, true, () => { this.runTerminateCommand(); return TPromise.wrap<void>(undefined); });
-				this.notificationService.notify({ severity: buildError.severity, message: buildError.message, actions: { primary: [action] } });
+				let handle = this.notificationService.notify({ severity: buildError.severity, message: buildError.message, actions: { primary: [action] } });
+				once(handle.onDidDispose)(() => action.dispose());
 			} else {
 				this.notificationService.notify({ severity: buildError.severity, message: buildError.message });
 			}
@@ -1859,21 +1860,24 @@ class TaskService implements ITaskService {
 			return TPromise.as(undefined);
 		}
 
-		this.notificationService.notify({
+		const action = new Action('dontShowAgain', nls.localize('TaskService.notAgain', 'Don\'t Show Again'), null, true, (notification: IDisposable) => {
+			this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
+			this.__showIgnoreMessage = false;
+
+			// Hide notification
+			notification.dispose();
+
+			return TPromise.as(true);
+		});
+
+		const handle = this.notificationService.notify({
 			severity: Severity.Info,
 			message: nls.localize('TaskService.ignoredFolder', 'The following workspace folders are ignored since they use task version 0.1.0: {0}', this.ignoredWorkspaceFolders.map(f => f.name).join(', ')),
 			actions: {
-				secondary: [new Action('dontShowAgain', nls.localize('TaskService.notAgain', 'Don\'t Show Again'), null, true, (notification: IDisposable) => {
-					this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
-					this.__showIgnoreMessage = false;
-
-					// Hide notification
-					notification.dispose();
-
-					return TPromise.as(true);
-				})]
+				secondary: [action]
 			}
 		});
+		once(handle.onDidDispose)(() => action.dispose());
 
 		return TPromise.as(undefined);
 	}

@@ -111,8 +111,11 @@ export class NotificationService implements INotificationService {
 			// Show notification with actions
 			handle = this.notify({ severity, message, actions });
 
-			// Cancel promise when notification gets disposed
-			once(handle.onDidDispose)(() => promise.cancel());
+			// Cancel promise and cleanup when notification gets disposed
+			once(handle.onDidDispose)(() => {
+				dispose(...actions.primary, ...actions.secondary);
+				promise.cancel();
+			});
 
 		}, () => handle.dispose());
 

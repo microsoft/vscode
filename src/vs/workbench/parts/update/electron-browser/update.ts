@@ -29,6 +29,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
+import { once } from 'vs/base/common/event';
 
 const NotNowAction = new Action(
 	'update.later',
@@ -129,11 +130,13 @@ export class ProductContribution implements IWorkbenchContribution {
 		if (!environmentService.skipReleaseNotes && product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
 			showReleaseNotes(instantiationService, lastVersion)
 				.then(undefined, () => {
-					notificationService.notify({
+					const action = instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
+					const handle = notificationService.notify({
 						severity: severity.Info,
 						message: nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
-						actions: { primary: [instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction)] }
+						actions: { primary: [action] }
 					});
+					once(handle.onDidDispose)(() => action.dispose());
 				});
 		}
 
@@ -197,11 +200,12 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 			? Win3264BitContribution.INSIDER_URL
 			: Win3264BitContribution.URL;
 
-		this.notificationService.notify({
+		const handle = this.notificationService.notify({
 			severity: severity.Info,
 			message: nls.localize('64bitisavailable', "{0} for 64-bit Windows is now available! Click [here]({1}) to learn more.", product.nameShort, url),
 			actions: { secondary: [neverShowAgain.action] }
 		});
+		once(handle.onDidDispose)(() => neverShowAgain.action.dispose());
 	}
 }
 
@@ -330,11 +334,12 @@ export class UpdateContribution implements IGlobalActivity {
 		const downloadAction = new Action('update.downloadNow', nls.localize('download now', "Download Now"), null, true, () =>
 			this.updateService.downloadUpdate());
 
-		this.notificationService.notify({
+		const handle = this.notificationService.notify({
 			severity: severity.Info,
 			message: nls.localize('thereIsUpdateAvailable', "There is an available update."),
 			actions: { primary: [downloadAction, NotNowAction, releaseNotesAction] }
 		});
+		once(handle.onDidDispose)(() => dispose(releaseNotesAction, downloadAction));
 	}
 
 	// windows fast updates
@@ -347,11 +352,12 @@ export class UpdateContribution implements IGlobalActivity {
 		const installUpdateAction = new Action('update.applyUpdate', nls.localize('installUpdate', "Install Update"), undefined, true, () =>
 			this.updateService.applyUpdate());
 
-		this.notificationService.notify({
+		const handle = this.notificationService.notify({
 			severity: severity.Info,
 			message: nls.localize('updateAvailable', "There's an available update: {0} {1}", product.nameLong, update.productVersion),
 			actions: { primary: [installUpdateAction, NotNowAction, releaseNotesAction] }
 		});
+		once(handle.onDidDispose)(() => dispose(installUpdateAction, releaseNotesAction));
 	}
 
 	// windows fast updates
@@ -362,11 +368,12 @@ export class UpdateContribution implements IGlobalActivity {
 			return;
 		}
 
-		this.notificationService.notify({
+		const handle = this.notificationService.notify({
 			severity: severity.Info,
 			message: nls.localize('updateInstalling', "{0} {1} is being installed in the background, we'll let you know when it's done.", product.nameLong, update.productVersion),
 			actions: { secondary: [neverShowAgain.action] }
 		});
+		once(handle.onDidDispose)(() => neverShowAgain.action.dispose());
 	}
 
 	// windows and mac
@@ -379,11 +386,12 @@ export class UpdateContribution implements IGlobalActivity {
 		const applyUpdateAction = new Action('update.applyUpdate', nls.localize('updateNow', "Update Now"), undefined, true, () =>
 			this.updateService.quitAndInstall());
 
-		this.notificationService.notify({
+		const handle = this.notificationService.notify({
 			severity: severity.Info,
 			message: nls.localize('updateAvailableAfterRestart', "{0} will be updated after it restarts.", product.nameLong),
 			actions: { primary: [applyUpdateAction, NotNowAction, releaseNotesAction] }
 		});
+		once(handle.onDidDispose)(() => applyUpdateAction, releaseNotesAction);
 	}
 
 	private shouldShowNotification(): boolean {

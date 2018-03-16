@@ -102,19 +102,11 @@ export class BaseErrorReportingAction extends Action {
 		this._notificationService.error(toErrorMessage(error, false));
 	}
 
-	protected onErrorWithRetry(error: any, retry: () => TPromise<any>, extraAction?: Action): void {
-		const actions = [
-			new Action(this.id, nls.localize('retry', "Retry"), null, true, () => retry()),
-		];
-
-		if (extraAction) {
-			actions.unshift(extraAction);
-		}
-
-		this._notificationService.notify({
-			severity: Severity.Error,
-			message: toErrorMessage(error, false),
-			actions: { primary: actions }
+	protected onErrorWithRetry(error: any, retry: () => TPromise<any>): void {
+		this._notificationService.prompt(Severity.Error, toErrorMessage(error, false), [nls.localize('retry', "Retry")]).then(choice => {
+			if (choice === 0) {
+				retry();
+			}
 		});
 	}
 }

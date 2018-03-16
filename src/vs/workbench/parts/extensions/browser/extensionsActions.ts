@@ -10,7 +10,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { Throttler } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
-import { Event } from 'vs/base/common/event';
+import { Event, once } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { ActionItem, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -61,15 +61,15 @@ class DownloadExtensionAction extends Action {
 
 	run(): TPromise<void> {
 		return this.openerService.open(URI.parse(this.extension.downloadUrl)).then(() => {
-			this.notificationService.notify({
+			const action = this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL);
+			const handle = this.notificationService.notify({
 				severity: Severity.Info,
 				message: localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', this.extension.id),
 				actions: {
-					primary: [
-						this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL)
-					]
+					primary: [action]
 				}
 			});
+			once(handle.onDidDispose)(() => action.dispose());
 		});
 	}
 }
@@ -132,15 +132,16 @@ export class InstallAction extends Action {
 			}
 
 			console.error(err);
-			this.notificationService.notify({
+
+			const action = this.instantiationService.createInstance(DownloadExtensionAction, extension);
+			const handle = this.notificationService.notify({
 				severity: Severity.Error,
 				message: localize('failedToInstall', "Failed to install \'{0}\'.", extension.id),
 				actions: {
-					primary: [
-						this.instantiationService.createInstance(DownloadExtensionAction, extension)
-					]
+					primary: [action]
 				}
 			});
+			once(handle.onDidDispose)(() => action.dispose());
 		});
 	}
 
@@ -347,15 +348,15 @@ export class UpdateAction extends Action {
 			}
 
 			console.error(err);
-			this.notificationService.notify({
+			const action = this.instantiationService.createInstance(DownloadExtensionAction, extension);
+			const handle = this.notificationService.notify({
 				severity: Severity.Error,
 				message: localize('failedToUpdate', "Failed to update \'{0}\'.", extension.id),
 				actions: {
-					primary: [
-						this.instantiationService.createInstance(DownloadExtensionAction, extension)
-					]
+					primary: [action]
 				}
 			});
+			once(handle.onDidDispose)(() => action.dispose());
 		});
 	}
 
@@ -859,15 +860,15 @@ export class UpdateAllAction extends Action {
 			}
 
 			console.error(err);
-			this.notificationService.notify({
+			const action = this.instantiationService.createInstance(DownloadExtensionAction, extension);
+			const handle = this.notificationService.notify({
 				severity: Severity.Error,
 				message: localize('failedToUpdate', "Failed to update \'{0}\'.", extension.id),
 				actions: {
-					primary: [
-						this.instantiationService.createInstance(DownloadExtensionAction, extension)
-					]
+					primary: [action]
 				}
 			});
+			once(handle.onDidDispose)(() => action.dispose());
 		});
 	}
 
@@ -1268,15 +1269,15 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 			}
 
 			console.error(err);
-			this.notificationService.notify({
+			const action = this.instantiationService.createInstance(DownloadExtensionAction, extension);
+			const handle = this.notificationService.notify({
 				severity: Severity.Error,
 				message: localize('failedToInstall', "Failed to install \'{0}\'.", extension.id),
 				actions: {
-					primary: [
-						this.instantiationService.createInstance(DownloadExtensionAction, extension)
-					]
+					primary: [action]
 				}
 			});
+			once(handle.onDidDispose)(() => action.dispose());
 		});
 	}
 
@@ -1337,15 +1338,15 @@ export class InstallRecommendedExtensionAction extends Action {
 			}
 
 			console.error(err);
-			this.notificationService.notify({
+			const action = this.instantiationService.createInstance(DownloadExtensionAction, extension);
+			const handle = this.notificationService.notify({
 				severity: Severity.Error,
 				message: localize('failedToInstall', "Failed to install \'{0}\'.", extension.id),
 				actions: {
-					primary: [
-						this.instantiationService.createInstance(DownloadExtensionAction, extension)
-					]
+					primary: [action]
 				}
 			});
+			once(handle.onDidDispose)(() => action.dispose());
 		});
 	}
 
