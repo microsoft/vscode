@@ -14,6 +14,8 @@ import { SENTINEL, NodeColor, TreeNode } from 'vs/editor/common/model/pieceTreeT
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ITextSnapshot } from 'vs/platform/files/common/files';
+import { SearchData } from 'vs/editor/common/model/textModelSearch';
+import { WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
 
@@ -1775,5 +1777,14 @@ suite('snapshot', () => {
 		]);
 
 		assert.notEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+	});
+});
+
+suite('chunk based search', () => {
+	test('#45892. For some cases, the buffer is empty but we still try to search', () => {
+		let pieceTree = createTextBuffer(['']);
+		pieceTree.delete(0, 1);
+		let ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 1, 1), new SearchData(/abc/, new WordCharacterClassifier(',./'), 'abc'), true, 1000);
+		assert.equal(ret.length, 0);
 	});
 });

@@ -592,7 +592,13 @@ export class PieceTreeBase {
 		const searcher = new Searcher(searchData.wordSeparators, searchData.regex);
 
 		let startPostion = this.nodeAt2(searchRange.startLineNumber, searchRange.startColumn);
+		if (startPostion === null) {
+			return [];
+		}
 		let endPosition = this.nodeAt2(searchRange.endLineNumber, searchRange.endColumn);
+		if (endPosition === null) {
+			return [];
+		}
 		let start = this.positionInBuffer(startPostion.node, startPostion.remainder);
 		let end = this.positionInBuffer(endPosition.node, endPosition.remainder);
 
