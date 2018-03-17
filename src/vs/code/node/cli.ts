@@ -324,9 +324,11 @@ export async function main(argv: string[]): TPromise<any> {
 			options['stdio'] = 'ignore';
 		}
 
-		const portMain = await findFreePort(9222, 10, 6000);
-		console.log(`Main Process debug port: ${portMain}`);
-		argv.push(`--inspect-brk=${portMain}`);
+		if (args['debugMain']) {
+			const portMain = await findFreePort(9222, 10, 6000);
+			console.log(`Main Process debug port: ${portMain}`);
+			argv.push(`--inspect-brk=${portMain}`);
+		}
 
 		const child = spawn(process.execPath, argv.slice(2), options);
 
