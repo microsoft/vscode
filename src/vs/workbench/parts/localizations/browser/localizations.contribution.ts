@@ -32,8 +32,13 @@ export class LocalesSchemaUpdater extends Disposable implements IWorkbenchContri
 	private update(): void {
 		this.localizationService.getLanguageIds()
 			.then(languageIds => {
-				let lowercaseLanguageIds = languageIds.map((languageId) => languageId.toLowerCase())
-					.filter((languageId) => languageIds.indexOf(languageId) === -1);
+				let lowercaseLanguageIds: string[] = [];
+				languageIds.forEach((languageId) => {
+					let lowercaseLanguageId = languageId.toLowerCase();
+					if (lowercaseLanguageId !== languageId) {
+						lowercaseLanguageIds.push(lowercaseLanguageId);
+					}
+				});
 				registerLocaleDefinitionSchema([...languageIds, ...lowercaseLanguageIds]);
 			});
 	}
