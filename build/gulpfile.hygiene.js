@@ -105,7 +105,7 @@ const copyrightFilter = [
 	'!resources/linux/snap/snapcraft.yaml',
 	'!resources/win32/bin/code.js',
 	'!extensions/markdown/media/tomorrow.css',
-	'!extensions/html/server/src/modes/typescript/*'
+	'!extensions/html-language-features/server/src/modes/typescript/*'
 ];
 
 const eslintFilter = [
@@ -132,7 +132,7 @@ const tslintFilter = [
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!extensions/**/*.test.ts',
-	'!extensions/html/server/lib/jquery.d.ts'
+	'!extensions/html-language-features/server/lib/jquery.d.ts'
 ];
 
 const copyrightHeaderLines = [

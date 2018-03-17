@@ -24,6 +24,6 @@ rm -r $ROOT/extensions/emmet/test-fixtures
 ./scripts/test.sh --runGlob **/*.integrationTest.js "$@"
 
 # Tests in commonJS (language server tests...)
-./scripts/node-electron.sh ./node_modules/mocha/bin/_mocha ./extensions/html/server/out/test/
+./scripts/node-electron.sh ./node_modules/mocha/bin/_mocha ./extensions/html-language-features/server/out/test/
 
 rm -r $VSCODEUSERDATADIR
