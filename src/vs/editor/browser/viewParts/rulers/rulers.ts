@@ -67,7 +67,7 @@ export class Rulers extends ViewPart {
 		}
 
 		if (currentCount < desiredCount) {
-			const rulerWidth = dom.computeScreenAwareSize(1);
+			const rulerWidth = this._context.model.getTabSize();
 			let addCount = desiredCount - currentCount;
 			while (addCount > 0) {
 				let node = createFastDomNode(document.createElement('div'));
@@ -104,6 +104,6 @@ export class Rulers extends ViewPart {
 registerThemingParticipant((theme, collector) => {
 	let rulerColor = theme.getColor(editorRuler);
 	if (rulerColor) {
-		collector.addRule(`.monaco-editor .view-ruler { background-color: ${rulerColor}; }`);
+		collector.addRule(`.monaco-editor .view-ruler { --box-shadow-color: ${rulerColor}; }`);
 	}
 });

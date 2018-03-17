@@ -94,7 +94,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const tabSize = this._context.model.getTabSize();
 		const tabWidth = tabSize * this._spaceWidth;
 		const lineHeight = this._lineHeight;
-		const indentGuideWidth = dom.computeScreenAwareSize(1);
+		const indentGuideWidth = tabWidth;
 
 		const indents = this._context.model.getLinesIndentGuides(visibleStartLineNumber, visibleEndLineNumber);
 
@@ -131,6 +131,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 registerThemingParticipant((theme, collector) => {
 	let editorGuideColor = theme.getColor(editorIndentGuides);
 	if (editorGuideColor) {
-		collector.addRule(`.monaco-editor .lines-content .cigr { background-color: ${editorGuideColor}; }`);
+		collector.addRule(`.monaco-editor .lines-content .cigr { --box-shadow-color: ${editorGuideColor}; }`);
 	}
 });
