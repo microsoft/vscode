@@ -139,7 +139,7 @@ const ImageMimetypes = [
 export class CommandCenter {
 
 	private disposables: Disposable[];
-	private checkoutItemsUsageList: Array<string>;
+	private checkoutItemsUsageList: Map<string, number>;
 
 	constructor(
 		private git: Git,
@@ -156,7 +156,7 @@ export class CommandCenter {
 				return commands.registerCommand(commandId, command);
 			}
 		});
-		this.checkoutItemsUsageList = [];
+		this.checkoutItemsUsageList = new Map();
 	}
 
 	@command('git.refresh', { repository: true })
@@ -1081,41 +1081,27 @@ export class CommandCenter {
 		repository.inputBox.value = commit.message;
 	}
 
-	private sortCheckoutItemsByUsage(items: Array<any>) {
-		const usageMap = CommandCenter.arrayToMap(this.checkoutItemsUsageList);
-
+	private sortCheckoutItemsByUsage(items: CheckoutItem[]): CheckoutItem[] {
 		return [...items].sort((a, b) => {
-			const getUsageIndex = (item: string): Number => usageMap[item] || Infinity;
+			const getLastUsed = (item: string): number =>
+				this.checkoutItemsUsageList.get(item) || -Infinity;
 
-			const label1 = a.label;
-			const label2 = b.label;
+			const aLastUsed = getLastUsed(a.label);
+			const bLastUsed = getLastUsed(b.label);
 
-			const label1Index = getUsageIndex(label1);
-			const label2Index = getUsageIndex(label2);
-
-			if (label1Index > label2Index) {
-				return 1;
-			} else if (label2Index > label1Index) {
+			if (aLastUsed > bLastUsed) {
 				return -1;
+			} else if (bLastUsed > aLastUsed) {
+				return 1;
 			}
 
 			return 0;
 		});
 	}
 
-	private updateCheckoutUsage(choice: any) {
-		const newCheckoutItemsUsageList = [...this.checkoutItemsUsageList];
-
+	private updateCheckoutUsage(choice: CheckoutItem | CreateBranchItem) {
 		if (choice instanceof CheckoutItem) {
-			const checkoutItem = <CheckoutItem>choice;
-
-			const index = newCheckoutItemsUsageList.indexOf(checkoutItem.label);
-			if (index >= 0) {
-				newCheckoutItemsUsageList.splice(index, 1);
-			}
-			newCheckoutItemsUsageList.unshift(checkoutItem.label);
-
-			this.checkoutItemsUsageList = newCheckoutItemsUsageList;
+			this.checkoutItemsUsageList.set(choice.label, Date.now());
 		}
 	}
 
@@ -1707,13 +1693,6 @@ export class CommandCenter {
 			.map(({ repository, resources }) => fn(repository as Repository, isSingleResource ? resources[0] : resources));
 
 		return Promise.all(promises);
-	}
-
-	private static arrayToMap(array: Array<string>): any {
-		return array.reduce((acc: any, item: string, index: number) => {
-			acc[item] = index + 1;
-			return acc;
-		}, {});
 	}
 
 	dispose(): void {
