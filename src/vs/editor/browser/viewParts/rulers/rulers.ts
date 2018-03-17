@@ -13,7 +13,6 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorRuler } from 'vs/editor/common/view/editorColorRegistry';
-import * as dom from 'vs/base/browser/dom';
 
 export class Rulers extends ViewPart {
 

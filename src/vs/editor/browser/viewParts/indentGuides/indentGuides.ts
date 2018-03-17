@@ -12,7 +12,6 @@ import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
-import * as dom from 'vs/base/browser/dom';
 import { Position } from 'vs/editor/common/core/position';
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
