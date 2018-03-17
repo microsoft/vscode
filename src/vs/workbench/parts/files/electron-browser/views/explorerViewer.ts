@@ -8,6 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
+import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { once } from 'vs/base/common/functional';
 import * as paths from 'vs/base/common/paths';
@@ -49,7 +50,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { extractResources, SimpleFileResourceDragAndDrop, CodeDataTransfers, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
-import { relative } from 'path';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { DataTransfers } from 'vs/base/browser/dnd';
@@ -323,7 +323,7 @@ export class FileRenderer implements IRenderer {
 				}
 			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
-				const initialRelPath: string = relative(stat.root.resource.fsPath, stat.parent.resource.fsPath);
+				const initialRelPath: string = path.relative(stat.root.resource.fsPath, stat.parent.resource.fsPath);
 				let projectFolderName: string = '';
 				if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 					projectFolderName = paths.basename(stat.root.resource.fsPath);	// show root folder name in multi-folder project
@@ -342,13 +342,13 @@ export class FileRenderer implements IRenderer {
 		if (inputBox.validate()) {
 			const value = inputBox.value;
 			if (value && value.search(/[\\/]/) !== -1) {	// only show if there's a slash
-				let newPath = paths.normalize(paths.join(projectFolderName, initialRelPath, value), true);
-				newPath = rtrim(newPath, paths.nativeSep);
+				let displayPath = path.normalize(path.join(projectFolderName, initialRelPath, value));
+				displayPath = rtrim(displayPath, paths.nativeSep);
 				const fileType: string = FileKind[fileKind].toLowerCase();
 
 				inputBox.showMessage({
 					type: MessageType.INFO,
-					content: nls.localize('constructedPath', "Create {0} in **{1}**", fileType, newPath),
+					content: nls.localize('constructedPath', "Create {0} in **{1}**", fileType, displayPath),
 					formatContent: true
 				});
 			}
@@ -701,7 +701,7 @@ export class FileFilter implements IFilter {
 		// Hide those that match Hidden Patterns
 		const siblingsFn = () => siblings && siblings.map(c => c.name);
 		const expression = this.hiddenExpressionPerRoot.get(stat.root.resource.toString()) || Object.create(null);
-		if (glob.match(expression, paths.normalize(relative(stat.root.resource.fsPath, stat.resource.fsPath), true), siblingsFn)) {
+		if (glob.match(expression, paths.normalize(path.relative(stat.root.resource.fsPath, stat.resource.fsPath), true), siblingsFn)) {
 			return false; // hidden through pattern
 		}
 
