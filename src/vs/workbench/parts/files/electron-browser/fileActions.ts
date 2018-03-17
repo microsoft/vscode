@@ -1365,8 +1365,8 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 	// Do not allow to overwrite existing file
 	if (!allowOverwriting) {
 		let p = parent;
-		const alreadyExisting = names.every((folderName) => {
-			let { exists, child } = alreadyExists(p, folderName);
+		const alreadyExisting = names.every((pathSegment) => {
+			let { exists, child } = alreadyExists(p, pathSegment);
 
 			if (!exists) {
 				return false;
@@ -1398,22 +1398,13 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 }
 
 function alreadyExists(parent: IFileStat, name: string): { exists: boolean, child: IFileStat | undefined } {
-	let duplicateChild: IFileStat;
-
 	if (parent.children) {
-		let exists: boolean = parent.children.some((c) => {
-			let found: boolean;
-			if (isLinux) {
-				found = c.name === name;
-			} else {
-				found = c.name.toLowerCase() === name.toLowerCase();
+		for (const child of parent.children) {
+			const exists: boolean = isLinux ? child.name === name : child.name.toLowerCase() === name.toLowerCase();
+			if (exists) {
+				return { exists, child };
 			}
-			if (found) {
-				duplicateChild = c;
-			}
-			return found;
-		});
-		return { exists, child: duplicateChild };
+		}
 	}
 
 	return { exists: false, child: undefined };
