@@ -328,7 +328,7 @@ export class FileRenderer implements IRenderer {
 				if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 					projectFolderName = paths.basename(stat.root.resource.fsPath);	// show root folder name in multi-folder project
 				}
-				this.displayCurrentPath(inputBox, initialRelPath, fileKind, projectFolderName);
+				this.displayCurrentPath(inputBox, initialRelPath, projectFolderName, editableData.action.id);
 			}),
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
 				done(inputBox.isInputValid(), true);
@@ -338,17 +338,33 @@ export class FileRenderer implements IRenderer {
 		];
 	}
 
-	private displayCurrentPath(inputBox: InputBox, initialRelPath: string, fileKind: FileKind, projectFolderName: string = '') {
+	private displayCurrentPath(inputBox: InputBox, initialRelPath: string, projectFolderName: string = '', actionID: string) {
 		if (inputBox.validate()) {
 			const value = inputBox.value;
 			if (value && value.search(/[\\/]/) !== -1) {	// only show if there's a slash
 				let displayPath = path.normalize(path.join(projectFolderName, initialRelPath, value));
 				displayPath = rtrim(displayPath, paths.nativeSep);
-				const fileType: string = FileKind[fileKind].toLowerCase();
+
+				const indexLastSlash: number = displayPath.lastIndexOf(paths.nativeSep);
+				const name: string = displayPath.substring(indexLastSlash + 1);
+				const leadingPathPart: string = displayPath.substring(0, indexLastSlash);
+
+				let msg: string;
+				switch (actionID) {
+					case 'workbench.files.action.createFileFromExplorer':
+						msg = nls.localize('createFileFromExplorerInfoMessage', "Create file **{0}** in **{1}**", name, leadingPathPart);
+						break;
+					case 'workbench.files.action.renameFile':
+						msg = nls.localize('renameFileFromExplorerInfoMessage', "Move and rename to **{0}**", displayPath);
+						break;
+					case 'workbench.files.action.createFolderFromExplorer':	// fallthrough
+					default:
+						msg = nls.localize('createFolderFromExplorerInfoMessage', "Create folder **{0}** in **{1}**", name, leadingPathPart);
+				}
 
 				inputBox.showMessage({
 					type: MessageType.INFO,
-					content: nls.localize('constructedPath', "Create {0} in **{1}**", fileType, displayPath),
+					content: msg,
 					formatContent: true
 				});
 			}
