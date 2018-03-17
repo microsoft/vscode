@@ -342,7 +342,7 @@ export class FileRenderer implements IRenderer {
 		if (inputBox.validate()) {
 			const value = inputBox.value;
 			if (value && value.search(/[\\/]/) !== -1) {	// only show if there's a slash
-				let newPath = paths.normalize(paths.join(initialRelPath, value), true);
+				let newPath = paths.normalize(paths.join(projectFolderName, initialRelPath, value), true);
 				newPath = rtrim(newPath, paths.nativeSep);
 				const fileType: string = FileKind[fileKind].toLowerCase();
 
