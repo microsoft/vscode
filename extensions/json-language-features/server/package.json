@@ -12,7 +12,7 @@
     "request-light": "^0.2.2",
     "vscode-json-languageservice": "^3.0.12",
     "vscode-languageserver": "^4.0.0",
-    "vscode-nls": "^3.2.1",
+    "vscode-nls": "^3.2.2",
     "vscode-uri": "^1.0.3"
   },
   "devDependencies": {
