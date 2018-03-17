@@ -1089,6 +1089,15 @@ export class WindowsManager implements IWindowsMainService {
 				state.mode = WindowMode.Normal;
 			}
 
+			this.logService.info(`New Window state`);
+			this.logService.info(`display: ${state.display}`);
+			this.logService.info(`mode: ${state.mode}`);
+			this.logService.info(`hasDefaultState: ${state.hasDefaultState}`);
+			this.logService.info(`x: ${state.x}`);
+			this.logService.info(`y: ${state.y}`);
+			this.logService.info(`height: ${state.height}`);
+			this.logService.info(`width: ${state.width}`);
+
 			window = this.instantiationService.createInstance(CodeWindow, {
 				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
