@@ -166,7 +166,7 @@ class TriggerRenameFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public validateFileName(parent: IFileStat, name: string): string {
+	public validateFileName(name: string): string {
 		return this.renameAction.validateFileName(this.element.parent, name);
 	}
 
@@ -188,7 +188,7 @@ class TriggerRenameFileAction extends BaseFileAction {
 		viewletState.setEditable(stat, {
 			action: this.renameAction,
 			validator: (value) => {
-				const message = this.validateFileName(this.element.parent, value);
+				const message = this.validateFileName(value);
 
 				if (!message) {
 					return null;
