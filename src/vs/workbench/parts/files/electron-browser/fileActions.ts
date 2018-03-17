@@ -1349,7 +1349,6 @@ export class CopyPathAction extends Action {
 	}
 }
 
-
 export function validateFileName(parent: IFileStat, name: string, allowOverwriting: boolean = false): string {
 
 	// Produce a well formed file name
@@ -1362,23 +1361,16 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 
 	const names: string[] = name.split(/[\\/]/).filter(part => !!part);
 
+	const pathAnalysis: IPathAnalysis = validatePath(parent, names);
+
+	// a file must always be a leaf
+	if (!pathAnalysis.leafInfo.isLeaf) {
+		return nls.localize('fileUsedAsFolderError', "**{0}** is a file and cannot have any descendants.", trimLongName(pathAnalysis.leafInfo.filename));
+	}
+
 	// Do not allow to overwrite existing file
-	if (!allowOverwriting) {
-		let p = parent;
-		const alreadyExisting = names.every((pathSegment) => {
-			let { exists, child } = alreadyExists(p, pathSegment);
-
-			if (!exists) {
-				return false;
-			} else {
-				p = child;
-				return true;
-			}
-		});
-
-		if (alreadyExisting) {
-			return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
-		}
+	if (!allowOverwriting && pathAnalysis.fullPathAlreadyExists) {
+		return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
 	}
 
 	// Invalid File name
@@ -1395,6 +1387,45 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 	}
 
 	return null;
+}
+
+
+interface IPathAnalysis {
+	fullPathAlreadyExists: boolean;
+	leafInfo: { isLeaf: boolean, filename: string };
+}
+
+function validatePath(parent: IFileStat, names: string[]): IPathAnalysis {
+	const pathAnalysis: IPathAnalysis = {
+		fullPathAlreadyExists: true,
+		leafInfo: { isLeaf: true, filename: '' }
+	};
+
+	let p = parent;
+	for (let i = 0; i < names.length; i++) {
+		const pathSegment = names[i];
+
+		let { exists, child } = alreadyExists(p, pathSegment);
+
+		if (!exists) {
+			pathAnalysis.fullPathAlreadyExists = false;
+			break;
+		}
+
+		else if (!child.isDirectory) {
+			if (i !== names.length - 1) {
+				// it's not the last segment
+				pathAnalysis.leafInfo.isLeaf = false;
+				pathAnalysis.leafInfo.filename = child.name;
+			}
+		}
+
+		else {
+			p = child;
+		}
+	}
+
+	return pathAnalysis;
 }
 
 function alreadyExists(parent: IFileStat, name: string): { exists: boolean, child: IFileStat | undefined } {
