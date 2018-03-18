@@ -984,7 +984,7 @@ export class RepositoryPanel extends ViewletPanel {
 	}
 
 	private updateInputBox(): void {
-		if (typeof this.repository.provider.commitTemplate === 'undefined') {
+		if (typeof this.repository.provider.commitTemplate === 'undefined' || this.inputBox.value) {
 			return;
 		}
 
@@ -1035,6 +1035,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	private repositoryPanels: RepositoryPanel[] = [];
 	private singleRepositoryPanelTitleActionsDisposable: IDisposable = EmptyDisposable;
 	private disposables: IDisposable[] = [];
+	private lastFocusedRepository: ISCMRepository | undefined;
 
 	private _onDidSplice = new Emitter<ISpliceEvent<ISCMRepository>>();
 	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>> = this._onDidSplice.event;
@@ -1234,11 +1235,16 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 			.filter(r => this.repositoryPanels.every(p => p.repository !== r))
 			.map(r => this.instantiationService.createInstance(RepositoryPanel, r, this));
 
-		// Add new selected panels
+		// Add new selected panels and focus repository panel
 		this.repositoryPanels = [...repositoryPanels, ...newRepositoryPanels];
 		newRepositoryPanels.forEach(panel => {
 			this.addPanel(panel, panel.minimumSize, this.length);
+
 			panel.repository.focus();
+			panel.onDidFocus(() => this.lastFocusedRepository = panel.repository);
+			if (newRepositoryPanels.length === 1 || this.lastFocusedRepository === panel.repository) {
+				panel.focus();
+			}
 		});
 
 		// Remove unselected panels
