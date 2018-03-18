@@ -337,6 +337,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 								token.className += 'code' + parsedMode;
 							} else if (parsedMode === 1) {
 								token.className += 'code-bold';
+							} else if (parsedMode === 4) {
+								token.className += 'code-underline';
 							}
 						}
 
