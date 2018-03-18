@@ -550,7 +550,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		if (this.partService.isCreated() && !errors.isPromiseCanceledError(error)) {
 			const actions: INotificationActions = { primary: [] };
 			if (errors.isErrorWithActions(error)) {
-				actions.primary = error.actions;
+				actions.primary = (error as errors.IErrorWithActions).actions;
 			}
 
 			const handle = this.notificationService.notify({
