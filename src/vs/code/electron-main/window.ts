@@ -420,24 +420,27 @@ export class CodeWindow implements ICodeWindow {
 		// and maximized again. Touching some window properties "fixes" it, like toggling
 		// the visibility of the menu.
 		if (isWindows) {
-			let minimized = false;
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+			if (windowConfig && windowConfig.smoothScrollingWorkaround === true) {
+				let minimized = false;
 
-			const restoreSmoothScrolling = () => {
-				if (minimized) {
-					const visibility = this.getMenuBarVisibility();
-					const temporaryVisibility: MenuBarVisibility = (visibility === 'hidden' || visibility === 'toggle') ? 'default' : 'hidden';
-					setTimeout(() => {
-						this.doSetMenuBarVisibility(temporaryVisibility);
-						this.doSetMenuBarVisibility(visibility);
-					}, 0);
-				}
+				const restoreSmoothScrolling = () => {
+					if (minimized) {
+						const visibility = this.getMenuBarVisibility();
+						const temporaryVisibility: MenuBarVisibility = (visibility === 'hidden' || visibility === 'toggle') ? 'default' : 'hidden';
+						setTimeout(() => {
+							this.doSetMenuBarVisibility(temporaryVisibility);
+							this.doSetMenuBarVisibility(visibility);
+						}, 0);
+					}
 
-				minimized = false;
-			};
+					minimized = false;
+				};
 
-			this._win.on('minimize', () => minimized = true);
-			this._win.on('restore', () => restoreSmoothScrolling());
-			this._win.on('maximize', () => restoreSmoothScrolling());
+				this._win.on('minimize', () => minimized = true);
+				this._win.on('restore', () => restoreSmoothScrolling());
+				this._win.on('maximize', () => restoreSmoothScrolling());
+			}
 		}
 	}
 
