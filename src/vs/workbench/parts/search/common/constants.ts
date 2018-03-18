@@ -9,6 +9,7 @@ export const FindInFilesActionId = 'workbench.action.findInFiles';
 export const FocusActiveEditorCommandId = 'search.action.focusActiveEditor';
 
 export const FocusSearchFromResults = 'search.action.focusSearchFromResults';
+export const OpenMatch = 'search.action.openResult';
 export const OpenMatchToSide = 'search.action.openResultToSide';
 export const CancelActionId = 'search.action.cancel';
 export const RemoveActionId = 'search.action.remove';
