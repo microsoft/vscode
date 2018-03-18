@@ -276,7 +276,7 @@ suite('Snippet Variables Resolver', function () {
 		assert.equal(variable.resolve(resolver), true, `${varName} failed to resolve`);
 	}
 
-	test('Add time variables for snippets #41631', function () {
+	test('Add time variables for snippets #41631, #43140', function () {
 
 		const resolver = new TimeBasedVariableResolver;
 
@@ -287,5 +287,9 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve3(resolver, 'CURRENT_HOUR');
 		assertVariableResolve3(resolver, 'CURRENT_MINUTE');
 		assertVariableResolve3(resolver, 'CURRENT_SECOND');
+		assertVariableResolve3(resolver, 'CURRENT_DAY_NAME');
+		assertVariableResolve3(resolver, 'CURRENT_DAY_NAME_SHORT');
+		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME');
+		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME_SHORT');
 	});
 });

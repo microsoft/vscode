@@ -20,6 +20,10 @@ export const KnownSnippetVariableNames = Object.freeze({
 	'CURRENT_HOUR': true,
 	'CURRENT_MINUTE': true,
 	'CURRENT_SECOND': true,
+	'CURRENT_DAY_NAME': true,
+	'CURRENT_DAY_NAME_SHORT': true,
+	'CURRENT_MONTH_NAME': true,
+	'CURRENT_MONTH_NAME_SHORT': true,
 	'SELECTION': true,
 	'CLIPBOARD': true,
 	'TM_SELECTED_TEXT': true,
@@ -182,6 +186,8 @@ export class TimeBasedVariableResolver implements VariableResolver {
 
 	resolve(variable: Variable): string {
 		const { name } = variable;
+		const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+		const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 		if (name === 'CURRENT_YEAR') {
 			return String(new Date().getFullYear());
@@ -197,6 +203,14 @@ export class TimeBasedVariableResolver implements VariableResolver {
 			return pad(new Date().getMinutes().valueOf(), 2);
 		} else if (name === 'CURRENT_SECOND') {
 			return pad(new Date().getSeconds().valueOf(), 2);
+		} else if (name === 'CURRENT_DAY_NAME') {
+			return dayNames[new Date().getDay()];
+		} else if (name === 'CURRENT_DAY_NAME_SHORT') {
+			return dayNames[new Date().getDay()].slice(0, 3);
+		} else if (name === 'CURRENT_MONTH_NAME') {
+			return monthNames[new Date().getMonth()];
+		} else if (name === 'CURRENT_MONTH_NAME_SHORT') {
+			return monthNames[new Date().getMonth()].slice(0, 3);
 		}
 
 		return undefined;
