@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import { FileDecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
 import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import URI from 'vs/base/common/uri';
-import Event, { toPromise } from 'vs/base/common/event';
+import { Event, toPromise } from 'vs/base/common/event';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 suite('DecorationsService', function () {

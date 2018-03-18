@@ -32,7 +32,7 @@ suite('EditorSimpleWorker', () => {
 	let model: ICommonModel;
 
 	setup(() => {
-		worker = new WorkerWithModels();
+		worker = new WorkerWithModels(null);
 		model = worker.addModel([
 			'This is line one', //16
 			'and this is line number two', //27

@@ -591,6 +591,16 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 }
 
+export class RenameContext {
+	range: Range;
+	newName?: string;
+
+	constructor(range: Range, newName?: string) {
+		this.range = range;
+		this.newName = newName;
+	}
+}
+
 export class SnippetString {
 
 	static isSnippetString(thing: any): thing is SnippetString {
@@ -718,6 +728,27 @@ export class Location {
 	}
 }
 
+export class DiagnosticRelatedInformation {
+
+	static is(thing: any): thing is DiagnosticRelatedInformation {
+		if (!thing) {
+			return false;
+		}
+		return typeof (<DiagnosticRelatedInformation>thing).message === 'string'
+			&& (<DiagnosticRelatedInformation>thing).location
+			&& Range.isRange((<DiagnosticRelatedInformation>thing).location.range)
+			&& URI.isUri((<DiagnosticRelatedInformation>thing).location.uri);
+	}
+
+	location: Location;
+	message: string;
+
+	constructor(location: Location, message: string) {
+		this.location = location;
+		this.message = message;
+	}
+}
+
 export class Diagnostic {
 
 	range: Range;
@@ -725,6 +756,7 @@ export class Diagnostic {
 	source: string;
 	code: string | number;
 	severity: DiagnosticSeverity;
+	relatedInformation: DiagnosticRelatedInformation[];
 
 	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
 		this.range = range;
@@ -1311,14 +1343,30 @@ export class ProcessExecution implements vscode.ProcessExecution {
 export class ShellExecution implements vscode.ShellExecution {
 
 	private _commandLine: string;
+	private _command: string | vscode.ShellQuotedString;
+	private _args: (string | vscode.ShellQuotedString)[];
 	private _options: vscode.ShellExecutionOptions;
 
-	constructor(commandLine: string, options?: vscode.ShellExecutionOptions) {
-		if (typeof commandLine !== 'string') {
-			throw illegalArgument('commandLine');
+	constructor(commandLine: string, options?: vscode.ShellExecutionOptions);
+	constructor(command: string | vscode.ShellQuotedString, args: (string | vscode.ShellQuotedString)[], options?: vscode.ShellExecutionOptions);
+	constructor(arg0: string | vscode.ShellQuotedString, arg1?: vscode.ShellExecutionOptions | (string | vscode.ShellQuotedString)[], arg2?: vscode.ShellExecutionOptions) {
+		if (Array.isArray(arg1)) {
+			if (!arg0) {
+				throw illegalArgument('command can\'t be undefined or null');
+			}
+			if (typeof arg0 !== 'string' && typeof arg0.value !== 'string') {
+				throw illegalArgument('command');
+			}
+			this._command = arg0;
+			this._args = arg1 as (string | vscode.ShellQuotedString)[];
+			this._options = arg2;
+		} else {
+			if (typeof arg0 !== 'string') {
+				throw illegalArgument('commandLine');
+			}
+			this._commandLine = arg0;
+			this._options = arg1;
 		}
-		this._commandLine = commandLine;
-		this._options = options;
 	}
 
 	get commandLine(): string {
@@ -1332,6 +1380,25 @@ export class ShellExecution implements vscode.ShellExecution {
 		this._commandLine = value;
 	}
 
+	get command(): string | vscode.ShellQuotedString {
+		return this._command;
+	}
+
+	set command(value: string | vscode.ShellQuotedString) {
+		if (typeof value !== 'string' && typeof value.value !== 'string') {
+			throw illegalArgument('command');
+		}
+		this._command = value;
+	}
+
+	get args(): (string | vscode.ShellQuotedString)[] {
+		return this._args;
+	}
+
+	set args(value: (string | vscode.ShellQuotedString)[]) {
+		this._args = value || [];
+	}
+
 	get options(): vscode.ShellExecutionOptions {
 		return this._options;
 	}
@@ -1339,6 +1406,12 @@ export class ShellExecution implements vscode.ShellExecution {
 	set options(value: vscode.ShellExecutionOptions) {
 		this._options = value;
 	}
+}
+
+export enum ShellQuoting {
+	Escape = 1,
+	Strong = 2,
+	Weak = 3
 }
 
 export enum TaskScope {
@@ -1600,8 +1673,9 @@ export class Breakpoint {
 	readonly enabled: boolean;
 	readonly condition?: string;
 	readonly hitCondition?: string;
+	readonly logMessage?: string;
 
-	protected constructor(enabled?: boolean, condition?: string, hitCondition?: string) {
+	protected constructor(enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
 		this.enabled = typeof enabled === 'boolean' ? enabled : true;
 		if (typeof condition === 'string') {
 			this.condition = condition;
@@ -1609,14 +1683,17 @@ export class Breakpoint {
 		if (typeof hitCondition === 'string') {
 			this.hitCondition = hitCondition;
 		}
+		if (typeof logMessage === 'string') {
+			this.logMessage = logMessage;
+		}
 	}
 }
 
 export class SourceBreakpoint extends Breakpoint {
 	readonly location: Location;
 
-	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string) {
-		super(enabled, condition, hitCondition);
+	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
+		super(enabled, condition, hitCondition, logMessage);
 		if (location === null) {
 			throw illegalArgument('location');
 		}
@@ -1627,8 +1704,8 @@ export class SourceBreakpoint extends Breakpoint {
 export class FunctionBreakpoint extends Breakpoint {
 	readonly functionName: string;
 
-	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string) {
-		super(enabled, condition, hitCondition);
+	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
+		super(enabled, condition, hitCondition, logMessage);
 		if (!functionName) {
 			throw illegalArgument('functionName');
 		}

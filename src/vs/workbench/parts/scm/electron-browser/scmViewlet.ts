@@ -8,7 +8,7 @@
 import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter, chain, mapEvent, anyEvent, filterEvent } from 'vs/base/common/event';
+import { Event, Emitter, chain, mapEvent, anyEvent, filterEvent } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/paths';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -249,12 +249,13 @@ class MainPanel extends ViewletPanel {
 			identityProvider: repository => repository.provider.id
 		}) as WorkbenchList<ISCMRepository>;
 
-		this.disposables.push(this.list);
 		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 
 		this.viewModel.onDidChangeVisibility(this.onDidChangeVisibility, this, this.disposables);
 		this.onDidChangeVisibility(this.viewModel.isVisible());
+
+		this.disposables.push(this.list);
 	}
 
 	private onDidChangeVisibility(visible: boolean): void {

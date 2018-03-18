@@ -356,6 +356,10 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				get logger() {
 					checkProposedApiEnabled(extensionDescription);
 					return that._extHostLogService.getExtLogger(extensionDescription.id);
+				},
+				get logDirectory() {
+					checkProposedApiEnabled(extensionDescription);
+					return that._extHostLogService.getLogDirectory(extensionDescription.id);
 				}
 			});
 		});
@@ -421,7 +425,7 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 		"TelemetryActivationEvent" : {
 			"id": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 			"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-			"publisherDisplayName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+			"publisherDisplayName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
 			"activationEvents": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		}

@@ -5,8 +5,8 @@
 
 'use strict';
 
-import nls = require('vs/nls');
-import Event, { Emitter } from 'vs/base/common/event';
+import * as nls from 'vs/nls';
+import { Event, Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
@@ -24,7 +24,7 @@ import { ResourceViewerContext, ResourceViewer } from 'vs/workbench/browser/part
  * This class is only intended to be subclassed and not instantiated.
  */
 export abstract class BaseBinaryResourceEditor extends BaseEditor {
-	private _onMetadataChanged: Emitter<void>;
+	private readonly _onMetadataChanged: Emitter<void>;
 	private metadata: string;
 
 	private binaryContainer: Builder;

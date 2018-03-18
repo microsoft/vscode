@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import Event, { Emitter, debounceEvent, anyEvent } from 'vs/base/common/event';
+import { Event, Emitter, debounceEvent, anyEvent } from 'vs/base/common/event';
 import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';

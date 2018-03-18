@@ -5,14 +5,14 @@
 
 'use strict';
 
-import Severity from 'vs/base/common/severity';
+import BaseSeverity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 
-export import Severity = Severity;
+export import Severity = BaseSeverity;
 
 export const INotificationService = createDecorator<INotificationService>('notificationService');
 
@@ -194,7 +194,7 @@ export interface INotificationService {
 export class NoOpNotification implements INotificationHandle {
 	readonly progress = new NoOpProgress();
 
-	private _onDidDispose: Emitter<void> = new Emitter();
+	private readonly _onDidDispose: Emitter<void> = new Emitter();
 
 	public get onDidDispose(): Event<void> {
 		return this._onDidDispose.event;

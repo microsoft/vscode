@@ -49,7 +49,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private lastOpenedSettingsInput: PreferencesEditorInput = null;
 
-	private _onDispose: Emitter<void> = new Emitter<void>();
+	private readonly _onDispose: Emitter<void> = new Emitter<void>();
 
 	private _defaultSettingsUriCounter = 0;
 	private _defaultSettingsContentModel: DefaultSettings;
@@ -217,7 +217,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void> {
 		/* __GDPR__
 			"openKeybindings" : {
-				"textual" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"textual" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.publicLog('openKeybindings', { textual });

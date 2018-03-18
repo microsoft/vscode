@@ -5,7 +5,6 @@
 
 import { assign } from 'vs/base/common/objects';
 import { memoize } from 'vs/base/common/decorators';
-import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IProcessEnvironment } from 'vs/base/common/platform';
@@ -20,7 +19,6 @@ export class SharedProcess implements ISharedProcess {
 	private barrier = new Barrier();
 
 	private window: Electron.BrowserWindow;
-	private disposables: IDisposable[] = [];
 
 	constructor(
 		private readonly environmentService: IEnvironmentService,
@@ -29,20 +27,6 @@ export class SharedProcess implements ISharedProcess {
 		private readonly machineId: string,
 		private readonly userEnv: IProcessEnvironment,
 	) {
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-
-		// Shut the shared process down when we are quitting
-		//
-		// Note: because we veto the window close, we must call our dispose() method,
-		// which removes the veto. Otherwise the application would never quit because
-		// the shared process window is refusing to close!
-		//
-		this.lifecycleService.onShutdown(() => {
-			this.dispose();
-		});
 	}
 
 	@memoize
@@ -79,9 +63,15 @@ export class SharedProcess implements ISharedProcess {
 		};
 
 		this.window.on('close', onClose);
-		this.disposables.push(toDisposable(() => this.window.removeListener('close', onClose)));
 
-		this.disposables.push(toDisposable(() => {
+		this.lifecycleService.onShutdown(() => {
+			// Shut the shared process down when we are quitting
+			//
+			// Note: because we veto the window close, we must first remove our veto.
+			// Otherwise the application would never quit because the shared process
+			// window is refusing to close!
+			//
+			this.window.removeListener('close', onClose);
 
 			// Electron seems to crash on Windows without this setTimeout :|
 			setTimeout(() => {
@@ -93,7 +83,7 @@ export class SharedProcess implements ISharedProcess {
 
 				this.window = null;
 			}, 0);
-		}));
+		});
 
 		return new TPromise<void>((c, e) => {
 			ipcMain.once('handshake:hello', ({ sender }: { sender: any }) => {
@@ -132,9 +122,5 @@ export class SharedProcess implements ISharedProcess {
 	hide(): void {
 		this.window.webContents.closeDevTools();
 		this.window.hide();
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
 	}
 }

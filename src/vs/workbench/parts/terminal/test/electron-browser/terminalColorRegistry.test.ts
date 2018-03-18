@@ -14,7 +14,7 @@ import { Color } from 'vs/base/common/color';
 
 registerColors();
 
-let themingRegistry = <IColorRegistry>Registry.as(ThemeingExtensions.ColorContribution);
+let themingRegistry = Registry.as<IColorRegistry>(ThemeingExtensions.ColorContribution);
 function getMockTheme(type: ThemeType): ITheme {
 	let theme = {
 		selector: '',

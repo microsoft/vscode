@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import * as net from 'net';
-import ports = require('vs/base/node/ports');
+import * as ports from 'vs/base/node/ports';
 
 suite('Ports', () => {
 	test('Finds a free port (no timeout)', function (done) {

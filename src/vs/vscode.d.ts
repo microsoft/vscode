@@ -3675,6 +3675,32 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a related message and source code location for a diagnostic. This should be
+	 * used to point to code locations that cause or related to a diagnostics, e.g when duplicating
+	 * a symbol in a scope.
+	 */
+	export class DiagnosticRelatedInformation {
+
+		/**
+		 * The location of this related diagnostic information.
+		 */
+		location: Location;
+
+		/**
+		 * The message of this related diagnostic information.
+		 */
+		message: string;
+
+		/**
+		 * Creates a new related diagnostic information object.
+		 *
+		 * @param location The location.
+		 * @param message The message.
+		 */
+		constructor(location: Location, message: string);
+	}
+
+	/**
 	 * Represents a diagnostic, such as a compiler error or warning. Diagnostic objects
 	 * are only valid in the scope of a file.
 	 */
@@ -3707,6 +3733,12 @@ declare module 'vscode' {
 		 * providing [code actions](#CodeActionContext).
 		 */
 		code: string | number;
+
+		/**
+		 * An array of related diagnostic information, e.g. when symbol-names within
+		 * a scope collide all definitions can be marked via this property.
+		 */
+		relatedInformation: DiagnosticRelatedInformation[];
 
 		/**
 		 * Creates a new diagnostic object.
@@ -3783,7 +3815,7 @@ declare module 'vscode' {
 		 * modify the diagnostics-array returned from this call.
 		 *
 		 * @param uri A resource identifier.
-		 * @returns An immutable array of [diagnostics](#Diagnostic) or `undefined`.
+		 * @returns An immutable array of [diagnostics](#Diagnxostic) or `undefined`.
 		 */
 		get(uri: Uri): Diagnostic[] | undefined;
 
@@ -4333,6 +4365,38 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The shell quoting options.
+	 */
+	export interface ShellQuotingOptions {
+
+		/**
+		 * The character used to do character escaping. If a string is provided only spaces
+		 * are escaped. If a `{ escapeChar, charsToEscape }` literal is provide all characters
+		 * in `charsToEscape` are escaped using the `escapeChar`.
+		 */
+		escape?: string | {
+			/**
+			 * The escape character.
+			 */
+			escapeChar: string;
+			/**
+			 * The characters to escape.
+			 */
+			charsToEscape: string;
+		};
+
+		/**
+		 * The character used for strong quoting. The string's length must be 1.
+		 */
+		strong?: string;
+
+		/**
+		 * The character used for weak quoting. The string's length must be 1.
+		 */
+		weak?: string;
+	}
+
+	/**
 	 * Options for a shell execution
 	 */
 	export interface ShellExecutionOptions {
@@ -4345,6 +4409,11 @@ declare module 'vscode' {
 		 * The arguments to be passed to the shell executable used to run the task.
 		 */
 		shellArgs?: string[];
+
+		/**
+		 * The shell quotes supported by this shell.
+		 */
+		shellQuoting?: ShellQuotingOptions;
 
 		/**
 		 * The current working directory of the executed shell.
@@ -4360,10 +4429,55 @@ declare module 'vscode' {
 		env?: { [key: string]: string };
 	}
 
+	/**
+	 * Defines how an argument should be quoted if it contains
+	 * spaces or unsuppoerted characters.
+	 */
+	export enum ShellQuoting {
+
+		/**
+		 * Character escaping should be used. This for example
+		 * uses \ on bash and ` on PowerShell.
+		 */
+		Escape = 1,
+
+		/**
+		 * Strong string quoting should be used. This for example
+		 * uses " for Windows cmd and ' for bash and PowerShell.
+		 * Strong quoting treats arguments as literal strings.
+		 * Under PowerShell echo 'The value is $(2 * 3)' will
+		 * print `The value is $(2 * 3)`
+		 */
+		Strong = 2,
+
+		/**
+		 * Weak string quoting should be used. This for example
+		 * uses " for Windows cmd, bash and PowerShell. Weak quoting
+		 * still performs some kind of evaluation inside the quoted
+		 * string.  Under PowerShell echo "The value is $(2 * 3)"
+		 * will print `The value is 6`
+		 */
+		Weak = 3
+	}
+
+	/**
+	 * A string that will be quoted depending on the used shell.
+	 */
+	export interface ShellQuotedString {
+		/**
+		 * The actual string value.
+		 */
+		value: string;
+
+		/**
+		 * The quoting style to use.
+		 */
+		quoting: ShellQuoting;
+	}
 
 	export class ShellExecution {
 		/**
-		 * Creates a process execution.
+		 * Creates a shell execution with a full command line.
 		 *
 		 * @param commandLine The command line to execute.
 		 * @param options Optional options for the started the shell.
@@ -4371,9 +4485,31 @@ declare module 'vscode' {
 		constructor(commandLine: string, options?: ShellExecutionOptions);
 
 		/**
-		 * The shell command line
+		 * Creates a shell execution with a command and arguments. For the real execution VS Code will
+		 * construct a command line from the command and the arguments. This is subject to interpretation
+		 * especially when it comes to quoting. If full control over the command line is needed please
+		 * use the constructor that creates a `ShellExecution` with the full command line.
+		 *
+		 * @param command The command to execute.
+		 * @param args The command arguments.
+		 * @param options Optional options for the started the shell.
+		 */
+		constructor(command: string | ShellQuotedString, args: (string | ShellQuotedString)[], options?: ShellExecutionOptions);
+
+		/**
+		 * The shell command line. Is `undefined` if created with a command and arguments.
 		 */
 		commandLine: string;
+
+		/**
+		 * The shell command. Is `undefined` if created with a full command line.
+		 */
+		command: string | ShellQuotedString;
+
+		/**
+		 * The shell args. Is `undefined` if created with a full command line.
+		 */
+		args: (string | ShellQuotedString)[];
 
 		/**
 		 * The shell options used when the command line is executed in a shell.
@@ -4496,9 +4632,12 @@ declare module 'vscode' {
 
 		/**
 		 * Resolves a task that has no [`execution`](#Task.execution) set. Tasks are
-		 * often created from information found in the `task.json`-file. Such tasks miss
+		 * often created from information found in the `tasks.json`-file. Such tasks miss
 		 * the information on how to execute them and a task provider must fill in
-		 * the missing information in the `resolveTask`-method.
+		 * the missing information in the `resolveTask`-method. This method will not be
+		 * called for tasks returned from the above `provideTasks` method since those
+		 * tasks are always fully resolved. A valid default implementation for the
+		 * `resolveTask` method is to return `undefined`.
 		 *
 		 * @param task The task to resolve.
 		 * @param token A cancellation token.

@@ -6,7 +6,7 @@
 import 'vs/css!./media/panelpart';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';

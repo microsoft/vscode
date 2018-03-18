@@ -10,7 +10,7 @@ import * as fs from 'fs';
 
 import * as assert from 'assert';
 import { getLanguageModes } from '../modes/languageModes';
-import { TextDocument, Range, TextEdit, FormattingOptions } from 'vscode-languageserver-types';
+import { TextDocument, Range, FormattingOptions } from 'vscode-languageserver-types';
 
 import { format } from '../modes/formatting';
 
@@ -41,7 +41,7 @@ suite('HTML Embedded Formatting', () => {
 
 		let result = format(languageModes, document, range, formatOptions, void 0, { css: true, javascript: true });
 
-		let actual = applyEdits(document, result);
+		let actual = TextDocument.applyEdits(document, result);
 		assert.equal(actual, expected, message);
 	}
 
@@ -112,24 +112,3 @@ suite('HTML Embedded Formatting', () => {
 	});
 
 });
-
-function applyEdits(document: TextDocument, edits: TextEdit[]): string {
-	let text = document.getText();
-	let sortedEdits = edits.sort((a, b) => {
-		let startDiff = document.offsetAt(b.range.start) - document.offsetAt(a.range.start);
-		if (startDiff === 0) {
-			return document.offsetAt(b.range.end) - document.offsetAt(a.range.end);
-		}
-		return startDiff;
-	});
-	let lastOffset = text.length;
-	sortedEdits.forEach(e => {
-		let startOffset = document.offsetAt(e.range.start);
-		let endOffset = document.offsetAt(e.range.end);
-		assert.ok(startOffset <= endOffset);
-		assert.ok(endOffset <= lastOffset);
-		text = text.substring(0, startOffset) + e.newText + text.substring(endOffset, text.length);
-		lastOffset = startOffset;
-	});
-	return text;
-}

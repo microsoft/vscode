@@ -27,7 +27,8 @@ import { SearchWidget } from 'vs/workbench/parts/preferences/browser/preferences
 import { DefineKeybindingWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
 import {
 	IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY,
-	KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR
+	KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS,
+	KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -174,6 +175,29 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	get activeKeybindingEntry(): IKeybindingItemEntry {
 		const focusedElement = this.keybindingsList.getFocusedElements()[0];
 		return focusedElement && focusedElement.templateId === KEYBINDING_ENTRY_TEMPLATE_ID ? <IKeybindingItemEntry>focusedElement : null;
+	}
+
+	getSecondaryActions(): IAction[] {
+		return <IAction[]>[
+			<IAction>{
+				label: localize('showDefaultKeybindings', "Show Default Keybindings"),
+				enabled: true,
+				id: KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS,
+				run: (): TPromise<any> => {
+					this.searchWidget.setValue('@source:default');
+					return TPromise.as(null);
+				}
+			},
+			<IAction>{
+				label: localize('showUserKeybindings', "Show User Keybindings"),
+				enabled: true,
+				id: KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS,
+				run: (): TPromise<any> => {
+					this.searchWidget.setValue('@source:user');
+					return TPromise.as(null);
+				}
+			}
+		];
 	}
 
 	defineKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {

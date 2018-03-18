@@ -9,7 +9,7 @@ import * as map from 'vs/base/common/map';
 import { tail, flatten } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import { IReference, Disposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { visit, JSONVisitor } from 'vs/base/common/json';
 import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
@@ -119,7 +119,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	private _settingsGroups: ISettingsGroup[];
 	protected settingsModel: ITextModel;
 
-	private _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
 
 	constructor(reference: IReference<ITextEditorModel>, private _configurationTarget: ConfigurationTarget) {
@@ -597,7 +597,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	private _model: ITextModel;
 
-	private _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
 
 	constructor(

@@ -8,14 +8,14 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import dom = require('vs/base/browser/dom');
+import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 import { remote, webFrame } from 'electron';
 import { unmnemonicLabel } from 'vs/base/common/labels';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextMenuDelegate, ContextSubMenu, IEvent } from 'vs/base/browser/contextmenu';
 

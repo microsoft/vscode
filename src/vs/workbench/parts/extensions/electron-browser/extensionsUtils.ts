@@ -7,7 +7,7 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
-import Event, { chain, anyEvent, debounceEvent } from 'vs/base/common/event';
+import { Event, chain, anyEvent, debounceEvent } from 'vs/base/common/event';
 import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -79,9 +79,9 @@ export class KeymapExtensions implements IWorkbenchContribution {
 				};
 				/* __GDPR__
 					"disableOtherKeymaps" : {
-						"newKeymap" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"newKeymap": { "${inline}": [ "${ExtensionIdentifier}" ] },
 						"oldKeymaps": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"confirmed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"confirmed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 				*/
 				this.telemetryService.publicLog('disableOtherKeymaps', telemetryData);

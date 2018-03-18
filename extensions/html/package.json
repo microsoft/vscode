@@ -70,12 +70,6 @@
         }
       }
     ],
-    "folding": {
-      "markers": {
-        "start": "^\\s*<!--\\s*#region\\b\\s*(.*?)-->/",
-        "end": "^\\s*<!--\\s*#endregion\\b\\s*(.*?)-->/"
-      }
-    },
     "snippets": [
       {
         "language": "html",
@@ -235,8 +229,8 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.0.15",
-    "vscode-languageclient": "4.0.0-next.9",
-    "vscode-nls": "^3.2.1"
+    "vscode-languageclient": "^4.0.0",
+    "vscode-nls": "^3.2.2"
   },
   "devDependencies": {
     "@types/node": "7.0.43"

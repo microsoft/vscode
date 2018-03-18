@@ -278,7 +278,6 @@ export class CodeApplication {
 
 			// Spawn shared process
 			this.sharedProcess = new SharedProcess(this.environmentService, this.lifecycleService, this.logService, machineId, this.userEnv);
-			this.toDispose.push(this.sharedProcess);
 			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
 			// Services

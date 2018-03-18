@@ -9,7 +9,7 @@ import { TextDocument, Position, Range } from 'vscode-languageserver-types';
 import { getCSSLanguageService, Stylesheet, ICompletionParticipant } from 'vscode-css-languageservice';
 import { LanguageMode, Settings } from './languageModes';
 import { HTMLDocumentRegions, CSS_STYLE_RULE } from './embeddedSupport';
-import { Color } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
+import { Color } from 'vscode-languageserver';
 import { extractAbbreviation } from 'vscode-emmet-helper';
 
 export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>): LanguageMode {
@@ -28,7 +28,7 @@ export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegio
 			let embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.doValidation(embedded, cssStylesheets.get(embedded), settings && settings.css);
 		},
-		doComplete(document: TextDocument, position: Position, settings: Settings, registeredCompletionParticipants: ICompletionParticipant[]) {
+		doComplete(document: TextDocument, position: Position, settings?: Settings, registeredCompletionParticipants?: ICompletionParticipant[]) {
 			let embedded = embeddedCSSDocuments.get(document);
 			const stylesheet = cssStylesheets.get(embedded);
 

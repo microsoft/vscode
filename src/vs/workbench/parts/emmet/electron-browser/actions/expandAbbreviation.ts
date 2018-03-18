@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 'use strict';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { EmmetEditorAction } from 'vs/workbench/parts/emmet/electron-browser/emmetActions';
 import { registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';

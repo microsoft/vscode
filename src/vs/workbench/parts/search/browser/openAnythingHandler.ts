@@ -7,9 +7,9 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel, QuickOpenItemAccessor } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';

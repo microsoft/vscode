@@ -6,9 +6,9 @@
 'use strict';
 
 import 'vs/css!./media/notabstitle';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import { toResource } from 'vs/workbench/common/editor';
-import DOM = require('vs/base/browser/dom');
+import * as DOM from 'vs/base/browser/dom';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { Verbosity } from 'vs/platform/editor/common/editor';
@@ -81,7 +81,7 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Close editor on middle mouse click
 		if (e instanceof MouseEvent && e.button === 1 /* Middle Button */) {
-			this.closeEditorAction.run({ groupId: group.id, editorIndex: group.indexOf(group.activeEditor) }).done(null, errors.onUnexpectedError);
+			this.closeOneEditorAction.run({ groupId: group.id, editorIndex: group.indexOf(group.activeEditor) }).done(null, errors.onUnexpectedError);
 		}
 
 		// Focus editor group unless:

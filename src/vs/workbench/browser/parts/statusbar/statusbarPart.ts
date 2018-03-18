@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/statusbarpart';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';

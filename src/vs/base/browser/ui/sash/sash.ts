@@ -10,11 +10,11 @@ import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, $, Dimension } from 'vs/base/browser/builder';
 import { isIPad } from 'vs/base/browser/browser';
 import { isMacintosh } from 'vs/base/common/platform';
-import types = require('vs/base/common/types');
-import DOM = require('vs/base/browser/dom');
+import * as types from 'vs/base/common/types';
+import * as DOM from 'vs/base/browser/dom';
 import { EventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export interface ISashLayoutProvider { }
 
@@ -301,7 +301,7 @@ export class VSash extends Disposable implements IVerticalSashLayoutProvider {
 	private position: number;
 	private dimension: Dimension;
 
-	private _onPositionChange: Emitter<number> = new Emitter<number>();
+	private readonly _onPositionChange: Emitter<number> = new Emitter<number>();
 	public get onPositionChange(): Event<number> { return this._onPositionChange.event; }
 
 	constructor(container: HTMLElement, private minWidth: number) {

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { LanguageSelector, score } from 'vs/editor/common/modes/languageSelector';
@@ -21,7 +21,7 @@ export default class LanguageFeatureRegistry<T> {
 
 	private _clock: number = 0;
 	private _entries: Entry<T>[] = [];
-	private _onDidChange: Emitter<number> = new Emitter<number>();
+	private readonly _onDidChange: Emitter<number> = new Emitter<number>();
 
 	constructor() {
 	}

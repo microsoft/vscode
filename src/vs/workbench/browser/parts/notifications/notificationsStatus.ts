@@ -75,7 +75,7 @@ export class NotificationsStatus {
 		// Create new
 		this.statusItem = this.statusbarService.addEntry({
 			text: this.count === 0 ? '$(bell)' : `$(bell) ${this.count}`,
-			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER : this.model.notifications.length > 0 ? SHOW_NOTIFICATIONS_CENTER : void 0,
+			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER : SHOW_NOTIFICATIONS_CENTER,
 			tooltip: this.getTooltip(),
 			showBeak: this.isNotificationsCenterVisible
 		}, StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);

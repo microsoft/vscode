@@ -128,7 +128,7 @@ class ForkedTsServerProcess {
 
 	public createReader(
 		callback: ICallback<Proto.Response>,
-		onError: (error: any) => void = () => ({})
+		onError: (error: any) => void
 	) {
 		// tslint:disable-next-line:no-unused-expression
 		new Reader<Proto.Response>(this.childProcess.stdout, callback, onError);

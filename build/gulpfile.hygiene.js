@@ -46,8 +46,8 @@ const indentationFilter = [
 	'!src/vs/nls.js',
 	'!src/vs/css.js',
 	'!src/vs/loader.js',
-	'!src/vs/base/common/marked/raw.marked.js',
-	'!src/vs/base/common/winjs.base.raw.js',
+	'!src/vs/base/common/marked/marked.js',
+	'!src/vs/base/common/winjs.base.js',
 	'!src/vs/base/node/terminateProcess.sh',
 	'!src/vs/base/node/ps-win.ps1',
 	'!test/assert.js',
@@ -116,8 +116,8 @@ const eslintFilter = [
 	'!src/vs/nls.js',
 	'!src/vs/css.build.js',
 	'!src/vs/nls.build.js',
-	'!src/**/winjs.base.raw.js',
-	'!src/**/raw.marked.js',
+	'!src/**/winjs.base.js',
+	'!src/**/marked.js',
 	'!**/test/**'
 ];
 

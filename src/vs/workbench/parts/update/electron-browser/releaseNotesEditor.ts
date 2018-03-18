@@ -12,7 +12,7 @@ import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { IMode, TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -56,7 +56,6 @@ export class ReleaseNotesManager {
 	public constructor(
 		@IEditorGroupService private readonly _editorGroupService: IEditorGroupService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IModeService private readonly _modeService: IModeService,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -85,7 +84,7 @@ export class ReleaseNotesManager {
 			}
 		} else {
 			const uri = URI.parse('release-notes:' + version);
-			this._currentReleaseNotes = this._instantiationService.createInstance(WebviewInput, uri, title, { tryRestoreScrollPosition: true }, html, {
+			this._currentReleaseNotes = new WebviewInput(uri, title, { tryRestoreScrollPosition: true }, html, {
 				onDidClickLink: uri => this.onDidClickLink(uri),
 				onDispose: () => { this._currentReleaseNotes = undefined; }
 			}, this._partService);

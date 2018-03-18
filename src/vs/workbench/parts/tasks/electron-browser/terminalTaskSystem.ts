@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import fs = require('fs');
-import path = require('path');
+import * as fs from 'fs';
+import * as path from 'path';
 
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
@@ -16,7 +16,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as TPath from 'vs/base/common/paths';
 
@@ -33,7 +33,7 @@ import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind } from 'vs/workbench/parts/tasks/common/problemCollectors';
 import {
 	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind,
-	TaskEvent, TaskEventKind
+	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString
 } from 'vs/workbench/parts/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
@@ -55,13 +55,43 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 	public static TelemetryEventName: string = 'taskService';
 
+	private static shellQuotes: IStringDictionary<ShellQuotingOptions> = {
+		'cmd': {
+			strong: '"'
+		},
+		'powershell': {
+			escape: {
+				escapeChar: '`',
+				charsToEscape: ` ()`
+			},
+			strong: '\'',
+			weak: '"'
+		},
+		'bash': {
+			escape: '\\',
+			strong: '\'',
+			weak: '"'
+		},
+		'zsh': {
+			escape: '\\',
+			strong: '\'',
+			weak: '"'
+		}
+	};
+
+	private static osShellQuotes: IStringDictionary<ShellQuotingOptions> = {
+		'linux': TerminalTaskSystem.shellQuotes['bash'],
+		'darwin': TerminalTaskSystem.shellQuotes['bash'],
+		'win32': TerminalTaskSystem.shellQuotes['powershell']
+	};
+
 	private outputChannel: IOutputChannel;
 	private activeTasks: IStringDictionary<ActiveTerminalData>;
 	private terminals: IStringDictionary<TerminalData>;
 	private idleTaskTerminals: LinkedMap<string, string>;
 	private sameTaskTerminals: IStringDictionary<string>;
 
-	private _onDidStateChange: Emitter<TaskEvent>;
+	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
 	constructor(private terminalService: ITerminalService, private outputService: IOutputService,
 		private markerService: IMarkerService, private modelService: IModelService,
@@ -393,6 +423,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private createTerminal(task: CustomTask | ContributedTask): [ITerminalInstance, string] {
 		let options = this.resolveOptions(task, task.command.options);
 		let { command, args } = this.resolveCommandAndArgs(task);
+		let commandExecutable = CommandString.value(command);
 		let workspaceFolder = Task.getWorkspaceFolder(task);
 		let needsFolderQualification = workspaceFolder && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', needsFolderQualification ? Task.getQualifiedLabel(task) : task.name);
@@ -426,12 +457,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 			let shellArgs = <string[]>shellLaunchConfig.args.slice(0);
 			let toAdd: string[] = [];
-			let commandLine = args && args.length > 0 ? `${command} ${args.join(' ')}` : `${command}`;
+			let commandLine = this.buildShellCommandLine(shellLaunchConfig.executable, shellOptions, command, args);
 			let windowsShellArgs: boolean = false;
 			if (Platform.isWindows) {
 				windowsShellArgs = true;
 				let basename = path.basename(shellLaunchConfig.executable).toLowerCase();
-				if (basename === 'powershell.exe') {
+				if (basename === 'powershell.exe' || basename === 'pwsh.exe') {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
 					}
@@ -468,11 +499,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 			let cwd = options && options.cwd ? options.cwd : process.cwd();
 			// On Windows executed process must be described absolute. Since we allowed command without an
 			// absolute path (e.g. "command": "node") we need to find the executable in the CWD or PATH.
-			let executable = Platform.isWindows && !isShellCommand ? this.findExecutable(command, cwd) : command;
+			let executable = Platform.isWindows && !isShellCommand ? this.findExecutable(commandExecutable, cwd) : commandExecutable;
+
+			// When we have a process task there is no need to quote arguments. So we go ahead and take the string value.
 			shellLaunchConfig = {
 				name: terminalName,
 				executable: executable,
-				args,
+				args: args.map(a => Types.isString(a) ? a : a.value),
 				waitOnExit
 			};
 			if (task.command.presentation.echo) {
@@ -525,7 +558,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 		if (terminalToReuse) {
 			terminalToReuse.terminal.reuseTerminal(shellLaunchConfig);
-			return [terminalToReuse.terminal, command];
+			return [terminalToReuse.terminal, commandExecutable];
 		}
 
 		const result = this.terminalService.createInstance(shellLaunchConfig);
@@ -539,14 +572,109 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 		});
 		this.terminals[terminalKey] = { terminal: result, lastTask: taskKey };
-		return [result, command];
+		return [result, commandExecutable];
 	}
 
-	private resolveCommandAndArgs(task: CustomTask | ContributedTask): { command: string, args: string[] } {
+	private buildShellCommandLine(shellExecutable: string, shellOptions: ShellConfiguration, command: CommandString, args: CommandString[]): string {
+		// If we have no args and the command is a string then use the
+		// command to stay backwards compatible with the old command line
+		// model.
+		if ((!args || args.length === 0) && Types.isString(command)) {
+			return command;
+		}
+		let basename = path.parse(shellExecutable).name.toLowerCase();
+		let shellQuoteOptions = this.getOuotingOptions(basename, shellOptions);
+
+		function needsQuotes(value: string): boolean {
+			if (value.length >= 2) {
+				let first = value[0] === shellQuoteOptions.strong ? shellQuoteOptions.strong : value[0] === shellQuoteOptions.weak ? shellQuoteOptions.weak : undefined;
+				if (first === value[value.length - 1]) {
+					return false;
+				}
+			}
+			for (let i = 0; i < value.length; i++) {
+				if (value[i] === ' ' && value[i - 1] !== shellQuoteOptions.escape) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		function quote(value: string, kind: ShellQuoting): [string, boolean] {
+			if (kind === ShellQuoting.Strong && shellQuoteOptions.strong) {
+				return [shellQuoteOptions.strong + value + shellQuoteOptions.strong, true];
+			} else if (kind === ShellQuoting.Weak && shellQuoteOptions.weak) {
+				return [shellQuoteOptions.weak + value + shellQuoteOptions.weak, true];
+			} else if (kind === ShellQuoting.Escape && shellQuoteOptions.escape) {
+				if (Types.isString(shellQuoteOptions.escape)) {
+					return [value.replace(/ /g, shellQuoteOptions.escape + ' '), true];
+				} else {
+					let buffer: string[] = [];
+					for (let ch of shellQuoteOptions.escape.charsToEscape) {
+						buffer.push(`\\${ch}`);
+					}
+					let regexp: RegExp = new RegExp('[' + buffer.join(',') + ']', 'g');
+					let escapeChar = shellQuoteOptions.escape.escapeChar;
+					return [value.replace(regexp, (match) => escapeChar + match), true];
+				}
+			}
+			return [value, false];
+		}
+
+		function quoteIfNecessary(value: CommandString): [string, boolean] {
+			if (Types.isString(value)) {
+				if (needsQuotes(value)) {
+					return quote(value, ShellQuoting.Strong);
+				} else {
+					return [value, false];
+				}
+			} else {
+				return quote(value.value, value.quoting);
+			}
+		}
+
+		let result: string[] = [];
+		let commandQuoted = false;
+		let argQuoted = false;
+		let value: string;
+		let quoted: boolean;
+		[value, quoted] = quoteIfNecessary(command);
+		result.push(value);
+		commandQuoted = quoted;
+		for (let arg of args) {
+			[value, quoted] = quoteIfNecessary(arg);
+			result.push(value);
+			argQuoted = argQuoted || quoted;
+		}
+
+		let commandLine = result.join(' ');
+		// There are special rules quoted command line in cmd.exe
+		if (Platform.isWindows) {
+			if (basename === 'cmd' && commandQuoted && argQuoted) {
+				commandLine = '"' + commandLine + '"';
+			} else if (basename === 'powershell' && commandQuoted) {
+				commandLine = '& ' + commandLine;
+			}
+		}
+
+		if (basename === 'cmd' && Platform.isWindows && commandQuoted && argQuoted) {
+			commandLine = '"' + commandLine + '"';
+		}
+		return commandLine;
+	}
+
+	private getOuotingOptions(shellBasename: string, shellOptions: ShellConfiguration): ShellQuotingOptions {
+		if (shellOptions && shellOptions.quoting) {
+			return shellOptions.quoting;
+		}
+		return TerminalTaskSystem.shellQuotes[shellBasename] || TerminalTaskSystem.osShellQuotes[process.platform];
+	}
+
+	private resolveCommandAndArgs(task: CustomTask | ContributedTask): { command: CommandString, args: CommandString[] } {
 		// First we need to use the command args:
-		let args: string[] = task.command.args ? task.command.args.slice() : [];
+		let args: CommandString[] = task.command.args ? task.command.args.slice() : [];
 		args = this.resolveVariables(task, args);
-		let command: string = this.resolveVariable(task, task.command.name);
+		let command: CommandString = this.resolveVariable(task, task.command.name);
 		return { command, args };
 	}
 
@@ -557,8 +685,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 		let dir = path.dirname(command);
 		if (dir !== '.') {
-			// We have a directory. So leave the command as is.
-			return command;
+			// We have a directory. Make the path absolute
+			// to the current working directory
+			return path.join(cwd, command);
 		}
 		// We have a simple file name. We get the path variable from the env
 		// and try to find the executable on the path.
@@ -586,10 +715,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 				return withExtension;
 			}
 		}
-		return command;
+		return path.join(cwd, command);
 	}
 
-	private resolveVariables(task: CustomTask | ContributedTask, value: string[]): string[] {
+	private resolveVariables(task: CustomTask | ContributedTask, value: string[]): string[];
+	private resolveVariables(task: CustomTask | ContributedTask, value: CommandString[]): CommandString[];
+	private resolveVariables(task: CustomTask | ContributedTask, value: CommandString[]): CommandString[] {
 		return value.map(s => this.resolveVariable(task, s));
 	}
 
@@ -624,9 +755,18 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return result;
 	}
 
-	private resolveVariable(task: CustomTask | ContributedTask, value: string): string {
+	private resolveVariable(task: CustomTask | ContributedTask, value: string): string;
+	private resolveVariable(task: CustomTask | ContributedTask, value: CommandString): CommandString;
+	private resolveVariable(task: CustomTask | ContributedTask, value: CommandString): CommandString {
 		// TODO@Dirk Task.getWorkspaceFolder should return a WorkspaceFolder that is defined in workspace.ts
-		return this.configurationResolverService.resolve(<any>Task.getWorkspaceFolder(task), value);
+		if (Types.isString(value)) {
+			return this.configurationResolverService.resolve(<any>Task.getWorkspaceFolder(task), value);
+		} else {
+			return {
+				value: this.configurationResolverService.resolve(<any>Task.getWorkspaceFolder(task), value.value),
+				quoting: value.quoting
+			};
+		}
 	}
 
 	private resolveOptions(task: CustomTask | ContributedTask, options: CommandOptions): CommandOptions {

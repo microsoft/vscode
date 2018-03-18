@@ -267,6 +267,13 @@
 				"fileMatch": "package.json",
 				"url": "./schemas/package.schema.json"
 			}
+		],
+		"markdown.previewStyles": [
+			"./media/markdown.css",
+			"./media/tomorrow.css"
+		],
+		"markdown.previewScripts": [
+			"./media/index.js"
 		]
 	},
 	"scripts": {

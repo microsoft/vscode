@@ -19,7 +19,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Builder } from 'vs/base/browser/builder';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { isSearchViewFocused, appendKeyBindingLabel } from 'vs/workbench/parts/search/browser/searchActions';
@@ -100,22 +100,22 @@ export class SearchWidget extends Widget {
 	private previousGlobalFindBufferValue: string;
 
 	private _onSearchSubmit = this._register(new Emitter<boolean>());
-	public onSearchSubmit: Event<boolean> = this._onSearchSubmit.event;
+	public readonly onSearchSubmit: Event<boolean> = this._onSearchSubmit.event;
 
 	private _onSearchCancel = this._register(new Emitter<void>());
-	public onSearchCancel: Event<void> = this._onSearchCancel.event;
+	public readonly onSearchCancel: Event<void> = this._onSearchCancel.event;
 
 	private _onReplaceToggled = this._register(new Emitter<void>());
-	public onReplaceToggled: Event<void> = this._onReplaceToggled.event;
+	public readonly onReplaceToggled: Event<void> = this._onReplaceToggled.event;
 
 	private _onReplaceStateChange = this._register(new Emitter<boolean>());
-	public onReplaceStateChange: Event<boolean> = this._onReplaceStateChange.event;
+	public readonly onReplaceStateChange: Event<boolean> = this._onReplaceStateChange.event;
 
 	private _onReplaceValueChanged = this._register(new Emitter<string>());
-	public onReplaceValueChanged: Event<string> = this._onReplaceValueChanged.event;
+	public readonly onReplaceValueChanged: Event<string> = this._onReplaceValueChanged.event;
 
 	private _onReplaceAll = this._register(new Emitter<void>());
-	public onReplaceAll: Event<void> = this._onReplaceAll.event;
+	public readonly onReplaceAll: Event<void> = this._onReplaceAll.event;
 
 	constructor(
 		container: Builder,

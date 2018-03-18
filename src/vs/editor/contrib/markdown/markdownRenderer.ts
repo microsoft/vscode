@@ -15,7 +15,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export interface IMarkdownRenderResult extends IDisposable {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { $ } from 'vs/base/browser/builder';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -12,7 +12,7 @@ import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview
 import { InputBox, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import CommonEvent, { Emitter } from 'vs/base/common/event';
+import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { HistoryNavigator } from 'vs/base/common/history';

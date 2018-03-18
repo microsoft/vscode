@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, ILocalExtension, isIExtensionIdentifier, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getIdFromLocalExtensionId, areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -23,7 +23,7 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 	private disposables: IDisposable[] = [];
 
 	private _onEnablementChanged = new Emitter<IExtensionIdentifier>();
-	public onEnablementChanged: Event<IExtensionIdentifier> = this._onEnablementChanged.event;
+	public readonly onEnablementChanged: Event<IExtensionIdentifier> = this._onEnablementChanged.event;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,

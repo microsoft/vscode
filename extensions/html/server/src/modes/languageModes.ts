@@ -9,8 +9,8 @@ import {
 	CompletionItem, Location, SignatureHelp, Definition, TextEdit, TextDocument, Diagnostic, DocumentLink, Range,
 	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions, SymbolInformation
 } from 'vscode-languageserver-types';
-
-import { ColorInformation, ColorPresentation, Color } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
+import { ColorInformation, ColorPresentation, Color } from 'vscode-languageserver';
+import { FoldingRange } from '../protocol/foldingProvider.proposed';
 
 import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
 import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
@@ -19,8 +19,6 @@ import { getJavascriptMode } from './javascriptMode';
 import { getHTMLMode } from './htmlMode';
 
 export { ColorInformation, ColorPresentation, Color };
-
-import { FoldingRangeList } from '../protocol/foldingProvider.proposed';
 
 export interface Settings {
 	css?: any;
@@ -39,7 +37,7 @@ export interface LanguageMode {
 	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
 	doComplete?: (document: TextDocument, position: Position, settings?: Settings, registeredCompletionParticipants?: any[]) => CompletionList | null;
 	setCompletionParticipants?: (registeredCompletionParticipants: any[]) => void;
-	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem | null;
+	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem;
 	doHover?: (document: TextDocument, position: Position) => Hover | null;
 	doSignatureHelp?: (document: TextDocument, position: Position) => SignatureHelp | null;
 	findDocumentHighlight?: (document: TextDocument, position: Position) => DocumentHighlight[];
@@ -51,7 +49,7 @@ export interface LanguageMode {
 	findDocumentColors?: (document: TextDocument) => ColorInformation[];
 	getColorPresentations?: (document: TextDocument, color: Color, range: Range) => ColorPresentation[];
 	doAutoClose?: (document: TextDocument, position: Position) => string | null;
-	getFoldingRanges?: (document: TextDocument) => FoldingRangeList | null;
+	getFoldingRanges?: (document: TextDocument, range: Range) => FoldingRange[];
 	onDocumentRemoved(document: TextDocument): void;
 	dispose(): void;
 }

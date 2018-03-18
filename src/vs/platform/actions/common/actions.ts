@@ -12,7 +12,7 @@ import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry'
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 
 export interface ILocalizedString {
 	value: string;

@@ -8,11 +8,10 @@ import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import * as network from 'vs/base/common/network';
 import { IDataSource, ITree, IRenderer, IAccessibilityProvider, IFilter } from 'vs/base/parts/tree/browser/tree';
-import Severity from 'vs/base/common/severity';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IMarker } from 'vs/platform/markers/common/markers';
+import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { MarkersModel, Resource, Marker } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -193,13 +192,13 @@ export class Renderer implements IRenderer {
 
 	private static iconClassNameFor(element: IMarker): string {
 		switch (element.severity) {
-			case Severity.Ignore:
+			case MarkerSeverity.Hint:
 				return 'info';
-			case Severity.Info:
+			case MarkerSeverity.Info:
 				return 'info';
-			case Severity.Warning:
+			case MarkerSeverity.Warning:
 				return 'warning';
-			case Severity.Error:
+			case MarkerSeverity.Error:
 				return 'error';
 		}
 		return '';

@@ -40,6 +40,7 @@ export class WebviewInput extends EditorInput {
 	private _webviewDisposables: IDisposable[] = [];
 	private _position?: Position;
 	private _scrollYPercentage: number = 0;
+	public readonly extensionFolderPath: URI | undefined;
 
 	constructor(
 		resource: URI,
@@ -47,7 +48,8 @@ export class WebviewInput extends EditorInput {
 		options: WebviewInputOptions,
 		html: string,
 		events: WebviewEvents,
-		partService: IPartService
+		partService: IPartService,
+		extensionFolderPath?: string
 	) {
 		super();
 		this._resource = resource;
@@ -55,6 +57,10 @@ export class WebviewInput extends EditorInput {
 		this._options = options;
 		this._html = html;
 		this._events = events;
+
+		if (extensionFolderPath) {
+			this.extensionFolderPath = URI.file(extensionFolderPath);
+		}
 
 		const id = WebviewInput.handlePool++;
 		this._container = document.createElement('div');
@@ -178,8 +184,8 @@ export class WebviewInput extends EditorInput {
 	public releaseWebview(owner: any) {
 		if (this._webviewOwner === owner) {
 			this._webviewOwner = undefined;
-			if (this._options.retainContextWhenHidden) {
-				this.container.style.visibility = 'hidden';
+			if (this._options.retainContextWhenHidden && this._container) {
+				this._container.style.visibility = 'hidden';
 			} else {
 				this.disposeWebview();
 			}
@@ -196,7 +202,10 @@ export class WebviewInput extends EditorInput {
 		this._webviewDisposables = dispose(this._webviewDisposables);
 
 		this._webviewOwner = undefined;
-		this.container.style.visibility = 'hidden';
+
+		if (this._container) {
+			this._container.style.visibility = 'hidden';
+		}
 
 		this._currentWebviewHtml = '';
 	}

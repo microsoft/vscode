@@ -39,12 +39,12 @@ export function resolveCommonProperties(commit: string, version: string, machine
 			get: () => new Date(),
 			enumerable: true
 		},
-		// __GDPR__COMMON__ "common.timesincesessionstart" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		// __GDPR__COMMON__ "common.timesincesessionstart" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		'common.timesincesessionstart': {
 			get: () => Date.now() - startTime,
 			enumerable: true
 		},
-		// __GDPR__COMMON__ "common.sequence" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		// __GDPR__COMMON__ "common.sequence" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		'common.sequence': {
 			get: () => seq++,
 			enumerable: true

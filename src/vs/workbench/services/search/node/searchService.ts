@@ -6,8 +6,8 @@
 
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
-import objects = require('vs/base/common/objects');
-import strings = require('vs/base/common/strings');
+import * as objects from 'vs/base/common/objects';
+import * as strings from 'vs/base/common/strings';
 import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, IFolderQuery, ISearchConfiguration, ISearchService, pathIncludedInQuery, ISearchResultProvider } from 'vs/platform/search/common/search';

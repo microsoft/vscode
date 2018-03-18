@@ -4,49 +4,51 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector, TextDocumentPositionParams, ServerCapabilities, Position, CompletionTriggerKind } from 'vscode-languageserver';
+import {
+	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType,
+	DocumentRangeFormattingRequest, Disposable, DocumentSelector, TextDocumentPositionParams, ServerCapabilities,
+	Position, CompletionTriggerKind, ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
+	WorkspaceFolder, DocumentColorRequest, ColorInformation, ColorPresentationRequest
+} from 'vscode-languageserver';
 import { TextDocument, Diagnostic, DocumentLink, SymbolInformation, CompletionList } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
-
-import { ConfigurationRequest, ConfigurationParams } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
-import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorInformation, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
-import { DidChangeWorkspaceFoldersNotification, WorkspaceFolder } from 'vscode-languageserver-protocol/lib/protocol.workspaceFolders.proposed';
 
 import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
 import { getDocumentContext } from './utils/documentContext';
 import uri from 'vscode-uri';
-import { formatError, runSafe } from './utils/errors';
+import { formatError, runSafe, runSafeAsync } from './utils/runner';
 import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath, getEmmetCompletionParticipants } from 'vscode-emmet-helper';
 import { getPathCompletionParticipant } from './modes/pathCompletion';
 
 import { FoldingRangesRequest, FoldingProviderServerCapabilities } from './protocol/foldingProvider.proposed';
+import { getFoldingRegions } from './modes/htmlFolding';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
 }
 
 // Create a connection for the server
-let connection: IConnection = createConnection();
+const connection: IConnection = createConnection();
 
 console.log = connection.console.log.bind(connection.console);
 console.error = connection.console.error.bind(connection.console);
 
 process.on('unhandledRejection', (e: any) => {
-	connection.console.error(formatError(`Unhandled exception`, e));
+	console.error(formatError(`Unhandled exception`, e));
 });
-process.on('uncaughtException', (e) => {
-	connection.console.error(formatError(`Unhandled exception`, e));
+process.on('uncaughtException', (e: any) => {
+	console.error(formatError(`Unhandled exception`, e));
 });
 
 // Create a simple text document manager. The text document manager
 // supports full document sync only
-let documents: TextDocuments = new TextDocuments();
+const documents: TextDocuments = new TextDocuments();
 // Make the text document manager listen on the connection
 // for open, change and close text document events
 documents.listen(connection);
 
-let workspaceFolders: WorkspaceFolder[] | undefined;
+let workspaceFolders: WorkspaceFolder[] = [];
 
 var languageModes: LanguageModes;
 
@@ -76,7 +78,7 @@ function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: 
 	return Promise.resolve(void 0);
 }
 
-let emmetSettings = {};
+let emmetSettings: any = {};
 let currentEmmetExtensionsPath: string;
 const emmetTriggerCharacters = ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
@@ -113,7 +115,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
 	scopedSettingsSupport = hasClientCapability('workspace', 'configuration');
 	workspaceFoldersSupport = hasClientCapability('workspace', 'workspaceFolders');
-	let capabilities: ServerCapabilities & CPServerCapabilities & FoldingProviderServerCapabilities = {
+	let capabilities: ServerCapabilities & FoldingProviderServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
 		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: [...emmetTriggerCharacters, '.', ':', '<', '"', '=', '/'] } : undefined,
@@ -179,15 +181,15 @@ connection.onDidChangeConfiguration((change) => {
 		}
 	}
 
-	emmetSettings = globalSettings.emmet;
+	emmetSettings = globalSettings.emmet || {};
 	if (currentEmmetExtensionsPath !== emmetSettings['extensionsPath']) {
 		currentEmmetExtensionsPath = emmetSettings['extensionsPath'];
 		const workspaceUri = (workspaceFolders && workspaceFolders.length === 1) ? uri.parse(workspaceFolders[0].uri) : null;
-		updateEmmetExtensionsPath(currentEmmetExtensionsPath, workspaceUri ? workspaceUri.fsPath : null);
+		updateEmmetExtensionsPath(currentEmmetExtensionsPath, workspaceUri ? workspaceUri.fsPath : undefined);
 	}
 });
 
-let pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
+const pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
 const validationDelayMs = 500;
 
 // The content of a text document has changed. This event is emitted
@@ -228,31 +230,36 @@ function isValidationEnabled(languageId: string, settings: Settings = globalSett
 
 async function validateTextDocument(textDocument: TextDocument) {
 	try {
+		let version = textDocument.version;
 		let diagnostics: Diagnostic[] = [];
 		if (textDocument.languageId === 'html') {
 			let modes = languageModes.getAllModesInDocument(textDocument);
 			let settings = await getDocumentSettings(textDocument, () => modes.some(m => !!m.doValidation));
-			modes.forEach(mode => {
-				if (mode.doValidation && isValidationEnabled(mode.getId(), settings)) {
-					pushAll(diagnostics, mode.doValidation(textDocument, settings));
-				}
-			});
+			textDocument = documents.get(textDocument.uri);
+			if (textDocument && textDocument.version === version) { // check no new version has come in after in after the async op
+				modes.forEach(mode => {
+					if (mode.doValidation && isValidationEnabled(mode.getId(), settings)) {
+						pushAll(diagnostics, mode.doValidation(textDocument, settings));
+					}
+				});
+				connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+			}
 		}
-		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
 	} catch (e) {
 		connection.console.error(formatError(`Error while validating ${textDocument.uri}`, e));
 	}
 }
 
-let cachedCompletionList: CompletionList;
+let cachedCompletionList: CompletionList | null;
 const hexColorRegex = /^#[\d,a-f,A-F]{1,6}$/;
-connection.onCompletion(async textDocumentPosition => {
-	return runSafe(async () => {
-		let document = documents.get(textDocumentPosition.textDocument.uri);
-		let mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
+connection.onCompletion(async (textDocumentPosition, token) => {
+	return runSafeAsync(async () => {
+		const document = documents.get(textDocumentPosition.textDocument.uri);
+		const mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
 		if (!mode || !mode.doComplete) {
 			return { isIncomplete: true, items: [] };
 		}
+		const doComplete = mode.doComplete!;
 
 		if (cachedCompletionList
 			&& !cachedCompletionList.isIncomplete
@@ -280,14 +287,8 @@ connection.onCompletion(async textDocumentPosition => {
 		}
 
 		cachedCompletionList = null;
-		let emmetCompletionList: CompletionList = {
-			isIncomplete: false,
-			items: []
-		};
-		let pathCompletionList: CompletionList = {
-			isIncomplete: false,
-			items: []
-		};
+		const emmetCompletionList = CompletionList.create([], false);
+		const pathCompletionList = CompletionList.create([], false);
 
 		const emmetCompletionParticipant = getEmmetCompletionParticipants(document, textDocumentPosition.position, mode.getId(), emmetSettings, emmetCompletionList);
 		const completionParticipants = [emmetCompletionParticipant];
@@ -298,22 +299,26 @@ connection.onCompletion(async textDocumentPosition => {
 			completionParticipants.push(pathCompletionParticipant);
 		}
 
-		let settings = await getDocumentSettings(document, () => mode.doComplete.length > 2);
-		let result = mode.doComplete(document, textDocumentPosition.position, settings, completionParticipants);
-		result.items = [...pathCompletionList.items, ...result.items];
-		if (emmetCompletionList && emmetCompletionList.items) {
+		let settings = await getDocumentSettings(document, () => doComplete.length > 2);
+		let result = doComplete(document, textDocumentPosition.position, settings, completionParticipants);
+		if (!result) {
+			result = pathCompletionList;
+		} else {
+			result.items.push(...pathCompletionList.items);
+		}
+		if (emmetCompletionList.isIncomplete) {
 			cachedCompletionList = result;
-			if (emmetCompletionList.items.length && hexColorRegex.test(emmetCompletionList.items[0].label) && result.items.some(x => x.label === emmetCompletionList.items[0].label)) {
+			if (hexColorRegex.test(emmetCompletionList.items[0].label) && result.items.some(x => x.label === emmetCompletionList.items[0].label)) {
 				emmetCompletionList.items.shift();
 			}
-			return { isIncomplete: emmetCompletionList.isIncomplete || result.isIncomplete, items: [...emmetCompletionList.items, ...result.items] };
+			return CompletionList.create([...emmetCompletionList.items, ...result.items], emmetCompletionList.isIncomplete || result.isIncomplete);
 		}
 		return result;
 
-	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`);
+	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`, token);
 });
 
-connection.onCompletionResolve(item => {
+connection.onCompletionResolve((item, token) => {
 	return runSafe(() => {
 		let data = item.data;
 		if (data && data.languageId && data.uri) {
@@ -324,10 +329,10 @@ connection.onCompletionResolve(item => {
 			}
 		}
 		return item;
-	}, null, `Error while resolving completion proposal`);
+	}, item, `Error while resolving completion proposal`, token);
 });
 
-connection.onHover(textDocumentPosition => {
+connection.onHover((textDocumentPosition, token) => {
 	return runSafe(() => {
 		let document = documents.get(textDocumentPosition.textDocument.uri);
 		let mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
@@ -335,10 +340,10 @@ connection.onHover(textDocumentPosition => {
 			return mode.doHover(document, textDocumentPosition.position);
 		}
 		return null;
-	}, null, `Error while computing hover for ${textDocumentPosition.textDocument.uri}`);
+	}, null, `Error while computing hover for ${textDocumentPosition.textDocument.uri}`, token);
 });
 
-connection.onDocumentHighlight(documentHighlightParams => {
+connection.onDocumentHighlight((documentHighlightParams, token) => {
 	return runSafe(() => {
 		let document = documents.get(documentHighlightParams.textDocument.uri);
 		let mode = languageModes.getModeAtPosition(document, documentHighlightParams.position);
@@ -346,10 +351,10 @@ connection.onDocumentHighlight(documentHighlightParams => {
 			return mode.findDocumentHighlight(document, documentHighlightParams.position);
 		}
 		return [];
-	}, [], `Error while computing document highlights for ${documentHighlightParams.textDocument.uri}`);
+	}, [], `Error while computing document highlights for ${documentHighlightParams.textDocument.uri}`, token);
 });
 
-connection.onDefinition(definitionParams => {
+connection.onDefinition((definitionParams, token) => {
 	return runSafe(() => {
 		let document = documents.get(definitionParams.textDocument.uri);
 		let mode = languageModes.getModeAtPosition(document, definitionParams.position);
@@ -357,10 +362,10 @@ connection.onDefinition(definitionParams => {
 			return mode.findDefinition(document, definitionParams.position);
 		}
 		return [];
-	}, null, `Error while computing definitions for ${definitionParams.textDocument.uri}`);
+	}, null, `Error while computing definitions for ${definitionParams.textDocument.uri}`, token);
 });
 
-connection.onReferences(referenceParams => {
+connection.onReferences((referenceParams, token) => {
 	return runSafe(() => {
 		let document = documents.get(referenceParams.textDocument.uri);
 		let mode = languageModes.getModeAtPosition(document, referenceParams.position);
@@ -368,10 +373,10 @@ connection.onReferences(referenceParams => {
 			return mode.findReferences(document, referenceParams.position);
 		}
 		return [];
-	}, [], `Error while computing references for ${referenceParams.textDocument.uri}`);
+	}, [], `Error while computing references for ${referenceParams.textDocument.uri}`, token);
 });
 
-connection.onSignatureHelp(signatureHelpParms => {
+connection.onSignatureHelp((signatureHelpParms, token) => {
 	return runSafe(() => {
 		let document = documents.get(signatureHelpParms.textDocument.uri);
 		let mode = languageModes.getModeAtPosition(document, signatureHelpParms.position);
@@ -379,11 +384,11 @@ connection.onSignatureHelp(signatureHelpParms => {
 			return mode.doSignatureHelp(document, signatureHelpParms.position);
 		}
 		return null;
-	}, null, `Error while computing signature help for ${signatureHelpParms.textDocument.uri}`);
+	}, null, `Error while computing signature help for ${signatureHelpParms.textDocument.uri}`, token);
 });
 
-connection.onDocumentRangeFormatting(async formatParams => {
-	return runSafe(async () => {
+connection.onDocumentRangeFormatting(async (formatParams, token) => {
+	return runSafeAsync(async () => {
 		let document = documents.get(formatParams.textDocument.uri);
 		let settings = await getDocumentSettings(document, () => true);
 		if (!settings) {
@@ -393,10 +398,10 @@ connection.onDocumentRangeFormatting(async formatParams => {
 		let enabledModes = { css: !unformattedTags.match(/\bstyle\b/), javascript: !unformattedTags.match(/\bscript\b/) };
 
 		return format(languageModes, document, formatParams.range, formatParams.options, settings, enabledModes);
-	}, [], `Error while formatting range for ${formatParams.textDocument.uri}`);
+	}, [], `Error while formatting range for ${formatParams.textDocument.uri}`, token);
 });
 
-connection.onDocumentLinks(documentLinkParam => {
+connection.onDocumentLinks((documentLinkParam, token) => {
 	return runSafe(() => {
 		let document = documents.get(documentLinkParam.textDocument.uri);
 		let links: DocumentLink[] = [];
@@ -409,10 +414,10 @@ connection.onDocumentLinks(documentLinkParam => {
 			});
 		}
 		return links;
-	}, [], `Error while document links for ${documentLinkParam.textDocument.uri}`);
+	}, [], `Error while document links for ${documentLinkParam.textDocument.uri}`, token);
 });
 
-connection.onDocumentSymbol(documentSymbolParms => {
+connection.onDocumentSymbol((documentSymbolParms, token) => {
 	return runSafe(() => {
 		let document = documents.get(documentSymbolParms.textDocument.uri);
 		let symbols: SymbolInformation[] = [];
@@ -422,10 +427,10 @@ connection.onDocumentSymbol(documentSymbolParms => {
 			}
 		});
 		return symbols;
-	}, [], `Error while computing document symbols for ${documentSymbolParms.textDocument.uri}`);
+	}, [], `Error while computing document symbols for ${documentSymbolParms.textDocument.uri}`, token);
 });
 
-connection.onRequest(DocumentColorRequest.type, params => {
+connection.onRequest(DocumentColorRequest.type, (params, token) => {
 	return runSafe(() => {
 		let infos: ColorInformation[] = [];
 		let document = documents.get(params.textDocument.uri);
@@ -437,10 +442,10 @@ connection.onRequest(DocumentColorRequest.type, params => {
 			});
 		}
 		return infos;
-	}, [], `Error while computing document colors for ${params.textDocument.uri}`);
+	}, [], `Error while computing document colors for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest(ColorPresentationRequest.type, params => {
+connection.onRequest(ColorPresentationRequest.type, (params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
@@ -450,10 +455,10 @@ connection.onRequest(ColorPresentationRequest.type, params => {
 			}
 		}
 		return [];
-	}, [], `Error while computing color presentations for ${params.textDocument.uri}`);
+	}, [], `Error while computing color presentations for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest(TagCloseRequest.type, params => {
+connection.onRequest(TagCloseRequest.type, (params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
@@ -466,21 +471,17 @@ connection.onRequest(TagCloseRequest.type, params => {
 			}
 		}
 		return null;
-	}, null, `Error while computing tag close actions for ${params.textDocument.uri}`);
+	}, null, `Error while computing tag close actions for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest(FoldingRangesRequest.type, params => {
+connection.onRequest(FoldingRangesRequest.type, (params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
-			let mode = languageModes.getMode('html');
-			if (mode && mode.getFoldingRanges) {
-				return mode.getFoldingRanges(document);
-			}
-			return null;
+			return getFoldingRegions(languageModes, document, params.maxRanges, token);
 		}
 		return null;
-	}, null, `Error while computing folding regions for ${params.textDocument.uri}`);
+	}, null, `Error while computing folding regions for ${params.textDocument.uri}`, token);
 });
 
 

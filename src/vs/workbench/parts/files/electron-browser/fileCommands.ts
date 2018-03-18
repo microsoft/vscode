@@ -5,8 +5,8 @@
 
 'use strict';
 
-import nls = require('vs/nls');
-import paths = require('vs/base/common/paths');
+import * as nls from 'vs/nls';
+import * as paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as labels from 'vs/base/common/labels';
 import URI from 'vs/base/common/uri';
@@ -22,7 +22,6 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { basename } from 'vs/base/common/paths';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -249,7 +248,7 @@ CommandsRegistry.registerCommand({
 
 		if (resources.length) {
 			return textFileService.revertAll(resources, { force: true }).then(null, error => {
-				notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", resources.map(r => basename(r.fsPath)).join(', '), toErrorMessage(error, false)));
+				notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", resources.map(r => paths.basename(r.fsPath)).join(', '), toErrorMessage(error, false)));
 			});
 		}
 
@@ -486,9 +485,16 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: undefined,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S,
-	handler: (accessor, resource: URI | object) => {
+	handler: (accessor, resourceOrObject: URI | object | { from: string }) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
-		return save(getResourceForCommand(resource, accessor.get(IListService), editorService), true, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
+		let resource: URI = undefined;
+		if (resourceOrObject && 'from' in resourceOrObject && resourceOrObject.from === 'menu') {
+			resource = toResource(editorService.getActiveEditorInput());
+		} else {
+			resource = getResourceForCommand(resourceOrObject, accessor.get(IListService), editorService);
+		}
+
+		return save(resource, true, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
 	}
 });
 

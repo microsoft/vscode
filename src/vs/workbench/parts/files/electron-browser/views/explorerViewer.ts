@@ -5,22 +5,21 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import lifecycle = require('vs/base/common/lifecycle');
-import objects = require('vs/base/common/objects');
-import DOM = require('vs/base/browser/dom');
+import * as nls from 'vs/nls';
+import * as objects from 'vs/base/common/objects';
+import * as DOM from 'vs/base/browser/dom';
 import URI from 'vs/base/common/uri';
 import { once } from 'vs/base/common/functional';
-import paths = require('vs/base/common/paths');
-import resources = require('vs/base/common/resources');
-import errors = require('vs/base/common/errors');
+import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
+import * as errors from 'vs/base/common/errors';
 import { IAction, ActionRunner as BaseActionRunner, IActionRunner } from 'vs/base/common/actions';
-import comparers = require('vs/base/common/comparers');
+import * as comparers from 'vs/base/common/comparers';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
-import glob = require('vs/base/common/glob');
+import * as glob from 'vs/base/common/glob';
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationError, FileOperationResult, IFileService, FileKind } from 'vs/platform/files/common/files';
@@ -51,7 +50,6 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { extractResources, SimpleFileResourceDragAndDrop, CodeDataTransfers, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
 import { relative } from 'path';
-import { distinctParents } from 'vs/base/common/resources';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { DataTransfers } from 'vs/base/browser/dnd';
@@ -109,7 +107,10 @@ export class FileDataSource implements IDataSource {
 
 				return stat.children;
 			}, (e: any) => {
-				this.notificationService.error(e);
+				// Do not show error for roots since we already use an explorer decoration to notify user
+				if (!(stat instanceof FileStat && stat.isRoot)) {
+					this.notificationService.error(e);
+				}
 
 				return []; // we could not resolve any children because of an error
 			});
@@ -179,6 +180,7 @@ export class ActionRunner extends BaseActionRunner implements IActionRunner {
 }
 
 export interface IFileTemplateData {
+	elementDisposable: IDisposable;
 	label: FileLabel;
 	container: HTMLElement;
 }
@@ -228,12 +230,15 @@ export class FileRenderer implements IRenderer {
 	}
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): IFileTemplateData {
+		const elementDisposable = EmptyDisposable;
 		const label = this.instantiationService.createInstance(FileLabel, container, void 0);
 
-		return { label, container };
+		return { elementDisposable, label, container };
 	}
 
 	public renderElement(tree: ITree, stat: FileStat, templateId: string, templateData: IFileTemplateData): void {
+		templateData.elementDisposable.dispose();
+
 		const editableData: IEditableData = this.state.getEditableData(stat);
 
 		// File Label
@@ -246,12 +251,17 @@ export class FileRenderer implements IRenderer {
 				extraClasses,
 				fileDecorations: this.config.explorer.decorations
 			});
+
+			templateData.elementDisposable = templateData.label.onDidRender(() => {
+				tree.updateWidth(stat);
+			});
 		}
 
 		// Input Box
 		else {
 			templateData.label.element.style.display = 'none';
 			this.renderInputBox(templateData.container, tree, stat, editableData);
+			templateData.elementDisposable = EmptyDisposable;
 		}
 	}
 
@@ -296,7 +306,7 @@ export class FileRenderer implements IRenderer {
 				if (!blur) { // https://github.com/Microsoft/vscode/issues/20269
 					tree.domFocus();
 				}
-				lifecycle.dispose(toDispose);
+				dispose(toDispose);
 				container.removeChild(label.element);
 			}, 0);
 		});
@@ -801,7 +811,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		else {
 			const sources: FileStat[] = data.getData();
 			if (target instanceof Model) {
-				if (sources.length === 1 && sources[0].isRoot) {
+				if (sources[0].isRoot) {
 					return DRAG_OVER_ACCEPT_BUBBLE_DOWN(false);
 				}
 
@@ -817,8 +827,8 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					return true; // NewStatPlaceholders can not be moved
 				}
 
-				if (source.isRoot && (sources.length > 1 || target instanceof FileStat && !target.isRoot)) {
-					return true; // Root folder can not be moved to a non root file stat. Do not allow root folder move when multi selection drag.
+				if (source.isRoot && target instanceof FileStat && !target.isRoot) {
+					return true; // Root folder can not be moved to a non root file stat.
 				}
 
 				if (source.resource.toString() === target.resource.toString()) {
@@ -918,7 +928,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	private handleExplorerDrop(tree: ITree, data: IDragAndDropData, target: FileStat | Model, originalEvent: DragMouseEvent): TPromise<void> {
-		const sources: FileStat[] = distinctParents(data.getData(), s => s.resource);
+		const sources: FileStat[] = resources.distinctParents(data.getData(), s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
 		let confirmPromise: TPromise<IConfirmationResult>;
@@ -927,8 +937,10 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
 		if (confirmDragAndDrop) {
 			confirmPromise = this.dialogService.confirm({
-				message: sources.length > 1 ? getConfirmMessage(nls.localize('confirmMultiMove', "Are you sure you want to move the following {0} files?", sources.length), sources.map(s => s.resource))
-					: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", sources[0].name),
+				message: sources.length > 1 && sources.every(s => s.isRoot) ? nls.localize('confirmRootsMove', "Are you sure you want to change the order of multiple root folders in your workspace?")
+					: sources.length > 1 ? getConfirmMessage(nls.localize('confirmMultiMove', "Are you sure you want to move the following {0} files?", sources.length), sources.map(s => s.resource))
+						: sources[0].isRoot ? nls.localize('confirmRootMove', "Are you sure you want to change the order of root folder '{0}' in your workspace?", sources[0].name)
+							: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", sources[0].name),
 				checkbox: {
 					label: nls.localize('doNotAskAgain', "Do not ask me again")
 				},
@@ -949,7 +961,8 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 			return updateConfirmSettingsPromise.then(() => {
 				if (res.confirmed) {
-					return TPromise.join(sources.map(source => this.doHandleExplorerDrop(tree, source, target, isCopy))).then(() => void 0);
+					const rootDropPromise = this.doHandleRootDrop(sources.filter(s => s.isRoot), target);
+					return TPromise.join(sources.filter(s => !s.isRoot).map(source => this.doHandleExplorerDrop(tree, source, target, isCopy)).concat(rootDropPromise)).then(() => void 0);
 				}
 
 				return TPromise.as(void 0);
@@ -957,35 +970,36 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		});
 	}
 
-	private doHandleExplorerDrop(tree: ITree, source: FileStat, target: FileStat | Model, isCopy: boolean): TPromise<void> {
-		return tree.expand(target).then(() => {
-			if (source.isRoot) {
-				const folders = this.contextService.getWorkspace().folders;
-				let sourceIndex: number;
-				let targetIndex: number;
-				const workspaceCreationData: IWorkspaceFolderCreationData[] = [];
-				const targetUri = target instanceof FileStat ? target.resource : folders[folders.length - 1].uri;
+	private doHandleRootDrop(roots: FileStat[], target: FileStat | Model): TPromise<void> {
+		const folders = this.contextService.getWorkspace().folders;
+		let targetIndex: number;
+		const workspaceCreationData: IWorkspaceFolderCreationData[] = [];
+		const rootsToMove: IWorkspaceFolderCreationData[] = [];
 
-				for (let index = 0; index < folders.length; index++) {
-					if (folders[index].uri.toString() === source.resource.toString()) {
-						sourceIndex = index;
-					}
-					if (folders[index].uri.toString() === targetUri.toString()) {
-						targetIndex = index;
-					}
-					workspaceCreationData.push({
-						name: folders[index].name,
-						uri: folders[index].uri
-					});
-				}
-
-				const swap = workspaceCreationData[sourceIndex];
-				workspaceCreationData[sourceIndex] = workspaceCreationData[targetIndex];
-				workspaceCreationData[targetIndex] = swap;
-
-				return this.workspaceEditingService.updateFolders(0, workspaceCreationData.length, workspaceCreationData);
+		for (let index = 0; index < folders.length; index++) {
+			const data = {
+				uri: folders[index].uri
+			};
+			if (target instanceof FileStat && folders[index].uri.toString() === target.resource.toString()) {
+				targetIndex = workspaceCreationData.length;
 			}
 
+			if (roots.every(r => r.resource.toString() !== folders[index].uri.toString())) {
+				workspaceCreationData.push(data);
+			} else {
+				rootsToMove.push(data);
+			}
+		}
+		if (target instanceof Model) {
+			targetIndex = workspaceCreationData.length;
+		}
+
+		workspaceCreationData.splice(targetIndex, 0, ...rootsToMove);
+		return this.workspaceEditingService.updateFolders(0, workspaceCreationData.length, workspaceCreationData);
+	}
+
+	private doHandleExplorerDrop(tree: ITree, source: FileStat, target: FileStat | Model, isCopy: boolean): TPromise<void> {
+		return tree.expand(target).then(() => {
 			// Reuse duplicate action if user copies
 			if (isCopy) {
 				return this.instantiationService.createInstance(DuplicateFileAction, tree, source, target).run();

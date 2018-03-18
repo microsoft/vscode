@@ -10,9 +10,8 @@ import * as path from 'path';
 import Uri from 'vscode-uri';
 import { TextDocument, CompletionList, CompletionItemKind, } from 'vscode-languageserver-types';
 import { getLanguageModes } from '../modes/languageModes';
-import { applyEdits } from '../utils/edits';
 import { getPathCompletionParticipant } from '../modes/pathCompletion';
-import { Proposed } from 'vscode-languageserver-protocol';
+import { WorkspaceFolder } from 'vscode-languageserver';
 
 export interface ItemDescription {
 	label: string;
@@ -43,13 +42,13 @@ suite('Completions', () => {
 			assert.equal(match.kind, expected.kind);
 		}
 		if (expected.resultText && match.textEdit) {
-			assert.equal(applyEdits(document, [match.textEdit]), expected.resultText);
+			assert.equal(TextDocument.applyEdits(document, [match.textEdit]), expected.resultText);
 		}
 	};
 
 	const testUri = 'test://test/test.html';
 
-	function assertCompletions(value: string, expected: { count?: number, items?: ItemDescription[] }, uri = testUri, workspaceFolders?: Proposed.WorkspaceFolder[]): void {
+	function assertCompletions(value: string, expected: { count?: number, items?: ItemDescription[] }, uri = testUri, workspaceFolders?: WorkspaceFolder[]): void {
 		let offset = value.indexOf('|');
 		value = value.substr(0, offset) + value.substr(offset + 1);
 
@@ -57,7 +56,7 @@ suite('Completions', () => {
 		let position = document.positionAt(offset);
 
 		var languageModes = getLanguageModes({ css: true, javascript: true });
-		var mode = languageModes.getModeAtPosition(document, position);
+		var mode = languageModes.getModeAtPosition(document, position)!;
 
 		if (!workspaceFolders) {
 			workspaceFolders = [{ name: 'x', uri: path.dirname(uri) }];
@@ -68,7 +67,7 @@ suite('Completions', () => {
 			mode.setCompletionParticipants([getPathCompletionParticipant(document, workspaceFolders, participantResult)]);
 		}
 
-		let list = mode.doComplete!(document, position);
+		let list = mode.doComplete!(document, position)!;
 		list.items = list.items.concat(participantResult.items);
 
 		if (expected.count) {

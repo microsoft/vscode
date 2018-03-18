@@ -645,8 +645,8 @@ export class IssueReporter extends Disposable {
 
 		/* __GDPR__
 			"issueReporterSubmit" : {
-				"issueType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"numSimilarIssuesDisplayed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"issueType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"numSimilarIssuesDisplayed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.publicLog('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType, numSimilarIssuesDisplayed: this.numberOfSearchResultsDisplayed });

@@ -9,8 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Throttler } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
-import paths = require('vs/base/common/paths');
-import Event from 'vs/base/common/event';
+import * as paths from 'vs/base/common/paths';
+import { Event, once } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { ActionItem, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -61,15 +61,15 @@ class DownloadExtensionAction extends Action {
 
 	run(): TPromise<void> {
 		return this.openerService.open(URI.parse(this.extension.downloadUrl)).then(() => {
-			this.notificationService.notify({
+			const action = this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL);
+			const handle = this.notificationService.notify({
 				severity: Severity.Info,
 				message: localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', this.extension.id),
 				actions: {
-					primary: [
-						this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL)
-					]
+					primary: [action]
 				}
 			});
+			once(handle.onDidDispose)(() => action.dispose());
 		});
 	}
 }
@@ -132,15 +132,16 @@ export class InstallAction extends Action {
 			}
 
 			console.error(err);
-			this.notificationService.notify({
+
+			const action = this.instantiationService.createInstance(DownloadExtensionAction, extension);
+			const handle = this.notificationService.notify({
 				severity: Severity.Error,
 				message: localize('failedToInstall', "Failed to install \'{0}\'.", extension.id),
 				actions: {
-					primary: [
-						this.instantiationService.createInstance(DownloadExtensionAction, extension)
-					]
+					primary: [action]
 				}
 			});
+			once(handle.onDidDispose)(() => action.dispose());
 		});
 	}
 
@@ -347,15 +348,15 @@ export class UpdateAction extends Action {
 			}
 
 			console.error(err);
-			this.notificationService.notify({
+			const action = this.instantiationService.createInstance(DownloadExtensionAction, extension);
+			const handle = this.notificationService.notify({
 				severity: Severity.Error,
 				message: localize('failedToUpdate', "Failed to update \'{0}\'.", extension.id),
 				actions: {
-					primary: [
-						this.instantiationService.createInstance(DownloadExtensionAction, extension)
-					]
+					primary: [action]
 				}
 			});
+			once(handle.onDidDispose)(() => action.dispose());
 		});
 	}
 
@@ -859,15 +860,15 @@ export class UpdateAllAction extends Action {
 			}
 
 			console.error(err);
-			this.notificationService.notify({
+			const action = this.instantiationService.createInstance(DownloadExtensionAction, extension);
+			const handle = this.notificationService.notify({
 				severity: Severity.Error,
 				message: localize('failedToUpdate', "Failed to update \'{0}\'.", extension.id),
 				actions: {
-					primary: [
-						this.instantiationService.createInstance(DownloadExtensionAction, extension)
-					]
+					primary: [action]
 				}
 			});
+			once(handle.onDidDispose)(() => action.dispose());
 		});
 	}
 
@@ -1268,15 +1269,15 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 			}
 
 			console.error(err);
-			this.notificationService.notify({
+			const action = this.instantiationService.createInstance(DownloadExtensionAction, extension);
+			const handle = this.notificationService.notify({
 				severity: Severity.Error,
 				message: localize('failedToInstall', "Failed to install \'{0}\'.", extension.id),
 				actions: {
-					primary: [
-						this.instantiationService.createInstance(DownloadExtensionAction, extension)
-					]
+					primary: [action]
 				}
 			});
+			once(handle.onDidDispose)(() => action.dispose());
 		});
 	}
 
@@ -1337,15 +1338,15 @@ export class InstallRecommendedExtensionAction extends Action {
 			}
 
 			console.error(err);
-			this.notificationService.notify({
+			const action = this.instantiationService.createInstance(DownloadExtensionAction, extension);
+			const handle = this.notificationService.notify({
 				severity: Severity.Error,
 				message: localize('failedToInstall', "Failed to install \'{0}\'.", extension.id),
 				actions: {
-					primary: [
-						this.instantiationService.createInstance(DownloadExtensionAction, extension)
-					]
+					primary: [action]
 				}
 			});
+			once(handle.onDidDispose)(() => action.dispose());
 		});
 	}
 
@@ -1707,6 +1708,45 @@ export class MaliciousStatusLabelAction extends Action {
 		} else {
 			this.class = `${MaliciousStatusLabelAction.Class} not-malicious`;
 		}
+	}
+
+	run(): TPromise<any> {
+		return TPromise.as(null);
+	}
+}
+
+export class DisabledStatusLabelAction extends Action {
+
+	private static readonly Class = 'disable-status';
+
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+
+	private disposables: IDisposable[] = [];
+	private throttler: Throttler = new Throttler();
+
+	constructor(
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionService private extensionService: IExtensionService
+	) {
+		super('extensions.install', localize('disabled', "Disabled"), `${DisabledStatusLabelAction.Class} hide`, false);
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.update();
+	}
+
+	private update(): void {
+		this.throttler.queue(() => this.extensionService.getExtensions()
+			.then(runningExtensions => {
+				this.class = `${DisabledStatusLabelAction.Class} hide`;
+				this.tooltip = '';
+				if (this.extension && !this.extension.isMalicious && !runningExtensions.some(e => e.id === this.extension.id)) {
+					if (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) {
+						this.class = `${DisabledStatusLabelAction.Class}`;
+						this.tooltip = this.extension.enablementState === EnablementState.Disabled ? localize('disabled globally', "Disabled") : localize('disabled workspace', "Disabled for this Workspace");
+					}
+				}
+			}));
 	}
 
 	run(): TPromise<any> {

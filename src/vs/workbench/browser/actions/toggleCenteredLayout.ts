@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -26,7 +26,7 @@ class ToggleCenteredLayout extends Action {
 	}
 
 	public run(): TPromise<any> {
-		this.partService.toggleCenteredEditorLayout();
+		this.partService.centerEditorLayout(!this.partService.isEditorLayoutCentered());
 
 		return TPromise.as(null);
 	}

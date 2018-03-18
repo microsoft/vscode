@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
-import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
+import * as QuickOpen from 'vs/base/parts/quickopen/common/quickOpen';
+import * as Model from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 import { CustomTask, ContributedTask } from 'vs/workbench/parts/tasks/common/tasks';

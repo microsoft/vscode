@@ -53,7 +53,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 				if (!update || !update.url || !update.version || !update.productVersion) {
 					/* __GDPR__
 							"update:notAvailable" : {
-								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 							}
 						*/
 					this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
@@ -68,7 +68,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 				/* __GDPR__
 					"update:notAvailable" : {
-					"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 					*/
 				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });

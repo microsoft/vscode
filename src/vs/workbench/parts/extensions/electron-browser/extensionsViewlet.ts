@@ -13,7 +13,7 @@ import { isPromiseCanceledError, onUnexpectedError, create as createError } from
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
-import EventOf, { mapEvent, chain } from 'vs/base/common/event';
+import { Event as EventOf, mapEvent, chain } from 'vs/base/common/event';
 import { IAction } from 'vs/base/common/actions';
 import { domEvent } from 'vs/base/browser/event';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';

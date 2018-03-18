@@ -6,13 +6,13 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 
-import assert = require('assert');
-import os = require('os');
+import * as assert from 'assert';
+import * as os from 'os';
 
-import path = require('path');
-import fs = require('fs');
+import * as path from 'path';
+import * as fs from 'fs';
 
-import uuid = require('vs/base/common/uuid');
+import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 

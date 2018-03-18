@@ -7,9 +7,9 @@
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { memoize } from 'vs/base/common/decorators';
-import paths = require('vs/base/common/paths');
-import resources = require('vs/base/common/resources');
-import labels = require('vs/base/common/labels');
+import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
+import * as labels from 'vs/base/common/labels';
 import URI from 'vs/base/common/uri';
 import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';

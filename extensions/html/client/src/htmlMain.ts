@@ -8,13 +8,13 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, FoldingRangeList, FoldingRange, workspace } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, Disposable } from 'vscode-languageclient';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, FoldingRangeList, FoldingRange, workspace, FoldingContext } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, Disposable, CancellationToken } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-import { FoldingRangesRequest } from './protocol/foldingProvider.proposed';
+import { FoldingRangesRequest, FoldingRangeRequestParam } from './protocol/foldingProvider.proposed';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
@@ -172,11 +172,18 @@ export function activate(context: ExtensionContext) {
 		if (enable) {
 			if (!foldingProviderRegistration) {
 				foldingProviderRegistration = languages.registerFoldingProvider(documentSelector, {
-					provideFoldingRanges(document: TextDocument) {
-						return client.sendRequest(FoldingRangesRequest.type, { textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document) }).then(res => {
+					provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken) {
+						const param: FoldingRangeRequestParam = {
+							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+							maxRanges: context.maxRanges
+						};
+						return client.sendRequest(FoldingRangesRequest.type, param, token).then(res => {
 							if (res && Array.isArray(res.ranges)) {
 								return new FoldingRangeList(res.ranges.map(r => new FoldingRange(r.startLine, r.endLine, r.type)));
 							}
+							return null;
+						}, error => {
+							client.logFailedRequest(FoldingRangesRequest.type, error);
 							return null;
 						});
 					}

@@ -18,7 +18,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
@@ -164,7 +164,7 @@ export abstract class AbstractScrollableElement extends Widget {
 	private _shouldRender: boolean;
 
 	private readonly _onScroll = this._register(new Emitter<ScrollEvent>());
-	public onScroll: Event<ScrollEvent> = this._onScroll.event;
+	public readonly onScroll: Event<ScrollEvent> = this._onScroll.event;
 
 	protected constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable?: Scrollable) {
 		super();
