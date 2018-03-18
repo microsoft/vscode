@@ -34,9 +34,9 @@ import { getHashedRemotesFromUri } from 'vs/workbench/parts/stats/node/workspace
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asJson } from 'vs/base/node/request';
 import { isNumber } from 'vs/base/common/types';
-import { IChoiceService, Choice } from 'vs/platform/dialogs/common/dialogs';
 import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { INotificationService, PromptOption } from 'vs/platform/notification/common/notification';
 
 interface IExtensionsContent {
 	recommendations: string[];
@@ -71,7 +71,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		@IExtensionGalleryService private readonly _galleryService: IExtensionGalleryService,
 		@IModelService private readonly _modelService: IModelService,
 		@IStorageService private storageService: IStorageService,
-		@IChoiceService private choiceService: IChoiceService,
 		@IExtensionManagementService private extensionsService: IExtensionManagementService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IFileService private fileService: IFileService,
@@ -81,7 +80,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IRequestService private requestService: IRequestService,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private viewletService: IViewletService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		super();
 
@@ -161,12 +161,12 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					return;
 				}
 				const message = localize('showLanguagePackExtensions', "The Marketplace has extensions that can help localizing VS Code to '{0}' locale", language);
-				const options: Choice[] = [
+				const options: PromptOption[] = [
 					searchMarketplace,
 					{ label: choiceNever }
 				];
 
-				this.choiceService.choose(Severity.Info, message, options).done(choice => {
+				this.notificationService.prompt(Severity.Info, message, options).done(choice => {
 					switch (choice) {
 						case 0 /* Search Marketplace */:
 							/* __GDPR__
@@ -309,11 +309,13 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					});
 				}
 
-				if (countBadRecommendations > 0) {
-					console.log('The below ' +
+				if (countBadRecommendations > 0 && this.notificationService) {
+					this.notificationService.warn(
+						'The below ' +
 						countBadRecommendations +
 						' extension(s) in workspace recommendations have issues:\n' +
-						badRecommendationsString);
+						badRecommendationsString
+					);
 				}
 
 				return validRecommendations;
@@ -487,13 +489,13 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 				const recommendationsAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
 				const installAction = this.instantiationService.createInstance(InstallRecommendedExtensionAction, id);
-				const options: Choice[] = [
+				const options: PromptOption[] = [
 					localize('install', 'Install'),
 					recommendationsAction.label,
 					{ label: choiceNever }
 				];
 
-				this.choiceService.choose(Severity.Info, message, options).done(choice => {
+				this.notificationService.prompt(Severity.Info, message, options).done(choice => {
 					switch (choice) {
 						case 0 /* Install */:
 							/* __GDPR__
@@ -567,18 +569,18 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					}
 
 					const message = localize('showLanguageExtensions', "The Marketplace has extensions that can help with '.{0}' files", fileExtension);
-					const options: Choice[] = [
+					const options: PromptOption[] = [
 						searchMarketplace,
 						{ label: choiceNever }
 					];
 
-					this.choiceService.choose(Severity.Info, message, options).done(choice => {
+					this.notificationService.prompt(Severity.Info, message, options).done(choice => {
 						switch (choice) {
 							case 0 /* Search Marketplace */:
 								/* __GDPR__
 									"fileExtensionSuggestion:popup" : {
 										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-										"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+										"fileExtension": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
 									}
 								*/
 								this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'ok', fileExtension: fileExtension });
@@ -599,7 +601,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 								/* __GDPR__
 									"fileExtensionSuggestion:popup" : {
 										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-										"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+										"fileExtension": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
 									}
 								*/
 								this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'neverShowAgain', fileExtension: fileExtension });
@@ -609,7 +611,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 						/* __GDPR__
 							"fileExtensionSuggestion:popup" : {
 								"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+								"fileExtension": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
 							}
 						*/
 						this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'cancelled', fileExtension: fileExtension });
@@ -640,13 +642,13 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				const showAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
 				const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, localize('installAll', "Install All"));
 
-				const options: Choice[] = [
+				const options: PromptOption[] = [
 					installAllAction.label,
 					showAction.label,
 					{ label: choiceNever }
 				];
 
-				return this.choiceService.choose(Severity.Info, message, options).done(choice => {
+				return this.notificationService.prompt(Severity.Info, message, options).done(choice => {
 					switch (choice) {
 						case 0 /* Install */:
 							/* __GDPR__
@@ -692,7 +694,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			localize('no', "No")
 		];
 
-		this.choiceService.choose(Severity.Info, message, options).done(choice => {
+		this.notificationService.prompt(Severity.Info, message, options).done(choice => {
 			switch (choice) {
 				case 0:	// If the user ignores the current message and selects different file type
 					return this.setIgnoreRecommendationsConfig(true);
@@ -775,8 +777,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			this._dynamicWorkspaceRecommendations = storedRecommendationsJson['recommendations'];
 			/* __GDPR__
 				"dynamicWorkspaceRecommendations" : {
-					"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 				}
 			*/
 			this.telemetryService.publicLog('dynamicWorkspaceRecommendations', { count: this._dynamicWorkspaceRecommendations.length, cache: 1 });

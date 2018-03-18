@@ -5,7 +5,7 @@
 
 'use strict';
 
-import processes = require('vs/base/node/processes');
+import * as processes from 'vs/base/node/processes';
 
 const sender = processes.createQueuedSender(process);
 

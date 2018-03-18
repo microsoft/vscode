@@ -16,7 +16,7 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { getPathLabel } from 'vs/base/common/labels';
 import { ResourceMap } from 'vs/base/common/map';
 import { once } from 'vs/base/common/event';

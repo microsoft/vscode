@@ -8,6 +8,5 @@
 	],
 	"preview.securityMessage.text": "In diesem Dokument wurden einige Inhalte deaktiviert.",
 	"preview.securityMessage.title": "Potenziell unsichere Inhalte wurden in der Markdown-Vorschau deaktiviert. Ändern Sie die Sicherheitseinstellung der Markdown-Vorschau, um unsichere Inhalte zuzulassen oder Skripts zu aktivieren.",
-	"preview.securityMessage.label": "Sicherheitswarnung – Inhalt deaktiviert",
-	"previewTitle": "Vorschau von {0}"
+	"preview.securityMessage.label": "Sicherheitswarnung – Inhalt deaktiviert"
 }

@@ -12,7 +12,7 @@ import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range, IRange } from 'vs/editor/common/core/range';
@@ -25,7 +25,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { SettingsGroupTitleWidget, EditPreferenceWidget, SettingsHeaderWidget, DefaultSettingsHeaderWidget, FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
-import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
+import { IMarkerService, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -40,7 +40,7 @@ import { IssueType, ISettingsSearchIssueReporterData, ISettingSearchResult } fro
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
@@ -69,13 +69,13 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	private modelChangeDelayer: Delayer<void> = new Delayer<void>(200);
 	private associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
 
-	private _onFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
+	private readonly _onFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
 	public readonly onFocusPreference: Event<ISetting> = this._onFocusPreference.event;
 
-	private _onClearFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
+	private readonly _onClearFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
 	public readonly onClearFocusPreference: Event<ISetting> = this._onClearFocusPreference.event;
 
-	private _onUpdatePreference: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
+	private readonly _onUpdatePreference: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
 	public readonly onUpdatePreference: Event<{ key: string, value: any, source: IIndexedSetting }> = this._onUpdatePreference.event;
 
 	private filterResult: IFilterResult;
@@ -257,13 +257,13 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private extensionCodelensRenderer: ExtensionCodelensRenderer;
 	private filterResult: IFilterResult;
 
-	private _onUpdatePreference: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
+	private readonly _onUpdatePreference: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
 	public readonly onUpdatePreference: Event<{ key: string, value: any, source: IIndexedSetting }> = this._onUpdatePreference.event;
 
-	private _onFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
+	private readonly _onFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
 	public readonly onFocusPreference: Event<ISetting> = this._onFocusPreference.event;
 
-	private _onClearFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
+	private readonly _onClearFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
 	public readonly onClearFocusPreference: Event<ISetting> = this._onClearFocusPreference.event;
 
 	constructor(protected editor: ICodeEditor, public readonly preferencesModel: DefaultSettingsEditorModel,
@@ -465,7 +465,7 @@ export class BracesHidingRenderer extends Disposable implements HiddenAreasProvi
 class DefaultSettingsHeaderRenderer extends Disposable {
 
 	private settingsHeaderWidget: DefaultSettingsHeaderWidget;
-	public onClick: Event<void>;
+	public readonly onClick: Event<void>;
 
 	constructor(editor: ICodeEditor, scope: ConfigurationScope) {
 		super();
@@ -481,7 +481,7 @@ class DefaultSettingsHeaderRenderer extends Disposable {
 
 export class SettingsGroupTitleRenderer extends Disposable implements HiddenAreasProvider {
 
-	private _onHiddenAreasChanged: Emitter<void> = new Emitter<void>();
+	private readonly _onHiddenAreasChanged: Emitter<void> = new Emitter<void>();
 	get onHiddenAreasChanged(): Event<void> { return this._onHiddenAreasChanged.event; }
 
 	private settingsGroups: ISettingsGroup[];
@@ -732,10 +732,10 @@ export class FeedbackWidgetRenderer extends Disposable {
 				"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 				"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"buildNumber" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"buildNumber" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"alts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"autoIngest" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"autoIngest" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 		return this.telemetryService.publicLog('settingsSearchResultFeedback', {
@@ -1031,7 +1031,7 @@ class EditSettingRenderer extends Disposable {
 	public associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
 	private toggleEditPreferencesForMouseMoveDelayer: Delayer<void>;
 
-	private _onUpdateSetting: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
+	private readonly _onUpdateSetting: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
 	public readonly onUpdateSetting: Event<{ key: string, value: any, source: IIndexedSetting }> = this._onUpdateSetting.event;
 
 	constructor(private editor: ICodeEditor, private masterSettingsModel: ISettingsEditorModel,
@@ -1295,7 +1295,7 @@ class SettingHighlighter extends Disposable {
 	private volatileHighlighter: RangeHighlightDecorations;
 	private highlightedSetting: ISetting;
 
-	constructor(private editor: ICodeEditor, private focusEventEmitter: Emitter<ISetting>, private clearFocusEventEmitter: Emitter<ISetting>,
+	constructor(private editor: ICodeEditor, private readonly focusEventEmitter: Emitter<ISetting>, private readonly clearFocusEventEmitter: Emitter<ISetting>,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
@@ -1355,7 +1355,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 						// Show warnings for executable settings
 						if (configurationRegistry[setting.key] && configurationRegistry[setting.key].isExecutable) {
 							markerData.push({
-								severity: Severity.Warning,
+								severity: MarkerSeverity.Warning,
 								startLineNumber: setting.keyRange.startLineNumber,
 								startColumn: setting.keyRange.startColumn,
 								endLineNumber: setting.keyRange.endLineNumber,

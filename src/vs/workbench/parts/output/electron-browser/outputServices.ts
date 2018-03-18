@@ -9,14 +9,14 @@ import * as strings from 'vs/base/common/strings';
 import * as extfs from 'vs/base/node/extfs';
 import * as fs from 'fs';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import { IOutputChannelIdentifier, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, OUTPUT_MIME, MAX_OUTPUT_LENGTH, LOG_SCHEME, LOG_MIME } from 'vs/workbench/parts/output/common/output';
+import { IOutputChannelIdentifier, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, OUTPUT_MIME, MAX_OUTPUT_LENGTH, LOG_SCHEME, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/parts/output/common/output';
 import { OutputPanel } from 'vs/workbench/parts/output/browser/outputPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -40,6 +40,7 @@ import { binarySearch } from 'vs/base/common/arrays';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -315,7 +316,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 
 class OutputFileListener extends Disposable {
 
-	private _onDidChange: Emitter<void> = new Emitter<void>();
+	private readonly _onDidChange: Emitter<void> = new Emitter<void>();
 	readonly onDidContentChange: Event<void> = this._onDidChange.event;
 
 	private watching: boolean = false;
@@ -423,7 +424,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	private activeChannel: IOutputChannel;
 	private readonly outputDir: string;
 
-	private _onActiveOutputChannel: Emitter<string> = new Emitter<string>();
+	private readonly _onActiveOutputChannel: Emitter<string> = new Emitter<string>();
 	readonly onActiveOutputChannel: Event<string> = this._onActiveOutputChannel.event;
 
 	private _outputPanel: OutputPanel;
@@ -439,6 +440,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ILogService private logService: ILogService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, null);
@@ -510,21 +512,24 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		this.channels.set(channelId, channel);
 		if (this.activeChannelIdInStorage === channelId) {
 			this.activeChannel = channel;
-			this.onDidPanelOpen(this.panelService.getActivePanel());
+			this.onDidPanelOpen(this.panelService.getActivePanel())
+				.then(() => this._onActiveOutputChannel.fire(channelId));
 		}
 	}
 
-	private onDidPanelOpen(panel: IPanel): void {
+	private onDidPanelOpen(panel: IPanel): TPromise<void> {
 		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
 			this._outputPanel = <OutputPanel>this.panelService.getActivePanel();
 			if (this.activeChannel) {
-				this.doShowChannel(this.activeChannel, true);
+				return this.doShowChannel(this.activeChannel, true);
 			}
 		}
+		return TPromise.as(null);
 	}
 
 	private onDidPanelClose(panel: IPanel): void {
 		if (this._outputPanel && panel.getId() === OUTPUT_PANEL_ID) {
+			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(false);
 			this._outputPanel.clearInput();
 		}
 	}
@@ -577,13 +582,17 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 	}
 
-	private doShowChannel(channel: IOutputChannel, preserveFocus: boolean): void {
+	private doShowChannel(channel: IOutputChannel, preserveFocus: boolean): TPromise<void> {
 		if (this._outputPanel) {
-			this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus: preserveFocus }));
-			if (!preserveFocus) {
-				this._outputPanel.focus();
-			}
+			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(channel instanceof FileOutputChannel);
+			return this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus: preserveFocus }))
+				.then(() => {
+					if (!preserveFocus) {
+						this._outputPanel.focus();
+					}
+				});
 		}
+		return TPromise.as(null);
 	}
 
 	private isChannelShown(channel: IOutputChannel): boolean {
@@ -651,7 +660,7 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 	protected _onDidAppendedContent: Emitter<void> = new Emitter<void>();
 	readonly onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
 
-	private _onDispose: Emitter<void> = new Emitter<void>();
+	private readonly _onDispose: Emitter<void> = new Emitter<void>();
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private modelUpdater: RunOnceScheduler;

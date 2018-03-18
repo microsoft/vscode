@@ -6,7 +6,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionHostProfile, ProfileSession, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -17,7 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionHostProfileService, ProfileSessionState, RuntimeExtensionsInput } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
 import product from 'vs/platform/node/product';
 
@@ -43,7 +43,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWindowsService private readonly _windowsService: IWindowsService,
-		@IConfirmationService private readonly _confirmationService: IConfirmationService
+		@IDialogService private readonly _dialogService: IDialogService
 	) {
 		super();
 		this._profile = null;
@@ -75,14 +75,14 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		}
 
 		if (!this._extensionService.canProfileExtensionHost()) {
-			return this._confirmationService.confirm({
+			return this._dialogService.confirm({
 				type: 'info',
 				message: nls.localize('restart1', "Profile Extensions"),
 				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", product.nameLong),
 				primaryButton: nls.localize('restart3', "Restart"),
 				secondaryButton: nls.localize('cancel', "Cancel")
-			}).then(restart => {
-				if (restart) {
+			}).then(res => {
+				if (res.confirmed) {
 					this._windowsService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
 				}
 			});

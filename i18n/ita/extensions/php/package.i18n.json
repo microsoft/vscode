@@ -12,5 +12,7 @@
 	"configuration.validate.run": "Indica se il linter viene eseguito durante il salvataggio o la digitazione.",
 	"configuration.title": "PHP",
 	"commands.categroy.php": "PHP",
-	"command.untrustValidationExecutable": "Non consentire la convalida di PHP eseguibile (definito come impostazione dell'area di lavoro)"
+	"command.untrustValidationExecutable": "Non consentire la convalida di PHP eseguibile (definito come impostazione dell'area di lavoro)",
+	"displayName": "Funzionalità del linguaggio PHP",
+	"description": "Offre IntelliSense, linting e nozioni di base sul linguaggio per i file PHP."
 }

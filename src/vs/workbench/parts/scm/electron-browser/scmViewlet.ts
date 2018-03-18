@@ -8,7 +8,7 @@
 import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter, chain, mapEvent, anyEvent, filterEvent } from 'vs/base/common/event';
+import { Event, Emitter, chain, mapEvent, anyEvent, filterEvent } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/paths';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -47,7 +47,7 @@ import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Command } from 'vs/editor/common/modes';
-import { render as renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as platform from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
@@ -249,12 +249,13 @@ class MainPanel extends ViewletPanel {
 			identityProvider: repository => repository.provider.id
 		}) as WorkbenchList<ISCMRepository>;
 
-		this.disposables.push(this.list);
 		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 
 		this.viewModel.onDidChangeVisibility(this.onDidChangeVisibility, this, this.disposables);
 		this.onDidChangeVisibility(this.viewModel.isVisible());
+
+		this.disposables.push(this.list);
 	}
 
 	private onDidChangeVisibility(visible: boolean): void {
@@ -1010,7 +1011,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 class InstallAdditionalSCMProvidersAction extends Action {
 
-	constructor( @IViewletService private viewletService: IViewletService) {
+	constructor(@IViewletService private viewletService: IViewletService) {
 		super('scm.installAdditionalSCMProviders', localize('installAdditionalSCMProviders', "Install Additional SCM Providers..."), '', true);
 	}
 

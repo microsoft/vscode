@@ -122,8 +122,6 @@ export class NotificationsToasts extends Themable {
 			this.notificationsToastsContainer.appendChild(notificationToastContainer);
 		}
 
-		itemDisposeables.push(toDisposable(() => this.notificationsToastsContainer.removeChild(notificationToastContainer)));
-
 		// Toast
 		const notificationToast = document.createElement('div');
 		addClass(notificationToast, 'notification-toast');
@@ -135,7 +133,15 @@ export class NotificationsToasts extends Themable {
 			verticalScrollMode: ScrollbarVisibility.Hidden
 		});
 		itemDisposeables.push(notificationList);
-		this.mapNotificationToToast.set(item, { item, list: notificationList, container: notificationToastContainer, toast: notificationToast, disposeables: itemDisposeables });
+
+		const toast: INotificationToast = { item, list: notificationList, container: notificationToastContainer, toast: notificationToast, disposeables: itemDisposeables };
+		this.mapNotificationToToast.set(item, toast);
+
+		itemDisposeables.push(toDisposable(() => {
+			if (this.isVisible(toast)) {
+				this.notificationsToastsContainer.removeChild(toast.container);
+			}
+		}));
 
 		// Make visible
 		notificationList.show();
@@ -466,10 +472,18 @@ export class NotificationsToasts extends Themable {
 	}
 
 	private setVisibility(toast: INotificationToast, visible: boolean): void {
-		toast.container.style.display = visible ? 'block' : 'none';
+		if (this.isVisible(toast) === visible) {
+			return;
+		}
+
+		if (visible) {
+			this.notificationsToastsContainer.appendChild(toast.container);
+		} else {
+			this.notificationsToastsContainer.removeChild(toast.container);
+		}
 	}
 
 	private isVisible(toast: INotificationToast): boolean {
-		return toast.container.style.display === 'block';
+		return !!toast.container.parentElement;
 	}
 }

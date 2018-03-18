@@ -6,16 +6,16 @@
 'use strict';
 
 import 'vs/css!./parameterHints';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import aria = require('vs/base/browser/ui/aria/aria');
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { SignatureHelp, SignatureInformation, SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import Event, { Emitter, chain } from 'vs/base/common/event';
+import { Event, Emitter, chain } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context, provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
@@ -507,8 +507,11 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		this.renderDisposeables = dispose(this.renderDisposeables);
-		this.model.dispose();
-		this.model = null;
+
+		if (this.model) {
+			this.model.dispose();
+			this.model = null;
+		}
 	}
 }
 

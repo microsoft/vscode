@@ -89,7 +89,11 @@ export class DebugHoverWidget implements IContentWidget {
 		this.editor.applyFontInfo(this.domNode);
 
 		this.toDispose.push(attachStylerCallback(this.themeService, { editorHoverBackground, editorHoverBorder }, colors => {
-			this.domNode.style.backgroundColor = colors.editorHoverBackground;
+			if (colors.editorHoverBackground) {
+				this.domNode.style.backgroundColor = colors.editorHoverBackground.toString();
+			} else {
+				this.domNode.style.backgroundColor = null;
+			}
 			if (colors.editorHoverBorder) {
 				this.domNode.style.border = `1px solid ${colors.editorHoverBorder}`;
 			} else {

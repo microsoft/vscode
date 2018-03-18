@@ -5,11 +5,11 @@
 
 'use strict';
 
-import path = require('path');
-import assert = require('assert');
+import * as path from 'path';
+import * as assert from 'assert';
 
 import * as arrays from 'vs/base/common/arrays';
-import platform = require('vs/base/common/platform');
+import * as platform from 'vs/base/common/platform';
 
 import { RipgrepParser, getAbsoluteGlob, fixDriveC } from 'vs/workbench/services/search/node/ripgrepTextSearch';
 import { ISerializedFileMatch } from 'vs/workbench/services/search/node/search';
@@ -20,11 +20,11 @@ suite('RipgrepParser', () => {
 	const fileSectionEnd = '\n';
 
 	function getFileLine(relativePath: string): string {
-		return `\u001b\[m${relativePath}\u001b\[m`;
+		return `\u001b\[0m${relativePath}\u001b\[0m`;
 	}
 
 	function getMatchLine(lineNum: number, matchParts: string[]): string {
-		let matchLine = `\u001b\[m${lineNum}\u001b\[m:` +
+		let matchLine = `\u001b\[0m${lineNum}\u001b\[0m:` +
 			`${matchParts.shift()}${RipgrepParser.MATCH_START_MARKER}${matchParts.shift()}${RipgrepParser.MATCH_END_MARKER}${matchParts.shift()}`;
 
 		while (matchParts.length) {
@@ -156,21 +156,21 @@ suite('RipgrepParser', () => {
 	});
 
 	test('Parses chunks broken in the middle of a multibyte character', () => {
-		const multibyteStr = '漢';
-		const multibyteBuf = Buffer.from(multibyteStr);
-		const text = getFileLine('foo/bar') + '\n' + getMatchLine(0, ['before', 'match', 'after']) + '\n';
+		const text = getFileLine('foo/bar') + '\n' + getMatchLine(0, ['before漢', 'match', 'after']) + '\n';
+		const buf = new Buffer(text);
 
-		// Split the multibyte char into two pieces and divide between the two buffers
-		const beforeIndex = 24;
-		const inputBufs = [
-			Buffer.concat([Buffer.from(text.substr(0, beforeIndex)), multibyteBuf.slice(0, 2)]),
-			Buffer.concat([multibyteBuf.slice(2), Buffer.from(text.substr(beforeIndex))])
-		];
+		// Split the buffer at every possible position - it should still be parsed correctly
+		for (let i = 0; i < buf.length; i++) {
+			const inputBufs = [
+				buf.slice(0, i),
+				buf.slice(i)
+			];
 
-		const results = parseInput(inputBufs);
-		assert.equal(results.length, 1);
-		assert.equal(results[0].lineMatches.length, 1);
-		assert.deepEqual(results[0].lineMatches[0].offsetAndLengths, [[7, 5]]);
+			const results = parseInput(inputBufs);
+			assert.equal(results.length, 1);
+			assert.equal(results[0].lineMatches.length, 1);
+			assert.deepEqual(results[0].lineMatches[0].offsetAndLengths, [[7, 5]]);
+		}
 	});
 });
 

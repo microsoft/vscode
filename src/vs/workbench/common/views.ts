@@ -6,7 +6,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Command } from 'vs/editor/common/modes';
 import { UriComponents } from 'vs/base/common/uri';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITreeViewDataProvider } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
@@ -79,10 +79,10 @@ export interface IViewsRegistry {
 
 export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry {
 
-	private _onViewsRegistered: Emitter<IViewDescriptor[]> = new Emitter<IViewDescriptor[]>();
+	private readonly _onViewsRegistered: Emitter<IViewDescriptor[]> = new Emitter<IViewDescriptor[]>();
 	readonly onViewsRegistered: Event<IViewDescriptor[]> = this._onViewsRegistered.event;
 
-	private _onViewsDeregistered: Emitter<IViewDescriptor[]> = new Emitter<IViewDescriptor[]>();
+	private readonly _onViewsDeregistered: Emitter<IViewDescriptor[]> = new Emitter<IViewDescriptor[]>();
 	readonly onViewsDeregistered: Event<IViewDescriptor[]> = this._onViewsDeregistered.event;
 
 	private _viewLocations: ViewLocation[] = [];

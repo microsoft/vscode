@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -34,7 +34,7 @@ export const CONTEXT_IN_DEBUG_MODE = new RawContextKey<boolean>('inDebugMode', f
 export const CONTEXT_NOT_IN_DEBUG_MODE: ContextKeyExpr = CONTEXT_IN_DEBUG_MODE.toNegated();
 export const CONTEXT_IN_DEBUG_REPL = new RawContextKey<boolean>('inDebugRepl', false);
 export const CONTEXT_NOT_IN_DEBUG_REPL: ContextKeyExpr = CONTEXT_IN_DEBUG_REPL.toNegated();
-export const CONTEXT_ON_FIRST_DEBUG_REPL_LINE = new RawContextKey<boolean>('onFirsteDebugReplLine', false);
+export const CONTEXT_ON_FIRST_DEBUG_REPL_LINE = new RawContextKey<boolean>('onFirstDebugReplLine', false);
 export const CONTEXT_ON_LAST_DEBUG_REPL_LINE = new RawContextKey<boolean>('onLastDebugReplLine', false);
 export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
 export const CONTEXT_BREAKPOINTS_FOCUSED = new RawContextKey<boolean>('breakpointsFocused', true);
@@ -230,32 +230,37 @@ export interface IBreakpointData {
 	column?: number;
 	enabled?: boolean;
 	condition?: string;
+	logMessage?: string;
 	hitCondition?: string;
 }
 
 export interface IBreakpointUpdateData extends DebugProtocol.Breakpoint {
 	condition?: string;
 	hitCondition?: string;
+	logMessage?: string;
 }
 
-export interface IBreakpoint extends IEnablement {
+export interface IBaseBreakpoint extends IEnablement {
+	condition: string;
+	hitCondition: string;
+	logMessage: string;
+}
+
+export interface IBreakpoint extends IBaseBreakpoint {
 	uri: uri;
 	lineNumber: number;
 	endLineNumber?: number;
 	column: number;
 	endColumn?: number;
-	condition: string;
-	hitCondition: string;
 	verified: boolean;
 	idFromAdapter: number;
 	message: string;
 }
 
-export interface IFunctionBreakpoint extends IEnablement {
+export interface IFunctionBreakpoint extends IBaseBreakpoint {
 	name: string;
 	verified: boolean;
 	idFromAdapter: number;
-	hitCondition: string;
 }
 
 export interface IExceptionBreakpoint extends IEnablement {
@@ -356,6 +361,7 @@ export interface IEnvConfig {
 	request: string;
 	internalConsoleOptions?: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	preLaunchTask?: string;
+	postDebugTask?: string;
 	__restart?: any;
 	__sessionId?: string;
 	debugServer?: number;
@@ -627,7 +633,7 @@ export interface IDebugService {
 	 * Also saves all files, manages if compounds are present in the configuration
 	 * and resolveds configurations via DebugConfigurationProviders.
 	 */
-	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
+	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): TPromise<void>;
 
 	/**
 	 * Restarts a process or creates a new one if there is no active session.
@@ -656,9 +662,14 @@ export interface IDebugService {
 }
 
 // Editor interfaces
+export enum BreakpointWidgetContext {
+	CONDITION = 0,
+	HIT_COUNT = 1,
+	LOG_MESSAGE = 2
+}
 export interface IDebugEditorContribution extends IEditorContribution {
 	showHover(range: Range, focus: boolean): TPromise<void>;
-	showBreakpointWidget(lineNumber: number, column: number): void;
+	showBreakpointWidget(lineNumber: number, column: number, context?: BreakpointWidgetContext): void;
 	closeBreakpointWidget(): void;
 	addLaunchConfiguration(): TPromise<any>;
 }

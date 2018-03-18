@@ -16,7 +16,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { MainThreadTextEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
 import URI from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';

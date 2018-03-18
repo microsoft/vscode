@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.22.0",
-  "distro": "c2f5517441bb68c5be671fd2e5f71193e7b2682f",
+  "distro": "6e8c6e1a8dc5df53e357062bee4f14a1843c2249",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -19,7 +19,8 @@
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.js",
     "update-localization-extension": "node build/npm/update-localization-extension.js",
-    "smoketest": "cd test/smoke && mocha"
+    "smoketest": "cd test/smoke && mocha",
+    "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit"
   },
   "dependencies": {
     "applicationinsights": "0.18.0",
@@ -37,16 +38,16 @@
     "native-keymap": "1.2.5",
     "native-watchdog": "0.3.0",
     "node-pty": "0.7.4",
-    "nsfw": "1.0.16",
     "semver": "4.3.6",
     "spdlog": "0.6.0",
     "sudo-prompt": "^8.0.0",
     "v8-inspect-profiler": "^0.0.7",
     "vscode-chokidar": "1.6.2",
     "vscode-debugprotocol": "1.27.0",
-    "vscode-ripgrep": "0.7.1-patch.0.1",
-    "vscode-textmate": "^3.2.0",
-    "vscode-xterm": "3.2.0-beta7",
+    "vscode-nsfw": "1.0.17",
+    "vscode-ripgrep": "^0.8.1",
+    "vscode-textmate": "^3.3.1",
+    "vscode-xterm": "3.3.0-beta7",
     "yauzl": "2.8.0"
   },
   "devDependencies": {
@@ -69,7 +70,7 @@
     "express": "^4.13.1",
     "glob": "^5.0.13",
     "gulp": "^3.8.9",
-    "gulp-atom-electron": "1.15.1",
+    "gulp-atom-electron": "^1.16.1",
     "gulp-azure-storage": "^0.7.0",
     "gulp-bom": "^1.0.0",
     "gulp-buffer": "0.0.2",
@@ -101,6 +102,7 @@
     "minimatch": "^2.0.10",
     "mkdirp": "^0.5.0",
     "mocha": "^2.2.5",
+    "mocha-junit-reporter": "^1.17.0",
     "object-assign": "^4.0.1",
     "optimist": "0.3.5",
     "p-all": "^1.0.0",
@@ -111,8 +113,8 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^5.9.1",
-    "typescript": "2.6.1",
-    "typescript-formatter": "4.0.1",
+    "typescript": "2.7.2",
+    "typescript-formatter": "7.1.0",
     "uglify-es": "^3.0.18",
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5",

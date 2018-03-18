@@ -8,7 +8,7 @@
 	],
 	"description": "向 VSCode 提供 Gulp 功能的扩展。",
 	"displayName": "适用于 VSCode 的 Gulp 支持",
-	"config.gulp.autoDetect": "控制自动检测 Gulp 任务是否打开。默认开启。",
+	"config.gulp.autoDetect": "控制是否自动检测 Gulp 任务。默认开启。",
 	"gulp.taskDefinition.type.description": "要自定义的 Gulp 任务。",
 	"gulp.taskDefinition.file.description": "提供任务的 Gulp 文件。可以省略。"
 }

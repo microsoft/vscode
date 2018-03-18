@@ -22,6 +22,7 @@
 	"menus.editorTabContext": "편집기 탭 상황에 맞는 메뉴",
 	"menus.debugCallstackContext": "디버그 호출 스택 상황에 맞는 메뉴",
 	"menus.scmTitle": "소스 제어 제목 메뉴",
+	"menus.scmSourceControl": "소스 제어 메뉴",
 	"menus.resourceGroupContext": "소스 제어 리소스 그룹 상황에 맞는 메뉴",
 	"menus.resourceStateContext": "소스 제어 리소스 상태 상황에 맞는 메뉴",
 	"view.viewTitle": "기여 조회 제목 메뉴",

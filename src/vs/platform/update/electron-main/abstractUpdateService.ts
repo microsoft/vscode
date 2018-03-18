@@ -5,7 +5,7 @@
 
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Throttler } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -81,7 +81,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): TPromise<void> {
 		return TPromise.timeout(delay)
-			.then(() => this.checkForUpdates())
+			.then(() => this.checkForUpdates(null))
 			.then(update => {
 				if (update) {
 					// Update found, no need to check more
@@ -93,14 +93,14 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			});
 	}
 
-	checkForUpdates(explicit = false): TPromise<void> {
+	checkForUpdates(context: any): TPromise<void> {
 		this.logService.trace('update#checkForUpdates, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Idle) {
 			return TPromise.as(null);
 		}
 
-		return this.throttler.queue(() => TPromise.as(this.doCheckForUpdates(explicit)));
+		return this.throttler.queue(() => TPromise.as(this.doCheckForUpdates(context)));
 	}
 
 	downloadUpdate(): TPromise<void> {
@@ -158,5 +158,5 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	protected abstract setUpdateFeedUrl(quality: string): boolean;
-	protected abstract doCheckForUpdates(explicit: boolean): void;
+	protected abstract doCheckForUpdates(context: any): void;
 }

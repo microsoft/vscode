@@ -23,6 +23,6 @@
 	"featureRequestDescription": "Írja körül a funkciót, amit látni szeretne! A mezőben GitHub-stílusú markdown használható. A hibajelentés szerkeszthető lesz és képernyőfotók is csatolhatók a githubos előnézetnél.",
 	"expectedResults": "Elvárt működés",
 	"settingsSearchResultsDescription": "Írja le, hogy milyen találatokat szeretett volna kapni, amikor ezzel a keresőkifejezéssel keresett! A mezőben GitHub-stílusú markdown használható. A hibajelentés szerkeszthető lesz és képernyőfotók is csatolhatók a githubos előnézetnél.",
-	"urlLengthError": "Az adat túllépi a(z) {0} karakteres korlátot. Hossza: {1} karakter.",
+	"pasteData": "A szükséges adat túl nagy az elküldéshez, ezért a vágólapra másoltuk. Illessze be!",
 	"disabledExtensions": "A kiegészítők le vannak tiltva."
 }

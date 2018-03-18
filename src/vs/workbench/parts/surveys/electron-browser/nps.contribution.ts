@@ -15,8 +15,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IChoiceService, Choice } from 'vs/platform/dialogs/common/dialogs';
-import { Severity } from 'vs/platform/notification/common/notification';
+import { Severity, INotificationService, PromptOption } from 'vs/platform/notification/common/notification';
 
 const PROBABILITY = 0.15;
 const SESSION_COUNT_KEY = 'nps/sessionCount';
@@ -29,7 +28,7 @@ class NPSContribution implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IChoiceService choiceService: IChoiceService,
+		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.GLOBAL, '');
@@ -63,8 +62,8 @@ class NPSContribution implements IWorkbenchContribution {
 			return;
 		}
 
-		const choices: Choice[] = [nls.localize('takeSurvey', "Take Survey"), nls.localize('remindLater', "Remind Me later"), { label: nls.localize('neverAgain', "Don't Show Again") }];
-		choiceService.choose(Severity.Info, nls.localize('surveyQuestion', "Do you mind taking a quick feedback survey?"), choices).then(choice => {
+		const choices: PromptOption[] = [nls.localize('takeSurvey', "Take Survey"), nls.localize('remindLater', "Remind Me later"), { label: nls.localize('neverAgain', "Don't Show Again") }];
+		notificationService.prompt(Severity.Info, nls.localize('surveyQuestion', "Do you mind taking a quick feedback survey?"), choices).then(choice => {
 			switch (choice) {
 				case 0 /* Take Survey */:
 					telemetryService.getTelemetryInfo().then(info => {
@@ -86,6 +85,6 @@ class NPSContribution implements IWorkbenchContribution {
 }
 
 if (language === 'en' && product.npsSurveyUrl) {
-	const workbenchRegistry = <IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench);
+	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 	workbenchRegistry.registerWorkbenchContribution(NPSContribution, LifecyclePhase.Running);
 }

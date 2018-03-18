@@ -18,7 +18,7 @@ import { StrictResourceMap } from 'vs/base/common/map';
 suite('FolderSettingsModelParser', () => {
 
 	suiteSetup(() => {
-		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration({
 			'id': 'FolderSettingsModelParser_1',
 			'type': 'object',
@@ -64,7 +64,7 @@ suite('FolderSettingsModelParser', () => {
 
 		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'resource': 'resource', 'anotherExecutable': 'executable' } });
 
-		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration({
 			'id': 'FolderSettingsModelParser_2',
 			'type': 'object',

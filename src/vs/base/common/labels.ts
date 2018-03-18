@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import platform = require('vs/base/common/platform');
+import * as platform from 'vs/base/common/platform';
 import { nativeSep, normalize, isEqualOrParent, isEqual, basename as pathsBasename, join } from 'vs/base/common/paths';
 import { endsWith, ltrim } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
@@ -325,7 +325,7 @@ export function template(template: string, values: { [key: string]: string | ISe
 			const left = segments[index - 1];
 			const right = segments[index + 1];
 
-			return [left, right].every(segment => segment && segment.type === Type.VARIABLE && segment.value.length > 0);
+			return [left, right].every(segment => segment && (segment.type === Type.VARIABLE || segment.type === Type.TEXT) && segment.value.length > 0);
 		}
 
 		// accept any TEXT and VARIABLE

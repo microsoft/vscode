@@ -35,8 +35,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
-
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -241,16 +239,6 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 		return <EmptyView>this.getView(EmptyView.ID);
 	}
 
-	public addPanel(panel: ViewletPanel, size: number, index: number): void {
-		super.addPanel(panel, size, index);
-		this.updateTitleArea();
-	}
-
-	public removePanel(panel: ViewletPanel): void {
-		super.removePanel(panel);
-		this.updateTitleArea();
-	}
-
 	public setVisible(visible: boolean): TPromise<void> {
 		this.viewletVisibleContextKey.set(visible);
 		return super.setVisible(visible);
@@ -265,6 +253,15 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 
 	public getViewletState(): FileViewletState {
 		return this.viewletState;
+	}
+
+	focus(): void {
+		const explorerView = this.getExplorerView();
+		if (explorerView && explorerView.isExpanded()) {
+			explorerView.focus();
+		} else {
+			super.focus();
+		}
 	}
 
 	protected loadViewsStates(): void {

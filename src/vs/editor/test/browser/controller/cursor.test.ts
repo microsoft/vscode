@@ -1864,8 +1864,6 @@ suite('Editor Controller - Regression tests', () => {
 		const viewModel = new ViewModel(0, config, model, null);
 		const cursor = new Cursor(config, model, viewModel);
 
-		console.log(viewModel.getLineCount());
-
 		moveTo(cursor, 1, 43, false);
 		moveTo(cursor, 1, 147, true);
 		assertCursor(cursor, new Selection(1, 43, 1, 147));

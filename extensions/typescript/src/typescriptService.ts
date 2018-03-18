@@ -11,14 +11,6 @@ import { TypeScriptServerPlugin } from './utils/plugins';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import Logger from './utils/logger';
 
-export interface ITypeScriptServiceClientHost {
-	syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void;
-	semanticDiagnosticsReceived(event: Proto.DiagnosticEvent): void;
-	configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void;
-	populateService(): void;
-}
-
-
 export interface ITypeScriptServiceClient {
 	normalizePath(resource: Uri): string | null;
 	asUrl(filepath: string): Uri;

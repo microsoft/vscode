@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/feedback';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Dropdown } from 'vs/base/browser/ui/dropdown/dropdown';
@@ -246,7 +246,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		$('label').attr('for', 'hide-button').text(nls.localize('showFeedback', "Show Feedback Smiley in Status Bar")).appendTo($hideButtonContainer);
 
-		this.sendButton = this.invoke($('input.send').type('submit').attr('disabled', '').value(nls.localize('tweet', "Tweet")).appendTo($buttons), () => {
+		this.sendButton = this.invoke($('input.send').type('button').attr('disabled', '').value(nls.localize('tweet', "Tweet")).appendTo($buttons), () => {
 			if (this.isSendingFeedback) {
 				return;
 			}
@@ -255,16 +255,16 @@ export class FeedbackDropdown extends Dropdown {
 		});
 
 		this.toDispose.push(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
-			$form.style('background-color', colors.editorWidgetBackground);
+			$form.style('background-color', colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : null);
 			$form.style('box-shadow', colors.widgetShadow ? `0 0 8px ${colors.widgetShadow}` : null);
 
 			if (this.feedbackDescriptionInput) {
-				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground;
-				this.feedbackDescriptionInput.style.color = colors.inputForeground;
+				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : null;
+				this.feedbackDescriptionInput.style.color = colors.inputForeground ? colors.inputForeground.toString() : null;
 				this.feedbackDescriptionInput.style.border = `1px solid ${colors.inputBorder || 'transparent'}`;
 			}
 
-			$contactUs.style('background-color', colors.editorBackground);
+			$contactUs.style('background-color', colors.editorBackground ? colors.editorBackground.toString() : null);
 			$contactUs.style('border', `1px solid ${colors.contrastBorder || 'transparent'}`);
 		}));
 

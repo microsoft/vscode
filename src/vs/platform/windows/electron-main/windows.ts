@@ -8,11 +8,27 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { OpenContext, IWindowConfiguration, ReadyState, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
+
+export interface IWindowState {
+	width?: number;
+	height?: number;
+	x?: number;
+	y?: number;
+	mode?: WindowMode;
+	display?: number;
+}
+
+export enum WindowMode {
+	Maximized,
+	Normal,
+	Minimized, // not used anymore, but also cannot remove due to existing stored UI state (needs migration)
+	Fullscreen
+}
 
 export interface ICodeWindow {
 	id: number;
@@ -21,12 +37,23 @@ export interface ICodeWindow {
 
 	openedFolderPath: string;
 	openedWorkspace: IWorkspaceIdentifier;
+	backupPath: string;
+
+	isExtensionDevelopmentHost: boolean;
+	isExtensionTestHost: boolean;
 
 	lastFocusTime: number;
 
 	readyState: ReadyState;
+	ready(): TPromise<ICodeWindow>;
 
+	load(config: IWindowConfiguration, isReload?: boolean): void;
+	reload(configuration?: IWindowConfiguration, cli?: ParsedArgs): void;
+
+	focus(): void;
 	close(): void;
+
+	getBounds(): Electron.Rectangle;
 
 	send(channel: string, ...args: any[]): void;
 	sendWhenReady(channel: string, ...args: any[]): void;
@@ -38,6 +65,11 @@ export interface ICodeWindow {
 	onWindowTitleDoubleClick(): void;
 
 	updateTouchBar(items: ICommandAction[][]): void;
+
+	setReady(): void;
+	serializeWindowState(): IWindowState;
+
+	dispose(): void;
 }
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');

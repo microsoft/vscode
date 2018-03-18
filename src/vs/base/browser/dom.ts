@@ -13,7 +13,7 @@ import * as browser from 'vs/base/browser/browser';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CharCode } from 'vs/base/common/charCode';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 
 export function clearNode(node: HTMLElement) {
@@ -459,6 +459,9 @@ const sizeUtils = {
 	getBorderLeftWidth: function (element: HTMLElement): number {
 		return getDimension(element, 'border-left-width', 'borderLeftWidth');
 	},
+	getBorderRightWidth: function (element: HTMLElement): number {
+		return getDimension(element, 'border-right-width', 'borderRightWidth');
+	},
 	getBorderTopWidth: function (element: HTMLElement): number {
 		return getDimension(element, 'border-top-width', 'borderTopWidth');
 	},
@@ -466,6 +469,12 @@ const sizeUtils = {
 		return getDimension(element, 'border-bottom-width', 'borderBottomWidth');
 	},
 
+	getPaddingLeft: function (element: HTMLElement): number {
+		return getDimension(element, 'padding-left', 'paddingLeft');
+	},
+	getPaddingRight: function (element: HTMLElement): number {
+		return getDimension(element, 'padding-right', 'paddingRight');
+	},
 	getPaddingTop: function (element: HTMLElement): number {
 		return getDimension(element, 'padding-top', 'paddingTop');
 	},
@@ -569,6 +578,12 @@ export const StandardWindow: IStandardWindow = new class {
 export function getTotalWidth(element: HTMLElement): number {
 	let margin = sizeUtils.getMarginLeft(element) + sizeUtils.getMarginRight(element);
 	return element.offsetWidth + margin;
+}
+
+export function getContentWidth(element: HTMLElement): number {
+	let border = sizeUtils.getBorderLeftWidth(element) + sizeUtils.getBorderRightWidth(element);
+	let padding = sizeUtils.getPaddingLeft(element) + sizeUtils.getPaddingRight(element);
+	return element.offsetWidth - border - padding;
 }
 
 export function getTotalScrollWidth(element: HTMLElement): number {

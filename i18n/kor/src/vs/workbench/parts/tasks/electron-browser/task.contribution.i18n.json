@@ -28,6 +28,8 @@
 	"selectProblemMatcher": "작업 출력에서 스캔할 오류 및 경고 유형을 선택",
 	"customizeParseErrors": "현재 작성 구성에 오류가 있습니다. 작업을 사용자 지정하기 전에 오류를 수정하세요.\n",
 	"moreThanOneBuildTask": "tasks.json에 여러 빌드 작업이 정의되어 있습니다. 첫 번째 작업을 실행합니다.\n",
+	"TaskSystem.activeSame.background": "'{0}' 작업이 이미 활성 상태로 백그라운드 모드에 있습니다. 종료하려면 [작업] 메뉴에서 '작업 종료...'를 사용하세요.",
+	"TaskSystem.activeSame.noBackground": "'{0}' 작업이 이미 활성 상태입니다. 종료하려면 [작업] 메뉴에서 '작업 종료...'를 사용하세요.",
 	"TaskSystem.active": "이미 실행 중인 작업이 있습니다. 다른 작업을 실행하려면 먼저 이 작업을 종료하세요.",
 	"TaskSystem.restartFailed": "{0} 작업을 종료하고 다시 시작하지 못했습니다.",
 	"TaskService.noConfiguration": "오류: {0} 작업 검색에서는 다음 구성에 대한 작업을 제공하지 않습니다:\n{1}\n이 작업이 무시됩니다.\n",

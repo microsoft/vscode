@@ -5,11 +5,11 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { readFile } from 'vs/base/node/pfs';
 import * as semver from 'semver';
 import * as path from 'path';
-import Event, { Emitter, chain } from 'vs/base/common/event';
+import { Event, Emitter, chain } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
 import { assign } from 'vs/base/common/objects';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -35,7 +35,7 @@ import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensions
 import product from 'vs/platform/node/product';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 interface IExtensionStateProvider<T> {
@@ -358,7 +358,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private autoUpdateDelayer: ThrottledDelayer<void>;
 	private disposables: IDisposable[] = [];
 
-	private _onChange: Emitter<void> = new Emitter<void>();
+	private readonly _onChange: Emitter<void> = new Emitter<void>();
 	get onChange(): Event<void> { return this._onChange.event; }
 
 	private _extensionAllowedBadgeProviders: string[];
@@ -370,8 +370,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		@IDialogService private dialogService: IDialogService,
 		@INotificationService private notificationService: INotificationService,
-		@IChoiceService private choiceService: IChoiceService,
 		@IURLService urlService: IURLService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IWindowService private windowService: IWindowService,
@@ -419,7 +419,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			this.installed = result.map(local => {
 				const extension = installedById[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, local, null, this.telemetryService);
 				extension.local = local;
-				extension.enablementState = this.extensionEnablementService.getEnablementState({ id: extension.id, uuid: extension.uuid });
+				extension.enablementState = this.extensionEnablementService.getEnablementState(local);
 				return extension;
 			});
 
@@ -589,7 +589,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				location: ProgressLocation.Extensions,
 				title: nls.localize('installingVSIXExtension', 'Installing extension from VSIX...'),
 				tooltip: `${extension}`
-			}, () => this.extensionService.install(extension));
+			}, () => this.extensionService.install(extension).then(() => null));
 		}
 
 		if (!(extension instanceof Extension)) {
@@ -611,7 +611,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			location: ProgressLocation.Extensions,
 			title: nls.localize('installingMarketPlaceExtension', 'Installing extension from Marketplace....'),
 			tooltip: `${extension.id}`
-		}, () => this.extensionService.installFromGallery(gallery));
+		}, () => this.extensionService.installFromGallery(gallery).then(() => null));
 	}
 
 	setEnablement(extension: IExtension, enablementState: EnablementState): TPromise<void> {
@@ -670,7 +670,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
 			tooltip: `${local.identifier.id}`
-		}, () => this.extensionService.reinstall(local));
+		}, () => this.extensionService.reinstallFromGallery(local).then(() => null));
 	}
 
 	private promptAndSetEnablement(extension: IExtension, enablementState: EnablementState, enable: boolean): TPromise<any> {
@@ -687,11 +687,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	private promptForDependenciesAndEnable(extension: IExtension, dependencies: IExtension[], enablementState: EnablementState, enable: boolean): TPromise<any> {
 		const message = nls.localize('enableDependeciesConfirmation', "Enabling '{0}' also enables its dependencies. Would you like to continue?", extension.displayName);
-		const options = [
+		const buttons = [
 			nls.localize('enable', "Yes"),
 			nls.localize('doNotEnable', "No")
 		];
-		return this.choiceService.choose(Severity.Info, message, options, 1, true)
+		return this.dialogService.show(Severity.Info, message, buttons, { cancelId: 1 })
 			.then<void>(value => {
 				if (value === 0) {
 					return this.checkAndSetEnablement(extension, dependencies, enablementState, enable);
@@ -702,12 +702,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	private promptForDependenciesAndDisable(extension: IExtension, dependencies: IExtension[], enablementState: EnablementState, enable: boolean): TPromise<void> {
 		const message = nls.localize('disableDependeciesConfirmation', "Would you like to disable '{0}' only or its dependencies also?", extension.displayName);
-		const options = [
+		const buttons = [
 			nls.localize('disableOnly', "Only"),
 			nls.localize('disableAll', "All"),
 			nls.localize('cancel', "Cancel")
 		];
-		return this.choiceService.choose(Severity.Info, message, options, 2, true)
+		return this.dialogService.show(Severity.Info, message, buttons, { cancelId: 2 })
 			.then<void>(value => {
 				if (value === 0) {
 					return this.checkAndSetEnablement(extension, [], enablementState, enable);
@@ -890,10 +890,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		this._onChange.fire();
 	}
 
-	private onEnablementChanged(extensionIdentifier: IExtensionIdentifier) {
-		const [extension] = this.local.filter(e => areSameExtensions(e, extensionIdentifier));
+	private onEnablementChanged(identifier: IExtensionIdentifier) {
+		const [extension] = this.local.filter(e => areSameExtensions(e, identifier));
 		if (extension) {
-			const enablementState = this.extensionEnablementService.getEnablementState({ id: extension.id, uuid: extension.uuid });
+			const enablementState = this.extensionEnablementService.getEnablementState(extension.local);
 			if (enablementState !== extension.enablementState) {
 				extension.enablementState = enablementState;
 				this._onChange.fire();
@@ -922,10 +922,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const recommendationsData = extRecommendations[active.extension.id.toLowerCase()] ? { recommendationReason: extRecommendations[active.extension.id.toLowerCase()].reasonId } : {};
 		/* __GDPR__
 			"extensionGallery:install" : {
-				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]
@@ -933,10 +933,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		*/
 		/* __GDPR__
 			"extensionGallery:update" : {
-				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]
@@ -944,10 +944,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		*/
 		/* __GDPR__
 			"extensionGallery:uninstall" : {
-				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]
@@ -1000,7 +1000,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 						const options = [
 							nls.localize('install', "Install")
 						];
-						return this.choiceService.choose(Severity.Info, message, options).then(value => {
+						return this.notificationService.prompt(Severity.Info, message, options).then(value => {
 							if (value === 0) {
 								return this.install(extension);
 							}

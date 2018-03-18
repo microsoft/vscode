@@ -106,9 +106,9 @@ suite('IPC performance', () => {
 				assert.strictEqual(hits, batches);
 				assert.strictEqual(count, batches * size);
 			}, err => assert.fail(err),
-			batch => {
-				hits++;
-				count += batch.length;
-			});
+				batch => {
+					hits++;
+					count += batch.length;
+				});
 	}
 });

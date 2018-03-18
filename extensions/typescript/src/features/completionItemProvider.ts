@@ -54,8 +54,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 			this.range = tsTextSpanToVsRange(tsEntry.replacementSpan);
 		}
 
-		if (typeof tsEntry.insertText === 'string') {
-			this.insertText = (tsEntry as any).insertText as string;
+		if (tsEntry.insertText) {
+			this.insertText = tsEntry.insertText;
 
 			if (tsEntry.replacementSpan) {
 				this.range = tsTextSpanToVsRange(tsEntry.replacementSpan);
@@ -70,12 +70,16 @@ class MyCompletionItem extends vscode.CompletionItem {
 			}
 		}
 
-		if (tsEntry.kindModifiers.match(/\boptional\b/)) {
-			this.insertText = this.label;
-			this.filterText = this.label;
+		if (tsEntry.kindModifiers && tsEntry.kindModifiers.match(/\boptional\b/)) {
+			if (!this.insertText) {
+				this.insertText = this.label;
+			}
+
+			if (!this.filterText) {
+				this.filterText = this.label;
+			}
 			this.label += '?';
 		}
-
 	}
 
 	public resolve(): void {

@@ -6,12 +6,12 @@
 
 import { mixin, deepClone } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as vscode from 'vscode';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape, IWorkspaceConfigurationChangeEventData, IConfigurationInitData } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
-import { IConfigurationData, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
 import { StrictResourceMap } from 'vs/base/common/map';
@@ -50,7 +50,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationInitData) {
 		this._proxy = proxy;
 		this._extHostWorkspace = extHostWorkspace;
-		this._configuration = Configuration.parse(data);
+		this._configuration = ExtHostConfiguration.parse(data);
 		this._configurationScopes = data.configurationScopes;
 	}
 
@@ -59,14 +59,14 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	}
 
 	$acceptConfigurationChanged(data: IConfigurationData, eventData: IWorkspaceConfigurationChangeEventData) {
-		this._configuration = Configuration.parse(data);
+		this._configuration = ExtHostConfiguration.parse(data);
 		this._onDidChangeConfiguration.fire(this._toConfigurationChangeEvent(eventData));
 	}
 
 	getConfiguration(section?: string, resource?: URI, extensionId?: string): vscode.WorkspaceConfiguration {
-		const config = section
+		const config = this._toReadonlyValue(section
 			? lookUp(this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace), section)
-			: this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace);
+			: this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace));
 
 		if (section) {
 			this._validateConfigurationAccess(section, resource, extensionId);
@@ -100,6 +100,10 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 					let clonedConfig = void 0;
 					const cloneOnWriteProxy = (target: any, accessor: string): any => {
 						let clonedTarget = void 0;
+						const cloneTarget = () => {
+							clonedConfig = clonedConfig ? clonedConfig : deepClone(config);
+							clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
+						};
 						return isObject(target) ?
 							new Proxy(target, {
 								get: (target: any, property: string) => {
@@ -114,9 +118,18 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 									return result;
 								},
 								set: (target: any, property: string, value: any) => {
-									clonedConfig = clonedConfig ? clonedConfig : deepClone(config);
-									clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
+									cloneTarget();
 									clonedTarget[property] = value;
+									return true;
+								},
+								deleteProperty: (target: any, property: string) => {
+									cloneTarget();
+									delete clonedTarget[property];
+									return true;
+								},
+								defineProperty: (target: any, property: string, descriptor: any) => {
+									cloneTarget();
+									Object.defineProperty(clonedTarget, property, descriptor);
 									return true;
 								}
 							}) : target;
@@ -157,6 +170,22 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		return <vscode.WorkspaceConfiguration>Object.freeze(result);
 	}
 
+	private _toReadonlyValue(result: any): any {
+		const readonlyProxy = (target) => {
+			return isObject(target) ?
+				new Proxy(target, {
+					get: (target: any, property: string) => readonlyProxy(target[property]),
+					set: (target: any, property: string, value: any) => { throw new Error(`TypeError: Cannot assign to read only property '${property}' of object`); },
+					deleteProperty: (target: any, property: string) => { throw new Error(`TypeError: Cannot delete read only property '${property}' of object`); },
+					defineProperty: (target: any, property: string) => { throw new Error(`TypeError: Cannot define property '${property}' for a readonly object`); },
+					setPrototypeOf: (target: any) => { throw new Error(`TypeError: Cannot set prototype for a readonly object`); },
+					isExtensible: () => false,
+					preventExtensions: () => true
+				}) : target;
+		};
+		return readonlyProxy(result);
+	}
+
 	private _validateConfigurationAccess(key: string, resource: URI, extensionId: string): void {
 		const scope = this._configurationScopes[key];
 		const extensionIdText = extensionId ? `[${extensionId}] ` : '';
@@ -186,5 +215,20 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		return Object.freeze({
 			affectsConfiguration: (section: string, resource?: URI) => event.affectsConfiguration(section, resource)
 		});
+	}
+
+	private static parse(data: IConfigurationData): Configuration {
+		const defaultConfiguration = ExtHostConfiguration.parseConfigurationModel(data.defaults);
+		const userConfiguration = ExtHostConfiguration.parseConfigurationModel(data.user);
+		const workspaceConfiguration = ExtHostConfiguration.parseConfigurationModel(data.workspace);
+		const folders: StrictResourceMap<ConfigurationModel> = Object.keys(data.folders).reduce((result, key) => {
+			result.set(URI.parse(key), ExtHostConfiguration.parseConfigurationModel(data.folders[key]));
+			return result;
+		}, new StrictResourceMap<ConfigurationModel>());
+		return new Configuration(defaultConfiguration, userConfiguration, workspaceConfiguration, folders, new ConfigurationModel(), new StrictResourceMap<ConfigurationModel>(), false);
+	}
+
+	private static parseConfigurationModel(model: IConfigurationModel): ConfigurationModel {
+		return new ConfigurationModel(model.contents, model.keys, model.overrides).freeze();
 	}
 }

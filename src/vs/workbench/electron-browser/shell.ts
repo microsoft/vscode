@@ -10,10 +10,10 @@ import 'vs/css!./media/shell';
 import * as platform from 'vs/base/common/platform';
 import * as perf from 'vs/base/common/performance';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
-import dom = require('vs/base/browser/dom');
-import aria = require('vs/base/browser/ui/aria/aria');
+import * as dom from 'vs/base/browser/dom';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import product from 'vs/platform/node/product';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -76,7 +76,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
-import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ITheme, ICssStyleCollector, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
@@ -93,9 +93,9 @@ import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue
 import { WorkbenchIssueService } from 'vs/workbench/services/issue/electron-browser/workbenchIssueService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
-import { ChoiceChannel } from 'vs/platform/dialogs/common/choiceIpc';
-import { IChoiceService, IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
-import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
+import { DialogChannel } from 'vs/platform/dialogs/common/dialogIpc';
 
 /**
  * Services that we require for the Shell
@@ -238,23 +238,23 @@ export class WorkbenchShell {
 		/* __GDPR__
 			"workspaceLoad" : {
 				"userAgent" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"windowSize.innerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"windowSize.innerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"windowSize.outerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"windowSize.outerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"emptyWorkbench": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"workbench.filesToOpen": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"workbench.filesToCreate": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"workbench.filesToDiff": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"customKeybindingsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"windowSize.innerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"windowSize.innerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"windowSize.outerHeight": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"windowSize.outerWidth": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"emptyWorkbench": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"workbench.filesToOpen": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"workbench.filesToCreate": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"workbench.filesToDiff": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"customKeybindingsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"theme": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"language": { "classification": "SystemMetaData", "purpose": "BusinessInsight" },
 				"experiments": { "${inline}": [ "${IExperiments}" ] },
 				"pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"restoredViewlet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"restoredEditors": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"restoredEditors": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"startupKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.publicLog('workspaceLoad', {
@@ -312,14 +312,14 @@ export class WorkbenchShell {
 				perf.mark('didStatLocalStorage');
 
 				/* __GDPR__
-					"localStorageTimers" : {
-						"statTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"accessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"firstReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"subsequentReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"writeTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"keys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"size": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"localStorageTimers2" : {
+						"statTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"accessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"firstReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"subsequentReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"writeTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"keys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"size": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 				*/
 				this.telemetryService.publicLog('localStorageTimers2', {
@@ -363,7 +363,7 @@ export class WorkbenchShell {
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`));
 
 		sharedProcess
-			.done(client => client.registerChannel('choice', instantiationService.createInstance(ChoiceChannel)));
+			.done(client => client.registerChannel('dialog', instantiationService.createInstance(DialogChannel)));
 
 		// Warm up font cache information before building up too many dom elements
 		restoreFontInfo(this.storageService);
@@ -407,9 +407,7 @@ export class WorkbenchShell {
 		}
 		serviceCollection.set(ICrashReporterService, crashReporterService);
 
-		const dialog = instantiationService.createInstance(DialogService);
-		serviceCollection.set(IChoiceService, dialog);
-		serviceCollection.set(IConfirmationService, dialog);
+		serviceCollection.set(IDialogService, instantiationService.createInstance(DialogService));
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
 		this.toUnbind.push(lifecycleService.onShutdown(reason => this.dispose(reason)));
@@ -643,6 +641,31 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		.monaco-shell input[type="search"]:focus,
 		.monaco-shell input[type="checkbox"]:focus {
 			outline-color: ${focusOutline};
+		}
+		`);
+	}
+
+	// High Contrast theme overwrites for outline
+	if (theme.type === HIGH_CONTRAST) {
+		collector.addRule(`
+		.monaco-shell.hc-black [tabindex="0"]:focus,
+		.monaco-shell.hc-black .synthetic-focus,
+		.monaco-shell.hc-black select:focus,
+		.monaco-shell.hc-black input[type="button"]:focus,
+		.monaco-shell.hc-black input[type="text"]:focus,
+		.monaco-shell.hc-black textarea:focus,
+		.monaco-shell.hc-black input[type="checkbox"]:focus {
+			outline-style: solid;
+			outline-width: 1px;
+		}
+
+		.monaco-shell.hc-black .monaco-tree.focused.no-focused-item:focus:before {
+			outline-width: 1px;
+			outline-offset: -2px;
+		}
+
+		.monaco-shell.hc-black .synthetic-focus input {
+			background: transparent; /* Search input focus fix when in high contrast */
 		}
 		`);
 	}

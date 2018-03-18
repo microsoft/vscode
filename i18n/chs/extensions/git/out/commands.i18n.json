@@ -67,7 +67,7 @@
 	"tag message": "消息",
 	"provide tag message": "请提供消息以对标签进行注释",
 	"no remotes to fetch": "此存储库未配置可以从中抓取的远程存储库。",
-	"no remotes to pull": "存储库未配置任何从其中进行拉取的远程存储库。",
+	"no remotes to pull": "存储库未配置任何可进行拉取的远程存储库。",
 	"pick remote pull repo": "选择要从其拉取分支的远程位置",
 	"no remotes to push": "存储库未配置任何要推送到的远程存储库。",
 	"nobranch": "请签出一个分支以推送到远程。",

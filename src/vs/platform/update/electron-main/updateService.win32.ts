@@ -76,12 +76,12 @@ export class Win32UpdateService extends AbstractUpdateService {
 		return true;
 	}
 
-	protected doCheckForUpdates(explicit: boolean): void {
+	protected doCheckForUpdates(context: any): void {
 		if (!this.url) {
 			return;
 		}
 
-		this.setState(State.CheckingForUpdates(explicit));
+		this.setState(State.CheckingForUpdates(context));
 
 		this.requestService.request({ url: this.url })
 			.then<IUpdate>(asJson)
@@ -89,10 +89,10 @@ export class Win32UpdateService extends AbstractUpdateService {
 				if (!update || !update.url || !update.version) {
 					/* __GDPR__
 							"update:notAvailable" : {
-								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 							}
 						*/
-					this.telemetryService.publicLog('update:notAvailable', { explicit });
+					this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
 
 					this.setState(State.Idle);
 					return TPromise.as(null);
@@ -134,10 +134,10 @@ export class Win32UpdateService extends AbstractUpdateService {
 				this.logService.error(err);
 				/* __GDPR__
 					"update:notAvailable" : {
-					"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 					*/
-				this.telemetryService.publicLog('update:notAvailable', { explicit });
+				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
 				this.setState(State.Idle);
 			});
 	}

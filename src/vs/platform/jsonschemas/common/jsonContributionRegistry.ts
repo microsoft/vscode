@@ -6,7 +6,7 @@
 
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as platform from 'vs/platform/registry/common/platform';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export const Extensions = {
 	JSONContribution: 'base.contributions.json'
@@ -55,7 +55,7 @@ class JSONContributionRegistry implements IJSONContributionRegistry {
 
 	private schemasById: { [id: string]: IJSONSchema };
 
-	private _onDidChangeSchema: Emitter<string> = new Emitter<string>();
+	private readonly _onDidChangeSchema: Emitter<string> = new Emitter<string>();
 	readonly onDidChangeSchema: Event<string> = this._onDidChangeSchema.event;
 
 	constructor() {

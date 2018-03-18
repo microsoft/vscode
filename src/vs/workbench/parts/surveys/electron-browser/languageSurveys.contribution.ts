@@ -17,8 +17,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import pkg from 'vs/platform/node/package';
 import product, { ISurveyData } from 'vs/platform/node/product';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IChoiceService, Choice } from 'vs/platform/dialogs/common/dialogs';
-import { Severity } from 'vs/platform/notification/common/notification';
+import { Severity, INotificationService, PromptOption } from 'vs/platform/notification/common/notification';
 
 class LanguageSurvey {
 
@@ -26,7 +25,7 @@ class LanguageSurvey {
 		data: ISurveyData,
 		instantiationService: IInstantiationService,
 		storageService: IStorageService,
-		choiceService: IChoiceService,
+		notificationService: INotificationService,
 		telemetryService: ITelemetryService,
 		fileService: IFileService,
 		modelService: IModelService
@@ -88,8 +87,8 @@ class LanguageSurvey {
 		// __GDPR__TODO__ Need to move away from dynamic event names as those cannot be registered statically
 		telemetryService.publicLog(`${data.surveyId}.survey/userAsked`);
 
-		const choices: Choice[] = [nls.localize('takeShortSurvey', "Take Short Survey"), nls.localize('remindLater', "Remind Me later"), { label: nls.localize('neverAgain', "Don't Show Again") }];
-		choiceService.choose(Severity.Info, nls.localize('helpUs', "Help us improve our support for {0}", data.languageId), choices).then(choice => {
+		const choices: PromptOption[] = [nls.localize('takeShortSurvey', "Take Short Survey"), nls.localize('remindLater', "Remind Me later"), { label: nls.localize('neverAgain', "Don't Show Again") }];
+		notificationService.prompt(Severity.Info, nls.localize('helpUs', "Help us improve our support for {0}", data.languageId), choices).then(choice => {
 			switch (choice) {
 				case 0 /* Take Survey */:
 					telemetryService.publicLog(`${data.surveyId}.survey/takeShortSurvey`);
@@ -119,17 +118,17 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IChoiceService choiceService: IChoiceService,
+		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService
 	) {
 		product.surveys.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability).map(surveyData =>
-			new LanguageSurvey(surveyData, instantiationService, storageService, choiceService, telemetryService, fileService, modelService));
+			new LanguageSurvey(surveyData, instantiationService, storageService, notificationService, telemetryService, fileService, modelService));
 	}
 }
 
 if (language === 'en' && product.surveys && product.surveys.length) {
-	const workbenchRegistry = <IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench);
+	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 	workbenchRegistry.registerWorkbenchContribution(LanguageSurveysContribution, LifecyclePhase.Running);
 }

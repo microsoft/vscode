@@ -1055,7 +1055,10 @@ export class CodeMenu {
 				return [new MenuItem({
 					label: nls.localize('miCheckForUpdates', "Check for Updates..."), click: () => setTimeout(() => {
 						this.reportMenuActionTelemetry('CheckForUpdate');
-						this.updateService.checkForUpdates(true);
+
+						const focusedWindow = this.windowsMainService.getFocusedWindow();
+						const context = focusedWindow ? { windowId: focusedWindow.id } : null;
+						this.updateService.checkForUpdates(context);
 					}, 0)
 				})];
 

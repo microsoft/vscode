@@ -90,7 +90,7 @@ export class Reader<T> {
 	public constructor(
 		private readonly readable: stream.Readable,
 		private readonly callback: ICallback<T>,
-		private readonly onError: (error: any) => void = () => ({})
+		private readonly onError: (error: any) => void
 	) {
 		this.readable.on('data', (data: Buffer) => {
 			this.onLengthData(data);

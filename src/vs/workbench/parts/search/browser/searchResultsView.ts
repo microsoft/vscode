@@ -31,7 +31,7 @@ export class SearchDataSource implements IDataSource {
 	private includeFolderMatch: boolean;
 	private listener: IDisposable;
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		this.updateIncludeFolderMatch();
 		this.listener = this.contextService.onDidChangeWorkbenchState(() => this.updateIncludeFolderMatch());
 	}
@@ -319,7 +319,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 
 export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
 	}
 
 	public getAriaLabel(tree: ITree, element: FileMatchOrMatch): string {

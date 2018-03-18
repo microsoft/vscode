@@ -16,8 +16,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import extfs = require('vs/base/node/extfs');
-import uuid = require('vs/base/common/uuid');
+import * as pfs from 'vs/base/node/pfs';
+import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/node/configurationEditingService';
@@ -34,7 +34,6 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { mkdirp } from 'vs/base/node/pfs';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -54,7 +53,7 @@ function setUpFolderWorkspace(folderName: string): TPromise<{ parentDir: string,
 function setUpFolder(folderName: string, parentDir: string): TPromise<string> {
 	const folderDir = path.join(parentDir, folderName);
 	const workspaceSettingsDir = path.join(folderDir, '.vscode');
-	return mkdirp(workspaceSettingsDir, 493).then(() => folderDir);
+	return pfs.mkdirp(workspaceSettingsDir, 493).then(() => folderDir);
 }
 
 function setUpWorkspace(folders: string[]): TPromise<{ parentDir: string, configPath: string }> {
@@ -62,7 +61,7 @@ function setUpWorkspace(folders: string[]): TPromise<{ parentDir: string, config
 	const id = uuid.generateUuid();
 	const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 
-	return mkdirp(parentDir, 493)
+	return pfs.mkdirp(parentDir, 493)
 		.then(() => {
 			const configPath = path.join(parentDir, 'vsctests.code-workspace');
 			const workspace = { folders: folders.map(path => ({ path })) };
@@ -91,13 +90,14 @@ suite('WorkspaceContextService - Folder', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (workspaceContextService) {
 			(<WorkspaceService>workspaceContextService).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('getWorkspace()', () => {
@@ -161,13 +161,14 @@ suite('WorkspaceContextService - Workspace', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (testObject) {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('workspace folders', () => {
@@ -276,7 +277,7 @@ suite('WorkspaceContextService - Workspace', () => {
 
 	test('remove folders and add them back by writing into the file', done => {
 		const folders = testObject.getWorkspace().folders;
-		return testObject.removeFolders([folders[0].uri])
+		testObject.removeFolders([folders[0].uri])
 			.then(() => {
 				testObject.onDidChangeWorkspaceFolders(actual => {
 					assert.deepEqual(actual.added.map(r => r.uri.toString()), [folders[0].uri.toString()]);
@@ -284,7 +285,7 @@ suite('WorkspaceContextService - Workspace', () => {
 				});
 				const workspace = { folders: [{ path: folders[0].uri.fsPath }, { path: folders[1].uri.fsPath }] };
 				fs.writeFileSync(testObject.getWorkspace().configuration.fsPath, JSON.stringify(workspace, null, '\t'));
-			});
+			}, done);
 	});
 
 	test('update folders (remove last and add to end)', () => {
@@ -371,7 +372,7 @@ suite('WorkspaceContextService - Workspace', () => {
 suite('WorkspaceService - Initialization', () => {
 
 	let parentResource: string, workspaceConfigPath: string, testObject: WorkspaceService, globalSettingsFile: string;
-	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
@@ -417,13 +418,14 @@ suite('WorkspaceService - Initialization', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (testObject) {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('initialize a folder workspace from an empty workspace with no configuration changes', () => {
@@ -623,7 +625,7 @@ suite('WorkspaceService - Initialization', () => {
 suite('WorkspaceConfigurationService - Folder', () => {
 
 	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IWorkspaceConfigurationService, globalSettingsFile: string;
-	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
@@ -669,13 +671,14 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (testObject) {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('defaults', () => {
@@ -908,7 +911,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 suite('WorkspaceConfigurationService - Multiroot', () => {
 
 	let parentResource: string, workspaceContextService: IWorkspaceContextService, environmentService: IEnvironmentService, jsonEditingServce: IJSONEditingService, testObject: IWorkspaceConfigurationService;
-	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
@@ -967,13 +970,14 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (testObject) {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('executable settings are not read from workspace', () => {

@@ -21,6 +21,7 @@ import { relative } from 'path';
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
+import { localize } from 'vs/nls';
 
 class VariableResolver {
 	static VARIABLE_REGEXP = /\$\{(.*?)\}/g;
@@ -84,34 +85,81 @@ class VariableResolver {
 
 					switch (variable) {
 						case 'workspaceRoot':
-						case 'workspaceFolder':
-							return context ? normalizeDriveLetter(context.uri.fsPath) : match;
-						case 'cwd':
-							return context ? normalizeDriveLetter(context.uri.fsPath) : process.cwd();
-						case 'workspaceRootFolderName':
-						case 'workspaceFolderBasename':
-							return context ? paths.basename(context.uri.fsPath) : match;
-						case 'lineNumber':
-							return this.getLineNumber() || match;
-						case 'selectedText':
-							return this.getSelectedText() || match;
-						case 'file':
-							return filePath || match;
-						case 'relativeFile':
-							return context ? paths.normalize(relative(context.uri.fsPath, filePath)) : filePath || match;
-						case 'fileDirname':
-							return filePath ? paths.dirname(filePath) : match;
-						case 'fileExtname':
-							return filePath ? paths.extname(filePath) : match;
-						case 'fileBasename':
-							return filePath ? paths.basename(filePath) : match;
-						case 'fileBasenameNoExtension': {
-							if (!filePath) {
-								return match;
+						case 'workspaceFolder': {
+							if (context) {
+								return normalizeDriveLetter(context.uri.fsPath);
+							}
+							if (this.workspaceContextService.getWorkspace().folders.length > 1) {
+								throw new Error(localize('canNotResolveWorkspaceFolderMultiRoot', "${workspaceFolder} can not be resolved in a multi folder workspace. Scope this variables using : and a folder name."));
 							}
 
-							const basename = paths.basename(filePath);
-							return basename.slice(0, basename.length - paths.extname(basename).length);
+							throw new Error(localize('canNotResolveWorkspaceFolder', "${workspaceFolder} can not be resolved. Please open a folder."));
+						} case 'cwd':
+							return context ? normalizeDriveLetter(context.uri.fsPath) : process.cwd();
+						case 'workspaceRootFolderName':
+						case 'workspaceFolderBasename': {
+							if (context) {
+								return paths.basename(context.uri.fsPath);
+							}
+							if (this.workspaceContextService.getWorkspace().folders.length > 1) {
+								throw new Error(localize('canNotResolveFolderBasenameMultiRoot', "${workspaceFolderBasename} can not be resolved in a multi folder workspace. Scope this variables using : and a folder name."));
+							}
+
+							throw new Error(localize('canNotResolveFolderBasename', "${workspaceFolderBasename} can not be resolved. Please open a folder."));
+						} case 'lineNumber': {
+							const lineNumber = this.getLineNumber();
+							if (lineNumber) {
+								return lineNumber;
+							}
+
+							throw new Error(localize('canNotResolveLineNumber', "${lineNumber} can not be resolved, please open an editor."));
+						} case 'selectedText': {
+							const selectedText = this.getSelectedText();
+							if (selectedText) {
+								return selectedText;
+							}
+
+							throw new Error(localize('canNotResolveSelectedText', "${selectedText} can not be resolved, please open an editor."));
+						} case 'file': {
+							if (filePath) {
+								return filePath;
+							}
+
+							throw new Error(localize('canNotResolveFile', "${file} can not be resolved, please open an editor."));
+						} case 'relativeFile': {
+							if (context && filePath) {
+								return paths.normalize(relative(context.uri.fsPath, filePath));
+							}
+							if (filePath) {
+								return filePath;
+							}
+
+							throw new Error(localize('canNotResolveRelativeFile', "${relativeFile} can not be resolved, please open an editor."));
+						} case 'fileDirname': {
+							if (filePath) {
+								return paths.dirname(filePath);
+							}
+
+							throw new Error(localize('canNotResolveFileDirname', "${fileDirname} can not be resolved, please open an editor."));
+						} case 'fileExtname': {
+							if (filePath) {
+								return paths.extname(filePath);
+							}
+
+							throw new Error(localize('canNotResolveFileExtname', "${fileExtname} can not be resolved, please open an editor."));
+						} case 'fileBasename': {
+							if (filePath) {
+								return paths.basename(filePath);
+							}
+
+							throw new Error(localize('canNotResolveFileBasename', "${fileBasename} can not be resolved, please open an editor."));
+						} case 'fileBasenameNoExtension': {
+							if (filePath) {
+								const basename = paths.basename(filePath);
+								return basename.slice(0, basename.length - paths.extname(basename).length);
+							}
+
+							throw new Error(localize('canNotResolveFileBasenameNoExtension', "${fileBasenameNoExtension} can not be resolved, please open an editor."));
 						}
 						case 'execPath':
 							return this.environmentService.execPath;
@@ -234,7 +282,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 				if (object[key] && typeof object[key] === 'object') {
 					findInteractiveVariables(object[key]);
 				} else if (typeof object[key] === 'string') {
-					const matches = /\${command:(.+)}/.exec(object[key]);
+					const matches = /\${command:(.*?)}/.exec(object[key]);
 					if (matches && matches.length === 2) {
 						const interactiveVariable = matches[1];
 						if (!interactiveVariablesToSubstitutes[interactiveVariable]) {

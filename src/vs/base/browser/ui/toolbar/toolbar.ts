@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./toolbar';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Action, IActionRunner, IAction } from 'vs/base/common/actions';

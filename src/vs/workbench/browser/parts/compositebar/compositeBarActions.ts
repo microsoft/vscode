@@ -5,7 +5,7 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
@@ -21,7 +21,7 @@ import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export interface ICompositeActivity {
 	badge: IBadge;
@@ -207,6 +207,10 @@ export class ActivityActionItem extends BaseActionItem {
 	}
 
 	protected updateBadge(badge: IBadge, clazz?: string): void {
+		if (!this.$badge || !this.$badgeContent) {
+			return;
+		}
+
 		this.badgeDisposable.dispose();
 		this.badgeDisposable = empty;
 

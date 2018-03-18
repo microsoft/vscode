@@ -25,6 +25,6 @@
 	"search.quickOpen.includeSymbols": "配置为在 Quick Open 文件结果中包括全局符号搜索的结果。",
 	"search.followSymlinks": "控制是否在搜索中跟踪符号链接。",
 	"search.smartCase": "若搜索词全为小写，则不区分大小写进行搜索，否则区分大小写进行搜索",
-	"search.globalFindClipboard": "控制“搜索”侧边栏面板是否读取或修改 macOS 的共享查找剪贴板",
-	"search.location": "控制搜索功能显示在侧边栏还是水平空间更大的面板区域"
+	"search.globalFindClipboard": "控制“搜索”视图是否读取或修改 macOS 的共享查找剪贴板",
+	"search.location": "预览: 控制搜索功能显示在侧边栏还是水平空间更大的面板区域。我们将在下个版本优化面板中搜索的水平布局，之后这将不再是一个预览功能。"
 }

@@ -20,10 +20,13 @@
 	"terminal.integrated.fontFamily": "Controla la familia de fuentes del terminal, que está establecida de manera predeterminada en el valor de editor.fontFamily.",
 	"terminal.integrated.fontSize": "Controla el tamaño de la fuente en píxeles del terminal.",
 	"terminal.integrated.lineHeight": "Controla el alto de línea del terminal. Este número se multiplica por el tamaño de fuente del terminal para obtener el alto de línea real en píxeles.",
+	"terminal.integrated.fontWeight": "Espesor de fuente que debe usarse en el terminal para el texto que no está en negrita.",
+	"terminal.integrated.fontWeightBold": "Espesor de fuente que debe usarse en el terminal para el texto en negrita.",
 	"terminal.integrated.cursorBlinking": "Controla si el cursor del terminal parpadea.",
 	"terminal.integrated.cursorStyle": "Controla el estilo de cursor del terminal.",
 	"terminal.integrated.scrollback": "Controla la cantidad máxima de líneas que mantiene el terminal en su búfer.",
 	"terminal.integrated.setLocaleVariables": "Controla si las variables de configuración regional se definen al inicio del terminal. El valor predeterminado es true en OS X y false en las demás plataformas.",
+	"terminal.integrated.rightClickBehavior": "Controla el modo en el que el terminal reacciona al clic con el botón derecho. Las posibilidades son \"default\", \"copyPaste\" y \"selectWord\". \"default\" muestra el menú contextual. \"copyPaste\" copia si hay algo seleccionado; de lo contrario, pega. \"selectWord\" selecciona la palabra que hay debajo del cursor y muestra el menú contextual.",
 	"terminal.integrated.cwd": "Una ruta de acceso de inicio explícita en la que se iniciará el terminal; se utiliza como el directorio de trabajo actual (cwd) para el proceso de shell. Puede resultar especialmente útil en una configuración de área de trabajo si la raíz de directorio no es un cwd práctico.",
 	"terminal.integrated.confirmOnExit": "Indica si debe confirmarse a la salida si hay sesiones de terminal activas.",
 	"terminal.integrated.enableBell": "Si la campana terminal está activada o no.",
@@ -32,6 +35,7 @@
 	"terminal.integrated.env.linux": "Objeto con variables de entorno que se agregarán al proceso de VS Code para que las use el terminal en Linux",
 	"terminal.integrated.env.windows": "Objeto con variables de entorno que se agregarán al proceso de VS Code para que las use el terminal en Windows",
 	"terminal.integrated.showExitAlert": "Mostrar alerta 'El proceso de terminal terminó con el código de salida ' cuando el código de salida no es cero.",
+	"terminal.integrated.experimentalRestore": "Indica si se restauran automáticamente las sesiones del terminal para el área de trabajo cuando se inicia VS Code. Esta es una opción experimental; puede tener errores y podría cambiar en el futuro.",
 	"terminalCategory": "Terminal",
 	"viewCategory": "Ver"
 }

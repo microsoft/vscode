@@ -151,7 +151,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(FocusBreakpointsViewAc
 
 
 // Register Quick Open
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
+(Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
 		DebugQuickOpenHandler,
 		DebugQuickOpenHandler.ID,

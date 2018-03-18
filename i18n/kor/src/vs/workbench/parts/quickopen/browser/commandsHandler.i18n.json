@@ -12,6 +12,7 @@
 	"entryAriaLabelWithKey": "{0}, {1}, 명령",
 	"entryAriaLabel": "{0}, 명령",
 	"actionNotEnabled": "'{0}' 명령은 현재 컨텍스트에서 사용할 수 없습니다.",
+	"canNotRun": "'{0}' 명령에서 오류가 발생했습니다.",
 	"recentlyUsed": "최근에 사용한 항목",
 	"morecCommands": "기타 명령",
 	"cat.title": "{0}: {1}",

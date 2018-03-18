@@ -1,0 +1,394 @@
+phases:
+- phase: Windows
+  condition: eq(variables['VSCODE_BUILD_WIN32'], 'true')
+  queue:
+    name: Hosted VS2017
+    parallel: 2
+    matrix:
+      x64:
+        VSCODE_ARCH: x64
+      ia32:
+        VSCODE_ARCH: ia32
+
+  steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "8.9.1"
+
+  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+    inputs:
+      versionSpec: "1.3.2"
+
+  - powershell: |
+      "machine monacotools.visualstudio.com password $(VSO_PAT)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
+      $env:npm_config_arch="$(VSCODE_ARCH)"
+      $env:CHILD_CONCURRENCY="1"
+      yarn
+      npm run gulp -- hygiene
+      npm run monaco-compile-check
+      $env:VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)"
+      npm run gulp -- mixin
+      node build/tfs/common/installDistro.js
+
+  - powershell: |
+      $env:VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)"
+      npm run gulp -- "vscode-win32-$(VSCODE_ARCH)-min"
+      npm run gulp -- "vscode-win32-$(VSCODE_ARCH)-copy-inno-updater"
+    name: build
+
+  - powershell: |
+      npm run gulp -- "electron-$(VSCODE_ARCH)"
+      .\scripts\test.bat --build --tfs
+    name: test
+
+  - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+    inputs:
+      ConnectedServiceName: 'ESRP CodeSign'
+      FolderPath: '$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)'
+      Pattern: '*.dll,*.exe,*.node'
+      signConfigType: inlineSignParams
+      inlineOperation: |
+        [
+          {
+            "keyCode": "CP-229803",
+            "operationSetCode": "SigntoolSign",
+            "parameters": [
+              {
+                "parameterName": "OpusName",
+                "parameterValue": "Microsoft"
+              },
+              {
+                "parameterName": "OpusInfo",
+                "parameterValue": "http://www.microsoft.com"
+              },
+              {
+                "parameterName": "PageHash",
+                "parameterValue": "/NPH"
+              },
+              {
+                "parameterName": "TimeStamp",
+                "parameterValue": "/t \"http://ts4096.gtm.microsoft.com/TSS/AuthenticodeTS\""
+              }
+            ],
+            "toolName": "sign",
+            "toolVersion": "1.0"
+          },
+          {
+            "keyCode": "CP-230012",
+            "operationSetCode": "SigntoolSign",
+            "parameters": [
+              {
+                "parameterName": "OpusName",
+                "parameterValue": "Microsoft"
+              },
+              {
+                "parameterName": "OpusInfo",
+                "parameterValue": "http://www.microsoft.com"
+              },
+              {
+                "parameterName": "Append",
+                "parameterValue": "/as"
+              },
+              {
+                "parameterName": "FileDigest",
+                "parameterValue": "/fd \"SHA256\""
+              },
+              {
+                "parameterName": "PageHash",
+                "parameterValue": "/NPH"
+              },
+              {
+                "parameterName": "TimeStamp",
+                "parameterValue": "/tr \"http://rfc3161.gtm.corp.microsoft.com/TSS/HttpTspServer\" /td sha256"
+              }
+            ],
+            "toolName": "sign",
+            "toolVersion": "1.0"
+          },
+          {
+            "keyCode": "CP-230012",
+            "operationSetCode": "SigntoolVerify",
+            "parameters": [
+              {
+                "parameterName": "VerifyAll",
+                "parameterValue": "/all"
+              }
+            ],
+            "toolName": "sign",
+            "toolVersion": "1.0"
+          }
+        ]
+      SessionTimeout: 120
+
+  - powershell: |
+      npm run gulp -- "vscode-win32-$(VSCODE_ARCH)-archive" "vscode-win32-$(VSCODE_ARCH)-setup"
+
+  - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+    inputs:
+      ConnectedServiceName: 'ESRP CodeSign'
+      FolderPath: '$(agent.builddirectory)'
+      Pattern: VSCodeSetup.exe
+      signConfigType: inlineSignParams
+      inlineOperation: |
+        [
+          {
+            "keyCode": "CP-229803",
+            "operationSetCode": "SigntoolSign",
+            "parameters": [
+              {
+                "parameterName": "OpusName",
+                "parameterValue": "Microsoft"
+              },
+              {
+                "parameterName": "OpusInfo",
+                "parameterValue": "http://www.microsoft.com"
+              },
+              {
+                "parameterName": "PageHash",
+                "parameterValue": "/NPH"
+              },
+              {
+                "parameterName": "TimeStamp",
+                "parameterValue": "/t \"http://ts4096.gtm.microsoft.com/TSS/AuthenticodeTS\""
+              }
+            ],
+            "toolName": "sign",
+            "toolVersion": "1.0"
+          },
+          {
+            "keyCode": "CP-230012",
+            "operationSetCode": "SigntoolSign",
+            "parameters": [
+              {
+                "parameterName": "OpusName",
+                "parameterValue": "Microsoft"
+              },
+              {
+                "parameterName": "OpusInfo",
+                "parameterValue": "http://www.microsoft.com"
+              },
+              {
+                "parameterName": "Append",
+                "parameterValue": "/as"
+              },
+              {
+                "parameterName": "FileDigest",
+                "parameterValue": "/fd \"SHA256\""
+              },
+              {
+                "parameterName": "PageHash",
+                "parameterValue": "/NPH"
+              },
+              {
+                "parameterName": "TimeStamp",
+                "parameterValue": "/tr \"http://rfc3161.gtm.corp.microsoft.com/TSS/HttpTspServer\" /td sha256"
+              }
+            ],
+            "toolName": "sign",
+            "toolVersion": "1.0"
+          },
+          {
+            "keyCode": "CP-230012",
+            "operationSetCode": "SigntoolVerify",
+            "parameters": [
+              {
+                "parameterName": "VerifyAll",
+                "parameterValue": "/all"
+              }
+            ],
+            "toolName": "sign",
+            "toolVersion": "1.0"
+          }
+        ]
+      SessionTimeout: 120
+
+  - powershell: |
+      $Repo = "$(pwd)"
+      $Root = "$Repo\.."
+      $Exe = "$Repo\.build\win32-$(VSCODE_ARCH)\setup\VSCodeSetup.exe"
+      $Zip = "$Repo\.build\win32-$(VSCODE_ARCH)\archive\VSCode-win32-$(VSCODE_ARCH).zip"
+      $Build = "$Root\VSCode-win32-$(VSCODE_ARCH)"
+
+      # get version
+      $PackageJson = Get-Content -Raw -Path "$Build\resources\app\package.json" | ConvertFrom-Json
+      $Version = $PackageJson.version
+      $Quality = "$env:VSCODE_QUALITY"
+      $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(AZURE_STORAGE_ACCESS_KEY_2)"
+      $env:MOONCAKE_STORAGE_ACCESS_KEY = "$(MOONCAKE_STORAGE_ACCESS_KEY)"
+      $env:AZURE_DOCUMENTDB_MASTERKEY = "$(AZURE_DOCUMENTDB_MASTERKEY)"
+
+      $assetPlatform = if ("$(VSCODE_ARCH)" -eq "ia32") { "win32" } else { "win32-x64" }
+
+      node build/tfs/common/publish.js $Quality "$global:assetPlatform-archive" archive "VSCode-win32-$(VSCODE_ARCH)-$Version.zip" $Version true $Zip
+      node build/tfs/common/publish.js $Quality "$global:assetPlatform" setup "VSCodeSetup-$(VSCODE_ARCH)-$Version.exe" $Version true $Exe
+
+- phase: Linux
+  condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
+  queue:
+    name: Hosted Linux Preview
+    parallel: 2
+    matrix:
+      x64:
+        VSCODE_ARCH: x64
+      ia32:
+        VSCODE_ARCH: ia32
+
+  steps:
+  - script: |
+      # dependencies
+      dpkg --add-architecture i386
+      apt-get update
+
+      DEPS=" \
+        gcc-multilib g++-multilib \
+        pkg-config \
+        dbus \
+        xvfb \
+        fakeroot \
+        bc \
+        bsdmainutils \
+        rpm \
+      "
+
+      if [[ "$(VSCODE_ARCH)" == "x64" ]]; then
+        DEPS="$DEPS \
+          dpkg-dev \
+          libgconf-2-4 \
+          libnss3 \
+          libasound2 \
+          libxtst6 \
+          libx11-dev \
+          libxkbfile-dev \
+          libxss1 \
+          libx11-xcb-dev \
+          libsecret-1-dev \
+        "
+      else
+        DEPS="$DEPS \
+          dpkg-dev:i386 \
+          libgconf-2-4:i386 \
+          libnss3:i386 \
+          libasound2:i386 \
+          libxtst6:i386 \
+          libnotify4:i386 \
+          libx11-dev:i386 \
+          libxkbfile-dev:i386 \
+          libxss1:i386 \
+          libx11-xcb-dev:i386 \
+          libgl1-mesa-glx:i386 libgl1-mesa-dri:i386 \
+          libgirepository-1.0-1:i386 \
+          gir1.2-glib-2.0:i386 \
+          gir1.2-secret-1:i386 \
+          libsecret-1-dev:i386 \
+          libgtk2.0-0:i386 \
+        "
+      fi
+
+      apt-get install -y $DEPS
+
+      # setup xvfb
+      cp build/tfs/linux/$(VSCODE_ARCH)/xvfb.init /etc/init.d/xvfb
+      chmod +x /etc/init.d/xvfb
+      update-rc.d xvfb defaults
+      service xvfb start
+
+      # setup dbus
+      ln -sf /bin/dbus-daemon /usr/bin/dbus-daemon
+      service dbus start
+
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "8.9.1"
+
+  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+    inputs:
+      versionSpec: "1.3.2"
+
+  - script: |
+      export npm_config_arch="$(VSCODE_ARCH)"
+      if [[ "$(VSCODE_ARCH)" == "ia32" ]]; then
+        export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
+      fi
+
+      echo "machine monacotools.visualstudio.com password $(VSO_PAT)" > ~/.netrc
+      yarn
+      npm run gulp -- hygiene
+      npm run monaco-compile-check
+      VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
+      node build/tfs/common/installDistro.js
+
+  - script: |
+      VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-linux-$(VSCODE_ARCH)-min
+    name: build
+
+  - script: |
+      npm run gulp -- "electron-$(VSCODE_ARCH)"
+      DISPLAY=:10 ./scripts/test.sh --build --tfs
+    name: test
+
+  - script: |
+      npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-deb"
+      npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-rpm"
+      #npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-snap"
+
+      AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+      AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+      MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
+      ./build/tfs/linux/release2.sh "$(VSCODE_ARCH)" "$(LINUX_REPO_PASSWORD)"
+
+- phase: macOS
+  condition: eq(variables['VSCODE_BUILD_MACOS'], 'true')
+  queue: Hosted macOS Preview
+  steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "8.9.1"
+
+  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+    inputs:
+      versionSpec: "1.3.2"
+
+  - script: |
+      echo "machine monacotools.visualstudio.com password $(VSO_PAT)" > ~/.netrc
+      yarn
+      npm run gulp -- hygiene
+      npm run monaco-compile-check
+      VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
+      node build/tfs/common/installDistro.js
+
+  - script: |
+      VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
+      AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
+      npm run gulp -- vscode-darwin-min upload-vscode-sourcemaps
+    name: build
+
+  - script: |
+      ./scripts/test.sh --build --tfs
+    name: test
+
+  - script: |
+      # archive the unsigned build
+      pushd ../VSCode-darwin && zip -r -X -y ../VSCode-darwin-unsigned.zip * && popd
+
+      # publish the unsigned build
+      PACKAGEJSON=`ls ../VSCode-darwin/*.app/Contents/Resources/app/package.json`
+      VERSION=`node -p "require(\"$PACKAGEJSON\").version"`
+      AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+      AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+      MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
+      node build/tfs/common/publish.js \
+        "$(VSCODE_QUALITY)" \
+        darwin \
+        archive-unsigned \
+        "VSCode-darwin-$(VSCODE_QUALITY)-unsigned.zip" \
+        $VERSION \
+        false \
+        ../VSCode-darwin-unsigned.zip
+
+      # enqueue the unsigned build
+      AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+      AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+      node build/tfs/common/enqueue.js "$(VSCODE_QUALITY)"
+
+      AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
+      npm run gulp -- upload-vscode-configuration

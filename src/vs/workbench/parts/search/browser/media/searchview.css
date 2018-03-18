@@ -18,13 +18,7 @@
 	left: 0;
 	width: 16px;
 	height: 100%;
-
-	-webkit-box-sizing: border-box;
-	-o-box-sizing: border-box;
-	-moz-box-sizing: border-box;
-	-ms-box-sizing: border-box;
 	box-sizing: border-box;
-
 	background-position: center center;
 	background-repeat: no-repeat;
 	cursor: pointer;
@@ -57,6 +51,10 @@
 
 .search-view .search-widget .replace-container .monaco-action-bar {
 	margin-left: 3px;
+}
+
+.search-view .search-widget .replace-container .monaco-action-bar {
+	height: 25px;
 }
 
 .search-view .search-widget .replace-container .monaco-action-bar .action-item .icon {
@@ -166,7 +164,6 @@
 	margin-top: 0px;
 	margin-bottom: 0px;
 	padding-bottom: 4px;
-	-webkit-user-select: text;
 	user-select: text;
 }
 

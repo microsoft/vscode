@@ -8,6 +8,5 @@
 	],
 	"preview.securityMessage.text": "Du contenu a été désactivé dans ce document",
 	"preview.securityMessage.title": "Le contenu potentiellement dangereux ou précaire a été désactivé dans l’aperçu du format markdown. Modifier le paramètre de sécurité Aperçu Markdown afin d’autoriser les contenus non sécurisés ou activer les scripts",
-	"preview.securityMessage.label": "Avertissement de sécurité de contenu désactivé",
-	"previewTitle": "Prévisualiser {0}"
+	"preview.securityMessage.label": "Avertissement de sécurité de contenu désactivé"
 }

@@ -53,7 +53,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -347,10 +347,12 @@ export class PreferencesEditor extends BaseEditor {
 
 			/* __GDPR__
 				"defaultSettings.filter" : {
-					"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"durations" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"counts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"requestCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"filter": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+					"durations.nlpresult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"counts.nlpresult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"durations.filterresult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"counts.filterresult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"requestCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 				}
 			*/
 			this.telemetryService.publicLog('defaultSettings.filter', data);
@@ -396,8 +398,8 @@ class PreferencesRenderersController extends Disposable {
 	private _lastQuery: string;
 	private _lastFilterResult: IFilterResult;
 
-	private _onDidFilterResultsCountChange: Emitter<IPreferencesCount> = this._register(new Emitter<IPreferencesCount>());
-	public onDidFilterResultsCountChange: Event<IPreferencesCount> = this._onDidFilterResultsCountChange.event;
+	private readonly _onDidFilterResultsCountChange: Emitter<IPreferencesCount> = this._register(new Emitter<IPreferencesCount>());
+	public readonly onDidFilterResultsCountChange: Event<IPreferencesCount> = this._onDidFilterResultsCountChange.event;
 
 	constructor(
 		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
@@ -717,10 +719,10 @@ class PreferencesRenderersController extends Disposable {
 			"defaultSettingsActions.copySetting" : {
 				"userConfigurationKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"query" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"displayIdx" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"editableSide" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"displayIdx" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"editableSide" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.publicLog('defaultSettingsActions.copySetting', data);
@@ -780,10 +782,10 @@ class SideBySidePreferencesWidget extends Widget {
 
 	private settingsTargetsWidget: SettingsTargetsWidget;
 
-	private _onFocus: Emitter<void> = new Emitter<void>();
+	private readonly _onFocus: Emitter<void> = new Emitter<void>();
 	readonly onFocus: Event<void> = this._onFocus.event;
 
-	private _onDidSettingsTargetChange: Emitter<SettingsTarget> = new Emitter<SettingsTarget>();
+	private readonly _onDidSettingsTargetChange: Emitter<SettingsTarget> = new Emitter<SettingsTarget>();
 	readonly onDidSettingsTargetChange: Event<SettingsTarget> = this._onDidSettingsTargetChange.event;
 
 	private lastFocusedEditor: BaseEditor;

@@ -19,10 +19,10 @@
 					"yaml"
 				],
 				"extensions": [
+					".yml",
 					".eyaml",
 					".eyml",
-					".yaml",
-					".yml"
+					".yaml"
 				],
 				"filenames": [
 					"yarn.lock"

@@ -6,8 +6,8 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
-import resources = require('vs/base/common/resources');
+import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import { ResourceMap } from 'vs/base/common/map';
 import { isLinux } from 'vs/base/common/platform';
 import { IFileStat } from 'vs/platform/files/common/files';
@@ -23,7 +23,7 @@ export class Model {
 	private _roots: FileStat[];
 	private _listener: IDisposable;
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders.map(folder => {
 			const root = new FileStat(folder.uri, undefined);
 			root.name = folder.name;

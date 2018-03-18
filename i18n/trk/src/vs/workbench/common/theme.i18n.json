@@ -58,5 +58,13 @@
 	"titleBarInactiveForeground": "Pencere pasifken başlık çubuğu ön planı. Bu rengin sadece macOS'da destekleneceğini unutmayın.",
 	"titleBarActiveBackground": "Pencere aktifken başlık çubuğu arka planı. Bu rengin sadece macOS'da destekleneceğini unutmayın.",
 	"titleBarInactiveBackground": "Pencere pasifken başlık çubuğu arka planı. Bu rengin sadece macOS'da destekleneceğini unutmayın.",
-	"titleBarBorder": "Başlık çubuğu kenarlık rengi. Bu rengin sadece macOS'da destekleneceğini unutmayın."
+	"titleBarBorder": "Başlık çubuğu kenarlık rengi. Bu rengin sadece macOS'da destekleneceğini unutmayın.",
+	"notificationCenterBorder": "Bildirim merkezi kenarlık rengi. Bildirimler pencerenin sağ alt kısmından kayarak içeri girer.",
+	"notificationToastBorder": "Bildirim kutusu kenarlık rengi. Bildirimler pencerenin sağ alt kısmından kayarak içeri girer.",
+	"notificationsForeground": "Bildirim ön plan rengi. Bildirimler pencerenin sağ alt kısmından kayarak içeri girer.",
+	"notificationsBackground": "Bildirim arka plan rengi. Bildirimler pencerenin sağ alt kısmından kayarak içeri girer.",
+	"notificationsLink": "Bildirim linkleri ön plan rengi. Bildirimler pencerenin sağ alt kısmından kayarak içeri girer.",
+	"notificationCenterHeaderForeground": "Bildirim merkezi üstbilgi ön plan rengi. Bildirimler pencerenin sağ alt kısmından kayarak içeri girer.",
+	"notificationCenterHeaderBackground": "Bildirim merkezi üstbilgi arka plan rengi. Bildirimler pencerenin sağ alt kısmından kayarak içeri girer.",
+	"notificationsBorder": "Bildirim merkezinde bildirimleri diğer bildirimlerden ayıracak kenarlık rengi. Bildirimler pencerenin sağ alt kısmından kayarak içeri girer."
 }

@@ -10,11 +10,11 @@ import 'vs/workbench/browser/parts/editor/editor.contribution';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
-import nls = require('vs/nls');
-import strings = require('vs/base/common/strings');
-import arrays = require('vs/base/common/arrays');
-import types = require('vs/base/common/types');
-import errors = require('vs/base/common/errors');
+import * as nls from 'vs/nls';
+import * as strings from 'vs/base/common/strings';
+import * as arrays from 'vs/base/common/arrays';
+import * as types from 'vs/base/common/types';
+import * as errors from 'vs/base/common/errors';
 import * as objects from 'vs/base/common/objects';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -35,7 +35,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { EditorStacksModel, EditorGroup, EditorIdentifier, EditorCloseEvent } from 'vs/workbench/common/editor/editorStacksModel';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter, once } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -46,9 +46,8 @@ import { join } from 'vs/base/common/paths';
 import { IEditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { ThrottledEmitter } from 'vs/base/common/async';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { isUndefinedOrNull } from 'vs/base/common/types';
 import { INotificationService, Severity, INotificationActions } from 'vs/platform/notification/common/notification';
-import { isErrorWithActions } from 'vs/base/common/errors';
+import { dispose } from 'vs/base/common/lifecycle';
 
 class ProgressMonitor {
 
@@ -106,11 +105,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private revealIfOpen: boolean;
 
 	private _onEditorsChanged: ThrottledEmitter<void>;
-	private _onEditorOpening: Emitter<IEditorOpeningEvent>;
-	private _onEditorGroupMoved: Emitter<void>;
-	private _onEditorOpenFail: Emitter<EditorInput>;
-	private _onGroupOrientationChanged: Emitter<void>;
-	private _onTabOptionsChanged: Emitter<IEditorTabOptions>;
+	private readonly _onEditorOpening: Emitter<IEditorOpeningEvent>;
+	private readonly _onEditorGroupMoved: Emitter<void>;
+	private readonly _onEditorOpenFail: Emitter<EditorInput>;
+	private readonly _onGroupOrientationChanged: Emitter<void>;
+	private readonly _onTabOptionsChanged: Emitter<IEditorTabOptions>;
 
 	private textCompareEditorVisible: IContextKey<boolean>;
 
@@ -550,15 +549,17 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Report error only if this was not us restoring previous error state
 		if (this.partService.isCreated() && !errors.isPromiseCanceledError(error)) {
 			const actions: INotificationActions = { primary: [] };
-			if (isErrorWithActions(error)) {
+			if (errors.isErrorWithActions(error)) {
 				actions.primary = error.actions;
 			}
 
-			this.notificationService.notify({
+			const handle = this.notificationService.notify({
 				severity: Severity.Error,
 				message: nls.localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), toErrorMessage(error)),
 				actions
 			});
+
+			once(handle.onDidDispose)(() => dispose(actions.primary));
 		}
 
 		this.editorGroupsControl.updateProgress(position, ProgressState.DONE);
@@ -702,7 +703,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Then check for array of positions to close
-		if (Array.isArray(positionsOrEditors) || isUndefinedOrNull(positionsOrEditors)) {
+		if (Array.isArray(positionsOrEditors) || types.isUndefinedOrNull(positionsOrEditors)) {
 			return this.doCloseAllEditorsAtPositions(positionsOrEditors as Position[]);
 		}
 

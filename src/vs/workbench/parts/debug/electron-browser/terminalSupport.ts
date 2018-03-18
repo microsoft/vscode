@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
-import cp = require('child_process');
+import * as cp from 'child_process';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITerminalService, ITerminalInstance, ITerminalConfiguration } from 'vs/workbench/parts/terminal/common/terminal';
@@ -43,9 +43,13 @@ export class TerminalSupport {
 		terminalService.showPanel(true);
 
 		const command = this.prepareCommand(args, configurationService);
-		t.sendText(command, true);
 
-		return TPromise.as(void 0);
+		return new TPromise((resolve, error) => {
+			setTimeout(_ => {
+				t.sendText(command, true);
+				resolve(void 0);
+			}, 500);
+		});
 	}
 
 	private static isBusy(t: ITerminalInstance): boolean {

@@ -345,7 +345,7 @@ export interface MainThreadTelemetryShape extends IDisposable {
 export type WebviewHandle = number;
 
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebview(handle: WebviewHandle, uri: URI, title: string, column: EditorPosition, options: vscode.WebviewOptions): void;
+	$createWebview(handle: WebviewHandle, uri: URI, title: string, column: EditorPosition, options: vscode.WebviewOptions, extensionFolderPath: string): void;
 	$disposeWebview(handle: WebviewHandle): void;
 	$show(handle: WebviewHandle, column: EditorPosition): void;
 	$setTitle(handle: WebviewHandle, value: string): void;
@@ -692,7 +692,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$resolveWorkspaceSymbol(handle: number, symbol: SymbolInformationDto): TPromise<SymbolInformationDto>;
 	$releaseWorkspaceSymbols(handle: number, id: number): void;
 	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string): TPromise<WorkspaceEditDto>;
-	$resolveInitialRenameValue(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.RenameInformation>;
+	$resolveRenameContext(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.RenameContext>;
 	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.SuggestContext): TPromise<SuggestResultDto>;
 	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion>;
 	$releaseCompletionItems(handle: number, id: number): void;
@@ -701,7 +701,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink>;
 	$provideDocumentColors(handle: number, resource: UriComponents): TPromise<IRawColorInfo[]>;
 	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]>;
-	$provideFoldingRanges(handle: number, resource: UriComponents): TPromise<modes.IFoldingRangeList>;
+	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext): TPromise<modes.IFoldingRangeList>;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -725,21 +725,22 @@ export interface ExtHostTaskShape {
 	$provideTasks(handle: number): TPromise<TaskSet>;
 }
 
-export interface IFunctionBreakpointDto {
-	type: 'function';
+export interface IBreakpointDto {
+	type: string;
 	id?: string;
 	enabled: boolean;
 	condition?: string;
 	hitCondition?: string;
+	logMessage?: string;
+}
+
+export interface IFunctionBreakpointDto extends IBreakpointDto {
+	type: 'function';
 	functionName: string;
 }
 
-export interface ISourceBreakpointDto {
+export interface ISourceBreakpointDto extends IBreakpointDto {
 	type: 'source';
-	id?: string;
-	enabled: boolean;
-	condition?: string;
-	hitCondition?: string;
 	uri: UriComponents;
 	line: number;
 	character: number;
@@ -759,6 +760,7 @@ export interface ISourceMultiBreakpointDto {
 		enabled: boolean;
 		condition?: string;
 		hitCondition?: string;
+		logMessage?: string;
 		line: number;
 		character: number;
 	}[];

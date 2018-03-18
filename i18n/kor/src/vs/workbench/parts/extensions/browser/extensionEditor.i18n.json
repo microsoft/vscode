@@ -46,6 +46,8 @@
 	"defaultLight": "밝게 기본값",
 	"defaultHC": "고대비 기본값",
 	"JSON Validation": "JSON 유효성 검사({0})",
+	"fileMatch": "파일 일치",
+	"schema": "스키마",
 	"commands": "명령({0})",
 	"command name": "이름",
 	"keyboard shortcuts": "바로 가기 키(&&K)",

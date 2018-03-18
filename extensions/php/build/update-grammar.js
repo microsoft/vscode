@@ -27,7 +27,7 @@ function fixBadRegex(grammar) {
 	if (scopeResolution) {
 		const match = scopeResolution.patterns[0].match;
 		if (match === '(?i)([a-z_\\x{7f}-\\x{7fffffff}\\\\][a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]*)(?=\\s*::)') {
-			scopeResolution.patterns[0].match = '([A-Za-z_\\x{7f}-\\x{7fffffff}\\\\][A_Za-z0-9_\\x{7f}-\\x{7fffffff}\\\\]*)(?=\\s*::)';
+			scopeResolution.patterns[0].match = '([A-Za-z_\\x{7f}-\\x{7fffffff}\\\\][A-Za-z0-9_\\x{7f}-\\x{7fffffff}\\\\]*)(?=\\s*::)';
 			return;
 		}
 	}

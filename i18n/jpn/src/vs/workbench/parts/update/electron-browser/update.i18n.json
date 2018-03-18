@@ -16,6 +16,7 @@
 	"64bitisavailable": "64 ビット Windows 用の {0} が利用可能になりました！詳細情報は[こちら]({1})をクリックしてください。",
 	"updateIsReady": "新しい更新 {0} が利用可能です。",
 	"noUpdatesAvailable": "現在入手可能な更新はありません。",
+	"ok": "OK",
 	"download now": "今すぐダウンロード",
 	"thereIsUpdateAvailable": "利用可能な更新プログラムがあります。",
 	"installUpdate": "更新プログラムのインストール",

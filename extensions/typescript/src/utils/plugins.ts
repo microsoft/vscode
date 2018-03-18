@@ -5,11 +5,10 @@
 
 import { extensions } from 'vscode';
 
-
 export interface TypeScriptServerPlugin {
-	path: string;
-	name: string;
-	languages: string[];
+	readonly path: string;
+	readonly name: string;
+	readonly languages: string[];
 }
 
 export function getContributedTypeScriptServerPlugins(): TypeScriptServerPlugin[] {

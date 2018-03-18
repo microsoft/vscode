@@ -26,7 +26,7 @@ export function resolveWorkbenchCommonProperties(storageService: IStorageService
 		result['common.lastSessionDate'] = lastSessionDate;
 		// __GDPR__COMMON__ "common.isNewSession" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		result['common.isNewSession'] = !lastSessionDate ? '1' : '0';
-		// __GDPR__COMMON__ "common.instanceId" : { "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
+		// __GDPR__COMMON__ "common.instanceId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		result['common.instanceId'] = getOrCreateInstanceId(storageService);
 
 		return result;

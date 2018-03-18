@@ -9,9 +9,10 @@ import * as fs from 'fs';
 import { dirname, basename } from 'path';
 import * as objects from 'vs/base/common/objects';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import * as extfs from 'vs/base/node/extfs';
+import { isWindows } from 'vs/base/common/platform';
 
 export interface IConfigurationChangeEvent<T> {
 	config: T;
@@ -49,7 +50,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private loaded: boolean;
 	private timeoutHandle: NodeJS.Timer;
 	private disposables: IDisposable[];
-	private _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
+	private readonly _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
 	private configName: string;
 
 	constructor(private _path: string, private options: IConfigOptions<T> = { changeBufferDelay: 0, defaultConfig: Object.create(null), onError: error => console.error(error) }) {
@@ -165,8 +166,18 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	}
 
 	private onConfigFileChange(eventType: string, filename: string, isParentFolder: boolean): void {
-		if (isParentFolder && filename !== this.configName) {
-			return; // a change to a sibling file that is not our config file
+		if (isParentFolder) {
+
+			// Windows: in some cases the filename contains artifacts from the absolute path
+			// see https://github.com/nodejs/node/issues/19170
+			// As such, we have to ensure that the filename basename is used for comparison.
+			if (isWindows && filename !== this.configName) {
+				filename = basename(filename);
+			}
+
+			if (filename !== this.configName) {
+				return; // a change to a sibling file that is not our config file
+			}
 		}
 
 		if (this.timeoutHandle) {

@@ -552,6 +552,7 @@
         "name": "tsc",
         "label": "%typescript.problemMatchers.tsc.label%",
         "owner": "typescript",
+        "source": "ts",
         "applyTo": "closedDocuments",
         "fileLocation": [
           "relative",
@@ -563,6 +564,7 @@
         "name": "tsc-watch",
         "label": "%typescript.problemMatchers.tscWatch.label%",
         "owner": "typescript",
+        "source": "ts",
         "applyTo": "closedDocuments",
         "fileLocation": [
           "relative",

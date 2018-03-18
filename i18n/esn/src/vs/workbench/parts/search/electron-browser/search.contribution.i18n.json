@@ -25,5 +25,6 @@
 	"search.quickOpen.includeSymbols": "Configurar para incluir los resultados de una búsqueda global de símbolos en los resultados de archivos de Quick Open.",
 	"search.followSymlinks": "Controla si debe seguir enlaces simbólicos durante la búsqueda.",
 	"search.smartCase": "Proporciona busquedas de mayúsculas y minúsculas si el patrón es todo en minúsculas, de lo contrario, busca en mayúsculas y minúsculas",
-	"search.globalFindClipboard": "Controla si la Viewlet de búsqueda debe leer o modificar el portapapeles de búsqueda compartido en macOS"
+	"search.globalFindClipboard": "Controla si la vista de búsqueda debe leer o modificar el portapapeles de búsqueda compartido en macOS",
+	"search.location": "Vista previa: controla si se muestra la búsqueda como una vista en la barra lateral o como un panel en el área de paneles para tener más espacio horizontal. En la próxima versión, la búsqueda en panel tendrá una distribución horizontal mejorada y dejará de ser una vista previa."
 }

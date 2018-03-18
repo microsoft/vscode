@@ -5,20 +5,20 @@
 
 'use strict';
 
-import assert = require('assert');
-import os = require('os');
-import path = require('path');
-import fs = require('fs');
+import * as assert from 'assert';
+import * as os from 'os';
+import * as path from 'path';
+import * as fs from 'fs';
 import * as json from 'vs/base/common/json';
 import { OS } from 'vs/base/common/platform';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCodes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import extfs = require('vs/base/node/extfs');
+import * as extfs from 'vs/base/node/extfs';
 import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService, TestContextService, TestTextResourceConfigurationService, TestHashService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 import { IWorkspaceContextService, Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
-import uuid = require('vs/base/common/uuid');
+import * as uuid from 'vs/base/common/uuid';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -109,28 +109,28 @@ suite('Keybindings Editing', () => {
 		fs.writeFileSync(keybindingsFile, ',,,,,,,,,,,,,,');
 		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }))
 			.then(() => assert.fail('Should fail with parse errors'),
-			error => assert.equal(error.message, 'Unable to write to the keybindings configuration file. Please open it to correct errors/warnings in the file and try again.'));
+				error => assert.equal(error.message, 'Unable to write to the keybindings configuration file. Please open it to correct errors/warnings in the file and try again.'));
 	});
 
 	test('errors cases - parse errors 2', () => {
 		fs.writeFileSync(keybindingsFile, '[{"key": }]');
 		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }))
 			.then(() => assert.fail('Should fail with parse errors'),
-			error => assert.equal(error.message, 'Unable to write to the keybindings configuration file. Please open it to correct errors/warnings in the file and try again.'));
+				error => assert.equal(error.message, 'Unable to write to the keybindings configuration file. Please open it to correct errors/warnings in the file and try again.'));
 	});
 
 	test('errors cases - dirty', () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }))
 			.then(() => assert.fail('Should fail with dirty error'),
-			error => assert.equal(error.message, 'Unable to write because the keybindings configuration file is dirty. Please save it first and then try again.'));
+				error => assert.equal(error.message, 'Unable to write because the keybindings configuration file is dirty. Please save it first and then try again.'));
 	});
 
 	test('errors cases - did not find an array', () => {
 		fs.writeFileSync(keybindingsFile, '{"key": "alt+c", "command": "hello"}');
 		return testObject.editKeybinding('alt+c', aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }))
 			.then(() => assert.fail('Should fail with dirty error'),
-			error => assert.equal(error.message, 'Unable to write to the keybindings configuration file. It has an object which is not of type Array. Please open the file to clean up and try again.'));
+				error => assert.equal(error.message, 'Unable to write to the keybindings configuration file. It has an object which is not of type Array. Please open the file to clean up and try again.'));
 	});
 
 	test('edit a default keybinding to an empty file', () => {
