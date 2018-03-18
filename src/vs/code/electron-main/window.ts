@@ -414,6 +414,34 @@ export class CodeWindow implements ICodeWindow {
 
 		// Handle Workspace events
 		this.toDispose.push(this.workspacesMainService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
+
+		// TODO@Ben workaround for https://github.com/Microsoft/vscode/issues/13612
+		// It looks like smooth scrolling disappears as soon as the window is minimized
+		// and maximized again. Touching some window properties "fixes" it, like toggling
+		// the visibility of the menu.
+		if (isWindows) {
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+			if (windowConfig && windowConfig.smoothScrollingWorkaround === true) {
+				let minimized = false;
+
+				const restoreSmoothScrolling = () => {
+					if (minimized) {
+						const visibility = this.getMenuBarVisibility();
+						const temporaryVisibility: MenuBarVisibility = (visibility === 'hidden' || visibility === 'toggle') ? 'default' : 'hidden';
+						setTimeout(() => {
+							this.doSetMenuBarVisibility(temporaryVisibility);
+							this.doSetMenuBarVisibility(visibility);
+						}, 0);
+					}
+
+					minimized = false;
+				};
+
+				this._win.on('minimize', () => minimized = true);
+				this._win.on('restore', () => restoreSmoothScrolling());
+				this._win.on('maximize', () => restoreSmoothScrolling());
+			}
+		}
 	}
 
 	private onUntitledWorkspaceDeleted(workspace: IWorkspaceIdentifier): void {
@@ -797,11 +825,32 @@ export class CodeWindow implements ICodeWindow {
 		return menuBarVisibility;
 	}
 
-	public setMenuBarVisibility(visibility: MenuBarVisibility, notify: boolean = true): void {
+	private setMenuBarVisibility(visibility: MenuBarVisibility, notify: boolean = true): void {
 		if (isMacintosh) {
 			return; // ignore for macOS platform
 		}
 
+		if (visibility === 'toggle') {
+			if (notify) {
+				this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the Alt-key."));
+			}
+		}
+
+		if (visibility === 'hidden') {
+			// for some weird reason that I have no explanation for, the menu bar is not hiding when calling
+			// this without timeout (see https://github.com/Microsoft/vscode/issues/19777). there seems to be
+			// a timing issue with us opening the first window and the menu bar getting created. somehow the
+			// fact that we want to hide the menu without being able to bring it back via Alt key makes Electron
+			// still show the menu. Unable to reproduce from a simple Hello World application though...
+			setTimeout(() => {
+				this.doSetMenuBarVisibility(visibility);
+			});
+		} else {
+			this.doSetMenuBarVisibility(visibility);
+		}
+	}
+
+	private doSetMenuBarVisibility(visibility: MenuBarVisibility): void {
 		const isFullscreen = this._win.isFullScreen();
 
 		switch (visibility) {
@@ -818,22 +867,11 @@ export class CodeWindow implements ICodeWindow {
 			case ('toggle'):
 				this._win.setMenuBarVisibility(false);
 				this._win.setAutoHideMenuBar(true);
-
-				if (notify) {
-					this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the Alt-key."));
-				}
 				break;
 
 			case ('hidden'):
-				// for some weird reason that I have no explanation for, the menu bar is not hiding when calling
-				// this without timeout (see https://github.com/Microsoft/vscode/issues/19777). there seems to be
-				// a timing issue with us opening the first window and the menu bar getting created. somehow the
-				// fact that we want to hide the menu without being able to bring it back via Alt key makes Electron
-				// still show the menu. Unable to reproduce from a simple Hello World application though...
-				setTimeout(() => {
-					this._win.setMenuBarVisibility(false);
-					this._win.setAutoHideMenuBar(false);
-				});
+				this._win.setMenuBarVisibility(false);
+				this._win.setAutoHideMenuBar(false);
 				break;
 		}
 	}
