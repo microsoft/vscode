@@ -79,6 +79,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	private treeContainer: HTMLElement;
 	private dragHandler: DelayedDragHandler;
 	private isDisposed: boolean;
+	private typeToFocusFilter: string;
 
 	constructor(
 		options: IExplorerViewOptions,
@@ -168,6 +169,77 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(e => this.refreshFromEvent(e.added)));
 		this.disposables.push(this.contextService.onDidChangeWorkbenchState(e => this.refreshFromEvent()));
+
+		this.addTypeToFocusHandlers();
+	}
+
+	private addTypeToFocusHandlers() {
+		this.typeToFocusFilter = '';
+		const typeToFocusClearDelayer = new Delayer(1000); // ms
+		const typeToFocusSearchDelayer = new ThrottledDelayer(200);
+
+		// Clear typeToFocusFilter after a delay of no keypresses
+		const clearTypeToFocusFilter = () => {
+			this.typeToFocusFilter = '';
+			console.log('clear type to focus filter');
+			return TPromise.as(null);
+		};
+
+		this.disposables.push(
+			DOM.addDisposableListener(this.treeContainer, 'keyup', (ev: KeyboardEvent) => {
+				if (!ev.altKey && !ev.ctrlKey && !ev.metaKey) {
+
+					const keyCode = ev.keyCode;
+					if (keyCode === 8 || keyCode === 46) { // backspace
+						this.typeToFocusFilter = this.typeToFocusFilter.substr(0, this.typeToFocusFilter.length - 1);
+					} else if (this.isPrintableKeyCode(keyCode)) {
+						this.typeToFocusFilter += ev.key.toLowerCase();
+					} else {
+						return;
+					}
+
+					typeToFocusSearchDelayer.trigger(this.focusViaTypeToFocusFilter.bind(this)).done(null, errors.onUnexpectedError);
+					typeToFocusClearDelayer.trigger(clearTypeToFocusFilter).done(null, errors.onUnexpectedError);
+				}
+			})
+		);
+	}
+
+	private isPrintableKeyCode(keyCode): boolean {
+		const printable =
+			(keyCode >= 48 && keyCode <= 57)   || // number keys
+			keyCode === 32   || // spacebar
+			(keyCode >= 65 && keyCode <= 90)   || // letter keys
+			(keyCode >= 186 && keyCode <= 192) || // ;=,-./` (in order)
+			(keyCode > 218 && keyCode <= 222);   // [\]' (in order)
+
+		return printable;
+	}
+
+	private focusViaTypeToFocusFilter() {
+		console.log('filter', this.typeToFocusFilter);
+		// Super hacky. Need someone's help to do this correctly
+		const explorerItems  = this.explorerViewer['model']['registry']['items'];
+		const filteredItems = [];
+
+		for (const key of Object.keys(explorerItems)) {
+			const {item} = explorerItems[key];
+			const element = item['element'];
+			const idx = element.name.toLowerCase().indexOf(this.typeToFocusFilter);
+			if (idx >= 0) {
+				filteredItems.push({el: element, idx: idx});
+			}
+		}
+
+		filteredItems.sort((a, b) => a.idx - b.idx); // Sort by prefix first
+		console.log(filteredItems.map(item => item.el.name));
+
+		if (filteredItems.length) {
+			const fileStat = filteredItems[0].el;
+			return this.doSelect(fileStat, true, true);
+		}
+
+		return TPromise.as(null);
 	}
 
 	layoutBody(size: number): void {
@@ -945,7 +1017,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			: undefined;
 	}
 
-	private doSelect(fileStat: FileStat, reveal: boolean): TPromise<void> {
+	private doSelect(fileStat: FileStat, reveal: boolean, selectDirectories = false): TPromise<void> {
 		if (!fileStat) {
 			return TPromise.as(null);
 		}
@@ -968,7 +1040,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}
 
 		return revealPromise.then(() => {
-			if (!fileStat.isDirectory) {
+			if (selectDirectories || !fileStat.isDirectory) {
 				this.explorerViewer.setSelection([fileStat]); // Since folders can not be opened, only select files
 			}
 
