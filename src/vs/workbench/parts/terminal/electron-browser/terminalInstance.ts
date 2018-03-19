@@ -906,9 +906,10 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	private static _mergeEnvironmentValue(env: IStringDictionary<string>, key: string, value: string | null) {
-		if (typeof value === 'string') {
-			env[key] = value;
+	private static _mergeEnvironmentValue(env: IStringDictionary<string>, key: string, value: string | number | boolean | null) {
+		const isPrimitive = (value !== Object(value));
+		if (value !== null && isPrimitive) {
+			env[key] = value.toString();
 		} else {
 			delete env[key];
 		}
