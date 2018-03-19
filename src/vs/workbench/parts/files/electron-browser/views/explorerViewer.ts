@@ -971,6 +971,10 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	private doHandleRootDrop(roots: FileStat[], target: FileStat | Model): TPromise<void> {
+		if (roots.length === 0) {
+			return TPromise.as(undefined);
+		}
+
 		const folders = this.contextService.getWorkspace().folders;
 		let targetIndex: number;
 		const workspaceCreationData: IWorkspaceFolderCreationData[] = [];
