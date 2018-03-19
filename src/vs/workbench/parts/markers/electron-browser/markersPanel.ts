@@ -81,7 +81,6 @@ export class MarkersPanel extends Panel {
 		this.createMessageBox(container);
 		this.createTree(container);
 
-		this.createActions();
 		this.createListeners();
 
 		return this.render();
@@ -127,6 +126,9 @@ export class MarkersPanel extends Panel {
 	}
 
 	public getActions(): IAction[] {
+		if (!this.actions) {
+			this.actions = this.createActions();
+		}
 		this.collapseAllAction.enabled = this.markersWorkbenchService.markersModel.hasFilteredResources();
 		return this.actions;
 	}
@@ -216,16 +218,17 @@ export class MarkersPanel extends Panel {
 		}));
 	}
 
-	private createActions(): void {
+	private createActions(): IAction[] {
 		this.collapseAllAction = this.instantiationService.createInstance(CollapseAllAction, this.tree, true);
 		this.filterAction = new FilterAction();
-		this.actions = [
+		const actions = [
 			this.filterAction,
 			this.collapseAllAction
 		];
-		this.actions.forEach(a => {
+		actions.forEach(a => {
 			this.toUnbind.push(a);
 		});
+		return actions;
 	}
 
 	private createListeners(): void {
