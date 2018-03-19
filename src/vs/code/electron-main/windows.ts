@@ -1089,14 +1089,7 @@ export class WindowsManager implements IWindowsMainService {
 				state.mode = WindowMode.Normal;
 			}
 
-			this.logService.info(`New Window state`);
-			this.logService.info(`display: ${state.display}`);
-			this.logService.info(`mode: ${state.mode}`);
-			this.logService.info(`hasDefaultState: ${state.hasDefaultState}`);
-			this.logService.info(`x: ${state.x}`);
-			this.logService.info(`y: ${state.y}`);
-			this.logService.info(`height: ${state.height}`);
-			this.logService.info(`width: ${state.width}`);
+			this.logService.info('New window state:', state);
 
 			window = this.instantiationService.createInstance(CodeWindow, {
 				state,
@@ -1213,6 +1206,8 @@ export class WindowsManager implements IWindowsMainService {
 		let displayToUse: Electron.Display;
 		const displays = screen.getAllDisplays();
 
+		this.logService.info('Displays detected:', displays);
+
 		// Single Display
 		if (displays.length === 1) {
 			displayToUse = displays[0];
@@ -1225,16 +1220,19 @@ export class WindowsManager implements IWindowsMainService {
 			if (isMacintosh) {
 				const cursorPoint = screen.getCursorScreenPoint();
 				displayToUse = screen.getDisplayNearestPoint(cursorPoint);
+				this.logService.info('Display near cursor:', displayToUse);
 			}
 
 			// if we have a last active window, use that display for the new window
 			if (!displayToUse && lastActive) {
 				displayToUse = screen.getDisplayMatching(lastActive.getBounds());
+				this.logService.info('Last active display:', displayToUse);
 			}
 
 			// fallback to primary display or first display
 			if (!displayToUse) {
 				displayToUse = screen.getPrimaryDisplay() || displays[0];
+				this.logService.info('Fallback display:', displayToUse);
 			}
 		}
 
