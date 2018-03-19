@@ -981,6 +981,12 @@
           "scope": "resource",
           "default": true,
           "description": "%config.detectSubmodules%"
+        },
+        "git.detectSubmodulesLimit": {
+          "type": "number",
+          "scope": "resource",
+          "default": 10,
+          "description": "%config.detectSubmodulesLimit%"
         }
       }
     },
