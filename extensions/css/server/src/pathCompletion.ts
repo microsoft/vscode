@@ -18,13 +18,21 @@ export function getPathCompletionParticipant(
 	result: CompletionList
 ): ICompletionParticipant {
 	return {
-		onCssURILiteralValue: (context: { uriValue: string, position: Position, range: Range; }) => {
+		onURILiteralValue: (context: { uriValue: string, position: Position, range: Range; }) => {
 			if (!workspaceFolders || workspaceFolders.length === 0) {
 				return;
 			}
 			const workspaceRoot = resolveWorkspaceRoot(document, workspaceFolders);
 
-			const suggestions = providePathSuggestions(context.uriValue, context.range, URI.parse(document.uri).fsPath, workspaceRoot);
+			// Handle quoted values
+			let uriValue = context.uriValue;
+			let range = context.range;
+			if (startsWith(uriValue, `'`) || startsWith(uriValue, `"`)) {
+				uriValue = uriValue.slice(1, -1);
+				range = getRangeWithoutQuotes(range);
+			}
+
+			const suggestions = providePathSuggestions(uriValue, range, URI.parse(document.uri).fsPath, workspaceRoot);
 			result.items = [...suggestions, ...result.items];
 		}
 	};
@@ -100,5 +108,10 @@ function getFullReplaceRange(valueRange: Range) {
 function getReplaceRange(valueRange: Range, valueAfterLastSlash: string) {
 	const start = Position.create(valueRange.end.line, valueRange.end.character - valueAfterLastSlash.length);
 	const end = Position.create(valueRange.end.line, valueRange.end.character);
+	return Range.create(start, end);
+}
+function getRangeWithoutQuotes(range: Range) {
+	const start = Position.create(range.start.line, range.start.character + 1);
+	const end = Position.create(range.end.line, range.end.character - 1);
 	return Range.create(start, end);
 }
