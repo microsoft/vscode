@@ -254,7 +254,7 @@ export class FolderConfiguration extends Disposable {
 		for (let i = 0, len = events.length; i < len; i++) {
 			const resource = events[i].resource;
 			const isJson = paths.extname(resource.fsPath) === '.json';
-			const isDeletedSettingsFolder = (events[i].type === FileChangeType.DELETED && paths.isEqual(paths.basename(resource.fsPath), this.configFolderRelativePath));
+			const isDeletedSettingsFolder = (events[i].type === FileChangeType.DELETED && paths.basename(resource.fsPath) === this.configFolderRelativePath);
 			if (!isJson && !isDeletedSettingsFolder) {
 				continue; // only JSON files or the actual settings folder
 			}
