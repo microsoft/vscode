@@ -153,7 +153,7 @@ export default class BufferSyncSupport {
 	private readonly disposables: Disposable[] = [];
 	private readonly syncedBuffers: SyncedBufferMap;
 
-	private pendingDiagnostics = new Map<string, number>();
+	private readonly pendingDiagnostics = new Map<string, number>();
 	private readonly diagnosticDelayer: Delayer<any>;
 
 	constructor(
@@ -271,16 +271,9 @@ export default class BufferSyncSupport {
 		if (!this._validate) {
 			return;
 		}
-		let files = Array.from(this.pendingDiagnostics.entries()).map(([key, value]) => {
-			return {
-				file: key,
-				time: value
-			};
-		}).sort((a, b) => {
-			return a.time - b.time;
-		}).map((value) => {
-			return value.file;
-		});
+		const files = Array.from(this.pendingDiagnostics.entries())
+			.sort((a, b) => a[1] - b[1])
+			.map(entry => entry[0]);
 
 		// Add all open TS buffers to the geterr request. They might be visible
 		for (const file of this.syncedBuffers.allResources) {
