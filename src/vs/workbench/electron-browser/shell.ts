@@ -421,6 +421,8 @@ export class WorkbenchShell {
 		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
 		this.toUnbind.push(extensionEnablementService);
 
+		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService));
+
 		this.extensionService = instantiationService.createInstance(ExtensionService);
 		serviceCollection.set(IExtensionService, this.extensionService);
 
@@ -436,8 +438,6 @@ export class WorkbenchShell {
 
 		this.contextViewService = instantiationService.createInstance(ContextViewService, this.container);
 		serviceCollection.set(IContextViewService, this.contextViewService);
-
-		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService));
 
 		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService));
 

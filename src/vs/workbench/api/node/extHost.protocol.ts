@@ -257,28 +257,35 @@ export interface ISerializedLanguageConfiguration {
 	};
 }
 
+export interface ISerializedDocumentFilter {
+	$serialized: true;
+	language?: string;
+	scheme?: string;
+	pattern?: vscode.GlobPattern;
+}
+
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): void;
-	$registerOutlineSupport(handle: number, selector: vscode.DocumentSelector): void;
-	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector, eventHandle: number): void;
+	$registerOutlineSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerCodeLensSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number): void;
 	$emitCodeLensEvent(eventHandle: number, event?: any): void;
-	$registerDeclaractionSupport(handle: number, selector: vscode.DocumentSelector): void;
-	$registerImplementationSupport(handle: number, selector: vscode.DocumentSelector): void;
-	$registerTypeDefinitionSupport(handle: number, selector: vscode.DocumentSelector): void;
-	$registerHoverProvider(handle: number, selector: vscode.DocumentSelector): void;
-	$registerDocumentHighlightProvider(handle: number, selector: vscode.DocumentSelector): void;
-	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): void;
-	$registerQuickFixSupport(handle: number, selector: vscode.DocumentSelector): void;
-	$registerDocumentFormattingSupport(handle: number, selector: vscode.DocumentSelector): void;
-	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector): void;
-	$registerOnTypeFormattingSupport(handle: number, selector: vscode.DocumentSelector, autoFormatTriggerCharacters: string[]): void;
+	$registerDeclaractionSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerImplementationSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerTypeDefinitionSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerHoverProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerDocumentHighlightProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerReferenceSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerOnTypeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], autoFormatTriggerCharacters: string[]): void;
 	$registerNavigateTypeSupport(handle: number): void;
-	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector, supportsResolveInitialValues: boolean): void;
-	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[], supportsResolveDetails: boolean): void;
-	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): void;
-	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): void;
-	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): void;
-	$registerFoldingProvider(handle: number, selector: vscode.DocumentSelector): void;
+	$registerRenameSupport(handle: number, selector: ISerializedDocumentFilter[], supportsResolveInitialValues: boolean): void;
+	$registerSuggestSupport(handle: number, selector: ISerializedDocumentFilter[], triggerCharacters: string[], supportsResolveDetails: boolean): void;
+	$registerSignatureHelpProvider(handle: number, selector: ISerializedDocumentFilter[], triggerCharacter: string[]): void;
+	$registerDocumentLinkProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerDocumentColorProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerFoldingProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ISerializedLanguageConfiguration): void;
 }
 
