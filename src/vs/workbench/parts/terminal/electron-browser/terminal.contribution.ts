@@ -285,16 +285,25 @@ configurationRegistry.registerConfiguration({
 		'terminal.integrated.env.osx': {
 			'description': nls.localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on OS X"),
 			'type': 'object',
+			'additionalProperties': {
+				'type': ['string', 'null']
+			},
 			'default': {}
 		},
 		'terminal.integrated.env.linux': {
 			'description': nls.localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux"),
 			'type': 'object',
+			'additionalProperties': {
+				'type': ['string', 'null']
+			},
 			'default': {}
 		},
 		'terminal.integrated.env.windows': {
 			'description': nls.localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows"),
 			'type': 'object',
+			'additionalProperties': {
+				'type': ['string', 'null']
+			},
 			'default': {}
 		},
 		'terminal.integrated.showExitAlert': {
