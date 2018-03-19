@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { MarkersModel, FilterOptions } from './markersModel';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IMarkerService, MarkerSeverity, IMarker } from 'vs/platform/markers/common/markers';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { localize } from 'vs/nls';
 import Constants from './constants';
@@ -38,7 +38,7 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 		@IActivityService private activityService: IActivityService
 	) {
 		super();
-		this.markersModel = this._register(new MarkersModel(this.markerService.read()));
+		this.markersModel = this._register(new MarkersModel(this.readMarkers()));
 		this._register(markerService.onMarkerChanged(resources => this.onMarkerChanged(resources)));
 	}
 
@@ -50,11 +50,15 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 	private onMarkerChanged(resources: URI[]): void {
 		this.markersModel.updateMarkers(updater => {
 			for (const resource of resources) {
-				updater(resource, this.markerService.read({ resource }));
+				updater(resource, this.readMarkers(resource));
 			}
 		});
 		this.refreshBadge();
 		this._onDidChangeMarkersForResources.fire(resources);
+	}
+
+	private readMarkers(resource?: URI): IMarker[] {
+		return this.markerService.read({ resource, severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info });
 	}
 
 	private refreshBadge(): void {
