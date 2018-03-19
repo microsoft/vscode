@@ -6,7 +6,6 @@
 
 import * as vscode from 'vscode';
 import { join } from 'vs/base/common/paths';
-import { Event } from 'vs/base/common/event';
 import { LogLevel } from 'vs/workbench/api/node/extHostTypes';
 import { ILogService, DelegatedLogService } from 'vs/platform/log/common/log';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
@@ -56,12 +55,6 @@ export class ExtHostLogger implements vscode.Logger {
 	constructor(
 		private readonly _logService: ILogService
 	) { }
-
-	get onDidChangeLogLevel(): Event<LogLevel> {
-		return this._logService.onDidChangeLogLevel;
-	}
-
-	get currentLevel(): LogLevel { return this._logService.getLevel(); }
 
 	trace(message: string, ...args: any[]): void {
 		return this._logService.trace(message, ...args);
