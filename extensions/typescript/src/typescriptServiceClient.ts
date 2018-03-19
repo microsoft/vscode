@@ -30,6 +30,7 @@ import { inferredProjectConfig } from './utils/tsconfig';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import { disposeAll } from './utils/dipose';
 import { DiagnosticKind } from './features/diagnostics';
+import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
 
 const localize = nls.loadMessageBundle();
 
@@ -154,6 +155,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private _onReady?: { promise: Promise<void>; resolve: () => void; reject: () => void; };
 	private _configuration: TypeScriptServiceConfiguration;
 	private versionProvider: TypeScriptVersionProvider;
+	private pluginPathsProvider: TypeScriptPluginPathsProvider;
 	private versionPicker: TypeScriptVersionPicker;
 
 	private tracer: Tracer;
@@ -210,6 +212,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		this.callbacks = new CallbackMap();
 		this._configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
 		this.versionProvider = new TypeScriptVersionProvider(this._configuration);
+		this.pluginPathsProvider = new TypeScriptPluginPathsProvider(this._configuration);
 		this.versionPicker = new TypeScriptVersionPicker(this.versionProvider, this.workspaceState);
 
 		this._apiVersion = API.defaultVersion;
@@ -221,6 +224,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			this._configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
 
 			this.versionProvider.updateConfiguration(this._configuration);
+			this.pluginPathsProvider.updateConfiguration(this._configuration);
 			this.tracer.updateConfiguration();
 
 			if (this.servicePromise) {
@@ -791,7 +795,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 				this.tracer.traceEvent(event);
 				this.dispatchEvent(event);
 			} else {
-				throw new Error('Unknown message type ' + message.type + ' recevied');
+				throw new Error('Unknown message type ' + message.type + ' received');
 			}
 		} finally {
 			this.sendNextRequests();
@@ -938,11 +942,18 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		}
 
 		if (this.apiVersion.has230Features()) {
+			const pluginPaths = this.pluginPathsProvider.getPluginPaths();
+
 			if (this.plugins.length) {
 				args.push('--globalPlugins', this.plugins.map(x => x.name).join(','));
+
 				if (currentVersion.path === this.versionProvider.defaultVersion.path) {
-					args.push('--pluginProbeLocations', this.plugins.map(x => x.path).join(','));
+					pluginPaths.push(...this.plugins.map(x => x.path));
 				}
+			}
+
+			if (pluginPaths.length !== 0) {
+				args.push('--pluginProbeLocations', pluginPaths.join(','));
 			}
 		}
 
@@ -960,7 +971,6 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		}
 		return args;
 	}
-
 
 	private getDebugPort(): number | undefined {
 		const value = process.env['TSS_DEBUG'];

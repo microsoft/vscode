@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import { workspace, window } from 'vscode';
 
 import { TypeScriptServiceConfiguration } from './configuration';
+import { RelativeWorkspacePathResolver } from './relativePathResolver';
 import API from './api';
 
 
@@ -91,6 +92,8 @@ export class TypeScriptVersion {
 
 
 export class TypeScriptVersionProvider {
+	private readonly relativePathResolver: RelativeWorkspacePathResolver = new RelativeWorkspacePathResolver();
+
 	public constructor(
 		private configuration: TypeScriptServiceConfiguration
 	) { }
@@ -165,14 +168,9 @@ export class TypeScriptVersionProvider {
 			return [new TypeScriptVersion(tsdkPathSetting)];
 		}
 
-		for (const root of workspace.workspaceFolders || []) {
-			const rootPrefixes = [`./${root.name}/`, `${root.name}/`, `.\\${root.name}\\`, `${root.name}\\`];
-			for (const rootPrefix of rootPrefixes) {
-				if (tsdkPathSetting.startsWith(rootPrefix)) {
-					const workspacePath = path.join(root.uri.fsPath, tsdkPathSetting.replace(rootPrefix, ''));
-					return [new TypeScriptVersion(workspacePath, tsdkPathSetting)];
-				}
-			}
+		const workspacePath = this.relativePathResolver.asAbsoluteWorkspacePath(tsdkPathSetting);
+		if (workspacePath !== undefined) {
+			return [new TypeScriptVersion(workspacePath, tsdkPathSetting)];
 		}
 
 		return this.loadTypeScriptVersionsFromPath(tsdkPathSetting);
