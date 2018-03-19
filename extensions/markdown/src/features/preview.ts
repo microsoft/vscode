@@ -48,6 +48,7 @@ export class MarkdownPreview {
 			previewColumn, {
 				enableScripts: true,
 				enableCommandUris: true,
+				enableFindWidget: true,
 				localResourceRoots: this.getLocalResourceRoots(_resource)
 			});
 

@@ -529,6 +529,13 @@ declare module 'vscode' {
 		readonly enableCommandUris?: boolean;
 
 		/**
+		 * Should the find widget be enabled in the webview?
+		 *
+		 * Defaults to false.
+		 */
+		readonly enableFindWidget?: boolean;
+
+		/**
 		 * Should the webview's context be kept around even when the webview is no longer visible?
 		 *
 		 * Normally a webview's context is created when the webview becomes visible
