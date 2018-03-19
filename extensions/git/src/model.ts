@@ -227,9 +227,9 @@ export class Model {
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
 		const originalResourceChangeListener = repository.onDidChangeOriginalResource(uri => this._onDidChangeOriginalResource.fire({ repository, uri }));
 
-		const submodulesLimit = <number>workspace
+		const submodulesLimit = workspace
 			.getConfiguration('git', Uri.file(repository.root))
-			.get<number>('detectSubmodulesLimit');
+			.get<number>('detectSubmodulesLimit') as number;
 
 		const checkForSubmodules = () => {
 			if (repository.submodules.length > submodulesLimit) {

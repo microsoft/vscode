@@ -70,7 +70,7 @@
 	"config.showInlineOpenFileAction": "Controls whether to show an inline Open File action in the Git changes view.",
 	"config.inputValidation": "Controls when to show commit message input validation.",
 	"config.detectSubmodules": "Controls whether to automatically detect git submodules.",
-	"config.detectSubmodulesLimit": "Controls the number of git submodules detected.",
+	"config.detectSubmodulesLimit": "Controls the limit of git submodules detected.",
 	"colors.modified": "Color for modified resources.",
 	"colors.deleted": "Color for deleted resources.",
 	"colors.untracked": "Color for untracked resources.",
