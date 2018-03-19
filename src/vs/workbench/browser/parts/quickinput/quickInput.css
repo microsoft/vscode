@@ -1,0 +1,28 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.quick-input-widget {
+	position: absolute;
+	width: 600px;
+	z-index: 2000;
+	padding-bottom: 6px;
+	left: 50%;
+	margin-left: -300px;
+}
+
+.quick-input-actions {
+	padding: 3px;
+}
+
+.quick-input-actions button {
+	border: 0;
+	padding: 0px 4px 1px 4px;
+	float: right;
+	margin-left: 4px;
+}
+
+.quick-input-actions button:focus {
+	outline:0;
+}
