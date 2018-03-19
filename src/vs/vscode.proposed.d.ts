@@ -750,11 +750,6 @@ declare module 'vscode' {
 	export interface TaskItem {
 
 		/**
-		 * A unique ID representing the underlying task.
-		 */
-		readonly id: string;
-
-		/**
 		 * A human readable label of the task.
 		 */
 		readonly label: string;
@@ -777,39 +772,24 @@ declare module 'vscode' {
 	 */
 	export interface TaskExecution {
 
-		/**
-		 * A human readable label of the task.
-		 */
-		readonly label: string;
-
-		/**
-		 * The task definition.
-		 */
-		readonly definition: TaskDefinition;
-
-		/**
-		 * The workspace folder the task belongs to. Is undefined
-		 * to tasks that aren't scoped to a workspace folder.
-		 */
-		readonly workspaceFolder: WorkspaceFolder | undefined;
 	}
 
 	/**
 	 * An event signaling the start of a task execution.
 	 */
-	interface TaskExecuteEvent {
+	interface TaskStartEvent {
 		/**
-		 * The task execution representing the task.
+		 * The task item representing the task that got started.
 		 */
 		execution: TaskExecution;
 	}
 
 	/**
-	 * An event signaling the terminate of a executed task.
+	 * An event signaling the end of an executed task.
 	 */
-	interface TaskTerminateEvent {
+	interface TaskEndEvent {
 		/**
-		 * The task execution representing the task.
+		 * The task item representing the task that finished.
 		 */
 		execution: TaskExecution;
 	}
@@ -818,19 +798,19 @@ declare module 'vscode' {
 
 		/**
 		 * Executes a task that is managed by VS Code. The returned
-		 * task handle can be used to terminate the task.
+		 * task execution can be used to terminate the task.
 		 *
 		 * @param task the task to execute
 		 */
-		export function executeTask(task: string | TaskItem): TaskExecution;
+		export function executeTask(task: TaskItem): Thenable<TaskExecution>;
 
 		/**
 		 * Fires when a task starts.
 		 */
-		export const onDidExecuteTask: Event<TaskExecuteEvent>;
+		export const onDidStartTask: Event<TaskStartEvent>;
 
 		/**
-		 * Terminates a task that was privously started using `executeTask`
+		 * Terminates a task that was previously started using `executeTask`
 		 *
 		 * @param task the task to terminate
 		 */
@@ -838,9 +818,9 @@ declare module 'vscode' {
 
 
 		/**
-		 * Fires when a task terminates.
+		 * Fires when a task ends.
 		 */
-		export const onDidTerminateTask: Event<TaskTerminateEvent>;
+		export const onDidEndTask: Event<TaskEndEvent>;
 	}
 
 
@@ -886,17 +866,18 @@ declare module 'vscode' {
 	// 	export function createTaskExecutor(task: Task): TaskExecutor;
 	// }
 
-	export interface TaskFilter {
-		type: string;
-	}
 
-	export interface TaskExecutionProvider {
-		executeTask(task: Task);
-	}
+	// export interface TaskFilter {
+	// 	type: string;
+	// }
 
-	export namespace workspace {
-		export function registerTaskExecutionProvider(filter: TaskFilter);
-	}
+	// export interface TaskExecutionProvider {
+	// 	executeTask(task: Task);
+	// }
+
+	// export namespace workspace {
+	// 	export function registerTaskExecutionProvider(filter: TaskFilter);
+	// }
 
 	//#endregion
 }

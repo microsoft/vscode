@@ -9,6 +9,7 @@ import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as Objects from 'vs/base/common/objects';
 import { asWinJsPromise } from 'vs/base/common/async';
+import { Event, Emitter } from 'vs/base/common/event';
 
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import * as TaskSystem from 'vs/workbench/parts/tasks/common/tasks';
@@ -18,6 +19,7 @@ import { MainContext, MainThreadTaskShape, ExtHostTaskShape, IMainContext } from
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import * as vscode from 'vscode';
+import { TaskDefinitionTransfer, TaskItemTransfer, TaskExecutionTransfer } from '../common/commonTask';
 
 
 /*
@@ -450,20 +452,71 @@ namespace Tasks {
 	}
 }
 
+namespace TaskDefinition {
+	export function to(value: vscode.TaskDefinition): TaskDefinitionTransfer {
+		return value;
+	}
+	export function from(value: TaskDefinitionTransfer): vscode.TaskDefinition {
+		return value;
+	}
+}
+
+
+class TaskItemImpl implements vscode.TaskItem {
+	constructor(readonly _id: string, private readonly _label: string, private readonly _definition: vscode.TaskDefinition, private readonly _workspaceFolder: vscode.WorkspaceFolder) {
+	}
+
+	get label(): string {
+		return this._label;
+	}
+	get definition(): vscode.TaskDefinition {
+		return this._definition;
+	}
+	get workspaceFolder(): vscode.WorkspaceFolder {
+		return this._workspaceFolder;
+	}
+}
+
+export namespace TaskItem {
+	export function to(value: vscode.TaskItem): TaskItemTransfer {
+		return {
+			id: (value as TaskItemImpl)._id,
+			label: value.label,
+			definition: TaskDefinition.to(value.definition),
+			workspaceFolderUri: value.workspaceFolder.uri
+		};
+	}
+	export function from(value: TaskItemTransfer, workspace: ExtHostWorkspace): vscode.TaskItem {
+		return new TaskItemImpl(
+			value.id,
+			value.label,
+			TaskDefinition.from(value.definition),
+			value.workspaceFolderUri ? workspace.resolveWorkspaceFolder(URI.revive(value.workspaceFolderUri)) : undefined
+		);
+	}
+}
+
+
+class TaskExecutionImpl implements vscode.TaskExecution {
+	constructor(readonly _id: string) {
+
+	}
+}
+
+export namespace TaskExecution {
+	export function to(value: vscode.TaskExecution): TaskExecutionTransfer {
+		return {
+			id: (value as TaskExecutionImpl)._id
+		};
+	}
+	export function from(value: TaskExecutionTransfer): vscode.TaskExecution {
+		return new TaskExecutionImpl(value.id);
+	}
+}
+
 interface HandlerData {
 	provider: vscode.TaskProvider;
 	extension: IExtensionDescription;
-}
-
-class TaskExecutionImpl implements vscode.TaskExecution {
-	start(): void {
-		throw new Error('Method not implemented.');
-	}
-	onTerminate: vscode.Event<void>;
-	onLineData: vscode.Event<string>;
-	terminate(): void {
-		throw new Error('Method not implemented.');
-	}
 }
 
 export class ExtHostTask implements ExtHostTaskShape {
@@ -472,6 +525,9 @@ export class ExtHostTask implements ExtHostTaskShape {
 	private _extHostWorkspace: ExtHostWorkspace;
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
+
+	private readonly _onDidExecuteTask: Emitter<vscode.TaskStartEvent> = new Emitter<vscode.TaskStartEvent>();
+	private readonly _onDidTerminateTask: Emitter<vscode.TaskEndEvent> = new Emitter<vscode.TaskEndEvent>();
 
 	constructor(mainContext: IMainContext, extHostWorkspace: ExtHostWorkspace) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTask);
@@ -493,8 +549,41 @@ export class ExtHostTask implements ExtHostTaskShape {
 		});
 	}
 
-	public createTaskExecution(task: string | vscode.TaskItem | vscode.Task): vscode.TaskExecution {
+	public executeTaskProvider(): Thenable<vscode.TaskItem[]> {
+		return this._proxy.$executeTaskProvider().then((values) => {
+			return values.map((value) => TaskItem.from(value, this._extHostWorkspace));
+		});
+	}
 
+	public executeTask(task: vscode.TaskItem): Thenable<vscode.TaskExecution> {
+		return this._proxy.$executeTask(TaskItem.to(task)).then((value) => TaskExecution.from(value));
+	}
+
+	public $taskStarted(execution: TaskExecutionTransfer): void {
+		this._onDidExecuteTask.fire({
+			execution: TaskExecution.from(execution)
+		});
+	}
+
+	get onDidStartTask(): Event<vscode.TaskStartEvent> {
+		return this._onDidExecuteTask.event;
+	}
+
+	public terminateTask(execution: vscode.TaskExecution): TPromise<void> {
+		if (!(execution instanceof TaskExecutionImpl)) {
+			throw new Error('No valid task execution provided');
+		}
+		return this._proxy.$terminateTask(TaskExecution.to(execution));
+	}
+
+	public $taskEnded(execution: TaskExecutionTransfer): void {
+		this._onDidTerminateTask.fire({
+			execution: TaskExecution.to(execution)
+		});
+	}
+
+	get onDidEndTask(): Event<vscode.TaskEndEvent> {
+		return this._onDidTerminateTask.event;
 	}
 
 	public $provideTasks(handle: number): TPromise<TaskSystem.TaskSet> {

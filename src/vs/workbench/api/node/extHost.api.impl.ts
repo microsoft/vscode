@@ -132,7 +132,7 @@ export function createApiFactory(
 	const extHostLanguages = new ExtHostLanguages(rpcProtocol);
 
 	// Register API-ish commands
-	ExtHostApiCommands.register(extHostCommands, extHostWorkspace);
+	ExtHostApiCommands.register(extHostCommands, extHostTask);
 
 	return function (extension: IExtensionDescription): typeof vscode {
 
@@ -516,9 +516,18 @@ export function createApiFactory(
 			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
 			},
-			executeTask: proposedApiFunction(extension, (task: string | vscode.TaskItem): vscode.TaskExecution => {
+			executeTask: proposedApiFunction(extension, (task: vscode.TaskItem): Thenable<vscode.TaskExecution> => {
 				return extHostTask.executeTask(task);
 			}),
+			onDidStartTask: (listeners, thisArgs?, disposables?) => {
+				return extHostTask.onDidStartTask(listeners, thisArgs, disposables);
+			},
+			terminateTask: proposedApiFunction(extension, (task: vscode.TaskExecution): void => {
+				extHostTask.terminateTask(task);
+			}),
+			onDidEndTask: (listeners, thisArgs?, disposables?) => {
+				return extHostTask.onDidEndTask(listeners, thisArgs, disposables);
+			},
 			registerFileSystemProvider: proposedApiFunction(extension, (authority, provider) => {
 				return extHostFileSystem.registerFileSystemProvider(authority, provider);
 			})
