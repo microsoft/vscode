@@ -177,6 +177,7 @@ export class CodeWindow implements ICodeWindow {
 		// Create the browser window.
 		this.logService.info('Opening browser window with options:', options);
 		this._win = new BrowserWindow(options);
+		this.logService.info('Acual browser window position [x,y]:', this._win.getPosition());
 		this._id = this._win.id;
 
 		// Bug in Electron (https://github.com/electron/electron/issues/10862). On multi-monitor setups,
@@ -187,7 +188,6 @@ export class CodeWindow implements ICodeWindow {
 			try {
 				if (screen.getAllDisplays().length > 1) {
 					const [x, y] = this._win.getPosition();
-					this.logService.info('Acual browser window position [x,y]:', x, y);
 					if (x !== this.windowState.x || y !== this.windowState.y) {
 						this.logService.info('Resetting browser window position to window state:', this.windowState);
 						this._win.setPosition(this.windowState.x, this.windowState.y, false);
@@ -214,6 +214,7 @@ export class CodeWindow implements ICodeWindow {
 			}
 		}
 
+		this.logService.info('Acual browser window position after all adjustments [x,y]:', this._win.getPosition());
 		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 	}
 
