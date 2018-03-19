@@ -616,7 +616,6 @@ export function createApiFactory(
 			ParameterInformation: extHostTypes.ParameterInformation,
 			Position: extHostTypes.Position,
 			Range: extHostTypes.Range,
-			RenameContext: extHostTypes.RenameContext,
 			Selection: extHostTypes.Selection,
 			SignatureHelp: extHostTypes.SignatureHelp,
 			SignatureInformation: extHostTypes.SignatureInformation,

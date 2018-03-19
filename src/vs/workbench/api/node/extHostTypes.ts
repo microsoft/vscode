@@ -591,16 +591,6 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 }
 
-export class RenameContext {
-	range: Range;
-	newName?: string;
-
-	constructor(range: Range, newName?: string) {
-		this.range = range;
-		this.newName = newName;
-	}
-}
-
 export class SnippetString {
 
 	static isSnippetString(thing: any): thing is SnippetString {

@@ -52,8 +52,8 @@ class RenameSkeleton {
 		let [provider] = this._provider;
 		let information: RenameContext;
 
-		if (provider.resolveRenameContext) {
-			information = await asWinJsPromise(token => provider.resolveRenameContext(this.model, this.position, token));
+		if (provider.resolveRenameLocation) {
+			information = await asWinJsPromise(token => provider.resolveRenameLocation(this.model, this.position, token));
 		}
 
 		if (!information) {

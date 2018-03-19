@@ -467,7 +467,7 @@ class NavigateTypeAdapter {
 class RenameAdapter {
 
 	static supportsResolving(provider: vscode.RenameProvider2): boolean {
-		return typeof provider.resolveRenameContext === 'function';
+		return typeof provider.resolveRenameLocation === 'function';
 	}
 
 	private _documents: ExtHostDocuments;
@@ -506,20 +506,20 @@ class RenameAdapter {
 		});
 	}
 
-	resolveRenameContext(resource: URI, position: IPosition): TPromise<modes.RenameContext> {
-		if (typeof this._provider.resolveRenameContext !== 'function') {
+	resolveRenameLocation(resource: URI, position: IPosition): TPromise<modes.RenameContext> {
+		if (typeof this._provider.resolveRenameLocation !== 'function') {
 			return TPromise.as(undefined);
 		}
 
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 
-		return asWinJsPromise(token => this._provider.resolveRenameContext(doc, pos, token)).then(context => {
+		return asWinJsPromise(token => this._provider.resolveRenameLocation(doc, pos, token)).then(context => {
 			if (!context) {
 				return undefined;
 			}
-			if (!context.range.contains(pos)) {
-				console.warn('INVALID rename information, must contain the request-position');
+			if (context.range && (!context.range.isSingleLine || context.range.start.line !== pos.line)) {
+				console.warn('INVALID rename context, range must be single line and on the same line');
 				return undefined;
 			}
 			return <modes.RenameContext>{
@@ -1092,8 +1092,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.provideRenameEdits(URI.revive(resource), position, newName));
 	}
 
-	$resolveRenameContext(handle: number, resource: URI, position: IPosition): TPromise<modes.RenameContext> {
-		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameContext(resource, position));
+	$resolveRenameLocation(handle: number, resource: URI, position: IPosition): TPromise<modes.RenameContext> {
+		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(resource, position));
 	}
 
 	// --- suggestion
