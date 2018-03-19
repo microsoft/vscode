@@ -815,7 +815,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			return this.fileService.resolveFiles(targetsToResolve).then(results => {
 				// Convert to model
 				const modelStats = results.map((result, index) => {
-					if (result.success) {
+					if (result.success && result.stat.isDirectory) {
 						return FileStat.create(result.stat, targetsToResolve[index].root, targetsToResolve[index].options.resolveTo);
 					}
 
@@ -842,7 +842,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		let delayer = new Delayer(100);
 		let delayerPromise: TPromise;
 		return TPromise.join(targetsToResolve.map((target, index) => this.fileService.resolveFile(target.resource, target.options)
-			.then(result => FileStat.create(result, target.root, target.options.resolveTo), err => errorFileStat(target.resource, target.root))
+			.then(result => result.isDirectory ? FileStat.create(result, target.root, target.options.resolveTo) : errorFileStat(target.resource, target.root), err => errorFileStat(target.resource, target.root))
 			.then(modelStat => {
 				// Subsequent refresh: Merge stat into our local model and refresh tree
 				if (index < this.model.roots.length) {
