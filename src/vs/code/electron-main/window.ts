@@ -679,14 +679,17 @@ export class CodeWindow implements ICodeWindow {
 
 	private validateWindowState(state: IWindowState): IWindowState {
 		if (!state) {
+			this.logService.info('validateWindowState: no state');
 			return null;
 		}
 
 		if ([state.x, state.y, state.width, state.height].some(n => typeof n !== 'number')) {
+			this.logService.info('validateWindowState: not numbers');
 			return null;
 		}
 
 		if (state.width <= 0 || state.height <= 0) {
+			this.logService.info('validateWindowState: height or width less then zero');
 			return null;
 		}
 
@@ -724,9 +727,11 @@ export class CodeWindow implements ICodeWindow {
 			}
 
 			if (state.mode === WindowMode.Maximized) {
+				this.logService.info('reset window state to default for single display');
 				return defaultWindowState(WindowMode.Maximized); // when maximized, make sure we have good values when the user restores the window
 			}
 
+			this.logService.info('recomputed window state for single display:', state);
 			return state;
 		}
 
@@ -738,6 +743,7 @@ export class CodeWindow implements ICodeWindow {
 				defaults.x = display.bounds.x; // carefull to use displays x/y position so that the window ends up on the correct monitor
 				defaults.y = display.bounds.y;
 
+				this.logService.info('recomputed window state for full-screen multi-display:', state);
 				return defaults;
 			}
 		}
@@ -756,13 +762,15 @@ export class CodeWindow implements ICodeWindow {
 				const defaults = defaultWindowState(WindowMode.Maximized); // when maximized, make sure we have good values when the user restores the window
 				defaults.x = state.x; // carefull to keep x/y position so that the window ends up on the correct monitor
 				defaults.y = state.y;
-
+				this.logService.info('recomputed window state for maximized multi-display:', defaults);
 				return defaults;
 			}
 
+			this.logService.info('recomputed window state for multi-display', state);
 			return state;
 		}
 
+		this.logService.info('reset display state to null');
 		return null;
 	}
 
