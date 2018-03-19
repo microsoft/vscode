@@ -295,6 +295,8 @@ export interface IForeignModuleFactory {
 	(ctx: IWorkerContext, createData: any): any;
 }
 
+declare var require;
+
 /**
  * @internal
  */
@@ -501,8 +503,7 @@ export abstract class BaseEditorSimpleWorker {
 			return TPromise.as(methods);
 		}
 		return new TPromise<any>((c, e) => {
-			// Use the global require to be sure to get the global config
-			(<any>self).require([moduleId], (foreignModule: { create: IForeignModuleFactory }) => {
+			require([moduleId], (foreignModule: { create: IForeignModuleFactory }) => {
 				this._foreignModule = foreignModule.create(ctx, createData);
 
 				let methods: string[] = [];
