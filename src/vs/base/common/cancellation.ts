@@ -45,8 +45,7 @@ class MutableToken implements CancellationToken {
 			this._isCancelled = true;
 			if (this._emitter) {
 				this._emitter.fire(undefined);
-				this._emitter.dispose();
-				this._emitter = undefined;
+				this.dispose();
 			}
 		}
 	}
@@ -63,6 +62,13 @@ class MutableToken implements CancellationToken {
 			this._emitter = new Emitter<any>();
 		}
 		return this._emitter.event;
+	}
+
+	public dispose(): void {
+		if (this._emitter) {
+			this._emitter.dispose();
+			this._emitter = undefined;
+		}
 	}
 }
 
@@ -93,6 +99,8 @@ export class CancellationTokenSource {
 	}
 
 	dispose(): void {
-		this.cancel();
+		if (this._token instanceof MutableToken) {
+			this._token.dispose();
+		}
 	}
 }
