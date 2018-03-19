@@ -222,7 +222,7 @@ export class SuggestController implements IEditorContribution {
 
 		} else if (suggestion.command.id === TriggerSuggestAction.id) {
 			// retigger
-			this._model.trigger({ auto: this._model.state === State.Auto }, true);
+			this._model.trigger({ auto: true }, true);
 
 		} else {
 			// exec command, done
@@ -406,7 +406,12 @@ registerEditorCommand(new SuggestCommand({
 registerEditorCommand(new SuggestCommand({
 	id: 'selectLastSuggestion',
 	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
-	handler: c => c.selectLastSuggestion()
+	handler: c => c.selectLastSuggestion(),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.textFocus,
+		primary: KeyCode.End
+	}
 }));
 
 registerEditorCommand(new SuggestCommand({
@@ -437,7 +442,12 @@ registerEditorCommand(new SuggestCommand({
 registerEditorCommand(new SuggestCommand({
 	id: 'selectFirstSuggestion',
 	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
-	handler: c => c.selectFirstSuggestion()
+	handler: c => c.selectFirstSuggestion(),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.textFocus,
+		primary: KeyCode.Home
+	}
 }));
 
 registerEditorCommand(new SuggestCommand({

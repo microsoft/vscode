@@ -33,8 +33,6 @@ addons:
 before_install:
   - export GITHUB_TOKEN=$PUBLIC_GITHUB_TOKEN
   - git submodule update --init --recursive
-  - git clone --depth 1 https://github.com/creationix/nvm.git ./.nvm
-  - source ./.nvm/nvm.sh
   - nvm install 8.9.1
   - nvm use 8.9.1
   - npm i -g yarn

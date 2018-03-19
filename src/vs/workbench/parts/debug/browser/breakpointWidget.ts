@@ -15,7 +15,7 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IDebugService, IBreakpoint } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context } from 'vs/workbench/parts/debug/common/debug';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { once } from 'vs/base/common/functional';
 import { attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
@@ -23,23 +23,16 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
-enum Context {
-	CONDITION = 0,
-	HIT_COUNT = 1,
-	LOG_MESSAGE = 2
-}
-
 export class BreakpointWidget extends ZoneWidget {
 
 	private inputBox: InputBox;
 	private toDispose: lifecycle.IDisposable[];
-	private context: Context;
 	private conditionInput = '';
 	private hitCountInput = '';
 	private logMessageInput = '';
 	private breakpoint: IBreakpoint;
 
-	constructor(editor: ICodeEditor, private lineNumber: number, private column: number,
+	constructor(editor: ICodeEditor, private lineNumber: number, private column: number, private context: Context,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IDebugService private debugService: IDebugService,
 		@IThemeService private themeService: IThemeService
@@ -49,6 +42,16 @@ export class BreakpointWidget extends ZoneWidget {
 		this.toDispose = [];
 		const uri = this.editor.getModel().uri;
 		this.breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.column === this.column && bp.uri.toString() === uri.toString()).pop();
+
+		if (this.context === undefined) {
+			if (this.breakpoint && !this.breakpoint.condition && !this.breakpoint.hitCondition && this.breakpoint.logMessage) {
+				this.context = Context.LOG_MESSAGE;
+			} else if (this.breakpoint && !this.breakpoint.condition && this.breakpoint.hitCondition) {
+				this.context = Context.HIT_COUNT;
+			} else {
+				this.context = Context.CONDITION;
+			}
+		}
 
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(e => {
 			if (this.breakpoint && e.removed && e.removed.indexOf(this.breakpoint) >= 0) {
@@ -106,18 +109,7 @@ export class BreakpointWidget extends ZoneWidget {
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('breakpoint-widget');
-		let selected: number;
-		if (this.breakpoint && !this.breakpoint.condition && !this.breakpoint.hitCondition && this.breakpoint.logMessage) {
-			this.context = Context.LOG_MESSAGE;
-			selected = 2;
-		} else if (this.breakpoint && !this.breakpoint.condition && this.breakpoint.hitCondition) {
-			this.context = Context.HIT_COUNT;
-			selected = 1;
-		} else {
-			this.context = Context.CONDITION;
-			selected = 0;
-		}
-		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count"), nls.localize('logMessage', "Log Message")], selected, this.contextViewService);
+		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count"), nls.localize('logMessage', "Log Message")], this.context, this.contextViewService);
 		this.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
 		selectBox.render(dom.append(container, $('.breakpoint-select-container')));
 		selectBox.onDidSelect(e => {

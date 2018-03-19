@@ -26,7 +26,7 @@ call .\scripts\test.bat --runGlob **\*.integrationTest.js %*
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 :: Tests in commonJS (language servers tests...)
-call .\scripts\node-electron.bat .\node_modules\mocha\bin\_mocha .\extensions\html\server\out\test\
+call .\scripts\node-electron.bat .\node_modules\mocha\bin\_mocha .\extensions\html-language-features\server\out\test\
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 rmdir /s /q %VSCODEUSERDATADIR%

@@ -111,18 +111,15 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				if (!this._breakpoints.has(bpd.id)) {
 					let bp: vscode.Breakpoint;
 					if (bpd.type === 'function') {
-						bp = new FunctionBreakpoint(bpd.functionName, bpd.enabled, bpd.condition, bpd.hitCondition);
+						bp = new FunctionBreakpoint(bpd.functionName, bpd.enabled, bpd.condition, bpd.hitCondition, bpd.logMessage);
 					} else {
 						const uri = URI.revive(bpd.uri);
-						bp = new SourceBreakpoint(new Location(uri, new Position(bpd.line, bpd.character)), bpd.enabled, bpd.condition, bpd.hitCondition);
+						bp = new SourceBreakpoint(new Location(uri, new Position(bpd.line, bpd.character)), bpd.enabled, bpd.condition, bpd.hitCondition, bpd.logMessage);
 					}
 					bp['_id'] = bpd.id;
 					this._breakpoints.set(bpd.id, bp);
 					a.push(bp);
-
 				}
-
-
 			}
 		}
 
@@ -145,12 +142,14 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 						fbp.enabled = bpd.enabled;
 						fbp.condition = bpd.condition;
 						fbp.hitCondition = bpd.hitCondition;
+						fbp.logMessage = bpd.logMessage;
 						fbp.functionName = bpd.functionName;
 					} else if (bp instanceof SourceBreakpoint && bpd.type === 'source') {
 						const sbp = <any>bp;
 						sbp.enabled = bpd.enabled;
 						sbp.condition = bpd.condition;
 						sbp.hitCondition = bpd.hitCondition;
+						sbp.logMessage = bpd.logMessage;
 						sbp.location = new Location(URI.revive(bpd.uri), new Position(bpd.line, bpd.character));
 					}
 					c.push(bp);
@@ -206,6 +205,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 					enabled: bp.enabled,
 					condition: bp.condition,
 					hitCondition: bp.hitCondition,
+					logMessage: bp.logMessage,
 					line: bp.location.range.start.line,
 					character: bp.location.range.start.character
 				});
@@ -214,9 +214,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 					type: 'function',
 					id: bp['_id'],
 					enabled: bp.enabled,
-					functionName: bp.functionName,
 					hitCondition: bp.hitCondition,
-					condition: bp.condition
+					logMessage: bp.logMessage,
+					condition: bp.condition,
+					functionName: bp.functionName
 				});
 			}
 		}

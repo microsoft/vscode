@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/b61fd56a52f6b85598eda2f3842dfb7447d0d4eb",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/4ef3570784b60450d6baac681cb096fbf1d2397e",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js",
 	"patterns": [
@@ -3243,6 +3243,10 @@
 				{
 					"name": "keyword.operator.expression.infer.js",
 					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))infer(?=\\s+[_$[:alpha:]])"
+				},
+				{
+					"name": "keyword.operator.expression.import.js",
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))import(?=\\s*\\()"
 				}
 			]
 		},

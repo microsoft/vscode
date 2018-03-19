@@ -15,6 +15,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { once } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { dispose } from 'vs/base/common/lifecycle';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
@@ -92,6 +93,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			// if promise has not been resolved yet, now is the time to ensure a return value
 			// otherwise if already resolved it means the user clicked one of the buttons
 			once(messageHandle.onDidDispose)(() => {
+				dispose(...primaryActions, ...secondaryActions);
 				resolve(undefined);
 			});
 		});

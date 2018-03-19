@@ -31,6 +31,9 @@ export default class MarkdownFoldingProvider implements vscode.FoldingProvider {
 			for (let i = startIndex + 1; i < toc.length; ++i) {
 				if (toc[i].level <= entry.level) {
 					end = toc[i].line - 1;
+					if (document.lineAt(end).isEmptyOrWhitespace && end >= start + 1) {
+						end = end - 1;
+					}
 					break;
 				}
 			}

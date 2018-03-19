@@ -35,7 +35,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { EditorStacksModel, EditorGroup, EditorIdentifier, EditorCloseEvent } from 'vs/workbench/common/editor/editorStacksModel';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event, Emitter, once } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -47,6 +47,7 @@ import { IEditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } fr
 import { ThrottledEmitter } from 'vs/base/common/async';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService, Severity, INotificationActions } from 'vs/platform/notification/common/notification';
+import { dispose } from 'vs/base/common/lifecycle';
 
 class ProgressMonitor {
 
@@ -549,14 +550,16 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		if (this.partService.isCreated() && !errors.isPromiseCanceledError(error)) {
 			const actions: INotificationActions = { primary: [] };
 			if (errors.isErrorWithActions(error)) {
-				actions.primary = error.actions;
+				actions.primary = (error as errors.IErrorWithActions).actions;
 			}
 
-			this.notificationService.notify({
+			const handle = this.notificationService.notify({
 				severity: Severity.Error,
 				message: nls.localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), toErrorMessage(error)),
 				actions
 			});
+
+			once(handle.onDidDispose)(() => dispose(actions.primary));
 		}
 
 		this.editorGroupsControl.updateProgress(position, ProgressState.DONE);

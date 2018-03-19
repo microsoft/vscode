@@ -454,9 +454,6 @@ export class NotificationViewItem implements INotificationViewItem {
 
 		this._actions = actions;
 		this._expanded = actions.primary.length > 0;
-
-		this.toDispose.push(...actions.primary);
-		this.toDispose.push(...actions.secondary);
 	}
 
 	public get onDidExpansionChange(): Event<void> {

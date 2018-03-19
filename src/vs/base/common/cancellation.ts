@@ -45,6 +45,7 @@ class MutableToken implements CancellationToken {
 			this._isCancelled = true;
 			if (this._emitter) {
 				this._emitter.fire(undefined);
+				this._emitter.dispose();
 				this._emitter = undefined;
 			}
 		}
