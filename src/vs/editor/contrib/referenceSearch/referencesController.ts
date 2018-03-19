@@ -204,10 +204,10 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._widget.hide();
 
 		this._ignoreModelChangeEvent = true;
-		const { uri, range } = ref;
+		const range = Range.lift(ref.range).collapseToStart();
 
 		return this._editorService.openEditor({
-			resource: uri,
+			resource: ref.uri,
 			options: { selection: range }
 		}).then(openedEditor => {
 			this._ignoreModelChangeEvent = false;

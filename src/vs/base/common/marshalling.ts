@@ -16,7 +16,7 @@ export function parse(text: string): any {
 	return data;
 }
 
-interface MarshalledObject {
+export interface MarshalledObject {
 	$mid: number;
 }
 
