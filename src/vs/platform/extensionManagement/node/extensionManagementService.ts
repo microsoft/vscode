@@ -540,8 +540,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 		const message = nls.localize('uninstallDependeciesConfirmation', "Would you like to uninstall '{0}' only or its dependencies also?", extension.manifest.displayName || extension.manifest.name);
 		const buttons = [
-			nls.localize('uninstallOnly', "Extension only"),
-			nls.localize('uninstallAll', "Uninstall all"),
+			nls.localize('uninstallOnly', "Extension Only"),
+			nls.localize('uninstallAll', "Uninstall All"),
 			nls.localize('cancel', "Cancel")
 		];
 		this.logService.info('Requesting for confirmation to uninstall extension with dependencies', extension.identifier.id);
