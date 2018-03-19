@@ -161,7 +161,7 @@ You can greatly accelerate your editing through the use of snippets.  Simply sta
 
 
 ### Emmet
-Emmet takes the snippets idea to a whole new level: you can type CSS-like expressions that can be dynamically parsed, and produce output depending on what you type in the abbreviation. To use Emmet simply run the command `Emmet: Expand Abbreviation` with the cursor at the end of a valid Emmet abbreviation or snippet and the expansion will occur.
+Emmet takes the snippets idea to a whole new level: you can type CSS-like expressions that can be dynamically parsed, and produce output depending on what you type in the abbreviation. Try it by selecting `Emmet: Expand Abbreviation` from the `Edit` menu with the cursor at the end of a valid Emmet abbreviation or snippet and the expansion will occur.
 
 ```html
 ul>li.item$*5

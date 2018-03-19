@@ -579,8 +579,8 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 			const index = editorTemplate.openEditor.group.indexOf(editorTemplate.openEditor.editor);
 
 			if (this.transfer.hasData(OpenEditor.prototype)) {
-				this.transfer.getData(OpenEditor.prototype).forEach(oe =>
-					this.editorGroupService.moveEditor(oe.editor, model.positionOfGroup(oe.group), positionOfTargetGroup, { index, preserveFocus: true }));
+				this.transfer.getData(OpenEditor.prototype).forEach((oe, offset) =>
+					this.editorGroupService.moveEditor(oe.editor, model.positionOfGroup(oe.group), positionOfTargetGroup, { index: index + offset, preserveFocus: true }));
 				this.editorGroupService.activateGroup(positionOfTargetGroup);
 			} else {
 				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });

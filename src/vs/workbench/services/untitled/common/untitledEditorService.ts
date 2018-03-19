@@ -6,11 +6,11 @@
 
 import URI from 'vs/base/common/uri';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import arrays = require('vs/base/common/arrays');
+import * as arrays from 'vs/base/common/arrays';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import Event, { Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter, once } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
@@ -110,10 +110,10 @@ export class UntitledEditorService implements IUntitledEditorService {
 	private mapResourceToInput = new ResourceMap<UntitledEditorInput>();
 	private mapResourceToAssociatedFilePath = new ResourceMap<boolean>();
 
-	private _onDidChangeContent: Emitter<URI>;
-	private _onDidChangeDirty: Emitter<URI>;
-	private _onDidChangeEncoding: Emitter<URI>;
-	private _onDidDisposeModel: Emitter<URI>;
+	private readonly _onDidChangeContent: Emitter<URI>;
+	private readonly _onDidChangeDirty: Emitter<URI>;
+	private readonly _onDidChangeEncoding: Emitter<URI>;
+	private readonly _onDidDisposeModel: Emitter<URI>;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,

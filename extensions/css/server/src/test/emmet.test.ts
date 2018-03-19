@@ -6,7 +6,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { getCSSLanguageService, getSCSSLanguageService } from 'vscode-css-languageservice/lib/cssLanguageService';
+import { getCSSLanguageService, getSCSSLanguageService } from 'vscode-css-languageservice';
 import { TextDocument, CompletionList } from 'vscode-languageserver-types';
 import { getEmmetCompletionParticipants } from 'vscode-emmet-helper';
 
@@ -24,14 +24,14 @@ suite('Emmet Support', () => {
 		const emmetCompletionList: CompletionList = {
 			isIncomplete: true,
 			items: undefined
-		}
+		};
 		const languageService = syntax === 'scss' ? scssLanguageService : cssLanguageService;
-		languageService.setCompletionParticipants([getEmmetCompletionParticipants(document, position, document.languageId, {}, emmetCompletionList)])
+		languageService.setCompletionParticipants([getEmmetCompletionParticipants(document, position, document.languageId, {}, emmetCompletionList)]);
 		const stylesheet = languageService.parseStylesheet(document);
 		const list = languageService.doComplete!(document, position, stylesheet);
 
 		assert.ok(list);
-		assert.ok(emmetCompletionList)
+		assert.ok(emmetCompletionList);
 
 		if (expectedProposal && expectedProposalDoc) {
 			let actualLabels = (emmetCompletionList!.items || []).map(c => c.label).sort();

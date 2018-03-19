@@ -5,13 +5,13 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { flatten, distinct, coalesce } from 'vs/base/common/arrays';
+import { flatten, distinct } from 'vs/base/common/arrays';
 import { extract, buffer } from 'vs/base/node/zip';
 import { TPromise } from 'vs/base/common/winjs.base';
 import {
@@ -26,7 +26,7 @@ import { getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, areSameExten
 import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Limiter, always } from 'vs/base/common/async';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as semver from 'semver';
 import URI from 'vs/base/common/uri';
 import pkg from 'vs/platform/node/package';
@@ -101,8 +101,6 @@ interface InstallableExtension {
 
 export class ExtensionManagementService extends Disposable implements IExtensionManagementService {
 
-	private static readonly RENAME_RETRY_TIME = 5 * 1000;
-
 	_serviceBrand: any;
 
 	private extensionsPath: string;
@@ -147,7 +145,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return validateLocalExtension(zipPath)
 			.then(manifest => {
 				const identifier = { id: getLocalExtensionIdFromManifest(manifest) };
-				return this.unsetUninstalledAndRemove(identifier.id)
+				return this.removeIfExists(identifier.id)
 					.then(
 						() => this.checkOutdated(manifest)
 							.then(validated => {
@@ -171,18 +169,10 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			});
 	}
 
-	private unsetUninstalledAndRemove(id: string): TPromise<void> {
-		return this.isUninstalled(id)
-			.then(isUninstalled => {
-				if (isUninstalled) {
-					this.logService.trace('Removing the extension:', id);
-					const extensionPath = path.join(this.extensionsPath, id);
-					return pfs.rimraf(extensionPath)
-						.then(() => this.unsetUninstalled(id))
-						.then(() => this.logService.info('Removed the extension:', id));
-				}
-				return null;
-			});
+	private removeIfExists(id: string): TPromise<void> {
+		return this.getInstalled(LocalExtensionType.User)
+			.then(installed => installed.filter(i => i.identifier.id === id)[0])
+			.then(existing => existing ? this.removeExtension(existing, 'existing') : null);
 	}
 
 	private checkOutdated(manifest: IExtensionManifest): TPromise<boolean> {
@@ -244,7 +234,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				error => this.onDidInstallExtensions([extension], [], [error]));
 	}
 
-	reinstall(extension: ILocalExtension): TPromise<ILocalExtension> {
+	reinstallFromGallery(extension: ILocalExtension): TPromise<ILocalExtension> {
 		if (!this.galleryService.isEnabled()) {
 			return TPromise.wrapError(new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled")));
 		}
@@ -437,7 +427,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private completeInstall(id: string, extractPath: string): TPromise<void> {
-		return this.renameWithRetry(id, extractPath)
+		return this.rename(id, extractPath, Date.now() + (5 * 1000) /* Retry for 5 seconds */)
 			.then(
 				() => this.logService.info('Installation compelted.', id),
 				e => {
@@ -447,23 +437,12 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				});
 	}
 
-	private renameWithRetry(id: string, extractPath: string): TPromise<void> {
-		const retry = (task: () => TPromise<any>, shouldRetry: (err: any) => boolean) => {
-			return task().then(
-				null,
-				err => {
-					if (shouldRetry(err)) {
-						return retry(task, shouldRetry);
-					} else {
-						throw err;
-					}
-				});
-		};
-
-		const retryUntil = Date.now() + ExtensionManagementService.RENAME_RETRY_TIME;
-		return retry(
-			() => pfs.rename(extractPath, path.join(this.extensionsPath, id)),
-			err => isWindows && err && err.code === 'EPERM' && Date.now() < retryUntil);
+	private rename(id: string, extractPath: string, retryUntil: number): TPromise<void> {
+		return pfs.rename(extractPath, path.join(this.extensionsPath, id))
+			.then(null, error =>
+				isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil
+					? this.rename(id, extractPath, retryUntil)
+					: TPromise.wrapError(error));
 	}
 
 	private rollback(extensions: IGalleryExtension[]): TPromise<void> {
@@ -561,8 +540,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 		const message = nls.localize('uninstallDependeciesConfirmation', "Would you like to uninstall '{0}' only or its dependencies also?", extension.manifest.displayName || extension.manifest.name);
 		const buttons = [
-			nls.localize('uninstallOnly', "Only"),
-			nls.localize('uninstallAll', "All"),
+			nls.localize('uninstallOnly', "Extension only"),
+			nls.localize('uninstallAll', "Uninstall all"),
 			nls.localize('cancel', "Cancel")
 		];
 		this.logService.info('Requesting for confirmation to uninstall extension with dependencies', extension.identifier.id);
@@ -732,8 +711,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	private scanExtensions(root: string, type: LocalExtensionType): TPromise<ILocalExtension[]> {
 		const limiter = new Limiter(10);
 		return pfs.readdir(root)
-			.then(extensionsFolders => TPromise.join(extensionsFolders.map(extensionFolder => limiter.queue(() => this.scanExtension(extensionFolder, root, type)))))
-			.then(extensions => coalesce(extensions));
+			.then(extensionsFolders => TPromise.join<ILocalExtension>(extensionsFolders.map(extensionFolder => limiter.queue(() => this.scanExtension(extensionFolder, root, type)))))
+			.then(extensions => extensions.filter(e => e && e.identifier));
 	}
 
 	private scanExtension(folderName: string, root: string, type: LocalExtensionType): TPromise<ILocalExtension> {

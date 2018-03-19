@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { assign, deepClone } from 'vs/base/common/objects';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -27,7 +27,7 @@ export interface ICrashReporterConfig {
 	enableCrashReporter: boolean;
 }
 
-const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
 	'order': 110,

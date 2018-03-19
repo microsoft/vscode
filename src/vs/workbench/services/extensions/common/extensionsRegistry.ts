@@ -14,7 +14,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 const hasOwnProperty = Object.hasOwnProperty;
-const schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
+const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 
 export class ExtensionMessageCollector {
 

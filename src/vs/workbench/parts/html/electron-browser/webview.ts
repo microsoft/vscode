@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { editorBackground, editorForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, LIGHT, DARK, IThemeService } from 'vs/platform/theme/common/themeService';
@@ -328,17 +326,7 @@ export class Webview {
 			appRootUri
 		]);
 
-		const extensionPaths = [
-			URI.file(this._environmentService.extensionsPath),
-			appRootUri,
-		];
-
-		if (this._environmentService.extensionDevelopmentPath) {
-			extensionPaths.push(URI.file(this._environmentService.extensionDevelopmentPath));
-		}
-		registerFileProtocol(contents, 'vscode-extension-resource', () => extensionPaths);
-
-		registerFileProtocol(contents, 'vscode-workspace-resource', () =>
+		registerFileProtocol(contents, 'vscode-resource', () =>
 			(this._options.localResourceRoots || [])
 		);
 	}
@@ -443,7 +431,6 @@ function registerFileProtocol(
 				callback({ path: normalizedPath });
 				return;
 			}
-
 		}
 		callback({ error: 'Cannot load resource outside of protocol root' });
 	}, (error) => {

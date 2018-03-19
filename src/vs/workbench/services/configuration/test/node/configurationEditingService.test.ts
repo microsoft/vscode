@@ -6,10 +6,10 @@
 'use strict';
 
 import * as sinon from 'sinon';
-import assert = require('assert');
-import os = require('os');
-import path = require('path');
-import fs = require('fs');
+import * as assert from 'assert';
+import * as os from 'os';
+import * as path from 'path';
+import * as fs from 'fs';
 import * as json from 'vs/base/common/json';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -17,9 +17,9 @@ import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import extfs = require('vs/base/node/extfs');
+import * as extfs from 'vs/base/node/extfs';
 import { TestTextFileService, TestTextResourceConfigurationService, workbenchInstantiationService, TestLifecycleService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
-import uuid = require('vs/base/common/uuid');
+import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
@@ -57,7 +57,7 @@ suite('ConfigurationEditingService', () => {
 	let workspaceSettingsDir;
 
 	suiteSetup(() => {
-		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration({
 			'id': '_test',
 			'type': 'object',

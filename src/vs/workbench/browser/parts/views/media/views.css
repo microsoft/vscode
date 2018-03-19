@@ -50,8 +50,11 @@
 	display: none;
 }
 
-.tree-explorer-viewlet-tree-view.file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content:not(.align-with-twisty)::before,
-.tree-explorer-viewlet-tree-view.file-icon-themable-tree.hide-arrows .monaco-tree-row .content::before {
+.tree-explorer-viewlet-tree-view.file-icon-themable-tree .monaco-tree-row .content.align-icon-with-twisty::before {
+	display: none;
+}
+
+.tree-explorer-viewlet-tree-view.file-icon-themable-tree .monaco-tree-row .content:not(.align-icon-with-twisty)::before {
 	display: inline-block;
 }
 

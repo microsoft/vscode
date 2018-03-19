@@ -9,20 +9,23 @@ import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
+import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, IActionOptions, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { MarkerNavigationWidget } from './gotoErrorWidget';
+import { compare } from 'vs/base/common/strings';
+import { binarySearch } from 'vs/base/common/arrays';
+import { IEditorService } from 'vs/platform/editor/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 class MarkerModel {
 
@@ -31,8 +34,8 @@ class MarkerModel {
 	private _nextIdx: number;
 	private _toUnbind: IDisposable[];
 	private _ignoreSelectionChange: boolean;
-	private _onCurrentMarkerChanged: Emitter<IMarker>;
-	private _onMarkerSetChanged: Emitter<MarkerModel>;
+	private readonly _onCurrentMarkerChanged: Emitter<IMarker>;
+	private readonly _onMarkerSetChanged: Emitter<MarkerModel>;
 
 	constructor(editor: ICodeEditor, markers: IMarker[]) {
 		this._editor = editor;
@@ -47,9 +50,13 @@ class MarkerModel {
 		// listen on editor
 		this._toUnbind.push(this._editor.onDidDispose(() => this.dispose()));
 		this._toUnbind.push(this._editor.onDidChangeCursorPosition(() => {
-			if (!this._ignoreSelectionChange) {
-				this._nextIdx = -1;
+			if (this._ignoreSelectionChange) {
+				return;
 			}
+			if (this.currentMarker && Range.containsPosition(this.currentMarker, this._editor.getPosition())) {
+				return;
+			}
+			this._nextIdx = -1;
 		}));
 	}
 
@@ -62,13 +69,15 @@ class MarkerModel {
 	}
 
 	public setMarkers(markers: IMarker[]): void {
-		// assign
+
+		let oldMarker = this._nextIdx >= 0 ? this._markers[this._nextIdx] : undefined;
 		this._markers = markers || [];
-
-		// sort markers
-		this._markers.sort((left, right) => Severity.compare(left.severity, right.severity) || Range.compareRangesUsingStarts(left, right));
-
-		this._nextIdx = -1;
+		this._markers.sort(MarkerNavigationAction.compareMarker);
+		if (!oldMarker) {
+			this._nextIdx = -1;
+		} else {
+			this._nextIdx = Math.max(-1, binarySearch(this._markers, oldMarker, MarkerNavigationAction.compareMarker));
+		}
 		this._onMarkerSetChanged.fire(this);
 	}
 
@@ -95,7 +104,7 @@ class MarkerModel {
 			}
 
 			if (range.containsPosition(position) || position.isBeforeOrEqual(range.getStartPosition())) {
-				this._nextIdx = i + (fwd ? 0 : -1);
+				this._nextIdx = i;
 				found = true;
 				break;
 			}
@@ -109,40 +118,47 @@ class MarkerModel {
 		}
 	}
 
-	private move(fwd: boolean): void {
+	get currentMarker(): IMarker {
+		return this.canNavigate() ? this._markers[this._nextIdx] : undefined;
+	}
+
+	public move(fwd: boolean, inCircles: boolean): boolean {
 		if (!this.canNavigate()) {
 			this._onCurrentMarkerChanged.fire(undefined);
-			return;
+			return !inCircles;
 		}
+
+		let oldIdx = this._nextIdx;
+		let atEdge = false;
 
 		if (this._nextIdx === -1) {
 			this._initIdx(fwd);
 
 		} else if (fwd) {
-			this._nextIdx += 1;
-			if (this._nextIdx >= this._markers.length) {
-				this._nextIdx = 0;
+			if (inCircles || this._nextIdx + 1 < this._markers.length) {
+				this._nextIdx = (this._nextIdx + 1) % this._markers.length;
+			} else {
+				atEdge = true;
 			}
-		} else {
-			this._nextIdx -= 1;
-			if (this._nextIdx < 0) {
-				this._nextIdx = this._markers.length - 1;
+
+		} else if (!fwd) {
+			if (inCircles || this._nextIdx > 0) {
+				this._nextIdx = (this._nextIdx - 1 + this._markers.length) % this._markers.length;
+			} else {
+				atEdge = true;
 			}
 		}
-		const marker = this._markers[this._nextIdx];
-		this._onCurrentMarkerChanged.fire(marker);
+
+		if (oldIdx !== this._nextIdx) {
+			const marker = this._markers[this._nextIdx];
+			this._onCurrentMarkerChanged.fire(marker);
+		}
+
+		return atEdge;
 	}
 
 	public canNavigate(): boolean {
 		return this._markers.length > 0;
-	}
-
-	public next(): void {
-		this.move(true);
-	}
-
-	public previous(): void {
-		this.move(false);
 	}
 
 	public findMarkerAtPosition(pos: Position): IMarker {
@@ -164,30 +180,6 @@ class MarkerModel {
 
 	public dispose(): void {
 		this._toUnbind = dispose(this._toUnbind);
-	}
-}
-
-class MarkerNavigationAction extends EditorAction {
-
-	private _isNext: boolean;
-
-	constructor(next: boolean, opts: IActionOptions) {
-		super(opts);
-		this._isNext = next;
-	}
-
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = MarkerController.get(editor);
-		if (!controller) {
-			return;
-		}
-
-		const model = controller.getOrCreateModel();
-		if (this._isNext) {
-			model.next();
-		} else {
-			model.previous();
-		}
 	}
 }
 
@@ -281,7 +273,87 @@ class MarkerController implements editorCommon.IEditorContribution {
 	}
 
 	private _getMarkers(): IMarker[] {
-		return this._markerService.read({ resource: this._editor.getModel().uri });
+		return this._markerService.read({
+			resource: this._editor.getModel().uri,
+			severities: MarkerSeverity.Error | MarkerSeverity.Warning
+		});
+	}
+}
+
+class MarkerNavigationAction extends EditorAction {
+
+	private _isNext: boolean;
+
+	constructor(next: boolean, opts: IActionOptions) {
+		super(opts);
+		this._isNext = next;
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+
+		const markerService = accessor.get(IMarkerService);
+		const editorService = accessor.get(IEditorService);
+		const controller = MarkerController.get(editor);
+		if (!controller) {
+			return undefined;
+		}
+
+		const model = controller.getOrCreateModel();
+		const atEdge = model.move(this._isNext, false);
+		if (!atEdge) {
+			return undefined;
+		}
+
+		// try with the next/prev file
+		let markers = markerService.read({ severities: MarkerSeverity.Error | MarkerSeverity.Warning }).sort(MarkerNavigationAction.compareMarker);
+		if (markers.length === 0) {
+			return undefined;
+		}
+
+		let oldMarker = model.currentMarker || <IMarker>{ resource: editor.getModel().uri, severity: MarkerSeverity.Error, startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+		let idx = binarySearch(markers, oldMarker, MarkerNavigationAction.compareMarker);
+		if (idx < 0) {
+			// find best match...
+			idx = ~idx;
+			idx %= markers.length;
+		} else if (this._isNext) {
+			idx = (idx + 1) % markers.length;
+		} else {
+			idx = (idx + markers.length - 1) % markers.length;
+		}
+
+		let newMarker = markers[idx];
+		if (newMarker.resource.toString() === editor.getModel().uri.toString()) {
+			// the next `resource` is this resource which
+			// means we cycle within this file
+			model.move(this._isNext, true);
+			return undefined;
+		}
+
+		// close the widget for this editor-instance, open the resource
+		// for the next marker and re-start marker navigation in there
+		controller.closeMarkersNavigation();
+
+		return editorService.openEditor({
+			resource: newMarker.resource,
+			options: { pinned: false, revealIfOpened: true, revealInCenterIfOutsideViewport: true, selection: newMarker }
+		}).then(editor => {
+			if (!editor || !isCodeEditor(editor.getControl())) {
+				return undefined;
+			}
+			return (<ICodeEditor>editor.getControl()).getAction(this.id).run();
+		});
+	}
+
+	static compareMarker(a: IMarker, b: IMarker): number {
+		let res = compare(a.resource.toString(), b.resource.toString());
+		if (res === 0) {
+			res = MarkerSeverity.compare(a.severity, b.severity);
+		}
+		if (res === 0) {
+			res = Range.compareRangesUsingStarts(a, b);
+		}
+		return res;
 	}
 }
 

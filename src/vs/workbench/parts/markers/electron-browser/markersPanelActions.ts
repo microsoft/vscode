@@ -21,7 +21,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';
-import Tree = require('vs/base/parts/tree/browser/tree');
+import * as Tree from 'vs/base/parts/tree/browser/tree';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/electron-browser/markers';
@@ -114,9 +114,9 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 		data['infos'] = this.markersWorkbenchService.markersModel.filterOptions.filterInfos;
 		/* __GDPR__
 			"problems.filter" : {
-				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"warnings": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"infos": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"warnings": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"infos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.publicLog('problems.filter', data);

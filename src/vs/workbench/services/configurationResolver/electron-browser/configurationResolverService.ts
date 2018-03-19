@@ -282,7 +282,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 				if (object[key] && typeof object[key] === 'object') {
 					findInteractiveVariables(object[key]);
 				} else if (typeof object[key] === 'string') {
-					const matches = /\${command:(.+)}/.exec(object[key]);
+					const matches = /\${command:(.*?)}/.exec(object[key]);
 					if (matches && matches.length === 2) {
 						const interactiveVariable = matches[1];
 						if (!interactiveVariablesToSubstitutes[interactiveVariable]) {

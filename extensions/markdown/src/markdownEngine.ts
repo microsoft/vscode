@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { Slug } from './tableOfContentsProvider';
 import { MarkdownIt, Token } from 'markdown-it';
+import { MarkdownContributions } from './markdownExtensions';
 
 const FrontMatterRegex = /^---\s*[^]*?(-{3}|\.{3})\s*/;
 
@@ -17,15 +18,9 @@ export class MarkdownEngine {
 
 	private currentDocument?: vscode.Uri;
 
-	private plugins: Array<(md: any) => any> = [];
-
-	public addPlugin(factory: (md: any) => any): void {
-		if (this.md) {
-			this.usePlugin(factory);
-		} else {
-			this.plugins.push(factory);
-		}
-	}
+	public constructor(
+		private readonly extensionPreviewResourceProvider: MarkdownContributions
+	) { }
 
 	private usePlugin(factory: (md: any) => any): void {
 		try {
@@ -57,10 +52,9 @@ export class MarkdownEngine {
 				slugify: (header: string) => Slug.fromHeading(header).value
 			});
 
-			for (const plugin of this.plugins) {
-				this.usePlugin(plugin);
+			for (const plugin of this.extensionPreviewResourceProvider.markdownItPlugins) {
+				this.usePlugin(await plugin);
 			}
-			this.plugins = [];
 
 			for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'blockquote_open', 'list_item_open']) {
 				this.addLineNumberRenderer(this.md, renderName);
@@ -154,7 +148,7 @@ export class MarkdownEngine {
 							fragment: Slug.fromHeading(fragment).value
 						});
 					}
-					return normalizeLink(uri.with({ scheme: 'vscode-workspace-resource' }).toString(true));
+					return normalizeLink(uri.with({ scheme: 'vscode-resource' }).toString(true));
 				} else if (!uri.scheme && !uri.path && uri.fragment) {
 					return normalizeLink(uri.with({
 						fragment: Slug.fromHeading(uri.fragment).value

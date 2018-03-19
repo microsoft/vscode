@@ -35,6 +35,7 @@ export default class TypeScriptFoldingProvider implements vscode.FoldingProvider
 
 	async provideFoldingRanges(
 		document: vscode.TextDocument,
+		_: vscode.FoldingContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.FoldingRangeList | undefined> {
 		if (!this.client.apiVersion.has270Features()) {

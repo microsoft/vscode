@@ -5,10 +5,10 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { normalize } from 'vs/base/common/paths';
 import { delta as arrayDelta } from 'vs/base/common/arrays';
-import { relative, dirname } from 'path';
+import { relative, posix } from 'path';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape, IMainContext, MainThreadMessageServiceShape } from './extHost.protocol';
 import * as vscode from 'vscode';
@@ -121,9 +121,13 @@ class ExtHostWorkspaceImpl extends Workspace {
 	getWorkspaceFolder(uri: URI, resolveParent?: boolean): vscode.WorkspaceFolder {
 		if (resolveParent && this._structure.get(uri.toString())) {
 			// `uri` is a workspace folder so we check for its parent
-			uri = uri.with({ path: dirname(uri.path) });
+			uri = uri.with({ path: posix.dirname(uri.path) });
 		}
 		return this._structure.findSubstr(uri.toString());
+	}
+
+	resolveWorkspaceFolder(uri: URI): vscode.WorkspaceFolder {
+		return this._structure.get(uri.toString());
 	}
 }
 
@@ -237,6 +241,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			return undefined;
 		}
 		return this._actualWorkspace.getWorkspaceFolder(uri, resolveParent);
+	}
+
+	resolveWorkspaceFolder(uri: vscode.Uri): vscode.WorkspaceFolder {
+		if (!this._actualWorkspace) {
+			return undefined;
+		}
+		return this._actualWorkspace.resolveWorkspaceFolder(uri);
 	}
 
 	getPath(): string {

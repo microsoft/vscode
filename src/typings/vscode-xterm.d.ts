@@ -571,11 +571,12 @@ declare module 'vscode-xterm' {
 		 * @param addon The addon to apply.
 		 */
 		static applyAddon(addon: any): void;
+	}
+}
 
-
-
-		// Modifications to official .d.ts below
-
+// Modifications to official .d.ts below
+declare module 'vscode-xterm' {
+	interface Terminal {
 		buffer: {
 			/**
 			 * The viewport position.
@@ -606,6 +607,6 @@ declare module 'vscode-xterm' {
 
 		webLinksInit(handler?: (event: MouseEvent, uri: string) => void, options?: ILinkMatcherOptions): void;
 		winptyCompatInit(): void;
-		charMeasure?: { height: number, width: number }
+		charMeasure?: { height: number, width: number };
 	}
 }

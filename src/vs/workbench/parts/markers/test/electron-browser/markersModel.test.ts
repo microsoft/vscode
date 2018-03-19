@@ -5,10 +5,9 @@
 
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import Severity from 'vs/base/common/severity';
-import { IMarker } from 'vs/platform/markers/common/markers';
+import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { MarkersModel, Marker, Resource } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 
 class TestMarkersModel extends MarkersModel {
@@ -65,12 +64,12 @@ suite('MarkersModel Test', () => {
 	});
 
 	test('sort palces resources with no errors at the end', function () {
-		let marker1 = aMarker('a/res1', Severity.Warning);
+		let marker1 = aMarker('a/res1', MarkerSeverity.Warning);
 		let marker2 = aMarker('a/res2');
 		let marker3 = aMarker('res4');
 		let marker4 = aMarker('b/res3');
 		let marker5 = aMarker('res4');
-		let marker6 = aMarker('c/res2', Severity.Info);
+		let marker6 = aMarker('c/res2', MarkerSeverity.Info);
 		let testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
 
 		let actuals = testObject.filteredResources.sort(TestMarkersModel.compare);
@@ -143,9 +142,9 @@ suite('MarkersModel Test', () => {
 		const res1Marker = aMarker('a/res1');
 		res1Marker.code = '1234';
 		assert.equal(`file: 'file:///a/res1'\nseverity: 'Error'\nmessage: 'some message'\nat: '10,5'\nsource: 'tslint'\ncode: '1234'`, new Marker('', res1Marker).toString());
-		assert.equal(`file: 'file:///a/res2'\nseverity: 'Warning'\nmessage: 'some message'\nat: '10,5'\nsource: 'tslint'\ncode: ''`, new Marker('', aMarker('a/res2', Severity.Warning)).toString());
-		assert.equal(`file: 'file:///a/res2'\nseverity: 'Info'\nmessage: 'Info'\nat: '1,2'\nsource: ''\ncode: ''`, new Marker('', aMarker('a/res2', Severity.Info, 1, 2, 1, 8, 'Info', '')).toString());
-		assert.equal(`file: 'file:///a/res2'\nseverity: ''\nmessage: 'Ignore message'\nat: '1,2'\nsource: 'Ignore'\ncode: ''`, new Marker('', aMarker('a/res2', Severity.Ignore, 1, 2, 1, 8, 'Ignore message', 'Ignore')).toString());
+		assert.equal(`file: 'file:///a/res2'\nseverity: 'Warning'\nmessage: 'some message'\nat: '10,5'\nsource: 'tslint'\ncode: ''`, new Marker('', aMarker('a/res2', MarkerSeverity.Warning)).toString());
+		assert.equal(`file: 'file:///a/res2'\nseverity: 'Info'\nmessage: 'Info'\nat: '1,2'\nsource: ''\ncode: ''`, new Marker('', aMarker('a/res2', MarkerSeverity.Info, 1, 2, 1, 8, 'Info', '')).toString());
+		assert.equal(`file: 'file:///a/res2'\nseverity: ''\nmessage: 'Ignore message'\nat: '1,2'\nsource: 'Ignore'\ncode: ''`, new Marker('', aMarker('a/res2', MarkerSeverity.Hint, 1, 2, 1, 8, 'Ignore message', 'Ignore')).toString());
 	});
 
 	function hasMarker(markers: Marker[], marker: IMarker): boolean {
@@ -164,7 +163,7 @@ suite('MarkersModel Test', () => {
 		endColumn: number = startColumn + 5,
 		message: string = 'some message',
 	): IMarker {
-		return aMarker('some resource', Severity.Error, startLineNumber, startColumn, endLineNumber, endColumn, message);
+		return aMarker('some resource', MarkerSeverity.Error, startLineNumber, startColumn, endLineNumber, endColumn, message);
 	}
 
 	function aWarningWithRange(startLineNumber: number = 10,
@@ -173,7 +172,7 @@ suite('MarkersModel Test', () => {
 		endColumn: number = startColumn + 5,
 		message: string = 'some message',
 	): IMarker {
-		return aMarker('some resource', Severity.Warning, startLineNumber, startColumn, endLineNumber, endColumn, message);
+		return aMarker('some resource', MarkerSeverity.Warning, startLineNumber, startColumn, endLineNumber, endColumn, message);
 	}
 
 	function anInfoWithRange(startLineNumber: number = 10,
@@ -182,7 +181,7 @@ suite('MarkersModel Test', () => {
 		endColumn: number = startColumn + 5,
 		message: string = 'some message',
 	): IMarker {
-		return aMarker('some resource', Severity.Info, startLineNumber, startColumn, endLineNumber, endColumn, message);
+		return aMarker('some resource', MarkerSeverity.Info, startLineNumber, startColumn, endLineNumber, endColumn, message);
 	}
 
 	function anIgnoreWithRange(startLineNumber: number = 10,
@@ -191,11 +190,11 @@ suite('MarkersModel Test', () => {
 		endColumn: number = startColumn + 5,
 		message: string = 'some message',
 	): IMarker {
-		return aMarker('some resource', Severity.Ignore, startLineNumber, startColumn, endLineNumber, endColumn, message);
+		return aMarker('some resource', MarkerSeverity.Hint, startLineNumber, startColumn, endLineNumber, endColumn, message);
 	}
 
 	function aMarker(resource: string = 'some resource',
-		severity: Severity = Severity.Error,
+		severity: MarkerSeverity = MarkerSeverity.Error,
 		startLineNumber: number = 10,
 		startColumn: number = 5,
 		endLineNumber: number = startLineNumber + 1,

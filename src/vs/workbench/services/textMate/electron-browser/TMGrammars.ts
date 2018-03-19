@@ -12,11 +12,16 @@ export interface IEmbeddedLanguagesMap {
 	[scopeName: string]: string;
 }
 
+export interface TokenTypesContribution {
+	[scopeName: string]: string;
+}
+
 export interface ITMSyntaxExtensionPoint {
 	language: string;
 	scopeName: string;
 	path: string;
 	embeddedLanguages: IEmbeddedLanguagesMap;
+	tokenTypes: TokenTypesContribution;
 	injectTo: string[];
 }
 
@@ -43,6 +48,13 @@ export const grammarsExtPoint: IExtensionPoint<ITMSyntaxExtensionPoint[]> = Exte
 			embeddedLanguages: {
 				description: nls.localize('vscode.extension.contributes.grammars.embeddedLanguages', 'A map of scope name to language id if this grammar contains embedded languages.'),
 				type: 'object'
+			},
+			tokenTypes: {
+				description: nls.localize('vscode.extension.contributes.grammars.tokenTypes', 'A map of scope name to token types.'),
+				type: 'object',
+				additionalProperties: {
+					enum: ['string', 'comment', 'other']
+				}
 			},
 			injectTo: {
 				description: nls.localize('vscode.extension.contributes.grammars.injectTo', 'List of language scope names to which this grammar is injected to.'),

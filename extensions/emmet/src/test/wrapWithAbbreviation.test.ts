@@ -61,7 +61,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 
 	const multiCursors = [new Selection(2, 6, 2, 6), new Selection(3, 6, 3, 6)];
 	const multiCursorsWithSelection = [new Selection(2, 2, 2, 28), new Selection(3, 2, 3, 33)];
-	const multiCursorsWithFullLineSelection = [new Selection(2, 0, 2, 28), new Selection(3, 0, 3, 33)];
+	const multiCursorsWithFullLineSelection = [new Selection(2, 0, 2, 28), new Selection(3, 0, 4, 0)];
 
 
 	test('Wrap with block element using multi cursor', () => {
@@ -239,6 +239,35 @@ suite('Tests for Wrap with Abbreviations', () => {
 `;
 		return withRandomFileEditor(contents, 'html', (editor, doc) => {
 			editor.selections = [new Selection(2, 2, 3, 33)];
+			const promise = wrapIndividualLinesWithAbbreviation({ abbreviation: 'ul>li.hello$*' });
+			if (!promise) {
+				assert.equal(1, 2, 'Wrap Individual Lines with Abbreviation returned undefined.');
+				return Promise.resolve();
+			}
+			return promise.then(() => {
+				assert.equal(editor.document.getText(), wrapIndividualLinesExpected);
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('Wrap individual lines with abbreviation with extra space selected', () => {
+		const contents = `
+	<ul class="nav main">
+		<li class="item1">img</li>
+		<li class="item2">hi.there</li>
+	</ul>
+`;
+		const wrapIndividualLinesExpected = `
+	<ul class="nav main">
+		<ul>
+			<li class="hello1"><li class="item1">img</li></li>
+			<li class="hello2"><li class="item2">hi.there</li></li>
+		</ul>
+	</ul>
+`;
+		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+			editor.selections = [new Selection(2, 1, 4, 0)];
 			const promise = wrapIndividualLinesWithAbbreviation({ abbreviation: 'ul>li.hello$*' });
 			if (!promise) {
 				assert.equal(1, 2, 'Wrap Individual Lines with Abbreviation returned undefined.');

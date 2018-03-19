@@ -46,12 +46,12 @@ export default class LanguageProvider {
 	) {
 		this.formattingOptionsManager = new FormattingConfigurationManager(client);
 		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
-			delete: (file: string) => {
-				this.diagnosticsManager.delete(file);
+			delete: (resource) => {
+				this.diagnosticsManager.delete(resource);
 			}
 		}, this._validate);
 
-		this.diagnosticsManager = new DiagnosticsManager(description.id, this.client);
+		this.diagnosticsManager = new DiagnosticsManager(description.id);
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
 		this.configurationChanged();

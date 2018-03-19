@@ -5,11 +5,11 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { readFile } from 'vs/base/node/pfs';
 import * as semver from 'semver';
 import * as path from 'path';
-import Event, { Emitter, chain } from 'vs/base/common/event';
+import { Event, Emitter, chain } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
 import { assign } from 'vs/base/common/objects';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -358,7 +358,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private autoUpdateDelayer: ThrottledDelayer<void>;
 	private disposables: IDisposable[] = [];
 
-	private _onChange: Emitter<void> = new Emitter<void>();
+	private readonly _onChange: Emitter<void> = new Emitter<void>();
 	get onChange(): Event<void> { return this._onChange.event; }
 
 	private _extensionAllowedBadgeProviders: string[];
@@ -670,7 +670,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
 			tooltip: `${local.identifier.id}`
-		}, () => this.extensionService.reinstall(local).then(() => null));
+		}, () => this.extensionService.reinstallFromGallery(local).then(() => null));
 	}
 
 	private promptAndSetEnablement(extension: IExtension, enablementState: EnablementState, enable: boolean): TPromise<any> {
@@ -922,10 +922,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const recommendationsData = extRecommendations[active.extension.id.toLowerCase()] ? { recommendationReason: extRecommendations[active.extension.id.toLowerCase()].reasonId } : {};
 		/* __GDPR__
 			"extensionGallery:install" : {
-				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]
@@ -933,10 +933,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		*/
 		/* __GDPR__
 			"extensionGallery:update" : {
-				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]
@@ -944,10 +944,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		*/
 		/* __GDPR__
 			"extensionGallery:uninstall" : {
-				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]

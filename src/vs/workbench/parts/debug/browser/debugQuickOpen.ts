@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import Filters = require('vs/base/common/filters');
+import * as nls from 'vs/nls';
+import * as Filters from 'vs/base/common/filters';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Quickopen = require('vs/workbench/browser/quickopen');
-import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
-import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
+import * as Quickopen from 'vs/workbench/browser/quickopen';
+import * as QuickOpen from 'vs/base/parts/quickopen/common/quickOpen';
+import * as Model from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IDebugService, ILaunch } from 'vs/workbench/parts/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import * as errors from 'vs/base/common/errors';
-import { QuickOpenEntry, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -94,7 +93,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 	}
 
 	public getResults(input: string): TPromise<Model.QuickOpenModel> {
-		const configurations: QuickOpenEntry[] = [];
+		const configurations: Model.QuickOpenEntry[] = [];
 
 		const configManager = this.debugService.getConfigurationManager();
 		const launches = configManager.getLaunches();
@@ -113,7 +112,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 			const label = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
 			const entry = new AddConfigEntry(label, l, this.commandService, this.contextService, Filters.matchesContiguousSubString(input, label));
 			if (index === 0) {
-				configurations.push(new QuickOpenEntryGroup(entry, undefined, true));
+				configurations.push(new Model.QuickOpenEntryGroup(entry, undefined, true));
 			} else {
 				configurations.push(entry);
 			}

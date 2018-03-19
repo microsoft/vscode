@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { toThenable } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TextEditorSelectionChangeKind } from './extHostTypes';

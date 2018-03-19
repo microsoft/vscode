@@ -227,32 +227,32 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		});
 	});
 
-	test('Expand css when inside style tag in completion list (HTML)', () => {
-		const abbreviation = 'm10';
-		const expandedText = 'margin: 10px;';
+	// test('Expand css when inside style tag in completion list (HTML)', () => {
+	// 	const abbreviation = 'm10';
+	// 	const expandedText = 'margin: 10px;';
 
-		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
-			editor.selection = new Selection(13, 3, 13, 6);
-			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token);
-			if (!completionPromise) {
-				assert.equal(1, 2, `Problem with expanding m10`);
-				return Promise.resolve();
-			}
+	// 	return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+	// 		editor.selection = new Selection(13, 3, 13, 6);
+	// 		const cancelSrc = new CancellationTokenSource();
+	// 		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token);
+	// 		if (!completionPromise) {
+	// 			assert.equal(1, 2, `Problem with expanding m10`);
+	// 			return Promise.resolve();
+	// 		}
 
-			return completionPromise.then((completionList: CompletionList) => {
-				if (!completionList.items || !completionList.items.length) {
-					assert.equal(1, 2, `Problem with expanding m10`);
-					return Promise.resolve();
-				}
-				const emmetCompletionItem = completionList.items[0];
-				assert.equal(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
-				assert.equal((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
-				assert.equal(emmetCompletionItem.filterText, abbreviation, `FilterText of completion item doesnt match.`);
-				return Promise.resolve();
-			});
-		});
-	});
+	// 		return completionPromise.then((completionList: CompletionList) => {
+	// 			if (!completionList.items || !completionList.items.length) {
+	// 				assert.equal(1, 2, `Problem with expanding m10`);
+	// 				return Promise.resolve();
+	// 			}
+	// 			const emmetCompletionItem = completionList.items[0];
+	// 			assert.equal(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
+	// 			assert.equal((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+	// 			assert.equal(emmetCompletionItem.filterText, abbreviation, `FilterText of completion item doesnt match.`);
+	// 			return Promise.resolve();
+	// 		});
+	// 	});
+	// });
 
 	test('No expanding when html is excluded in the settings', () => {
 		return workspace.getConfiguration('emmet').update('excludeLanguages', ['html']).then(() => {

@@ -547,7 +547,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 
 	if (!breakpoint.enabled || !debugService.getModel().areBreakpointsActivated()) {
 		return {
-			className: breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-disabled' : 'debug-breakpoint-disabled',
+			className: breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-disabled' : breakpoint.logMessage ? 'debug-breakpoint-log-disabled' : 'debug-breakpoint-disabled',
 			message: nls.localize('breakpointDisabledHover', "Disabled breakpoint"),
 		};
 	}
@@ -557,7 +557,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 	};
 	if (debugActive && !breakpoint.verified) {
 		return {
-			className: breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-unverified' : 'debug-breakpoint-unverified',
+			className: breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-unverified' : breakpoint.logMessage ? 'debug-breakpoint-log-unverified' : 'debug-breakpoint-unverified',
 			message: appendMessage(nls.localize('breakpointUnverifieddHover', "Unverified breakpoint")),
 		};
 	}
@@ -580,6 +580,20 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 		return {
 			className: 'debug-breakpoint-unverified',
 			message: appendMessage(nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session.")),
+		};
+	}
+
+	if (breakpoint.logMessage) {
+		if (process && breakpoint.condition && !process.session.capabilities.supportsLogPoints) {
+			return {
+				className: 'debug-breakpoint-unsupported',
+				message: nls.localize('logBreakpointUnsupported', "Log points not supported by this debug type"),
+			};
+		}
+
+		return {
+			className: 'debug-breakpoint-log',
+			message: appendMessage(breakpoint.logMessage)
 		};
 	}
 

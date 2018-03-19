@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { Variable } from 'vs/workbench/parts/debug/common/debugModel';
-import { IDebugService, IStackFrame } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IStackFrame, IReplElement } from 'vs/workbench/parts/debug/common/debug';
 import { clipboard } from 'electron';
 
 export class CopyValueAction extends Action {
@@ -77,7 +77,7 @@ export class CopyAllAction extends Action {
 			if (text) {
 				text += `\n`;
 			}
-			text += navigator.current().toString();
+			text += (<IReplElement>navigator.current()).toString();
 		}
 
 		clipboard.writeText(removeAnsiEscapeCodes(text));

@@ -14,48 +14,4 @@ import 'vs/editor/standalone/browser/quickOpen/gotoLine';
 import 'vs/editor/standalone/browser/quickOpen/quickCommand';
 import 'vs/editor/standalone/browser/toggleHighContrast/toggleHighContrast';
 
-import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
-import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
-import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
-import { EDITOR_DEFAULTS, WrappingIndent } from 'vs/editor/common/config/editorOptions';
-
-declare var exports: any;
-var global: any = self;
-global.monaco = exports;
-
-// When missing, polyfill the native promise
-// with our winjs-based polyfill
-import { PolyfillPromise } from 'vs/base/common/winjs.polyfill.promise';
-if (typeof global.Promise === 'undefined') {
-	global.Promise = PolyfillPromise;
-}
-
-// Set defaults for standalone editor
-(<any>EDITOR_DEFAULTS).wrappingIndent = WrappingIndent.None;
-(<any>EDITOR_DEFAULTS.contribInfo).folding = false;
-(<any>EDITOR_DEFAULTS.viewInfo).glyphMargin = false;
-(<any>EDITOR_DEFAULTS).autoIndent = false;
-
-let base = createMonacoBaseAPI();
-for (let prop in base) {
-	if (base.hasOwnProperty(prop)) {
-		exports[prop] = (base as any)[prop];
-	}
-}
-exports.editor = createMonacoEditorAPI();
-exports.languages = createMonacoLanguagesAPI();
-
-if (typeof global.require !== 'undefined' && typeof global.require.config === 'function') {
-	global.require.config({
-		ignoreDuplicateModules: [
-			'vscode-languageserver-types',
-			'vscode-languageserver-types/main',
-			'vscode-nls',
-			'vscode-nls/vscode-nls',
-			'jsonc-parser',
-			'jsonc-parser/main',
-			'vscode-uri',
-			'vscode-uri/index'
-		]
-	});
-}
+export * from 'vs/editor/editor.api';

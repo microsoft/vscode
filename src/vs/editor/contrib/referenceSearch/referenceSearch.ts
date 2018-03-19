@@ -195,6 +195,30 @@ function withController(accessor: ServicesAccessor, fn: (controller: ReferencesC
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'goToNextReference',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	primary: KeyCode.F4,
+	when: ctxReferenceSearchVisible,
+	handler(accessor) {
+		withController(accessor, controller => {
+			controller.goToNextOrPreviousReference(true);
+		});
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'goToPreviousReference',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	primary: KeyMod.Shift | KeyCode.F4,
+	when: ctxReferenceSearchVisible,
+	handler(accessor) {
+		withController(accessor, controller => {
+			controller.goToNextOrPreviousReference(false);
+		});
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeReferenceSearch',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
 	primary: KeyCode.Escape,

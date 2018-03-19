@@ -5,19 +5,19 @@
 
 'use strict';
 
-import fs = require('fs');
-import path = require('path');
-import os = require('os');
-import assert = require('assert');
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import * as assert from 'assert';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { FileService, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
 import { FileOperation, FileOperationEvent, FileChangesEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import uri from 'vs/base/common/uri';
-import uuid = require('vs/base/common/uuid');
-import pfs = require('vs/base/node/pfs');
-import encodingLib = require('vs/base/node/encoding');
-import utils = require('vs/workbench/services/files/test/node/utils');
+import * as uuid from 'vs/base/common/uuid';
+import * as pfs from 'vs/base/node/pfs';
+import * as encodingLib from 'vs/base/node/encoding';
+import * as utils from 'vs/workbench/services/files/test/node/utils';
 import { TestEnvironmentService, TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -312,6 +312,22 @@ suite('FileService', () => {
 				assert.equal(event.resource.fsPath, resource.fsPath);
 				assert.equal(event.operation, FileOperation.MOVE);
 				assert.equal(event.target.resource.fsPath, renamed.resource.fsPath);
+				toDispose.dispose();
+			});
+		});
+	});
+
+	test('move - source parent of target', function () {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		return service.resolveFile(uri.file(path.join(testDir, 'index.html'))).then(source => {
+			return service.moveFile(uri.file(testDir), uri.file(path.join(testDir, 'binary.txt'))).then(null, (e: Error) => {
+				assert.ok(e);
+
+				assert.ok(!event);
 				toDispose.dispose();
 			});
 		});

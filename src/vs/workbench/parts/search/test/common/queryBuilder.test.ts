@@ -697,6 +697,51 @@ suite('QueryBuilder', () => {
 			assert(query.sortByScore);
 		});
 	});
+
+	suite('parseIncludeExcludePattern', () => {
+		test('nothing', () => {
+			assert.deepEqual(
+				queryBuilder.parseIncludeExcludePattern(''),
+				{});
+		});
+
+		test('includes', () => {
+			assert.deepEqual(
+				queryBuilder.parseIncludeExcludePattern('src'),
+				{
+					includePattern: 'src'
+				});
+
+			assert.deepEqual(
+				queryBuilder.parseIncludeExcludePattern('src,         test'),
+				{
+					includePattern: 'src, test'
+				});
+		});
+
+		test('excludes', () => {
+			assert.deepEqual(
+				queryBuilder.parseIncludeExcludePattern('!src'),
+				{
+					excludePattern: 'src'
+				});
+
+			assert.deepEqual(
+				queryBuilder.parseIncludeExcludePattern('!src,         !test'),
+				{
+					excludePattern: 'src, test'
+				});
+		});
+
+		test('includes and excludes', () => {
+			assert.deepEqual(
+				queryBuilder.parseIncludeExcludePattern('!src, test, !foo, bar'),
+				{
+					includePattern: 'test, bar',
+					excludePattern: 'src, foo'
+				});
+		});
+	});
 });
 
 function assertEqualQueries(actual: ISearchQuery, expected: ISearchQuery): void {

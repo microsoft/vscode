@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Paths = require('vs/base/common/paths');
-import Json = require('vs/base/common/json');
+import * as Paths from 'vs/base/common/paths';
+import * as Json from 'vs/base/common/json';
 import { Color } from 'vs/base/common/color';
 import { ExtensionData, ITokenColorCustomizations, ITokenColorizationRule, IColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { convertSettings } from 'vs/workbench/services/themes/electron-browser/themeCompatibility';
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
 
-import pfs = require('vs/base/node/pfs');
+import * as pfs from 'vs/base/node/pfs';
 
 import { Extensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ThemeType } from 'vs/platform/theme/common/themeService';
@@ -22,7 +22,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { WorkbenchThemeService, IColorCustomizations } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
-let colorRegistry = <IColorRegistry>Registry.as(Extensions.ColorContribution);
+let colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 
 const tokenGroupToScopesMap: { [setting: string]: string[] } = {
 	comments: ['comment'],

@@ -13,6 +13,7 @@ import { disposeAll } from '../util/dispose';
 import * as nls from 'vscode-nls';
 import { getVisibleLine, MarkdownFileTopmostLineMonitor } from '../util/topmostLineMonitor';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
+import { MarkdownContributions } from '../markdownExtensions';
 const localize = nls.loadMessageBundle();
 
 export class MarkdownPreview {
@@ -37,7 +38,8 @@ export class MarkdownPreview {
 		private readonly contentProvider: MarkdownContentProvider,
 		private readonly previewConfigurations: MarkdownPreviewConfigurationManager,
 		private readonly logger: Logger,
-		topmostLineMonitor: MarkdownFileTopmostLineMonitor
+		topmostLineMonitor: MarkdownFileTopmostLineMonitor,
+		private readonly contributions: MarkdownContributions
 	) {
 		this.uri = vscode.Uri.parse(`${MarkdownPreview.previewScheme}:${MarkdownPreview.previewCount++}`);
 		this.webview = vscode.window.createWebview(
@@ -251,16 +253,18 @@ export class MarkdownPreview {
 	}
 
 	private getLocalResourceRoots(resource: vscode.Uri): vscode.Uri[] {
+		const baseRoots = this.contributions.previewResourceRoots;
+
 		const folder = vscode.workspace.getWorkspaceFolder(resource);
 		if (folder) {
-			return [folder.uri];
+			return baseRoots.concat(folder.uri);
 		}
 
 		if (!resource.scheme || resource.scheme === 'file') {
-			return [vscode.Uri.file(path.dirname(resource.fsPath))];
+			return baseRoots.concat(vscode.Uri.file(path.dirname(resource.fsPath)));
 		}
 
-		return [];
+		return baseRoots;
 	}
 
 	private onDidScrollPreview(line: number) {

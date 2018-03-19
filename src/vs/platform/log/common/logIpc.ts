@@ -6,7 +6,7 @@
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { LogLevel, ILogService, DelegatedLogService } from 'vs/platform/log/common/log';
-import Event, { buffer } from 'vs/base/common/event';
+import { Event, buffer } from 'vs/base/common/event';
 
 export interface ILogLevelSetterChannel extends IChannel {
 	call(command: 'event:onDidChangeLogLevel'): TPromise<LogLevel>;

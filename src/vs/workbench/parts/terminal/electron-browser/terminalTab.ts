@@ -8,7 +8,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
-import Event, { Emitter, anyEvent } from 'vs/base/common/event';
+import { Event, Emitter, anyEvent } from 'vs/base/common/event';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView } from 'vs/base/browser/ui/splitview/splitview';
 import { IPartService, Position } from 'vs/workbench/services/part/common/partService';
@@ -248,9 +248,9 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
-	private _onDisposed: Emitter<ITerminalTab>;
+	private readonly _onDisposed: Emitter<ITerminalTab>;
 	public get onDisposed(): Event<ITerminalTab> { return this._onDisposed.event; }
-	private _onInstancesChanged: Emitter<void>;
+	private readonly _onInstancesChanged: Emitter<void>;
 	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
 
 	constructor(

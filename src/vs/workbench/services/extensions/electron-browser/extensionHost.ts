@@ -23,7 +23,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { createServer, Server, Socket } from 'net';
-import Event, { Emitter, debounceEvent, mapEvent, anyEvent, fromNodeEventEmitter } from 'vs/base/common/event';
+import { Event, Emitter, debounceEvent, mapEvent, anyEvent, fromNodeEventEmitter } from 'vs/base/common/event';
 import { IInitData, IWorkspaceData, IConfigurationInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -39,7 +39,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 
 export class ExtensionHostProcessWorker {
 
-	private _onCrashed: Emitter<[number, string]> = new Emitter<[number, string]>();
+	private readonly _onCrashed: Emitter<[number, string]> = new Emitter<[number, string]>();
 	public readonly onCrashed: Event<[number, string]> = this._onCrashed.event;
 
 	private readonly _toDispose: IDisposable[];

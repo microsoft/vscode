@@ -7,10 +7,10 @@
 
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
-import fs = require('fs');
-import os = require('os');
-import path = require('path');
-import pfs = require('vs/base/node/pfs');
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import * as pfs from 'vs/base/node/pfs';
 import Uri from 'vs/base/common/uri';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
@@ -99,7 +99,8 @@ suite('BackupMainService', () => {
 		return pfs.del(backupHome, os.tmpdir());
 	});
 
-	test('service validates backup workspaces on startup and cleans up (folder workspaces)', () => {
+	test('service validates backup workspaces on startup and cleans up (folder workspaces)', function () {
+		this.timeout(1000 * 10); // increase timeout for this test
 
 		// 1) backup workspace path does not exist
 		service.registerFolderBackupSync(fooFile.fsPath);
@@ -144,7 +145,8 @@ suite('BackupMainService', () => {
 		assert.equal(service.getEmptyWindowBackupPaths().length, 1);
 	});
 
-	test('service validates backup workspaces on startup and cleans up (root workspaces)', () => {
+	test('service validates backup workspaces on startup and cleans up (root workspaces)', function () {
+		this.timeout(1000 * 10); // increase timeout for this test
 
 		// 1) backup workspace path does not exist
 		service.registerWorkspaceBackupSync(toWorkspace(fooFile.fsPath));

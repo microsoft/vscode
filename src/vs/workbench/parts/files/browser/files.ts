@@ -16,12 +16,12 @@ import { IFileStat } from 'vs/platform/files/common/files';
 
 // Commands can get exeucted from a command pallete, from a context menu or from some list using a keybinding
 // To cover all these cases we need to properly compute the resource on which the command is being executed
-export function getResourceForCommand(resource: URI | {}, listService: IListService, editorService: IWorkbenchEditorService): URI {
+export function getResourceForCommand(resource: URI | object, listService: IListService, editorService: IWorkbenchEditorService): URI {
 	if (URI.isUri(resource)) {
 		return resource;
 	}
 
-	const list = listService.lastFocusedList;
+	let list = listService.lastFocusedList;
 	if (list && list.isDOMFocused()) {
 		const focus = list.getFocus();
 		if (focus instanceof FileStat) {
@@ -34,7 +34,7 @@ export function getResourceForCommand(resource: URI | {}, listService: IListServ
 	return toResource(editorService.getActiveEditorInput(), { supportSideBySide: true });
 }
 
-export function getMultiSelectedResources(resource: URI | {}, listService: IListService, editorService: IWorkbenchEditorService): URI[] {
+export function getMultiSelectedResources(resource: URI | object, listService: IListService, editorService: IWorkbenchEditorService): URI[] {
 	const list = listService.lastFocusedList;
 	if (list && list.isDOMFocused()) {
 		// Explorer

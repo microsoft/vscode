@@ -6,15 +6,15 @@
 'use strict';
 
 import 'vs/css!./media/compositepart';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import { Emitter } from 'vs/base/common/event';
-import types = require('vs/base/common/types');
-import errors = require('vs/base/common/errors');
+import * as types from 'vs/base/common/types';
+import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';

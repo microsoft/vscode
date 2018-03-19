@@ -85,6 +85,6 @@ class NPSContribution implements IWorkbenchContribution {
 }
 
 if (language === 'en' && product.npsSurveyUrl) {
-	const workbenchRegistry = <IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench);
+	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 	workbenchRegistry.registerWorkbenchContribution(NPSContribution, LifecyclePhase.Running);
 }

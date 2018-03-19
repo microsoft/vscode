@@ -497,7 +497,7 @@ export interface IEditorOptions {
 	lightbulb?: IEditorLightbulbOptions;
 	/**
 	 * Enable code folding
-	 * Defaults to true in vscode and to false in monaco-editor.
+	 * Defaults to true.
 	 */
 	folding?: boolean;
 	/**
@@ -1695,6 +1695,10 @@ export class EditorOptionsValidator {
 		} else {
 			quickSuggestions = _boolean(opts.quickSuggestions, defaults.quickSuggestions);
 		}
+		// Compatibility support for acceptSuggestionOnEnter
+		if (typeof opts.acceptSuggestionOnEnter === 'boolean') {
+			opts.acceptSuggestionOnEnter = opts.acceptSuggestionOnEnter ? 'on' : 'off';
+		}
 		const find = this._santizeFindOpts(opts.find, defaults.find);
 		return {
 			selectionClipboard: _boolean(opts.selectionClipboard, defaults.selectionClipboard),
@@ -1708,7 +1712,7 @@ export class EditorOptionsValidator {
 			formatOnType: _boolean(opts.formatOnType, defaults.formatOnType),
 			formatOnPaste: _boolean(opts.formatOnPaste, defaults.formatOnPaste),
 			suggestOnTriggerCharacters: _boolean(opts.suggestOnTriggerCharacters, defaults.suggestOnTriggerCharacters),
-			acceptSuggestionOnEnter: typeof opts.acceptSuggestionOnEnter === 'string' ? _stringSet<'on' | 'smart' | 'off'>(opts.acceptSuggestionOnEnter, defaults.acceptSuggestionOnEnter, ['on', 'smart', 'off']) : opts.acceptSuggestionOnEnter ? 'on' : 'off',
+			acceptSuggestionOnEnter: _stringSet<'on' | 'smart' | 'off'>(opts.acceptSuggestionOnEnter, defaults.acceptSuggestionOnEnter, ['on', 'smart', 'off']),
 			acceptSuggestionOnCommitCharacter: _boolean(opts.acceptSuggestionOnCommitCharacter, defaults.acceptSuggestionOnCommitCharacter),
 			snippetSuggestions: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippetSuggestions, ['top', 'bottom', 'inline', 'none']),
 			wordBasedSuggestions: _boolean(opts.wordBasedSuggestions, defaults.wordBasedSuggestions),
@@ -1984,31 +1988,31 @@ export class InternalEditorOptionsFactory {
  * @internal
  */
 export interface IEditorLayoutProviderOpts {
-	outerWidth: number;
-	outerHeight: number;
+	readonly outerWidth: number;
+	readonly outerHeight: number;
 
-	showGlyphMargin: boolean;
-	lineHeight: number;
+	readonly showGlyphMargin: boolean;
+	readonly lineHeight: number;
 
-	showLineNumbers: boolean;
-	lineNumbersMinChars: number;
-	lineNumbersDigitCount: number;
+	readonly showLineNumbers: boolean;
+	readonly lineNumbersMinChars: number;
+	readonly lineNumbersDigitCount: number;
 
-	lineDecorationsWidth: number;
+	readonly lineDecorationsWidth: number;
 
-	typicalHalfwidthCharacterWidth: number;
-	maxDigitWidth: number;
+	readonly typicalHalfwidthCharacterWidth: number;
+	readonly maxDigitWidth: number;
 
-	verticalScrollbarWidth: number;
-	verticalScrollbarHasArrows: boolean;
-	scrollbarArrowSize: number;
-	horizontalScrollbarHeight: number;
+	readonly verticalScrollbarWidth: number;
+	readonly verticalScrollbarHasArrows: boolean;
+	readonly scrollbarArrowSize: number;
+	readonly horizontalScrollbarHeight: number;
 
-	minimap: boolean;
-	minimapSide: string;
-	minimapRenderCharacters: boolean;
-	minimapMaxColumn: number;
-	pixelRatio: number;
+	readonly minimap: boolean;
+	readonly minimapSide: string;
+	readonly minimapRenderCharacters: boolean;
+	readonly minimapMaxColumn: number;
+	readonly pixelRatio: number;
 }
 
 /**

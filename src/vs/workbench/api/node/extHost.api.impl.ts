@@ -132,7 +132,7 @@ export function createApiFactory(
 	const extHostLanguages = new ExtHostLanguages(rpcProtocol);
 
 	// Register API-ish commands
-	ExtHostApiCommands.register(extHostCommands);
+	ExtHostApiCommands.register(extHostCommands, extHostWorkspace);
 
 	return function (extension: IExtensionDescription): typeof vscode {
 
@@ -232,6 +232,13 @@ export function createApiFactory(
 			createDiagnosticCollection(name?: string): vscode.DiagnosticCollection {
 				return extHostDiagnostics.createDiagnosticCollection(name);
 			},
+			get onDidChangeDiagnostics() {
+				checkProposedApiEnabled(extension);
+				return extHostDiagnostics.onDidChangeDiagnostics;
+			},
+			getDiagnostics: <any>proposedApiFunction(extension, (resource?) => {
+				return extHostDiagnostics.getDiagnostics(resource);
+			}),
 			getLanguages(): TPromise<string[]> {
 				return extHostLanguages.getLanguages();
 			},
@@ -406,7 +413,7 @@ export function createApiFactory(
 				return extHostDecorations.registerDecorationProvider(provider, extension.id);
 			}),
 			createWebview: proposedApiFunction(extension, (uri: vscode.Uri, title: string, column: vscode.ViewColumn, options: vscode.WebviewOptions) => {
-				return extHostWebviews.createWebview(uri, title, column, options);
+				return extHostWebviews.createWebview(uri, title, column, options, extension.extensionFolderPath);
 			}),
 			onDidChangeActiveEditor: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
 				return extHostDocumentsAndEditors.onDidChangeActiveEditor(listener, thisArg, disposables);
@@ -592,6 +599,7 @@ export function createApiFactory(
 			CompletionTriggerKind: extHostTypes.CompletionTriggerKind,
 			DebugAdapterExecutable: extHostTypes.DebugAdapterExecutable,
 			Diagnostic: extHostTypes.Diagnostic,
+			DiagnosticRelatedInformation: extHostTypes.DiagnosticRelatedInformation,
 			DiagnosticSeverity: extHostTypes.DiagnosticSeverity,
 			Disposable: extHostTypes.Disposable,
 			DocumentHighlight: extHostTypes.DocumentHighlight,
@@ -608,6 +616,7 @@ export function createApiFactory(
 			ParameterInformation: extHostTypes.ParameterInformation,
 			Position: extHostTypes.Position,
 			Range: extHostTypes.Range,
+			RenameContext: extHostTypes.RenameContext,
 			Selection: extHostTypes.Selection,
 			SignatureHelp: extHostTypes.SignatureHelp,
 			SignatureInformation: extHostTypes.SignatureInformation,
@@ -638,6 +647,7 @@ export function createApiFactory(
 			TaskGroup: extHostTypes.TaskGroup,
 			ProcessExecution: extHostTypes.ProcessExecution,
 			ShellExecution: extHostTypes.ShellExecution,
+			ShellQuoting: extHostTypes.ShellQuoting,
 			TaskScope: extHostTypes.TaskScope,
 			Task: extHostTypes.Task,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,

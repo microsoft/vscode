@@ -5,7 +5,7 @@
 'use strict';
 
 import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { RGBA8 } from 'vs/editor/common/core/rgba';
 
 export class MinimapTokensColorTracker {
@@ -21,7 +21,7 @@ export class MinimapTokensColorTracker {
 	private _backgroundIsLight: boolean;
 
 	private _onDidChange = new Emitter<void>();
-	public onDidChange: Event<void> = this._onDidChange.event;
+	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private constructor() {
 		this._updateColorMap();

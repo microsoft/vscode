@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { Action, IAction } from 'vs/base/common/actions';
 import { MainThreadMessageServiceShape, MainContext, IExtHostContext, MainThreadMessageOptions } from '../node/extHost.protocol';
@@ -14,8 +14,8 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { once } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { dispose } from 'vs/base/common/lifecycle';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
@@ -71,11 +71,11 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 			let source: string;
 			if (extension) {
-				source = localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name);
+				source = nls.localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name);
 			}
 
 			if (!source) {
-				source = localize('defaultSource', "Extension");
+				source = nls.localize('defaultSource', "Extension");
 			}
 
 			const secondaryActions: IAction[] = [];
@@ -93,6 +93,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			// if promise has not been resolved yet, now is the time to ensure a return value
 			// otherwise if already resolved it means the user clicked one of the buttons
 			once(messageHandle.onDidDispose)(() => {
+				dispose(...primaryActions, ...secondaryActions);
 				resolve(undefined);
 			});
 		});

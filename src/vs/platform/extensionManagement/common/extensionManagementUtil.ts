@@ -85,7 +85,7 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 		"publisherId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 		"publisherName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 		"publisherDisplayName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
-		"dependencies": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"dependencies": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 		"${include}": [
 			"${GalleryExtensionTelemetryData2}"
 		]

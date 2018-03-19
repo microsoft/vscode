@@ -7,7 +7,7 @@
 
 import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import Event, { Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter, once } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isPromiseCanceledError, isErrorWithActions } from 'vs/base/common/errors';
 
@@ -44,7 +44,7 @@ export interface INotificationChangeEvent {
 }
 
 export class NotificationHandle implements INotificationHandle {
-	private _onDidDispose: Emitter<void> = new Emitter();
+	private readonly _onDidDispose: Emitter<void> = new Emitter();
 
 	constructor(private item: INotificationViewItem, private disposeItem: (item: INotificationViewItem) => void) {
 		this.registerListeners();
@@ -89,7 +89,7 @@ export class NotificationsModel implements INotificationsModel {
 
 	private _notifications: INotificationViewItem[];
 
-	private _onDidNotificationChange: Emitter<INotificationChangeEvent>;
+	private readonly _onDidNotificationChange: Emitter<INotificationChangeEvent>;
 	private toDispose: IDisposable[];
 
 	constructor() {
@@ -253,7 +253,7 @@ export interface INotificationViewItemProgress extends INotificationProgress {
 export class NotificationViewItemProgress implements INotificationViewItemProgress {
 	private _state: INotificationViewItemProgressState;
 
-	private _onDidChange: Emitter<void>;
+	private readonly _onDidChange: Emitter<void>;
 	private toDispose: IDisposable[];
 
 	constructor() {
@@ -358,9 +358,9 @@ export class NotificationViewItem implements INotificationViewItem {
 	private _actions: INotificationActions;
 	private _progress: NotificationViewItemProgress;
 
-	private _onDidExpansionChange: Emitter<void>;
-	private _onDidDispose: Emitter<void>;
-	private _onDidLabelChange: Emitter<INotificationViewItemLabelChangeEvent>;
+	private readonly _onDidExpansionChange: Emitter<void>;
+	private readonly _onDidDispose: Emitter<void>;
+	private readonly _onDidLabelChange: Emitter<INotificationViewItemLabelChangeEvent>;
 
 	public static create(notification: INotification): INotificationViewItem {
 		if (!notification || !notification.message || isPromiseCanceledError(notification.message)) {
@@ -454,9 +454,6 @@ export class NotificationViewItem implements INotificationViewItem {
 
 		this._actions = actions;
 		this._expanded = actions.primary.length > 0;
-
-		this.toDispose.push(...actions.primary);
-		this.toDispose.push(...actions.secondary);
 	}
 
 	public get onDidExpansionChange(): Event<void> {

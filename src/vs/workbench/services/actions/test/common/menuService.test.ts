@@ -13,7 +13,7 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionPointContribution, IExtensionDescription, IExtensionsStatus, IExtensionService, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 // --- service instances
 

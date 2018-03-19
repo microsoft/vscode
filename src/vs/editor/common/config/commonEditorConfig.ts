@@ -5,7 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
@@ -34,8 +34,8 @@ export interface ITabFocus {
 export const TabFocus: ITabFocus = new class implements ITabFocus {
 	private _tabFocus: boolean = false;
 
-	private _onDidChangeTabFocus: Emitter<boolean> = new Emitter<boolean>();
-	public onDidChangeTabFocus: Event<boolean> = this._onDidChangeTabFocus.event;
+	private readonly _onDidChangeTabFocus: Emitter<boolean> = new Emitter<boolean>();
+	public readonly onDidChangeTabFocus: Event<boolean> = this._onDidChangeTabFocus.event;
 
 	public getTabFocusMode(): boolean {
 		return this._tabFocus;
@@ -70,7 +70,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	private _lineNumbersDigitCount: number;
 
 	private _onDidChange = this._register(new Emitter<editorOptions.IConfigurationChangedEvent>());
-	public onDidChange: Event<editorOptions.IConfigurationChangedEvent> = this._onDidChange.event;
+	public readonly onDidChange: Event<editorOptions.IConfigurationChangedEvent> = this._onDidChange.event;
 
 	constructor(options: editorOptions.IEditorOptions) {
 		super();
@@ -166,7 +166,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 }
 
-const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 const editorConfiguration: IConfigurationNode = {
 	'id': 'editor',
 	'order': 5,

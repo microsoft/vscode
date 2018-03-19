@@ -174,6 +174,17 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		});
 	}
 
+	public async goToNextOrPreviousReference(fwd: boolean) {
+		let source = this._model.nearestReference(this._editor.getModel().uri, this._widget.position);
+		let target = this._model.nextOrPreviousReference(source, fwd);
+		let editorFocus = this._editor.isFocused();
+		await this._widget.setSelection(target);
+		await this._gotoReference(target);
+		if (editorFocus) {
+			this._editor.focus();
+		}
+	}
+
 	public closeWidget(): void {
 		if (this._widget) {
 			this._widget.dispose();
@@ -189,16 +200,16 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._requestIdPool += 1; // Cancel pending requests
 	}
 
-	private _gotoReference(ref: Location): void {
+	private _gotoReference(ref: Location): TPromise<any> {
 		this._widget.hide();
 
 		this._ignoreModelChangeEvent = true;
 		const { uri, range } = ref;
 
-		this._editorService.openEditor({
+		return this._editorService.openEditor({
 			resource: uri,
 			options: { selection: range }
-		}).done(openedEditor => {
+		}).then(openedEditor => {
 			this._ignoreModelChangeEvent = false;
 
 			if (!openedEditor || openedEditor.getControl() !== this._editor) {

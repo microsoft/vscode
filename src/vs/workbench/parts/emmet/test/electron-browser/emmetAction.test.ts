@@ -7,7 +7,7 @@
 
 import { IGrammarContributions, ILanguageIdentifierResolver, EmmetEditorAction } from 'vs/workbench/parts/emmet/electron-browser/emmetActions';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import assert = require('assert');
+import * as assert from 'assert';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 
 //

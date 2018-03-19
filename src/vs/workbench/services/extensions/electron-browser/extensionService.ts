@@ -35,7 +35,7 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { mark, time } from 'vs/base/common/performance';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Barrier } from 'vs/base/common/async';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import product from 'vs/platform/node/product';
 import * as strings from 'vs/base/common/strings';
@@ -113,7 +113,7 @@ const NO_OP_VOID_PROMISE = TPromise.wrap<void>(void 0);
 export class ExtensionService extends Disposable implements IExtensionService {
 	public _serviceBrand: any;
 
-	private _onDidRegisterExtensions: Emitter<void>;
+	private readonly _onDidRegisterExtensions: Emitter<void>;
 
 	private _registry: ExtensionDescriptionRegistry;
 	private readonly _installedExtensionsReady: Barrier;
@@ -533,7 +533,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			const { type, extensionId, extensionPointId, message } = msg;
 			/* __GDPR__
 				"extensionsMessage" : {
-					"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 					"extensionId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 					"extensionPointId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 					"message": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }

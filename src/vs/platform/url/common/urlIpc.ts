@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall, Serializer, Deserializer } from 'vs/base/parts/ipc/common/ipc';
 import { IURLService } from './url';
-import Event, { filterEvent } from 'vs/base/common/event';
+import { Event, filterEvent } from 'vs/base/common/event';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import URI from 'vs/base/common/uri';
 

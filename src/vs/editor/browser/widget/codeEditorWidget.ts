@@ -21,7 +21,7 @@ import { Configuration } from 'vs/editor/browser/config/configuration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { View, IOverlayWidgetData, IContentWidgetData } from 'vs/editor/browser/view/viewImpl';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -455,8 +455,8 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 	private _hasFocus: boolean;
 	private _domFocusTracker: dom.IFocusTracker;
 
-	private _onChange: Emitter<void> = this._register(new Emitter<void>());
-	public onChange: Event<void> = this._onChange.event;
+	private readonly _onChange: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onChange: Event<void> = this._onChange.event;
 
 	constructor(domElement: HTMLElement) {
 		super();

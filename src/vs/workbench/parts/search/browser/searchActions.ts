@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import DOM = require('vs/base/browser/dom');
+import * as nls from 'vs/nls';
+import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -117,48 +117,6 @@ export class ShowPreviousSearchIncludeAction extends Action {
 	public run(): TPromise<any> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		searchView.searchIncludePattern.showPreviousTerm();
-		return TPromise.as(null);
-	}
-}
-
-export class ShowNextSearchExcludeAction extends Action {
-
-	public static readonly ID = 'search.history.showNextExcludePattern';
-	public static readonly LABEL = nls.localize('nextSearchExcludePattern', "Show Next Search Exclude Pattern");
-
-	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService,
-		@IContextKeyService private contextKeyService: IContextKeyService
-	) {
-		super(id, label);
-		this.enabled = this.contextKeyService.contextMatchesRules(Constants.SearchViewVisibleKey);
-	}
-
-	public run(): TPromise<any> {
-		const searchView = getSearchView(this.viewletService, this.panelService);
-		searchView.searchExcludePattern.showNextTerm();
-		return TPromise.as(null);
-	}
-}
-
-export class ShowPreviousSearchExcludeAction extends Action {
-
-	public static readonly ID = 'search.history.showPreviousExcludePattern';
-	public static readonly LABEL = nls.localize('previousSearchExcludePattern', "Show Previous Search Exclude Pattern");
-
-	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IPanelService private panelService: IPanelService
-	) {
-		super(id, label);
-		this.enabled = this.contextKeyService.contextMatchesRules(Constants.SearchViewVisibleKey);
-	}
-
-	public run(): TPromise<any> {
-		const searchView = getSearchView(this.viewletService, this.panelService);
-		searchView.searchExcludePattern.showPreviousTerm();
 		return TPromise.as(null);
 	}
 }

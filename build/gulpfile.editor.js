@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-var gulp = require('gulp');
-var path = require('path');
-var util = require('./lib/util');
-var common = require('./lib/optimize');
-var es = require('event-stream');
-var File = require('vinyl');
+const gulp = require('gulp');
+const path = require('path');
+const util = require('./lib/util');
+const common = require('./lib/optimize');
+const es = require('event-stream');
+const File = require('vinyl');
+const i18n = require('./lib/i18n');
+const standalone = require('./lib/standalone');
+const cp = require('child_process');
 
 var root = path.dirname(__dirname);
 var sha1 = util.getVersion(root);
@@ -71,6 +74,8 @@ function editorLoaderConfig() {
 	return result;
 }
 
+const languages = i18n.defaultLanguages.concat([]);  // i18n.defaultLanguages.concat(process.env.VSCODE_QUALITY !== 'stable' ? i18n.extraLanguages : []);
+
 gulp.task('clean-optimized-editor', util.rimraf('out-editor'));
 gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-client-build'], common.optimizeTask({
 	entryPoints: editorEntryPoints,
@@ -81,14 +86,36 @@ gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-client-build'],
 	header: BUNDLED_FILE_HEADER,
 	bundleInfo: true,
 	out: 'out-editor',
-	languages: undefined
+	languages: languages
 }));
 
 gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
 gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor'));
 
+gulp.task('clean-editor-esm', util.rimraf('out-editor-esm'));
+gulp.task('extract-editor-esm', ['clean-editor-esm', 'clean-editor-distro'], function() {
+	standalone.createESMSourcesAndResources({
+		entryPoints: [
+			'vs/editor/editor.main',
+			'vs/editor/editor.worker'
+		],
+		outFolder: './out-editor-esm/src',
+		outResourcesFolder: './out-monaco-editor-core/esm',
+		redirects: {
+			'vs/base/browser/ui/octiconLabel/octiconLabel': 'vs/base/browser/ui/octiconLabel/octiconLabel.mock',
+			'vs/nls': 'vs/nls.mock',
+		}
+	});
+});
+gulp.task('compile-editor-esm', ['extract-editor-esm', 'clean-editor-distro'], function() {
+	const result = cp.spawnSync(`node`, [`../node_modules/.bin/tsc`], {
+		cwd: path.join(__dirname, '../out-editor-esm')
+	});
+	console.log(result.stdout.toString());
+});
+
 gulp.task('clean-editor-distro', util.rimraf('out-monaco-editor-core'));
-gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-editor'], function () {
+gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify-editor', 'optimize-editor'], function () {
 	return es.merge(
 		// other assets
 		es.merge(

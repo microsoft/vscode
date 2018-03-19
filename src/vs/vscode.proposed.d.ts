@@ -7,6 +7,38 @@
 
 declare module 'vscode' {
 
+	export namespace window {
+		export function sampleFunction(): Thenable<any>;
+	}
+
+	//#region Joh: readable diagnostics
+
+	export interface DiagnosticChangeEvent {
+		uris: Uri[];
+	}
+
+	export namespace languages {
+
+		/**
+		 *
+		 */
+		export const onDidChangeDiagnostics: Event<DiagnosticChangeEvent>;
+
+		/**
+		 *
+		 */
+		export function getDiagnostics(resource: Uri): Diagnostic[];
+
+		/**
+		 *
+		 */
+		export function getDiagnostics(): [Uri, Diagnostic[]][];
+	}
+
+	//#endregion
+
+	//#region Aeschli: folding
+
 	export class FoldingRangeList {
 
 		/**
@@ -63,6 +95,37 @@ declare module 'vscode' {
 		 */
 		Region = 'region'
 	}
+
+	export namespace languages {
+
+		/**
+		 * Register a folding provider.
+		 *
+		 * Multiple folding can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A folding provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerFoldingProvider(selector: DocumentSelector, provider: FoldingProvider): Disposable;
+	}
+
+	export interface FoldingContext {
+		maxRanges?: number;
+	}
+
+	export interface FoldingProvider {
+		/**
+		 * Returns a list of folding ranges or null if the provider does not want to participate or was cancelled.
+		 */
+		provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRangeList>;
+	}
+
+	//#endregion
+
+	//#region Joh: file system provider
 
 	// export enum FileErrorCodes {
 	// 	/**
@@ -216,10 +279,9 @@ declare module 'vscode' {
 		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
 	}
 
-	export namespace window {
+	//#endregion
 
-		export function sampleFunction(): Thenable<any>;
-	}
+	//#region Joao: diff command
 
 	/**
 	 * The contiguous set of modified lines in a diff.
@@ -250,7 +312,9 @@ declare module 'vscode' {
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 	}
 
-	//#region decorations
+	//#endregion
+
+	//#region Joh: decorations
 
 	//todo@joh -> make class
 	export interface DecorationData {
@@ -278,6 +342,8 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region André: debug
 
 	/**
 	 * Represents a debug adapter executable and optional arguments passed to it.
@@ -312,6 +378,17 @@ declare module 'vscode' {
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
 
+	export interface Breakpoint {
+		/**
+		 * An optional message that gets logged when this breakpoint is hit.
+		 */
+		readonly logMessage?: string;
+	}
+
+	//#endregion
+
+	//#region Rob, Matt: logging
+
 	/**
 	 * The severity level of a log message
 	 */
@@ -331,7 +408,6 @@ declare module 'vscode' {
 	export interface Logger {
 		readonly onDidChangeLogLevel: Event<LogLevel>;
 		readonly currentLevel: LogLevel;
-		readonly logDirectory: Thenable<string>;
 
 		trace(message: string, ...args: any[]): void;
 		debug(message: string, ...args: any[]): void;
@@ -346,35 +422,36 @@ declare module 'vscode' {
 		 * This extension's logger
 		 */
 		logger: Logger;
-	}
-
-	export interface RenameInitialValue {
-		range: Range;
-		text?: string;
-	}
-
-	export namespace languages {
 
 		/**
-		 * Register a folding provider.
+		 * Path where an extension can write log files.
 		 *
-		 * Multiple folding can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
-		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A folding provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 * Extensions must create this directory before writing to it. The parent directory will always exist.
 		 */
-		export function registerFoldingProvider(selector: DocumentSelector, provider: FoldingProvider): Disposable;
+		readonly logDirectory: string;
+	}
 
-		export interface RenameProvider2 extends RenameProvider {
-			resolveInitialRenameValue?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameInitialValue>;
-		}
+	//#endregion
+
+	//#region Joh: rename context
+
+	export class RenameContext {
+		range: Range;
+		newName?: string;
+		constructor(range: Range, newName?: string);
 	}
-	export interface FoldingProvider {
-		provideFoldingRanges(document: TextDocument, token: CancellationToken): ProviderResult<FoldingRangeList>;
+
+	export interface RenameProvider2 extends RenameProvider {
+
+		/**
+		 * Optional function to resolve and validate a rename location.
+		 */
+		resolveRenameContext?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameContext>;
 	}
+
+	//#endregion
+
+	//#region Joao: SCM validation
 
 	/**
 	 * Represents the validation type of the Source Control input.
@@ -422,6 +499,10 @@ declare module 'vscode' {
 		validateInput?(value: string, cursorPosition: number): ProviderResult<SourceControlInputBoxValidation | undefined | null>;
 	}
 
+	//#endregion
+
+	//#region Matt: WebView
+
 	/**
 	 * Content settings for a webview.
 	 */
@@ -456,9 +537,9 @@ declare module 'vscode' {
 		readonly retainContextWhenHidden?: boolean;
 
 		/**
-		 * Root paths from which the webview can load local (filesystem) resources using the `vscode-workspace-resource:` scheme.
+		 * Root paths from which the webview can load local (filesystem) resources using the `vscode-resource:` scheme.
 		 *
-		 * Default to the root folders of the current workspace.
+		 * Default to the root folders of the current workspace plus the extension's install directory.
 		 *
 		 * Pass in an empty array to disallow access to any local resources.
 		 */
@@ -567,6 +648,10 @@ declare module 'vscode' {
 		export const onDidChangeActiveEditor: Event<TextEditor | Webview | undefined>;
 	}
 
+	//#endregion
+
+	//#region Sandeep: TreeView
+
 	export namespace window {
 
 		/**
@@ -633,7 +718,9 @@ declare module 'vscode' {
 		getParent?(element: T): ProviderResult<T>;
 	}
 
-	//#region TextEditor.visibleRange and related event
+	//#endregion
+
+	//#region Alex: TextEditor.visibleRange and related event
 
 	export interface TextEditor {
 		/**
@@ -662,6 +749,39 @@ declare module 'vscode' {
 		 * An [event](#Event) which fires when the selection in an editor has changed.
 		 */
 		export const onDidChangeTextEditorVisibleRanges: Event<TextEditorVisibleRangesChangeEvent>;
+	}
+
+	//#endregion
+
+	//#region Tasks
+
+	/**
+	 * A task item represents a task in the system. It can be used to
+	 * present task information in the user interface or to execute the
+	 * underlying task.
+	 */
+	export interface TaskItem {
+
+		/**
+		 * A unique ID representing the underlying task.
+		 */
+		readonly id: string;
+
+		/**
+		 * A human readable label of the task.
+		 */
+		readonly label: string;
+
+		/**
+		 * The task definition.
+		 */
+		readonly definition: TaskDefinition;
+
+		/**
+		 * The workspace folder the task belongs to. Is undefined
+		 * to tasks that aren't scoped to a workspace folder.
+		 */
+		readonly workspaceFolder: WorkspaceFolder | undefined;
 	}
 
 	//#endregion

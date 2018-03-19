@@ -4,27 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Platform = require('vs/base/common/platform');
-import Browser = require('vs/base/browser/browser');
-import WinJS = require('vs/base/common/winjs.base');
-import Lifecycle = require('vs/base/common/lifecycle');
-import DOM = require('vs/base/browser/dom');
-import Diff = require('vs/base/common/diff/diff');
-import Touch = require('vs/base/browser/touch');
-import strings = require('vs/base/common/strings');
-import Mouse = require('vs/base/browser/mouseEvent');
-import Keyboard = require('vs/base/browser/keyboardEvent');
-import Model = require('vs/base/parts/tree/browser/treeModel');
-import dnd = require('./treeDnd');
+import * as Platform from 'vs/base/common/platform';
+import * as Browser from 'vs/base/browser/browser';
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as Lifecycle from 'vs/base/common/lifecycle';
+import * as DOM from 'vs/base/browser/dom';
+import * as Diff from 'vs/base/common/diff/diff';
+import * as Touch from 'vs/base/browser/touch';
+import * as strings from 'vs/base/common/strings';
+import * as Mouse from 'vs/base/browser/mouseEvent';
+import * as Keyboard from 'vs/base/browser/keyboardEvent';
+import * as Model from 'vs/base/parts/tree/browser/treeModel';
+import * as dnd from './treeDnd';
 import { ArrayIterator, MappedIterator } from 'vs/base/common/iterator';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { HeightMap, IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
-import _ = require('vs/base/parts/tree/browser/tree');
+import * as _ from 'vs/base/parts/tree/browser/tree';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import Event, { Emitter } from 'vs/base/common/event';
-import { IDomNodePagePosition } from 'vs/base/browser/dom';
+import { Event, Emitter } from 'vs/base/common/event';
 import { DataTransfers } from 'vs/base/browser/dnd';
+import { DefaultTreestyler } from './treeDefaults';
+import { Delayer } from 'vs/base/common/async';
 
 export interface IRow {
 	element: HTMLElement;
@@ -100,6 +101,7 @@ export class RowCache implements Lifecycle.IDisposable {
 
 export interface IViewContext extends _.ITreeContext {
 	cache: RowCache;
+	horizontalScrolling: boolean;
 }
 
 export class ViewItem implements IViewItem {
@@ -112,6 +114,7 @@ export class ViewItem implements IViewItem {
 
 	public top: number;
 	public height: number;
+	public width: number = 0;
 	public onDragStart: (e: DragEvent) => void;
 
 	public needsRender: boolean;
@@ -249,9 +252,33 @@ export class ViewItem implements IViewItem {
 			}
 		}
 
-		if (!skipUserRender) {
+		if (!skipUserRender && this.element) {
+			const style = window.getComputedStyle(this.element);
+			const paddingLeft = parseFloat(style.paddingLeft);
+
+			if (this.context.horizontalScrolling) {
+				this.element.style.width = 'fit-content';
+			}
+
 			this.context.renderer.renderElement(this.context.tree, this.model.getElement(), this.templateId, this.row.templateData);
+
+			if (this.context.horizontalScrolling) {
+				this.width = DOM.getContentWidth(this.element) + paddingLeft;
+				this.element.style.width = '';
+			}
 		}
+	}
+
+	updateWidth(): any {
+		if (!this.context.horizontalScrolling || !this.element) {
+			return;
+		}
+
+		const style = window.getComputedStyle(this.element);
+		const paddingLeft = parseFloat(style.paddingLeft);
+		this.element.style.width = 'fit-content';
+		this.width = DOM.getContentWidth(this.element) + paddingLeft;
+		this.element.style.width = '';
 	}
 
 	public insertInDOM(container: HTMLElement, afterElement: HTMLElement): void {
@@ -378,11 +405,15 @@ export class TreeView extends HeightMap {
 	private domNode: HTMLElement;
 	private wrapper: HTMLElement;
 	private styleElement: HTMLStyleElement;
+	private treeStyler: _.ITreeStyler;
 	private rowsContainer: HTMLElement;
 	private scrollableElement: ScrollableElement;
 	private msGesture: MSGesture;
 	private lastPointerType: string;
 	private lastClickTimeStamp: number = 0;
+
+	private horizontalScrolling: boolean;
+	private contentWidthUpdateDelayer = new Delayer<void>(50);
 
 	private lastRenderTop: number;
 	private lastRenderHeight: number;
@@ -408,10 +439,10 @@ export class TreeView extends HeightMap {
 	private highlightedItemWasDraggable: boolean;
 	private onHiddenScrollTop: number;
 
-	private _onDOMFocus: Emitter<void> = new Emitter<void>();
+	private readonly _onDOMFocus: Emitter<void> = new Emitter<void>();
 	get onDOMFocus(): Event<void> { return this._onDOMFocus.event; }
 
-	private _onDOMBlur: Emitter<void> = new Emitter<void>();
+	private readonly _onDOMBlur: Emitter<void> = new Emitter<void>();
 	get onDOMBlur(): Event<void> { return this._onDOMBlur.event; }
 
 	constructor(context: _.ITreeContext, container: HTMLElement) {
@@ -419,6 +450,9 @@ export class TreeView extends HeightMap {
 
 		TreeView.counter++;
 		this.instance = TreeView.counter;
+
+		const horizontalScrollMode = typeof context.options.horizontalScrollMode === 'undefined' ? ScrollbarVisibility.Hidden : context.options.horizontalScrollMode;
+		this.horizontalScrolling = horizontalScrollMode !== ScrollbarVisibility.Hidden;
 
 		this.context = {
 			dataSource: context.dataSource,
@@ -430,7 +464,8 @@ export class TreeView extends HeightMap {
 			tree: context.tree,
 			accessibilityProvider: context.accessibilityProvider,
 			options: context.options,
-			cache: new RowCache(context)
+			cache: new RowCache(context),
+			horizontalScrolling: this.horizontalScrolling
 		};
 
 		this.modelListeners = [];
@@ -445,6 +480,11 @@ export class TreeView extends HeightMap {
 		this.domNode.tabIndex = context.options.preventRootFocus ? -1 : 0;
 
 		this.styleElement = DOM.createStyleSheet(this.domNode);
+
+		this.treeStyler = context.styler;
+		if (!this.treeStyler) {
+			this.treeStyler = new DefaultTreestyler(this.styleElement, `monaco-tree-instance-${this.instance}`);
+		}
 
 		// ARIA
 		this.domNode.setAttribute('role', 'tree');
@@ -464,12 +504,12 @@ export class TreeView extends HeightMap {
 		this.wrapper.className = 'monaco-tree-wrapper';
 		this.scrollableElement = new ScrollableElement(this.wrapper, {
 			alwaysConsumeMouseWheel: true,
-			horizontal: ScrollbarVisibility.Hidden,
+			horizontal: horizontalScrollMode,
 			vertical: (typeof context.options.verticalScrollMode !== 'undefined' ? context.options.verticalScrollMode : ScrollbarVisibility.Auto),
 			useShadows: context.options.useShadows
 		});
 		this.scrollableElement.onScroll((e) => {
-			this.render(e.scrollTop, e.height);
+			this.render(e.scrollTop, e.height, e.scrollLeft, e.width, e.scrollWidth);
 		});
 
 		if (Browser.isIE) {
@@ -552,75 +592,7 @@ export class TreeView extends HeightMap {
 	}
 
 	public applyStyles(styles: _.ITreeStyles): void {
-		const content: string[] = [];
-
-		if (styles.listFocusBackground) {
-			content.push(`.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) { background-color: ${styles.listFocusBackground}; }`);
-		}
-
-		if (styles.listFocusForeground) {
-			content.push(`.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) { color: ${styles.listFocusForeground}; }`);
-		}
-
-		if (styles.listActiveSelectionBackground) {
-			content.push(`.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${styles.listActiveSelectionBackground}; }`);
-		}
-
-		if (styles.listActiveSelectionForeground) {
-			content.push(`.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${styles.listActiveSelectionForeground}; }`);
-		}
-
-		if (styles.listFocusAndSelectionBackground) {
-			content.push(`
-				.monaco-tree-drag-image,
-				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused.selected:not(.highlighted) { background-color: ${styles.listFocusAndSelectionBackground}; }
-			`);
-		}
-
-		if (styles.listFocusAndSelectionForeground) {
-			content.push(`
-				.monaco-tree-drag-image,
-				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused.selected:not(.highlighted) { color: ${styles.listFocusAndSelectionForeground}; }
-			`);
-		}
-
-		if (styles.listInactiveSelectionBackground) {
-			content.push(`.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${styles.listInactiveSelectionBackground}; }`);
-		}
-
-		if (styles.listInactiveSelectionForeground) {
-			content.push(`.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${styles.listInactiveSelectionForeground}; }`);
-		}
-
-		if (styles.listHoverBackground) {
-			content.push(`.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) { background-color: ${styles.listHoverBackground}; }`);
-		}
-
-		if (styles.listHoverForeground) {
-			content.push(`.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) { color: ${styles.listHoverForeground}; }`);
-		}
-
-		if (styles.listDropBackground) {
-			content.push(`
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-wrapper.drop-target,
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
-			`);
-		}
-
-		if (styles.listFocusOutline) {
-			content.push(`
-				.monaco-tree-drag-image																															{ border: 1px solid ${styles.listFocusOutline}; background: #000; }
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row 														{ border: 1px solid transparent; }
-				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) 						{ border: 1px dotted ${styles.listFocusOutline}; }
-				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) 						{ border: 1px solid ${styles.listFocusOutline}; }
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted)  							{ border: 1px solid ${styles.listFocusOutline}; }
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused)  	{ border: 1px dashed ${styles.listFocusOutline}; }
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-wrapper.drop-target,
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.drop-target												{ border: 1px dashed ${styles.listFocusOutline}; }
-			`);
-		}
-
-		this.styleElement.innerHTML = content.join('\n');
+		this.treeStyler.style(styles);
 	}
 
 	protected createViewItem(item: Model.Item): IViewItem {
@@ -670,9 +642,14 @@ export class TreeView extends HeightMap {
 		}
 
 		this.viewHeight = height || DOM.getContentHeight(this.wrapper); // render
+		this.scrollHeight = this.getContentHeight();
+
+		if (this.horizontalScrolling) {
+			this.viewWidth = DOM.getContentWidth(this.wrapper);
+		}
 	}
 
-	private render(scrollTop: number, viewHeight: number): void {
+	private render(scrollTop: number, viewHeight: number, scrollLeft: number, viewWidth: number, scrollWidth: number): void {
 		var i: number;
 		var stop: number;
 
@@ -704,6 +681,11 @@ export class TreeView extends HeightMap {
 
 		if (topItem) {
 			this.rowsContainer.style.top = (topItem.top - renderTop) + 'px';
+		}
+
+		if (this.horizontalScrolling) {
+			this.rowsContainer.style.left = -scrollLeft + 'px';
+			this.rowsContainer.style.width = `${Math.max(scrollWidth, viewWidth)}px`;
 		}
 
 		this.lastRenderTop = renderTop;
@@ -746,6 +728,24 @@ export class TreeView extends HeightMap {
 		}
 
 		this.scrollTop = scrollTop;
+		this.updateScrollWidth();
+	}
+
+	private updateScrollWidth(): void {
+		if (!this.horizontalScrolling) {
+			return;
+		}
+
+		this.contentWidthUpdateDelayer.trigger(() => {
+			const keys = Object.keys(this.items);
+			let scrollWidth = 0;
+
+			for (const key of keys) {
+				scrollWidth = Math.max(scrollWidth, this.items[key].width);
+			}
+
+			this.scrollWidth = scrollWidth + 10 /* scrollbar */;
+		});
 	}
 
 	public focusNextPage(eventPayload?: any): void {
@@ -803,11 +803,25 @@ export class TreeView extends HeightMap {
 		return scrollDimensions.height;
 	}
 
-	public set viewHeight(viewHeight: number) {
-		this.scrollableElement.setScrollDimensions({
-			height: viewHeight,
-			scrollHeight: this.getTotalHeight()
-		});
+	public set viewHeight(height: number) {
+		this.scrollableElement.setScrollDimensions({ height });
+	}
+
+	private set scrollHeight(scrollHeight: number) {
+		this.scrollableElement.setScrollDimensions({ scrollHeight });
+	}
+
+	public get viewWidth(): number {
+		const scrollDimensions = this.scrollableElement.getScrollDimensions();
+		return scrollDimensions.width;
+	}
+
+	public set viewWidth(viewWidth: number) {
+		this.scrollableElement.setScrollDimensions({ width: viewWidth });
+	}
+
+	private set scrollWidth(scrollWidth: number) {
+		this.scrollableElement.setScrollDimensions({ scrollWidth });
 	}
 
 	public get scrollTop(): number {
@@ -817,7 +831,7 @@ export class TreeView extends HeightMap {
 
 	public set scrollTop(scrollTop: number) {
 		this.scrollableElement.setScrollDimensions({
-			scrollHeight: this.getTotalHeight()
+			scrollHeight: this.getContentHeight()
 		});
 		this.scrollableElement.setScrollPosition({
 			scrollTop: scrollTop
@@ -825,12 +839,12 @@ export class TreeView extends HeightMap {
 	}
 
 	public getScrollPosition(): number {
-		const height = this.getTotalHeight() - this.viewHeight;
+		const height = this.getContentHeight() - this.viewHeight;
 		return height <= 0 ? 1 : this.scrollTop / height;
 	}
 
 	public setScrollPosition(pos: number): void {
-		const height = this.getTotalHeight() - this.viewHeight;
+		const height = this.getContentHeight() - this.viewHeight;
 		this.scrollTop = height * pos;
 	}
 
@@ -997,6 +1011,21 @@ export class TreeView extends HeightMap {
 			this.onRemoveItems(new MappedIterator(item.getNavigator(), item => item && item.id));
 			this.onRowsChanged();
 		}
+	}
+
+	public updateWidth(item: Model.Item): void {
+		if (!item || !item.isVisible()) {
+			return;
+		}
+
+		const viewItem = this.items[item.id];
+
+		if (!viewItem) {
+			return;
+		}
+
+		viewItem.updateWidth();
+		this.updateScrollWidth();
 	}
 
 	public getRelativeTop(item: Model.Item): number {
@@ -1222,7 +1251,7 @@ export class TreeView extends HeightMap {
 			var keyboardEvent = new Keyboard.StandardKeyboardEvent(<KeyboardEvent>event);
 			element = this.model.getFocus();
 
-			var position: IDomNodePagePosition;
+			var position: DOM.IDomNodePagePosition;
 
 			if (!element) {
 				element = this.model.getInput();
