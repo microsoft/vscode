@@ -9,6 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import { Part } from 'vs/workbench/browser/part';
 import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
+import { QuickInputService } from 'vs/workbench/browser/parts/quickinput/quickInput';
 import { Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService, Position, ILayoutOptions, Parts } from 'vs/workbench/services/part/common/partService';
@@ -67,6 +68,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private panel: Part;
 	private statusbar: Part;
 	private quickopen: QuickOpenController;
+	private quickInput: QuickInputService;
 	private notificationsCenter: NotificationsCenter;
 	private notificationsToasts: NotificationsToasts;
 	private toUnbind: IDisposable[];
@@ -97,6 +99,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			statusbar: Part
 		},
 		quickopen: QuickOpenController,
+		quickInput: QuickInputService,
 		notificationsCenter: NotificationsCenter,
 		notificationsToasts: NotificationsToasts,
 		@IStorageService private storageService: IStorageService,
@@ -116,6 +119,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.panel = parts.panel;
 		this.statusbar = parts.statusbar;
 		this.quickopen = quickopen;
+		this.quickInput = quickInput;
 		this.notificationsCenter = notificationsCenter;
 		this.notificationsToasts = notificationsToasts;
 		this.toUnbind = [];
@@ -650,6 +654,9 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// Quick open
 		this.quickopen.layout(this.workbenchSize);
+
+		// Quick input
+		this.quickInput.layout(this.workbenchSize);
 
 		// Notifications
 		this.notificationsCenter.layout(this.workbenchSize);

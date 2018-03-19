@@ -1554,10 +1554,20 @@ declare module 'vscode' {
 		 */
 		ignoreFocusOut?: boolean;
 
+		multiSelect?: boolean;
+
 		/**
 		 * An optional function that is invoked whenever an item is selected.
 		 */
 		onDidSelectItem?(item: QuickPickItem | string): any;
+	}
+
+	export interface MultiSelectQuickPickItem extends QuickPickItem {
+		selected?: boolean;
+	}
+
+	export interface MultiSelectQuickPickOptions extends QuickPickOptions {
+		multiSelect: true;
 	}
 
 	/**
@@ -5069,6 +5079,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to the selection or `undefined`.
 		 */
+		export function showQuickPick(items: string[] | Thenable<string[]>, options: MultiSelectQuickPickOptions, token?: CancellationToken): Thenable<string[] | undefined>;
 		export function showQuickPick(items: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
 
 		/**
@@ -5079,6 +5090,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to the selected item or `undefined`.
 		 */
+		export function showQuickPick<T extends MultiSelectQuickPickItem>(items: T[] | Thenable<T[]>, options: MultiSelectQuickPickOptions, token?: CancellationToken): Thenable<T[] | undefined>;
 		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<T | undefined>;
 
 		/**

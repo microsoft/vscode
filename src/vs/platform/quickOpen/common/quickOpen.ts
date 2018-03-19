@@ -33,6 +33,7 @@ export interface IPickOpenEntry {
 	run?: (context: IEntryRunContext) => void;
 	action?: IAction;
 	payload?: any;
+	selected?: boolean;
 }
 
 export interface IPickOpenItem {
@@ -84,6 +85,8 @@ export interface IPickOptions {
 	 * a context key to set when this picker is active
 	 */
 	contextKey?: string;
+
+	multiSelect?: boolean;
 }
 
 export interface IInputOptions {
