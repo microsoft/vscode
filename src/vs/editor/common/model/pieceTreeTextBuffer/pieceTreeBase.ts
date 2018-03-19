@@ -551,7 +551,7 @@ export class PieceTreeBase {
 		return this.getOffsetAt(lineNumber + 1, 1) - this.getOffsetAt(lineNumber, 1) - this._EOLLength;
 	}
 
-	public findMatchesInNode(node: TreeNode, searcher: Searcher, startLineNumber: number, startCursor: BufferCursor, endCursor: BufferCursor, searchData: SearchData, captureMatches: boolean, limitResultCount: number, resultLen: number, result: FindMatch[]) {
+	public findMatchesInNode(node: TreeNode, searcher: Searcher, startLineNumber: number, startColumn: number, startCursor: BufferCursor, endCursor: BufferCursor, searchData: SearchData, captureMatches: boolean, limitResultCount: number, resultLen: number, result: FindMatch[]) {
 		let buffer = this._buffers[node.piece.bufferIndex];
 		let startOffsetInBuffer = this.offsetInBuffer(node.piece.bufferIndex, node.piece.start);
 		let start = this.offsetInBuffer(node.piece.bufferIndex, startCursor);
@@ -571,7 +571,9 @@ export class PieceTreeBase {
 				}
 				this.positionInBuffer(node, m.index - startOffsetInBuffer, ret);
 				let lineFeedCnt = this.getLineFeedCnt(node.piece.bufferIndex, startCursor, ret);
-				result[resultLen++] = createFindMatch(new Range(startLineNumber + lineFeedCnt, ret.column + 1, startLineNumber + lineFeedCnt, ret.column + 1 + m[0].length), m, captureMatches);
+				let retStartColumn = ret.line === startCursor.line ? ret.column - startCursor.column + startColumn : ret.column + 1;
+				let retEndColumn = retStartColumn + m[0].length;
+				result[resultLen++] = createFindMatch(new Range(startLineNumber + lineFeedCnt, retStartColumn, startLineNumber + lineFeedCnt, retEndColumn), m, captureMatches);
 
 				if (m.index + m[0].length >= end) {
 					return resultLen;
@@ -603,7 +605,7 @@ export class PieceTreeBase {
 		let end = this.positionInBuffer(endPosition.node, endPosition.remainder);
 
 		if (startPostion.node === endPosition.node) {
-			this.findMatchesInNode(startPostion.node, searcher, searchRange.startLineNumber, start, end, searchData, captureMatches, limitResultCount, resultLen, result);
+			this.findMatchesInNode(startPostion.node, searcher, searchRange.startLineNumber, searchRange.startColumn, start, end, searchData, captureMatches, limitResultCount, resultLen, result);
 			return result;
 		}
 
@@ -618,7 +620,8 @@ export class PieceTreeBase {
 				let lineStarts = this._buffers[currentNode.piece.bufferIndex].lineStarts;
 				let startOffsetInBuffer = this.offsetInBuffer(currentNode.piece.bufferIndex, currentNode.piece.start);
 				let nextLineStartOffset = lineStarts[start.line + lineBreakCnt];
-				resultLen = this.findMatchesInNode(currentNode, searcher, startLineNumber, start, this.positionInBuffer(currentNode, nextLineStartOffset - startOffsetInBuffer), searchData, captureMatches, limitResultCount, resultLen, result);
+				let startColumn = startLineNumber === searchRange.startLineNumber ? searchRange.startColumn : 1;
+				resultLen = this.findMatchesInNode(currentNode, searcher, startLineNumber, startColumn, start, this.positionInBuffer(currentNode, nextLineStartOffset - startOffsetInBuffer), searchData, captureMatches, limitResultCount, resultLen, result);
 
 				if (resultLen >= limitResultCount) {
 					return result;
@@ -627,14 +630,15 @@ export class PieceTreeBase {
 				startLineNumber += lineBreakCnt;
 			}
 
+			let startColumn = startLineNumber === searchRange.startLineNumber ? searchRange.startColumn - 1 : 0;
 			// search for the remaining content
 			if (startLineNumber === searchRange.endLineNumber) {
-				const text = this.getLineContent(startLineNumber).substring(0, searchRange.endColumn - 1);
-				resultLen = this._findMatchesInLine(searchData, searcher, text, searchRange.endLineNumber, 0, resultLen, result, captureMatches, limitResultCount);
+				const text = this.getLineContent(startLineNumber).substring(startColumn, searchRange.endColumn - 1);
+				resultLen = this._findMatchesInLine(searchData, searcher, text, searchRange.endLineNumber, startColumn, resultLen, result, captureMatches, limitResultCount);
 				return result;
 			}
 
-			resultLen = this._findMatchesInLine(searchData, searcher, this.getLineContent(startLineNumber), startLineNumber, 0, resultLen, result, captureMatches, limitResultCount);
+			resultLen = this._findMatchesInLine(searchData, searcher, this.getLineContent(startLineNumber).substr(startColumn), startLineNumber, startColumn, resultLen, result, captureMatches, limitResultCount);
 
 			if (resultLen >= limitResultCount) {
 				return result;
@@ -647,12 +651,14 @@ export class PieceTreeBase {
 		}
 
 		if (startLineNumber === searchRange.endLineNumber) {
-			const text = this.getLineContent(startLineNumber).substring(0, searchRange.endColumn - 1);
-			resultLen = this._findMatchesInLine(searchData, searcher, text, searchRange.endLineNumber, 0, resultLen, result, captureMatches, limitResultCount);
+			let startColumn = startLineNumber === searchRange.startLineNumber ? searchRange.startColumn - 1 : 0;
+			const text = this.getLineContent(startLineNumber).substring(startColumn, searchRange.endColumn - 1);
+			resultLen = this._findMatchesInLine(searchData, searcher, text, searchRange.endLineNumber, startColumn, resultLen, result, captureMatches, limitResultCount);
 			return result;
 		}
 
-		resultLen = this.findMatchesInNode(endPosition.node, searcher, startLineNumber, start, end, searchData, captureMatches, limitResultCount, resultLen, result);
+		let startColumn = startLineNumber === searchRange.startLineNumber ? searchRange.startColumn : 1;
+		resultLen = this.findMatchesInNode(endPosition.node, searcher, startLineNumber, startColumn, start, end, searchData, captureMatches, limitResultCount, resultLen, result);
 		return result;
 	}
 
