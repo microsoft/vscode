@@ -175,6 +175,7 @@ export class CodeWindow implements ICodeWindow {
 		}
 
 		// Create the browser window.
+		this.logService.info('Opening browser window with options:', options);
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
 
@@ -186,7 +187,9 @@ export class CodeWindow implements ICodeWindow {
 			try {
 				if (screen.getAllDisplays().length > 1) {
 					const [x, y] = this._win.getPosition();
+					this.logService.info('Acual browser window position [x,y]:', x, y);
 					if (x !== this.windowState.x || y !== this.windowState.y) {
+						this.logService.info('Resetting browser window position to window state:', this.windowState);
 						this._win.setPosition(this.windowState.x, this.windowState.y, false);
 					}
 				}
