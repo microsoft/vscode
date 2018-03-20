@@ -33,32 +33,33 @@ export default class TypeScriptRenameProvider implements RenameProvider {
 
 		try {
 			const response = await this.client.execute('rename', args, token);
-			const renameResponse = response.body;
-			if (!renameResponse) {
+			if (!response.body) {
 				return null;
 			}
 
-			const renameInfo = renameResponse.info;
+			const renameInfo = response.body.info;
 			if (!renameInfo.canRename) {
 				return Promise.reject<WorkspaceEdit>(renameInfo.localizedErrorMessage);
 			}
 
-			return this.toWorkspaceEdit(renameResponse.locs, newName);
-		} catch (e) {
+			return this.toWorkspaceEdit(response.body.locs, newName);
+		} catch {
 			// noop
 		}
 		return null;
 	}
 
-	private toWorkspaceEdit(locations: ReadonlyArray<Proto.SpanGroup>, newName: string) {
+	private toWorkspaceEdit(
+		locations: ReadonlyArray<Proto.SpanGroup>,
+		newName: string
+	) {
 		const result = new WorkspaceEdit();
 		for (const spanGroup of locations) {
 			const resource = this.client.asUrl(spanGroup.file);
-			if (!resource) {
-				continue;
-			}
-			for (const textSpan of spanGroup.locs) {
-				result.replace(resource, typeConverters.Range.fromTextSpan(textSpan), newName);
+			if (resource) {
+				for (const textSpan of spanGroup.locs) {
+					result.replace(resource, typeConverters.Range.fromTextSpan(textSpan), newName);
+				}
 			}
 		}
 		return result;
