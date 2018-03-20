@@ -58,12 +58,12 @@ declare module 'vscode' {
 	export class FoldingRange {
 
 		/**
-		 * The start line number (0-based)
+		 * The start line number (zero-based) of the range to fold. The hidden area starts after the last character of that line.
 		 */
 		startLine: number;
 
 		/**
-		 * The end line number (0-based)
+		 * The end line number (0-based) of the range to fold. The hidden area ends at the last character of that line.
 		 */
 		endLine: number;
 
