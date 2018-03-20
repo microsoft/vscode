@@ -10,7 +10,7 @@ export namespace EditorContextKeys {
 	/**
 	 * A context key that is set when the editor's text has focus (cursor is blinking).
 	 */
-	export const textFocus = new RawContextKey<boolean>('editorTextFocus', false);
+	export const editorTextFocus = new RawContextKey<boolean>('editorTextFocus', false);
 	/**
 	 * A context key that is set when the editor's text or an editor's widget has focus.
 	 */

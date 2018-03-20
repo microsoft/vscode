@@ -24,7 +24,7 @@ class ToggleBreakpointAction extends EditorAction {
 			alias: 'Debug: Toggle Breakpoint',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyCode.F9
 			}
 		});
@@ -172,7 +172,7 @@ class ShowDebugHoverAction extends EditorAction {
 			alias: 'Debug: Show Hover',
 			precondition: CONTEXT_IN_DEBUG_MODE,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
 			}
 		});

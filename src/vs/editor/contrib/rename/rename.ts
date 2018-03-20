@@ -216,7 +216,7 @@ export class RenameAction extends EditorAction {
 			alias: 'Rename Symbol',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasRenameProvider),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyCode.F2
 			},
 			menuOpts: {

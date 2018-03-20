@@ -33,7 +33,7 @@ class JumpToBracketAction extends EditorAction {
 			alias: 'Go to Bracket',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH
 			}
 		});

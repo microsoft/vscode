@@ -333,7 +333,7 @@ class ReplHistoryPreviousAction extends EditorAction {
 			alias: 'History Previous',
 			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textFocus, debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE),
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE),
 				primary: KeyCode.UpArrow,
 				weight: 50
 			},
@@ -357,7 +357,7 @@ class ReplHistoryNextAction extends EditorAction {
 			alias: 'History Next',
 			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textFocus, debug.CONTEXT_ON_LAST_DEBUG_REPL_LINE),
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, debug.CONTEXT_ON_LAST_DEBUG_REPL_LINE),
 				primary: KeyCode.DownArrow,
 				weight: 50
 			},
@@ -381,7 +381,7 @@ class AcceptReplInputAction extends EditorAction {
 			alias: 'REPL Accept Input',
 			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyCode.Enter
 			}
 		});
@@ -421,7 +421,7 @@ registerEditorCommand(new SuggestCommand({
 	handler: x => x.acceptSelectedSuggestion(),
 	kbOpts: {
 		weight: 50,
-		kbExpr: EditorContextKeys.textFocus,
+		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyCode.RightArrow
 	}
 }));

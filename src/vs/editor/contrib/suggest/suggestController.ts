@@ -318,7 +318,7 @@ export class TriggerSuggestAction extends EditorAction {
 			alias: 'Trigger Suggest',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCompletionItemProvider),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Space,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
 			}
@@ -350,7 +350,7 @@ registerEditorCommand(new SuggestCommand({
 	handler: x => x.acceptSelectedSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textFocus,
+		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyCode.Tab
 	}
 }));
@@ -361,7 +361,7 @@ registerEditorCommand(new SuggestCommand({
 	handler: x => x.acceptSelectedSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: ContextKeyExpr.and(EditorContextKeys.textFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
 		primary: KeyCode.Enter
 	}
 }));
@@ -372,7 +372,7 @@ registerEditorCommand(new SuggestCommand({
 	handler: x => x.cancelSuggestWidget(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textFocus,
+		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
@@ -384,7 +384,7 @@ registerEditorCommand(new SuggestCommand({
 	handler: c => c.selectNextSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textFocus,
+		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyCode.DownArrow,
 		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
 		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KEY_N] }
@@ -397,7 +397,7 @@ registerEditorCommand(new SuggestCommand({
 	handler: c => c.selectNextPageSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textFocus,
+		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyCode.PageDown,
 		secondary: [KeyMod.CtrlCmd | KeyCode.PageDown]
 	}
@@ -409,7 +409,7 @@ registerEditorCommand(new SuggestCommand({
 	handler: c => c.selectLastSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textFocus,
+		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyCode.End
 	}
 }));
@@ -420,7 +420,7 @@ registerEditorCommand(new SuggestCommand({
 	handler: c => c.selectPrevSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textFocus,
+		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyCode.UpArrow,
 		secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
 		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
@@ -433,7 +433,7 @@ registerEditorCommand(new SuggestCommand({
 	handler: c => c.selectPrevPageSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textFocus,
+		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyCode.PageUp,
 		secondary: [KeyMod.CtrlCmd | KeyCode.PageUp]
 	}
@@ -445,7 +445,7 @@ registerEditorCommand(new SuggestCommand({
 	handler: c => c.selectFirstSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textFocus,
+		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyCode.Home
 	}
 }));
@@ -456,7 +456,7 @@ registerEditorCommand(new SuggestCommand({
 	handler: x => x.toggleSuggestionDetails(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textFocus,
+		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
 	}
@@ -468,7 +468,7 @@ registerEditorCommand(new SuggestCommand({
 	handler: x => x.toggleSuggestionFocus(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textFocus,
+		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Space }
 	}

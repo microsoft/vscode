@@ -68,7 +68,7 @@ export class ReferenceAction extends EditorAction {
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyCode.F12
 			},
 			menuOpts: {
