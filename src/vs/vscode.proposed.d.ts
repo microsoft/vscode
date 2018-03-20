@@ -259,7 +259,7 @@ declare module 'vscode' {
 
 	export interface TextSearchQuery {
 		pattern: string;
-		isRegex?: boolean;
+		isRegExp?: boolean;
 		isCaseSensitive?: boolean;
 		isWordMatch?: boolean;
 	}
