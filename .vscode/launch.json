@@ -165,12 +165,12 @@
 			"name": "VS Code Markdown Extension Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"${workspaceFolder}/extensions/markdown/test-fixtures",
-				"--extensionDevelopmentPath=${workspaceFolder}/extensions/markdown",
-				"--extensionTestsPath=${workspaceFolder}/extensions/markdown/out/test"
+				"${workspaceFolder}/extensions/markdown-language-features/test-fixtures",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/markdown-language-features",
+				"--extensionTestsPath=${workspaceFolder}/extensions/markdown-language-features/out/test"
 			],
 			"outFiles": [
-				"${workspaceFolder}/extensions/markdown/out/**/*.js"
+				"${workspaceFolder}/extensions/markdown-language-features/out/**/*.js"
 			]
 		},
 		{

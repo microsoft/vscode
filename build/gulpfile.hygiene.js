@@ -82,7 +82,7 @@ const indentationFilter = [
 	'!build/**/*.sh',
 	'!build/tfs/**/*.js',
 	'!**/Dockerfile',
-	'!extensions/markdown/media/*.js'
+	'!extensions/markdown-language-features/media/*.js'
 ];
 
 const copyrightFilter = [
@@ -104,7 +104,7 @@ const copyrightFilter = [
 	'!build/**/*.init',
 	'!resources/linux/snap/snapcraft.yaml',
 	'!resources/win32/bin/code.js',
-	'!extensions/markdown/media/tomorrow.css',
+	'!extensions/markdown-language-features/media/tomorrow.css',
 	'!extensions/html-language-features/server/src/modes/typescript/*'
 ];
 
