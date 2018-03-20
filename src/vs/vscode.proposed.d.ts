@@ -228,9 +228,6 @@ declare module 'vscode' {
 
 		readonly onDidChange?: Event<FileChange[]>;
 
-		// todo@joh - remove this
-		readonly root?: Uri;
-
 		// more...
 		//
 		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
