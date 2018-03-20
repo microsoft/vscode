@@ -32,12 +32,7 @@ export default class TypeScriptDefinitionProviderBase {
 			if (!locations || locations.length === 0) {
 				return [];
 			}
-			return locations.map(location => {
-				const resource = this.client.asUrl(location.file);
-				return resource
-					? typeConverters.Location.fromTextSpan(resource, location)
-					: undefined;
-			}).filter(x => x) as Location[];
+			return locations.map(location => typeConverters.Location.fromTextSpan(this.client.asUrl(location.file), location));
 		} catch {
 			return [];
 		}
