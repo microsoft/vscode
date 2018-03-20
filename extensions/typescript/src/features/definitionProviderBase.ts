@@ -29,10 +29,8 @@ export default class TypeScriptDefinitionProviderBase {
 		try {
 			const response = await this.client.execute(definitionType, args, token);
 			const locations: Proto.FileSpan[] = (response && response.body) || [];
-			if (!locations || locations.length === 0) {
-				return [];
-			}
-			return locations.map(location => typeConverters.Location.fromTextSpan(this.client.asUrl(location.file), location));
+			return locations.map(location =>
+				typeConverters.Location.fromTextSpan(this.client.asUrl(location.file), location));
 		} catch {
 			return [];
 		}
