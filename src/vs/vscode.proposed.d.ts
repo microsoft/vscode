@@ -634,10 +634,10 @@ declare module 'vscode' {
 		/**
 		 * Shows the webview in a given column.
 		 *
-		 * A webview may only show in a single column at a time. If it is already showing, this
+		 * A webview may only be in a single column at a time. If it is already showing, this
 		 * command moves it to a new column.
 		 */
-		show(viewColumn: ViewColumn): void;
+		reveal(viewColumn: ViewColumn): void;
 
 		/**
 		 * Dispose of the the webview.

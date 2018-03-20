@@ -87,7 +87,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 		webview.setHtml(value);
 	}
 
-	$show(handle: WebviewHandle, column: Position): void {
+	$reveal(handle: WebviewHandle, column: Position): void {
 		const webviewInput = this.getWebview(handle);
 		if (webviewInput.position === column) {
 			this._editorService.openEditor(webviewInput, { preserveFocus: true }, column);

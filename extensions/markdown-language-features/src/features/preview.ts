@@ -189,8 +189,8 @@ export class MarkdownPreview {
 		return this.matchesResource(otherPreview._resource, otherPreview.viewColumn, otherPreview.locked);
 	}
 
-	public show(viewColumn: vscode.ViewColumn) {
-		this.webview.show(viewColumn);
+	public reveal(viewColumn: vscode.ViewColumn) {
+		this.webview.reveal(viewColumn);
 	}
 
 	public toggleLock() {

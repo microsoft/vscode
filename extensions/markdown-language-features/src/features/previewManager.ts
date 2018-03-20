@@ -63,7 +63,7 @@ export class MarkdownPreviewManager {
 	): void {
 		let preview = this.getExistingPreview(resource, previewSettings);
 		if (preview) {
-			preview.show(previewSettings.previewColumn);
+			preview.reveal(previewSettings.previewColumn);
 		} else {
 			preview = this.createNewPreview(resource, previewSettings);
 			this.previews.push(preview);

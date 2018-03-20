@@ -115,9 +115,9 @@ export class ExtHostWebview implements vscode.Webview {
 		return this._proxy.$sendMessage(this._handle, message);
 	}
 
-	public show(viewColumn: vscode.ViewColumn): void {
+	public reveal(viewColumn: vscode.ViewColumn): void {
 		this.assertNotDisposed();
-		this._proxy.$show(this._handle, typeConverters.fromViewColumn(viewColumn));
+		this._proxy.$reveal(this._handle, typeConverters.fromViewColumn(viewColumn));
 	}
 
 	private assertNotDisposed() {
