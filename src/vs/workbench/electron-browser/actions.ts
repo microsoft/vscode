@@ -137,7 +137,8 @@ export class ToggleMenuBarAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(id, label);
 	}
@@ -150,7 +151,7 @@ export class ToggleMenuBarAction extends Action {
 
 		let newVisibilityValue: string;
 		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'default') {
-			newVisibilityValue = 'toggle';
+			newVisibilityValue = this.keybindingService.lookupKeybindings(this.id)[0] ? 'hidden' : 'toggle';
 		} else {
 			newVisibilityValue = 'default';
 		}
