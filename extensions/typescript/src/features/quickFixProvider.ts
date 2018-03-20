@@ -11,7 +11,6 @@ import * as typeConverters from '../utils/typeConverters';
 import FormattingConfigurationManager from './formattingConfigurationManager';
 import { getEditForCodeAction, applyCodeActionCommands } from '../utils/codeAction';
 import { Command, CommandManager } from '../utils/commandManager';
-import { createWorkspaceEditFromFileCodeEdits } from '../utils/workspaceEdit';
 import DiagnosticsManager from './diagnostics';
 
 import * as nls from 'vscode-nls';
@@ -63,7 +62,7 @@ class ApplyFixAllCodeAction implements Command {
 				return;
 			}
 
-			const edit = createWorkspaceEditFromFileCodeEdits(this.client, combinedCodeFixesResponse.body.changes);
+			const edit = typeConverters.WorkspaceEdit.createWorkspaceEditFromFileCodeEdits(this.client, combinedCodeFixesResponse.body.changes);
 			await vscode.workspace.applyEdit(edit);
 
 			if (combinedCodeFixesResponse.command) {

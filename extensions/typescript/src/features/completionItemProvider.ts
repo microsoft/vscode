@@ -16,7 +16,6 @@ import * as typeConverters from '../utils/typeConverters';
 import * as nls from 'vscode-nls';
 import { applyCodeAction } from '../utils/codeAction';
 import { CommandManager, Command } from '../utils/commandManager';
-import { tsCodeEditToVsTextEdit } from '../utils/workspaceEdit';
 
 const localize = nls.loadMessageBundle();
 
@@ -387,7 +386,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 			if (tsAction.changes) {
 				for (const change of tsAction.changes) {
 					if (change.fileName === filepath) {
-						additionalTextEdits.push(...change.textChanges.map(tsCodeEditToVsTextEdit));
+						additionalTextEdits.push(...change.textChanges.map(typeConverters.TextEdit.fromCodeEdit));
 					} else {
 						hasReaminingCommandsOrEdits = true;
 					}

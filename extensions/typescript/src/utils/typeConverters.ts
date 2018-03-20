@@ -9,6 +9,7 @@
 
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
+import { ITypeScriptServiceClient } from '../typescriptService';
 
 export namespace Range {
 	export const fromTextSpan = (span: Proto.TextSpan): vscode.Range =>
@@ -36,5 +37,30 @@ export namespace Position {
 	});
 }
 
+
+export namespace TextEdit {
+	export const fromCodeEdit = (edit: Proto.CodeEdit): vscode.TextEdit =>
+		new vscode.TextEdit(
+			Range.fromTextSpan(edit),
+			edit.newText);
+}
+
+export namespace WorkspaceEdit {
+	export function createWorkspaceEditFromFileCodeEdits(
+		client: ITypeScriptServiceClient,
+		edits: Iterable<Proto.FileCodeEdits>
+	): vscode.WorkspaceEdit {
+		const workspaceEdit = new vscode.WorkspaceEdit();
+		for (const edit of edits) {
+			for (const textChange of edit.textChanges) {
+				workspaceEdit.replace(client.asUrl(edit.fileName),
+					Range.fromTextSpan(textChange),
+					textChange.newText);
+			}
+		}
+
+		return workspaceEdit;
+	}
+}
 
 
