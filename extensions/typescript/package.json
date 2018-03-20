@@ -471,7 +471,7 @@
     "keybindings": [
       {
         "command": "typescript.organizeImports",
-        "key": "shift+ctrl+o",
+        "key": "shift+alt+o",
         "when": "typescript.isManagedFile && typescript.canOrganizeImports"
       }
     ],
