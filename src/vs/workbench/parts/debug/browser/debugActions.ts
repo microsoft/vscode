@@ -586,9 +586,9 @@ export class AddConditionalBreakpointAction extends AbstractDebugAction {
 	}
 }
 
-export class EditConditionalBreakpointAction extends AbstractDebugAction {
-	static readonly ID = 'workbench.debug.viewlet.action.editConditionalBreakpointAction';
-	static LABEL = nls.localize('editConditionalBreakpoint', "Edit Breakpoint...");
+export class EditBreakpointAction extends AbstractDebugAction {
+	static readonly ID = 'workbench.debug.action.editBreakpointAction';
+	static LABEL = nls.localize('editBreakpoint', "Edit Breakpoint...");
 
 	constructor(id: string, label: string,
 		private editor: ICodeEditor,

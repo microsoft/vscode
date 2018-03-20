@@ -30,7 +30,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DebugHoverWidget } from 'vs/workbench/parts/debug/electron-browser/debugHover';
-import { RemoveBreakpointAction, EditConditionalBreakpointAction, EnableBreakpointAction, DisableBreakpointAction, AddConditionalBreakpointAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { RemoveBreakpointAction, EditBreakpointAction, EnableBreakpointAction, DisableBreakpointAction, AddConditionalBreakpointAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, IStackFrame, IDebugConfiguration, IExpression, IExceptionInfo, BreakpointWidgetContext } from 'vs/workbench/parts/debug/common/debug';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { ExceptionWidget } from 'vs/workbench/parts/debug/browser/exceptionWidget';
@@ -93,7 +93,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const actions: (IAction | ContextSubMenu)[] = [];
 		if (breakpoints.length === 1) {
 			actions.push(new RemoveBreakpointAction(RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL, this.debugService, this.keybindingService));
-			actions.push(new EditConditionalBreakpointAction(EditConditionalBreakpointAction.ID, EditConditionalBreakpointAction.LABEL, this.editor, this.debugService, this.keybindingService));
+			actions.push(new EditBreakpointAction(EditBreakpointAction.ID, EditBreakpointAction.LABEL, this.editor, this.debugService, this.keybindingService));
 			if (breakpoints[0].enabled) {
 				actions.push(new DisableBreakpointAction(DisableBreakpointAction.ID, DisableBreakpointAction.LABEL, this.debugService, this.keybindingService));
 			} else {
