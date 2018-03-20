@@ -390,6 +390,7 @@ export interface ITextModelCreationOptions {
 	detectIndentation: boolean;
 	trimAutoWhitespace: boolean;
 	defaultEOL: DefaultEndOfLine;
+	isForSimpleWidget: boolean;
 }
 
 export interface ITextModelUpdateOptions {
@@ -448,6 +449,12 @@ export interface ITextModel {
 	 * A unique identifier associated with this model.
 	 */
 	readonly id: string;
+
+	/**
+	 * This model is constructed for a simple widget code editor.
+	 * @internal
+	 */
+	readonly isForSimpleWidget: boolean;
 
 	/**
 	 * If true, the text model might contain RTL.
