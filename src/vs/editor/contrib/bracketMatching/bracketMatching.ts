@@ -176,41 +176,47 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		if (!model) {
 			return;
 		}
-		const selection = this._editor.getSelection();
-		if (!selection.isEmpty()) {
-			return;
-		}
 
-		const position = selection.getStartPosition();
+		let newSelections: Selection[] = [];
 
-		let brackets = model.matchBracket(position);
+		this._editor.getSelections().forEach(selection => {
+			const position = selection.getStartPosition();
 
-		let openBracket: Position = null;
-		let closeBracket: Position = null;
+			let brackets = model.matchBracket(position);
 
-		if (!brackets) {
-			const nextBracket = model.findNextBracket(position);
-			if (nextBracket && nextBracket.range) {
-				brackets = model.matchBracket(nextBracket.range.getStartPosition());
+			let openBracket: Position = null;
+			let closeBracket: Position = null;
+
+			if (!brackets) {
+				const nextBracket = model.findNextBracket(position);
+				if (nextBracket && nextBracket.range) {
+					brackets = model.matchBracket(nextBracket.range.getStartPosition());
+				}
 			}
-		}
 
-		if (brackets) {
-			if (brackets[0].startLineNumber === brackets[1].startLineNumber) {
-				openBracket = brackets[1].startColumn < brackets[0].startColumn ?
-					brackets[1].getStartPosition() : brackets[0].getStartPosition();
-				closeBracket = brackets[1].startColumn < brackets[0].startColumn ?
-					brackets[0].getEndPosition() : brackets[1].getEndPosition();
-			} else {
-				openBracket = brackets[1].startLineNumber < brackets[0].startLineNumber ?
-					brackets[1].getStartPosition() : brackets[0].getStartPosition();
-				closeBracket = brackets[1].startLineNumber < brackets[0].startLineNumber ?
-					brackets[0].getEndPosition() : brackets[1].getEndPosition();
+			if (brackets) {
+				if (brackets[0].startLineNumber === brackets[1].startLineNumber) {
+					openBracket = brackets[1].startColumn < brackets[0].startColumn ?
+						brackets[1].getStartPosition() : brackets[0].getStartPosition();
+					closeBracket = brackets[1].startColumn < brackets[0].startColumn ?
+						brackets[0].getEndPosition() : brackets[1].getEndPosition();
+				} else {
+					openBracket = brackets[1].startLineNumber < brackets[0].startLineNumber ?
+						brackets[1].getStartPosition() : brackets[0].getStartPosition();
+					closeBracket = brackets[1].startLineNumber < brackets[0].startLineNumber ?
+						brackets[0].getEndPosition() : brackets[1].getEndPosition();
+				}
 			}
-		}
 
-		if (openBracket && closeBracket) {
-			this._editor.setSelection(new Range(openBracket.lineNumber, openBracket.column, closeBracket.lineNumber, closeBracket.column));
+			if (openBracket && closeBracket) {
+				newSelections.push(new Selection(openBracket.lineNumber, openBracket.column, closeBracket.lineNumber, closeBracket.column));
+			}
+		});
+
+
+		if (newSelections.length > 0) {
+			this._editor.setSelections(newSelections);
+			this._editor.revealRange(newSelections[0]);
 		}
 	}
 
