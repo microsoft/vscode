@@ -4989,6 +4989,7 @@ declare namespace monaco.languages {
 	export interface RenameContext {
 		range: IRange;
 		text: string;
+		message?: string;
 	}
 
 	export interface RenameProvider {

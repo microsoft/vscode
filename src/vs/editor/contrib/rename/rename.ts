@@ -131,24 +131,30 @@ class RenameController implements IEditorContribution {
 
 	public async run(): TPromise<void> {
 
-		const skeleton = new RenameSkeleton(this.editor.getModel(), this.editor.getPosition());
+		const position = this.editor.getPosition();
+		const skeleton = new RenameSkeleton(this.editor.getModel(), position);
 
-		let initialValue = await skeleton.resolveRenameInformation();
-		if (!initialValue) {
+		let context = await skeleton.resolveRenameInformation();
+		if (!context) {
+			return undefined;
+		}
+
+		if (context.message) {
+			MessageController.get(this.editor).showMessage(context.message, position);
 			return undefined;
 		}
 
 		let selection = this.editor.getSelection();
 		let selectionStart = 0;
-		let selectionEnd = initialValue.text.length;
+		let selectionEnd = context.text.length;
 
 		if (!selection.isEmpty() && selection.startLineNumber === selection.endLineNumber) {
-			selectionStart = Math.max(0, selection.startColumn - initialValue.range.startColumn);
-			selectionEnd = Math.min(initialValue.range.endColumn, selection.endColumn) - initialValue.range.startColumn;
+			selectionStart = Math.max(0, selection.startColumn - context.range.startColumn);
+			selectionEnd = Math.min(context.range.endColumn, selection.endColumn) - context.range.startColumn;
 		}
 
 		this._renameInputVisible.set(true);
-		return this._renameInputField.getInput(Range.lift(initialValue.range), initialValue.text, selectionStart, selectionEnd).then(newNameOrFocusFlag => {
+		return this._renameInputField.getInput(Range.lift(context.range), context.text, selectionStart, selectionEnd).then(newNameOrFocusFlag => {
 			this._renameInputVisible.reset();
 
 			if (typeof newNameOrFocusFlag === 'boolean') {
@@ -179,7 +185,7 @@ class RenameController implements IEditorContribution {
 						this.editor.setSelection(selection);
 					}
 					// alert
-					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", initialValue.text, newNameOrFocusFlag, edit.ariaMessage()));
+					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", context.text, newNameOrFocusFlag, edit.ariaMessage()));
 				});
 
 			}, err => {
