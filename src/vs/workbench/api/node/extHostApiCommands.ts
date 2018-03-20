@@ -474,7 +474,7 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(typeConverters.DocumentLink.to));
 	}
 
-	private _executeTaskProvider(): Thenable<vscode.TaskItem[]> {
+	private _executeTaskProvider(): Thenable<vscode.Task[]> {
 		return this._tasks.executeTaskProvider();
 	}
 }

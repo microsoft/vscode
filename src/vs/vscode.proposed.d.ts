@@ -743,30 +743,6 @@ declare module 'vscode' {
 	//#region Tasks
 
 	/**
-	 * A task item represents a task in the system. It can be used to
-	 * present task information in the user interface or to execute the
-	 * underlying task.
-	 */
-	export interface TaskItem {
-
-		/**
-		 * A human readable label of the task.
-		 */
-		readonly label: string;
-
-		/**
-		 * The task definition.
-		 */
-		readonly definition: TaskDefinition;
-
-		/**
-		 * The workspace folder the task belongs to. Is undefined
-		 * to tasks that aren't scoped to a workspace folder.
-		 */
-		readonly workspaceFolder: WorkspaceFolder | undefined;
-	}
-
-	/**
 	 * An object representing an executed Task. It can be used
 	 * to terminate a task.
 	 */
@@ -802,7 +778,7 @@ declare module 'vscode' {
 		 *
 		 * @param task the task to execute
 		 */
-		export function executeTask(task: TaskItem): Thenable<TaskExecution>;
+		export function executeTask(task: Task): Thenable<TaskExecution>;
 
 		/**
 		 * Fires when a task starts.

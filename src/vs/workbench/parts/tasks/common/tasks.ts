@@ -630,6 +630,16 @@ export namespace Task {
 		return result;
 	}
 
+	export function getTaskDefinition(task: Task): TaskIdentifier {
+		if (ContributedTask.is(task)) {
+			return task.defines;
+		} else if (CustomTask.is(task) && task.command !== void 0) {
+			return CustomTask.getDefinition(task);
+		} else {
+			return undefined;
+		}
+	}
+
 	export function getTaskExecution(task: Task): TaskExecution {
 		let result: TaskExecution = {
 			id: task._id

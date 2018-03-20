@@ -49,7 +49,7 @@ import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import { ILineMatch, IPatternInfo } from 'vs/platform/search/common/search';
 import { LogLevel } from 'vs/platform/log/common/log';
-import { TaskExecutionTransfer, TaskItemTransfer } from '../common/commonTask';
+import { TaskExecutionTransfer, TaskItemTransfer, TaskDTO } from '../common/commonTask';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -385,7 +385,7 @@ export interface MainThreadFileSystemShape extends IDisposable {
 
 export interface MainThreadTaskShape extends IDisposable {
 	$registerTaskProvider(handle: number): TPromise<void>;
-	$executeTaskProvider(): TPromise<TaskItemTransfer[]>;
+	$executeTaskProvider(): TPromise<TaskDTO[]>;
 	$executeTask(task: TaskItemTransfer): TPromise<TaskExecutionTransfer>;
 	$terminateTask(task: TaskExecutionTransfer): TPromise<void>;
 	$unregisterTaskProvider(handle: number): TPromise<void>;
