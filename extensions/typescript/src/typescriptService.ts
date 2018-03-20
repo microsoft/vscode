@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { CancellationToken, Uri, Event } from 'vscode';
 import * as Proto from './protocol';
 import API from './utils/api';
@@ -59,5 +58,6 @@ export interface ITypeScriptServiceClient {
 	execute(command: 'getEditsForRefactor', args: Proto.GetEditsForRefactorRequestArgs, token?: CancellationToken): Promise<Proto.GetEditsForRefactorResponse>;
 	execute(command: 'applyCodeActionCommand', args: Proto.ApplyCodeActionCommandRequestArgs, token?: CancellationToken): Promise<Proto.ApplyCodeActionCommandResponse>;
 	execute(command: 'organizeImports', args: Proto.OrganizeImportsRequestArgs, token?: CancellationToken): Promise<Proto.OrganizeImportsResponse>;
+	execute(command: 'getOutliningSpans', args: Proto.FileRequestArgs, token: CancellationToken): Promise<Proto.OutliningSpansResponse>;
 	execute(command: string, args: any, expectedResult: boolean | CancellationToken, token?: CancellationToken): Promise<any>;
 }
