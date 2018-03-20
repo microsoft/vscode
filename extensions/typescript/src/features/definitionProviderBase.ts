@@ -35,7 +35,7 @@ export default class TypeScriptDefinitionProviderBase {
 			return locations.map(location => {
 				const resource = this.client.asUrl(location.file);
 				return resource
-					? new Location(resource, typeConverters.Range.fromTextSpan(location))
+					? typeConverters.Location.fromTextSpan(resource, location)
 					: undefined;
 			}).filter(x => x) as Location[];
 		} catch {

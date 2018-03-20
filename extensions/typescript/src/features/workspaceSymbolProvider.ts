@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, window, Uri, WorkspaceSymbolProvider, SymbolInformation, SymbolKind, Location, CancellationToken } from 'vscode';
+import { workspace, window, Uri, WorkspaceSymbolProvider, SymbolInformation, SymbolKind, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
@@ -71,10 +71,9 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 			if (!item.containerName && item.kind === 'alias') {
 				continue;
 			}
-			const range = typeConverters.Range.fromTextSpan(item);
 			const label = TypeScriptWorkspaceSymbolProvider.getLabel(item);
 			result.push(new SymbolInformation(label, getSymbolKind(item), item.containerName || '',
-				new Location(this.client.asUrl(item.file), range)));
+				typeConverters.Location.fromTextSpan(this.client.asUrl(item.file), item)));
 		}
 		return result;
 	}

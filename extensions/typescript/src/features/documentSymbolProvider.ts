@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DocumentSymbolProvider, SymbolInformation, SymbolKind, TextDocument, Location, CancellationToken, Uri } from 'vscode';
+import { DocumentSymbolProvider, SymbolInformation, SymbolKind, TextDocument, CancellationToken, Uri } from 'vscode';
 
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
@@ -71,7 +71,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 			let result = new SymbolInformation(item.text,
 				outlineTypeTable[item.kind as string] || SymbolKind.Variable,
 				containerLabel ? containerLabel : '',
-				new Location(resource, typeConverters.Range.fromTextSpan(item.spans[0])));
+				typeConverters.Location.fromTextSpan(resource, item.spans[0]));
 			foldingMap[key] = result;
 			bucket.push(result);
 		}
@@ -86,7 +86,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 		const result = new SymbolInformation(item.text,
 			outlineTypeTable[item.kind as string] || SymbolKind.Variable,
 			containerLabel ? containerLabel : '',
-			new Location(resource, typeConverters.Range.fromTextSpan(item.spans[0]))
+			typeConverters.Location.fromTextSpan(resource, item.spans[0])
 		);
 		if (item.childItems && item.childItems.length > 0) {
 			for (const child of item.childItems) {

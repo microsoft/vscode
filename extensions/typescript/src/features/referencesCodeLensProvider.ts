@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeLens, CancellationToken, TextDocument, Range, Location, workspace } from 'vscode';
+import { CodeLens, CancellationToken, TextDocument, Range, workspace } from 'vscode';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 
@@ -45,7 +45,7 @@ export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBase
 
 			const locations = response.body.refs
 				.map(reference =>
-					new Location(this.client.asUrl(reference.file), typeConverters.Range.fromTextSpan(reference)))
+					typeConverters.Location.fromTextSpan(this.client.asUrl(reference.file), reference))
 				.filter(location =>
 					// Exclude original definition from references
 					!(location.uri.toString() === codeLens.document.toString() &&

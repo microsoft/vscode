@@ -37,6 +37,11 @@ export namespace Position {
 	});
 }
 
+export namespace Location {
+	export const fromTextSpan = (resource: vscode.Uri, tsTextSpan: Proto.TextSpan): vscode.Location =>
+		new vscode.Location(resource, Range.fromTextSpan(tsTextSpan));
+}
+
 export namespace TextEdit {
 	export const fromCodeEdit = (edit: Proto.CodeEdit): vscode.TextEdit =>
 		new vscode.TextEdit(

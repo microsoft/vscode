@@ -36,7 +36,7 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 					continue;
 				}
 				const url = this.client.asUrl(ref.file);
-				const location = new Location(url, typeConverters.Range.fromTextSpan(ref));
+				const location = typeConverters.Location.fromTextSpan(url, ref);
 				result.push(location);
 			}
 			return result;
