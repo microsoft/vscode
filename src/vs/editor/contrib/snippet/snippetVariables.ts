@@ -185,12 +185,13 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 
 export class TimeBasedVariableResolver implements VariableResolver {
 
+	private static readonly dayNames = [nls.localize('Sunday', "Sunday"), nls.localize('Monday', "Monday"), nls.localize('Tuesday', "Tuesday"), nls.localize('Wednesday', "Wednesday"), nls.localize('Thursday', "Thursday"), nls.localize('Friday', "Friday"), nls.localize('Saturday', "Saturday")];
+	private static readonly dayNamesShort = [nls.localize('SundayShort', "Sun"), nls.localize('MondayShort', "Mon"), nls.localize('TuesdayShort', "Tue"), nls.localize('WednesdayShort', "Wed"), nls.localize('ThursdayShort', "Thu"), nls.localize('FridayShort', "Fri"), nls.localize('SaturdayShort', "Sat")];
+	private static readonly monthNames = [nls.localize('January', "January"), nls.localize('February', "February"), nls.localize('March', "March"), nls.localize('April', "April"), nls.localize('May', "May"), nls.localize('June', "June"), nls.localize('July', "July"), nls.localize('August', "August"), nls.localize('September', "September"), nls.localize('October', "October"), nls.localize('November', "November"), nls.localize('December', "December")];
+	private static readonly monthNamesShort = [nls.localize('JanuaryShort', "Jan"), nls.localize('FebruaryShort', "Feb"), nls.localize('MarchShort', "Mar"), nls.localize('AprilShort', "Apr"), nls.localize('MayShort', "May"), nls.localize('JuneShort', "Jun"), nls.localize('JulyShort', "Jul"), nls.localize('AugustShort', "Aug"), nls.localize('SeptemberShort', "Sep"), nls.localize('OctoberShort', "Oct"), nls.localize('NovemberShort', "Nov"), nls.localize('DecemberShort', "Dec")];
+
 	resolve(variable: Variable): string {
 		const { name } = variable;
-		const dayNames = [nls.localize('Sunday', "Sunday"), nls.localize('Monday', "Monday"), nls.localize('Tuesday', "Tuesday"), nls.localize('Wednesday', "Wednesday"), nls.localize('Thursday', "Thursday"), nls.localize('Friday', "Friday"), nls.localize('Saturday', "Saturday")];
-		const dayNamesShort = [nls.localize('SundayShort', "Sun"), nls.localize('MondayShort', "Mon"), nls.localize('TuesdayShort', "Tue"), nls.localize('WednesdayShort', "Wed"), nls.localize('ThursdayShort', "Thu"), nls.localize('FridayShort', "Fri"), nls.localize('SaturdayShort', "Sat")];
-		const monthNames = [nls.localize('January', "January"), nls.localize('February', "February"), nls.localize('March', "March"), nls.localize('April', "April"), nls.localize('May', "May"), nls.localize('June', "June"), nls.localize('July', "July"), nls.localize('August', "August"), nls.localize('September', "September"), nls.localize('October', "October"), nls.localize('November', "November"), nls.localize('December', "December")];
-		const monthNamesShort = [nls.localize('JanuaryShort', "Jan"), nls.localize('FebruaryShort', "Feb"), nls.localize('MarchShort', "Mar"), nls.localize('AprilShort', "Apr"), nls.localize('MayShort', "May"), nls.localize('JuneShort', "Jun"), nls.localize('JulyShort', "Jul"), nls.localize('AugustShort', "Aug"), nls.localize('SeptemberShort', "Sep"), nls.localize('OctoberShort', "Oct"), nls.localize('NovemberShort', "Nov"), nls.localize('DecemberShort', "Dec")];
 
 		if (name === 'CURRENT_YEAR') {
 			return String(new Date().getFullYear());
@@ -207,13 +208,13 @@ export class TimeBasedVariableResolver implements VariableResolver {
 		} else if (name === 'CURRENT_SECOND') {
 			return pad(new Date().getSeconds().valueOf(), 2);
 		} else if (name === 'CURRENT_DAY_NAME') {
-			return dayNames[new Date().getDay()];
+			return TimeBasedVariableResolver.dayNames[new Date().getDay()];
 		} else if (name === 'CURRENT_DAY_NAME_SHORT') {
-			return dayNamesShort[new Date().getDay()];
+			return TimeBasedVariableResolver.dayNamesShort[new Date().getDay()];
 		} else if (name === 'CURRENT_MONTH_NAME') {
-			return monthNames[new Date().getMonth()];
+			return TimeBasedVariableResolver.monthNames[new Date().getMonth()];
 		} else if (name === 'CURRENT_MONTH_NAME_SHORT') {
-			return monthNamesShort[new Date().getMonth()];
+			return TimeBasedVariableResolver.monthNamesShort[new Date().getMonth()];
 		}
 
 		return undefined;
