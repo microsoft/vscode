@@ -408,58 +408,37 @@
     "commands": [
       {
         "command": "typescript.reloadProjects",
-        "title": {
-          "original": "Reload Project",
-          "value": "%typescript.reloadProjects.title%"
-        },
+        "title": "%typescript.reloadProjects.title%",
         "category": "TypeScript"
       },
       {
         "command": "javascript.reloadProjects",
-        "title": {
-          "original": "Reload Project",
-          "value": "%javascript.reloadProjects.title%"
-        },
+        "title": "%javascript.reloadProjects.title%",
         "category": "JavaScript"
       },
       {
         "command": "typescript.selectTypeScriptVersion",
-        "title": {
-          "original": "Select TypeScript Version",
-          "value": "%typescript.selectTypeScriptVersion.title%"
-        },
+        "title": "%typescript.selectTypeScriptVersion.title%",
         "category": "TypeScript"
       },
       {
         "command": "typescript.goToProjectConfig",
-        "title": {
-          "original": "Go to Project Configuration",
-          "value": "%typescript.goToProjectConfig.title%"
-        },
+        "title": "%typescript.goToProjectConfig.title%",
         "category": "TypeScript"
       },
       {
         "command": "javascript.goToProjectConfig",
-        "title": {
-          "original": "Go to Project Configuration",
-          "value": "%javascript.goToProjectConfig.title%"
-        },
+        "title": "%javascript.goToProjectConfig.title%",
         "category": "JavaScript"
       },
       {
         "command": "typescript.openTsServerLog",
-        "title": {
-          "original": "Open TS Server log",
-          "value": "%typescript.openTsServerLog.title%"
-        },
+        "title": "%typescript.openTsServerLog.title%",
         "category": "TypeScript"
       },
       {
         "command": "typescript.restartTsServer",
-        "title": {
-          "original": "Restart TS server",
-          "value": "%typescript.restartTsServer%"
-        },
+        "title": "%typescript.restartTsServer%",
         "category": "TypeScript"
       },
       {
@@ -535,7 +514,6 @@
         "language": "typescriptreact"
       }
     ],
-
     "taskDefinitions": [
       {
         "type": "typescript",
