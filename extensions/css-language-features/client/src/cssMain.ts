@@ -8,8 +8,9 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, window, commands, ExtensionContext, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString } from 'vscode';
+import { languages, window, commands, ExtensionContext, Range, Position, TextDocument, CompletionItem, CompletionItemKind, TextEdit, SnippetString, FoldingRangeList, FoldingRange, FoldingContext, CancellationToken } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient';
+import { FoldingRangesRequest, FoldingRangeRequestParam } from './protocol/foldingProvider.proposed';
 
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
@@ -89,6 +90,24 @@ export function activate(context: ExtensionContext) {
 				return [beginProposal, endProposal];
 			}
 			return null;
+		}
+	});
+
+	languages.registerFoldingProvider(documentSelector, {
+		provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken) {
+			const param: FoldingRangeRequestParam = {
+				textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+				maxRanges: context.maxRanges
+			};
+			return client.sendRequest(FoldingRangesRequest.type, param, token).then(res => {
+				if (res && Array.isArray(res.ranges)) {
+					return new FoldingRangeList(res.ranges.map(r => new FoldingRange(r.startLine, r.endLine, r.type)));
+				}
+				return null;
+			}, error => {
+				client.logFailedRequest(FoldingRangesRequest.type, error);
+				return null;
+			});
 		}
 	});
 
