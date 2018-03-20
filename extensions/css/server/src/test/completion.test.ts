@@ -9,10 +9,9 @@ import * as assert from 'assert';
 import * as path from 'path';
 import Uri from 'vscode-uri';
 import { TextDocument, CompletionList } from 'vscode-languageserver-types';
-import { applyEdits } from '../utils/edits';
+import { WorkspaceFolder } from 'vscode-languageserver-protocol';
 import { getPathCompletionParticipant } from '../pathCompletion';
-import { Proposed } from 'vscode-languageserver-protocol';
-import { getCSSLanguageService } from 'vscode-css-languageservice/lib/umd/cssLanguageService';
+import { getCSSLanguageService } from 'vscode-css-languageservice';
 
 export interface ItemDescription {
 	label: string;
@@ -30,11 +29,11 @@ suite('Completions', () => {
 		assert.equal(matches.length, 1, `${expected.label} should only existing once: Actual: ${completions.items.map(c => c.label).join(', ')}`);
 		let match = matches[0];
 		if (expected.resultText && match.textEdit) {
-			assert.equal(applyEdits(document, [match.textEdit]), expected.resultText);
+			assert.equal(TextDocument.applyEdits(document, [match.textEdit]), expected.resultText);
 		}
 	};
 
-	function assertCompletions(value: string, expected: { count?: number, items?: ItemDescription[] }, testUri: string, workspaceFolders?: Proposed.WorkspaceFolder[]): void {
+	function assertCompletions(value: string, expected: { count?: number, items?: ItemDescription[] }, testUri: string, workspaceFolders?: WorkspaceFolder[]): void {
 		const offset = value.indexOf('|');
 		value = value.substr(0, offset) + value.substr(offset + 1);
 
