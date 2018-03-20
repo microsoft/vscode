@@ -40,7 +40,9 @@ export class ConfigureLocaleAction extends Action {
 
 	public run(event?: any): TPromise<IEditor> {
 		const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
-		return this.fileService.resolveFile(file).then(null, (error) => {
+		return this.fileService.resolveFile(file).then(() => {
+			return this.fileService.updateContent(file, ConfigureLocaleAction.DEFAULT_CONTENT);
+		}, (error) => {
 			return this.fileService.createFile(file, ConfigureLocaleAction.DEFAULT_CONTENT);
 		}).then((stat) => {
 			if (!stat) {
