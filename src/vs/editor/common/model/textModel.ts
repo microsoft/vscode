@@ -1764,8 +1764,39 @@ export class TextModel extends Disposable implements model.ITextModel {
 		const position = this.validatePosition(_position);
 		const lineContent = this.getLineContent(position.lineNumber);
 		const lineTokens = this._getLineTokens(position.lineNumber);
-		const offset = position.column - 1;
-		const tokenIndex = lineTokens.findTokenIndexAtOffset(offset);
+		const tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
+
+		// (1). First try checking right biased word
+		const [rbStartOffset, rbEndOffset] = TextModel._findLanguageBoundaries(lineTokens, tokenIndex);
+		const rightBiasedWord = getWordAtText(
+			position.column,
+			LanguageConfigurationRegistry.getWordDefinition(lineTokens.getLanguageId(tokenIndex)),
+			lineContent.substring(rbStartOffset, rbEndOffset),
+			rbStartOffset
+		);
+		if (rightBiasedWord) {
+			return rightBiasedWord;
+		}
+
+		// (2). Else, if we were at a language boundary, check the left biased word
+		if (tokenIndex > 0 && rbStartOffset === position.column - 1) {
+			// edge case, where `position` sits between two tokens belonging to two different languages
+			const [lbStartOffset, lbEndOffset] = TextModel._findLanguageBoundaries(lineTokens, tokenIndex - 1);
+			const leftBiasedWord = getWordAtText(
+				position.column,
+				LanguageConfigurationRegistry.getWordDefinition(lineTokens.getLanguageId(tokenIndex - 1)),
+				lineContent.substring(lbStartOffset, lbEndOffset),
+				lbStartOffset
+			);
+			if (leftBiasedWord) {
+				return leftBiasedWord;
+			}
+		}
+
+		return null;
+	}
+
+	private static _findLanguageBoundaries(lineTokens: LineTokens, tokenIndex: number): [number, number] {
 		const languageId = lineTokens.getLanguageId(tokenIndex);
 
 		// go left until a different language is hit
@@ -1780,12 +1811,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			endOffset = lineTokens.getEndOffset(i);
 		}
 
-		return getWordAtText(
-			position.column,
-			LanguageConfigurationRegistry.getWordDefinition(languageId),
-			lineContent.substring(startOffset, endOffset),
-			startOffset
-		);
+		return [startOffset, endOffset];
 	}
 
 	public getWordUntilPosition(position: IPosition): model.IWordAtPosition {
