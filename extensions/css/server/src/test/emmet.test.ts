@@ -10,7 +10,7 @@ import { getCSSLanguageService, getSCSSLanguageService } from 'vscode-css-langua
 import { TextDocument, CompletionList } from 'vscode-languageserver-types';
 import { getEmmetCompletionParticipants } from 'vscode-emmet-helper';
 
-suite('Emmet Support', () => {
+suite('CSS Emmet Support', () => {
 
 	const cssLanguageService = getCSSLanguageService();
 	const scssLanguageService = getSCSSLanguageService();
@@ -44,6 +44,8 @@ suite('Emmet Support', () => {
 	}
 
 	test('Css Emmet Completions', function (): any {
+		this.skip(); // disabled again (see #29113)
+
 		assertCompletions('css', '.foo { display: none; m10| }', 'margin: 10px;', 'margin: 10px;');
 		assertCompletions('css', 'foo { display: none; pos:f| }', 'position: fixed;', 'position: fixed;');
 		assertCompletions('css', 'foo { display: none; margin: a| }', null, null);
@@ -55,6 +57,8 @@ suite('Emmet Support', () => {
 	});
 
 	test('Scss Emmet Completions', function (): any {
+		this.skip(); // disabled again (see #29113)
+
 		assertCompletions('scss', '.foo { display: none; .bar { m10| } }', 'margin: 10px;', 'margin: 10px;');
 		assertCompletions('scss', 'foo { display: none; .bar { pos:f| } }', 'position: fixed;', 'position: fixed;');
 		assertCompletions('scss', 'foo { display: none; margin: a| .bar {}}', null, null);
@@ -64,5 +68,4 @@ suite('Emmet Support', () => {
 		assertCompletions('scss', 'foo { display: none|; }', null, null);
 		assertCompletions('scss', '.foo { display: none; -m-m10| }', 'margin: 10px;', '-moz-margin: 10px;\nmargin: 10px;');
 	});
-
 });

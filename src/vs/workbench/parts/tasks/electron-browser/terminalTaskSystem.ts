@@ -288,6 +288,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				watchingProblemMatcher.aboutToStart();
 				let delayer: Async.Delayer<any> = undefined;
 				[terminal, executedCommand] = this.createTerminal(task);
+				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onLineData((line) => {
 					watchingProblemMatcher.processLine(line);
@@ -328,12 +329,14 @@ export class TerminalTaskSystem implements ITaskSystem {
 						this.terminalService.setActiveInstance(terminal);
 						this.terminalService.showPanel(false);
 					}
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 					resolve({ exitCode });
 				});
 			});
 		} else {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
 				[terminal, executedCommand] = this.createTerminal(task);
+				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 				let problemMatchers = this.resolveMatchers(task, task.problemMatchers);
 				let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService);
@@ -359,6 +362,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					startStopProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 					// See https://github.com/Microsoft/vscode/issues/31965
 					if (exitCode === 0 && startStopProblemMatcher.numberOfMatches > 0) {
 						exitCode = 1;

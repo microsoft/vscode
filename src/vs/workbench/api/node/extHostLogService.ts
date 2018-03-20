@@ -6,11 +6,9 @@
 
 import * as vscode from 'vscode';
 import { join } from 'vs/base/common/paths';
-import { Event } from 'vs/base/common/event';
 import { LogLevel } from 'vs/workbench/api/node/extHostTypes';
 import { ILogService, DelegatedLogService } from 'vs/platform/log/common/log';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtHostLogServiceShape } from 'vs/workbench/api/node/extHost.protocol';
 
 
@@ -21,9 +19,9 @@ export class ExtHostLogService extends DelegatedLogService implements ILogServic
 	constructor(
 		private _windowId: number,
 		logLevel: LogLevel,
-		private _environmentService: IEnvironmentService
+		private _logsPath: string
 	) {
-		super(createSpdLogService(`exthost${_windowId}`, logLevel, _environmentService.logsPath));
+		super(createSpdLogService(`exthost${_windowId}`, logLevel, _logsPath));
 	}
 
 	$setLevel(level: LogLevel): void {
@@ -40,7 +38,7 @@ export class ExtHostLogService extends DelegatedLogService implements ILogServic
 	}
 
 	getLogDirectory(extensionID: string): string {
-		return join(this._environmentService.logsPath, `${extensionID}_${this._windowId}`);
+		return join(this._logsPath, `${extensionID}_${this._windowId}`);
 	}
 
 	private createLogger(extensionID: string): ExtHostLogger {
@@ -56,12 +54,6 @@ export class ExtHostLogger implements vscode.Logger {
 	constructor(
 		private readonly _logService: ILogService
 	) { }
-
-	get onDidChangeLogLevel(): Event<LogLevel> {
-		return this._logService.onDidChangeLogLevel;
-	}
-
-	get currentLevel(): LogLevel { return this._logService.getLevel(); }
 
 	trace(message: string, ...args: any[]): void {
 		return this._logService.trace(message, ...args);

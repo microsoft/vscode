@@ -9,7 +9,7 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import * as Proto from '../protocol';
 
 import * as nls from 'vscode-nls';
-import { vsPositionToTsFileLocation, tsTextSpanToVsRange } from '../utils/convert';
+import * as typeConverters from '../utils/typeConverters';
 import { Command, CommandManager } from '../utils/commandManager';
 const localize = nls.loadMessageBundle();
 
@@ -49,7 +49,7 @@ class JsDocCompletionItem extends CompletionItem {
 export default class JsDocCompletionProvider implements CompletionItemProvider {
 
 	constructor(
-		private client: ITypeScriptServiceClient,
+		private readonly client: ITypeScriptServiceClient,
 		commandManager: CommandManager
 	) {
 		commandManager.register(new TryCompleteJsDocCommand(client));
@@ -96,7 +96,7 @@ export default class JsDocCompletionProvider implements CompletionItemProvider {
 			if (!tree.spans.length) {
 				return false;
 			}
-			const span = tsTextSpanToVsRange(tree.spans[0]);
+			const span = typeConverters.Range.fromTextSpan(tree.spans[0]);
 			if (position.line === span.start.line - 1 || position.line === span.start.line) {
 				return true;
 			}
@@ -162,7 +162,7 @@ class TryCompleteJsDocCommand implements Command {
 	}
 
 	public static getSnippetTemplate(client: ITypeScriptServiceClient, file: string, position: Position): Promise<SnippetString | undefined> {
-		const args = vsPositionToTsFileLocation(file, position);
+		const args = typeConverters.Position.toFileLocationRequestArgs(file, position);
 		return Promise.race([
 			client.execute('docCommentTemplate', args),
 			new Promise<Proto.DocCommandTemplateResponse>((_, reject) => setTimeout(reject, 250))

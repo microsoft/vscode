@@ -66,7 +66,7 @@ export class Model {
 
 	private disposables: Disposable[] = [];
 
-	constructor(private git: Git, private globalState: Memento, private outputChannel: OutputChannel) {
+	constructor(readonly git: Git, private globalState: Memento, private outputChannel: OutputChannel) {
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] });
 

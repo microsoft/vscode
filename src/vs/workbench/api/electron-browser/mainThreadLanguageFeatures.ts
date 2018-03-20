@@ -250,13 +250,14 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- rename
 
-	$registerRenameSupport(handle: number, selector: ISerializedDocumentFilter[], supportsResolveInitialValues: boolean): void {
+	$registerRenameSupport(handle: number, selector: ISerializedDocumentFilter[], supportResolveLocation: boolean): void {
+
 		this._registrations[handle] = modes.RenameProviderRegistry.register(toLanguageSelector(selector), <modes.RenameProvider>{
 			provideRenameEdits: (model: ITextModel, position: EditorPosition, newName: string, token: CancellationToken): Thenable<modes.WorkspaceEdit> => {
 				return wireCancellationToken(token, this._proxy.$provideRenameEdits(handle, model.uri, position, newName)).then(reviveWorkspaceEditDto);
 			},
-			resolveRenameContext: supportsResolveInitialValues
-				? (model: ITextModel, position: EditorPosition, token: CancellationToken): Thenable<modes.RenameContext> => wireCancellationToken(token, this._proxy.$resolveRenameContext(handle, model.uri, position))
+			resolveRenameLocation: supportResolveLocation
+				? (model: ITextModel, position: EditorPosition, token: CancellationToken): Thenable<modes.RenameContext> => wireCancellationToken(token, this._proxy.$resolveRenameLocation(handle, model.uri, position))
 				: undefined
 		});
 	}

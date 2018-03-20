@@ -15,7 +15,7 @@ import * as embeddedSupport from '../modes/embeddedSupport';
 import { getEmmetCompletionParticipants } from 'vscode-emmet-helper';
 import { getCSSMode } from '../modes/cssMode';
 
-suite('Emmet Support', () => {
+suite('HTML Emmet Support', () => {
 
 	const htmlLanguageService = getLanguageService();
 

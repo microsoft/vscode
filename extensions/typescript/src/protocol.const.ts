@@ -36,6 +36,6 @@ export class Kind {
 
 export class DiagnosticCategory {
 	public static readonly error = 'error';
-
 	public static readonly warning = 'warning';
+	public static readonly suggestion = 'suggestion';
 }

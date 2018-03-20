@@ -36,7 +36,7 @@ const directives: Directive[] = [
 
 export default class DirectiveCommentCompletionProvider implements CompletionItemProvider {
 	constructor(
-		private client: ITypeScriptServiceClient,
+		private readonly client: ITypeScriptServiceClient,
 	) { }
 
 	public provideCompletionItems(

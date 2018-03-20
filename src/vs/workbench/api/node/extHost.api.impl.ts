@@ -132,7 +132,7 @@ export function createApiFactory(
 	const extHostLanguages = new ExtHostLanguages(rpcProtocol);
 
 	// Register API-ish commands
-	ExtHostApiCommands.register(extHostCommands, extHostWorkspace);
+	ExtHostApiCommands.register(extHostCommands, extHostTask);
 
 	return function (extension: IExtensionDescription): typeof vscode {
 
@@ -211,6 +211,7 @@ export function createApiFactory(
 			get language() { return Platform.language; },
 			get appName() { return product.nameLong; },
 			get appRoot() { return initData.environment.appRoot; },
+			get logLevel() { return extHostLogService.getLevel(); }
 		});
 
 		// namespace: extensions
@@ -243,7 +244,7 @@ export function createApiFactory(
 				return extHostLanguages.getLanguages();
 			},
 			match(selector: vscode.DocumentSelector, document: vscode.TextDocument): number {
-				return score(toLanguageSelector(selector), document.uri, document.languageId);
+				return score(toLanguageSelector(selector), document.uri, document.languageId, true);
 			},
 			registerCodeActionsProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerCodeActionProvider(selector, provider);
@@ -516,8 +517,26 @@ export function createApiFactory(
 			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
 			},
-			registerFileSystemProvider: proposedApiFunction(extension, (authority, provider) => {
-				return extHostFileSystem.registerFileSystemProvider(authority, provider);
+			fetchTasks: proposedApiFunction(extension, (): Thenable<vscode.Task[]> => {
+				return extHostTask.executeTaskProvider();
+			}),
+			executeTask: proposedApiFunction(extension, (task: vscode.Task): Thenable<vscode.TaskExecution> => {
+				return extHostTask.executeTask(extension, task);
+			}),
+			onDidStartTask: (listeners, thisArgs?, disposables?) => {
+				return extHostTask.onDidStartTask(listeners, thisArgs, disposables);
+			},
+			terminateTask: proposedApiFunction(extension, (task: vscode.TaskExecution): void => {
+				extHostTask.terminateTask(task);
+			}),
+			onDidEndTask: (listeners, thisArgs?, disposables?) => {
+				return extHostTask.onDidEndTask(listeners, thisArgs, disposables);
+			},
+			registerFileSystemProvider: proposedApiFunction(extension, (scheme, provider) => {
+				return extHostFileSystem.registerFileSystemProvider(scheme, provider);
+			}),
+			registerSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
+				return extHostFileSystem.registerSearchProvider(scheme, provider);
 			})
 		};
 
@@ -616,7 +635,6 @@ export function createApiFactory(
 			ParameterInformation: extHostTypes.ParameterInformation,
 			Position: extHostTypes.Position,
 			Range: extHostTypes.Range,
-			RenameContext: extHostTypes.RenameContext,
 			Selection: extHostTypes.Selection,
 			SignatureHelp: extHostTypes.SignatureHelp,
 			SignatureInformation: extHostTypes.SignatureInformation,

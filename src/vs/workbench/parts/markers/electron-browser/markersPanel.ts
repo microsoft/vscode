@@ -18,7 +18,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { Panel } from 'vs/workbench/browser/panel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
-import { Marker, Resource } from 'vs/workbench/parts/markers/electron-browser/markersModel';
+import { Marker, ResourceMarkers, RelatedInformation } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import { Controller } from 'vs/workbench/parts/markers/electron-browser/markersTreeController';
 import * as Viewer from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -81,7 +81,6 @@ export class MarkersPanel extends Panel {
 		this.createMessageBox(container);
 		this.createTree(container);
 
-		this.createActions();
 		this.createListeners();
 
 		return this.render();
@@ -127,30 +126,28 @@ export class MarkersPanel extends Panel {
 	}
 
 	public getActions(): IAction[] {
+		if (!this.actions) {
+			this.actions = this.createActions();
+		}
 		this.collapseAllAction.enabled = this.markersWorkbenchService.markersModel.hasFilteredResources();
 		return this.actions;
 	}
 
 	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
-		if (element instanceof Marker) {
-			const marker: Marker = element;
-			/* __GDPR__
-				"problems.marker.opened" : {
-					"source" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('problems.marker.opened', { source: marker.raw.source });
+		const { resource, selection } = element instanceof Marker ? { resource: element.resource, selection: element.range } :
+			element instanceof RelatedInformation ? { resource: element.raw.resource, selection: element.raw } : { resource: null, selection: null };
+		if (resource && selection) {
 			this.editorService.openEditor({
-				resource: marker.resource,
+				resource,
 				options: {
-					selection: marker.range,
+					selection,
 					preserveFocus,
 					pinned,
 					revealIfVisible: true
 				},
 			}, sideByside).done(editor => {
 				if (editor && preserveFocus) {
-					this.rangeHighlightDecorations.highlightRange(marker, <ICodeEditor>editor.getControl());
+					this.rangeHighlightDecorations.highlightRange({ resource, range: selection }, <ICodeEditor>editor.getControl());
 				} else {
 					this.rangeHighlightDecorations.removeHighlightRange();
 				}
@@ -193,7 +190,7 @@ export class MarkersPanel extends Panel {
 		this.treeContainer = dom.append(parent, dom.$('.tree-container'));
 		dom.addClass(this.treeContainer, 'show-file-icons');
 		const renderer = this.instantiationService.createInstance(Viewer.Renderer);
-		const dnd = this.instantiationService.createInstance(SimpleFileResourceDragAndDrop, obj => obj instanceof Resource ? obj.uri : void 0);
+		const dnd = this.instantiationService.createInstance(SimpleFileResourceDragAndDrop, obj => obj instanceof ResourceMarkers ? obj.uri : void 0);
 		const controller = this.instantiationService.createInstance(Controller);
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new Viewer.DataSource(),
@@ -203,7 +200,6 @@ export class MarkersPanel extends Panel {
 			accessibilityProvider: new Viewer.MarkersTreeAccessibilityProvider(),
 			dnd
 		}, {
-				indentPixels: 0,
 				twistiePixels: 20,
 				ariaLabel: Messages.MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE
 			});
@@ -216,16 +212,17 @@ export class MarkersPanel extends Panel {
 		}));
 	}
 
-	private createActions(): void {
+	private createActions(): IAction[] {
 		this.collapseAllAction = this.instantiationService.createInstance(CollapseAllAction, this.tree, true);
 		this.filterAction = new FilterAction();
-		this.actions = [
+		const actions = [
 			this.filterAction,
 			this.collapseAllAction
 		];
-		this.actions.forEach(a => {
+		actions.forEach(a => {
 			this.toUnbind.push(a);
 		});
+		return actions;
 	}
 
 	private createListeners(): void {
@@ -330,8 +327,8 @@ export class MarkersPanel extends Panel {
 		}
 	}
 
-	private getResourceForCurrentActiveResource(): Resource {
-		let res: Resource = null;
+	private getResourceForCurrentActiveResource(): ResourceMarkers {
+		let res: ResourceMarkers = null;
 		if (this.currentActiveResource) {
 			this.markersWorkbenchService.markersModel.forEachFilteredResource(resource => {
 				if (!res && resource.uri.toString() === this.currentActiveResource.toString()) {
@@ -342,7 +339,7 @@ export class MarkersPanel extends Panel {
 		return res;
 	}
 
-	private hasSelectedMarkerFor(resource: Resource): boolean {
+	private hasSelectedMarkerFor(resource: ResourceMarkers): boolean {
 		let selectedElement = this.tree.getSelection();
 		if (selectedElement && selectedElement.length > 0) {
 			if (selectedElement[0] instanceof Marker) {
@@ -376,7 +373,7 @@ export class MarkersPanel extends Panel {
 		return super.getActionItem(action);
 	}
 
-	public getFocusElement(): Resource | Marker {
+	public getFocusElement(): ResourceMarkers | Marker {
 		return this.tree.getFocus();
 	}
 

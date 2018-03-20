@@ -8,19 +8,19 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { MarkersModel, Marker, Resource } from 'vs/workbench/parts/markers/electron-browser/markersModel';
+import { MarkersModel, Marker, ResourceMarkers } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 
 class TestMarkersModel extends MarkersModel {
 
-	get filteredResources(): Resource[] {
-		let res: Resource[] = [];
+	get filteredResources(): ResourceMarkers[] {
+		let res: ResourceMarkers[] = [];
 		this.forEachFilteredResource(resource => res.push(resource));
 		return res;
 	}
 
 	static compare(a: any, b: any): number {
-		if (a instanceof Resource && b instanceof Resource) {
-			return Resource.compare(a, b);
+		if (a instanceof ResourceMarkers && b instanceof ResourceMarkers) {
+			return ResourceMarkers.compare(a, b);
 		}
 		if (a instanceof Marker && b instanceof Marker) {
 			return Marker.compare(a, b);
@@ -153,7 +153,7 @@ suite('MarkersModel Test', () => {
 		}).length === 1;
 	}
 
-	function compareResource(a: Resource, b: string): boolean {
+	function compareResource(a: ResourceMarkers, b: string): boolean {
 		return a.uri.toString() === URI.file(b).toString();
 	}
 

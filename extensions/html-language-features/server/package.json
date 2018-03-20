@@ -21,8 +21,8 @@
     "@types/node": "7.0.43"
   },
   "scripts": {
-    "compile": "gulp compile-extension:html-server",
-    "watch": "gulp watch-extension:html-server",
+    "compile": "gulp compile-extension:html-language-features-server",
+    "watch": "gulp watch-extension:html-language-features-server",
     "install-service-next": "yarn add vscode-css-languageservice@next && yarn add vscode-html-languageservice@next",
     "install-service-local": "npm install ../../../../vscode-css-languageservice -f && npm install ../../../../vscode-html-languageservice -f",
     "install-server-next": "yarn add vscode-languageserver@next",

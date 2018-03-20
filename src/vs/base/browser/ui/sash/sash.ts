@@ -138,12 +138,12 @@ export class Sash {
 			iframes.style('pointer-events', 'none'); // disable mouse events on iframes as long as we drag the sash
 		}
 
-		let mouseDownEvent = new StandardMouseEvent(e);
-		let startX = mouseDownEvent.posx;
-		let startY = mouseDownEvent.posy;
+		const mouseDownEvent = new StandardMouseEvent(e);
+		const startX = mouseDownEvent.posx;
+		const startY = mouseDownEvent.posy;
 		const altKey = mouseDownEvent.altKey;
 
-		let startEvent: ISashEvent = {
+		const startEvent: ISashEvent = {
 			startX: startX,
 			currentX: startX,
 			startY: startY,
@@ -154,14 +154,21 @@ export class Sash {
 		this.$e.addClass('active');
 		this._onDidStart.fire(startEvent);
 
-		let $window = $(window);
-		let containerCSSClass = `${this.getOrientation()}-cursor-container${isMacintosh ? '-mac' : ''}`;
+		const $window = $(window);
+
+		// fix https://github.com/Microsoft/vscode/issues/21675
+		const globalStyle = DOM.createStyleSheet(this.$e.getHTMLElement());
+		if (this.orientation === Orientation.HORIZONTAL) {
+			globalStyle.innerHTML = `* { cursor: ${isMacintosh ? 'row-resize' : 'ns-resize'}; }`;
+		} else {
+			globalStyle.innerHTML = `* { cursor: ${isMacintosh ? 'col-resize' : 'ew-resize'}; }`;
+		}
 
 		$window.on('mousemove', (e) => {
 			DOM.EventHelper.stop(e, false);
-			let mouseMoveEvent = new StandardMouseEvent(e as MouseEvent);
+			const mouseMoveEvent = new StandardMouseEvent(e as MouseEvent);
 
-			let event: ISashEvent = {
+			const event: ISashEvent = {
 				startX: startX,
 				currentX: mouseMoveEvent.posx,
 				startY: startY,
@@ -172,28 +179,28 @@ export class Sash {
 			this._onDidChange.fire(event);
 		}).once('mouseup', (e) => {
 			DOM.EventHelper.stop(e, false);
+
+			this.$e.getHTMLElement().removeChild(globalStyle);
+
 			this.$e.removeClass('active');
 			this._onDidEnd.fire();
 
 			$window.off('mousemove');
-			document.body.classList.remove(containerCSSClass);
 
 			const iframes = $(DOM.getElementsByTagName('iframe'));
 			if (iframes) {
 				iframes.style('pointer-events', 'auto');
 			}
 		});
-
-		document.body.classList.add(containerCSSClass);
 	}
 
 	private onTouchStart(event: GestureEvent): void {
 		DOM.EventHelper.stop(event);
 
-		let listeners: IDisposable[] = [];
+		const listeners: IDisposable[] = [];
 
-		let startX = event.pageX;
-		let startY = event.pageY;
+		const startX = event.pageX;
+		const startY = event.pageY;
 		const altKey = event.altKey;
 
 
@@ -227,7 +234,7 @@ export class Sash {
 		let style: { top?: string; left?: string; height?: string; width?: string; };
 
 		if (this.orientation === Orientation.VERTICAL) {
-			let verticalProvider = (<IVerticalSashLayoutProvider>this.layoutProvider);
+			const verticalProvider = (<IVerticalSashLayoutProvider>this.layoutProvider);
 			style = { left: verticalProvider.getVerticalSashLeft(this) - (this.size / 2) + 'px' };
 
 			if (verticalProvider.getVerticalSashTop) {
@@ -238,7 +245,7 @@ export class Sash {
 				style.height = verticalProvider.getVerticalSashHeight(this) + 'px';
 			}
 		} else {
-			let horizontalProvider = (<IHorizontalSashLayoutProvider>this.layoutProvider);
+			const horizontalProvider = (<IHorizontalSashLayoutProvider>this.layoutProvider);
 			style = { top: horizontalProvider.getHorizontalSashTop(this) - (this.size / 2) + 'px' };
 
 			if (horizontalProvider.getHorizontalSashLeft) {
@@ -357,9 +364,9 @@ export class VSash extends Disposable implements IVerticalSashLayoutProvider {
 	}
 
 	private computeSashPosition(sashRatio: number = this.ratio) {
-		let contentWidth = this.dimension.width;
+		const contentWidth = this.dimension.width;
 		let sashPosition = Math.floor((sashRatio || 0.5) * contentWidth);
-		let midPoint = Math.floor(0.5 * contentWidth);
+		const midPoint = Math.floor(0.5 * contentWidth);
 
 		if (contentWidth > this.minWidth * 2) {
 			if (sashPosition < this.minWidth) {

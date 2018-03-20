@@ -27,7 +27,7 @@ export default class FormattingConfigurationManager {
 	private formatOptions: { [key: string]: Proto.FormatCodeSettings | undefined; } = Object.create(null);
 
 	public constructor(
-		private client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient
 	) {
 		this.onDidCloseTextDocumentSub = Workspace.onDidCloseTextDocument((textDocument) => {
 			const key = textDocument.uri.toString();

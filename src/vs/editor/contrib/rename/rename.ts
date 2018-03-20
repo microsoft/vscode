@@ -52,8 +52,8 @@ class RenameSkeleton {
 		let [provider] = this._provider;
 		let information: RenameContext;
 
-		if (provider.resolveRenameContext) {
-			information = await asWinJsPromise(token => provider.resolveRenameContext(this.model, this.position, token));
+		if (provider.resolveRenameLocation) {
+			information = await asWinJsPromise(token => provider.resolveRenameLocation(this.model, this.position, token));
 		}
 
 		if (!information) {
@@ -131,24 +131,30 @@ class RenameController implements IEditorContribution {
 
 	public async run(): TPromise<void> {
 
-		const skeleton = new RenameSkeleton(this.editor.getModel(), this.editor.getPosition());
+		const position = this.editor.getPosition();
+		const skeleton = new RenameSkeleton(this.editor.getModel(), position);
 
-		let initialValue = await skeleton.resolveRenameInformation();
-		if (!initialValue) {
+		let context = await skeleton.resolveRenameInformation();
+		if (!context) {
+			return undefined;
+		}
+
+		if (context.message) {
+			MessageController.get(this.editor).showMessage(context.message, position);
 			return undefined;
 		}
 
 		let selection = this.editor.getSelection();
 		let selectionStart = 0;
-		let selectionEnd = initialValue.text.length;
+		let selectionEnd = context.text.length;
 
 		if (!selection.isEmpty() && selection.startLineNumber === selection.endLineNumber) {
-			selectionStart = Math.max(0, selection.startColumn - initialValue.range.startColumn);
-			selectionEnd = Math.min(initialValue.range.endColumn, selection.endColumn) - initialValue.range.startColumn;
+			selectionStart = Math.max(0, selection.startColumn - context.range.startColumn);
+			selectionEnd = Math.min(context.range.endColumn, selection.endColumn) - context.range.startColumn;
 		}
 
 		this._renameInputVisible.set(true);
-		return this._renameInputField.getInput(Range.lift(initialValue.range), initialValue.text, selectionStart, selectionEnd).then(newNameOrFocusFlag => {
+		return this._renameInputField.getInput(Range.lift(context.range), context.text, selectionStart, selectionEnd).then(newNameOrFocusFlag => {
 			this._renameInputVisible.reset();
 
 			if (typeof newNameOrFocusFlag === 'boolean') {
@@ -179,7 +185,7 @@ class RenameController implements IEditorContribution {
 						this.editor.setSelection(selection);
 					}
 					// alert
-					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", initialValue.text, newNameOrFocusFlag, edit.ariaMessage()));
+					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", context.text, newNameOrFocusFlag, edit.ariaMessage()));
 				});
 
 			}, err => {
@@ -216,7 +222,7 @@ export class RenameAction extends EditorAction {
 			alias: 'Rename Symbol',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasRenameProvider),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyCode.F2
 			},
 			menuOpts: {

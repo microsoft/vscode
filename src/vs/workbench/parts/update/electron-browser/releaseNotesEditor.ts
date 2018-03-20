@@ -84,7 +84,7 @@ export class ReleaseNotesManager {
 			}
 		} else {
 			const uri = URI.parse('release-notes:' + version);
-			this._currentReleaseNotes = new WebviewInput(uri, title, { tryRestoreScrollPosition: true }, html, {
+			this._currentReleaseNotes = new WebviewInput(uri, title, { tryRestoreScrollPosition: true, enableFindWidget: true }, html, {
 				onDidClickLink: uri => this.onDidClickLink(uri),
 				onDispose: () => { this._currentReleaseNotes = undefined; }
 			}, this._partService);

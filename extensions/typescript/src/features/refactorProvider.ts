@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange, vsRangeToTsFileRange, tsLocationToVsPosition } from '../utils/convert';
+import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './formattingConfigurationManager';
 import { CommandManager, Command } from '../utils/commandManager';
 
@@ -32,7 +32,7 @@ class ApplyRefactoringCommand implements Command {
 		await this.formattingOptionsManager.ensureFormatOptionsForDocument(document, undefined);
 
 		const args: Proto.GetEditsForRefactorRequestArgs = {
-			...vsRangeToTsFileRange(file, range),
+			...typeConverters.Range.toFileRangeRequestArgs(file, range),
 			refactor,
 			action
 		};
@@ -41,7 +41,7 @@ class ApplyRefactoringCommand implements Command {
 			return false;
 		}
 
-		const edit = this.toWorkspaceEdit(response.body.edits);
+		const edit = typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, response.body.edits);
 		if (!(await vscode.workspace.applyEdit(edit))) {
 			return false;
 		}
@@ -49,24 +49,12 @@ class ApplyRefactoringCommand implements Command {
 		const renameLocation = response.body.renameLocation;
 		if (renameLocation) {
 			if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.uri.fsPath === document.uri.fsPath) {
-				const pos = tsLocationToVsPosition(renameLocation);
+				const pos = typeConverters.Position.fromLocation(renameLocation);
 				vscode.window.activeTextEditor.selection = new vscode.Selection(pos, pos);
 				await vscode.commands.executeCommand('editor.action.rename');
 			}
 		}
 		return true;
-	}
-
-	private toWorkspaceEdit(edits: Proto.FileCodeEdits[]): vscode.WorkspaceEdit {
-		const workspaceEdit = new vscode.WorkspaceEdit();
-		for (const edit of edits) {
-			for (const textChange of edit.textChanges) {
-				workspaceEdit.replace(this.client.asUrl(edit.fileName),
-					tsTextSpanToVsRange(textChange),
-					textChange.newText);
-			}
-		}
-		return workspaceEdit;
 	}
 }
 
@@ -137,7 +125,7 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 		}
 
 		const range = editor.selection;
-		const args: Proto.GetApplicableRefactorsRequestArgs = vsRangeToTsFileRange(file, range);
+		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, range);
 		try {
 			const response = await this.client.execute('getApplicableRefactors', args, token);
 			if (!response || !response.body) {

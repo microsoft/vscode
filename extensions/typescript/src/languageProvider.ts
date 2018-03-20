@@ -14,7 +14,7 @@ import TypingsStatus from './utils/typingsStatus';
 import FormattingConfigurationManager from './features/formattingConfigurationManager';
 import * as languageConfigurations from './utils/languageConfigurations';
 import { CommandManager } from './utils/commandManager';
-import DiagnosticsManager from './features/diagnostics';
+import { DiagnosticsManager, DiagnosticKind } from './features/diagnostics';
 import { LanguageDescription } from './utils/languageDescription';
 import * as fileSchemes from './utils/fileSchemes';
 import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
@@ -106,6 +106,8 @@ export default class LanguageProvider {
 		this.disposables.push(formattingProviderManager);
 		this.toUpdateOnConfigurationChanged.push(formattingProviderManager);
 
+		const cachedResponse = new CachedNavTreeResponse();
+
 		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/jsDocCompletionProvider')).default(client, commandManager), '*'));
 		this.disposables.push(languages.registerHoverProvider(selector, new (await import('./features/hoverProvider')).default(client)));
 		this.disposables.push(languages.registerDefinitionProvider(selector, new (await import('./features/definitionProvider')).default(client)));
@@ -126,8 +128,6 @@ export default class LanguageProvider {
 		this.disposables.push({ dispose: () => this.foldingProviderRegistration && this.foldingProviderRegistration.dispose() });
 
 		this.registerVersionDependentProviders();
-
-		const cachedResponse = new CachedNavTreeResponse();
 
 		const referenceCodeLensProvider = new (await import('./features/referencesCodeLensProvider')).default(client, this.description.id, cachedResponse);
 		referenceCodeLensProvider.updateConfiguration();
@@ -233,12 +233,8 @@ export default class LanguageProvider {
 		this.bufferSyncSupport.requestAllDiagnostics();
 	}
 
-	public syntaxDiagnosticsReceived(file: Uri, syntaxDiagnostics: Diagnostic[]): void {
-		this.diagnosticsManager.syntaxDiagnosticsReceived(file, syntaxDiagnostics);
-	}
-
-	public semanticDiagnosticsReceived(file: Uri, semanticDiagnostics: Diagnostic[]): void {
-		this.diagnosticsManager.semanticDiagnosticsReceived(file, semanticDiagnostics);
+	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: Uri, syntaxDiagnostics: Diagnostic[]): void {
+		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, syntaxDiagnostics);
 	}
 
 	public configFileDiagnosticsReceived(file: Uri, diagnostics: Diagnostic[]): void {

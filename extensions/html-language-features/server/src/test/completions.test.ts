@@ -22,7 +22,7 @@ export interface ItemDescription {
 }
 
 
-suite('Completions', () => {
+suite('HTML Completions', () => {
 
 	let assertCompletion = function (completions: CompletionList, expected: ItemDescription, document: TextDocument, offset: number) {
 		let matches = completions.items.filter(completion => {

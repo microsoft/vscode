@@ -7,11 +7,11 @@ import { TextDocument, Position, CancellationToken, Location } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
+import * as typeConverters from '../utils/typeConverters';
 
 export default class TypeScriptDefinitionProviderBase {
 	constructor(
-		private client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient
 	) { }
 
 	protected async getSymbolLocations(
@@ -25,19 +25,12 @@ export default class TypeScriptDefinitionProviderBase {
 			return undefined;
 		}
 
-		const args = vsPositionToTsFileLocation(filepath, position);
+		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 		try {
 			const response = await this.client.execute(definitionType, args, token);
 			const locations: Proto.FileSpan[] = (response && response.body) || [];
-			if (!locations || locations.length === 0) {
-				return [];
-			}
-			return locations.map(location => {
-				const resource = this.client.asUrl(location.file);
-				return resource
-					? new Location(resource, tsTextSpanToVsRange(location))
-					: undefined;
-			}).filter(x => x) as Location[];
+			return locations.map(location =>
+				typeConverters.Location.fromTextSpan(this.client.asUrl(location.file), location));
 		} catch {
 			return [];
 		}
