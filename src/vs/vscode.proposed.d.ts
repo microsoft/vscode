@@ -571,15 +571,15 @@ declare module 'vscode' {
 		readonly localResourceRoots?: Uri[];
 	}
 
+	export interface WebViewOnDidChangeViewStateEvent {
+		readonly viewColumn: ViewColumn;
+		readonly active: boolean;
+	}
+
 	/**
 	 * A webview is an editor with html content, like an iframe.
 	 */
 	export interface Webview {
-		/**
-		 * Type identifying the editor as a webview editor.
-		 */
-		readonly editorType: 'webview';
-
 		/**
 		 * Unique identifer of the webview.
 		 */
@@ -618,9 +618,9 @@ declare module 'vscode' {
 		readonly onDidDispose: Event<void>;
 
 		/**
-		 * Fired when the webview's view column changes.
+		 * Fired when the webview's view state changes.
 		 */
-		readonly onDidChangeViewColumn: Event<ViewColumn>;
+		readonly onDidChangeViewState: Event<WebViewOnDidChangeViewStateEvent>;
 
 		/**
 		 * Post a message to the webview content.
@@ -649,13 +649,6 @@ declare module 'vscode' {
 		dispose(): any;
 	}
 
-	export interface TextEditor {
-		/**
-		 * Type identifying the editor as a text editor.
-		 */
-		readonly editorType: 'texteditor';
-	}
-
 	namespace window {
 		/**
 		 * Create and show a new webview.
@@ -666,11 +659,6 @@ declare module 'vscode' {
 		 * @param options Content settings for the webview.
 		 */
 		export function createWebview(uri: Uri, title: string, column: ViewColumn, options: WebviewOptions): Webview;
-
-		/**
-		 * Event fired when the active editor changes.
-		 */
-		export const onDidChangeActiveEditor: Event<TextEditor | Webview | undefined>;
 	}
 
 	//#endregion

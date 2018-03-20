@@ -28,15 +28,8 @@ export class MarkdownPreviewManager {
 		private readonly logger: Logger,
 		private readonly contributions: MarkdownContributions
 	) {
-		vscode.window.onDidChangeActiveEditor(editor => {
-			vscode.commands.executeCommand('setContext', MarkdownPreviewManager.markdownPreviewActiveContextKey,
-				editor && editor.editorType === 'webview' && editor.uri.scheme === MarkdownPreview.previewScheme);
-
-			this.activePreview = editor && editor.editorType === 'webview'
-				? this.previews.find(preview => editor.uri.toString() === preview.uri.toString())
-				: undefined;
-
-			if (editor && editor.editorType === 'texteditor') {
+		vscode.window.onDidChangeActiveTextEditor(editor => {
+			if (editor) {
 				if (isMarkdownFile(editor.document)) {
 					for (const preview of this.previews.filter(preview => !preview.locked)) {
 						preview.update(editor.document.uri);
@@ -44,6 +37,7 @@ export class MarkdownPreviewManager {
 				}
 			}
 		}, null, this.disposables);
+
 	}
 
 	public dispose(): void {
@@ -134,8 +128,13 @@ export class MarkdownPreviewManager {
 			}
 		});
 
-		preview.onDidChangeViewColumn(() => {
+		preview.onDidChangeViewState(({ active }) => {
 			disposeAll(this.previews.filter(otherPreview => preview !== otherPreview && preview!.matches(otherPreview)));
+
+			vscode.commands.executeCommand('setContext', MarkdownPreviewManager.markdownPreviewActiveContextKey,
+				active);
+
+			this.activePreview = active ? preview : undefined;
 		});
 
 		return preview;

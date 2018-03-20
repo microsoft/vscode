@@ -98,7 +98,7 @@ export function createApiFactory(
 	const extHostHeapService = rpcProtocol.set(ExtHostContext.ExtHostHeapService, new ExtHostHeapService());
 	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, new ExtHostDecorations(rpcProtocol));
 	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol));
-	const extHostDocumentsAndEditors = rpcProtocol.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(rpcProtocol, extHostWebviews));
+	const extHostDocumentsAndEditors = rpcProtocol.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(rpcProtocol));
 	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors, extHostLogService));
 	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadTextEditors)));
@@ -415,9 +415,6 @@ export function createApiFactory(
 			}),
 			createWebview: proposedApiFunction(extension, (uri: vscode.Uri, title: string, column: vscode.ViewColumn, options: vscode.WebviewOptions) => {
 				return extHostWebviews.createWebview(uri, title, column, options, extension.extensionFolderPath);
-			}),
-			onDidChangeActiveEditor: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
-				return extHostDocumentsAndEditors.onDidChangeActiveEditor(listener, thisArg, disposables);
 			})
 		};
 

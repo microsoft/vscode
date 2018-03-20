@@ -56,8 +56,8 @@ export class MarkdownPreview {
 			this.dispose();
 		}, null, this.disposables);
 
-		this.webview.onDidChangeViewColumn(() => {
-			this._onDidChangeViewColumnEmitter.fire();
+		this.webview.onDidChangeViewState(e => {
+			this._onDidChangeViewStateEmitter.fire(e);
 		}, null, this.disposables);
 
 		this.webview.onDidReceiveMessage(e => {
@@ -107,8 +107,8 @@ export class MarkdownPreview {
 	private readonly _onDisposeEmitter = new vscode.EventEmitter<void>();
 	public readonly onDispose = this._onDisposeEmitter.event;
 
-	private readonly _onDidChangeViewColumnEmitter = new vscode.EventEmitter<vscode.ViewColumn>();
-	public readonly onDidChangeViewColumn = this._onDidChangeViewColumnEmitter.event;
+	private readonly _onDidChangeViewStateEmitter = new vscode.EventEmitter<vscode.WebViewOnDidChangeViewStateEvent>();
+	public readonly onDidChangeViewState = this._onDidChangeViewStateEmitter.event;
 
 	public get resource(): vscode.Uri {
 		return this._resource;
@@ -118,7 +118,7 @@ export class MarkdownPreview {
 		this._onDisposeEmitter.fire();
 
 		this._onDisposeEmitter.dispose();
-		this._onDidChangeViewColumnEmitter.dispose();
+		this._onDidChangeViewStateEmitter.dispose();
 		this.webview.dispose();
 
 		disposeAll(this.disposables);
