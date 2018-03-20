@@ -89,11 +89,11 @@ export abstract class CommonCodeEditor extends Disposable {
 	private readonly _onDidPaste: Emitter<Range> = this._register(new Emitter<Range>());
 	public readonly onDidPaste = this._onDidPaste.event;
 
+	public readonly isSimpleWidget: boolean;
 
 	protected readonly domElement: IContextKeyServiceTarget;
 	protected readonly id: number;
 	protected readonly _configuration: CommonEditorConfiguration;
-	protected readonly isSimpleWidget: boolean;
 
 	protected _contributions: { [key: string]: editorCommon.IEditorContribution; };
 	protected _actions: { [key: string]: editorCommon.IEditorAction; };
@@ -1051,6 +1051,7 @@ class EditorContextKeysManager extends Disposable {
 
 	private _editor: CommonCodeEditor;
 	private _editorFocus: IContextKey<boolean>;
+	private _inputFocus: IContextKey<boolean>;
 	private _editorTextFocus: IContextKey<boolean>;
 	private _editorTabMovesFocus: IContextKey<boolean>;
 	private _editorReadonly: IContextKey<boolean>;
@@ -1067,6 +1068,7 @@ class EditorContextKeysManager extends Disposable {
 
 		contextKeyService.createKey('editorId', editor.getId());
 		this._editorFocus = EditorContextKeys.focus.bindTo(contextKeyService);
+		this._inputFocus = EditorContextKeys.inputFocus.bindTo(contextKeyService);
 		this._editorTextFocus = EditorContextKeys.textFocus.bindTo(contextKeyService);
 		this._editorTabMovesFocus = EditorContextKeys.tabMovesFocus.bindTo(contextKeyService);
 		this._editorReadonly = EditorContextKeys.readOnly.bindTo(contextKeyService);
@@ -1104,8 +1106,9 @@ class EditorContextKeysManager extends Disposable {
 	}
 
 	private _updateFromFocus(): void {
-		this._editorFocus.set(this._editor.hasWidgetFocus());
-		this._editorTextFocus.set(this._editor.isFocused());
+		this._editorFocus.set(this._editor.hasWidgetFocus() && !this._editor.isSimpleWidget);
+		this._editorTextFocus.set(this._editor.isFocused() && !this._editor.isSimpleWidget);
+		this._inputFocus.set(this._editor.isFocused());
 	}
 }
 
