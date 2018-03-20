@@ -1015,6 +1015,28 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public findNextMatch(searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): model.FindMatch {
 		this._assertNotDisposed();
 		const searchStart = this.validatePosition(rawSearchStart);
+
+		if (!isRegex && searchString.indexOf('\n') < 0 && OPTIONS.TEXT_BUFFER_IMPLEMENTATION === TextBufferType.PieceTree) {
+			const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
+			const searchData = searchParams.parseSearchRequest();
+			const lineCount = this.getLineCount();
+			let searchRange = new Range(searchStart.lineNumber, searchStart.column, lineCount, this.getLineMaxColumn(lineCount));
+			let ret = this.findMatchesLineByLine(searchRange, searchData, captureMatches, 1);
+			TextModelSearch.findNextMatch(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchStart, captureMatches);
+			if (ret.length > 0) {
+				return ret[0];
+			}
+
+			searchRange = new Range(1, 1, searchStart.lineNumber, this.getLineMaxColumn(searchStart.lineNumber));
+			ret = this.findMatchesLineByLine(searchRange, searchData, captureMatches, 1);
+
+			if (ret.length > 0) {
+				return ret[0];
+			}
+
+			return null;
+		}
+
 		return TextModelSearch.findNextMatch(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchStart, captureMatches);
 	}
 
