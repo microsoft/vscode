@@ -434,7 +434,9 @@ export class NotificationTemplateRenderer {
 				const action = notification.actions.primary[index];
 				button.label = action.label;
 
-				this.inputDisposeables.push(button.onDidClick(() => {
+				this.inputDisposeables.push(button.onDidClick(e => {
+					e.preventDefault();
+					e.stopPropagation();
 
 					// Run action
 					this.actionRunner.run(action, notification);
