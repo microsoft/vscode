@@ -154,7 +154,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		const progress = {
 			report: (data: vscode.TextSearchResult) => {
 				this._proxy.$handleFindMatch(handle, session, [data.uri, {
-					lineNumber: 1 + data.range.start.line,
+					lineNumber: data.range.start.line,
 					preview: data.preview.leading + data.preview.matching + data.preview.trailing,
 					offsetAndLengths: [[data.preview.leading.length, data.preview.matching.length]]
 				}]);
