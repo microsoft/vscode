@@ -11,7 +11,8 @@ import * as typeConverters from '../utils/typeConverters';
 
 export default class TypeScriptRenameProvider implements RenameProvider {
 	public constructor(
-		private client: ITypeScriptServiceClient) { }
+		private client: ITypeScriptServiceClient
+	) { }
 
 	public async provideRenameEdits(
 		document: TextDocument,
@@ -19,13 +20,13 @@ export default class TypeScriptRenameProvider implements RenameProvider {
 		newName: string,
 		token: CancellationToken
 	): Promise<WorkspaceEdit | null> {
-		const filepath = this.client.normalizePath(document.uri);
-		if (!filepath) {
+		const file = this.client.normalizePath(document.uri);
+		if (!file) {
 			return null;
 		}
 
 		const args: Proto.RenameRequestArgs = {
-			...typeConverters.Position.toFileLocationRequestArgs(filepath, position),
+			...typeConverters.Position.toFileLocationRequestArgs(file, position),
 			findInStrings: false,
 			findInComments: false
 		};
@@ -36,25 +37,30 @@ export default class TypeScriptRenameProvider implements RenameProvider {
 			if (!renameResponse) {
 				return null;
 			}
-			const renameInfo = renameResponse.info;
 
+			const renameInfo = renameResponse.info;
 			if (!renameInfo.canRename) {
 				return Promise.reject<WorkspaceEdit>(renameInfo.localizedErrorMessage);
 			}
-			const result = new WorkspaceEdit();
-			for (const spanGroup of renameResponse.locs) {
-				const resource = this.client.asUrl(spanGroup.file);
-				if (!resource) {
-					continue;
-				}
-				for (const textSpan of spanGroup.locs) {
-					result.replace(resource, typeConverters.Range.fromTextSpan(textSpan), newName);
-				}
-			}
-			return result;
+
+			return this.toWorkspaceEdit(renameResponse.locs, newName);
 		} catch (e) {
 			// noop
 		}
 		return null;
+	}
+
+	private toWorkspaceEdit(locations: ReadonlyArray<Proto.SpanGroup>, newName: string) {
+		const result = new WorkspaceEdit();
+		for (const spanGroup of locations) {
+			const resource = this.client.asUrl(spanGroup.file);
+			if (!resource) {
+				continue;
+			}
+			for (const textSpan of spanGroup.locs) {
+				result.replace(resource, typeConverters.Range.fromTextSpan(textSpan), newName);
+			}
+		}
+		return result;
 	}
 }
