@@ -16,7 +16,7 @@ import * as Types from 'vs/base/common/types';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import {
-	ContributedTask, ExtensionTaskSourceTransfer, TaskItem, TaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
+	ContributedTask, ExtensionTaskSourceTransfer, TaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
 	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource, TaskSourceKind, ExtensionTaskSource
 } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
@@ -25,53 +25,19 @@ import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import {
-	TaskItemTransfer, TaskDefinitionDTO, TaskExecutionTransfer, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
-	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO
+	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
+	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO
 } from 'vs/workbench/api/common/commonTask';
 
-export { TaskDTO };
+export { TaskDTO, TaskHandleDTO, TaskExecutionDTO };
 
-namespace TaskIdentifier {
-	export function to(value: TaskIdentifier): TaskDefinitionDTO {
-		let result = Objects.assign(Object.create(null), value);
-		delete result._key;
-		return result;
-	}
-	export function from(value: TaskDefinitionDTO): TaskIdentifier {
-		const hash = crypto.createHash('md5');
-		hash.update(JSON.stringify(value));
-		let result = Objects.assign(Object.create(null), value);
-		result._key = hash.digest('hex');
-		return result;
-	}
-}
-
-namespace TaskItem {
-	export function to(value: TaskItem): TaskItemTransfer {
-		return {
-			id: value.id,
-			label: value.label,
-			definition: TaskIdentifier.to(value.definition),
-			workspaceFolderUri: value.workspaceFolder.uri
-		};
-	}
-	export function from(value: TaskItemTransfer, workspace: IWorkspaceContextService): TaskItem {
-		return {
-			id: value.id,
-			label: value.label,
-			definition: TaskIdentifier.from(value.definition),
-			workspaceFolder: workspace.getWorkspaceFolder(URI.revive(value.workspaceFolderUri))
-		};
-	}
-}
-
-namespace TaskExecution {
-	export function to(value: TaskExecution): TaskExecutionTransfer {
+namespace TaskExecutionDTO {
+	export function from(value: TaskExecution): TaskExecutionDTO {
 		return {
 			id: value.id,
 		};
 	}
-	export function from(value: TaskExecutionTransfer, workspace: IWorkspaceContextService): TaskExecution {
+	export function to(value: TaskExecutionDTO, workspace: IWorkspaceContextService): TaskExecution {
 		return {
 			id: value.id,
 		};
@@ -243,6 +209,9 @@ namespace TaskSourceDTO {
 			} else {
 				result.scope = value.scope;
 			}
+		} else if (value.kind === TaskSourceKind.Workspace) {
+			result.extensionId = '$core';
+			result.scope = value.config.workspaceFolder.uri;
 		}
 		return result;
 	}
@@ -274,9 +243,16 @@ namespace TaskSourceDTO {
 	}
 }
 
+namespace TaskHandleDTO {
+	export function is(value: any): value is TaskHandleDTO {
+		let candidate: TaskHandleDTO = value;
+		return candidate && Types.isString(candidate.id) && !!candidate.workspaceFolder;
+	}
+}
+
 namespace TaskDTO {
 	export function from(task: Task): TaskDTO {
-		if (task === void 0 || task === null || !CustomTask.is(task) || !ContributedTask.is(task)) {
+		if (task === void 0 || task === null || (!CustomTask.is(task) && !ContributedTask.is(task))) {
 			return undefined;
 		}
 		let result: TaskDTO = {
@@ -288,7 +264,7 @@ namespace TaskDTO {
 			presentationOptions: task.command ? TaskPresentationOptionsDTO.from(task.command.presentation) : undefined,
 			isBackground: task.isBackground,
 			problemMatchers: [],
-			hasDefinedMatchers: task.hasDefinedMatchers
+			hasDefinedMatchers: ContributedTask.is(task) ? task.hasDefinedMatchers : false
 		};
 		if (task.group) {
 			result.group = task.group;
@@ -366,9 +342,9 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._taskService.onDidStateChange((event: TaskEvent) => {
 			let task = event.__task;
 			if (event.kind === TaskEventKind.Start) {
-				this._proxy.$taskStarted(TaskExecution.to(Task.getTaskExecution(task)));
+				this._proxy.$taskStarted(TaskExecutionDTO.from(Task.getTaskExecution(task)));
 			} else if (event.kind === TaskEventKind.End) {
-				this._proxy.$taskEnded(TaskExecution.to(Task.getTaskExecution(task)));
+				this._proxy.$taskEnded(TaskExecutionDTO.from(Task.getTaskExecution(task)));
 			}
 		});
 	}
@@ -420,23 +396,32 @@ export class MainThreadTask implements MainThreadTaskShape {
 		});
 	}
 
-	public $executeTask(value: TaskItemTransfer): TPromise<TaskExecutionTransfer> {
-		let item: TaskItem = TaskItem.from(value, this._workspaceContextServer);
-		return new TPromise<TaskExecutionTransfer>((resolve, reject) => {
-			this._taskService.getTask(item.workspaceFolder, item.id, true).then((task: Task) => {
+	public $executeTask(value: TaskHandleDTO | TaskDTO): TPromise<TaskExecutionDTO> {
+		return new TPromise<TaskExecutionDTO>((resolve, reject) => {
+			if (TaskHandleDTO.is(value)) {
+				let workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
+				this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task) => {
+					this._taskService.run(task);
+					let result: TaskExecutionDTO = {
+						id: value.id
+					};
+					resolve(result);
+				}, (error) => {
+					reject(new Error('Task not found'));
+				});
+			} else {
+				let task = TaskDTO.to(value, this._workspaceContextServer);
 				this._taskService.run(task);
-				let result: TaskExecutionTransfer = {
-					id: value.id
+				let result: TaskExecutionDTO = {
+					id: task._id
 				};
 				resolve(result);
-			}, (error) => {
-				reject(new Error('Task not found'));
-			});
+			}
 		});
 	}
 
-	public $terminateTask(value: TaskExecutionTransfer): TPromise<void> {
-		let execution: TaskExecution = TaskExecution.from(value, this._workspaceContextServer);
+	public $terminateTask(value: TaskExecutionDTO): TPromise<void> {
+		let execution: TaskExecution = TaskExecutionDTO.to(value, this._workspaceContextServer);
 		return new TPromise<void>((resolve, reject) => {
 			this._taskService.getActiveTasks().then((tasks) => {
 				for (let task of tasks) {

@@ -516,8 +516,11 @@ export function createApiFactory(
 			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
 			},
+			fetchTasks: proposedApiFunction(extension, (): Thenable<vscode.Task[]> => {
+				return extHostTask.executeTaskProvider();
+			}),
 			executeTask: proposedApiFunction(extension, (task: vscode.Task): Thenable<vscode.TaskExecution> => {
-				return extHostTask.executeTask(task);
+				return extHostTask.executeTask(extension, task);
 			}),
 			onDidStartTask: (listeners, thisArgs?, disposables?) => {
 				return extHostTask.onDidStartTask(listeners, thisArgs, disposables);

@@ -11,14 +11,7 @@ export interface TaskDefinitionDTO {
 	[name: string]: any;
 }
 
-export interface TaskItemTransfer {
-	id: string;
-	label: string;
-	definition: TaskDefinitionDTO;
-	workspaceFolderUri: UriComponents;
-}
-
-export interface TaskExecutionTransfer {
+export interface TaskExecutionDTO {
 	id: string;
 }
 
@@ -74,6 +67,11 @@ export interface TaskSourceDTO {
 	label: string;
 	extensionId?: string;
 	scope?: number | UriComponents;
+}
+
+export interface TaskHandleDTO {
+	id: string;
+	workspaceFolder: UriComponents;
 }
 
 export interface TaskDTO {

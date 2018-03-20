@@ -747,7 +747,6 @@ declare module 'vscode' {
 	 * to terminate a task.
 	 */
 	export interface TaskExecution {
-
 	}
 
 	/**
@@ -773,6 +772,13 @@ declare module 'vscode' {
 	export namespace workspace {
 
 		/**
+		 * Fetches all task available in the systems. This includes tasks
+		 * from `tasks.json` files as well as tasks from task providers
+		 * contributed through extensions.
+		 */
+		export function fetchTasks(): Thenable<Task[]>;
+
+		/**
 		 * Executes a task that is managed by VS Code. The returned
 		 * task execution can be used to terminate the task.
 		 *
@@ -792,68 +798,11 @@ declare module 'vscode' {
 		 */
 		export function terminateTask(task: TaskExecution): void;
 
-
 		/**
 		 * Fires when a task ends.
 		 */
 		export const onDidEndTask: Event<TaskEndEvent>;
 	}
-
-
-	// /**
-	//  * A task execution provides support to `start` and to
-	//  * `terminate` a task. I also support events to get
-	//  * notified when the task terminates.
-	//  */
-	// export interface TaskExecutor {
-
-	// 	/**
-	// 	 * Starts the task.
-	// 	 */
-	// 	start(): void;
-
-	// 	/**
-	// 	 * An event that fires when the task terminates. Terminate
-	// 	 * events are unbuffered. If a listener is registered after
-	// 	 * the task terminate no event is sent.
-	// 	 */
-	// 	onDidTerminate: Event<void>;
-
-	// 	/**
-	// 	 * An event that fires if the task write a new line to stdout.
-	// 	 * Note that if the task is executed in a terminal and the
-	// 	 * ouput uses ANSI control squences to place the cursor lines
-	// 	 * can occur multiple times in the output. The line data event
-	// 	 * is unbuffered. If a listener is regsitered after the task
-	// 	 * has been started only the line data from that point in time
-	// 	 * is provided.
-	// 	 */
-	// 	onDidWriteLine: Event<string>;
-
-	// 	/**
-	// 	 * Terminates the task.
-	// 	 */
-	// 	terminate(): void;
-	// }
-
-
-
-	// export namespace workspace {
-	// 	export function createTaskExecutor(task: Task): TaskExecutor;
-	// }
-
-
-	// export interface TaskFilter {
-	// 	type: string;
-	// }
-
-	// export interface TaskExecutionProvider {
-	// 	executeTask(task: Task);
-	// }
-
-	// export namespace workspace {
-	// 	export function registerTaskExecutionProvider(filter: TaskFilter);
-	// }
 
 	//#endregion
 }

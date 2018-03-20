@@ -20,10 +20,11 @@ import * as types from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import * as vscode from 'vscode';
 import {
-	TaskDefinitionDTO, TaskExecutionTransfer, TaskPresentationOptionsDTO, ProcessExecutionOptionsDTO, ProcessExecutionDTO,
-	ShellExecutionOptionsDTO, ShellExecutionDTO, TaskDTO
+	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO, ProcessExecutionOptionsDTO, ProcessExecutionDTO,
+	ShellExecutionOptionsDTO, ShellExecutionDTO, TaskDTO, TaskHandleDTO
 } from '../common/commonTask';
 
+export { TaskExecutionDTO };
 
 /*
 namespace ProblemPattern {
@@ -575,6 +576,19 @@ namespace ShellExecutionDTO {
 	}
 }
 
+namespace TaskHandleDTO {
+	export function from(value: types.Task): TaskHandleDTO {
+		let folder: UriComponents;
+		if (value.scope !== void 0 && typeof value.scope !== 'number') {
+			folder = value.scope.uri;
+		}
+		return {
+			id: value._id,
+			workspaceFolder: folder
+		};
+	}
+}
+
 namespace TaskDTO {
 
 	export function from(value: vscode.Task, extension: IExtensionDescription): TaskDTO {
@@ -624,16 +638,20 @@ namespace TaskDTO {
 		let execution: types.ShellExecution | types.ProcessExecution;
 		if (ProcessExecutionDTO.is(value.execution)) {
 			execution = ProcessExecutionDTO.to(value.execution);
-		} else if (ShellExecutionDTO.is(execution)) {
+		} else if (ShellExecutionDTO.is(value.execution)) {
 			execution = ShellExecutionDTO.to(value.execution);
 		}
 		let definition: vscode.TaskDefinition = TaskDefinitionDTO.to(value.definition);
 		let scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder;
-		if (value.source && value.source.scope !== void 0) {
-			if (typeof value.source.scope === 'number') {
-				scope = value.source.scope;
+		if (value.source) {
+			if (value.source.scope !== void 0) {
+				if (typeof value.source.scope === 'number') {
+					scope = value.source.scope;
+				} else {
+					scope = workspace.resolveWorkspaceFolder(URI.revive(value.source.scope));
+				}
 			} else {
-				scope = workspace.resolveWorkspaceFolder(URI.revive(value.source.scope));
+				scope = types.TaskScope.Workspace;
 			}
 		}
 		if (!execution || !definition || !scope) {
@@ -658,18 +676,17 @@ namespace TaskDTO {
 
 class TaskExecutionImpl implements vscode.TaskExecution {
 	constructor(readonly _id: string) {
-
 	}
 }
 
-export namespace TaskExecution {
-	export function to(value: vscode.TaskExecution): TaskExecutionTransfer {
+namespace TaskExecutionDTO {
+	export function to(value: TaskExecutionDTO): vscode.TaskExecution {
+		return new TaskExecutionImpl(value.id);
+	}
+	export function from(value: vscode.TaskExecution): TaskExecutionDTO {
 		return {
 			id: (value as TaskExecutionImpl)._id
 		};
-	}
-	export function from(value: TaskExecutionTransfer): vscode.TaskExecution {
-		return new TaskExecutionImpl(value.id);
 	}
 }
 
@@ -710,17 +727,30 @@ export class ExtHostTask implements ExtHostTaskShape {
 
 	public executeTaskProvider(): Thenable<vscode.Task[]> {
 		return this._proxy.$executeTaskProvider().then((values) => {
-			return values.map((value) => TaskDTO.to(value, this._extHostWorkspace));
+			let result: vscode.Task[] = [];
+			for (let value of values) {
+				let task = TaskDTO.to(value, this._extHostWorkspace);
+				if (task) {
+					result.push(task);
+				}
+			}
+			return result;
 		});
 	}
 
-	public executeTask(task: vscode.Task): Thenable<vscode.TaskExecution> {
-		return undefined; // this._proxy.$executeTask(TaskDTO.from(task)).then((value) => TaskExecution.from(value));
+	public executeTask(extension: IExtensionDescription, task: vscode.Task): Thenable<vscode.TaskExecution> {
+		let tTask = (task as types.Task);
+		// We have a preserved ID. So the task didn't change.
+		if (tTask._id !== void 0) {
+			return this._proxy.$executeTask(TaskHandleDTO.from(tTask)).then(value => TaskExecutionDTO.to(value));
+		} else {
+			return this._proxy.$executeTask(TaskDTO.from(task, extension)).then(value => TaskExecutionDTO.to(value));
+		}
 	}
 
-	public $taskStarted(execution: TaskExecutionTransfer): void {
+	public $taskStarted(execution: TaskExecutionDTO): void {
 		this._onDidExecuteTask.fire({
-			execution: TaskExecution.from(execution)
+			execution: TaskExecutionDTO.to(execution)
 		});
 	}
 
@@ -732,12 +762,12 @@ export class ExtHostTask implements ExtHostTaskShape {
 		if (!(execution instanceof TaskExecutionImpl)) {
 			throw new Error('No valid task execution provided');
 		}
-		return this._proxy.$terminateTask(TaskExecution.to(execution));
+		return this._proxy.$terminateTask(TaskExecutionDTO.from(execution));
 	}
 
-	public $taskEnded(execution: TaskExecutionTransfer): void {
+	public $taskEnded(execution: TaskExecutionDTO): void {
 		this._onDidTerminateTask.fire({
-			execution: TaskExecution.to(execution)
+			execution: TaskExecutionDTO.to(execution)
 		});
 	}
 
