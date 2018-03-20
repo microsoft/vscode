@@ -8,19 +8,19 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { MarkersModel, Marker, Resource } from 'vs/workbench/parts/markers/electron-browser/markersModel';
+import { MarkersModel, Marker, ResourceMarkers } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 
 class TestMarkersModel extends MarkersModel {
 
-	get filteredResources(): Resource[] {
-		let res: Resource[] = [];
+	get filteredResources(): ResourceMarkers[] {
+		let res: ResourceMarkers[] = [];
 		this.forEachFilteredResource(resource => res.push(resource));
 		return res;
 	}
 
 	static compare(a: any, b: any): number {
-		if (a instanceof Resource && b instanceof Resource) {
-			return Resource.compare(a, b);
+		if (a instanceof ResourceMarkers && b instanceof ResourceMarkers) {
+			return ResourceMarkers.compare(a, b);
 		}
 		if (a instanceof Marker && b instanceof Marker) {
 			return Marker.compare(a, b);
@@ -45,22 +45,22 @@ suite('MarkersModel Test', () => {
 		assert.equal(4, actuals.length);
 
 		assert.ok(compareResource(actuals[0], 'res1'));
-		assert.equal(2, actuals[0].markers.length);
-		assert.ok(hasMarker(actuals[0].markers, marker1));
-		assert.ok(hasMarker(actuals[0].markers, marker3));
+		assert.equal(2, actuals[0].data.length);
+		assert.ok(hasMarker(actuals[0].data, marker1));
+		assert.ok(hasMarker(actuals[0].data, marker3));
 
 		assert.ok(compareResource(actuals[1], 'res2'));
-		assert.equal(2, actuals[1].markers.length);
-		assert.ok(hasMarker(actuals[1].markers, marker2));
-		assert.ok(hasMarker(actuals[1].markers, marker6));
+		assert.equal(2, actuals[1].data.length);
+		assert.ok(hasMarker(actuals[1].data, marker2));
+		assert.ok(hasMarker(actuals[1].data, marker6));
 
 		assert.ok(compareResource(actuals[2], 'res3'));
-		assert.equal(1, actuals[2].markers.length);
-		assert.ok(hasMarker(actuals[2].markers, marker4));
+		assert.equal(1, actuals[2].data.length);
+		assert.ok(hasMarker(actuals[2].data, marker4));
 
 		assert.ok(compareResource(actuals[3], 'res4'));
-		assert.equal(1, actuals[3].markers.length);
-		assert.ok(hasMarker(actuals[3].markers, marker5));
+		assert.equal(1, actuals[3].data.length);
+		assert.ok(hasMarker(actuals[3].data, marker5));
 	});
 
 	test('sort palces resources with no errors at the end', function () {
@@ -119,7 +119,7 @@ suite('MarkersModel Test', () => {
 		let marker15 = anErrorWithRange(8, 2, 8, 4);
 		let testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6, marker7, marker8, marker9, marker10, marker11, marker12, marker13, marker14, marker15]);
 
-		let actuals = testObject.filteredResources[0].markers.sort(TestMarkersModel.compare);
+		let actuals = testObject.filteredResources[0].data.sort(TestMarkersModel.compare);
 
 		assert.equal(actuals[0].raw, marker6);
 		assert.equal(actuals[1].raw, marker14);
@@ -153,7 +153,7 @@ suite('MarkersModel Test', () => {
 		}).length === 1;
 	}
 
-	function compareResource(a: Resource, b: string): boolean {
+	function compareResource(a: ResourceMarkers, b: string): boolean {
 		return a.uri.toString() === URI.file(b).toString();
 	}
 

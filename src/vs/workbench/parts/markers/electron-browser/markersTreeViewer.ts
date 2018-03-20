@@ -12,24 +12,20 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { MarkersModel, Resource, Marker } from 'vs/workbench/parts/markers/electron-browser/markersModel';
+import { MarkersModel, ResourceMarkers, Marker, ResourceData, RelatedInformation, NodeWithId } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
-interface IAnyResourceTemplateData {
-	count: CountBadge;
-	styler: IDisposable;
-}
-
-interface IResourceTemplateData extends IAnyResourceTemplateData {
+interface IResourceTemplateData {
 	resourceLabel: ResourceLabel;
 }
 
-interface IFileResourceTemplateData extends IAnyResourceTemplateData {
-	fileLabel: FileLabel;
+interface IProblemResourceTemplateData extends IResourceTemplateData {
+	count: CountBadge;
+	styler: IDisposable;
 }
 
 interface IMarkerTemplateData {
@@ -39,30 +35,35 @@ interface IMarkerTemplateData {
 	lnCol: HTMLElement;
 }
 
+interface IRelatedInformationTemplateData {
+	description: HighlightedLabel;
+	lnCol: HTMLElement;
+}
+
 export class DataSource implements IDataSource {
-	public getId(tree: ITree, element: MarkersModel | Resource | Marker): string {
+	public getId(tree: ITree, element: any): string {
 		if (element instanceof MarkersModel) {
 			return 'root';
 		}
-		if (element instanceof Resource) {
-			return element.uri.toString();
-		}
-		if (element instanceof Marker) {
+		if (element instanceof NodeWithId) {
 			return element.id;
 		}
 		return '';
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof MarkersModel || element instanceof Resource;
+		return element instanceof MarkersModel || element instanceof ResourceData || (element instanceof Marker && element.resourceRelatedInformation.length > 0);
 	}
 
-	public getChildren(tree: ITree, element: MarkersModel | Resource): Promise {
+	public getChildren(tree: ITree, element: any): Promise {
 		if (element instanceof MarkersModel) {
 			return Promise.as(element.resources);
 		}
-		if (element instanceof Resource) {
-			return Promise.as(element.markers);
+		if (element instanceof ResourceData) {
+			return Promise.as(element.data);
+		}
+		if (element instanceof Marker && element.resourceRelatedInformation.length > 0) {
+			return Promise.as(element.resourceRelatedInformation);
 		}
 		return null;
 	}
@@ -73,9 +74,9 @@ export class DataSource implements IDataSource {
 }
 
 export class DataFilter implements IFilter {
-	public isVisible(tree: ITree, element: Resource | Marker | any): boolean {
-		if (element instanceof Resource) {
-			return element.filteredMarkersCount > 0;
+	public isVisible(tree: ITree, element: any): boolean {
+		if (element instanceof ResourceMarkers) {
+			return element.count > 0;
 		}
 		if (element instanceof Marker) {
 			return element.isSelected;
@@ -86,9 +87,12 @@ export class DataFilter implements IFilter {
 
 export class Renderer implements IRenderer {
 
-	private static readonly RESOURCE_TEMPLATE_ID = 'resource-template';
-	private static readonly FILE_RESOURCE_TEMPLATE_ID = 'file-resource-template';
+	private static readonly PROBLEM_RESOURCE_TEMPLATE_ID = 'problem-resource-template';
+	private static readonly PROBLEM_FILE_RESOURCE_TEMPLATE_ID = 'problem-file-resource-template';
+	private static readonly RELATED_RESOURCE_TEMPLATE_ID = 'related-resource-template';
+	private static readonly RELATED_FILE_RESOURCE_TEMPLATE_ID = 'related-file-resource-template';
 	private static readonly MARKER_TEMPLATE_ID = 'marker-template';
+	private static readonly RELATED_INFORMATION_TEMPLATE_ID = 'related-info-template';
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -101,15 +105,25 @@ export class Renderer implements IRenderer {
 	}
 
 	public getTemplateId(tree: ITree, element: any): string {
-		if (element instanceof Resource) {
-			if ((<Resource>element).uri.scheme === network.Schemas.file || (<Resource>element).uri.scheme === network.Schemas.untitled) {
-				return Renderer.FILE_RESOURCE_TEMPLATE_ID;
+		if (element instanceof ResourceMarkers) {
+			if ((element).uri.scheme === network.Schemas.file || (<ResourceMarkers>element).uri.scheme === network.Schemas.untitled) {
+				return Renderer.PROBLEM_FILE_RESOURCE_TEMPLATE_ID;
 			} else {
-				return Renderer.RESOURCE_TEMPLATE_ID;
+				return Renderer.PROBLEM_RESOURCE_TEMPLATE_ID;
+			}
+		}
+		if (element instanceof ResourceData) {
+			if ((element).uri.scheme === network.Schemas.file || (<ResourceMarkers>element).uri.scheme === network.Schemas.untitled) {
+				return Renderer.RELATED_FILE_RESOURCE_TEMPLATE_ID;
+			} else {
+				return Renderer.RELATED_RESOURCE_TEMPLATE_ID;
 			}
 		}
 		if (element instanceof Marker) {
 			return Renderer.MARKER_TEMPLATE_ID;
+		}
+		if (element instanceof RelatedInformation) {
+			return Renderer.RELATED_INFORMATION_TEMPLATE_ID;
 		}
 		return '';
 	}
@@ -117,19 +131,37 @@ export class Renderer implements IRenderer {
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
 		dom.addClass(container, 'markers-panel-tree-entry');
 		switch (templateId) {
-			case Renderer.FILE_RESOURCE_TEMPLATE_ID:
+			case Renderer.PROBLEM_FILE_RESOURCE_TEMPLATE_ID:
+				return this.renderProblemFileResourceTemplate(container);
+			case Renderer.PROBLEM_RESOURCE_TEMPLATE_ID:
+				return this.renderProblemResourceTemplate(container);
+			case Renderer.RELATED_FILE_RESOURCE_TEMPLATE_ID:
 				return this.renderFileResourceTemplate(container);
-			case Renderer.RESOURCE_TEMPLATE_ID:
+			case Renderer.RELATED_RESOURCE_TEMPLATE_ID:
 				return this.renderResourceTemplate(container);
 			case Renderer.MARKER_TEMPLATE_ID:
 				return this.renderMarkerTemplate(container);
+			case Renderer.RELATED_INFORMATION_TEMPLATE_ID:
+				return this.renderRelatedInformationTemplate(container);
 		}
 	}
 
-	private renderFileResourceTemplate(container: HTMLElement): IFileResourceTemplateData {
-		const data: IFileResourceTemplateData = Object.create(null);
+	private renderFileResourceTemplate(container: HTMLElement): IResourceTemplateData {
+		const data: IProblemResourceTemplateData = Object.create(null);
 		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
-		data.fileLabel = this.instantiationService.createInstance(FileLabel, resourceLabelContainer, { supportHighlights: true });
+		data.resourceLabel = this.instantiationService.createInstance(FileLabel, resourceLabelContainer, { supportHighlights: true });
+		return data;
+	}
+
+	private renderResourceTemplate(container: HTMLElement): IResourceTemplateData {
+		const data: IProblemResourceTemplateData = Object.create(null);
+		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
+		data.resourceLabel = this.instantiationService.createInstance(ResourceLabel, resourceLabelContainer, { supportHighlights: true });
+		return data;
+	}
+
+	private renderProblemFileResourceTemplate(container: HTMLElement): IProblemResourceTemplateData {
+		const data = <IProblemResourceTemplateData>this.renderFileResourceTemplate(container);
 
 		const badgeWrapper = dom.append(container, dom.$('.count-badge-wrapper'));
 		data.count = new CountBadge(badgeWrapper);
@@ -138,10 +170,8 @@ export class Renderer implements IRenderer {
 		return data;
 	}
 
-	private renderResourceTemplate(container: HTMLElement): IResourceTemplateData {
-		const data: IResourceTemplateData = Object.create(null);
-		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
-		data.resourceLabel = this.instantiationService.createInstance(ResourceLabel, resourceLabelContainer, { supportHighlights: true });
+	private renderProblemResourceTemplate(container: HTMLElement): IProblemResourceTemplateData {
+		const data = <IProblemResourceTemplateData>this.renderResourceTemplate(container);
 
 		const badgeWrapper = dom.append(container, dom.$('.count-badge-wrapper'));
 		data.count = new CountBadge(badgeWrapper);
@@ -159,23 +189,36 @@ export class Renderer implements IRenderer {
 		return data;
 	}
 
+	private renderRelatedInformationTemplate(container: HTMLElement): IRelatedInformationTemplateData {
+		const data: IRelatedInformationTemplateData = Object.create(null);
+		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
+		data.lnCol = dom.append(container, dom.$('span.marker-line'));
+		return data;
+	}
+
 	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
 		switch (templateId) {
-			case Renderer.FILE_RESOURCE_TEMPLATE_ID:
-			case Renderer.RESOURCE_TEMPLATE_ID:
-				return this.renderResourceElement(tree, <Resource>element, templateData);
+			case Renderer.PROBLEM_FILE_RESOURCE_TEMPLATE_ID:
+			case Renderer.PROBLEM_RESOURCE_TEMPLATE_ID:
+			case Renderer.RELATED_FILE_RESOURCE_TEMPLATE_ID:
+			case Renderer.RELATED_RESOURCE_TEMPLATE_ID:
+				return this.renderResourceElement(tree, <ResourceData<any>>element, templateData);
 			case Renderer.MARKER_TEMPLATE_ID:
 				return this.renderMarkerElement(tree, (<Marker>element), templateData);
+			case Renderer.RELATED_INFORMATION_TEMPLATE_ID:
+				return this.renderRelatedInformationElement(tree, (<RelatedInformation>element), templateData);
 		}
 	}
 
-	private renderResourceElement(tree: ITree, element: Resource, templateData: IAnyResourceTemplateData) {
-		if ((<IFileResourceTemplateData>templateData).fileLabel) {
-			(<IFileResourceTemplateData>templateData).fileLabel.setFile(element.uri, { matches: element.uriMatches });
-		} else if ((<IResourceTemplateData>templateData).resourceLabel) {
-			(<IResourceTemplateData>templateData).resourceLabel.setLabel({ name: element.name, description: element.uri.toString(), resource: element.uri }, { matches: element.uriMatches });
+	private renderResourceElement(tree: ITree, element: ResourceData<any>, templateData: IResourceTemplateData | IProblemResourceTemplateData) {
+		if (templateData.resourceLabel instanceof FileLabel) {
+			templateData.resourceLabel.setFile(element.uri, { matches: element.uriMatches });
+		} else {
+			templateData.resourceLabel.setLabel({ name: element.name, description: element.uri.toString(), resource: element.uri }, { matches: element.uriMatches });
 		}
-		templateData.count.setCount(element.filteredMarkersCount);
+		if ((<IProblemResourceTemplateData>templateData).count) {
+			(<IProblemResourceTemplateData>templateData).count.setCount(element.count);
+		}
 	}
 
 	private renderMarkerElement(tree: ITree, element: Marker, templateData: IMarkerTemplateData) {
@@ -188,6 +231,12 @@ export class Renderer implements IRenderer {
 		templateData.source.set(marker.source, element.sourceMatches);
 
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
+	}
+
+	private renderRelatedInformationElement(tree: ITree, element: RelatedInformation, templateData: IRelatedInformationTemplateData) {
+		templateData.description.set(element.relatedInformation.message, element.matches);
+		templateData.description.element.title = element.relatedInformation.message;
+		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(element.relatedInformation.startLineNumber, element.relatedInformation.startColumn);
 	}
 
 	private static iconClassNameFor(element: IMarker): string {
@@ -205,15 +254,16 @@ export class Renderer implements IRenderer {
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
-		if (templateId === Renderer.FILE_RESOURCE_TEMPLATE_ID) {
-			(<IFileResourceTemplateData>templateData).fileLabel.dispose();
-			(<IFileResourceTemplateData>templateData).styler.dispose();
-		} else if (templateId === Renderer.RESOURCE_TEMPLATE_ID) {
-			(<IResourceTemplateData>templateData).resourceLabel.dispose();
-			(<IResourceTemplateData>templateData).styler.dispose();
+		if (templateId === Renderer.PROBLEM_RESOURCE_TEMPLATE_ID || templateId === Renderer.PROBLEM_FILE_RESOURCE_TEMPLATE_ID) {
+			(<IProblemResourceTemplateData>templateData).resourceLabel.dispose();
+			(<IProblemResourceTemplateData>templateData).styler.dispose();
+		} else if (templateId === Renderer.RELATED_RESOURCE_TEMPLATE_ID || templateId === Renderer.RELATED_FILE_RESOURCE_TEMPLATE_ID) {
+			(<IProblemResourceTemplateData>templateData).resourceLabel.dispose();
 		} else if (templateId === Renderer.MARKER_TEMPLATE_ID) {
 			(<IMarkerTemplateData>templateData).description.dispose();
 			(<IMarkerTemplateData>templateData).source.dispose();
+		} else if (templateId === Renderer.RELATED_INFORMATION_TEMPLATE_ID) {
+			(<IRelatedInformationTemplateData>templateData).description.dispose();
 		}
 	}
 }
@@ -221,11 +271,17 @@ export class Renderer implements IRenderer {
 export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider {
 
 	public getAriaLabel(tree: ITree, element: any): string {
-		if (element instanceof Resource) {
-			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.name, element.filteredMarkersCount);
+		if (element instanceof ResourceMarkers) {
+			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.name, element.count);
 		}
 		if (element instanceof Marker) {
-			return Messages.MARKERS_TREE_ARIA_LABEL_MARKER(element.raw);
+			return Messages.MARKERS_TREE_ARIA_LABEL_MARKER(element);
+		}
+		if (element instanceof ResourceData) {
+			return element.name;
+		}
+		if (element instanceof RelatedInformation) {
+			return Messages.MARKERS_TREE_ARIA_LABEL_RELATED_INFORMATION(element.relatedInformation);
 		}
 		return null;
 	}

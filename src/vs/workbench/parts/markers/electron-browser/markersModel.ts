@@ -7,26 +7,32 @@
 import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
 import { IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy } from 'vs/base/common/filters';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { Schemas } from 'vs/base/common/network';
 import { groupBy, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { values } from 'vs/base/common/map';
 
-export class Resource {
+export abstract class NodeWithId {
+	constructor(readonly id: string) { }
+}
+
+export class ResourceData<T> extends NodeWithId {
 
 	private _name: string = null;
 	private _path: string = null;
 
-	filteredMarkersCount: number = 0;
+	count: number = 0;
 	uriMatches: IMatch[] = [];
 
 	constructor(
+		id: string,
 		readonly uri: URI,
-		readonly markers: Marker[],
+		readonly data: T[]
 	) {
-		markers.sort(Marker.compare);
+		super(id);
+		this.count = this.data.length;
 	}
 
 	public get path(): string {
@@ -42,10 +48,21 @@ export class Resource {
 		}
 		return this._name;
 	}
+}
 
-	static compare(a: Resource, b: Resource): number {
-		let [firstMarkerOfA] = a.markers;
-		let [firstMarkerOfB] = b.markers;
+export class ResourceMarkers extends ResourceData<Marker> {
+
+	constructor(
+		uri: URI,
+		markers: Marker[]
+	) {
+		const sorted = markers.sort(Marker.compare);
+		super(uri.toString(), uri, sorted);
+	}
+
+	static compare(a: ResourceMarkers, b: ResourceMarkers): number {
+		let [firstMarkerOfA] = a.data;
+		let [firstMarkerOfB] = b.data;
 		let res = 0;
 		if (firstMarkerOfA && firstMarkerOfB) {
 			res = MarkerSeverity.compare(firstMarkerOfA.raw.severity, firstMarkerOfB.raw.severity);
@@ -57,16 +74,19 @@ export class Resource {
 	}
 }
 
-export class Marker {
+export class Marker extends NodeWithId {
 
 	isSelected: boolean = false;
 	messageMatches: IMatch[] = [];
 	sourceMatches: IMatch[] = [];
+	resourceRelatedInformation: ResourceData<RelatedInformation>[] = [];
 
 	constructor(
-		readonly id: string,
+		id: string,
 		readonly raw: IMarker,
-	) { }
+	) {
+		super(id);
+	}
 
 	public get resource(): URI {
 		return this.raw.resource;
@@ -90,6 +110,15 @@ export class Marker {
 	static compare(a: Marker, b: Marker): number {
 		return MarkerSeverity.compare(a.raw.severity, b.raw.severity)
 			|| Range.compareRangesUsingStarts(a.raw, b.raw);
+	}
+}
+
+export class RelatedInformation extends NodeWithId {
+	constructor(
+		id: string,
+		readonly relatedInformation: IRelatedInformation,
+		public matches: IMatch[]) {
+		super(id);
 	}
 }
 
@@ -126,12 +155,12 @@ export class FilterOptions {
 
 export class MarkersModel {
 
-	private _cachedSortedResources: Resource[];
-	private _markersByResource: Map<string, Resource>;
+	private _cachedSortedResources: ResourceMarkers[];
+	private _markersByResource: Map<string, ResourceMarkers>;
 	private _filterOptions: FilterOptions;
 
 	constructor(markers: IMarker[] = []) {
-		this._markersByResource = new Map<string, Resource>();
+		this._markersByResource = new Map<string, ResourceMarkers>();
 		this._filterOptions = new FilterOptions();
 
 		for (const group of groupBy(markers, MarkersModel._compareMarkersByUri)) {
@@ -154,16 +183,16 @@ export class MarkersModel {
 		return this._filterOptions;
 	}
 
-	public get resources(): Resource[] {
+	public get resources(): ResourceMarkers[] {
 		if (!this._cachedSortedResources) {
-			this._cachedSortedResources = values(this._markersByResource).sort(Resource.compare);
+			this._cachedSortedResources = values(this._markersByResource).sort(ResourceMarkers.compare);
 		}
 		return this._cachedSortedResources;
 	}
 
-	public forEachFilteredResource(callback: (resource: Resource) => any) {
+	public forEachFilteredResource(callback: (resource: ResourceMarkers) => any) {
 		this._markersByResource.forEach(resource => {
-			if (resource.filteredMarkersCount > 0) {
+			if (resource.count > 0) {
 				callback(resource);
 			}
 		});
@@ -172,7 +201,7 @@ export class MarkersModel {
 	public hasFilteredResources(): boolean {
 		let res = false;
 		this._markersByResource.forEach(resource => {
-			res = res || resource.filteredMarkersCount > 0;
+			res = res || resource.count > 0;
 		});
 		return res;
 	}
@@ -189,8 +218,8 @@ export class MarkersModel {
 		let total = 0;
 		let filtered = 0;
 		this._markersByResource.forEach(resource => {
-			total += resource.markers.length;
-			filtered += resource.filteredMarkersCount;
+			total += resource.data.length;
+			filtered += resource.count;
 		});
 		return { total, filtered };
 
@@ -212,13 +241,17 @@ export class MarkersModel {
 		if (!this._filterOptions.hasFilters()) {
 			// reset all filters/matches
 			this._markersByResource.forEach(resource => {
-				resource.filteredMarkersCount = resource.markers.length;
+				resource.count = resource.data.length;
 				resource.uriMatches = [];
 
-				for (const marker of resource.markers) {
+				for (const marker of resource.data) {
 					marker.isSelected = true;
 					marker.messageMatches = [];
 					marker.sourceMatches = [];
+					marker.resourceRelatedInformation.forEach(r => {
+						r.uriMatches = [];
+						r.data.forEach(d => d.matches = []);
+					});
 				}
 			});
 		} else {
@@ -226,21 +259,25 @@ export class MarkersModel {
 			this._markersByResource.forEach(resource => {
 
 				resource.uriMatches = this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, paths.basename(resource.uri.fsPath)) : [];
-				resource.filteredMarkersCount = 0;
+				resource.count = 0;
 
-				for (const marker of resource.markers) {
+				for (const marker of resource.data) {
 					marker.messageMatches = this._filterOptions.hasFilters() ? FilterOptions._fuzzyFilter(this._filterOptions.filter, marker.raw.message) : [];
 					marker.sourceMatches = marker.raw.source && this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, marker.raw.source) : [];
 					marker.isSelected = this.filterMarker(marker.raw);
 					if (marker.isSelected) {
-						resource.filteredMarkersCount += 1;
+						resource.count += 1;
 					}
+					marker.resourceRelatedInformation.forEach(r => {
+						r.uriMatches = this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, paths.basename(r.uri.fsPath)) : [];
+						r.data.forEach(d => d.matches = this._filterOptions.hasFilters() ? FilterOptions._fuzzyFilter(this._filterOptions.filter, d.relatedInformation.message) : []);
+					});
 				}
 			});
 		}
 	}
 
-	private createResource(uri: URI, rawMarkers: IMarker[]): Resource {
+	private createResource(uri: URI, rawMarkers: IMarker[]): ResourceMarkers {
 
 		let markers: Marker[] = [];
 		let filteredCount = 0;
@@ -252,19 +289,36 @@ export class MarkersModel {
 			}
 		}
 
-		const resource = new Resource(uri, markers);
-		resource.filteredMarkersCount = filteredCount;
+		const resource = new ResourceMarkers(uri, markers);
+		resource.count = filteredCount;
 		resource.uriMatches = this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, paths.basename(uri.fsPath)) : [];
 
 		return resource;
 	}
 
-	private createMarker(marker: IMarker, index: number, uri: string): Marker {
-		const res = new Marker(uri + index, marker);
-		res.messageMatches = this._filterOptions.hasFilters() ? FilterOptions._fuzzyFilter(this._filterOptions.filter, marker.message) : [];
-		res.sourceMatches = marker.source && this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, marker.source) : [];
-		res.isSelected = this.filterMarker(marker);
-		return res;
+	private createMarker(rawMarker: IMarker, index: number, uri: string): Marker {
+		const marker = new Marker(uri + index, rawMarker);
+		marker.messageMatches = this._filterOptions.hasFilters() ? FilterOptions._fuzzyFilter(this._filterOptions.filter, rawMarker.message) : [];
+		marker.sourceMatches = rawMarker.source && this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, rawMarker.source) : [];
+		marker.isSelected = this.filterMarker(rawMarker);
+		if (rawMarker.relatedInformation) {
+			marker.resourceRelatedInformation = groupBy(rawMarker.relatedInformation, MarkersModel._compareMarkersByUri)
+				.map(group => {
+					const id = uri + index + uri + index.toString();
+					const r = new ResourceData<RelatedInformation>(
+						id,
+						group[0].resource,
+						group.map((relatedInformation, index) =>
+							new RelatedInformation(
+								id + index,
+								relatedInformation,
+								this._filterOptions.hasFilters() ? FilterOptions._fuzzyFilter(this._filterOptions.filter, relatedInformation.message) : []
+							)));
+					r.uriMatches = this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, paths.basename(r.uri.fsPath)) : [];
+					return r;
+				});
+		}
+		return marker;
 	}
 
 	private filterMarker(marker: IMarker): boolean {
@@ -290,6 +344,11 @@ export class MarkersModel {
 			return true;
 		}
 		if (!!marker.source && !!FilterOptions._filter(this._filterOptions.filter, marker.source)) {
+			return true;
+		}
+		if (!!marker.relatedInformation && marker.relatedInformation.some(r =>
+			!!FilterOptions._filter(this._filterOptions.filter, paths.basename(r.resource.fsPath)) || !
+			!FilterOptions._filter(this._filterOptions.filter, r.message))) {
 			return true;
 		}
 		return false;
