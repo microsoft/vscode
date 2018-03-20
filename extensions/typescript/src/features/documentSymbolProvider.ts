@@ -29,7 +29,7 @@ outlineTypeTable[PConst.Kind.localFunction] = SymbolKind.Function;
 
 export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolProvider {
 	public constructor(
-		private client: ITypeScriptServiceClient) { }
+		private readonly client: ITypeScriptServiceClient) { }
 
 	public async provideDocumentSymbols(resource: TextDocument, token: CancellationToken): Promise<SymbolInformation[]> {
 		const filepath = this.client.normalizePath(resource.uri);

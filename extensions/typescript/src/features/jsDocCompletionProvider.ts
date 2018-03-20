@@ -49,7 +49,7 @@ class JsDocCompletionItem extends CompletionItem {
 export default class JsDocCompletionProvider implements CompletionItemProvider {
 
 	constructor(
-		private client: ITypeScriptServiceClient,
+		private readonly client: ITypeScriptServiceClient,
 		commandManager: CommandManager
 	) {
 		commandManager.register(new TryCompleteJsDocCommand(client));

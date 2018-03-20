@@ -11,7 +11,7 @@ import * as typeConverters from '../utils/typeConverters';
 
 export default class TypeScriptDefinitionProviderBase {
 	constructor(
-		private client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient
 	) { }
 
 	protected async getSymbolLocations(

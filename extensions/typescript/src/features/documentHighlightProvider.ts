@@ -12,7 +12,7 @@ const stringDelimiters = ['"', '\'', '`'];
 
 export default class TypeScriptDocumentHighlightProvider implements DocumentHighlightProvider {
 	public constructor(
-		private client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient
 	) { }
 
 	public async provideDocumentHighlights(

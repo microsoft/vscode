@@ -10,7 +10,7 @@ import * as typeConverters from '../utils/typeConverters';
 
 export default class TypeScriptReferenceSupport implements ReferenceProvider {
 	public constructor(
-		private client: ITypeScriptServiceClient) { }
+		private readonly client: ITypeScriptServiceClient) { }
 
 	public async provideReferences(
 		document: TextDocument,

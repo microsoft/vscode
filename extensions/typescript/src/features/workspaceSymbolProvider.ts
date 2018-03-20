@@ -23,8 +23,8 @@ function getSymbolKind(item: Proto.NavtoItem): SymbolKind {
 
 export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbolProvider {
 	public constructor(
-		private client: ITypeScriptServiceClient,
-		private modeIds: string[]
+		private readonly client: ITypeScriptServiceClient,
+		private readonly modeIds: string[]
 	) { }
 
 	public async provideWorkspaceSymbols(search: string, token: CancellationToken): Promise<SymbolInformation[]> {

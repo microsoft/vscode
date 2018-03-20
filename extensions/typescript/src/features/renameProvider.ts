@@ -11,7 +11,7 @@ import * as typeConverters from '../utils/typeConverters';
 
 export default class TypeScriptRenameProvider implements RenameProvider {
 	public constructor(
-		private client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient
 	) { }
 
 	public async provideRenameEdits(
