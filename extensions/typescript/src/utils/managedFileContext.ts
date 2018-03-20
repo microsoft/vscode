@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as languageModeIds from './languageModeIds';
+import { isSupportedLanguageMode } from './languageModeIds';
 
 /**
  * When clause context set when the current file is managed by vscode's built-in typescript extension.
@@ -46,6 +46,3 @@ export default class ManagedFileContextManager {
 	}
 }
 
-function isSupportedLanguageMode(doc: vscode.TextDocument) {
-	return vscode.languages.match([languageModeIds.typescript, languageModeIds.typescriptreact, languageModeIds.javascript, languageModeIds.javascriptreact], doc) > 0;
-}

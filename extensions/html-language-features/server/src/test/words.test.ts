@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import * as words from '../utils/strings';
 
-suite('Words', () => {
+suite('HTML Words', () => {
 
 	let wordRegex = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 

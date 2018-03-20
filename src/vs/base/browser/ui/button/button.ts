@@ -12,7 +12,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Gesture, EventType } from 'vs/base/browser/touch';
 
@@ -44,7 +44,7 @@ export class Button {
 	private buttonBorder: Color;
 
 	private _onDidClick = new Emitter<any>();
-	readonly onDidClick: Event<any> = this._onDidClick.event;
+	readonly onDidClick: BaseEvent<Event> = this._onDidClick.event;
 
 	private focusTracker: DOM.IFocusTracker;
 

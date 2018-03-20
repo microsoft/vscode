@@ -154,11 +154,6 @@
           "default": true,
           "description": "%html.autoClosingTags%"
         },
-        "html.experimental.syntaxFolding": {
-          "type": "boolean",
-          "default": false,
-          "description": "%html.experimental.syntaxFolding%"
-        },
         "html.trace.server": {
           "type": "string",
           "scope": "window",

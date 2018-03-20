@@ -30,7 +30,7 @@ export class ReplInputEditor extends CodeEditorWidget {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService
 	) {
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, themeService);
+		super(domElement, options, true, instantiationService, codeEditorService, commandService, contextKeyService, themeService);
 	}
 
 	protected _getContributions(): IEditorContributionCtor[] {

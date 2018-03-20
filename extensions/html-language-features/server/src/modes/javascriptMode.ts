@@ -292,9 +292,9 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				let endLine = curr.end.line;
 				if (startLine < endLine && startLine >= rangeStartLine && endLine < rangeEndLine) {
 					let foldingRange: FoldingRange = { startLine, endLine };
-					let match = document.getText(curr).match(/^\s*\/(\/\s*#(?:end)?region\b)|([\*\/])/);
+					let match = document.getText(curr).match(/^\s*\/(?:(\/\s*#(?:end)?region\b)|(\*|\/))/);
 					if (match) {
-						foldingRange.type = match[1].length ? FoldingRangeType.Region : FoldingRangeType.Comment;
+						foldingRange.type = match[1] ? FoldingRangeType.Region : FoldingRangeType.Comment;
 					}
 					ranges.push(foldingRange);
 				}

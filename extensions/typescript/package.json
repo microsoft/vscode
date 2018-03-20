@@ -36,6 +36,7 @@
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
     "onCommand:typescript.openTsServerLog",
+    "onCommand:typescript.organizeImports",
     "onCommand:workbench.action.tasks.runTask"
   ],
   "main": "./out/extension",
@@ -460,6 +461,18 @@
           "value": "%typescript.restartTsServer%"
         },
         "category": "TypeScript"
+      },
+      {
+        "command": "typescript.organizeImports",
+        "title": "%typescript.organizeImports%",
+        "category": "TypeScript"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "typescript.organizeImports",
+        "key": "shift+ctrl+o",
+        "when": "typescript.isManagedFile && typescript.canOrganizeImports"
       }
     ],
     "menus": {
@@ -507,6 +520,10 @@
         {
           "command": "typescript.restartTsServer",
           "when": "typescript.isManagedFile"
+        },
+        {
+          "command": "typescript.organizeImports",
+          "when": "typescript.isManagedFile && typescript.canOrganizeImports"
         }
       ]
     },

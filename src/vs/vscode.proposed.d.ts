@@ -58,12 +58,12 @@ declare module 'vscode' {
 	export class FoldingRange {
 
 		/**
-		 * The start line number (0-based)
+		 * The start line number (zero-based) of the range to fold. The hidden area starts after the last character of that line.
 		 */
 		startLine: number;
 
 		/**
-		 * The end line number (0-based)
+		 * The end line number (0-based) of the range to fold. The hidden area ends at the last character of that line.
 		 */
 		endLine: number;
 
@@ -203,33 +203,12 @@ declare module 'vscode' {
 		type: FileType;
 	}
 
-	export interface TextSearchQuery {
-		pattern: string;
-		isRegex?: boolean;
-		isCaseSensitive?: boolean;
-		isWordMatch?: boolean;
-	}
-
-	export interface TextSearchOptions {
-		includes: GlobPattern[];
-		excludes: GlobPattern[];
-	}
-
-	export interface TextSearchResult {
-		uri: Uri;
-		range: Range;
-		preview: { leading: string, matching: string, trailing: string };
-	}
-
 	// todo@joh discover files etc
 	// todo@joh CancellationToken everywhere
 	// todo@joh add open/close calls?
 	export interface FileSystemProvider {
 
 		readonly onDidChange?: Event<FileChange[]>;
-
-		// todo@joh - remove this
-		readonly root?: Uri;
 
 		// more...
 		//
@@ -268,15 +247,41 @@ declare module 'vscode' {
 
 		// todo@remote
 		// create(resource: Uri): Thenable<FileStat>;
-
-		// find files by names
-		// todo@joh, move into its own provider
-		findFiles?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
-		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace workspace {
 		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
+	}
+
+	//#endregion
+
+	//#region Joh: remote, search provider
+
+	export interface TextSearchQuery {
+		pattern: string;
+		isRegExp?: boolean;
+		isCaseSensitive?: boolean;
+		isWordMatch?: boolean;
+	}
+
+	export interface TextSearchOptions {
+		includes: GlobPattern[];
+		excludes: GlobPattern[];
+	}
+
+	export interface TextSearchResult {
+		uri: Uri;
+		range: Range;
+		preview: { leading: string, matching: string, trailing: string };
+	}
+
+	export interface SearchProvider {
+		provideFileSearchResults?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
+	}
+
+	export namespace workspace {
+		export function registerSearchProvider(scheme: string, provider: SearchProvider): Disposable;
 	}
 
 	//#endregion
@@ -406,9 +411,6 @@ declare module 'vscode' {
 	 * A logger for writing to an extension's log file, and accessing its dedicated log directory.
 	 */
 	export interface Logger {
-		readonly onDidChangeLogLevel: Event<LogLevel>;
-		readonly currentLevel: LogLevel;
-
 		trace(message: string, ...args: any[]): void;
 		debug(message: string, ...args: any[]): void;
 		info(message: string, ...args: any[]): void;
@@ -431,22 +433,38 @@ declare module 'vscode' {
 		readonly logDirectory: string;
 	}
 
+	export namespace env {
+		/**
+		 * Current logging level.
+		 *
+		 * @readonly
+		 */
+		export const logLevel: LogLevel;
+	}
+
 	//#endregion
 
 	//#region Joh: rename context
 
-	export class RenameContext {
-		range: Range;
+	export interface RenameContext {
+		range?: Range;
 		newName?: string;
-		constructor(range: Range, newName?: string);
+		message?: string;
 	}
 
 	export interface RenameProvider2 extends RenameProvider {
 
 		/**
-		 * Optional function to resolve and validate a rename location.
+		 * Optional function for resolving and validating a position at which rename is
+		 * being carried out.
+		 *
+		 * @param document The document in which rename will be invoked.
+		 * @param position The position at which rename will be invoked.
+		 * @param token A cancellation token.
+		 * @return A `RenameContext` with more information. The lack of a result can signaled by returning `undefined` or `null`.
 		 */
-		resolveRenameContext?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameContext>;
+		resolveRenameLocation?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameContext>;
+
 	}
 
 	//#endregion
@@ -520,6 +538,13 @@ declare module 'vscode' {
 		 * Defaults to false.
 		 */
 		readonly enableCommandUris?: boolean;
+
+		/**
+		 * Should the find widget be enabled in the webview?
+		 *
+		 * Defaults to false.
+		 */
+		readonly enableFindWidget?: boolean;
 
 		/**
 		 * Should the webview's context be kept around even when the webview is no longer visible?

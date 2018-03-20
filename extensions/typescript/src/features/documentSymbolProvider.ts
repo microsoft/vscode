@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DocumentSymbolProvider, SymbolInformation, SymbolKind, TextDocument, Location, CancellationToken, Uri } from 'vscode';
+import { DocumentSymbolProvider, SymbolInformation, SymbolKind, TextDocument, CancellationToken, Uri } from 'vscode';
 
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange } from '../utils/convert';
+import * as typeConverters from '../utils/typeConverters';
 
 const outlineTypeTable: { [kind: string]: SymbolKind } = Object.create(null);
 outlineTypeTable[PConst.Kind.module] = SymbolKind.Module;
@@ -29,7 +29,7 @@ outlineTypeTable[PConst.Kind.localFunction] = SymbolKind.Function;
 
 export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolProvider {
 	public constructor(
-		private client: ITypeScriptServiceClient) { }
+		private readonly client: ITypeScriptServiceClient) { }
 
 	public async provideDocumentSymbols(resource: TextDocument, token: CancellationToken): Promise<SymbolInformation[]> {
 		const filepath = this.client.normalizePath(resource.uri);
@@ -71,7 +71,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 			let result = new SymbolInformation(item.text,
 				outlineTypeTable[item.kind as string] || SymbolKind.Variable,
 				containerLabel ? containerLabel : '',
-				new Location(resource, tsTextSpanToVsRange(item.spans[0])));
+				typeConverters.Location.fromTextSpan(resource, item.spans[0]));
 			foldingMap[key] = result;
 			bucket.push(result);
 		}
@@ -86,7 +86,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 		const result = new SymbolInformation(item.text,
 			outlineTypeTable[item.kind as string] || SymbolKind.Variable,
 			containerLabel ? containerLabel : '',
-			new Location(resource, tsTextSpanToVsRange(item.spans[0]))
+			typeConverters.Location.fromTextSpan(resource, item.spans[0])
 		);
 		if (item.childItems && item.childItems.length > 0) {
 			for (const child of item.childItems) {

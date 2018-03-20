@@ -337,6 +337,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 								token.className += 'code' + parsedMode;
 							} else if (parsedMode === 1) {
 								token.className += 'code-bold';
+							} else if (parsedMode === 4) {
+								token.className += 'code-underline';
 							}
 						}
 
@@ -352,7 +354,13 @@ export class ReplExpressionsRenderer implements IRenderer {
 						}
 
 						currentToken = token;
-						tokensContainer.appendChild(token);
+
+						// get child until deepest nested node is found
+						let childPointer: Node = tokensContainer;
+						while (childPointer.hasChildNodes() && childPointer.firstChild.nodeName !== '#text') {
+							childPointer = childPointer.firstChild;
+						}
+						childPointer.appendChild(token);
 
 						i = index;
 					}

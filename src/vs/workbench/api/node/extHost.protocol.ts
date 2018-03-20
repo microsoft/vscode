@@ -257,28 +257,35 @@ export interface ISerializedLanguageConfiguration {
 	};
 }
 
+export interface ISerializedDocumentFilter {
+	$serialized: true;
+	language?: string;
+	scheme?: string;
+	pattern?: vscode.GlobPattern;
+}
+
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): void;
-	$registerOutlineSupport(handle: number, selector: vscode.DocumentSelector): void;
-	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector, eventHandle: number): void;
+	$registerOutlineSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerCodeLensSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number): void;
 	$emitCodeLensEvent(eventHandle: number, event?: any): void;
-	$registerDeclaractionSupport(handle: number, selector: vscode.DocumentSelector): void;
-	$registerImplementationSupport(handle: number, selector: vscode.DocumentSelector): void;
-	$registerTypeDefinitionSupport(handle: number, selector: vscode.DocumentSelector): void;
-	$registerHoverProvider(handle: number, selector: vscode.DocumentSelector): void;
-	$registerDocumentHighlightProvider(handle: number, selector: vscode.DocumentSelector): void;
-	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): void;
-	$registerQuickFixSupport(handle: number, selector: vscode.DocumentSelector): void;
-	$registerDocumentFormattingSupport(handle: number, selector: vscode.DocumentSelector): void;
-	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector): void;
-	$registerOnTypeFormattingSupport(handle: number, selector: vscode.DocumentSelector, autoFormatTriggerCharacters: string[]): void;
+	$registerDeclaractionSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerImplementationSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerTypeDefinitionSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerHoverProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerDocumentHighlightProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerReferenceSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerOnTypeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], autoFormatTriggerCharacters: string[]): void;
 	$registerNavigateTypeSupport(handle: number): void;
-	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector, supportsResolveInitialValues: boolean): void;
-	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[], supportsResolveDetails: boolean): void;
-	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): void;
-	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): void;
-	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): void;
-	$registerFoldingProvider(handle: number, selector: vscode.DocumentSelector): void;
+	$registerRenameSupport(handle: number, selector: ISerializedDocumentFilter[], supportsResolveInitialValues: boolean): void;
+	$registerSuggestSupport(handle: number, selector: ISerializedDocumentFilter[], triggerCharacters: string[], supportsResolveDetails: boolean): void;
+	$registerSignatureHelpProvider(handle: number, selector: ISerializedDocumentFilter[], triggerCharacter: string[]): void;
+	$registerDocumentLinkProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerDocumentColorProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerFoldingProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ISerializedLanguageConfiguration): void;
 }
 
@@ -373,9 +380,9 @@ export interface IFileChangeDto {
 
 export interface MainThreadFileSystemShape extends IDisposable {
 	$registerFileSystemProvider(handle: number, scheme: string): void;
-	$unregisterFileSystemProvider(handle: number): void;
+	$registerSearchProvider(handle: number, scheme: string): void;
+	$unregisterProvider(handle: number): void;
 
-	$onDidAddFileSystemRoot(root: UriComponents): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
 	$reportFileChunk(handle: number, session: number, chunk: number[] | null): void;
 
@@ -559,7 +566,7 @@ export interface ExtHostFileSystemShape {
 	$mkdir(handle: number, resource: UriComponents): TPromise<IStat>;
 	$readdir(handle: number, resource: UriComponents): TPromise<[UriComponents, IStat][]>;
 	$rmdir(handle: number, resource: UriComponents): TPromise<void>;
-	$findFiles(handle: number, session: number, query: string): TPromise<void>;
+	$provideFileSearchResults(handle: number, session: number, query: string): TPromise<void>;
 	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, options: { includes: string[], excludes: string[] }): TPromise<void>;
 }
 
@@ -692,7 +699,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$resolveWorkspaceSymbol(handle: number, symbol: SymbolInformationDto): TPromise<SymbolInformationDto>;
 	$releaseWorkspaceSymbols(handle: number, id: number): void;
 	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string): TPromise<WorkspaceEditDto>;
-	$resolveRenameContext(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.RenameContext>;
+	$resolveRenameLocation(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.RenameContext>;
 	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.SuggestContext): TPromise<SuggestResultDto>;
 	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion>;
 	$releaseCompletionItems(handle: number, id: number): void;

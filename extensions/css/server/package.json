@@ -8,9 +8,9 @@
     "node": "*"
   },
   "dependencies": {
-    "vscode-css-languageservice": "^3.0.7",
+    "vscode-css-languageservice": "^3.0.9-next.1",
     "vscode-emmet-helper": "^1.2.0",
-    "vscode-languageserver": "4.0.0-next.4"
+    "vscode-languageserver": "^4.0.0"
   },
   "devDependencies": {
     "@types/mocha": "2.2.33",

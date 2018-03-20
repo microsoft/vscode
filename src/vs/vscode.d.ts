@@ -1329,7 +1329,7 @@ declare module 'vscode' {
 		cancel(): void;
 
 		/**
-		 * Dispose object and free resources. Will call [cancel](#CancellationTokenSource.cancel).
+		 * Dispose object and free resources.
 		 */
 		dispose(): void;
 	}

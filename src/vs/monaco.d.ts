@@ -2767,7 +2767,7 @@ declare namespace monaco.editor {
 		/**
 		 * The history mode for suggestions.
 		 */
-		suggestSelection?: string;
+		suggestSelection?: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 		/**
 		 * The font size for the suggest widget.
 		 * Defaults to the editor font size.
@@ -4989,11 +4989,12 @@ declare namespace monaco.languages {
 	export interface RenameContext {
 		range: IRange;
 		text: string;
+		message?: string;
 	}
 
 	export interface RenameProvider {
 		provideRenameEdits(model: editor.ITextModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
-		resolveRenameContext?(model: editor.ITextModel, position: Position, token: CancellationToken): RenameContext | Thenable<RenameContext>;
+		resolveRenameLocation?(model: editor.ITextModel, position: Position, token: CancellationToken): RenameContext | Thenable<RenameContext>;
 	}
 
 	export interface Command {

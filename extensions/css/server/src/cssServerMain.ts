@@ -5,14 +5,11 @@
 'use strict';
 
 import {
-	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities
+	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities,
+	ConfigurationRequest, WorkspaceFolder, DocumentColorRequest, ColorPresentationRequest
 } from 'vscode-languageserver';
 
 import { TextDocument } from 'vscode-languageserver-types';
-
-import { ConfigurationRequest } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
-import { WorkspaceFolder } from 'vscode-languageserver-protocol/lib/protocol.workspaceFolders.proposed';
-import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
@@ -74,7 +71,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	}
 	let snippetSupport = hasClientCapability('textDocument.completion.completionItem.snippetSupport');
 	scopedSettingsSupport = hasClientCapability('workspace.configuration');
-	let capabilities: ServerCapabilities & CPServerCapabilities = {
+	let capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
 		completionProvider: snippetSupport ? { resolveProvider: false } : undefined,

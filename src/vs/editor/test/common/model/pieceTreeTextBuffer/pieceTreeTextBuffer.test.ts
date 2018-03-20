@@ -1810,4 +1810,22 @@ suite('chunk based search', () => {
 		assert.deepEqual(ret[1].range, new Range(3, 3, 3, 4));
 		assert.deepEqual(ret[2].range, new Range(4, 3, 4, 4));
 	});
+
+	test('search searching from the middle', () => {
+		let pieceTree = createTextBuffer([
+			[
+				'def',
+				'dbcabc'
+			].join('\n')
+		]);
+		pieceTree.delete(4, 1);
+		let ret = pieceTree.findMatchesLineByLine(new Range(2, 3, 2, 6), new SearchData(/a/gi, null, 'a'), true, 1000);
+		assert.equal(ret.length, 1);
+		assert.deepEqual(ret[0].range, new Range(2, 3, 2, 4));
+
+		pieceTree.delete(4, 1);
+		ret = pieceTree.findMatchesLineByLine(new Range(2, 2, 2, 5), new SearchData(/a/gi, null, 'a'), true, 1000);
+		assert.equal(ret.length, 1);
+		assert.deepEqual(ret[0].range, new Range(2, 2, 2, 3));
+	});
 });
