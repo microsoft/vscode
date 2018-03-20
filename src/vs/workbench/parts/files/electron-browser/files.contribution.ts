@@ -282,6 +282,11 @@ configurationRegistry.registerConfiguration({
 		'files.defaultLanguage': {
 			'type': 'string',
 			'description': nls.localize('defaultLanguage', "The default language mode that is assigned to new files.")
+		},
+		'files.maxMemoryForLargeFilesMB': {
+			'type': 'number',
+			'default': 4096,
+			'description': nls.localize('maxMemoryForLargeFilesMB', "The new limit on memory usage by the application when trying to open large files.")
 		}
 	}
 });
