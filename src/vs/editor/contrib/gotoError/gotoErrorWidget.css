@@ -32,3 +32,8 @@
 	-webkit-user-select: text;
 	user-select: text;
 }
+
+.monaco-editor .marker-widget .descriptioncontainer .filename {
+	cursor: pointer;
+	opacity: 0.6;
+}

@@ -201,7 +201,8 @@ class MarkerController implements editorCommon.IEditorContribution {
 		editor: ICodeEditor,
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IEditorService private readonly _editorService: IEditorService
 	) {
 		this._editor = editor;
 		this._widgetVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._contextKeyService);
@@ -232,7 +233,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 		this._model = new MarkerModel(this._editor, markers);
 		this._markerService.onMarkerChanged(this._onMarkerChanged, this, this._disposeOnClose);
 
-		this._widget = new MarkerNavigationWidget(this._editor, this._themeService);
+		this._widget = new MarkerNavigationWidget(this._editor, this._themeService, this._editorService);
 		this._widgetVisible.set(true);
 
 		this._disposeOnClose.push(this._model);
