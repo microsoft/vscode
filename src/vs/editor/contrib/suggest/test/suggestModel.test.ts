@@ -41,7 +41,7 @@ function createMockEditor(model: TextModel): TestCodeEditor {
 		[IStorageService, NullStorageService]
 	));
 
-	const editor = new TestCodeEditor(new MockScopeLocation(), {}, instantiationService, contextKeyService);
+	const editor = new TestCodeEditor(new MockScopeLocation(), {}, false, instantiationService, contextKeyService);
 	editor.setModel(model);
 	return editor;
 }
