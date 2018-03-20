@@ -25,7 +25,7 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 			return [];
 		}
 
-		const args = typeConverters.vsPositionToTsFileLocation(filepath, position);
+		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 		try {
 			const response = await this.client.execute('occurrences', args, token);
 			const data = response.body;

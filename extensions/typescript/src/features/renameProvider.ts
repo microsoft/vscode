@@ -25,7 +25,7 @@ export default class TypeScriptRenameProvider implements RenameProvider {
 		}
 
 		const args: Proto.RenameRequestArgs = {
-			...typeConverters.vsPositionToTsFileLocation(filepath, position),
+			...typeConverters.Position.toFileLocationRequestArgs(filepath, position),
 			findInStrings: false,
 			findInComments: false
 		};

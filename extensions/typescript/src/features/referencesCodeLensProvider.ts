@@ -37,7 +37,7 @@ export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBase
 
 	public resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
-		const args = typeConverters.vsPositionToTsFileLocation(codeLens.file, codeLens.range.start);
+		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
 		return this.client.execute('references', args, token).then(response => {
 			if (!response || !response.body) {
 				throw codeLens;

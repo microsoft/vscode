@@ -25,7 +25,7 @@ export default class TypeScriptHoverProvider implements HoverProvider {
 		if (!filepath) {
 			return undefined;
 		}
-		const args = typeConverters.vsPositionToTsFileLocation(filepath, position);
+		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 		try {
 			const response = await this.client.execute('quickinfo', args, token);
 			if (response && response.body) {

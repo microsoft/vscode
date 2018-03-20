@@ -281,7 +281,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		}
 
 		const args: Proto.CompletionsRequestArgs = {
-			...typeConverters.vsPositionToTsFileLocation(file, position),
+			...typeConverters.Position.toFileLocationRequestArgs(file, position),
 			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
 			includeInsertTextCompletions: true
 		};
@@ -330,7 +330,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		item.resolve();
 
 		const args: Proto.CompletionDetailsRequestArgs = {
-			...typeConverters.vsPositionToTsFileLocation(filepath, item.position),
+			...typeConverters.Position.toFileLocationRequestArgs(filepath, item.position),
 			entryNames: [
 				item.tsEntry.source ? { name: item.tsEntry.name, source: item.tsEntry.source } : item.tsEntry.name
 			]
@@ -495,7 +495,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
 		// Don't complete function calls inside of destructive assigments or imports
 		try {
-			const infoResponse = await this.client.execute('quickinfo', typeConverters.vsPositionToTsFileLocation(filepath, position));
+			const infoResponse = await this.client.execute('quickinfo', typeConverters.Position.toFileLocationRequestArgs(filepath, position));
 			const info = infoResponse.body;
 			switch (info && info.kind) {
 				case 'var':

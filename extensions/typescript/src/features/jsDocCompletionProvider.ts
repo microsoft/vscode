@@ -162,7 +162,7 @@ class TryCompleteJsDocCommand implements Command {
 	}
 
 	public static getSnippetTemplate(client: ITypeScriptServiceClient, file: string, position: Position): Promise<SnippetString | undefined> {
-		const args = typeConverters.vsPositionToTsFileLocation(file, position);
+		const args = typeConverters.Position.toFileLocationRequestArgs(file, position);
 		return Promise.race([
 			client.execute('docCommentTemplate', args),
 			new Promise<Proto.DocCommandTemplateResponse>((_, reject) => setTimeout(reject, 250))

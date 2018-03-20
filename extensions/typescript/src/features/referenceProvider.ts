@@ -23,7 +23,7 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 			return [];
 		}
 
-		const args = typeConverters.vsPositionToTsFileLocation(filepath, position);
+		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 		try {
 			const msg = await this.client.execute('references', args, token);
 			if (!msg.body) {

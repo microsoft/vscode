@@ -32,7 +32,7 @@ class ApplyRefactoringCommand implements Command {
 		await this.formattingOptionsManager.ensureFormatOptionsForDocument(document, undefined);
 
 		const args: Proto.GetEditsForRefactorRequestArgs = {
-			...typeConverters.vsRangeToTsFileRange(file, range),
+			...typeConverters.Range.toFileRangeRequestArgs(file, range),
 			refactor,
 			action
 		};
@@ -49,7 +49,7 @@ class ApplyRefactoringCommand implements Command {
 		const renameLocation = response.body.renameLocation;
 		if (renameLocation) {
 			if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.uri.fsPath === document.uri.fsPath) {
-				const pos = typeConverters.tsLocationToVsPosition(renameLocation);
+				const pos = typeConverters.Position.fromLocation(renameLocation);
 				vscode.window.activeTextEditor.selection = new vscode.Selection(pos, pos);
 				await vscode.commands.executeCommand('editor.action.rename');
 			}
@@ -137,7 +137,7 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 		}
 
 		const range = editor.selection;
-		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.vsRangeToTsFileRange(file, range);
+		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, range);
 		try {
 			const response = await this.client.execute('getApplicableRefactors', args, token);
 			if (!response || !response.body) {

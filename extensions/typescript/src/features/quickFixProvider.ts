@@ -177,7 +177,7 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 		token: vscode.CancellationToken
 	): Promise<Iterable<vscode.CodeAction>> {
 		const args: Proto.CodeFixRequestArgs = {
-			...typeConverters.vsRangeToTsFileRange(file, diagnostic.range),
+			...typeConverters.Range.toFileRangeRequestArgs(file, diagnostic.range),
 			errorCodes: [+diagnostic.code]
 		};
 		const codeFixesResponse = await this.client.execute('getCodeFixes', args, token);

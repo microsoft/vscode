@@ -25,7 +25,7 @@ export default class TypeScriptDefinitionProviderBase {
 			return undefined;
 		}
 
-		const args = typeConverters.vsPositionToTsFileLocation(filepath, position);
+		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 		try {
 			const response = await this.client.execute(definitionType, args, token);
 			const locations: Proto.FileSpan[] = (response && response.body) || [];

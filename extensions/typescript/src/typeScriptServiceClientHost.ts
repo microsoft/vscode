@@ -19,7 +19,7 @@ import LanguageProvider from './languageProvider';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
 import { TypeScriptServerPlugin } from './utils/plugins';
-import { tsLocationToVsPosition } from './utils/typeConverters';
+import * as typeConverters from './utils/typeConverters';
 import { CommandManager } from './utils/commandManager';
 import { LanguageDescription } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
@@ -245,7 +245,7 @@ export default class TypeScriptServiceClientHost {
 
 	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string) {
 		const { start, end, text } = diagnostic;
-		const range = new Range(tsLocationToVsPosition(start), tsLocationToVsPosition(end));
+		const range = new Range(typeConverters.Position.fromLocation(start), typeConverters.Position.fromLocation(end));
 		const converted = new Diagnostic(range, text);
 		converted.severity = this.getDiagnosticSeverity(diagnostic);
 		converted.source = diagnostic.source || source;

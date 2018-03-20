@@ -37,7 +37,7 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 
 	public resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
-		const args = typeConverters.vsPositionToTsFileLocation(codeLens.file, codeLens.range.start);
+		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
 		return this.client.execute('implementation', args, token).then(response => {
 			if (!response || !response.body) {
 				throw codeLens;

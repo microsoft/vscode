@@ -21,7 +21,7 @@ export default class TypeScriptSignatureHelpProvider implements SignatureHelpPro
 		if (!filepath) {
 			return null;
 		}
-		const args: Proto.SignatureHelpRequestArgs = typeConverters.vsPositionToTsFileLocation(filepath, position);
+		const args: Proto.SignatureHelpRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 
 		const response = await this.client.execute('signatureHelp', args, token);
 		const info = response.body;
