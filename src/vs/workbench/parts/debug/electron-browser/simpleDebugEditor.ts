@@ -20,7 +20,7 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { TabCompletionController } from 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
-export class ReplInputEditor extends CodeEditorWidget {
+export class SimpleDebugEditor extends CodeEditorWidget {
 	constructor(
 		domElement: HTMLElement,
 		options: IEditorOptions,
