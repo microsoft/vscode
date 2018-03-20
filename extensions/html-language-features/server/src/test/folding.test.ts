@@ -130,7 +130,7 @@ suite('Object Folding', () => {
 			/* 6*/'  };',
 			/* 7*/'</script>',
 			/* 8*/'<script>',
-			/* 9*/'  test(() => {',
+			/* 9*/'  test(() => { // hello',
 			/*10*/'    f();',
 			/*11*/'  });',
 			/*12*/'</script>',
@@ -206,7 +206,7 @@ suite('Object Folding', () => {
 			/*2*/'</div>',
 		];
 		assertRanges(input, [r(0, 1)]);
-	});	
+	});
 
 	test('Fold intersecting region', () => {
 		let input = [
@@ -218,7 +218,7 @@ suite('Object Folding', () => {
 			/*5*/'<!-- #endregion -->',
 		];
 		assertRanges(input, [r(0, 3)]);
-	});	
+	});
 
 
 	test('Test limit', () => {
