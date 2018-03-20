@@ -22,6 +22,7 @@ import { QuickInputCheckboxList } from './quickInputCheckboxList';
 import { QuickInputBox } from './quickInputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { localize } from 'vs/nls';
 
 const $ = dom.$;
 
@@ -57,7 +58,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.container = dom.append(workbench, $('.quick-input-widget'));
 		this.container.style.display = 'none';
 
-		this.inputBox = new QuickInputBox(this.container);
+		const headerContainer = dom.append(this.container, $('.quick-input-header'));
+
+		this.inputBox = new QuickInputBox(headerContainer);
 		this.toUnbind.push(this.inputBox);
 		this.inputBox.style(this.themeService.getTheme());
 		this.inputBox.onInput(value => {
@@ -85,16 +88,12 @@ export class QuickInputService extends Component implements IQuickInputService {
 			}
 		}));
 
+		const ok = dom.append(headerContainer, $('button.quick-input-action'));
+		ok.textContent = localize('ok', "OK");
+		this.toUnbind.push(dom.addDisposableListener(ok, dom.EventType.CLICK, e => this.close(true)));
+
 		this.checkboxList = this.instantiationService.createInstance(QuickInputCheckboxList, this.container);
 		this.toUnbind.push(this.checkboxList);
-
-		const buttonContainer = dom.append(this.container, $('.quick-input-actions'));
-		const cancel = dom.append(buttonContainer, $('button'));
-		cancel.textContent = 'Cancel'; // TODO
-		this.toUnbind.push(dom.addDisposableListener(cancel, dom.EventType.CLICK, e => this.close(false)));
-		const ok = dom.append(buttonContainer, $('button'));
-		ok.textContent = 'OK'; // TODO
-		this.toUnbind.push(dom.addDisposableListener(ok, dom.EventType.CLICK, e => this.close(true)));
 
 		this.toUnbind.push(dom.addDisposableListener(this.container, 'focusout', (e: FocusEvent) => {
 			for (let element = <Element>e.relatedTarget; element; element = element.parentElement) {
@@ -184,7 +183,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	const buttonBackgroundColor = theme.getColor(buttonBackground);
 	const buttonForegroundColor = theme.getColor(buttonForeground);
-	collector.addRule(`.quick-input-actions button {
+	collector.addRule(`.quick-input-action {
 		${buttonBackgroundColor ? `background-color: ${buttonBackgroundColor};` : ''}
 		${buttonForegroundColor ? `color: ${buttonForegroundColor};` : ''}
 		${contrastBorderColor ? `border: 1px solid ${contrastBorderColor};` : ''}
@@ -192,6 +191,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);
 	if (buttonHoverBackgroundColor) {
-		collector.addRule(`.quick-input-actions button:hover { background-color: ${buttonHoverBackgroundColor}; }`);
+		collector.addRule(`.quick-input-action:hover { background-color: ${buttonHoverBackgroundColor}; }`);
+		collector.addRule(`.quick-input-action:focus { background-color: ${buttonHoverBackgroundColor}; }`);
 	}
 });

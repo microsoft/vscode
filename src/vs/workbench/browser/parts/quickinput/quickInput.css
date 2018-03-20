@@ -12,21 +12,29 @@
 	margin-left: -300px;
 }
 
+.quick-input-header {
+	display: flex;
+	padding: 6px;
+}
+
 .quick-input-box {
-	margin: 6px;
+	flex-grow: 1;
 }
 
-.quick-input-actions {
-	padding: 3px;
+.quick-input-box .monaco-inputbox > .wrapper > .input {
+	padding-left: 14px;
 }
 
-.quick-input-actions button {
+.quick-input-action {
+	margin-left: 6px;
 	border: 0;
 	padding: 0px 4px 1px 4px;
-	float: right;
-	margin-left: 4px;
 }
 
-.quick-input-actions button:focus {
+.quick-input-action:focus {
 	outline:0;
+}
+
+.quick-input-checkbox-list {
+	margin-left: 3px;
 }

@@ -8,7 +8,7 @@
 import 'vs/css!./quickInput';
 import * as dom from 'vs/base/browser/dom';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { inputBackground, inputForeground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -16,7 +16,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.$;
 
-const DEFAULT_INPUT_ARIA_LABEL = nls.localize('quickInputBoxAriaLabel', "Type to narrow down results.");
+const DEFAULT_INPUT_ARIA_LABEL = localize('quickInputBoxAriaLabel', "Type to narrow down results.");
 
 export class QuickInputBox {
 
