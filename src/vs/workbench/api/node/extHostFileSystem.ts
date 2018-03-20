@@ -58,7 +58,8 @@ class FsLinkProvider implements vscode.DocumentLinkProvider {
 export class ExtHostFileSystem implements ExtHostFileSystemShape {
 
 	private readonly _proxy: MainThreadFileSystemShape;
-	private readonly _provider = new Map<number, vscode.FileSystemProvider>();
+	private readonly _fsProvider = new Map<number, vscode.FileSystemProvider>();
+	private readonly _searchProvider = new Map<number, vscode.SearchProvider>();
 	private readonly _linkProvider = new FsLinkProvider();
 
 	private _handlePool: number = 0;
@@ -71,7 +72,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider) {
 		const handle = this._handlePool++;
 		this._linkProvider.add(scheme);
-		this._provider.set(handle, provider);
+		this._fsProvider.set(handle, provider);
 		this._proxy.$registerFileSystemProvider(handle, scheme);
 		let reg: IDisposable;
 		if (provider.onDidChange) {
@@ -83,17 +84,29 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 					reg.dispose();
 				}
 				this._linkProvider.delete(scheme);
-				this._provider.delete(handle);
-				this._proxy.$unregisterFileSystemProvider(handle);
+				this._fsProvider.delete(handle);
+				this._proxy.$unregisterProvider(handle);
+			}
+		};
+	}
+
+	registerSearchProvider(scheme: string, provider: vscode.SearchProvider) {
+		const handle = this._handlePool++;
+		this._searchProvider.set(handle, provider);
+		this._proxy.$registerSearchProvider(handle, scheme);
+		return {
+			dispose: () => {
+				this._searchProvider.delete(handle);
+				this._proxy.$unregisterProvider(handle);
 			}
 		};
 	}
 
 	$utimes(handle: number, resource: UriComponents, mtime: number, atime: number): TPromise<IStat, any> {
-		return asWinJsPromise(token => this._provider.get(handle).utimes(URI.revive(resource), mtime, atime));
+		return asWinJsPromise(token => this._fsProvider.get(handle).utimes(URI.revive(resource), mtime, atime));
 	}
 	$stat(handle: number, resource: UriComponents): TPromise<IStat, any> {
-		return asWinJsPromise(token => this._provider.get(handle).stat(URI.revive(resource)));
+		return asWinJsPromise(token => this._fsProvider.get(handle).stat(URI.revive(resource)));
 	}
 	$read(handle: number, session: number, offset: number, count: number, resource: UriComponents): TPromise<number> {
 		const progress = {
@@ -101,29 +114,29 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 				this._proxy.$reportFileChunk(handle, session, [].slice.call(chunk));
 			}
 		};
-		return asWinJsPromise(token => this._provider.get(handle).read(URI.revive(resource), offset, count, progress));
+		return asWinJsPromise(token => this._fsProvider.get(handle).read(URI.revive(resource), offset, count, progress));
 	}
 	$write(handle: number, resource: UriComponents, content: number[]): TPromise<void, any> {
-		return asWinJsPromise(token => this._provider.get(handle).write(URI.revive(resource), Buffer.from(content)));
+		return asWinJsPromise(token => this._fsProvider.get(handle).write(URI.revive(resource), Buffer.from(content)));
 	}
 	$unlink(handle: number, resource: UriComponents): TPromise<void, any> {
-		return asWinJsPromise(token => this._provider.get(handle).unlink(URI.revive(resource)));
+		return asWinJsPromise(token => this._fsProvider.get(handle).unlink(URI.revive(resource)));
 	}
 	$move(handle: number, resource: UriComponents, target: UriComponents): TPromise<IStat, any> {
-		return asWinJsPromise(token => this._provider.get(handle).move(URI.revive(resource), URI.revive(target)));
+		return asWinJsPromise(token => this._fsProvider.get(handle).move(URI.revive(resource), URI.revive(target)));
 	}
 	$mkdir(handle: number, resource: UriComponents): TPromise<IStat, any> {
-		return asWinJsPromise(token => this._provider.get(handle).mkdir(URI.revive(resource)));
+		return asWinJsPromise(token => this._fsProvider.get(handle).mkdir(URI.revive(resource)));
 	}
 	$readdir(handle: number, resource: UriComponents): TPromise<[UriComponents, IStat][], any> {
-		return asWinJsPromise(token => this._provider.get(handle).readdir(URI.revive(resource)));
+		return asWinJsPromise(token => this._fsProvider.get(handle).readdir(URI.revive(resource)));
 	}
 	$rmdir(handle: number, resource: UriComponents): TPromise<void, any> {
-		return asWinJsPromise(token => this._provider.get(handle).rmdir(URI.revive(resource)));
+		return asWinJsPromise(token => this._fsProvider.get(handle).rmdir(URI.revive(resource)));
 	}
 	$findFiles(handle: number, session: number, query: string): TPromise<void> {
-		const provider = this._provider.get(handle);
-		if (!provider.findFiles) {
+		const provider = this._searchProvider.get(handle);
+		if (!provider.provideFileSearchResults) {
 			return TPromise.as(undefined);
 		}
 		const progress = {
@@ -131,10 +144,10 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 				this._proxy.$handleFindMatch(handle, session, uri);
 			}
 		};
-		return asWinJsPromise(token => provider.findFiles(query, progress, token));
+		return asWinJsPromise(token => provider.provideFileSearchResults(query, progress, token));
 	}
 	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, options: { includes: string[], excludes: string[] }): TPromise<void> {
-		const provider = this._provider.get(handle);
+		const provider = this._searchProvider.get(handle);
 		if (!provider.provideTextSearchResults) {
 			return TPromise.as(undefined);
 		}

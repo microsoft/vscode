@@ -517,8 +517,11 @@ export function createApiFactory(
 			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
 			},
-			registerFileSystemProvider: proposedApiFunction(extension, (authority, provider) => {
-				return extHostFileSystem.registerFileSystemProvider(authority, provider);
+			registerFileSystemProvider: proposedApiFunction(extension, (scheme, provider) => {
+				return extHostFileSystem.registerFileSystemProvider(scheme, provider);
+			}),
+			registerSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
+				return extHostFileSystem.registerSearchProvider(scheme, provider);
 			})
 		};
 
