@@ -12,6 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 
 export class ExtHostWebview implements vscode.Webview {
 
+	private readonly _viewType: string;
 	private _title: string;
 	private _html: string;
 	private _options: vscode.WebviewOptions;
@@ -31,10 +32,11 @@ export class ExtHostWebview implements vscode.Webview {
 	constructor(
 		private readonly _handle: WebviewHandle,
 		private readonly _proxy: MainThreadWebviewsShape,
-		private readonly _uri: vscode.Uri,
+		viewType: string,
 		viewColumn: vscode.ViewColumn,
 		options: vscode.WebviewOptions
 	) {
+		this._viewType = viewType;
 		this._viewColumn = viewColumn;
 		this._options = options;
 	}
@@ -52,9 +54,9 @@ export class ExtHostWebview implements vscode.Webview {
 		this.onDidChangeViewStateEmitter.dispose();
 	}
 
-	get uri(): vscode.Uri {
+	get viewType(): string {
 		this.assertNotDisposed();
-		return this._uri;
+		return this._viewType;
 	}
 
 	get title(): string {
@@ -141,16 +143,16 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	}
 
 	createWebview(
-		uri: vscode.Uri,
+		viewType: string,
 		title: string,
 		viewColumn: vscode.ViewColumn,
 		options: vscode.WebviewOptions,
 		extensionFolderPath: string
 	): vscode.Webview {
 		const handle = ExtHostWebviews.handlePool++;
-		this._proxy.$createWebview(handle, uri, title, typeConverters.fromViewColumn(viewColumn), options, extensionFolderPath);
+		this._proxy.$createWebview(handle, viewType, title, typeConverters.fromViewColumn(viewColumn), options, extensionFolderPath);
 
-		const webview = new ExtHostWebview(handle, this._proxy, uri, viewColumn, options);
+		const webview = new ExtHostWebview(handle, this._proxy, viewType, viewColumn, options);
 		this._webviews.set(handle, webview);
 		return webview;
 	}
