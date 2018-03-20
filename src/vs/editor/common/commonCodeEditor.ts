@@ -93,6 +93,7 @@ export abstract class CommonCodeEditor extends Disposable {
 	protected readonly domElement: IContextKeyServiceTarget;
 	protected readonly id: number;
 	protected readonly _configuration: CommonEditorConfiguration;
+	protected readonly isSimpleWidget: boolean;
 
 	protected _contributions: { [key: string]: editorCommon.IEditorContribution; };
 	protected _actions: { [key: string]: editorCommon.IEditorAction; };
@@ -118,6 +119,7 @@ export abstract class CommonCodeEditor extends Disposable {
 	constructor(
 		domElement: IContextKeyServiceTarget,
 		options: editorOptions.IEditorOptions,
+		isSimpleWidget: boolean,
 		instantiationService: IInstantiationService,
 		contextKeyService: IContextKeyService
 	) {
@@ -126,6 +128,7 @@ export abstract class CommonCodeEditor extends Disposable {
 		this.id = (++EDITOR_ID);
 		this._decorationTypeKeysToIds = {};
 		this._decorationTypeSubtypes = {};
+		this.isSimpleWidget = isSimpleWidget;
 
 		options = options || {};
 		this._configuration = this._register(this._createConfiguration(options));
