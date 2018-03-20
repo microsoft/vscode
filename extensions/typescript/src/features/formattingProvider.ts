@@ -36,7 +36,7 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 		try {
 			const response = await this.client.execute('format', args, token);
 			if (response.body) {
-				return response.body.map(this.codeEdit2SingleEditOperation);
+				return response.body.map(typeConverters.TextEdit.fromCodeEdit);
 			}
 		} catch {
 			// noop
@@ -92,7 +92,7 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 				return result;
 			}
 			for (const edit of edits) {
-				const textEdit = this.codeEdit2SingleEditOperation(edit);
+				const textEdit = typeConverters.TextEdit.fromCodeEdit(edit);
 				const range = textEdit.range;
 				// Work around for https://github.com/Microsoft/TypeScript/issues/6700.
 				// Check if we have an edit at the beginning of the line which only removes white spaces and leaves
@@ -113,10 +113,6 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 			// noop
 		}
 		return [];
-	}
-
-	private codeEdit2SingleEditOperation(edit: Proto.CodeEdit): TextEdit {
-		return new TextEdit(typeConverters.Range.fromTextSpan(edit), edit.newText);
 	}
 }
 
