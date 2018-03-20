@@ -37,7 +37,6 @@ export namespace Position {
 	});
 }
 
-
 export namespace TextEdit {
 	export const fromCodeEdit = (edit: Proto.CodeEdit): vscode.TextEdit =>
 		new vscode.TextEdit(
@@ -46,7 +45,7 @@ export namespace TextEdit {
 }
 
 export namespace WorkspaceEdit {
-	export function createWorkspaceEditFromFileCodeEdits(
+	export function fromFromFileCodeEdits(
 		client: ITypeScriptServiceClient,
 		edits: Iterable<Proto.FileCodeEdits>
 	): vscode.WorkspaceEdit {
@@ -62,5 +61,3 @@ export namespace WorkspaceEdit {
 		return workspaceEdit;
 	}
 }
-
-

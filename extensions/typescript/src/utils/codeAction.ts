@@ -13,7 +13,7 @@ export function getEditForCodeAction(
 	action: Proto.CodeAction
 ): WorkspaceEdit | undefined {
 	return action.changes && action.changes.length
-		? typeConverters.WorkspaceEdit.createWorkspaceEditFromFileCodeEdits(client, action.changes)
+		? typeConverters.WorkspaceEdit.fromFromFileCodeEdits(client, action.changes)
 		: undefined;
 }
 
