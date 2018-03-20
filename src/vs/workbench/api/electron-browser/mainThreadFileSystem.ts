@@ -13,8 +13,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { ISearchResultProvider, ISearchQuery, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchService, ILineMatch } from 'vs/platform/search/common/search';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { values } from 'vs/base/common/map';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
@@ -27,8 +25,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IFileService private readonly _fileService: IFileService,
-		@ISearchService private readonly _searchService: ISearchService,
-		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService
+		@ISearchService private readonly _searchService: ISearchService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 	}
@@ -45,10 +42,6 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	$unregisterFileSystemProvider(handle: number): void {
 		dispose(this._provider.get(handle));
 		this._provider.delete(handle);
-	}
-
-	$onDidAddFileSystemRoot(data: UriComponents): void {
-		this._workspaceEditingService.addFolders([{ uri: URI.revive(data) }], true).done(null, onUnexpectedError);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {

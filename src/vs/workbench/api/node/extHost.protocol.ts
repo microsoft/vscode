@@ -382,7 +382,6 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$registerFileSystemProvider(handle: number, scheme: string): void;
 	$unregisterFileSystemProvider(handle: number): void;
 
-	$onDidAddFileSystemRoot(root: UriComponents): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
 	$reportFileChunk(handle: number, session: number, chunk: number[] | null): void;
 
