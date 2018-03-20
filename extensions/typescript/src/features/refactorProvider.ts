@@ -41,7 +41,7 @@ class ApplyRefactoringCommand implements Command {
 			return false;
 		}
 
-		const edit = this.toWorkspaceEdit(response.body.edits);
+		const edit = typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, response.body.edits);
 		if (!(await vscode.workspace.applyEdit(edit))) {
 			return false;
 		}
@@ -55,18 +55,6 @@ class ApplyRefactoringCommand implements Command {
 			}
 		}
 		return true;
-	}
-
-	private toWorkspaceEdit(edits: Proto.FileCodeEdits[]): vscode.WorkspaceEdit {
-		const workspaceEdit = new vscode.WorkspaceEdit();
-		for (const edit of edits) {
-			for (const textChange of edit.textChanges) {
-				workspaceEdit.replace(this.client.asUrl(edit.fileName),
-					typeConverters.Range.fromTextSpan(textChange),
-					textChange.newText);
-			}
-		}
-		return workspaceEdit;
 	}
 }
 

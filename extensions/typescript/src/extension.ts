@@ -19,6 +19,7 @@ import ManagedFileContextManager from './utils/managedFileContext';
 import { lazy, Lazy } from './utils/lazy';
 import * as fileSchemes from './utils/fileSchemes';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
+import { OrganizeImportsCommand, OrganizeImportsContextManager } from './features/organizeImports';
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -70,7 +71,14 @@ function createLazyClientHost(
 			plugins,
 			commandManager,
 			logDirectoryProvider);
+
 		context.subscriptions.push(clientHost);
+
+		const organizeImportsContext = new OrganizeImportsContextManager();
+		clientHost.serviceClient.onTsServerStarted(api => {
+			organizeImportsContext.onDidChangeApiVersion(api);
+		}, null, context.subscriptions);
+
 		clientHost.serviceClient.onReady(() => {
 			context.subscriptions.push(
 				ProjectStatus.create(
@@ -79,6 +87,7 @@ function createLazyClientHost(
 					path => new Promise<boolean>(resolve => setTimeout(() => resolve(clientHost.handles(path)), 750)),
 					context.workspaceState));
 		});
+
 		return clientHost;
 	});
 }
@@ -94,6 +103,7 @@ function registerCommands(
 	commandManager.register(new commands.RestartTsServerCommand(lazyClientHost));
 	commandManager.register(new commands.TypeScriptGoToProjectConfigCommand(lazyClientHost));
 	commandManager.register(new commands.JavaScriptGoToProjectConfigCommand(lazyClientHost));
+	commandManager.register(new OrganizeImportsCommand(lazyClientHost));
 }
 
 function isSupportedDocument(

@@ -168,7 +168,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private requestQueue: RequestQueue;
 	private callbacks: CallbackMap;
 
-	private readonly _onTsServerStarted = new EventEmitter<void>();
+	private readonly _onTsServerStarted = new EventEmitter<API>();
 	private readonly _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
 	private readonly _onDidBeginInstallTypings = new EventEmitter<Proto.BeginInstallTypesEventBody>();
 	private readonly _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
@@ -254,6 +254,11 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	}
 
 	public dispose() {
+		this._onTsServerStarted.dispose();
+		this._onDidBeginInstallTypings.dispose();
+		this._onDidEndInstallTypings.dispose();
+		this._onTypesInstallerInitializationFailed.dispose();
+
 		if (this.servicePromise) {
 			this.servicePromise.then(childProcess => {
 				childProcess.kill();
@@ -285,7 +290,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		}
 	}
 
-	get onTsServerStarted(): Event<void> {
+	get onTsServerStarted(): Event<API> {
 		return this._onTsServerStarted.event;
 	}
 
@@ -425,7 +430,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 
 					this._onReady!.resolve();
 					resolve(handle);
-					this._onTsServerStarted.fire();
+					this._onTsServerStarted.fire(currentVersion.version);
 
 					this.serviceStarted(resendModels);
 				});
