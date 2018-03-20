@@ -130,7 +130,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.ReplaceActionId,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.MatchFocusKey),
-	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
+	secondary: [KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1],
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
 		const tree: ITree = searchView.getControl();
