@@ -76,13 +76,8 @@ export class MarkdownPreviewManager {
 		return this.activePreview && this.activePreview.resource;
 	}
 
-	public getResourceForPreview(previewUri: vscode.Uri): vscode.Uri | undefined {
-		const preview = this.getPreviewWithUri(previewUri);
-		return preview && preview.resource;
-	}
-
-	public toggleLock(previewUri?: vscode.Uri) {
-		const preview = previewUri ? this.getPreviewWithUri(previewUri) : this.activePreview;
+	public toggleLock() {
+		const preview = this.activePreview;
 		if (preview) {
 			preview.toggleLock();
 
@@ -101,10 +96,6 @@ export class MarkdownPreviewManager {
 	): MarkdownPreview | undefined {
 		return this.previews.find(preview =>
 			preview.matchesResource(resource, previewSettings.previewColumn, previewSettings.locked));
-	}
-
-	private getPreviewWithUri(previewUri: vscode.Uri): MarkdownPreview | undefined {
-		return this.previews.find(preview => preview.uri.toString() === previewUri.toString());
 	}
 
 	private createNewPreview(
