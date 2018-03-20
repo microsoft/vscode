@@ -34,7 +34,7 @@ function r(startLine: number, endLine: number, type?: string): ExpectedIndentRan
 	return { startLine, endLine, type };
 }
 
-suite('Object Folding', () => {
+suite('HTML Folding', () => {
 	test('Fold one level', () => {
 		let input = [
 			/*0*/'<html>',
