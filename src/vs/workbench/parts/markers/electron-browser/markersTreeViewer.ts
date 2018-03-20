@@ -19,11 +19,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { getPathLabel } from 'vs/base/common/labels';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { dirname } from 'vs/base/common/resources';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: ResourceLabel;
@@ -39,9 +34,9 @@ interface IMarkerTemplateData {
 }
 
 interface IRelatedInformationTemplateData {
-	description: HighlightedLabel;
-	resourceLabel: IconLabel;
+	resourceLabel: HighlightedLabel;
 	lnCol: HTMLElement;
+	description: HighlightedLabel;
 }
 
 export class DataSource implements IDataSource {
@@ -98,9 +93,7 @@ export class Renderer implements IRenderer {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IThemeService private themeService: IThemeService
 	) {
 	}
 
@@ -167,16 +160,15 @@ export class Renderer implements IRenderer {
 
 	private renderRelatedInfoTemplate(container: HTMLElement): IRelatedInformationTemplateData {
 		const data: IRelatedInformationTemplateData = Object.create(null);
-		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
 
-		const separator = dom.append(container, dom.$(''));
-		separator.textContent = '-';
-		separator.style.padding = '0 4px';
-
-		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
-		data.resourceLabel = this.instantiationService.createInstance(IconLabel, resourceLabelContainer, { supportHighlights: true });
-
+		data.resourceLabel = new HighlightedLabel(dom.append(container, dom.$('.related-info-resource')));
 		data.lnCol = dom.append(container, dom.$('span.marker-line'));
+
+		const separator = dom.append(container, dom.$('span.related-info-resource-separator'));
+		separator.textContent = ':';
+		separator.style.paddingRight = '4px';
+
+		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
 		return data;
 	}
 
@@ -223,10 +215,11 @@ export class Renderer implements IRenderer {
 	}
 
 	private renderRelatedInfoElement(tree: ITree, element: RelatedInformation, templateData: IRelatedInformationTemplateData) {
+		templateData.resourceLabel.set(paths.basename(element.raw.resource.fsPath), element.uriMatches);
+		templateData.resourceLabel.element.title = element.raw.resource.toString();
+		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(element.raw.startLineNumber, element.raw.startColumn);
 		templateData.description.set(element.raw.message, element.messageMatches);
 		templateData.description.element.title = element.raw.message;
-		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(element.raw.startLineNumber, element.raw.startColumn);
-		templateData.resourceLabel.setValue(paths.basename(element.raw.resource.fsPath), getPathLabel(dirname(element.raw.resource), this.contextService, this.environmentService), { matches: element.uriMatches });
 	}
 
 	private static iconClassNameFor(element: IMarker): string {
