@@ -162,6 +162,16 @@ class SearchOperation {
 	) {
 		//
 	}
+
+	addMatch(resource: URI, match: ILineMatch): void {
+		if (!this.matches.has(resource.toString())) {
+			this.matches.set(resource.toString(), { resource, lineMatches: [] });
+		}
+		if (match) {
+			this.matches.get(resource.toString()).lineMatches.push(match);
+		}
+		this.progress(this.matches.get(resource.toString()));
+	}
 }
 
 class RemoteSearchProvider implements ISearchResultProvider {
@@ -199,26 +209,36 @@ class RemoteSearchProvider implements ISearchResultProvider {
 			}
 		}
 
+		let outer: TPromise;
+
 		return new PPromise((resolve, reject, report) => {
 
 			const search = new SearchOperation(report);
 			this._searches.set(search.id, search);
 
-			const promise = query.type === QueryType.File
-				? this._proxy.$findFiles(this._handle, search.id, query.filePattern)
+			outer = query.type === QueryType.File
+				? this._proxy.$provideFileSearchResults(this._handle, search.id, query.filePattern)
 				: this._proxy.$provideTextSearchResults(this._handle, search.id, query.contentPattern, { excludes: Object.keys(excludes), includes: Object.keys(includes) });
 
-			promise.then(() => {
+			outer.then(() => {
 				this._searches.delete(search.id);
 				resolve(({ results: values(search.matches), stats: undefined }));
 			}, err => {
 				this._searches.delete(search.id);
 				reject(err);
 			});
+		}, () => {
+			if (outer) {
+				outer.cancel();
+			}
 		});
 	}
 
 	handleFindMatch(session: number, dataOrUri: UriComponents | [UriComponents, ILineMatch]): void {
+		if (!this._searches.has(session)) {
+			// ignore...
+			return;
+		}
 		let resource: URI;
 		let match: ILineMatch;
 
@@ -229,12 +249,6 @@ class RemoteSearchProvider implements ISearchResultProvider {
 			resource = URI.revive(dataOrUri);
 		}
 
-		const { matches } = this._searches.get(session);
-		if (!matches.has(resource.toString())) {
-			matches.set(resource.toString(), { resource, lineMatches: [] });
-		}
-		if (match) {
-			matches.get(resource.toString()).lineMatches.push(match);
-		}
+		this._searches.get(session).addMatch(resource, match);
 	}
 }

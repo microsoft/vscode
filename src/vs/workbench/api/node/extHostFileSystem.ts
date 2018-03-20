@@ -134,7 +134,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	$rmdir(handle: number, resource: UriComponents): TPromise<void, any> {
 		return asWinJsPromise(token => this._fsProvider.get(handle).rmdir(URI.revive(resource)));
 	}
-	$findFiles(handle: number, session: number, query: string): TPromise<void> {
+	$provideFileSearchResults(handle: number, session: number, query: string): TPromise<void> {
 		const provider = this._searchProvider.get(handle);
 		if (!provider.provideFileSearchResults) {
 			return TPromise.as(undefined);
