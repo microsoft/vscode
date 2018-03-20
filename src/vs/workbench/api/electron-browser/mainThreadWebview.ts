@@ -46,8 +46,15 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	$createWebview(handle: WebviewHandle, uri: URI, title: string, column: Position, options: vscode.WebviewOptions, extensionFolderPath: string): void {
-		const webviewInput = new WebviewInput(URI.revive(uri), title, options, '', {
+	$createWebview(
+		handle: WebviewHandle,
+		viewType: string,
+		title: string,
+		column: Position,
+		options: vscode.WebviewOptions,
+		extensionFolderPath: string
+	): void {
+		const webviewInput = new WebviewInput(URI.parse('webview://' + handle), title, options, '', {
 			onMessage: message => this._proxy.$onMessage(handle, message),
 			onDidChangePosition: position => this._proxy.$onDidChangePosition(handle, position),
 			onDispose: () => {
