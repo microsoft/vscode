@@ -19,7 +19,6 @@ import { ITree, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ITextModel } from 'vs/editor/common/model';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Position } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
 import { registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
@@ -45,6 +44,7 @@ import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { memoize } from 'vs/base/common/decorators';
 import { dispose } from 'vs/base/common/lifecycle';
 import { OpenMode, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const $ = dom.$;
 
@@ -333,7 +333,7 @@ class ReplHistoryPreviousAction extends EditorAction {
 			alias: 'History Previous',
 			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE),
+				kbExpr: debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE,
 				primary: KeyCode.UpArrow,
 				weight: 50
 			},
@@ -357,7 +357,7 @@ class ReplHistoryNextAction extends EditorAction {
 			alias: 'History Next',
 			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, debug.CONTEXT_ON_LAST_DEBUG_REPL_LINE),
+				kbExpr: debug.CONTEXT_ON_LAST_DEBUG_REPL_LINE,
 				primary: KeyCode.DownArrow,
 				weight: 50
 			},
@@ -381,7 +381,7 @@ class AcceptReplInputAction extends EditorAction {
 			alias: 'REPL Accept Input',
 			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyCode.Enter
 			}
 		});
@@ -421,7 +421,7 @@ registerEditorCommand(new SuggestCommand({
 	handler: x => x.acceptSelectedSuggestion(),
 	kbOpts: {
 		weight: 50,
-		kbExpr: EditorContextKeys.editorTextFocus,
+		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyCode.RightArrow
 	}
 }));
