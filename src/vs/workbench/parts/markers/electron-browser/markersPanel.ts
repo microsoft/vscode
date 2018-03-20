@@ -135,7 +135,7 @@ export class MarkersPanel extends Panel {
 
 	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
 		const { resource, selection } = element instanceof Marker ? { resource: element.resource, selection: element.range } :
-			element instanceof RelatedInformation ? { resource: element.relatedInformation.resource, selection: element.relatedInformation } : { resource: null, selection: null };
+			element instanceof RelatedInformation ? { resource: element.raw.resource, selection: element.raw } : { resource: null, selection: null };
 		if (resource && selection) {
 			this.editorService.openEditor({
 				resource,
