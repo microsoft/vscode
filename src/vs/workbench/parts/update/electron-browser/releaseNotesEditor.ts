@@ -83,8 +83,7 @@ export class ReleaseNotesManager {
 				this._editorService.openEditor(this._currentReleaseNotes, { preserveFocus: true });
 			}
 		} else {
-			const uri = URI.parse('release-notes:' + version);
-			this._currentReleaseNotes = new WebviewInput(uri, title, { tryRestoreScrollPosition: true, enableFindWidget: true }, html, {
+			this._currentReleaseNotes = new WebviewInput(title, { tryRestoreScrollPosition: true, enableFindWidget: true }, html, {
 				onDidClickLink: uri => this.onDidClickLink(uri),
 				onDispose: () => { this._currentReleaseNotes = undefined; }
 			}, this._partService);

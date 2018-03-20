@@ -54,7 +54,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 		options: vscode.WebviewOptions,
 		extensionFolderPath: string
 	): void {
-		const webviewInput = new WebviewInput(URI.parse('webview://' + handle), title, options, '', {
+		const webviewInput = new WebviewInput(title, options, '', {
 			onMessage: message => this._proxy.$onMessage(handle, message),
 			onDidChangePosition: position => this._proxy.$onDidChangePosition(handle, position),
 			onDispose: () => {

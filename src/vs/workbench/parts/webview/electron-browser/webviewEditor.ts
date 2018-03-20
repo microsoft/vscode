@@ -141,7 +141,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 			return undefined;
 		}
 
-		if (this.input && this.input.getResource().fsPath !== input.getResource().fsPath) {
+		if (this.input) {
 			(this.input as WebviewInput).releaseWebview(this);
 			this._webview = undefined;
 			this.webviewContent = undefined;
