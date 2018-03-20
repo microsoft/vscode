@@ -99,7 +99,12 @@ export class CancellationTokenSource {
 	}
 
 	dispose(): void {
-		if (this._token instanceof MutableToken) {
+		if (!this._token) {
+			// ensure to initialize with an empty token if we had none
+			this._token = CancellationToken.None;
+
+		} else if (this._token instanceof MutableToken) {
+			// actually dispose
 			this._token.dispose();
 		}
 	}
