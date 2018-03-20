@@ -172,7 +172,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 					return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
 						actions: [
-							new Action('workbench.window.action.reloadeWithIncreasedMemoryLimit', nls.localize('reloadWithIncreasedMemoryLimit', "Reload with ") + memoryLimit + 'MB', null, true, () => {
+							new Action('workbench.window.action.reloadWithIncreasedMemoryLimit', nls.localize('reloadWithIncreasedMemoryLimit', "Reload with {0}MB", memoryLimit), null, true, () => {
 								return this.windowService.reloadWindow({ _: [], 'max-memory': memoryLimit }).then(() => true);
 							})
 						]
