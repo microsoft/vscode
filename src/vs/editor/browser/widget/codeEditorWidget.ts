@@ -33,7 +33,7 @@ import { Color } from 'vs/base/common/color';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ITextModel, IModelDecorationOptions } from 'vs/editor/common/model';
-import { ICommandDelegate } from '../view/viewController';
+import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 

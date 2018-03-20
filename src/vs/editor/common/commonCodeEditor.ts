@@ -1051,7 +1051,7 @@ class EditorContextKeysManager extends Disposable {
 
 	private _editor: CommonCodeEditor;
 	private _editorFocus: IContextKey<boolean>;
-	private _inputFocus: IContextKey<boolean>;
+	private _textInputFocus: IContextKey<boolean>;
 	private _editorTextFocus: IContextKey<boolean>;
 	private _editorTabMovesFocus: IContextKey<boolean>;
 	private _editorReadonly: IContextKey<boolean>;
@@ -1068,7 +1068,7 @@ class EditorContextKeysManager extends Disposable {
 
 		contextKeyService.createKey('editorId', editor.getId());
 		this._editorFocus = EditorContextKeys.focus.bindTo(contextKeyService);
-		this._inputFocus = EditorContextKeys.inputFocus.bindTo(contextKeyService);
+		this._textInputFocus = EditorContextKeys.textInputFocus.bindTo(contextKeyService);
 		this._editorTextFocus = EditorContextKeys.textFocus.bindTo(contextKeyService);
 		this._editorTabMovesFocus = EditorContextKeys.tabMovesFocus.bindTo(contextKeyService);
 		this._editorReadonly = EditorContextKeys.readOnly.bindTo(contextKeyService);
@@ -1108,7 +1108,7 @@ class EditorContextKeysManager extends Disposable {
 	private _updateFromFocus(): void {
 		this._editorFocus.set(this._editor.hasWidgetFocus() && !this._editor.isSimpleWidget);
 		this._editorTextFocus.set(this._editor.isFocused() && !this._editor.isSimpleWidget);
-		this._inputFocus.set(this._editor.isFocused());
+		this._textInputFocus.set(this._editor.isFocused());
 	}
 }
 

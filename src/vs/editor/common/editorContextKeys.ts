@@ -19,7 +19,7 @@ export namespace EditorContextKeys {
 	/**
 	 * A context key that is set when any editor input has focus (regular editor, repl input...).
 	 */
-	export const inputFocus = new RawContextKey<boolean>('inputFocus', false);
+	export const textInputFocus = new RawContextKey<boolean>('textInputFocus', false);
 
 	export const readOnly = new RawContextKey<boolean>('editorReadonly', false);
 	export const writable: ContextKeyExpr = readOnly.toNegated();
