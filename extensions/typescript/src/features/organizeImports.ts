@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 
 import * as Proto from '../protocol';
 import { Command } from '../utils/commandManager';
-import { createWorkspaceEditFromFileCodeEdits } from '../utils/workspaceEdit';
+import * as typeconverts from '../utils/typeConverters';
 
 import { isSupportedLanguageMode } from '../utils/languageModeIds';
 import API from '../utils/api';
@@ -56,7 +56,7 @@ export class OrganizeImportsCommand implements Command {
 			return false;
 		}
 
-		const edits = createWorkspaceEditFromFileCodeEdits(client, response.body);
+		const edits = typeconverts.WorkspaceEdit.fromFromFileCodeEdits(client, response.body);
 		return await vscode.workspace.applyEdit(edits);
 	}
 }
