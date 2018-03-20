@@ -27,28 +27,11 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 		private readonly modeIds: string[]
 	) { }
 
-	public async provideWorkspaceSymbols(search: string, token: CancellationToken): Promise<SymbolInformation[]> {
-		// typescript wants to have a resource even when asking
-		// general questions so we check the active editor. If this
-		// doesn't match we take the first TS document.
-		let uri: Uri | undefined = undefined;
-		const editor = window.activeTextEditor;
-		if (editor) {
-			const document = editor.document;
-			if (document && this.modeIds.indexOf(document.languageId) >= 0) {
-				uri = document.uri;
-			}
-		}
-		if (!uri) {
-			const documents = workspace.textDocuments;
-			for (const document of documents) {
-				if (this.modeIds.indexOf(document.languageId) >= 0) {
-					uri = document.uri;
-					break;
-				}
-			}
-		}
-
+	public async provideWorkspaceSymbols(
+		search: string,
+		token: CancellationToken
+	): Promise<SymbolInformation[]> {
+		const uri = this.getUri();
 		if (!uri) {
 			return [];
 		}
@@ -57,6 +40,7 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 		if (!filepath) {
 			return [];
 		}
+
 		const args: Proto.NavtoRequestArgs = {
 			file: filepath,
 			searchValue: search
@@ -84,5 +68,27 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 			label += '()';
 		}
 		return label;
+	}
+
+	private getUri(): Uri | undefined {
+		// typescript wants to have a resource even when asking
+		// general questions so we check the active editor. If this
+		// doesn't match we take the first TS document.
+
+		const editor = window.activeTextEditor;
+		if (editor) {
+			const document = editor.document;
+			if (document && this.modeIds.indexOf(document.languageId) >= 0) {
+				return document.uri;
+			}
+		}
+
+		const documents = workspace.textDocuments;
+		for (const document of documents) {
+			if (this.modeIds.indexOf(document.languageId) >= 0) {
+				return document.uri;
+			}
+		}
+		return undefined;
 	}
 }
