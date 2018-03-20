@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, TimeoutTimer } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReplacePattern, parseReplaceString } from 'vs/editor/contrib/find/replacePattern';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
@@ -73,6 +73,7 @@ export const FIND_IDS = {
 };
 
 export const MATCHES_LIMIT = 19999;
+const RESEARCH_DELAY = 240;
 
 export class FindModelBoundToEditorModel {
 
@@ -81,6 +82,7 @@ export class FindModelBoundToEditorModel {
 	private _toDispose: IDisposable[];
 	private _decorations: FindDecorations;
 	private _ignoreModelContentChanged: boolean;
+	private _startSearchingTimer: TimeoutTimer;
 
 	private _updateDecorationsScheduler: RunOnceScheduler;
 	private _isDisposed: boolean;
@@ -90,6 +92,7 @@ export class FindModelBoundToEditorModel {
 		this._state = state;
 		this._toDispose = [];
 		this._isDisposed = false;
+		this._startSearchingTimer = new TimeoutTimer();
 
 		this._decorations = new FindDecorations(editor);
 		this._toDispose.push(this._decorations);
@@ -127,6 +130,7 @@ export class FindModelBoundToEditorModel {
 
 	public dispose(): void {
 		this._isDisposed = true;
+		dispose(this._startSearchingTimer);
 		this._toDispose = dispose(this._toDispose);
 	}
 
@@ -140,10 +144,24 @@ export class FindModelBoundToEditorModel {
 			return;
 		}
 		if (e.searchString || e.isReplaceRevealed || e.isRegex || e.wholeWord || e.matchCase || e.searchScope) {
-			if (e.searchScope) {
-				this.research(e.moveCursor, this._state.searchScope);
+			let model = this._editor.getModel();
+
+			if (model.isTooLargeForHavingARichMode()) {
+				this._startSearchingTimer.cancel();
+
+				this._startSearchingTimer.setIfNotSet(() => {
+					if (e.searchScope) {
+						this.research(e.moveCursor, this._state.searchScope);
+					} else {
+						this.research(e.moveCursor);
+					}
+				}, RESEARCH_DELAY);
 			} else {
-				this.research(e.moveCursor);
+				if (e.searchScope) {
+					this.research(e.moveCursor, this._state.searchScope);
+				} else {
+					this.research(e.moveCursor);
+				}
 			}
 		}
 	}
