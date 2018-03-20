@@ -369,7 +369,6 @@ export class ExtensionHostProcessWorker {
 					appRoot: this._environmentService.appRoot,
 					appSettingsHome: this._environmentService.appSettingsHome,
 					disableExtensions: this._environmentService.disableExtensions,
-					userExtensionsHome: this._environmentService.extensionsPath,
 					extensionDevelopmentPath: this._environmentService.extensionDevelopmentPath,
 					extensionTestsPath: this._environmentService.extensionTestsPath,
 					// globally disable proposed api when built and not insiders developing extensions
