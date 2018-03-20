@@ -9,12 +9,13 @@ import {
 	ConfigurationRequest, WorkspaceFolder, DocumentColorRequest, ColorPresentationRequest
 } from 'vscode-languageserver';
 
-import { TextDocument } from 'vscode-languageserver-types';
+import { TextDocument, CompletionList } from 'vscode-languageserver-types';
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { formatError, runSafe } from './utils/errors';
-import uri from 'vscode-uri';
+import URI from 'vscode-uri';
+import { getPathCompletionParticipant } from './pathCompletion';
 
 export interface Settings {
 	css: LanguageSettings;
@@ -57,7 +58,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	if (!Array.isArray(workspaceFolders)) {
 		workspaceFolders = [];
 		if (params.rootPath) {
-			workspaceFolders.push({ name: '', uri: uri.file(params.rootPath).toString() });
+			workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString() });
 		}
 	}
 
@@ -181,7 +182,17 @@ function validateTextDocument(textDocument: TextDocument): void {
 connection.onCompletion(textDocumentPosition => {
 	return runSafe(() => {
 		let document = documents.get(textDocumentPosition.textDocument.uri);
-		return getLanguageService(document).doComplete(document, textDocumentPosition.position, stylesheets.get(document))!; /* TODO: remove ! once LS has null annotations */
+		const cssLS = getLanguageService(document);
+		const pathCompletionList: CompletionList = {
+			isIncomplete: false,
+			items: []
+		};
+		cssLS.setCompletionParticipants([getPathCompletionParticipant(document, workspaceFolders, pathCompletionList)]);
+		const result = cssLS.doComplete(document, textDocumentPosition.position, stylesheets.get(document))!; /* TODO: remove ! once LS has null annotations */
+		return {
+			isIncomplete: result.isIncomplete,
+			items: [...pathCompletionList.items, ...result.items]
+		};
 	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`);
 });
 
