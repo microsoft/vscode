@@ -381,10 +381,9 @@ export class ExtensionHostProcessWorker {
 				// Send configurations scopes only in development mode.
 				configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes() } : configurationData,
 				telemetryInfo,
-				args: this._environmentService.args,
-				execPath: this._environmentService.execPath,
 				windowId: this._windowService.getCurrentWindowId(),
-				logLevel: this._logService.getLevel()
+				logLevel: this._logService.getLevel(),
+				logsPath: this._environmentService.logsPath
 			};
 			return r;
 		});

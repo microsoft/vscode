@@ -44,7 +44,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
 import { IStat, FileChangeType } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import { ILineMatch, IPatternInfo } from 'vs/platform/search/common/search';
@@ -77,9 +76,8 @@ export interface IInitData {
 	configuration: IConfigurationInitData;
 	telemetryInfo: ITelemetryInfo;
 	windowId: number;
-	args: ParsedArgs;
-	execPath: string;
 	logLevel: LogLevel;
+	logsPath: string;
 }
 
 export interface IConfigurationInitData extends IConfigurationData {
