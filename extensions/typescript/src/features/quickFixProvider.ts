@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { vsRangeToTsFileRange } from '../utils/typeConverters';
+import * as typeConverters from '../utils/typeConverters';
 import FormattingConfigurationManager from './formattingConfigurationManager';
 import { getEditForCodeAction, applyCodeActionCommands } from '../utils/codeAction';
 import { Command, CommandManager } from '../utils/commandManager';
@@ -177,7 +177,7 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 		token: vscode.CancellationToken
 	): Promise<Iterable<vscode.CodeAction>> {
 		const args: Proto.CodeFixRequestArgs = {
-			...vsRangeToTsFileRange(file, diagnostic.range),
+			...typeConverters.vsRangeToTsFileRange(file, diagnostic.range),
 			errorCodes: [+diagnostic.code]
 		};
 		const codeFixesResponse = await this.client.execute('getCodeFixes', args, token);

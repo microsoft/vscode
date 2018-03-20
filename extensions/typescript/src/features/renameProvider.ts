@@ -7,7 +7,7 @@ import { RenameProvider, WorkspaceEdit, TextDocument, Position, CancellationToke
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/typeConverters';
+import * as typeConverters from '../utils/typeConverters';
 
 export default class TypeScriptRenameProvider implements RenameProvider {
 	public constructor(
@@ -25,7 +25,7 @@ export default class TypeScriptRenameProvider implements RenameProvider {
 		}
 
 		const args: Proto.RenameRequestArgs = {
-			...vsPositionToTsFileLocation(filepath, position),
+			...typeConverters.vsPositionToTsFileLocation(filepath, position),
 			findInStrings: false,
 			findInComments: false
 		};
@@ -48,7 +48,7 @@ export default class TypeScriptRenameProvider implements RenameProvider {
 					continue;
 				}
 				for (const textSpan of spanGroup.locs) {
-					result.replace(resource, tsTextSpanToVsRange(textSpan), newName);
+					result.replace(resource, typeConverters.Range.fromTextSpan(textSpan), newName);
 				}
 			}
 			return result;

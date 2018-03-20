@@ -7,7 +7,7 @@ import { DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider, Form
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange } from '../utils/typeConverters';
+import * as typeConverters from '../utils/typeConverters';
 import FormattingConfigurationManager from './formattingConfigurationManager';
 
 export class TypeScriptFormattingProvider implements DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider {
@@ -116,7 +116,7 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 	}
 
 	private codeEdit2SingleEditOperation(edit: Proto.CodeEdit): TextEdit {
-		return new TextEdit(tsTextSpanToVsRange(edit), edit.newText);
+		return new TextEdit(typeConverters.Range.fromTextSpan(edit), edit.newText);
 	}
 }
 

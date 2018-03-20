@@ -8,7 +8,7 @@ import { DocumentSymbolProvider, SymbolInformation, SymbolKind, TextDocument, Lo
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange } from '../utils/typeConverters';
+import * as typeConverters from '../utils/typeConverters';
 
 const outlineTypeTable: { [kind: string]: SymbolKind } = Object.create(null);
 outlineTypeTable[PConst.Kind.module] = SymbolKind.Module;
@@ -71,7 +71,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 			let result = new SymbolInformation(item.text,
 				outlineTypeTable[item.kind as string] || SymbolKind.Variable,
 				containerLabel ? containerLabel : '',
-				new Location(resource, tsTextSpanToVsRange(item.spans[0])));
+				new Location(resource, typeConverters.Range.fromTextSpan(item.spans[0])));
 			foldingMap[key] = result;
 			bucket.push(result);
 		}
@@ -86,7 +86,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 		const result = new SymbolInformation(item.text,
 			outlineTypeTable[item.kind as string] || SymbolKind.Variable,
 			containerLabel ? containerLabel : '',
-			new Location(resource, tsTextSpanToVsRange(item.spans[0]))
+			new Location(resource, typeConverters.Range.fromTextSpan(item.spans[0]))
 		);
 		if (item.childItems && item.childItems.length > 0) {
 			for (const child of item.childItems) {

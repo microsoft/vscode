@@ -3,14 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/**
+ * Helpers for converting FROM vscode types TO ts types
+ */
+
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 
-
-export const tsTextSpanToVsRange = (span: Proto.TextSpan) =>
-	new vscode.Range(
-		span.start.line - 1, span.start.offset - 1,
-		span.end.line - 1, span.end.offset - 1);
+export namespace Range {
+	export const fromTextSpan = (span: Proto.TextSpan): vscode.Range =>
+		new vscode.Range(
+			span.start.line - 1, span.start.offset - 1,
+			span.end.line - 1, span.end.offset - 1);
+}
 
 export const tsLocationToVsPosition = (tslocation: Proto.Location) =>
 	new vscode.Position(tslocation.line - 1, tslocation.offset - 1);

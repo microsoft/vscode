@@ -7,7 +7,7 @@ import { workspace, window, Uri, WorkspaceSymbolProvider, SymbolInformation, Sym
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange } from '../utils/typeConverters';
+import * as typeConverters from '../utils/typeConverters';
 
 function getSymbolKind(item: Proto.NavtoItem): SymbolKind {
 	switch (item.kind) {
@@ -71,7 +71,7 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 			if (!item.containerName && item.kind === 'alias') {
 				continue;
 			}
-			const range = tsTextSpanToVsRange(item);
+			const range = typeConverters.Range.fromTextSpan(item);
 			const label = TypeScriptWorkspaceSymbolProvider.getLabel(item);
 			result.push(new SymbolInformation(label, getSymbolKind(item), item.containerName || '',
 				new Location(this.client.asUrl(item.file), range)));

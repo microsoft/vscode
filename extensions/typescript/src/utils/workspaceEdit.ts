@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as Proto from '../protocol';
-import { tsTextSpanToVsRange } from './typeConverters';
+import * as typeConverters from './typeConverters';
 
 export function createWorkspaceEditFromFileCodeEdits(
 	client: ITypeScriptServiceClient,
@@ -15,7 +15,7 @@ export function createWorkspaceEditFromFileCodeEdits(
 	for (const edit of edits) {
 		for (const textChange of edit.textChanges) {
 			workspaceEdit.replace(client.asUrl(edit.fileName),
-				tsTextSpanToVsRange(textChange),
+				typeConverters.Range.fromTextSpan(textChange),
 				textChange.newText);
 		}
 	}
@@ -25,6 +25,6 @@ export function createWorkspaceEditFromFileCodeEdits(
 
 export function tsCodeEditToVsTextEdit(edit: Proto.CodeEdit): vscode.TextEdit {
 	return new vscode.TextEdit(
-		tsTextSpanToVsRange(edit),
+		typeConverters.Range.fromTextSpan(edit),
 		edit.newText);
 }

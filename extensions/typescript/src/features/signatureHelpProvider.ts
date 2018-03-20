@@ -8,7 +8,7 @@ import { SignatureHelpProvider, SignatureHelp, SignatureInformation, ParameterIn
 import * as Previewer from '../utils/previewer';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { vsPositionToTsFileLocation } from '../utils/typeConverters';
+import * as typeConverters from '../utils/typeConverters';
 
 export default class TypeScriptSignatureHelpProvider implements SignatureHelpProvider {
 
@@ -21,7 +21,7 @@ export default class TypeScriptSignatureHelpProvider implements SignatureHelpPro
 		if (!filepath) {
 			return null;
 		}
-		const args: Proto.SignatureHelpRequestArgs = vsPositionToTsFileLocation(filepath, position);
+		const args: Proto.SignatureHelpRequestArgs = typeConverters.vsPositionToTsFileLocation(filepath, position);
 
 		const response = await this.client.execute('signatureHelp', args, token);
 		const info = response.body;

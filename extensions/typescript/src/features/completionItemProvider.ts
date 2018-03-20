@@ -11,7 +11,7 @@ import TypingsStatus from '../utils/typingsStatus';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import * as Previewer from '../utils/previewer';
-import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/typeConverters';
+import * as typeConverters from '../utils/typeConverters';
 
 import * as nls from 'vscode-nls';
 import { applyCodeAction } from '../utils/codeAction';
@@ -51,14 +51,14 @@ class MyCompletionItem extends vscode.CompletionItem {
 		this.useCodeSnippet = useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
 
 		if (tsEntry.replacementSpan) {
-			this.range = tsTextSpanToVsRange(tsEntry.replacementSpan);
+			this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
 		}
 
 		if (tsEntry.insertText) {
 			this.insertText = tsEntry.insertText;
 
 			if (tsEntry.replacementSpan) {
-				this.range = tsTextSpanToVsRange(tsEntry.replacementSpan);
+				this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
 				if (this.insertText[0] === '[') { // o.x -> o['x']
 					this.filterText = '.' + this.label;
 				}
@@ -281,7 +281,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		}
 
 		const args: Proto.CompletionsRequestArgs = {
-			...vsPositionToTsFileLocation(file, position),
+			...typeConverters.vsPositionToTsFileLocation(file, position),
 			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
 			includeInsertTextCompletions: true
 		};
@@ -330,7 +330,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		item.resolve();
 
 		const args: Proto.CompletionDetailsRequestArgs = {
-			...vsPositionToTsFileLocation(filepath, item.position),
+			...typeConverters.vsPositionToTsFileLocation(filepath, item.position),
 			entryNames: [
 				item.tsEntry.source ? { name: item.tsEntry.name, source: item.tsEntry.source } : item.tsEntry.name
 			]
@@ -495,7 +495,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
 		// Don't complete function calls inside of destructive assigments or imports
 		try {
-			const infoResponse = await this.client.execute('quickinfo', vsPositionToTsFileLocation(filepath, position));
+			const infoResponse = await this.client.execute('quickinfo', typeConverters.vsPositionToTsFileLocation(filepath, position));
 			const info = infoResponse.body;
 			switch (info && info.kind) {
 				case 'var':

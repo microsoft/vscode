@@ -7,7 +7,7 @@ import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri
 import * as Proto from '../protocol';
 
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange } from '../utils/typeConverters';
+import * as typeConverters from '../utils/typeConverters';
 import { escapeRegExp } from '../utils/regexp';
 
 export class ReferencesCodeLens extends CodeLens {
@@ -136,7 +136,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 			return null;
 		}
 
-		const range = tsTextSpanToVsRange(span);
+		const range = typeConverters.Range.fromTextSpan(span);
 		const text = document.getText(range);
 
 		const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${escapeRegExp(item.text || '')}(\\b|\\W)`, 'gm');
