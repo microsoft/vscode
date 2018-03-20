@@ -36,7 +36,7 @@ import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/
 import { webFrame } from 'electron';
 import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
+import { URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspacesIpc';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
@@ -47,6 +47,8 @@ import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform
 import { IssueChannelClient } from 'vs/platform/issue/common/issueIpc';
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
+import { URLService, ForwardingURLHandler } from 'vs/platform/url/common/urlService';
+
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
@@ -72,7 +74,7 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 }
 
 function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
-	const mainProcessClient = new ElectronIPCClient(String(`window${configuration.windowId}`));
+	const mainProcessClient = new ElectronIPCClient(`window:${configuration.windowId}`);
 	const mainServices = createMainProcessServices(mainProcessClient, configuration);
 
 	const environmentService = new EnvironmentService(configuration, configuration.execPath);
@@ -215,8 +217,12 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient, configu
 	const updateChannel = mainProcessClient.getChannel('update');
 	serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, updateChannel));
 
-	const urlChannel = mainProcessClient.getChannel('url');
-	serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, configuration.windowId));
+	const localUrlService = new URLService();
+	serviceCollection.set(IURLService, localUrlService);
+
+	const urlHandler = new ForwardingURLHandler(localUrlService);
+	const urlHandlerChannel = new URLHandlerChannel(urlHandler);
+	mainProcessClient.registerChannel('urlHandler', urlHandlerChannel);
 
 	const issueChannel = mainProcessClient.getChannel('issue');
 	serviceCollection.set(IIssueService, new SyncDescriptor(IssueChannelClient, issueChannel));

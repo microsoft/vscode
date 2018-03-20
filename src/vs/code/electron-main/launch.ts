@@ -18,6 +18,7 @@ import { whenDeleted } from 'vs/base/node/pfs';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import URI from '../../base/common/uri';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -131,7 +132,16 @@ export class LaunchService implements ILaunchService {
 		if (args['open-url'] && args._urls && args._urls.length > 0) {
 			// --open-url must contain -- followed by the url(s)
 			// process.argv is used over args._ as args._ are resolved to file paths at this point
-			args._urls.forEach(url => this.urlService.open(url));
+			args._urls
+				.map(url => {
+					try {
+						return URI.parse(url);
+					} catch (err) {
+						return null;
+					}
+				})
+				.filter(uri => !!uri)
+				.forEach(uri => this.urlService.open(uri));
 
 			return true;
 		}

@@ -8,7 +8,7 @@
 import { app, ipcMain as ipc, BrowserWindow } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
-import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -29,7 +29,7 @@ import { IStateService } from 'vs/platform/state/common/state';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IURLService } from 'vs/platform/url/common/url';
-import { URLChannel } from 'vs/platform/url/common/urlIpc';
+import { URLHandlerChannelClient } from 'vs/platform/url/common/urlIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -59,6 +59,7 @@ import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { ElectronURLListener } from 'vs/platform/url/electron-main/urlService';
 
 export class CodeApplication {
 
@@ -355,10 +356,6 @@ export class CodeApplication {
 		const updateChannel = new UpdateChannel(updateService);
 		this.electronIpcServer.registerChannel('update', updateChannel);
 
-		const urlService = accessor.get(IURLService);
-		const urlChannel = appInstantiationService.createInstance(URLChannel, urlService);
-		this.electronIpcServer.registerChannel('url', urlChannel);
-
 		const issueService = accessor.get(IIssueService);
 		const issueChannel = new IssueChannel(issueService);
 		this.electronIpcServer.registerChannel('issue', issueChannel);
@@ -382,10 +379,22 @@ export class CodeApplication {
 
 		// Propagate to clients
 		this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this
+
+		const args = this.environmentService.args;
+		const urlService = accessor.get(IURLService);
+
+		const activeWindowManager = new ActiveWindowManager(windowsService);
+		const urlHandlerChannel = this.electronIpcServer.getChannel('urlHandler', { route: () => activeWindowManager.activeClientId });
+		const multiplexURLHandler = new URLHandlerChannelClient(urlHandlerChannel);
+		urlService.registerHandler(multiplexURLHandler);
+
+		const urls = args['open-url'] ? args._urls : [];
+		const urlListener = new ElectronURLListener(urls, urlService, this.windowsMainService);
+		this.toDispose.push(urlListener);
+
 		this.windowsMainService.ready(this.userEnv);
 
 		// Open our first window
-		const args = this.environmentService.args;
 		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 		if (args['new-window'] && args._.length === 0) {
 			this.windowsMainService.open({ context, cli: args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths

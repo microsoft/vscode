@@ -14,8 +14,8 @@ import product from 'vs/platform/node/product';
 import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { shell, crashReporter, app, Menu, clipboard } from 'electron';
-import { Event, chain, fromNodeEventEmitter } from 'vs/base/common/event';
-import { IURLService } from 'vs/platform/url/common/url';
+import { Event, fromNodeEventEmitter } from 'vs/base/common/event';
+import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IWindowsMainService, ISharedProcess } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
@@ -26,7 +26,7 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { isWindows } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 
-export class WindowsService implements IWindowsService, IDisposable {
+export class WindowsService implements IWindowsService, IURLHandler, IDisposable {
 
 	_serviceBrand: any;
 
@@ -45,17 +45,7 @@ export class WindowsService implements IWindowsService, IDisposable {
 		@IHistoryMainService private historyService: IHistoryMainService,
 		@ILogService private logService: ILogService
 	) {
-		// Catch file URLs
-		chain(urlService.onOpenURL)
-			.filter(uri => uri.authority === Schemas.file && !!uri.path)
-			.map(uri => URI.file(uri.fsPath))
-			.on(this.openFileForURI, this, this.disposables);
-
-		// Catch extension URLs when there are no windows open
-		chain(urlService.onOpenURL)
-			.filter(uri => /^extension/.test(uri.path))
-			.filter(() => this.windowsMainService.getWindowCount() === 0)
-			.on(this.openExtensionForURI, this, this.disposables);
+		urlService.registerHandler(this);
 	}
 
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
@@ -494,6 +484,22 @@ export class WindowsService implements IWindowsService, IDisposable {
 		});
 
 		return TPromise.as(null);
+	}
+
+	async handleURL(uri: URI): TPromise<boolean> {
+		// Catch file URLs
+		if (uri.authority === Schemas.file && !!uri.path) {
+			this.openFileForURI(URI.file(uri.fsPath));
+			return true;
+		}
+
+		// Catch extension URLs when there are no windows open
+		if (uri => /^extension/.test(uri.path) && this.windowsMainService.getWindowCount() === 0) {
+			this.openExtensionForURI(uri);
+			return true;
+		}
+
+		return false;
 	}
 
 	private openFileForURI(uri: URI): TPromise<void> {
