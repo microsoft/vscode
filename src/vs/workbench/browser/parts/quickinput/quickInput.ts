@@ -20,6 +20,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { QuickInputCheckboxList } from './quickInputCheckboxList';
 import { QuickInputBox } from './quickInputBox';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.$;
 
@@ -56,12 +58,35 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.container.style.display = 'none';
 
 		this.inputBox = new QuickInputBox(this.container);
+		this.toUnbind.push(this.inputBox);
 		this.inputBox.style(this.themeService.getTheme());
 		this.inputBox.onInput(value => {
 			this.checkboxList.filter(value);
 		});
+		this.toUnbind.push(this.inputBox.onKeyDown(event => {
+			switch (event.keyCode) {
+				case KeyCode.DownArrow:
+					this.checkboxList.focus('Next');
+					break;
+				case KeyCode.UpArrow:
+					this.checkboxList.focus('Previous');
+					break;
+				case KeyCode.PageDown:
+					this.checkboxList.focus('NextPage');
+					break;
+				case KeyCode.PageUp:
+					this.checkboxList.focus('PreviousPage');
+					break;
+				case KeyCode.Space:
+					if (event.ctrlKey) {
+						this.checkboxList.toggleCheckbox();
+					}
+					break;
+			}
+		}));
 
 		this.checkboxList = this.instantiationService.createInstance(QuickInputCheckboxList, this.container);
+		this.toUnbind.push(this.checkboxList);
 
 		const buttonContainer = dom.append(this.container, $('.quick-input-actions'));
 		const cancel = dom.append(buttonContainer, $('button'));
@@ -79,6 +104,19 @@ export class QuickInputService extends Component implements IQuickInputService {
 			}
 			this.close(false);
 		}));
+		this.toUnbind.push(dom.addDisposableListener(this.container, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			switch (event.keyCode) {
+				case KeyCode.Enter:
+					dom.EventHelper.stop(e, true);
+					this.close(true);
+					break;
+				case KeyCode.Escape:
+					dom.EventHelper.stop(e, true);
+					this.close(false);
+					break;
+			}
+		}));
 	}
 
 	private close(ok: boolean) {
@@ -92,6 +130,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	async pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IPickOptions, token?: CancellationToken): TPromise<T[]> {
 		this.create();
+		if (this.resolve) {
+			this.resolve(undefined);
+		}
 
 		this.inputBox.setPlaceholder(options.placeHolder || '');
 		// TODO: Progress indication.

@@ -11,7 +11,8 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import * as nls from 'vs/nls';
 import { inputBackground, inputForeground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme } from 'vs/platform/theme/common/themeService';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.$;
 
@@ -19,8 +20,9 @@ const DEFAULT_INPUT_ARIA_LABEL = nls.localize('quickInputBoxAriaLabel', "Type to
 
 export class QuickInputBox {
 
-	public container: HTMLElement;
+	private container: HTMLElement;
 	private inputBox: InputBox;
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		private parent: HTMLElement
@@ -29,12 +31,19 @@ export class QuickInputBox {
 		this.inputBox = new InputBox(this.container, null, {
 			ariaLabel: DEFAULT_INPUT_ARIA_LABEL
 		});
+		this.disposables.push(this.inputBox);
 
 		// ARIA
 		const inputElement = this.inputBox.inputElement;
 		inputElement.setAttribute('role', 'combobox');
 		inputElement.setAttribute('aria-haspopup', 'false');
 		inputElement.setAttribute('aria-autocomplete', 'list');
+	}
+
+	onKeyDown(handler: (event: StandardKeyboardEvent) => void): IDisposable {
+		return dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			handler(new StandardKeyboardEvent(e));
+		});
 	}
 
 	onInput(handler: (event: string) => void): IDisposable {
@@ -59,5 +68,9 @@ export class QuickInputBox {
 			inputBackground: theme.getColor(inputBackground),
 			inputBorder: theme.getColor(inputBorder)
 		});
+	}
+
+	dispose() {
+		this.disposables = dispose(this.disposables);
 	}
 }
