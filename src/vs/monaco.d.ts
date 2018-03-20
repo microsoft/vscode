@@ -2767,7 +2767,7 @@ declare namespace monaco.editor {
 		/**
 		 * The history mode for suggestions.
 		 */
-		suggestSelection?: string;
+		suggestSelection?: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 		/**
 		 * The font size for the suggest widget.
 		 * Defaults to the editor font size.
