@@ -366,11 +366,11 @@
 
 /* Theming */
 
-.vs .viewlet .search-view .search-widget .toggle-replace-button:hover {
+.vs .search-view .search-widget .toggle-replace-button:hover {
 	background-color: rgba(0, 0, 0, 0.1) !important;
 }
 
-.vs-dark .viewlet .search-view .search-widget .toggle-replace-button:hover {
+.vs-dark .search-view .search-widget .toggle-replace-button:hover {
 	background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
