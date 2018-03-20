@@ -10,10 +10,7 @@ import { Component } from 'vs/workbench/common/component';
 import { IQuickInputService } from 'vs/platform/quickInput/common/quickInput';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { Dimension } from 'vs/base/browser/builder';
-import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import * as dom from 'vs/base/browser/dom';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
 import { buttonBackground, buttonForeground, contrastBorder, buttonHoverBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
@@ -21,69 +18,10 @@ import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/th
 import { IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { QuickInputCheckboxList } from './quickInputCheckboxList';
+import { QuickInputBox } from './quickInputBox';
 
 const $ = dom.$;
-
-export interface ISelectedElement {
-	item: object;
-	label: string;
-	selected: boolean;
-}
-
-interface ISelectedElementTemplateData {
-	element: HTMLElement;
-	name: HTMLElement;
-	checkbox: HTMLInputElement;
-	context: ISelectedElement;
-	toDispose: IDisposable[];
-}
-
-class SelectedElementRenderer implements IRenderer<ISelectedElement, ISelectedElementTemplateData> {
-
-	static readonly ID = 'selectedelement';
-
-	get templateId() {
-		return SelectedElementRenderer.ID;
-	}
-
-	renderTemplate(container: HTMLElement): ISelectedElementTemplateData {
-		const data: ISelectedElementTemplateData = Object.create(null);
-		data.element = dom.append(container, $('.selected_element'));
-
-		data.checkbox = <HTMLInputElement>$('input');
-		data.checkbox.type = 'checkbox';
-		data.toDispose = [];
-		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => data.context.selected = !data.context.selected));
-
-		dom.append(data.element, data.checkbox);
-
-		data.name = dom.append(data.element, $('span.label'));
-
-		return data;
-	}
-
-	renderElement(element: ISelectedElement, index: number, data: ISelectedElementTemplateData): void {
-		data.context = element;
-		data.name.textContent = element.label;
-		data.element.title = data.name.textContent;
-		data.checkbox.checked = element.selected;
-	}
-
-	disposeTemplate(templateData: ISelectedElementTemplateData): void {
-		dispose(templateData.toDispose);
-	}
-}
-
-class SelectedElementDelegate implements IDelegate<ISelectedElement> {
-
-	getHeight(element: ISelectedElement): number {
-		return 22;
-	}
-
-	getTemplateId(element: ISelectedElement): string {
-		return SelectedElementRenderer.ID;
-	}
-}
 
 export class QuickInputService extends Component implements IQuickInputService {
 
@@ -95,9 +33,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	private layoutDimensions: Dimension;
 	private container: HTMLElement;
-	private list: WorkbenchList<ISelectedElement>;
+	private inputBox: QuickInputBox;
+	private checkboxList: QuickInputCheckboxList;
 
-	private elements: ISelectedElement[] = [];
 	private resolve: (value?: object[] | Thenable<object[]>) => void;
 
 	constructor(
@@ -117,12 +55,13 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.container = dom.append(workbench, $('.quick-input-widget'));
 		this.container.style.display = 'none';
 
-		const listContainer = dom.append(this.container, $('.quick-input-list'));
-		const delegate = new SelectedElementDelegate();
-		this.list = this.instantiationService.createInstance(WorkbenchList, listContainer, delegate, [new SelectedElementRenderer()], {
-			identityProvider: element => element.label,
-			multipleSelectionSupport: false
-		}) as WorkbenchList<ISelectedElement>;
+		this.inputBox = new QuickInputBox(this.container);
+		this.inputBox.style(this.themeService.getTheme());
+		this.inputBox.onInput(value => {
+			this.checkboxList.filter(value);
+		});
+
+		this.checkboxList = this.instantiationService.createInstance(QuickInputCheckboxList, this.container);
 
 		const buttonContainer = dom.append(this.container, $('.quick-input-actions'));
 		const cancel = dom.append(buttonContainer, $('button'));
@@ -144,7 +83,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	private close(ok: boolean) {
 		if (ok) {
-			this.resolve(this.elements.filter(e => e.selected).map(e => e.item));
+			this.resolve(this.checkboxList.getSelectedElements());
 		} else {
 			this.resolve();
 		}
@@ -154,18 +93,13 @@ export class QuickInputService extends Component implements IQuickInputService {
 	async pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IPickOptions, token?: CancellationToken): TPromise<T[]> {
 		this.create();
 
+		this.inputBox.setPlaceholder(options.placeHolder || '');
 		// TODO: Progress indication.
-		this.elements = (await picks).map(item => ({
-			item,
-			label: item.label,
-			selected: !!item.selected
-		}));
-		this.list.splice(0, this.list.length, this.elements);
+		this.checkboxList.setElements(await picks);
 
 		this.container.style.display = null;
 		this.updateLayout();
-		this.list.focusFirst();
-		this.list.domFocus();
+		this.inputBox.setFocus();
 
 		return new TPromise<T[]>(resolve => this.resolve = resolve);
 	}
@@ -185,8 +119,13 @@ export class QuickInputService extends Component implements IQuickInputService {
 			style.width = width + 'px';
 			style.marginLeft = '-' + (width / 2) + 'px';
 
-			this.list.layout();
+			this.inputBox.layout();
+			this.checkboxList.layout();
 		}
+	}
+
+	protected updateStyles() {
+		this.inputBox.style(this.themeService.getTheme());
 	}
 }
 
