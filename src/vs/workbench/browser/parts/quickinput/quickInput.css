@@ -12,6 +12,10 @@
 	margin-left: -300px;
 }
 
+.quick-input-box {
+	margin: 6px;
+}
+
 .quick-input-actions {
 	padding: 3px;
 }
