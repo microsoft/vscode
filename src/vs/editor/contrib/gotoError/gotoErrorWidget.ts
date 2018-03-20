@@ -113,7 +113,7 @@ class MessageWidget {
 
 				let relatedResource = document.createElement('span');
 				dom.addClass(relatedResource, 'filename');
-				relatedResource.innerHTML = `${getBaseLabel(related.resource)}(${related.startLineNumber}, ${related.startColumn}) &ndash; `;
+				relatedResource.innerHTML = `${getBaseLabel(related.resource)}(${related.startLineNumber}, ${related.startColumn}): `;
 				this._relatedDiagnostics.set(relatedResource, related);
 
 				let relatedMessage = document.createElement('span');
