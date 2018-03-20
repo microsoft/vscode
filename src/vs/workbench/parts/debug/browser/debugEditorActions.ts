@@ -70,7 +70,6 @@ class ConditionalBreakpointAction extends EditorAction {
 	}
 }
 
-
 class RunToCursorAction extends EditorAction {
 
 	constructor() {
