@@ -781,32 +781,65 @@ declare module 'vscode' {
 	//#region Tasks
 
 	/**
-	 * A task item represents a task in the system. It can be used to
-	 * present task information in the user interface or to execute the
-	 * underlying task.
+	 * An object representing an executed Task. It can be used
+	 * to terminate a task.
 	 */
-	export interface TaskItem {
+	export interface TaskExecution {
+	}
+
+	/**
+	 * An event signaling the start of a task execution.
+	 */
+	interface TaskStartEvent {
+		/**
+		 * The task item representing the task that got started.
+		 */
+		execution: TaskExecution;
+	}
+
+	/**
+	 * An event signaling the end of an executed task.
+	 */
+	interface TaskEndEvent {
+		/**
+		 * The task item representing the task that finished.
+		 */
+		execution: TaskExecution;
+	}
+
+	export namespace workspace {
 
 		/**
-		 * A unique ID representing the underlying task.
+		 * Fetches all task available in the systems. This includes tasks
+		 * from `tasks.json` files as well as tasks from task providers
+		 * contributed through extensions.
 		 */
-		readonly id: string;
+		export function fetchTasks(): Thenable<Task[]>;
 
 		/**
-		 * A human readable label of the task.
+		 * Executes a task that is managed by VS Code. The returned
+		 * task execution can be used to terminate the task.
+		 *
+		 * @param task the task to execute
 		 */
-		readonly label: string;
+		export function executeTask(task: Task): Thenable<TaskExecution>;
 
 		/**
-		 * The task definition.
+		 * Fires when a task starts.
 		 */
-		readonly definition: TaskDefinition;
+		export const onDidStartTask: Event<TaskStartEvent>;
 
 		/**
-		 * The workspace folder the task belongs to. Is undefined
-		 * to tasks that aren't scoped to a workspace folder.
+		 * Terminates a task that was previously started using `executeTask`
+		 *
+		 * @param task the task to terminate
 		 */
-		readonly workspaceFolder: WorkspaceFolder | undefined;
+		export function terminateTask(task: TaskExecution): void;
+
+		/**
+		 * Fires when a task ends.
+		 */
+		export const onDidEndTask: Event<TaskEndEvent>;
 	}
 
 	//#endregion

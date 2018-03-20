@@ -1257,6 +1257,21 @@ export class TaskGroup implements vscode.TaskGroup {
 
 	public static Test: TaskGroup = new TaskGroup('test', 'Test');
 
+	public static from(value: string) {
+		switch (value) {
+			case 'clean':
+				return TaskGroup.Clean;
+			case 'build':
+				return TaskGroup.Build;
+			case 'rebuild':
+				return TaskGroup.Rebuild;
+			case 'test':
+				return TaskGroup.Test;
+			default:
+				return undefined;
+		}
+	}
+
 	constructor(id: string, _label: string) {
 		if (typeof id !== 'string') {
 			throw illegalArgument('name');
@@ -1411,6 +1426,8 @@ export enum TaskScope {
 
 export class Task implements vscode.Task {
 
+	private __id: string;
+
 	private _definition: vscode.TaskDefinition;
 	private _definitionKey: string;
 	private _scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder;
@@ -1459,6 +1476,18 @@ export class Task implements vscode.Task {
 		this._isBackground = false;
 	}
 
+	get _id(): string {
+		return this.__id;
+	}
+
+	set _id(value: string) {
+		this.__id = value;
+	}
+
+	private clear(): void {
+		this.__id = undefined;
+	}
+
 	get definition(): vscode.TaskDefinition {
 		return this._definition;
 	}
@@ -1467,6 +1496,7 @@ export class Task implements vscode.Task {
 		if (value === void 0 || value === null) {
 			throw illegalArgument('Kind can\'t be undefined or null');
 		}
+		this.clear();
 		this._definitionKey = undefined;
 		this._definition = value;
 	}
@@ -1485,6 +1515,7 @@ export class Task implements vscode.Task {
 	}
 
 	set target(value: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder) {
+		this.clear();
 		this._scope = value;
 	}
 
@@ -1496,6 +1527,7 @@ export class Task implements vscode.Task {
 		if (typeof value !== 'string') {
 			throw illegalArgument('name');
 		}
+		this.clear();
 		this._name = value;
 	}
 
@@ -1507,6 +1539,7 @@ export class Task implements vscode.Task {
 		if (value === null) {
 			value = undefined;
 		}
+		this.clear();
 		this._execution = value;
 	}
 
@@ -1520,6 +1553,7 @@ export class Task implements vscode.Task {
 			this._hasDefinedMatchers = false;
 			return;
 		}
+		this.clear();
 		this._problemMatchers = value;
 		this._hasDefinedMatchers = true;
 	}
@@ -1536,6 +1570,7 @@ export class Task implements vscode.Task {
 		if (value !== true && value !== false) {
 			value = false;
 		}
+		this.clear();
 		this._isBackground = value;
 	}
 
@@ -1547,6 +1582,7 @@ export class Task implements vscode.Task {
 		if (typeof value !== 'string' || value.length === 0) {
 			throw illegalArgument('source must be a string of length > 0');
 		}
+		this.clear();
 		this._source = value;
 	}
 
@@ -1559,6 +1595,7 @@ export class Task implements vscode.Task {
 			this._group = undefined;
 			return;
 		}
+		this.clear();
 		this._group = value;
 	}
 
@@ -1570,6 +1607,7 @@ export class Task implements vscode.Task {
 		if (value === null) {
 			value = undefined;
 		}
+		this.clear();
 		this._presentationOptions = value;
 	}
 }

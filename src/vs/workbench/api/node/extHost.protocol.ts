@@ -48,6 +48,7 @@ import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import { ILineMatch, IPatternInfo } from 'vs/platform/search/common/search';
 import { LogLevel } from 'vs/platform/log/common/log';
+import { TaskExecutionDTO, TaskDTO, TaskHandleDTO } from 'vs/workbench/api/shared/tasks';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -388,6 +389,9 @@ export interface MainThreadFileSystemShape extends IDisposable {
 
 export interface MainThreadTaskShape extends IDisposable {
 	$registerTaskProvider(handle: number): TPromise<void>;
+	$executeTaskProvider(): TPromise<TaskDTO[]>;
+	$executeTask(task: TaskHandleDTO | TaskDTO): TPromise<TaskExecutionDTO>;
+	$terminateTask(task: TaskExecutionDTO): TPromise<void>;
 	$unregisterTaskProvider(handle: number): TPromise<void>;
 }
 
@@ -727,6 +731,8 @@ export interface ExtHostSCMShape {
 
 export interface ExtHostTaskShape {
 	$provideTasks(handle: number): TPromise<TaskSet>;
+	$taskStarted(execution: TaskExecutionDTO): void;
+	$taskEnded(execution: TaskExecutionDTO): void;
 }
 
 export interface IBreakpointDto {
