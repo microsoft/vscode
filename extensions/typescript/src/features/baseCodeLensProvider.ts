@@ -7,7 +7,7 @@ import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri
 import * as Proto from '../protocol';
 
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange } from '../utils/convert';
+import { tsTextSpanToVsRange } from '../utils/typeConverters';
 import { escapeRegExp } from '../utils/regexp';
 
 export class ReferencesCodeLens extends CodeLens {

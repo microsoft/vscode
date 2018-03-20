@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as Proto from '../protocol';
-import { tsTextSpanToVsRange } from './convert';
+import { tsTextSpanToVsRange } from './typeConverters';
 
 export function createWorkspaceEditFromFileCodeEdits(
 	client: ITypeScriptServiceClient,

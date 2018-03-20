@@ -8,7 +8,7 @@ import { HoverProvider, Hover, TextDocument, Position, CancellationToken } from 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { tagsMarkdownPreview } from '../utils/previewer';
-import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/typeConverters';
 
 export default class TypeScriptHoverProvider implements HoverProvider {
 

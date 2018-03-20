@@ -7,7 +7,7 @@ import { RenameProvider, WorkspaceEdit, TextDocument, Position, CancellationToke
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/typeConverters';
 
 export default class TypeScriptRenameProvider implements RenameProvider {
 	public constructor(

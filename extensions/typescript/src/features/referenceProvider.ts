@@ -6,7 +6,7 @@
 import { ReferenceProvider, Location, TextDocument, Position, CancellationToken } from 'vscode';
 
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/typeConverters';
 
 export default class TypeScriptReferenceSupport implements ReferenceProvider {
 	public constructor(

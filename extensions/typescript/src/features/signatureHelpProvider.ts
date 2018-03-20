@@ -8,7 +8,7 @@ import { SignatureHelpProvider, SignatureHelp, SignatureInformation, ParameterIn
 import * as Previewer from '../utils/previewer';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { vsPositionToTsFileLocation } from '../utils/convert';
+import { vsPositionToTsFileLocation } from '../utils/typeConverters';
 
 export default class TypeScriptSignatureHelpProvider implements SignatureHelpProvider {
 

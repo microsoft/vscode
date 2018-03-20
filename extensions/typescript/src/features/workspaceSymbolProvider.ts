@@ -7,7 +7,7 @@ import { workspace, window, Uri, WorkspaceSymbolProvider, SymbolInformation, Sym
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange } from '../utils/convert';
+import { tsTextSpanToVsRange } from '../utils/typeConverters';
 
 function getSymbolKind(item: Proto.NavtoItem): SymbolKind {
 	switch (item.kind) {

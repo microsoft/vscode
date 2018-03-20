@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange, vsRangeToTsFileRange, tsLocationToVsPosition } from '../utils/convert';
+import { tsTextSpanToVsRange, vsRangeToTsFileRange, tsLocationToVsPosition } from '../utils/typeConverters';
 import FormattingOptionsManager from './formattingConfigurationManager';
 import { CommandManager, Command } from '../utils/commandManager';
 

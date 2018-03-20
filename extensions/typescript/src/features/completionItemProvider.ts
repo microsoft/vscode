@@ -11,7 +11,7 @@ import TypingsStatus from '../utils/typingsStatus';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import * as Previewer from '../utils/previewer';
-import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/typeConverters';
 
 import * as nls from 'vscode-nls';
 import { applyCodeAction } from '../utils/codeAction';

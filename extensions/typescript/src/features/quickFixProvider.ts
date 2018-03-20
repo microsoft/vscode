@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { vsRangeToTsFileRange } from '../utils/convert';
+import { vsRangeToTsFileRange } from '../utils/typeConverters';
 import FormattingConfigurationManager from './formattingConfigurationManager';
 import { getEditForCodeAction, applyCodeActionCommands } from '../utils/codeAction';
 import { Command, CommandManager } from '../utils/commandManager';

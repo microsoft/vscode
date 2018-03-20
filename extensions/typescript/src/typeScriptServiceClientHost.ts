@@ -19,7 +19,7 @@ import LanguageProvider from './languageProvider';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
 import { TypeScriptServerPlugin } from './utils/plugins';
-import { tsLocationToVsPosition } from './utils/convert';
+import { tsLocationToVsPosition } from './utils/typeConverters';
 import { CommandManager } from './utils/commandManager';
 import { LanguageDescription } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';

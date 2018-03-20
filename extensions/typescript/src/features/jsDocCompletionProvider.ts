@@ -9,7 +9,7 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import * as Proto from '../protocol';
 
 import * as nls from 'vscode-nls';
-import { vsPositionToTsFileLocation, tsTextSpanToVsRange } from '../utils/convert';
+import { vsPositionToTsFileLocation, tsTextSpanToVsRange } from '../utils/typeConverters';
 import { Command, CommandManager } from '../utils/commandManager';
 const localize = nls.loadMessageBundle();
 

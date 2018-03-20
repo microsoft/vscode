@@ -7,7 +7,7 @@ import { DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider, Form
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange } from '../utils/convert';
+import { tsTextSpanToVsRange } from '../utils/typeConverters';
 import FormattingConfigurationManager from './formattingConfigurationManager';
 
 export class TypeScriptFormattingProvider implements DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider {

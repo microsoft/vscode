@@ -8,7 +8,7 @@ import { DocumentSymbolProvider, SymbolInformation, SymbolKind, TextDocument, Lo
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange } from '../utils/convert';
+import { tsTextSpanToVsRange } from '../utils/typeConverters';
 
 const outlineTypeTable: { [kind: string]: SymbolKind } = Object.create(null);
 outlineTypeTable[PConst.Kind.module] = SymbolKind.Module;
