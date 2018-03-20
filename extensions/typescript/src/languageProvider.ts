@@ -14,7 +14,7 @@ import TypingsStatus from './utils/typingsStatus';
 import FormattingConfigurationManager from './features/formattingConfigurationManager';
 import * as languageConfigurations from './utils/languageConfigurations';
 import { CommandManager } from './utils/commandManager';
-import DiagnosticsManager from './features/diagnostics';
+import { DiagnosticsManager, DiagnosticKind } from './features/diagnostics';
 import { LanguageDescription } from './utils/languageDescription';
 import * as fileSchemes from './utils/fileSchemes';
 import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
@@ -233,12 +233,8 @@ export default class LanguageProvider {
 		this.bufferSyncSupport.requestAllDiagnostics();
 	}
 
-	public syntaxDiagnosticsReceived(file: Uri, syntaxDiagnostics: Diagnostic[]): void {
-		this.diagnosticsManager.syntaxDiagnosticsReceived(file, syntaxDiagnostics);
-	}
-
-	public semanticDiagnosticsReceived(file: Uri, semanticDiagnostics: Diagnostic[]): void {
-		this.diagnosticsManager.semanticDiagnosticsReceived(file, semanticDiagnostics);
+	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: Uri, syntaxDiagnostics: Diagnostic[]): void {
+		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, syntaxDiagnostics);
 	}
 
 	public configFileDiagnosticsReceived(file: Uri, diagnostics: Diagnostic[]): void {

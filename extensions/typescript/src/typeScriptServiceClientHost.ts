@@ -24,6 +24,7 @@ import { CommandManager } from './utils/commandManager';
 import { LanguageDescription } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import { disposeAll } from './utils/dipose';
+import { DiagnosticKind } from './features/diagnostics';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
@@ -70,8 +71,10 @@ export default class TypeScriptServiceClientHost {
 		this.client = new TypeScriptServiceClient(workspaceState, version => this.versionStatus.onDidChangeTypeScriptVersion(version), plugins, logDirectoryProvider);
 		this.disposables.push(this.client);
 
-		this.client.onSyntaxDiagnosticsReceived(({ resource, diagnostics }) => this.syntaxDiagnosticsReceived(resource, diagnostics), null, this.disposables);
-		this.client.onSemanticDiagnosticsReceived(({ resource, diagnostics }) => this.semanticDiagnosticsReceived(resource, diagnostics), null, this.disposables);
+		this.client.onDiagnosticsReceived(({ kind, resource, diagnostics }) => {
+			this.diagnosticsReceived(kind, resource, diagnostics);
+		}, null, this.disposables);
+
 		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this.disposables);
 		this.client.onResendModelsRequested(() => this.populateService(), null, this.disposables);
 
@@ -170,19 +173,15 @@ export default class TypeScriptServiceClientHost {
 		});
 	}
 
-	private async syntaxDiagnosticsReceived(resource: Uri, diagnostics: Proto.Diagnostic[]): Promise<void> {
+	private async diagnosticsReceived(
+		kind: DiagnosticKind,
+		resource: Uri,
+		diagnostics: Proto.Diagnostic[]
+	): Promise<void> {
 		const language = await this.findLanguage(resource);
 		if (language) {
-			language.syntaxDiagnosticsReceived(
-				resource,
-				this.createMarkerDatas(diagnostics, language.diagnosticSource));
-		}
-	}
-
-	private async semanticDiagnosticsReceived(resource: Uri, diagnostics: Proto.Diagnostic[]): Promise<void> {
-		const language = await this.findLanguage(resource);
-		if (language) {
-			language.semanticDiagnosticsReceived(
+			language.diagnosticsReceived(
+				kind,
 				resource,
 				this.createMarkerDatas(diagnostics, language.diagnosticSource));
 		}
@@ -266,6 +265,9 @@ export default class TypeScriptServiceClientHost {
 
 			case PConst.DiagnosticCategory.warning:
 				return DiagnosticSeverity.Warning;
+
+			case PConst.DiagnosticCategory.suggestion:
+				return DiagnosticSeverity.Hint;
 
 			default:
 				return DiagnosticSeverity.Error;

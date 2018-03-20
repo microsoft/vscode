@@ -29,6 +29,7 @@ import * as fileSchemes from './utils/fileSchemes';
 import { inferredProjectConfig } from './utils/tsconfig';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import { disposeAll } from './utils/dipose';
+import { DiagnosticKind } from './features/diagnostics';
 
 const localize = nls.loadMessageBundle();
 
@@ -140,6 +141,7 @@ class ForkedTsServerProcess {
 }
 
 export interface TsDiagnostics {
+	readonly kind: DiagnosticKind;
 	readonly resource: Uri;
 	readonly diagnostics: Proto.Diagnostic[];
 }
@@ -237,11 +239,8 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		this.disposables.push(this.telemetryReporter);
 	}
 
-	private _onSyntaxDiagnosticsReceived = new EventEmitter<TsDiagnostics>();
-	public get onSyntaxDiagnosticsReceived(): Event<TsDiagnostics> { return this._onSyntaxDiagnosticsReceived.event; }
-
-	private _onSemanticDiagnosticsReceived = new EventEmitter<TsDiagnostics>();
-	public get onSemanticDiagnosticsReceived(): Event<TsDiagnostics> { return this._onSemanticDiagnosticsReceived.event; }
+	private _onDiagnosticsReceived = new EventEmitter<TsDiagnostics>();
+	public get onDiagnosticsReceived(): Event<TsDiagnostics> { return this._onDiagnosticsReceived.event; }
 
 	private _onConfigDiagnosticsReceived = new EventEmitter<Proto.ConfigFileDiagnosticEvent>();
 	public get onConfigDiagnosticsReceived(): Event<Proto.ConfigFileDiagnosticEvent> { return this._onConfigDiagnosticsReceived.event; }
@@ -266,8 +265,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		}
 
 		disposeAll(this.disposables);
-		this._onSyntaxDiagnosticsReceived.dispose();
-		this._onSemanticDiagnosticsReceived.dispose();
+		this._onDiagnosticsReceived.dispose();
 		this._onConfigDiagnosticsReceived.dispose();
 		this._onResendModelsRequested.dispose();
 	}
@@ -803,27 +801,18 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private dispatchEvent(event: Proto.Event) {
 		switch (event.event) {
 			case 'syntaxDiag':
-				{
-					const diagnosticEvent: Proto.DiagnosticEvent = event;
-					if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
-						this._onSyntaxDiagnosticsReceived.fire({
-							resource: this.asUrl(diagnosticEvent.body.file),
-							diagnostics: diagnosticEvent.body.diagnostics
-						});
-					}
-					break;
-				}
 			case 'semanticDiag':
-				{
-					const diagnosticEvent: Proto.DiagnosticEvent = event;
-					if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
-						this._onSemanticDiagnosticsReceived.fire({
-							resource: this.asUrl(diagnosticEvent.body.file),
-							diagnostics: diagnosticEvent.body.diagnostics
-						});
-					}
-					break;
+			case 'suggestionDiag':
+				const diagnosticEvent: Proto.DiagnosticEvent = event;
+				if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
+					this._onDiagnosticsReceived.fire({
+						kind: getDignosticsKind(event),
+						resource: this.asUrl(diagnosticEvent.body.file),
+						diagnostics: diagnosticEvent.body.diagnostics
+					});
 				}
+				break;
+
 			case 'configFileDiag':
 				this._onConfigDiagnosticsReceived.fire(event as Proto.ConfigFileDiagnosticEvent);
 				break;
@@ -995,3 +984,12 @@ const getTsLocale = (configuration: TypeScriptServiceConfiguration): string | un
 	(configuration.locale
 		? configuration.locale
 		: env.language);
+
+function getDignosticsKind(event: Proto.Event) {
+	switch (event.event) {
+		case 'syntaxDiag': return DiagnosticKind.Syntax;
+		case 'semanticDiag': return DiagnosticKind.Semantic;
+		case 'suggestionDiag': return DiagnosticKind.Suggestion;
+	}
+	throw new Error('Unknown dignostics kind');
+}
