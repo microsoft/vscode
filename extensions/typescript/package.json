@@ -468,6 +468,13 @@
         "category": "TypeScript"
       }
     ],
+    "keybindings": [
+      {
+        "command": "typescript.organizeImports",
+        "key": "shift+ctrl+o",
+        "when": "typescript.isManagedFile && typescript.canOrganizeImports"
+      }
+    ],
     "menus": {
       "commandPalette": [
         {
