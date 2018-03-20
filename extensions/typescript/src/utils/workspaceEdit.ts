@@ -22,3 +22,9 @@ export function createWorkspaceEditFromFileCodeEdits(
 
 	return workspaceEdit;
 }
+
+export function tsCodeEditToVsTextEdit(edit: Proto.CodeEdit): vscode.TextEdit {
+	return new vscode.TextEdit(
+		tsTextSpanToVsRange(edit),
+		edit.newText);
+}

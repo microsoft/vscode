@@ -15,8 +15,8 @@ import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/conver
 
 import * as nls from 'vscode-nls';
 import { applyCodeAction } from '../utils/codeAction';
-import * as languageModeIds from '../utils/languageModeIds';
 import { CommandManager, Command } from '../utils/commandManager';
+import { tsCodeEditToVsTextEdit } from '../utils/workspaceEdit';
 
 const localize = nls.loadMessageBundle();
 
@@ -351,34 +351,74 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		item.detail = detail.displayParts.length ? Previewer.plain(detail.displayParts) : undefined;
 		item.documentation = this.getDocumentation(detail, item);
 
-		if (detail.codeActions && detail.codeActions.length) {
-			item.command = {
-				title: '',
-				command: ApplyCompletionCodeActionCommand.ID,
-				arguments: [filepath, detail.codeActions]
-			};
-		}
+		const { command, additionalTextEdits } = this.getCodeActions(detail, filepath);
+		item.command = command;
+		item.additionalTextEdits = additionalTextEdits;
 
 		if (detail && item.useCodeSnippet) {
 			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position);
 			if (shouldCompleteFunction) {
 				item.insertText = this.snippetForFunctionCall(item, detail);
 			}
-			return item;
 		}
 
 		return item;
+	}
+
+	private getCodeActions(
+		detail: Proto.CompletionEntryDetails,
+		filepath: string
+	): { command?: vscode.Command, additionalTextEdits?: vscode.TextEdit[] } {
+		if (!detail.codeActions || !detail.codeActions.length) {
+			return {};
+		}
+
+		// Try to extract out the additionalTextEdits for the current file.
+		// Also check if we still have to apply other workspace edits and commands
+		// using a vscode command
+		const additionalTextEdits: vscode.TextEdit[] = [];
+		let hasReaminingCommandsOrEdits = false;
+		for (const tsAction of detail.codeActions) {
+			if (tsAction.commands) {
+				hasReaminingCommandsOrEdits = true;
+			}
+
+			// Apply all edits in the current file using `additionalTextEdits`
+			if (tsAction.changes) {
+				for (const change of tsAction.changes) {
+					if (change.fileName === filepath) {
+						additionalTextEdits.push(...change.textChanges.map(tsCodeEditToVsTextEdit));
+					} else {
+						hasReaminingCommandsOrEdits = true;
+					}
+				}
+			}
+		}
+
+		let command: vscode.Command | undefined = undefined;
+		if (hasReaminingCommandsOrEdits) {
+			// Create command that applies all edits not in the current file.
+			command = {
+				title: '',
+				command: ApplyCompletionCodeActionCommand.ID,
+				arguments: [filepath, detail.codeActions.map((x): Proto.CodeAction => ({
+					commands: x.commands,
+					description: x.description,
+					changes: x.changes.filter(x => x.fileName !== filepath)
+				}))]
+			};
+		}
+
+		return {
+			command,
+			additionalTextEdits: additionalTextEdits.length ? additionalTextEdits : undefined
+		};
 	}
 
 	private shouldEnableDotCompletions(
 		document: vscode.TextDocument,
 		position: vscode.Position
 	): boolean {
-		// Only enable dot completions in TS files for now
-		if (document.languageId !== languageModeIds.typescript && document.languageId === languageModeIds.typescriptreact) {
-			return false;
-		}
-
 		// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/13456
 		// Only enable dot completions when previous character is an identifier.
 		// Prevents incorrectly completing while typing spread operators.
