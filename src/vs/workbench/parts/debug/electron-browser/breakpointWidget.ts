@@ -83,7 +83,7 @@ export class BreakpointWidget extends ZoneWidget {
 		}
 	}
 
-	private getInputBoxValue(breakpoint: IBreakpoint): string {
+	private getInputValue(breakpoint: IBreakpoint): string {
 		switch (this.context) {
 			case Context.LOG_MESSAGE:
 				return breakpoint && breakpoint.logMessage ? breakpoint.logMessage : this.logMessageInput;
@@ -118,7 +118,7 @@ export class BreakpointWidget extends ZoneWidget {
 
 			this.inputBox.setAriaLabel(this.ariaLabel);
 			this.inputBox.setPlaceHolder(this.placeholder);
-			this.inputBox.value = this.getInputBoxValue(this.breakpoint);
+			this.inputBox.value = this.getInputValue(this.breakpoint);
 		});
 
 		const inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
@@ -130,7 +130,7 @@ export class BreakpointWidget extends ZoneWidget {
 		this.toDispose.push(this.inputBox);
 
 		dom.addClass(this.inputBox.inputElement, isWindows ? 'windows' : isMacintosh ? 'mac' : 'linux');
-		this.inputBox.value = this.getInputBoxValue(this.breakpoint);
+		this.inputBox.value = this.getInputValue(this.breakpoint);
 		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
 		setTimeout(() => this.inputBox.focus(), 0);
 

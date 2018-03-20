@@ -32,7 +32,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { DebugHoverWidget } from 'vs/workbench/parts/debug/electron-browser/debugHover';
 import { RemoveBreakpointAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, IStackFrame, IDebugConfiguration, IExpression, IExceptionInfo, BreakpointWidgetContext } from 'vs/workbench/parts/debug/common/debug';
-import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
+import { BreakpointWidget } from 'vs/workbench/parts/debug/electron-browser/breakpointWidget';
 import { ExceptionWidget } from 'vs/workbench/parts/debug/browser/exceptionWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
