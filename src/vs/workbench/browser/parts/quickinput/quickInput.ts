@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
 import { buttonBackground, buttonForeground, contrastBorder, buttonHoverBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
-import { IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { QuickInputCheckboxList } from './quickInputCheckboxList';
@@ -47,6 +47,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(QuickInputService.ID, themeService);
@@ -121,19 +122,24 @@ export class QuickInputService extends Component implements IQuickInputService {
 					break;
 			}
 		}));
+
+		this.toUnbind.push(this.quickOpenService.onShow(() => this.close(false)));
 	}
 
 	private close(ok: boolean) {
-		if (ok) {
-			this.resolve(this.checkboxList.getSelectedElements());
-		} else {
-			this.resolve();
+		if (this.resolve) {
+			if (ok) {
+				this.resolve(this.checkboxList.getSelectedElements());
+			} else {
+				this.resolve();
+			}
 		}
 		this.container.style.display = 'none';
 	}
 
 	async pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IPickOptions, token?: CancellationToken): TPromise<T[]> {
 		this.create();
+		this.quickOpenService.close();
 		if (this.resolve) {
 			this.resolve();
 		}
