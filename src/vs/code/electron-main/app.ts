@@ -29,7 +29,7 @@ import { IStateService } from 'vs/platform/state/common/state';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IURLService } from 'vs/platform/url/common/url';
-import { URLHandlerChannelClient } from 'vs/platform/url/common/urlIpc';
+import { URLHandlerChannelClient, URLServiceChannel } from 'vs/platform/url/common/urlIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -59,7 +59,7 @@ import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { ElectronURLListener } from 'vs/platform/url/electron-main/urlService';
+import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 
 export class CodeApplication {
 
@@ -369,6 +369,10 @@ export class CodeApplication {
 		this.electronIpcServer.registerChannel('windows', windowsChannel);
 		this.sharedProcessClient.done(client => client.registerChannel('windows', windowsChannel));
 
+		const urlService = accessor.get(IURLService);
+		const urlChannel = new URLServiceChannel(urlService);
+		this.electronIpcServer.registerChannel('url', urlChannel);
+
 		// Log level management
 		const logLevelChannel = new LogLevelSetterChannel(accessor.get(ILogService));
 		this.electronIpcServer.registerChannel('loglevel', logLevelChannel);
@@ -381,13 +385,16 @@ export class CodeApplication {
 		this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this
 
 		const args = this.environmentService.args;
-		const urlService = accessor.get(IURLService);
 
+		// Create a URL handler which forwards to the last active window
 		const activeWindowManager = new ActiveWindowManager(windowsService);
 		const urlHandlerChannel = this.electronIpcServer.getChannel('urlHandler', { route: () => activeWindowManager.activeClientId });
 		const multiplexURLHandler = new URLHandlerChannelClient(urlHandlerChannel);
+
+		// Register the multiple URL handker
 		urlService.registerHandler(multiplexURLHandler);
 
+		// Watch Electron URLs and forward them to the UrlService
 		const urls = args['open-url'] ? args._urls : [];
 		const urlListener = new ElectronURLListener(urls, urlService, this.windowsMainService);
 		this.toDispose.push(urlListener);

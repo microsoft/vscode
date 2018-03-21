@@ -489,40 +489,18 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	async handleURL(uri: URI): TPromise<boolean> {
 		// Catch file URLs
 		if (uri.authority === Schemas.file && !!uri.path) {
-			this.openFileForURI(URI.file(uri.fsPath));
-			return true;
-		}
-
-		// Catch extension URLs when there are no windows open
-		if (uri => /^extension/.test(uri.path) && this.windowsMainService.getWindowCount() === 0) {
-			this.openExtensionForURI(uri);
-			return true;
+			return this.openFileForURI(URI.file(uri.fsPath));
 		}
 
 		return false;
 	}
 
-	private openFileForURI(uri: URI): TPromise<void> {
+	private async openFileForURI(uri: URI): TPromise<boolean> {
 		const cli = assign(Object.create(null), this.environmentService.args, { goto: true });
 		const pathsToOpen = [uri.fsPath];
 
 		this.windowsMainService.open({ context: OpenContext.API, cli, pathsToOpen });
-		return TPromise.as(null);
-	}
-
-	/**
-	 * This should only fire whenever an extension URL is open
-	 * and there are no windows to handle it.
-	 */
-	private async openExtensionForURI(uri: URI): TPromise<void> {
-		const cli = assign(Object.create(null), this.environmentService.args);
-		const window = await this.windowsMainService.open({ context: OpenContext.API, cli })[0];
-
-		if (!window) {
-			return;
-		}
-
-		window.win.show();
+		return true;
 	}
 
 	dispose(): void {

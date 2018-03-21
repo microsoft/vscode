@@ -36,18 +36,17 @@ import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/
 import { webFrame } from 'electron';
 import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
+import { URLHandlerChannel, URLServiceChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspacesIpc';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
-
 import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
 import { IssueChannelClient } from 'vs/platform/issue/common/issueIpc';
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
-import { URLService, ForwardingURLHandler } from 'vs/platform/url/common/urlService';
+import { RelayURLService } from 'vs/platform/url/common/urlService';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -217,11 +216,12 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient, configu
 	const updateChannel = mainProcessClient.getChannel('update');
 	serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, updateChannel));
 
-	const localUrlService = new URLService();
-	serviceCollection.set(IURLService, localUrlService);
+	const urlChannel = mainProcessClient.getChannel('url');
+	const mainUrlService = new URLServiceChannelClient(urlChannel);
+	const urlService = new RelayURLService(mainUrlService);
+	serviceCollection.set(IURLService, urlService);
 
-	const urlHandler = new ForwardingURLHandler(localUrlService);
-	const urlHandlerChannel = new URLHandlerChannel(urlHandler);
+	const urlHandlerChannel = new URLHandlerChannel(urlService);
 	mainProcessClient.registerChannel('urlHandler', urlHandlerChannel);
 
 	const issueChannel = mainProcessClient.getChannel('issue');

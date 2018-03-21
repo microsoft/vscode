@@ -38,11 +38,17 @@ export class URLService implements IURLService {
 	}
 }
 
-export class ForwardingURLHandler implements IURLHandler {
+export class RelayURLService extends URLService implements IURLHandler {
 
-	constructor(@IURLService private urlService: IURLService) { }
+	constructor(private urlService: IURLService) {
+		super();
+	}
+
+	async open(uri: URI): TPromise<boolean> {
+		return this.urlService.open(uri);
+	}
 
 	handleURL(uri: URI): TPromise<boolean> {
-		return this.urlService.open(uri);
+		return super.open(uri);
 	}
 }
