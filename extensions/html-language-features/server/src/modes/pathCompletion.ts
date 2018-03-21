@@ -51,16 +51,10 @@ function shouldDoPathCompletion(tag: string, attr: string, value: string): boole
 	return false;
 }
 
-export function providePathSuggestions(value: string, range: Range, activeDocFsPath: string, root?: string): CompletionItem[] {
-	const paths = providePaths(value, activeDocFsPath, root);
-	const suggestions = paths.map(p => pathToSuggestion(p, value, range));
-	return suggestions;
-}
-
 /**
  * Get a list of path suggestions. Folder suggestions are suffixed with a slash.
  */
-export function providePaths(value: string, activeDocFsPath: string, root?: string): string[] {
+function providePaths(value: string, activeDocFsPath: string, root?: string): string[] {
 	if (startsWith(value, '/') && !root) {
 		return [];
 	}
@@ -88,7 +82,7 @@ export function providePaths(value: string, activeDocFsPath: string, root?: stri
 	}
 }
 
-export function pathToSuggestion(p: string, value: string, range: Range): CompletionItem {
+function pathToSuggestion(p: string, value: string, range: Range): CompletionItem {
 	const isDir = p[p.length - 1] === '/';
 
 	let replaceRange: Range;
