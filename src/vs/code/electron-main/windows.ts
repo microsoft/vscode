@@ -1375,8 +1375,8 @@ export class WindowsManager implements IWindowsMainService {
 		return getLastActiveWindow(WindowsManager.WINDOWS);
 	}
 
-	public openNewWindow(context: OpenContext): void {
-		this.open({ context, cli: this.environmentService.args, forceNewWindow: true, forceEmpty: true });
+	public openNewWindow(context: OpenContext): ICodeWindow[] {
+		return this.open({ context, cli: this.environmentService.args, forceNewWindow: true, forceEmpty: true });
 	}
 
 	public waitForWindowCloseOrLoad(windowId: number): TPromise<void> {
