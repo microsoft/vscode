@@ -319,7 +319,7 @@ export class FileService implements IFileService {
 			if (typeof stat.size === 'number') {
 				if (stat.size > Math.max(this.environmentService.args['max-memory'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
 					return onStatError(new FileOperationError(
-						nls.localize('fileTooLargeForHeapError', "File size exceeds window memory limit, please try to run code --max-memory=NEWSIZE"),
+						nls.localize('fileTooLargeForHeapError', "File size exceeds window memory limit. Try launching with a higher memory limit"),
 						FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
 					));
 				}
@@ -469,7 +469,7 @@ export class FileService implements IFileService {
 
 						if (totalBytesRead > Math.max(this.environmentService.args['max-memory'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
 							finish(new FileOperationError(
-								nls.localize('fileTooLargeForHeapError', "File size exceeds window memory limit, please try to run code --max-memory=NEWSIZE"),
+								nls.localize('fileTooLargeForHeapError', "File size exceeds window memory limit. Try launching with a higher memory limit"),
 								FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
 							));
 						}

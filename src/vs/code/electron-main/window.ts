@@ -560,6 +560,7 @@ export class CodeWindow implements ICodeWindow {
 
 		if (cli) {
 			configuration['disable-extensions'] = cli['disable-extensions'];
+			configuration['max-memory'] = cli['max-memory'];
 		}
 
 		configuration.isInitialStartup = false; // since this is a reload
