@@ -133,12 +133,12 @@ export class ToggleMenuBarAction extends Action {
 	static LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
 
 	private static readonly menuBarVisibilityKey = 'window.menuBarVisibility';
+	private static hiddenVisibilityValue = 'toggle';
 
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
@@ -151,8 +151,9 @@ export class ToggleMenuBarAction extends Action {
 
 		let newVisibilityValue: string;
 		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'default') {
-			newVisibilityValue = this.keybindingService.lookupKeybindings(this.id)[0] ? 'hidden' : 'toggle';
+			newVisibilityValue = ToggleMenuBarAction.hiddenVisibilityValue;
 		} else {
+			ToggleMenuBarAction.hiddenVisibilityValue = currentVisibilityValue;
 			newVisibilityValue = 'default';
 		}
 
