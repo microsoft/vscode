@@ -8,7 +8,7 @@
 import URI from 'vs/base/common/uri';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
+import { ExplorerItem, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { toResource } from 'vs/workbench/common/editor';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -24,7 +24,7 @@ export function getResourceForCommand(resource: URI | object, listService: IList
 	let list = listService.lastFocusedList;
 	if (list && list.isDOMFocused()) {
 		const focus = list.getFocus();
-		if (focus instanceof FileStat) {
+		if (focus instanceof ExplorerItem) {
 			return focus.resource;
 		} else if (focus instanceof OpenEditor) {
 			return focus.getResource();

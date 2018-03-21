@@ -22,12 +22,12 @@ import { binarySearch } from 'vs/base/common/arrays';
 
 export class Model {
 
-	private _roots: FileStat[];
+	private _roots: ExplorerItem[];
 	private _listener: IDisposable;
 
 	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders.map(folder => {
-			const root = new FileStat(folder.uri, undefined);
+			const root = new ExplorerItem(folder.uri, undefined);
 			root.name = folder.name;
 
 			return root;
@@ -36,7 +36,7 @@ export class Model {
 		setRoots();
 	}
 
-	public get roots(): FileStat[] {
+	public get roots(): ExplorerItem[] {
 		return this._roots;
 	}
 
@@ -45,7 +45,7 @@ export class Model {
 	 * Starts matching from the first root.
 	 * Will return empty array in case the FileStat does not exist.
 	 */
-	public findAll(resource: URI): FileStat[] {
+	public findAll(resource: URI): ExplorerItem[] {
 		return this.roots.map(root => root.find(resource)).filter(stat => !!stat);
 	}
 
@@ -54,7 +54,7 @@ export class Model {
 	 * In case multiple FileStat are matching the resource (same folder opened multiple times) returns the FileStat that has the closest root.
 	 * Will return null in case the FileStat does not exist.
 	 */
-	public findClosest(resource: URI): FileStat {
+	public findClosest(resource: URI): ExplorerItem {
 		const folder = this.contextService.getWorkspaceFolder(resource);
 		if (folder) {
 			const root = this.roots.filter(r => r.resource.toString() === folder.uri.toString()).pop();
@@ -71,19 +71,19 @@ export class Model {
 	}
 }
 
-export class FileStat implements IFileStat {
+export class ExplorerItem {
 	public resource: URI;
 	public name: string;
 	public mtime: number;
 	public etag: string;
 	private _isDirectory: boolean;
 	private _isSymbolicLink: boolean;
-	public children: FileStat[];
-	public parent: FileStat;
+	public children: ExplorerItem[];
+	public parent: ExplorerItem;
 
 	public isDirectoryResolved: boolean;
 
-	constructor(resource: URI, public root: FileStat, isSymbolicLink?: boolean, isDirectory?: boolean, name: string = getPathLabel(resource), mtime?: number, etag?: string) {
+	constructor(resource: URI, public root: ExplorerItem, isSymbolicLink?: boolean, isDirectory?: boolean, name: string = getPathLabel(resource), mtime?: number, etag?: string) {
 		this.resource = resource;
 		this.name = name;
 		this.isDirectory = !!isDirectory;
@@ -130,8 +130,8 @@ export class FileStat implements IFileStat {
 		return this.resource.toString() === this.root.resource.toString();
 	}
 
-	public static create(raw: IFileStat, root: FileStat, resolveTo?: URI[]): FileStat {
-		const stat = new FileStat(raw.resource, root, raw.isSymbolicLink, raw.isDirectory, raw.name, raw.mtime, raw.etag);
+	public static create(raw: IFileStat, root: ExplorerItem, resolveTo?: URI[]): ExplorerItem {
+		const stat = new ExplorerItem(raw.resource, root, raw.isSymbolicLink, raw.isDirectory, raw.name, raw.mtime, raw.etag);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -146,7 +146,7 @@ export class FileStat implements IFileStat {
 			// Recurse into children
 			if (raw.children) {
 				for (let i = 0, len = raw.children.length; i < len; i++) {
-					const child = FileStat.create(raw.children[i], root, resolveTo);
+					const child = ExplorerItem.create(raw.children[i], root, resolveTo);
 					child.parent = stat;
 					stat.children.push(child);
 				}
@@ -161,7 +161,7 @@ export class FileStat implements IFileStat {
 	 * and children. The merge will only consider resolved stat elements to avoid overwriting data which
 	 * exists locally.
 	 */
-	public static mergeLocalWithDisk(disk: FileStat, local: FileStat): void {
+	public static mergeLocalWithDisk(disk: ExplorerItem, local: ExplorerItem): void {
 		if (disk.resource.toString() !== local.resource.toString()) {
 			return; // Merging only supported for stats with the same resource
 		}
@@ -183,9 +183,9 @@ export class FileStat implements IFileStat {
 		if (mergingDirectories && disk.isDirectoryResolved) {
 
 			// Map resource => stat
-			const oldLocalChildren = new ResourceMap<FileStat>();
+			const oldLocalChildren = new ResourceMap<ExplorerItem>();
 			if (local.children) {
-				local.children.forEach((localChild: FileStat) => {
+				local.children.forEach((localChild: ExplorerItem) => {
 					oldLocalChildren.set(localChild.resource, localChild);
 				});
 			}
@@ -194,12 +194,12 @@ export class FileStat implements IFileStat {
 			local.children = [];
 
 			// Merge received children
-			disk.children.forEach((diskChild: FileStat) => {
+			disk.children.forEach((diskChild: ExplorerItem) => {
 				const formerLocalChild = oldLocalChildren.get(diskChild.resource);
 
 				// Existing child: merge
 				if (formerLocalChild) {
-					FileStat.mergeLocalWithDisk(diskChild, formerLocalChild);
+					ExplorerItem.mergeLocalWithDisk(diskChild, formerLocalChild);
 					formerLocalChild.parent = local;
 					local.children.push(formerLocalChild);
 				}
@@ -216,7 +216,7 @@ export class FileStat implements IFileStat {
 	/**
 	 * Adds a child element to this folder.
 	 */
-	public addChild(child: FileStat): void {
+	public addChild(child: ExplorerItem): void {
 
 		// Inherit some parent properties to child
 		child.parent = this;
@@ -228,7 +228,7 @@ export class FileStat implements IFileStat {
 	/**
 	 * Removes a child element from this folder.
 	 */
-	public removeChild(child: FileStat): void {
+	public removeChild(child: ExplorerItem): void {
 		for (let i = 0; i < this.children.length; i++) {
 			if (this.children[i].resource.toString() === child.resource.toString()) {
 				this.children.splice(i, 1);
@@ -240,7 +240,7 @@ export class FileStat implements IFileStat {
 	/**
 	 * Moves this element under a new parent element.
 	 */
-	public move(newParent: FileStat, fnBetweenStates?: (callback: () => void) => void, fnDone?: () => void): void {
+	public move(newParent: ExplorerItem, fnBetweenStates?: (callback: () => void) => void, fnDone?: () => void): void {
 		if (!fnBetweenStates) {
 			fnBetweenStates = (cb: () => void) => { cb(); };
 		}
@@ -262,7 +262,7 @@ export class FileStat implements IFileStat {
 
 		if (recursive) {
 			if (this.isDirectory && this.children) {
-				this.children.forEach((child: FileStat) => {
+				this.children.forEach((child: ExplorerItem) => {
 					child.updateResource(true);
 				});
 			}
@@ -287,7 +287,7 @@ export class FileStat implements IFileStat {
 	 * Returns a child stat from this stat that matches with the provided path.
 	 * Will return "null" in case the child does not exist.
 	 */
-	public find(resource: URI): FileStat {
+	public find(resource: URI): ExplorerItem {
 		// Return if path found
 		if (resource && this.resource.scheme === resource.scheme && this.resource.authority === resource.authority &&
 			startsWith(resource.path, this.resource.path)
@@ -298,7 +298,7 @@ export class FileStat implements IFileStat {
 		return null; //Unable to find
 	}
 
-	public findByPath(path: string, index: number): FileStat {
+	public findByPath(path: string, index: number): ExplorerItem {
 		if (paths.isEqual(this.resource.path, path, !isLinux)) {
 			return this;
 		}
@@ -326,14 +326,14 @@ export class FileStat implements IFileStat {
 }
 
 /* A helper that can be used to show a placeholder when creating a new stat */
-export class NewStatPlaceholder extends FileStat {
+export class NewStatPlaceholder extends ExplorerItem {
 
 	private static ID = 0;
 
 	private id: number;
 	private directoryPlaceholder: boolean;
 
-	constructor(isDirectory: boolean, root: FileStat) {
+	constructor(isDirectory: boolean, root: ExplorerItem) {
 		super(URI.file(''), root, false, false, '');
 
 		this.id = NewStatPlaceholder.ID++;
@@ -378,7 +378,7 @@ export class NewStatPlaceholder extends FileStat {
 		return null;
 	}
 
-	public static addNewStatPlaceholder(parent: FileStat, isDirectory: boolean): NewStatPlaceholder {
+	public static addNewStatPlaceholder(parent: ExplorerItem, isDirectory: boolean): NewStatPlaceholder {
 		const child = new NewStatPlaceholder(isDirectory, parent.root);
 
 		// Inherit some parent properties to child

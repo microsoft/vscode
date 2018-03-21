@@ -25,7 +25,7 @@ import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { toResource } from 'vs/workbench/common/editor';
-import { FileStat, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
+import { ExplorerItem, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 import { ExplorerView } from 'vs/workbench/parts/files/electron-browser/views/explorerView';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -112,7 +112,7 @@ export class BaseErrorReportingAction extends Action {
 }
 
 export class BaseFileAction extends BaseErrorReportingAction {
-	public element: FileStat;
+	public element: ExplorerItem;
 
 	constructor(
 		id: string,
@@ -144,7 +144,7 @@ class TriggerRenameFileAction extends BaseFileAction {
 
 	constructor(
 		tree: ITree,
-		element: FileStat,
+		element: ExplorerItem,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
@@ -215,7 +215,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 	constructor(
 		id: string,
 		label: string,
-		element: FileStat,
+		element: ExplorerItem,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
@@ -276,7 +276,7 @@ class RenameFileAction extends BaseRenameAction {
 	public static readonly ID = 'workbench.files.action.renameFile';
 
 	constructor(
-		element: FileStat,
+		element: ExplorerItem,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
@@ -330,7 +330,7 @@ class RenameFileAction extends BaseRenameAction {
 
 /* Base New File/Folder Action */
 export class BaseNewAction extends BaseFileAction {
-	private presetFolder: FileStat;
+	private presetFolder: ExplorerItem;
 	private tree: ITree;
 	private isFile: boolean;
 	private renameAction: BaseRenameAction;
@@ -341,7 +341,7 @@ export class BaseNewAction extends BaseFileAction {
 		tree: ITree,
 		isFile: boolean,
 		editableAction: BaseRenameAction,
-		element: FileStat,
+		element: ExplorerItem,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
@@ -369,11 +369,11 @@ export class BaseNewAction extends BaseFileAction {
 
 		let folder = this.presetFolder;
 		if (!folder) {
-			const focus = <FileStat>this.tree.getFocus();
+			const focus = <ExplorerItem>this.tree.getFocus();
 			if (focus) {
 				folder = focus.isDirectory ? focus : focus.parent;
 			} else {
-				const input: FileStat | Model = this.tree.getInput();
+				const input: ExplorerItem | Model = this.tree.getInput();
 				folder = input instanceof Model ? input.roots[0] : input;
 			}
 		}
@@ -430,7 +430,7 @@ export class NewFileAction extends BaseNewAction {
 
 	constructor(
 		tree: ITree,
-		element: FileStat,
+		element: ExplorerItem,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
@@ -448,7 +448,7 @@ export class NewFolderAction extends BaseNewAction {
 
 	constructor(
 		tree: ITree,
-		element: FileStat,
+		element: ExplorerItem,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
@@ -498,7 +498,7 @@ class CreateFileAction extends BaseCreateAction {
 	public static readonly LABEL = nls.localize('createNewFile', "New File");
 
 	constructor(
-		element: FileStat,
+		element: ExplorerItem,
 		@IFileService fileService: IFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@INotificationService notificationService: INotificationService,
@@ -526,7 +526,7 @@ class CreateFolderAction extends BaseCreateAction {
 	public static readonly LABEL = nls.localize('createNewFolder', "New Folder");
 
 	constructor(
-		element: FileStat,
+		element: ExplorerItem,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
@@ -552,7 +552,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 	constructor(
 		private tree: ITree,
-		private elements: FileStat[],
+		private elements: ExplorerItem[],
 		private useTrash: boolean,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
@@ -731,7 +731,7 @@ export class ImportFileAction extends BaseFileAction {
 
 	constructor(
 		tree: ITree,
-		element: FileStat,
+		element: ExplorerItem,
 		clazz: string,
 		@IFileService fileService: IFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -756,11 +756,11 @@ export class ImportFileAction extends BaseFileAction {
 			if (resources && resources.length > 0) {
 
 				// Find parent for import
-				let targetElement: FileStat;
+				let targetElement: ExplorerItem;
 				if (this.element) {
 					targetElement = this.element;
 				} else {
-					const input: FileStat | Model = this.tree.getInput();
+					const input: ExplorerItem | Model = this.tree.getInput();
 					targetElement = this.tree.getFocus() || (input instanceof Model ? input.roots[0] : input);
 				}
 
@@ -846,7 +846,7 @@ class CopyFileAction extends BaseFileAction {
 	private tree: ITree;
 	constructor(
 		tree: ITree,
-		private elements: FileStat[],
+		private elements: ExplorerItem[],
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
@@ -884,7 +884,7 @@ class PasteFileAction extends BaseFileAction {
 
 	constructor(
 		tree: ITree,
-		element: FileStat,
+		element: ExplorerItem,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
@@ -895,7 +895,7 @@ class PasteFileAction extends BaseFileAction {
 		this.tree = tree;
 		this.element = element;
 		if (!this.element) {
-			const input: FileStat | Model = this.tree.getInput();
+			const input: ExplorerItem | Model = this.tree.getInput();
 			this.element = input instanceof Model ? input.roots[0] : input;
 		}
 		this._updateEnablement();
@@ -916,7 +916,7 @@ class PasteFileAction extends BaseFileAction {
 			}
 
 			// Find target
-			let target: FileStat;
+			let target: ExplorerItem;
 			if (this.element.resource.toString() === fileToPaste.toString()) {
 				target = this.element.parent;
 			} else {
@@ -944,12 +944,12 @@ class PasteFileAction extends BaseFileAction {
 // Duplicate File/Folder
 export class DuplicateFileAction extends BaseFileAction {
 	private tree: ITree;
-	private target: FileStat;
+	private target: ExplorerItem;
 
 	constructor(
 		tree: ITree,
-		fileToDuplicate: FileStat,
-		target: FileStat,
+		fileToDuplicate: ExplorerItem,
+		target: ExplorerItem,
 		@IFileService fileService: IFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@INotificationService notificationService: INotificationService,
@@ -983,7 +983,7 @@ export class DuplicateFileAction extends BaseFileAction {
 	}
 }
 
-function findValidPasteFileTarget(targetFolder: FileStat, fileToPaste: { resource: URI, isDirectory?: boolean }): URI {
+function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean }): URI {
 	let name = resources.basenameOrAuthority(fileToPaste.resource);
 
 	let candidate = targetFolder.resource.with({ path: paths.join(targetFolder.resource.path, name) });
@@ -1511,8 +1511,8 @@ if (!diag) {
 
 interface IExplorerContext {
 	viewletState: IFileViewletState;
-	stat: FileStat;
-	selection: FileStat[];
+	stat: ExplorerItem;
+	selection: ExplorerItem[];
 }
 
 function getContext(listWidget: ListWidget, viewletService: IViewletService): IExplorerContext {
