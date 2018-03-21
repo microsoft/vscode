@@ -229,7 +229,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		});
 	}
 
-	private getViewStateFor(resource: URI, group: IEditorGroup): IEditorViewState {
+	private getViewStateFor(resource: URI, group: IEditorGroup): IEditorViewState | undefined {
 		const stacks = this.editorGroupService.getStacksModel();
 		const editors = this.editorService.getVisibleEditors();
 
