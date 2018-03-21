@@ -17,6 +17,8 @@ import { IEditorGroup, toResource, IEditorIdentifier } from 'vs/workbench/common
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
+import { compareIgnoreCase, compare, startsWith } from 'vs/base/common/strings';
+import { binarySearch } from 'vs/base/common/arrays';
 
 export class Model {
 
@@ -286,30 +288,39 @@ export class FileStat implements IFileStat {
 	 * Will return "null" in case the child does not exist.
 	 */
 	public find(resource: URI): FileStat {
-
 		// Return if path found
-		if (resources.isEqual(resource, this.resource, !isLinux /* ignorecase */)) {
-			return this;
-		}
-
-		// Return if not having any children
-		if (!this.children) {
-			return null;
-		}
-
-		for (let i = 0; i < this.children.length; i++) {
-			const child = this.children[i];
-
-			if (resources.isEqual(resource, child.resource, !isLinux /* ignorecase */)) {
-				return child;
-			}
-
-			if (child.isDirectory && resources.isEqualOrParent(resource, child.resource, !isLinux /* ignorecase */)) {
-				return child.find(resource);
-			}
+		if (resource && this.resource.scheme === resource.scheme && this.resource.authority === resource.authority &&
+			startsWith(resource.path, this.resource.path)
+		) {
+			return this.findByPath(resource.path, this.resource.path.length);
 		}
 
 		return null; //Unable to find
+	}
+
+	public findByPath(path: string, index: number): FileStat {
+		if (paths.isEqual(this.resource.path, path, !isLinux)) {
+			return this;
+		}
+		while (index < path.length && path[index] === paths.sep) {
+			index++;
+		}
+
+		let indexOfNextSep = path.indexOf(paths.sep, index);
+		if (indexOfNextSep === -1) {
+			indexOfNextSep = path.length - 1;
+		}
+
+		const name = path.substring(index, indexOfNextSep);
+		if (this.children) {
+			const found = binarySearch(this.children.map(c => c.name), name, (first, second) => isLinux ? compare(first, second) : compareIgnoreCase(first, second));
+
+			if (found >= 0 && found < this.children.length) {
+				return this.children[found].findByPath(path, indexOfNextSep);
+			}
+		}
+
+		return null;
 	}
 }
 
