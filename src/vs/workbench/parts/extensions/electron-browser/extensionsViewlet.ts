@@ -220,7 +220,8 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 			location: ViewLocation.Extensions,
 			ctor: BuiltInExtensionsView,
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),
-			weight: 100
+			weight: 100,
+			canToggleVisibility: true
 		};
 	}
 
@@ -231,7 +232,8 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 			location: ViewLocation.Extensions,
 			ctor: BuiltInThemesExtensionsView,
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),
-			weight: 100
+			weight: 100,
+			canToggleVisibility: true
 		};
 	}
 
@@ -242,7 +244,8 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 			location: ViewLocation.Extensions,
 			ctor: BuiltInBasicsExtensionsView,
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),
-			weight: 100
+			weight: 100,
+			canToggleVisibility: true
 		};
 	}
 
