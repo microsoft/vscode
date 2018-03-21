@@ -262,6 +262,7 @@ phases:
           libxss1 \
           libx11-xcb-dev \
           libsecret-1-dev \
+          libgtk-3-dev \
         "
       else
         DEPS="$DEPS \
