@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DocumentHighlightProvider, DocumentHighlight, DocumentHighlightKind, TextDocument, Position, Range, CancellationToken } from 'vscode';
+import { DocumentHighlightProvider, DocumentHighlight, DocumentHighlightKind, TextDocument, Position, CancellationToken } from 'vscode';
+
+import * as Proto from '../protocol';
 
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
-
-const stringDelimiters = ['"', '\'', '`'];
+import * as typeConverters from '../utils/typeConverters';
 
 export default class TypeScriptDocumentHighlightProvider implements DocumentHighlightProvider {
 	public constructor(
-		private client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient
 	) { }
 
 	public async provideDocumentHighlights(
@@ -20,34 +20,29 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 		position: Position,
 		token: CancellationToken
 	): Promise<DocumentHighlight[]> {
-		const filepath = this.client.normalizePath(resource.uri);
-		if (!filepath) {
+		const file = this.client.normalizePath(resource.uri);
+		if (!file) {
 			return [];
 		}
 
-		const args = vsPositionToTsFileLocation(filepath, position);
+		const args = typeConverters.Position.toFileLocationRequestArgs(file, position);
 		try {
 			const response = await this.client.execute('occurrences', args, token);
-			const data = response.body;
-			if (data && data.length) {
-				// Workaround for https://github.com/Microsoft/TypeScript/issues/12780
-				// Don't highlight string occurrences
-				const firstOccurrence = data[0];
-				if (this.client.apiVersion.has213Features() && firstOccurrence.start.offset > 1) {
-					// Check to see if contents around first occurrence are string delimiters
-					const contents = resource.getText(new Range(firstOccurrence.start.line - 1, firstOccurrence.start.offset - 1 - 1, firstOccurrence.end.line - 1, firstOccurrence.end.offset - 1 + 1));
-					if (contents && contents.length > 2 && stringDelimiters.indexOf(contents[0]) >= 0 && contents[0] === contents[contents.length - 1]) {
-						return [];
-					}
-				}
-				return data.map(item =>
-					new DocumentHighlight(
-						tsTextSpanToVsRange(item),
-						item.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Read));
+			if (response && response.body) {
+				return response.body
+					.filter(x => !x.isInString)
+					.map(documentHighlightFromOccurance);
 			}
-			return [];
 		} catch {
-			return [];
+			// noop
 		}
+
+		return [];
 	}
+}
+
+function documentHighlightFromOccurance(occurrence: Proto.OccurrencesResponseItem): DocumentHighlight {
+	return new DocumentHighlight(
+		typeConverters.Range.fromTextSpan(occurrence),
+		occurrence.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Read);
 }

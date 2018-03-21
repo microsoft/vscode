@@ -7,12 +7,11 @@ import * as vscode from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { vsRangeToTsFileRange } from '../utils/convert';
+import * as typeConverters from '../utils/typeConverters';
 import FormattingConfigurationManager from './formattingConfigurationManager';
 import { getEditForCodeAction, applyCodeActionCommands } from '../utils/codeAction';
 import { Command, CommandManager } from '../utils/commandManager';
-import { createWorkspaceEditFromFileCodeEdits } from '../utils/workspaceEdit';
-import DiagnosticsManager from './diagnostics';
+import { DiagnosticsManager } from './diagnostics';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -63,7 +62,7 @@ class ApplyFixAllCodeAction implements Command {
 				return;
 			}
 
-			const edit = createWorkspaceEditFromFileCodeEdits(this.client, combinedCodeFixesResponse.body.changes);
+			const edit = typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, combinedCodeFixesResponse.body.changes);
 			await vscode.workspace.applyEdit(edit);
 
 			if (combinedCodeFixesResponse.command) {
@@ -177,7 +176,7 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 		token: vscode.CancellationToken
 	): Promise<Iterable<vscode.CodeAction>> {
 		const args: Proto.CodeFixRequestArgs = {
-			...vsRangeToTsFileRange(file, diagnostic.range),
+			...typeConverters.Range.toFileRangeRequestArgs(file, diagnostic.range),
 			errorCodes: [+diagnostic.code]
 		};
 		const codeFixesResponse = await this.client.execute('getCodeFixes', args, token);

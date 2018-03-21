@@ -6,27 +6,8 @@
 import * as vscode from 'vscode';
 
 import * as Proto from '../protocol';
+import * as typeConverters from '../utils/typeConverters';
 import { ITypeScriptServiceClient } from '../typescriptService';
-
-// TODO: forward declarations for private TS API.
-
-interface TextSpan {
-	start: number;
-	length: number;
-}
-
-interface OutliningSpan {
-	textSpan: TextSpan;
-	hintSpan: TextSpan;
-	bannerText: string;
-	autoCollapse: boolean;
-}
-
-interface OutliningSpansRequestArgs extends Proto.FileRequestArgs { }
-
-interface OutliningSpansResponse extends Proto.Response {
-	body?: OutliningSpan[];
-}
 
 export default class TypeScriptFoldingProvider implements vscode.FoldingProvider {
 	public constructor(
@@ -35,10 +16,10 @@ export default class TypeScriptFoldingProvider implements vscode.FoldingProvider
 
 	async provideFoldingRanges(
 		document: vscode.TextDocument,
-		_: vscode.FoldingContext,
+		_context: vscode.FoldingContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.FoldingRangeList | undefined> {
-		if (!this.client.apiVersion.has270Features()) {
+		if (!this.client.apiVersion.has280Features()) {
 			return;
 		}
 
@@ -47,17 +28,15 @@ export default class TypeScriptFoldingProvider implements vscode.FoldingProvider
 			return;
 		}
 
-		const args: OutliningSpansRequestArgs = { file };
-		const response: OutliningSpansResponse = await this.client.execute('outliningSpans', args, token);
+		const args: Proto.FileRequestArgs = { file };
+		const response: Proto.OutliningSpansResponse = await this.client.execute('getOutliningSpans', args, token);
 		if (!response || !response.body) {
 			return;
 		}
 
 		return new vscode.FoldingRangeList(response.body.map(span => {
-			const start = document.positionAt(span.textSpan.start);
-			const end = document.positionAt(span.textSpan.start + span.textSpan.length);
-
-			return new vscode.FoldingRange(start.line, end.line);
+			const range = typeConverters.Range.fromTextSpan(span.textSpan);
+			return new vscode.FoldingRange(range.start.line, range.end.line);
 		}));
 	}
 }

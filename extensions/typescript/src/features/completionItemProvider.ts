@@ -11,11 +11,10 @@ import TypingsStatus from '../utils/typingsStatus';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import * as Previewer from '../utils/previewer';
-import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
+import * as typeConverters from '../utils/typeConverters';
 
 import * as nls from 'vscode-nls';
 import { applyCodeAction } from '../utils/codeAction';
-import * as languageModeIds from '../utils/languageModeIds';
 import { CommandManager, Command } from '../utils/commandManager';
 
 const localize = nls.loadMessageBundle();
@@ -51,14 +50,14 @@ class MyCompletionItem extends vscode.CompletionItem {
 		this.useCodeSnippet = useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
 
 		if (tsEntry.replacementSpan) {
-			this.range = tsTextSpanToVsRange(tsEntry.replacementSpan);
+			this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
 		}
 
 		if (tsEntry.insertText) {
 			this.insertText = tsEntry.insertText;
 
 			if (tsEntry.replacementSpan) {
-				this.range = tsTextSpanToVsRange(tsEntry.replacementSpan);
+				this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
 				if (this.insertText[0] === '[') { // o.x -> o['x']
 					this.filterText = '.' + this.label;
 				}
@@ -281,7 +280,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		}
 
 		const args: Proto.CompletionsRequestArgs = {
-			...vsPositionToTsFileLocation(file, position),
+			...typeConverters.Position.toFileLocationRequestArgs(file, position),
 			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
 			includeInsertTextCompletions: true
 		};
@@ -330,7 +329,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		item.resolve();
 
 		const args: Proto.CompletionDetailsRequestArgs = {
-			...vsPositionToTsFileLocation(filepath, item.position),
+			...typeConverters.Position.toFileLocationRequestArgs(filepath, item.position),
 			entryNames: [
 				item.tsEntry.source ? { name: item.tsEntry.name, source: item.tsEntry.source } : item.tsEntry.name
 			]
@@ -351,34 +350,74 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		item.detail = detail.displayParts.length ? Previewer.plain(detail.displayParts) : undefined;
 		item.documentation = this.getDocumentation(detail, item);
 
-		if (detail.codeActions && detail.codeActions.length) {
-			item.command = {
-				title: '',
-				command: ApplyCompletionCodeActionCommand.ID,
-				arguments: [filepath, detail.codeActions]
-			};
-		}
+		const { command, additionalTextEdits } = this.getCodeActions(detail, filepath);
+		item.command = command;
+		item.additionalTextEdits = additionalTextEdits;
 
 		if (detail && item.useCodeSnippet) {
 			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position);
 			if (shouldCompleteFunction) {
 				item.insertText = this.snippetForFunctionCall(item, detail);
 			}
-			return item;
 		}
 
 		return item;
+	}
+
+	private getCodeActions(
+		detail: Proto.CompletionEntryDetails,
+		filepath: string
+	): { command?: vscode.Command, additionalTextEdits?: vscode.TextEdit[] } {
+		if (!detail.codeActions || !detail.codeActions.length) {
+			return {};
+		}
+
+		// Try to extract out the additionalTextEdits for the current file.
+		// Also check if we still have to apply other workspace edits and commands
+		// using a vscode command
+		const additionalTextEdits: vscode.TextEdit[] = [];
+		let hasReaminingCommandsOrEdits = false;
+		for (const tsAction of detail.codeActions) {
+			if (tsAction.commands) {
+				hasReaminingCommandsOrEdits = true;
+			}
+
+			// Apply all edits in the current file using `additionalTextEdits`
+			if (tsAction.changes) {
+				for (const change of tsAction.changes) {
+					if (change.fileName === filepath) {
+						additionalTextEdits.push(...change.textChanges.map(typeConverters.TextEdit.fromCodeEdit));
+					} else {
+						hasReaminingCommandsOrEdits = true;
+					}
+				}
+			}
+		}
+
+		let command: vscode.Command | undefined = undefined;
+		if (hasReaminingCommandsOrEdits) {
+			// Create command that applies all edits not in the current file.
+			command = {
+				title: '',
+				command: ApplyCompletionCodeActionCommand.ID,
+				arguments: [filepath, detail.codeActions.map((x): Proto.CodeAction => ({
+					commands: x.commands,
+					description: x.description,
+					changes: x.changes.filter(x => x.fileName !== filepath)
+				}))]
+			};
+		}
+
+		return {
+			command,
+			additionalTextEdits: additionalTextEdits.length ? additionalTextEdits : undefined
+		};
 	}
 
 	private shouldEnableDotCompletions(
 		document: vscode.TextDocument,
 		position: vscode.Position
 	): boolean {
-		// Only enable dot completions in TS files for now
-		if (document.languageId !== languageModeIds.typescript && document.languageId === languageModeIds.typescriptreact) {
-			return false;
-		}
-
 		// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/13456
 		// Only enable dot completions when previous character is an identifier.
 		// Prevents incorrectly completing while typing spread operators.
@@ -455,7 +494,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
 		// Don't complete function calls inside of destructive assigments or imports
 		try {
-			const infoResponse = await this.client.execute('quickinfo', vsPositionToTsFileLocation(filepath, position));
+			const infoResponse = await this.client.execute('quickinfo', typeConverters.Position.toFileLocationRequestArgs(filepath, position));
 			const info = infoResponse.body;
 			switch (info && info.kind) {
 				case 'var':

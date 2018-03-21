@@ -98,7 +98,7 @@ export class CursorWordStartLeft extends WordLeftCommand {
 			id: 'cursorWordStartLeft',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
 				mac: { primary: KeyMod.Alt | KeyCode.LeftArrow }
 			}
@@ -136,7 +136,7 @@ export class CursorWordStartLeftSelect extends WordLeftCommand {
 			id: 'cursorWordStartLeftSelect',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow,
 				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow }
 			}
@@ -185,7 +185,7 @@ export class CursorWordEndRight extends WordRightCommand {
 			id: 'cursorWordEndRight',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
 				mac: { primary: KeyMod.Alt | KeyCode.RightArrow }
 			}
@@ -223,7 +223,7 @@ export class CursorWordEndRightSelect extends WordRightCommand {
 			id: 'cursorWordEndRightSelect',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow,
 				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow }
 			}
@@ -328,7 +328,7 @@ export class DeleteWordLeft extends DeleteWordLeftCommand {
 			id: 'deleteWordLeft',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				mac: { primary: KeyMod.Alt | KeyCode.Backspace }
 			}
@@ -366,7 +366,7 @@ export class DeleteWordRight extends DeleteWordRightCommand {
 			id: 'deleteWordRight',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Delete,
 				mac: { primary: KeyMod.Alt | KeyCode.Delete }
 			}

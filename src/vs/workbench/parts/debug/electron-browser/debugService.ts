@@ -299,7 +299,7 @@ export class DebugService implements debug.IDebugService {
 					// Call fetch call stack twice, the first only return the top stack frame.
 					// Second retrieves the rest of the call stack. For performance reasons #25605
 					this.model.fetchCallStack(thread).then(() => {
-						return this.tryToAutoFocusStackFrame(thread);
+						return !event.body.preserveFocusHint ? this.tryToAutoFocusStackFrame(thread) : undefined;
 					});
 				}
 			}, errors.onUnexpectedError);

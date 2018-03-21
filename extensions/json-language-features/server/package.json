@@ -1,0 +1,38 @@
+{
+  "name": "vscode-json-languageserver",
+  "description": "JSON language server",
+  "version": "1.0.1",
+  "author": "Microsoft Corporation",
+  "license": "MIT",
+  "engines": {
+    "node": "*"
+  },
+  "bin": {
+    "vscode-json-languageserver": "./bin/vscode-json-languageserver"
+  },
+  "dependencies": {
+    "jsonc-parser": "^2.0.0-next.1",
+    "request-light": "^0.2.2",
+    "vscode-json-languageservice": "^3.0.12",
+    "vscode-languageserver": "^4.0.0",
+    "vscode-nls": "^3.2.2",
+    "vscode-uri": "^1.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "7.0.43",
+    "@types/mocha": "2.2.33"
+  },
+  "scripts": {
+    "prepublishOnly": "npm run clean && npm run test",
+    "preversion": "npm test",
+    "compile": "gulp compile-extension:json-language-features-server",
+    "watch": "gulp watch-extension:json-language-features-server",
+    "clean": "../../../node_modules/.bin/rimraf out",
+    "install-service-next": "yarn add vscode-json-languageservice@next",
+    "install-service-local": "yarn link vscode-json-languageservice",
+    "install-server-next": "yarn add vscode-languageserver@next",
+    "install-server-local": "yarn link vscode-languageserver-server",
+    "test": "npm run compile && ../../../node_modules/.bin/mocha",
+    "version": "git commit -m \"JSON Language Server $npm_package_version\" package.json"
+  }
+}

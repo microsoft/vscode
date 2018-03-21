@@ -149,7 +149,7 @@ export class QuickFixAction extends EditorAction {
 			alias: 'Quick Fix',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_DOT
 			}
 		});
@@ -232,7 +232,7 @@ export class RefactorAction extends EditorAction {
 			alias: 'Refactor',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R
 			}
 		});

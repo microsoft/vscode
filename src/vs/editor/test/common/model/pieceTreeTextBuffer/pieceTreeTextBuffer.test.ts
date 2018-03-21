@@ -1787,4 +1787,45 @@ suite('chunk based search', () => {
 		let ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 1, 1), new SearchData(/abc/, new WordCharacterClassifier(',./'), 'abc'), true, 1000);
 		assert.equal(ret.length, 0);
 	});
+
+	test('#45770. FindInNode should not cross node boundary.', () => {
+		let pieceTree = createTextBuffer([
+			[
+				'balabalababalabalababalabalaba',
+				'balabalababalabalababalabalaba',
+				'',
+				'* [ ] task1',
+				'* [x] task2 balabalaba',
+				'* [ ] task 3'
+			].join('\n')
+		]);
+		pieceTree.delete(0, 62);
+		pieceTree.delete(16, 1);
+
+		pieceTree.insert(16, ' ');
+		let ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 4, 13), new SearchData(/\[/gi, new WordCharacterClassifier(',./'), '['), true, 1000);
+		assert.equal(ret.length, 3);
+
+		assert.deepEqual(ret[0].range, new Range(2, 3, 2, 4));
+		assert.deepEqual(ret[1].range, new Range(3, 3, 3, 4));
+		assert.deepEqual(ret[2].range, new Range(4, 3, 4, 4));
+	});
+
+	test('search searching from the middle', () => {
+		let pieceTree = createTextBuffer([
+			[
+				'def',
+				'dbcabc'
+			].join('\n')
+		]);
+		pieceTree.delete(4, 1);
+		let ret = pieceTree.findMatchesLineByLine(new Range(2, 3, 2, 6), new SearchData(/a/gi, null, 'a'), true, 1000);
+		assert.equal(ret.length, 1);
+		assert.deepEqual(ret[0].range, new Range(2, 3, 2, 4));
+
+		pieceTree.delete(4, 1);
+		ret = pieceTree.findMatchesLineByLine(new Range(2, 2, 2, 5), new SearchData(/a/gi, null, 'a'), true, 1000);
+		assert.equal(ret.length, 1);
+		assert.deepEqual(ret[0].range, new Range(2, 2, 2, 3));
+	});
 });

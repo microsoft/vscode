@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-java/commit/5c2863da1425d61914d2e04ef31b86f8c5883c5f",
+	"version": "https://github.com/atom/language-java/commit/bbbd3236c0ef9a9cd8c59d6ad4bd6b9b231dc714",
 	"name": "Java",
 	"scopeName": "source.java",
 	"patterns": [
@@ -769,7 +769,7 @@
 					"name": "storage.modifier.$1.java"
 				},
 				{
-					"match": "([a-zA-Z$_][a-zA-Z0-9$_]*)(?=\\s*<)",
+					"match": "(?<!\\.)([a-zA-Z$_][a-zA-Z0-9$_]*)(?=\\s*<)",
 					"captures": {
 						"1": {
 							"name": "storage.type.java"
@@ -794,6 +794,10 @@
 				{
 					"match": ",",
 					"name": "punctuation.separator.delimiter.java"
+				},
+				{
+					"match": "\\.",
+					"name": "punctuation.separator.period.java"
 				},
 				{
 					"include": "#parens"
@@ -923,6 +927,10 @@
 				{
 					"match": "(\\||&)",
 					"name": "keyword.operator.bitwise.java"
+				},
+				{
+					"match": "\\b(const|goto)\\b",
+					"name": "keyword.reserved.java"
 				}
 			]
 		},
@@ -1104,7 +1112,7 @@
 					]
 				},
 				{
-					"match": "\\b(?:[A-Z]\\w*\\s*(\\.)\\s*)*[A-Z]\\w*\\b",
+					"match": "\\b(?:[A-Z]\\w*\\s*(\\.)\\s*)*[A-Z]\\w*\\b((?=\\s*[A-Za-z$_\\n])|(?=\\s*\\.\\.\\.))",
 					"name": "storage.type.java",
 					"captures": {
 						"1": {
@@ -1160,6 +1168,10 @@
 				{
 					"match": ",",
 					"name": "punctuation.separator.delimiter.java"
+				},
+				{
+					"match": "\\.\\.\\.",
+					"name": "punctuation.definition.parameters.varargs.java"
 				}
 			]
 		},
@@ -1352,7 +1364,7 @@
 			]
 		},
 		"variables": {
-			"begin": "(?x)\n(?=\n  (\n    (void|boolean|byte|char|short|int|float|long|double)\n    |\n    (?>(\\w+\\.)*[A-Z]+\\w*) # e.g. `javax.ws.rs.Response`, or `String`\n  )\n  (\n    <[\\w<>,?\\s]*> # HashMap<Integer, String>\n  )?\n  (\n    (\\[\\])* # int[][]\n  )?\n  \\s+\n  [A-Za-z_$][\\w$]* # At least one identifier after space\n  ([\\w\\[\\],$][\\w\\[\\],\\s]*)? # possibly primitive array or additional identifiers\n  \\s*(=|;)\n)",
+			"begin": "(?x)\n(?=\n  (\n    (void|boolean|byte|char|short|int|float|long|double)\n    |\n    (?>(\\w+\\.)*[A-Z]+\\w*) # e.g. `javax.ws.rs.Response`, or `String`\n  )\n  (\n    <[\\w<>,\\.?\\s]*> # e.g. `HashMap<Integer, String>`, or `List<java.lang.String>`\n  )?\n  (\n    (\\[\\])* # int[][]\n  )?\n  \\s+\n  [A-Za-z_$][\\w$]* # At least one identifier after space\n  ([\\w\\[\\],$][\\w\\[\\],\\s]*)? # possibly primitive array or additional identifiers\n  \\s*(=|;)\n)",
 			"end": "(?=;)",
 			"name": "meta.definition.variable.java",
 			"patterns": [

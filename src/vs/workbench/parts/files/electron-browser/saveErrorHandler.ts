@@ -34,6 +34,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { once } from 'vs/base/common/event';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -177,7 +178,9 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 		}
 
 		// Show message and keep function to hide in case the file gets saved/reverted
-		this.messages.set(model.getResource(), this.notificationService.notify({ severity: Severity.Error, message, actions }));
+		const handle = this.notificationService.notify({ severity: Severity.Error, message, actions });
+		once(handle.onDidDispose)(() => dispose(...actions.primary, ...actions.secondary));
+		this.messages.set(model.getResource(), handle);
 	}
 
 	public dispose(): void {
@@ -262,6 +265,7 @@ class ResolveSaveConflictAction extends Action {
 				actions.secondary.push(this.instantiationService.createInstance(DoNotShowResolveConflictLearnMoreAction));
 
 				const handle = this.notificationService.notify({ severity: Severity.Info, message: conflictEditorHelp, actions });
+				once(handle.onDidDispose)(() => dispose(...actions.primary, ...actions.secondary));
 				pendingResolveSaveConflictMessages.push(handle);
 			});
 		}

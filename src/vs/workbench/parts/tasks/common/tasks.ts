@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { UriComponents } from 'vs/base/common/uri';
 import * as Types from 'vs/base/common/types';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import * as Objects from 'vs/base/common/objects';
+import { generateUuid } from 'vs/base/common/uuid';
+import { UriComponents } from 'vs/base/common/uri';
 
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/workbench/parts/tasks/common/problemMatcher';
-import { IWorkspaceFolder, IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 
 export enum ShellQuoting {
@@ -335,6 +336,7 @@ export type TaskSource = WorkspaceTaskSource | ExtensionTaskSource | InMemoryTas
 export interface TaskIdentifier {
 	_key: string;
 	type: string;
+	[name: string]: any;
 }
 
 export interface TaskDependency {
@@ -438,6 +440,22 @@ export namespace CustomTask {
 	export function is(value: any): value is CustomTask {
 		let candidate: CustomTask = value;
 		return candidate && candidate.type === 'custom';
+	}
+	export function getDefinition(task: CustomTask): TaskIdentifier {
+		if (task.command === void 0) {
+			return undefined;
+		}
+		if (task.command.runtime === RuntimeType.Shell) {
+			return {
+				_key: generateUuid(),
+				type: 'shell'
+			};
+		} else {
+			return {
+				_key: generateUuid(),
+				type: 'process'
+			};
+		}
 	}
 }
 
@@ -580,8 +598,8 @@ export namespace Task {
 		}
 	}
 
-	export function matches(task: Task, alias: string): boolean {
-		return alias === task._label || alias === task.identifier;
+	export function matches(task: Task, alias: string, compareId: boolean = false): boolean {
+		return alias === task._label || alias === task.identifier || (compareId && alias === task._id);
 	}
 
 	export function getQualifiedLabel(task: Task): string {
@@ -592,12 +610,53 @@ export namespace Task {
 			return task._label;
 		}
 	}
+
+	export function getTaskItem(task: Task): TaskItem {
+		let folder: IWorkspaceFolder = Task.getWorkspaceFolder(task);
+		let definition: TaskIdentifier;
+		if (ContributedTask.is(task)) {
+			definition = task.defines;
+		} else if (CustomTask.is(task) && task.command !== void 0) {
+			definition = CustomTask.getDefinition(task);
+		} else {
+			return undefined;
+		}
+		let result: TaskItem = {
+			id: task._id,
+			label: task._label,
+			definition: definition,
+			workspaceFolder: folder
+		};
+		return result;
+	}
+
+	export function getTaskDefinition(task: Task): TaskIdentifier {
+		if (ContributedTask.is(task)) {
+			return task.defines;
+		} else if (CustomTask.is(task) && task.command !== void 0) {
+			return CustomTask.getDefinition(task);
+		} else {
+			return undefined;
+		}
+	}
+
+	export function getTaskExecution(task: Task): TaskExecution {
+		let result: TaskExecution = {
+			id: task._id
+		};
+		return result;
+	}
 }
 
-export interface TaskHandleTransfer {
+export interface TaskItem {
 	id: string;
 	label: string;
-	workspaceFolder: IWorkspaceFolderData;
+	definition: TaskIdentifier;
+	workspaceFolder: IWorkspaceFolder;
+}
+
+export interface TaskExecution {
+	id: string;
 }
 
 export enum ExecutionEngine {
@@ -660,10 +719,12 @@ export class TaskSorter {
 }
 
 export enum TaskEventKind {
+	Start = 'start',
 	Active = 'active',
 	Inactive = 'inactive',
-	Terminated = 'terminated',
 	Changed = 'changed',
+	Terminated = 'terminated',
+	End = 'end'
 }
 
 
@@ -682,7 +743,7 @@ export interface TaskEvent {
 }
 
 export namespace TaskEvent {
-	export function create(kind: TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated, task: Task);
+	export function create(kind: TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.Start | TaskEventKind.End, task: Task);
 	export function create(kind: TaskEventKind.Changed);
 	export function create(kind: TaskEventKind, task?: Task): TaskEvent {
 		if (task) {

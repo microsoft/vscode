@@ -45,6 +45,7 @@ export class ResourceLabel extends IconLabel {
 	private options: IResourceLabelOptions;
 	private computedIconClasses: string[];
 	private lastKnownConfiguredLangId: string;
+	private computedPathLabel: string;
 
 	private _onDidRender = new Emitter<void>();
 	readonly onDidRender: Event<void> = this._onDidRender.event;
@@ -126,6 +127,10 @@ export class ResourceLabel extends IconLabel {
 		this.label = label;
 		this.options = options;
 
+		if (hasResourceChanged) {
+			this.computedPathLabel = void 0; // reset path label due to resource change
+		}
+
 		this.render(hasResourceChanged);
 	}
 
@@ -156,6 +161,7 @@ export class ResourceLabel extends IconLabel {
 		this.options = void 0;
 		this.lastKnownConfiguredLangId = void 0;
 		this.computedIconClasses = void 0;
+		this.computedPathLabel = void 0;
 
 		this.setValue();
 	}
@@ -189,7 +195,11 @@ export class ResourceLabel extends IconLabel {
 		if (this.options && typeof this.options.title === 'string') {
 			iconLabelOptions.title = this.options.title;
 		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
-			iconLabelOptions.title = getPathLabel(resource, void 0, this.environmentService);
+			if (!this.computedPathLabel) {
+				this.computedPathLabel = getPathLabel(resource, void 0, this.environmentService);
+			}
+
+			iconLabelOptions.title = this.computedPathLabel;
 		}
 
 		if (!this.computedIconClasses) {
@@ -202,7 +212,7 @@ export class ResourceLabel extends IconLabel {
 		}
 
 		if (this.options && this.options.fileDecorations && resource) {
-			let deco = this.decorationsService.getDecoration(
+			const deco = this.decorationsService.getDecoration(
 				resource,
 				this.options.fileKind !== FileKind.FILE,
 				this.options.fileDecorations.data
@@ -212,9 +222,11 @@ export class ResourceLabel extends IconLabel {
 				if (deco.tooltip) {
 					iconLabelOptions.title = `${iconLabelOptions.title} • ${deco.tooltip}`;
 				}
+
 				if (this.options.fileDecorations.colors) {
 					iconLabelOptions.extraClasses.push(deco.labelClassName);
 				}
+
 				if (this.options.fileDecorations.badges) {
 					iconLabelOptions.extraClasses.push(deco.badgeClassName);
 				}
@@ -222,6 +234,7 @@ export class ResourceLabel extends IconLabel {
 		}
 
 		this.setValue(label, this.label.description, iconLabelOptions);
+
 		this._onDidRender.fire();
 	}
 
@@ -233,6 +246,7 @@ export class ResourceLabel extends IconLabel {
 		this.options = void 0;
 		this.lastKnownConfiguredLangId = void 0;
 		this.computedIconClasses = void 0;
+		this.computedPathLabel = void 0;
 	}
 }
 

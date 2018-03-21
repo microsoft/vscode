@@ -17,19 +17,21 @@ import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures';
-import * as TaskSystem from 'vs/workbench/parts/tasks/common/tasks';
+import { ExtHostTask } from './extHostTask';
 
 export class ExtHostApiCommands {
 
-	static register(commands: ExtHostCommands) {
-		return new ExtHostApiCommands(commands).registerCommands();
+	static register(commands: ExtHostCommands, workspace: ExtHostTask) {
+		return new ExtHostApiCommands(commands, workspace).registerCommands();
 	}
 
 	private _commands: ExtHostCommands;
+	private _tasks: ExtHostTask;
 	private _disposables: IDisposable[] = [];
 
-	private constructor(commands: ExtHostCommands) {
+	private constructor(commands: ExtHostCommands, task: ExtHostTask) {
 		this._commands = commands;
+		this._tasks = task;
 	}
 
 	registerCommands() {
@@ -267,7 +269,7 @@ export class ExtHostApiCommands {
 	// --- command impl
 
 	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
-		let disposable = this._commands.registerCommand(id, handler, this, description);
+		let disposable = this._commands.registerCommand(false, id, handler, this, description);
 		this._disposables.push(disposable);
 	}
 
@@ -472,20 +474,8 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(typeConverters.DocumentLink.to));
 	}
 
-	private _executeTaskProvider(): Thenable<vscode.TaskHandle[]> {
-		return this._commands.executeCommand<TaskSystem.TaskHandleTransfer[]>('_executeTaskProvider').then<vscode.TaskHandle[]>((values) => {
-			return values.map(handle => {
-				return {
-					id: handle.id,
-					label: handle.label,
-					workspaceFolder: {
-						name: handle.workspaceFolder.name,
-						index: handle.workspaceFolder.index,
-						uri: URI.revive(handle.workspaceFolder.uri)
-					}
-				};
-			});
-		});
+	private _executeTaskProvider(): Thenable<vscode.Task[]> {
+		return this._tasks.executeTaskProvider();
 	}
 }
 

@@ -278,14 +278,14 @@ export class FileService implements IFileService {
 			value: void 0
 		};
 
-		const contentResolverToken = new CancellationTokenSource();
+		const contentResolverTokenSource = new CancellationTokenSource();
 
 		const onStatError = (error: Error) => {
 
 			// error: stop reading the file the stat and content resolve call
 			// usually race, mostly likely the stat call will win and cancel
 			// the content call
-			contentResolverToken.cancel();
+			contentResolverTokenSource.cancel();
 
 			// forward error
 			return TPromise.wrapError(error);
@@ -319,7 +319,7 @@ export class FileService implements IFileService {
 			if (typeof stat.size === 'number') {
 				if (stat.size > Math.max(this.environmentService.args['max-memory'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
 					return onStatError(new FileOperationError(
-						nls.localize('fileTooLargeForHeapError', "File size exceeds window memory limit, please try to run code --max-memory=NEWSIZE"),
+						nls.localize('fileTooLargeForHeapError', "File size exceeds window memory limit. Try launching with a higher memory limit"),
 						FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
 					));
 				}
@@ -353,17 +353,21 @@ export class FileService implements IFileService {
 		// etag from the stat before we actually read the file again.
 		if (options && options.etag) {
 			completePromise = statsPromise.then(() => {
-				return this.fillInContents(result, resource, options, contentResolverToken.token); // Waterfall -> only now resolve the contents
+				return this.fillInContents(result, resource, options, contentResolverTokenSource.token); // Waterfall -> only now resolve the contents
 			});
 		}
 
 		// a fresh load without a previous etag which means we can resolve the file stat
 		// and the content at the same time, avoiding the waterfall.
 		else {
-			completePromise = Promise.all([statsPromise, this.fillInContents(result, resource, options, contentResolverToken.token)]);
+			completePromise = Promise.all([statsPromise, this.fillInContents(result, resource, options, contentResolverTokenSource.token)]);
 		}
 
-		return TPromise.wrap(completePromise).then(() => result);
+		return TPromise.wrap(completePromise).then(() => {
+			contentResolverTokenSource.dispose();
+
+			return result;
+		});
 	}
 
 	private fillInContents(content: IStreamContent, resource: uri, options: IResolveContentOptions, token: CancellationToken): Thenable<any> {
@@ -465,7 +469,7 @@ export class FileService implements IFileService {
 
 						if (totalBytesRead > Math.max(this.environmentService.args['max-memory'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
 							finish(new FileOperationError(
-								nls.localize('fileTooLargeForHeapError', "File size exceeds window memory limit, please try to run code --max-memory=NEWSIZE"),
+								nls.localize('fileTooLargeForHeapError', "File size exceeds window memory limit. Try launching with a higher memory limit"),
 								FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
 							));
 						}

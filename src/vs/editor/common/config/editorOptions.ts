@@ -460,7 +460,7 @@ export interface IEditorOptions {
 	/**
 	 * The history mode for suggestions.
 	 */
-	suggestSelection?: string;
+	suggestSelection?: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 	/**
 	 * The font size for the suggest widget.
 	 * Defaults to the editor font size.
@@ -1395,14 +1395,14 @@ function _string(value: any, defaultValue: string): string {
 	return value;
 }
 
-function _stringSet<T>(value: any, defaultValue: T, allowedValues: string[]): T {
+function _stringSet<T>(value: T, defaultValue: T, allowedValues: T[]): T {
 	if (typeof value !== 'string') {
 		return defaultValue;
 	}
 	if (allowedValues.indexOf(value) === -1) {
 		return defaultValue;
 	}
-	return <T><any>value;
+	return value;
 }
 
 function _clampedInt(value: any, defaultValue: number, minimum: number, maximum: number): number {

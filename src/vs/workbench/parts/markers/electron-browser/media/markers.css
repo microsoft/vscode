@@ -80,9 +80,10 @@
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-source,
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .related-info-resource,
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .related-info-resource-separator,
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-line {
 	opacity: 0.7;
-	margin-right: 5px;
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .highlight {
@@ -91,8 +92,7 @@
 
 .markers-panel .icon {
 	height: 22px;
-	margin-right: 4px;
-	margin-left: 4px;
+	margin-right: 6px;
 	flex: 0 0 16px;
 }
 

@@ -30,9 +30,25 @@ class WindowProgressItem implements IStatusbarItem {
 
 	render(element: HTMLElement): IDisposable {
 		this._element = element;
-		this._label = new OcticonLabel(this._element);
 		this._element.classList.add('progress');
+
+		const container = document.createElement('span');
+		this._element.appendChild(container);
+
+		const spinnerContainer = document.createElement('span');
+		spinnerContainer.classList.add('spinner-container');
+		container.appendChild(spinnerContainer);
+
+		const spinner = new OcticonLabel(spinnerContainer);
+		spinner.text = '$(sync~spin)';
+
+		const labelContainer = document.createElement('span');
+		container.appendChild(labelContainer);
+
+		this._label = new OcticonLabel(labelContainer);
+
 		this.hide();
+
 		return null;
 	}
 

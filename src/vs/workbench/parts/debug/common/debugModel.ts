@@ -38,6 +38,9 @@ export abstract class AbstractReplElement implements IReplElement {
 	public getId(): string {
 		return `replelement:${this.id}`;
 	}
+
+	// Used by the copy all action in repl
+	abstract toString(): string;
 }
 
 export class SimpleReplElement extends AbstractReplElement {
@@ -48,6 +51,10 @@ export class SimpleReplElement extends AbstractReplElement {
 		source: IReplElementSource,
 	) {
 		super(source);
+	}
+
+	public toString(): string {
+		return this.value;
 	}
 }
 
@@ -88,6 +95,10 @@ export class RawObjectReplElement extends AbstractReplElement implements IExpres
 		}
 
 		return TPromise.as(result);
+	}
+
+	public toString(): string {
+		return `${this.name}\n${this.value}`;
 	}
 }
 

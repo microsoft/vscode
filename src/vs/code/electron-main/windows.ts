@@ -36,6 +36,7 @@ import { Schemas } from 'vs/base/common/network';
 import { normalizeNFC } from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { Queue } from 'vs/base/common/async';
+import { exists } from 'vs/base/node/pfs';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -1697,6 +1698,7 @@ class Dialogs {
 	}
 
 	public showSaveDialog(options: Electron.SaveDialogOptions, window?: ICodeWindow): TPromise<string> {
+
 		function normalizePath(path: string): string {
 			if (path && isMacintosh) {
 				path = normalizeNFC(path); // normalize paths returned from the OS
@@ -1715,6 +1717,7 @@ class Dialogs {
 	}
 
 	public showOpenDialog(options: Electron.OpenDialogOptions, window?: ICodeWindow): TPromise<string[]> {
+
 		function normalizePaths(paths: string[]): string[] {
 			if (paths && paths.length > 0 && isMacintosh) {
 				paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
@@ -1725,8 +1728,22 @@ class Dialogs {
 
 		return this.getDialogQueue(window).queue(() => {
 			return new TPromise((c, e) => {
-				dialog.showOpenDialog(window ? window.win : void 0, options, paths => {
-					c(normalizePaths(paths));
+
+				// Ensure the path exists (if provided)
+				let validatePathPromise: TPromise<void> = TPromise.as(void 0);
+				if (options.defaultPath) {
+					validatePathPromise = exists(options.defaultPath).then(exists => {
+						if (!exists) {
+							options.defaultPath = void 0;
+						}
+					});
+				}
+
+				// Show dialog and wrap as promise
+				validatePathPromise.then(() => {
+					dialog.showOpenDialog(window ? window.win : void 0, options, paths => {
+						c(normalizePaths(paths));
+					});
 				});
 			});
 		});

@@ -17,7 +17,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
 import * as Dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event, Emitter, once } from 'vs/base/common/event';
 import * as Builder from 'vs/base/browser/builder';
 import * as Types from 'vs/base/common/types';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -62,7 +62,7 @@ import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
@@ -74,7 +74,7 @@ import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, T
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskIdentifier, TaskSorter, TaskHandleTransfer
+	TaskIdentifier, TaskSorter, TaskItem
 } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, ITaskProvider, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
@@ -582,20 +582,12 @@ class TaskService implements ITaskService {
 
 		CommandsRegistry.registerCommand('_executeTaskProvider', (accessor, args) => {
 			return this.tasks().then((tasks) => {
-				let result: TaskHandleTransfer[] = [];
+				let result: TaskItem[] = [];
 				for (let task of tasks) {
-					let folder = Task.getWorkspaceFolder(task);
-					let folderData: IWorkspaceFolderData = folder ? {
-						name: folder.name,
-						uri: folder.uri,
-						index: folder.index
-					} : undefined;
-					let handle: TaskHandleTransfer = {
-						id: task._id,
-						label: task._label,
-						workspaceFolder: folderData
-					};
-					result.push(handle);
+					let item = Task.getTaskItem(task);
+					if (item) {
+						result.push(item);
+					}
 				}
 				return result;
 			});
@@ -682,7 +674,7 @@ class TaskService implements ITaskService {
 		return this._providers.delete(handle);
 	}
 
-	public getTask(folder: IWorkspaceFolder | string, alias: string): TPromise<Task> {
+	public getTask(folder: IWorkspaceFolder | string, alias: string, compareId: boolean = false): TPromise<Task> {
 		let name = Types.isString(folder) ? folder : folder.name;
 		if (this.ignoredWorkspaceFolders.some(ignored => ignored.name === name)) {
 			return TPromise.wrapError(new Error(nls.localize('TaskServer.folderIgnored', 'The folder {0} is ignored since it uses task version 0.1.0', name)));
@@ -693,7 +685,7 @@ class TaskService implements ITaskService {
 				return undefined;
 			}
 			for (let task of values) {
-				if (Task.matches(task, alias)) {
+				if (Task.matches(task, alias, compareId)) {
 					return task;
 				}
 			}
@@ -1715,7 +1707,8 @@ class TaskService implements ITaskService {
 						'workbench.action.tasks.terminate',
 						nls.localize('TerminateAction.label', "Terminate Task"),
 						undefined, true, () => { this.runTerminateCommand(); return TPromise.wrap<void>(undefined); });
-				this.notificationService.notify({ severity: buildError.severity, message: buildError.message, actions: { primary: [action] } });
+				let handle = this.notificationService.notify({ severity: buildError.severity, message: buildError.message, actions: { primary: [action] } });
+				once(handle.onDidDispose)(() => action.dispose());
 			} else {
 				this.notificationService.notify({ severity: buildError.severity, message: buildError.message });
 			}
@@ -1856,21 +1849,24 @@ class TaskService implements ITaskService {
 			return TPromise.as(undefined);
 		}
 
-		this.notificationService.notify({
+		const action = new Action('dontShowAgain', nls.localize('TaskService.notAgain', 'Don\'t Show Again'), null, true, (notification: IDisposable) => {
+			this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
+			this.__showIgnoreMessage = false;
+
+			// Hide notification
+			notification.dispose();
+
+			return TPromise.as(true);
+		});
+
+		const handle = this.notificationService.notify({
 			severity: Severity.Info,
 			message: nls.localize('TaskService.ignoredFolder', 'The following workspace folders are ignored since they use task version 0.1.0: {0}', this.ignoredWorkspaceFolders.map(f => f.name).join(', ')),
 			actions: {
-				secondary: [new Action('dontShowAgain', nls.localize('TaskService.notAgain', 'Don\'t Show Again'), null, true, (notification: IDisposable) => {
-					this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
-					this.__showIgnoreMessage = false;
-
-					// Hide notification
-					notification.dispose();
-
-					return TPromise.as(true);
-				})]
+				secondary: [action]
 			}
 		});
+		once(handle.onDidDispose)(() => action.dispose());
 
 		return TPromise.as(undefined);
 	}

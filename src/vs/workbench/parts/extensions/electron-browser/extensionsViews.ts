@@ -145,10 +145,8 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
 		}
 
-		if (!value || ExtensionsListView.isBuiltInExtensionsQuery(value)) {
-			// Show installed extensions
-			value = value ? value.replace(/@builtin/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
-
+		if (ExtensionsListView.isBuiltInExtensionsQuery(value)) {
+			value = value.replace(/@builtin/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 			let result = await this.extensionsWorkbenchService.queryLocal();
 
 			result = result
@@ -160,10 +158,22 @@ export class ExtensionsListView extends ViewsViewletPanel {
 					&& Array.isArray(e.local.manifest.contributes.themes)
 					&& e.local.manifest.contributes.themes.length;
 			});
-			const themesExtensionsIds = themesExtensions.map(e => e.id);
-			const others = result.filter(e => themesExtensionsIds.indexOf(e.id) === -1);
 
-			return new PagedModel([...this.sortExtensions(others, options), ...this.sortExtensions(themesExtensions, options)]);
+			const basics = result.filter(e => {
+				return e.local.manifest
+					&& e.local.manifest.contributes
+					&& Array.isArray(e.local.manifest.contributes.languages)
+					&& e.local.manifest.contributes.languages.length;
+			});
+
+			const others = result.filter(e => {
+				return e.local.manifest
+					&& e.local.manifest.contributes
+					&& !Array.isArray(e.local.manifest.contributes.languages)
+					&& !Array.isArray(e.local.manifest.contributes.themes);
+			});
+
+			return new PagedModel([...this.sortExtensions(others, options), ...this.sortExtensions(basics, options), ...this.sortExtensions(themesExtensions, options)]);
 		}
 
 		if (!value || ExtensionsListView.isInstalledExtensionsQuery(value)) {

@@ -9,6 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { LanguageSelector, score } from 'vs/editor/common/modes/languageSelector';
+import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 
 interface Entry<T> {
 	selector: LanguageSelector;
@@ -63,7 +64,7 @@ export default class LanguageFeatureRegistry<T> {
 	}
 
 	all(model: ITextModel): T[] {
-		if (!model || model.isTooLargeForHavingARichMode()) {
+		if (!model) {
 			return [];
 		}
 
@@ -106,7 +107,7 @@ export default class LanguageFeatureRegistry<T> {
 
 	private _orderedForEach(model: ITextModel, callback: (provider: Entry<T>) => any): void {
 
-		if (!model || model.isTooLargeForHavingARichMode()) {
+		if (!model) {
 			return;
 		}
 
@@ -140,7 +141,7 @@ export default class LanguageFeatureRegistry<T> {
 		this._lastCandidate = candidate;
 
 		for (let entry of this._entries) {
-			entry._score = score(entry.selector, model.uri, model.getLanguageIdentifier().language);
+			entry._score = score(entry.selector, model.uri, model.getLanguageIdentifier().language, shouldSynchronizeModel(model));
 		}
 
 		// needs sorting
