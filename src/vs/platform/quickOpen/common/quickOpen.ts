@@ -86,6 +86,9 @@ export interface IPickOptions {
 	 */
 	contextKey?: string;
 
+	/**
+	 * an optional flag to make this picker multi-select (honoured by extension API)
+	 */
 	multiSelect?: boolean;
 }
 

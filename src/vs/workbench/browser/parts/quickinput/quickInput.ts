@@ -143,9 +143,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 			this.resolve();
 		}
 
+		// TODO: Listen on cancellation token.
+
 		this.inputBox.setValue('');
 		// TODO: Localize shortcut.
-		this.inputBox.setPlaceholder(options.placeHolder ? localize('quickInput.ctrlSpaceToSelectWithPlaceholder', "{1} ({0} to toggle)", 'Cmd+Space', options.placeHolder) : localize('quickInput.ctrlSpaceToSelect', "{0} to toggle", 'Cmd+Space'));
+		this.inputBox.setPlaceholder(options.placeHolder ? localize('quickInput.ctrlSpaceToSelectWithPlaceholder', "{1} ({0} to toggle)", 'Ctrl+Space', options.placeHolder) : localize('quickInput.ctrlSpaceToSelect', "{0} to toggle", 'Ctrl+Space'));
 		// TODO: Progress indication.
 		this.checkboxList.setElements(await picks);
 
