@@ -7,7 +7,7 @@
 import {
 	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, DocumentColorRequest, ColorPresentationRequest
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities
 } from 'vscode-languageserver';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
@@ -343,7 +343,7 @@ connection.onDocumentRangeFormatting((formatParams, token) => {
 	}, [], `Error while formatting range for ${formatParams.textDocument.uri}`, token);
 });
 
-connection.onRequest(DocumentColorRequest.type, (params, token) => {
+connection.onDocumentColor((params, token) => {
 	return runSafeAsync(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
@@ -354,7 +354,7 @@ connection.onRequest(DocumentColorRequest.type, (params, token) => {
 	}, [], `Error while computing document colors for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest(ColorPresentationRequest.type, (params, token) => {
+connection.onColorPresentation((params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
