@@ -75,6 +75,7 @@ export interface IProgressOptions {
 	title?: string;
 	source?: string;
 	total?: number;
+	cancellable?: boolean;
 }
 
 export interface IProgressStep {

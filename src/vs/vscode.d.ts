@@ -5156,10 +5156,12 @@ declare module 'vscode' {
 		 * the provided [progress](#Progress)-object.
 		 *
 		 * To report discrete progress, use `percentage` to indicate how much work has been completed. Each call with
-		 * a `percentage` value will be summed up and reflected as overall progress until 100% is reached.
+		 * a `percentage` value will be summed up and reflected as overall progress until 100% is reached. Note that
+		 * currently only `ProgressLocation.Notification` is capable of showing discrete progress.
 		 *
-		 * Note; not all progress locations support discrete progress or cancellation. Refer to the [`ProgressLocation`](#ProgressLocation)
-		 * documentation to find out more.
+		 * To monitor if the operation has been cancelled by the user, use the provided [`CancellationToken`](#CancellationToken).
+		 * Note that currently only `ProgressLocation.Notification` is supporting to show a cancel button to cancel the
+		 * long running operation.
 		 *
 		 * @return The thenable the task-callback returned.
 		 */
@@ -5372,7 +5374,7 @@ declare module 'vscode' {
 		Window = 10,
 
 		/**
-		 * Show progress as notifiation with a cancel button. Supports cancellation and discrete progress.
+		 * Show progress as notifiation with an optional cancel button. Supports to show infinite and discrete progress.
 		 */
 		Notification = 15
 	}
@@ -5392,6 +5394,14 @@ declare module 'vscode' {
 		 * operation.
 		 */
 		title?: string;
+
+		/**
+		 * Controls if a cancel button should show to allow the user to
+		 * cancel the long running operation.  Note that currently only
+		 * `ProgressLocation.Notification` is supporting to show a cancel
+		 * button.
+		 */
+		cancellable?: boolean;
 	}
 
 	/**

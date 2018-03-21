@@ -16,7 +16,7 @@ import { StatusbarAlignment, IStatusbarRegistry, StatusbarItemDescriptor, Extens
 import { TPromise } from 'vs/base/common/winjs.base';
 import { always } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
-import { INotificationService, Severity, INotificationHandle } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
 import { once } from 'vs/base/common/event';
 
@@ -169,33 +169,36 @@ export class ProgressService2 implements IProgressService2 {
 	private _withNotificationProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, percentage?: number }>) => P, onDidCancel?: () => void): P {
 		const toDispose: IDisposable[] = [];
 
-		const cancelAction = new class extends Action {
-			constructor() {
-				super('progress.cancel', localize('cancel', "Cancel"), null, true);
-			}
-
-			run(): TPromise<any> {
-				if (typeof onDidCancel === 'function') {
-					onDidCancel();
-				}
-
-				return TPromise.as(undefined);
-			}
-		};
-		toDispose.push(cancelAction);
-
 		const createNotification = (message: string, percentage?: number): INotificationHandle => {
 			if (!message) {
 				return undefined; // we need a message at least
+			}
+
+			const actions: INotificationActions = { primary: [] };
+			if (options.cancellable) {
+				const cancelAction = new class extends Action {
+					constructor() {
+						super('progress.cancel', localize('cancel', "Cancel"), null, true);
+					}
+
+					run(): TPromise<any> {
+						if (typeof onDidCancel === 'function') {
+							onDidCancel();
+						}
+
+						return TPromise.as(undefined);
+					}
+				};
+				toDispose.push(cancelAction);
+
+				actions.primary.push(cancelAction);
 			}
 
 			const handle = this._notificationService.notify({
 				severity: Severity.Info,
 				message: options.title,
 				source: options.source,
-				actions: {
-					primary: [cancelAction]
-				}
+				actions
 			});
 
 			updateProgress(handle, percentage);
