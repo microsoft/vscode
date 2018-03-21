@@ -49,15 +49,48 @@ export class HighlightedLabel implements IDisposable {
 		this.render();
 	}
 
+	private adjustHighlightsForEscapedLineBreaks(highlights: IHighlight[]): IHighlight[] {
+		const lineBreaksIndices = this.getEscapedLineBreakIndices(this.text);
+
+		if (lineBreaksIndices.length === 0 || highlights.length === 0) {
+			return highlights;
+		}
+
+		highlights.map((highlight) => {
+			for (let i = 0; i < lineBreaksIndices.length; i++) {
+				if (lineBreaksIndices[i] < highlight.start) {
+					++highlight.start;
+				}
+				if (lineBreaksIndices[i] < highlight.end) {
+					++highlight.end;
+				}
+			}
+			return highlight;
+		});
+		return highlights;
+	}
+
+	private getEscapedLineBreakIndices(text: string): number[] {
+		const lineBreaksIndices: number[] = [];
+		const regex = /\\n/g;
+		let current;
+		while ((current = regex.exec(text)) !== null) {
+			lineBreaksIndices.push(current.index);
+		}
+		return lineBreaksIndices;
+	}
+
 	private render() {
 		dom.clearNode(this.domNode);
+
+		const highlights = this.adjustHighlightsForEscapedLineBreaks(this.highlights);
 
 		let htmlContent: string[] = [],
 			highlight: IHighlight,
 			pos = 0;
 
-		for (let i = 0; i < this.highlights.length; i++) {
-			highlight = this.highlights[i];
+		for (let i = 0; i < highlights.length; i++) {
+			highlight = highlights[i];
 			if (highlight.end === highlight.start) {
 				continue;
 			}
