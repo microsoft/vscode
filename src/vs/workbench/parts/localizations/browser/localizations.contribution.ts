@@ -64,7 +64,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		if (!this.storageService.getBoolean(donotAskUpdateKey) && e.local && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
 			const locale = e.local.manifest.contributes.localizations[0].languageId;
 			if (language !== locale) {
-				const updateLocaleMessage = localize('updateLocale', "Would you like to change VS Code language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId);
+				const updateLocaleMessage = localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId);
 				this.notificationService.prompt(Severity.Info, updateLocaleMessage, [localize('yes', "Yes"), localize('no', "No"), localize('doNotAskAgain', "Do not ask me again")])
 					.then(option => {
 						if (option === 0) {
