@@ -31,7 +31,10 @@
       {
         "language": "css",
         "scopeName": "source.css",
-        "path": "./syntaxes/css.tmLanguage.json"
+        "path": "./syntaxes/css.tmLanguage.json",
+        "tokenTypes": {
+          "meta.function.url string.quoted": "other"
+        }
       }
     ]
   }
