@@ -115,7 +115,8 @@
           },
           "default": [],
           "description": "%typescript.tsserver.pluginPaths%",
-          "scope": "window"
+          "scope": "window",
+          "isExecutable": true
         },
         "typescript.tsserver.trace": {
           "type": "string",

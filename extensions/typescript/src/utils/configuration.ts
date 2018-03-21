@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { WorkspaceConfiguration, workspace } from 'vscode';
+import * as arrays from './arrays';
 
 export enum TsServerLogLevel {
 	Off,
@@ -76,10 +77,10 @@ export class TypeScriptServiceConfiguration {
 			&& this.localTsdk === other.localTsdk
 			&& this.npmLocation === other.npmLocation
 			&& this.tsServerLogLevel === other.tsServerLogLevel
-			&& this.tsServerPluginPaths === other.tsServerPluginPaths
 			&& this.checkJs === other.checkJs
 			&& this.experimentalDecorators === other.experimentalDecorators
-			&& this.disableAutomaticTypeAcquisition === other.disableAutomaticTypeAcquisition;
+			&& this.disableAutomaticTypeAcquisition === other.disableAutomaticTypeAcquisition
+			&& arrays.equals(this.tsServerPluginPaths, other.tsServerPluginPaths);
 	}
 
 	private static extractGlobalTsdk(configuration: WorkspaceConfiguration): string | null {
