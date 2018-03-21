@@ -176,6 +176,16 @@ suite('HTML Path Completion', () => {
 		}, aboutHtmlUri, [fixtureWorkspace]);
 	});
 
+	test('Empty Path Value', () => {
+		testCompletionFor('<script src="|">', {
+			items: [
+				{ label: 'about/', resultText: '<script src="about/">' },
+				{ label: 'index.html', resultText: '<script src="index.html">' },
+				{ label: 'src/', resultText: '<script src="src/">' },
+			]
+		}, indexHtmlUri);
+	});
+
 	test('Incomplete Path', () => {
 		testCompletionFor('<script src="/src/f|">', {
 			items: [
@@ -252,21 +262,10 @@ suite('HTML Path Completion', () => {
 	});
 
 	test('Unquoted Path', () => {
-		/* Unquoted value
+		/* Unquoted value is not supported in html language service yet
 		testCompletionFor(`<div><a href=about/|>`, {
 			items: [
 				{ label: 'about.html', resultText: `<div><a href=about/about.html>` }
-			]
-		}, testUri);
-		*/
-	});
-
-	test('Empty Path Value', () => {
-		/*
-		testCompletionFor('<div><a href="|">', {
-			items: [
-				{ label: 'index.html', resultText: '<div><a href="index.html">' },
-				{ label: 'about', resultText: '<div><a href="about/">' }
 			]
 		}, testUri);
 		*/
