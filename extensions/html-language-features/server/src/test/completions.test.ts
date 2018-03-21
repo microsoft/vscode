@@ -132,6 +132,16 @@ suite('HTML Path Completion', () => {
 		}, indexHtmlUri);
 	});
 
+	test('No completion for remote paths', () => {
+		testCompletionFor('<script src="http:">', { items: [] });
+		testCompletionFor('<script src="http:/|">', { items: [] });
+		testCompletionFor('<script src="http://|">', { items: [] });
+		testCompletionFor('<script src="https:|">', { items: [] });
+		testCompletionFor('<script src="https:/|">', { items: [] });
+		testCompletionFor('<script src="https://|">', { items: [] });
+		testCompletionFor('<script src="//|">', { items: [] });
+	});
+
 	test('Relative Path', () => {
 		testCompletionFor('<script src="../|">', {
 			items: [
