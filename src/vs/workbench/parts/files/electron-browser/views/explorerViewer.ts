@@ -86,7 +86,7 @@ export class FileDataSource implements IDataSource {
 
 		// Return early if stat is already resolved
 		if (stat.isDirectoryResolved) {
-			return TPromise.as(stat.children);
+			return TPromise.as(Object.keys(stat.children).map(name => stat.children[name]));
 		}
 
 		// Resolve children and add to fileStat for future lookup
@@ -99,13 +99,13 @@ export class FileDataSource implements IDataSource {
 				const modelDirStat = ExplorerItem.create(dirStat, stat.root);
 
 				// Add children to folder
-				for (let i = 0; i < modelDirStat.children.length; i++) {
-					stat.addChild(modelDirStat.children[i]);
+				for (let childName in modelDirStat.children) {
+					stat.addChild(modelDirStat.children[childName]);
 				}
 
 				stat.isDirectoryResolved = true;
 
-				return stat.children;
+				return Object.keys(stat.children).map(name => stat.children[name]);
 			}, (e: any) => {
 				// Do not show error for roots since we already use an explorer decoration to notify user
 				if (!(stat instanceof ExplorerItem && stat.isRoot)) {
@@ -693,13 +693,13 @@ export class FileFilter implements IFilter {
 		}
 
 		// Workaround for O(N^2) complexity (https://github.com/Microsoft/vscode/issues/9962)
-		let siblings = stat.parent && stat.parent.children && stat.parent.children;
-		if (siblings && siblings.length > FileFilter.MAX_SIBLINGS_FILTER_THRESHOLD) {
-			siblings = void 0;
+		let siblingNames = stat.parent && Object.keys(stat.parent.children);
+		if (siblingNames && siblingNames.length > FileFilter.MAX_SIBLINGS_FILTER_THRESHOLD) {
+			siblingNames = void 0;
 		}
 
 		// Hide those that match Hidden Patterns
-		const siblingsFn = () => siblings && siblings.map(c => c.name);
+		const siblingsFn = () => siblingNames;
 		const expression = this.hiddenExpressionPerRoot.get(stat.root.resource.toString()) || Object.create(null);
 		if (glob.match(expression, paths.normalize(relative(stat.root.resource.fsPath, stat.resource.fsPath), true), siblingsFn)) {
 			return false; // hidden through pattern

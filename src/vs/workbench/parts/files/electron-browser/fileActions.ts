@@ -59,9 +59,9 @@ export interface IEditableData {
 }
 
 export interface IFileViewletState {
-	getEditableData(stat: IFileStat): IEditableData;
-	setEditable(stat: IFileStat, editableData: IEditableData): void;
-	clearEditable(stat: IFileStat): void;
+	getEditableData(stat: ExplorerItem): IEditableData;
+	setEditable(stat: ExplorerItem, editableData: IEditableData): void;
+	clearEditable(stat: ExplorerItem): void;
 }
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
@@ -158,7 +158,7 @@ class TriggerRenameFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public validateFileName(parent: IFileStat, name: string): string {
+	public validateFileName(parent: ExplorerItem, name: string): string {
 		return this.renameAction.validateFileName(this.element.parent, name);
 	}
 
@@ -172,7 +172,7 @@ class TriggerRenameFileAction extends BaseFileAction {
 			return TPromise.wrapError(new Error('Invalid viewlet state provided to BaseEnableFileRenameAction.'));
 		}
 
-		const stat = <IFileStat>context.stat;
+		const stat = <ExplorerItem>context.stat;
 		if (!stat) {
 			return TPromise.wrapError(new Error('Invalid stat provided to BaseEnableFileRenameAction.'));
 		}
@@ -252,7 +252,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		return promise;
 	}
 
-	public validateFileName(parent: IFileStat, name: string): string {
+	public validateFileName(parent: ExplorerItem, name: string): string {
 		let source = this.element.name;
 		let target = name;
 
@@ -482,7 +482,7 @@ export class GlobalNewUntitledFileAction extends Action {
 /* Create New File/Folder (only used internally by explorerViewer) */
 export abstract class BaseCreateAction extends BaseRenameAction {
 
-	public validateFileName(parent: IFileStat, name: string): string {
+	public validateFileName(parent: ExplorerItem, name: string): string {
 		if (this.element instanceof NewStatPlaceholder) {
 			return validateFileName(parent, name, false);
 		}
@@ -772,14 +772,14 @@ export class ImportFileAction extends BaseFileAction {
 				return this.fileService.resolveFile(targetElement.resource).then((targetStat: IFileStat) => {
 
 					// Check for name collisions
-					const targetNames: { [name: string]: IFileStat } = {};
+					const targetNames = new Set<string>();
 					targetStat.children.forEach((child) => {
-						targetNames[isLinux ? child.name : child.name.toLowerCase()] = child;
+						targetNames.add(isLinux ? child.name : child.name.toLowerCase());
 					});
 
 					let overwritePromise: TPromise<IConfirmationResult> = TPromise.as({ confirmed: true });
 					if (resources.some(resource => {
-						return !!targetNames[isLinux ? paths.basename(resource.fsPath) : paths.basename(resource.fsPath).toLowerCase()];
+						return targetNames.has(isLinux ? paths.basename(resource.fsPath) : paths.basename(resource.fsPath).toLowerCase());
 					})) {
 						const confirm: IConfirmation = {
 							message: nls.localize('confirmOverwrite', "A file or folder with the same name already exists in the destination folder. Do you want to replace it?"),
@@ -1342,7 +1342,7 @@ export class CopyPathAction extends Action {
 }
 
 
-export function validateFileName(parent: IFileStat, name: string, allowOverwriting: boolean = false): string {
+export function validateFileName(parent: ExplorerItem, name: string, allowOverwriting: boolean = false): string {
 
 	// Produce a well formed file name
 	name = getWellFormedFileName(name);
@@ -1389,23 +1389,12 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 	return null;
 }
 
-function alreadyExists(parent: IFileStat, name: string): { exists: boolean, child: IFileStat | undefined } {
-	let duplicateChild: IFileStat;
+function alreadyExists(parent: ExplorerItem, name: string): { exists: boolean, child: ExplorerItem | undefined } {
+	let duplicateChild: ExplorerItem;
 
 	if (parent.children) {
-		let exists: boolean = parent.children.some((c) => {
-			let found: boolean;
-			if (isLinux) {
-				found = c.name === name;
-			} else {
-				found = c.name.toLowerCase() === name.toLowerCase();
-			}
-			if (found) {
-				duplicateChild = c;
-			}
-			return found;
-		});
-		return { exists, child: duplicateChild };
+		duplicateChild = parent.children[isLinux ? name : name.toLowerCase()];
+		return { exists: !!duplicateChild, child: duplicateChild };
 	}
 
 	return { exists: false, child: undefined };
@@ -1527,7 +1516,7 @@ function getContext(listWidget: ListWidget, viewletService: IViewletService): IE
 
 // TODO@isidor these commands are calling into actions due to the complex inheritance action structure.
 // It should be the other way around, that actions call into commands.
-function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: IConstructorSignature2<ITree, IFileStat, Action>): TPromise<any> {
+function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: IConstructorSignature2<ITree, ExplorerItem, Action>): TPromise<any> {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const viewletService = accessor.get(IViewletService);

@@ -17,8 +17,7 @@ import { IEditorGroup, toResource, IEditorIdentifier } from 'vs/workbench/common
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
-import { compareIgnoreCase, compare, startsWith } from 'vs/base/common/strings';
-import { binarySearch } from 'vs/base/common/arrays';
+import { startsWith } from 'vs/base/common/strings';
 
 export class Model {
 
@@ -78,7 +77,7 @@ export class ExplorerItem {
 	public etag: string;
 	private _isDirectory: boolean;
 	private _isSymbolicLink: boolean;
-	public children: ExplorerItem[];
+	public children: { [name: string]: ExplorerItem };
 	public parent: ExplorerItem;
 
 	public isDirectoryResolved: boolean;
@@ -110,7 +109,7 @@ export class ExplorerItem {
 		if (value !== this._isDirectory) {
 			this._isDirectory = value;
 			if (this._isDirectory) {
-				this.children = [];
+				this.children = Object.create(null);
 			} else {
 				this.children = undefined;
 			}
@@ -148,7 +147,7 @@ export class ExplorerItem {
 				for (let i = 0, len = raw.children.length; i < len; i++) {
 					const child = ExplorerItem.create(raw.children[i], root, resolveTo);
 					child.parent = stat;
-					stat.children.push(child);
+					stat.addChild(child);
 				}
 			}
 		}
@@ -185,31 +184,31 @@ export class ExplorerItem {
 			// Map resource => stat
 			const oldLocalChildren = new ResourceMap<ExplorerItem>();
 			if (local.children) {
-				local.children.forEach((localChild: ExplorerItem) => {
-					oldLocalChildren.set(localChild.resource, localChild);
-				});
+				for (let name in local.children) {
+					oldLocalChildren.set(local.children[name].resource, local.children[name]);
+				}
 			}
 
 			// Clear current children
-			local.children = [];
+			local.children = Object.create(null);
 
 			// Merge received children
-			disk.children.forEach((diskChild: ExplorerItem) => {
+			for (let name in disk.children) {
+				const diskChild = disk.children[name];
 				const formerLocalChild = oldLocalChildren.get(diskChild.resource);
-
 				// Existing child: merge
 				if (formerLocalChild) {
 					ExplorerItem.mergeLocalWithDisk(diskChild, formerLocalChild);
 					formerLocalChild.parent = local;
-					local.children.push(formerLocalChild);
+					local.addChild(formerLocalChild);
 				}
 
 				// New child: add
 				else {
 					diskChild.parent = local;
-					local.children.push(diskChild);
+					local.addChild(diskChild);
 				}
-			});
+			}
 		}
 	}
 
@@ -222,19 +221,18 @@ export class ExplorerItem {
 		child.parent = this;
 		child.updateResource(false);
 
-		this.children.push(child);
+		this.children[this.getPlatformAwareName(child.name)] = child;
 	}
 
 	/**
 	 * Removes a child element from this folder.
 	 */
 	public removeChild(child: ExplorerItem): void {
-		for (let i = 0; i < this.children.length; i++) {
-			if (this.children[i].resource.toString() === child.resource.toString()) {
-				this.children.splice(i, 1);
-				break;
-			}
-		}
+		delete this.children[this.getPlatformAwareName(child.name)];
+	}
+
+	private getPlatformAwareName(name: string): string {
+		return isLinux ? name : name.toLowerCase();
 	}
 
 	/**
@@ -262,9 +260,9 @@ export class ExplorerItem {
 
 		if (recursive) {
 			if (this.isDirectory && this.children) {
-				this.children.forEach((child: ExplorerItem) => {
-					child.updateResource(true);
-				});
+				for (let name in this.children) {
+					this.children[name].updateResource(true);
+				}
 			}
 		}
 	}
@@ -273,7 +271,7 @@ export class ExplorerItem {
 	 * Tells this stat that it was renamed. This requires changes to all children of this stat (if any)
 	 * so that the path property can be updated properly.
 	 */
-	public rename(renamedStat: IFileStat): void {
+	public rename(renamedStat: { name: string, mtime: number }): void {
 
 		// Merge a subset of Properties that can change on rename
 		this.name = renamedStat.name;
@@ -310,14 +308,14 @@ export class ExplorerItem {
 
 			let indexOfNextSep = path.indexOf(paths.sep, index);
 			if (indexOfNextSep === -1) {
-				indexOfNextSep = path.length - 1;
+				indexOfNextSep = path.length;
 			}
 
 			const name = path.substring(index, indexOfNextSep);
-			const found = binarySearch(this.children.map(c => c.name), name, (first, second) => isLinux ? compare(first, second) : compareIgnoreCase(first, second));
+			const child = this.children[this.getPlatformAwareName(name)];
 
-			if (found >= 0 && found < this.children.length) {
-				return this.children[found].findByPath(path, indexOfNextSep);
+			if (child) {
+				return child.findByPath(path, indexOfNextSep);
 			}
 		}
 
@@ -370,11 +368,11 @@ export class NewStatPlaceholder extends ExplorerItem {
 		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
 	}
 
-	public rename(renamedStat: NewStatPlaceholder): void {
+	public rename(renamedStat: IFileStat): void {
 		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
 	}
 
-	public find(resource: URI): NewStatPlaceholder {
+	public find(resource: URI): ExplorerItem {
 		return null;
 	}
 
@@ -383,7 +381,7 @@ export class NewStatPlaceholder extends ExplorerItem {
 
 		// Inherit some parent properties to child
 		child.parent = parent;
-		parent.children.push(child);
+		parent.addChild(child);
 
 		return child;
 	}
