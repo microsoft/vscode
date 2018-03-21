@@ -34,7 +34,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	private static readonly ID = 'workbench.component.quickinput';
 	private static readonly MAX_WIDTH = 600;				// Max total width of quick open widget
-	// private static readonly MAX_ITEMS_HEIGHT = 20 * 22;	// Max height of item list below input field
+	// private static readonly MAX_ITEMS_HEIGHT = 20 * 22;	// TODO Max height of item list below input field
 
 	private layoutDimensions: Dimension;
 	private container: HTMLElement;
@@ -145,7 +145,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 		}
 
 		this.inputBox.setValue('');
-		this.inputBox.setPlaceholder(options.placeHolder || '');
+		// TODO: Localize shortcut.
+		this.inputBox.setPlaceholder(options.placeHolder ? localize('quickInput.ctrlSpaceToSelectWithPlaceholder', "{1} ({0} to toggle)", 'Cmd+Space', options.placeHolder) : localize('quickInput.ctrlSpaceToSelect', "{0} to toggle", 'Cmd+Space'));
 		// TODO: Progress indication.
 		this.checkboxList.setElements(await picks);
 

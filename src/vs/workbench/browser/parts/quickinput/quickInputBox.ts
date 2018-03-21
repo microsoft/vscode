@@ -16,7 +16,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.$;
 
-const DEFAULT_INPUT_ARIA_LABEL = localize('quickInputBoxAriaLabel', "Type to narrow down results.");
+const DEFAULT_INPUT_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
 
 export class QuickInputBox {
 
