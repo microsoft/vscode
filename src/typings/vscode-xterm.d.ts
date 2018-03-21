@@ -619,10 +619,10 @@ declare module 'vscode-xterm' {
 declare module 'vscode-xterm' {
 	interface Terminal {
 		buffer: {
-			/**
-			 * The viewport position.
-			 */
+			y: number;
+			ybase: number;
 			ydisp: number;
+			x: number;
 		};
 
 		/**

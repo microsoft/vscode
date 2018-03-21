@@ -40,6 +40,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
+import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -103,6 +104,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
+	private _commandTracker: TerminalCommandTracker;
 
 	public disableLayout: boolean;
 	public get id(): number { return this._id; }
@@ -115,6 +117,7 @@ export class TerminalInstance implements ITerminalInstance {
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 	public get isTitleSetByProcess(): boolean { return !!this._messageTitleListener; }
 	public get shellLaunchConfig(): IShellLaunchConfig { return Object.freeze(this._shellLaunchConfig); }
+	public get commandTracker(): TerminalCommandTracker { return this._commandTracker; }
 
 	public constructor(
 		private _terminalFocusContextKey: IContextKey<boolean>,
@@ -330,6 +333,7 @@ export class TerminalInstance implements ITerminalInstance {
 			return false;
 		});
 		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._initialCwd);
+		this._commandTracker = new TerminalCommandTracker(this._xterm);
 		this._instanceDisposables.push(this._themeService.onThemeChange(theme => this._updateTheme(theme)));
 	}
 
