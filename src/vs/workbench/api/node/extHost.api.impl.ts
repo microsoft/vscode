@@ -161,10 +161,10 @@ export function createApiFactory(
 		// namespace: commands
 		const commands: typeof vscode.commands = {
 			registerCommand(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
-				return extHostCommands.registerCommand(id, command, thisArgs);
+				return extHostCommands.registerCommand(true, id, command, thisArgs);
 			},
 			registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args: any[]) => void, thisArg?: any): vscode.Disposable {
-				return extHostCommands.registerCommand(id, (...args: any[]): any => {
+				return extHostCommands.registerCommand(true, id, (...args: any[]): any => {
 					let activeTextEditor = extHostEditors.getActiveTextEditor();
 					if (!activeTextEditor) {
 						console.warn('Cannot execute ' + id + ' because there is no active text editor.');
@@ -185,7 +185,7 @@ export function createApiFactory(
 				});
 			},
 			registerDiffInformationCommand: proposedApiFunction(extension, (id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable => {
-				return extHostCommands.registerCommand(id, async (...args: any[]) => {
+				return extHostCommands.registerCommand(true, id, async (...args: any[]) => {
 					let activeTextEditor = extHostEditors.getActiveTextEditor();
 					if (!activeTextEditor) {
 						console.warn('Cannot execute ' + id + ' because there is no active text editor.');
