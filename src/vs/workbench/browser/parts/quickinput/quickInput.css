@@ -22,7 +22,7 @@
 }
 
 .quick-input-box .monaco-inputbox > .wrapper > .input {
-	padding-left: 14px;
+	padding-left: 15px;
 }
 
 .quick-input-action {
@@ -37,4 +37,47 @@
 
 .quick-input-checkbox-list {
 	margin-left: 3px;
+	line-height: 22px;
+}
+
+.quick-input-checkbox-list .quick-input-checkbox-list-entry {
+	overflow: hidden;
+	display: flex;
+	height: 100%;
+}
+
+.quick-input-checkbox-list .quick-input-checkbox-list-label {
+	overflow: hidden;
+	display: flex;
+	height: 100%;
+	flex: 1;
+}
+
+.quick-input-checkbox-list .quick-input-checkbox-list-checkbox {
+	align-self: center;
+	/* margin-top: 5px; */
+}
+
+.quick-input-checkbox-list .quick-input-checkbox-list-rows {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	flex: 1;
+	margin-left: 1px;
+}
+
+.quick-input-checkbox-list .quick-input-checkbox-list-rows > .quick-input-checkbox-list-row {
+	display: flex;
+	align-items: center;
+}
+
+.quick-input-checkbox-list .quick-input-checkbox-list-rows .monaco-highlighted-label span {
+	opacity: 1;
+}
+
+.quick-input-checkbox-list .quick-input-checkbox-list-label-meta {
+	opacity: 0.7;
+	line-height: normal;
 }

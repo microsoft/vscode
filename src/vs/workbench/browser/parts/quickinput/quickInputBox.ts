@@ -46,8 +46,12 @@ export class QuickInputBox {
 		});
 	}
 
-	onInput(handler: (event: string) => void): IDisposable {
+	onDidChange(handler: (event: string) => void): IDisposable {
 		return this.inputBox.onDidChange(handler);
+	}
+
+	setValue(value: string) {
+		this.inputBox.value = value;
 	}
 
 	setPlaceholder(placeholder: string) {
