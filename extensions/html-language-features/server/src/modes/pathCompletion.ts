@@ -27,7 +27,8 @@ export function getPathCompletionParticipant(
 				}
 				const workspaceRoot = resolveWorkspaceRoot(document, workspaceFolders);
 
-				const suggestions = providePathSuggestions(value, range, URI.parse(document.uri).fsPath, workspaceRoot);
+				const paths = providePaths(value, URI.parse(document.uri).fsPath, workspaceRoot);
+				const suggestions = paths.map(p => pathToSuggestion(p, value, range));
 				result.items = [...suggestions, ...result.items];
 			}
 		}
@@ -51,19 +52,20 @@ function shouldDoPathCompletion(tag: string, attr: string, value: string): boole
 }
 
 export function providePathSuggestions(value: string, range: Range, activeDocFsPath: string, root?: string): CompletionItem[] {
+	const paths = providePaths(value, activeDocFsPath, root);
+	const suggestions = paths.map(p => pathToSuggestion(p, value, range));
+	return suggestions;
+}
+
+/**
+ * Get a list of path suggestions. Folder suggestions are suffixed with a slash.
+ */
+export function providePaths(value: string, activeDocFsPath: string, root?: string): string[] {
 	if (startsWith(value, '/') && !root) {
 		return [];
 	}
 
-	let replaceRange: Range;
 	const lastIndexOfSlash = value.lastIndexOf('/');
-	if (lastIndexOfSlash === -1) {
-		replaceRange = getFullReplaceRange(range);
-	} else {
-		const valueAfterLastSlash = value.slice(lastIndexOfSlash + 1);
-		replaceRange = getReplaceRange(range, valueAfterLastSlash);
-	}
-
 	let parentDir: string;
 	if (lastIndexOfSlash === -1) {
 		parentDir = path.resolve(root);
@@ -77,32 +79,45 @@ export function providePathSuggestions(value: string, range: Range, activeDocFsP
 
 	try {
 		return fs.readdirSync(parentDir).map(f => {
-			if (isDir(path.resolve(parentDir, f))) {
-				return {
-					label: f + '/',
-					kind: CompletionItemKind.Folder,
-					textEdit: TextEdit.replace(replaceRange, f + '/'),
-					command: {
-						title: 'Suggest',
-						command: 'editor.action.triggerSuggest'
-					}
-				};
-			} else {
-				return {
-					label: f,
-					kind: CompletionItemKind.File,
-					textEdit: TextEdit.replace(replaceRange, f)
-				};
-			}
+			return fs.statSync(path.resolve(parentDir, f)).isDirectory()
+				? f + '/'
+				: f;
 		});
 	} catch (e) {
 		return [];
 	}
 }
 
-const isDir = (p: string) => {
-	return fs.statSync(p).isDirectory();
-};
+export function pathToSuggestion(p: string, value: string, range: Range): CompletionItem {
+	const isDir = p[p.length - 1] === '/';
+
+	let replaceRange: Range;
+	const lastIndexOfSlash = value.lastIndexOf('/');
+	if (lastIndexOfSlash === -1) {
+		replaceRange = getFullReplaceRange(range);
+	} else {
+		const valueAfterLastSlash = value.slice(lastIndexOfSlash + 1);
+		replaceRange = getReplaceRange(range, valueAfterLastSlash);
+	}
+
+	if (isDir) {
+		return {
+			label: p,
+			kind: CompletionItemKind.Folder,
+			textEdit: TextEdit.replace(replaceRange, p),
+			command: {
+				title: 'Suggest',
+				command: 'editor.action.triggerSuggest'
+			}
+		};
+	} else {
+		return {
+			label: p,
+			kind: CompletionItemKind.File,
+			textEdit: TextEdit.replace(replaceRange, p)
+		};
+	}
+}
 
 function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: WorkspaceFolder[]): string | undefined {
 	for (let i = 0; i < workspaceFolders.length; i++) {
