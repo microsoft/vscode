@@ -170,6 +170,7 @@ export class QuickInputCheckboxList {
 			selected: !!item.selected
 		}));
 		this.list.splice(0, this.list.length, this.elements);
+		this.list.setSelection([]);
 		this.list.focusFirst();
 	}
 
@@ -230,8 +231,9 @@ export class QuickInputCheckboxList {
 		});
 
 		this.list.splice(0, this.list.length, this.elements.filter(element => !element.hidden));
-		this.list.layout();
+		this.list.setSelection([]);
 		this.list.focusFirst();
+		this.list.layout();
 	}
 
 	toggleCheckbox() {
