@@ -852,9 +852,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	readonly onContextMenu: Event<IListContextMenuEvent<T>> = Event.None;
 
 	private _onOpen = new Emitter<IListOpenEvent<T>>();
-	@memoize get onOpen(): Event<IListOpenEvent<T>> {
-		return this._onOpen.event;
-	}
+	readonly onOpen: Event<IListOpenEvent<T>> = this._onOpen.event;
 
 	private _onPin = new Emitter<number[]>();
 	@memoize get onPin(): Event<IListEvent<T>> {
