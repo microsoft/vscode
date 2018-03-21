@@ -38,14 +38,22 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		});
 	}
 
-	registerTreeDataProvider<T>(id: string, dataProvider: vscode.TreeDataProvider<T>, proposedApiFunction: <U>(fn: U) => U): vscode.TreeView<T> {
-		const treeView = this.createExtHostTreeViewer(id, dataProvider);
+	registerTreeDataProvider<T>(id: string, treeDataProvider: vscode.TreeDataProvider<T>): vscode.Disposable {
+		const treeView = this.createTreeView(id, { treeDataProvider });
+		return { dispose: () => treeView.dispose() };
+	}
+
+	createTreeView<T>(viewId: string, options: { treeDataProvider: vscode.TreeDataProvider<T> }): vscode.TreeView<T> {
+		if (!options || !options.treeDataProvider) {
+			throw new Error('Options with treeDataProvider is mandatory');
+		}
+		const treeView = this.createExtHostTreeViewer(viewId, options.treeDataProvider);
 		return {
-			reveal: proposedApiFunction((element: T, options?: { select?: boolean }): Thenable<void> => {
+			reveal: (element: T, options?: { select?: boolean }): Thenable<void> => {
 				return treeView.reveal(element, options);
-			}),
+			},
 			dispose: () => {
-				this.treeViews.delete(id);
+				this.treeViews.delete(viewId);
 				treeView.dispose();
 			}
 		};
