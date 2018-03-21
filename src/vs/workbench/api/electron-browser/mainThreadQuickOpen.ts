@@ -17,6 +17,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	private _proxy: ExtHostQuickOpenShape;
 	private _quickOpenService: IQuickOpenService;
+	private _quickInputService: IQuickInputService;
 	private _doSetItems: (items: MyQuickPickItems[]) => any;
 	private _doSetError: (error: Error) => any;
 	private _contents: TPromise<MyQuickPickItems[]>;
@@ -25,10 +26,11 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IQuickInputService private _quickInputService: IQuickInputService
+		@IQuickInputService quickInputService: IQuickInputService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostQuickOpen);
 		this._quickOpenService = quickOpenService;
+		this._quickInputService = quickInputService;
 	}
 
 	public dispose(): void {

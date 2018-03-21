@@ -23,6 +23,8 @@ import { QuickInputBox } from './quickInputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
 
 const $ = dom.$;
 
@@ -42,6 +44,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private resolve: (value?: object[] | Thenable<object[]>) => void;
 
 	constructor(
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IThemeService themeService: IThemeService
@@ -63,7 +66,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.inputBox = new QuickInputBox(headerContainer);
 		this.toUnbind.push(this.inputBox);
 		this.inputBox.style(this.themeService.getTheme());
-		this.inputBox.onInput(value => {
+		this.inputBox.onDidChange(value => {
 			this.checkboxList.filter(value);
 		});
 		this.toUnbind.push(this.inputBox.onKeyDown(event => {
@@ -101,7 +104,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 					return;
 				}
 			}
-			this.close(false);
+			if (this.configurationService.getValue(CLOSE_ON_FOCUS_LOST_CONFIG)) {
+				this.close(false);
+			}
 		}));
 		this.toUnbind.push(dom.addDisposableListener(this.container, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
@@ -130,9 +135,10 @@ export class QuickInputService extends Component implements IQuickInputService {
 	async pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IPickOptions, token?: CancellationToken): TPromise<T[]> {
 		this.create();
 		if (this.resolve) {
-			this.resolve(undefined);
+			this.resolve();
 		}
 
+		this.inputBox.setValue('');
 		this.inputBox.setPlaceholder(options.placeHolder || '');
 		// TODO: Progress indication.
 		this.checkboxList.setElements(await picks);
