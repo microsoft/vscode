@@ -40,6 +40,11 @@
 	line-height: 22px;
 }
 
+.quick-input-checkbox-list .monaco-list {
+	overflow: hidden;
+	max-height: calc(20 * 22px);
+}
+
 .quick-input-checkbox-list .quick-input-checkbox-list-entry {
 	overflow: hidden;
 	display: flex;
@@ -55,6 +60,7 @@
 
 .quick-input-checkbox-list .quick-input-checkbox-list-checkbox {
 	align-self: center;
+	/* TODO */
 	/* margin-top: 5px; */
 }
 
