@@ -302,17 +302,18 @@ export class FileStat implements IFileStat {
 		if (paths.isEqual(this.resource.path, path, !isLinux)) {
 			return this;
 		}
-		while (index < path.length && path[index] === paths.sep) {
-			index++;
-		}
 
-		let indexOfNextSep = path.indexOf(paths.sep, index);
-		if (indexOfNextSep === -1) {
-			indexOfNextSep = path.length - 1;
-		}
-
-		const name = path.substring(index, indexOfNextSep);
 		if (this.children) {
+			while (index < path.length && path[index] === paths.sep) {
+				index++;
+			}
+
+			let indexOfNextSep = path.indexOf(paths.sep, index);
+			if (indexOfNextSep === -1) {
+				indexOfNextSep = path.length - 1;
+			}
+
+			const name = path.substring(index, indexOfNextSep);
 			const found = binarySearch(this.children.map(c => c.name), name, (first, second) => isLinux ? compare(first, second) : compareIgnoreCase(first, second));
 
 			if (found >= 0 && found < this.children.length) {
