@@ -28,7 +28,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground } from 'vs/editor/common/view/editorColorRegistry';
+import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground, editorHintForeground, editorHintBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
@@ -568,5 +568,14 @@ registerThemingParticipant((theme, collector) => {
 	let infoForeground = theme.getColor(editorInfoForeground);
 	if (infoForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
+	}
+
+	let hintBorderColor = theme.getColor(editorHintBorder);
+	if (hintBorderColor) {
+		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { border-bottom: 4px dotted no-repeat ${hintBorderColor}; }`);
+	}
+	let hintForeground = theme.getColor(editorHintForeground);
+	if (hintForeground) {
+		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(hintForeground)}") no-repeat bottom left; }`);
 	}
 });

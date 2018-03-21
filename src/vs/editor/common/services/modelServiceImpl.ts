@@ -120,7 +120,7 @@ class ModelMarkerHandler {
 
 		switch (marker.severity) {
 			case MarkerSeverity.Hint:
-				// do something
+				className = ClassName.EditorHintDecoration;
 				break;
 			case MarkerSeverity.Warning:
 				className = ClassName.EditorWarningDecoration;
