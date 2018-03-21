@@ -6,14 +6,14 @@
 import { WorkspaceEdit, workspace } from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { createWorkspaceEditFromFileCodeEdits } from './workspaceEdit';
+import * as typeConverters from './typeConverters';
 
 export function getEditForCodeAction(
 	client: ITypeScriptServiceClient,
 	action: Proto.CodeAction
 ): WorkspaceEdit | undefined {
 	return action.changes && action.changes.length
-		? createWorkspaceEditFromFileCodeEdits(client, action.changes)
+		? typeConverters.WorkspaceEdit.fromFromFileCodeEdits(client, action.changes)
 		: undefined;
 }
 

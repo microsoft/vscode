@@ -214,7 +214,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 	private createSearchBuiltInExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
 			id: 'extensions.builtInExtensionsList',
-			name: localize('builtInExtensions', "Built-In"),
+			name: localize('builtInExtensions', "Built-In Extensions"),
 			location: ViewLocation.Extensions,
 			ctor: BuiltInExtensionsView,
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),

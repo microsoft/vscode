@@ -352,8 +352,11 @@ export class LifecycleService implements ILifecycleService {
 
 				// Calling app.quit() will trigger the close handlers of each opened window
 				// and only if no window vetoed the shutdown, we will get the will-quit event
+				this.logService.trace('Lifecycle#quit() - calling app.quit()');
 				app.quit();
 			});
+		} else {
+			this.logService.trace('Lifecycle#quit() - a pending quit was found');
 		}
 
 		return this.pendingQuitPromise;

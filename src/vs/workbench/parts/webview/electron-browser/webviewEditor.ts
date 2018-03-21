@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, } from 'vs/base/common/lifecycle';
 import { EditorOptions } from 'vs/workbench/common/editor';
@@ -143,7 +141,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 			return undefined;
 		}
 
-		if (this.input && this.input.getResource().fsPath !== input.getResource().fsPath) {
+		if (this.input) {
 			(this.input as WebviewInput).releaseWebview(this);
 			this._webview = undefined;
 			this.webviewContent = undefined;
@@ -199,10 +197,12 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this._onDidFocusWebview.fire();
 		});
 
-		this._contextKeyService = this._contextKeyService.createScoped(this.webviewContent);
-		this.contextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS.bindTo(this._contextKeyService);
-		this.findInputFocusContextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
-		this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
+		if (input.options.enableFindWidget) {
+			this._contextKeyService = this._contextKeyService.createScoped(this.webviewContent);
+			this.contextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS.bindTo(this._contextKeyService);
+			this.findInputFocusContextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
+			this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
+		}
 
 		this._webview = new Webview(
 			this._partService.getContainer(Parts.EDITOR_PART),

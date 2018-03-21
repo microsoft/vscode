@@ -8,7 +8,7 @@ import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
 import Uri from 'vscode-uri';
-import { TextDocument, CompletionList, CompletionItemKind, } from 'vscode-languageserver-types';
+import { TextDocument, CompletionList, CompletionItemKind } from 'vscode-languageserver-types';
 import { getLanguageModes } from '../modes/languageModes';
 import { getPathCompletionParticipant } from '../modes/pathCompletion';
 import { WorkspaceFolder } from 'vscode-languageserver';
@@ -22,7 +22,7 @@ export interface ItemDescription {
 }
 
 
-suite('Completions', () => {
+suite('HTML Completions', () => {
 
 	let assertCompletion = function (completions: CompletionList, expected: ItemDescription, document: TextDocument, offset: number) {
 		let matches = completions.items.filter(completion => {

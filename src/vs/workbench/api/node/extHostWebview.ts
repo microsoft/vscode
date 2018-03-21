@@ -11,13 +11,14 @@ import { Position } from 'vs/platform/editor/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export class ExtHostWebview implements vscode.Webview {
-	public readonly editorType = 'webview';
 
+	private readonly _viewType: string;
 	private _title: string;
 	private _html: string;
 	private _options: vscode.WebviewOptions;
 	private _isDisposed: boolean = false;
 	private _viewColumn: vscode.ViewColumn;
+	private _active: boolean;
 
 	public readonly onMessageEmitter = new Emitter<any>();
 	public readonly onDidReceiveMessage: Event<any> = this.onMessageEmitter.event;
@@ -25,16 +26,17 @@ export class ExtHostWebview implements vscode.Webview {
 	public readonly onDisposeEmitter = new Emitter<void>();
 	public readonly onDidDispose: Event<void> = this.onDisposeEmitter.event;
 
-	public readonly onDidChangeViewColumnEmitter = new Emitter<vscode.ViewColumn>();
-	public readonly onDidChangeViewColumn: Event<vscode.ViewColumn> = this.onDidChangeViewColumnEmitter.event;
+	public readonly onDidChangeViewStateEmitter = new Emitter<vscode.WebViewOnDidChangeViewStateEvent>();
+	public readonly onDidChangeViewState: Event<vscode.WebViewOnDidChangeViewStateEvent> = this.onDidChangeViewStateEmitter.event;
 
 	constructor(
 		private readonly _handle: WebviewHandle,
 		private readonly _proxy: MainThreadWebviewsShape,
-		private readonly _uri: vscode.Uri,
+		viewType: string,
 		viewColumn: vscode.ViewColumn,
 		options: vscode.WebviewOptions
 	) {
+		this._viewType = viewType;
 		this._viewColumn = viewColumn;
 		this._options = options;
 	}
@@ -49,12 +51,12 @@ export class ExtHostWebview implements vscode.Webview {
 
 		this.onDisposeEmitter.dispose();
 		this.onMessageEmitter.dispose();
-		this.onDidChangeViewColumnEmitter.dispose();
+		this.onDidChangeViewStateEmitter.dispose();
 	}
 
-	get uri(): vscode.Uri {
+	get viewType(): string {
 		this.assertNotDisposed();
-		return this._uri;
+		return this._viewType;
 	}
 
 	get title(): string {
@@ -93,9 +95,19 @@ export class ExtHostWebview implements vscode.Webview {
 		return this._viewColumn;
 	}
 
+	get active(): boolean {
+		this.assertNotDisposed();
+		return this._active;
+	}
+
 	set viewColumn(value: vscode.ViewColumn) {
 		this.assertNotDisposed();
 		this._viewColumn = value;
+	}
+
+	set active(value: boolean) {
+		this.assertNotDisposed();
+		this._active = value;
 	}
 
 	public postMessage(message: any): Thenable<boolean> {
@@ -103,9 +115,9 @@ export class ExtHostWebview implements vscode.Webview {
 		return this._proxy.$sendMessage(this._handle, message);
 	}
 
-	public show(viewColumn: vscode.ViewColumn): void {
+	public reveal(viewColumn: vscode.ViewColumn): void {
 		this.assertNotDisposed();
-		this._proxy.$show(this._handle, typeConverters.fromViewColumn(viewColumn));
+		this._proxy.$reveal(this._handle, typeConverters.fromViewColumn(viewColumn));
 	}
 
 	private assertNotDisposed() {
@@ -116,11 +128,13 @@ export class ExtHostWebview implements vscode.Webview {
 }
 
 export class ExtHostWebviews implements ExtHostWebviewsShape {
-	private static handlePool = 0;
+	private static handlePool = 1;
 
 	private readonly _proxy: MainThreadWebviewsShape;
 
 	private readonly _webviews = new Map<WebviewHandle, ExtHostWebview>();
+
+	private _activeWebview: ExtHostWebview | undefined;
 
 	constructor(
 		mainContext: IMainContext
@@ -129,16 +143,16 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	}
 
 	createWebview(
-		uri: vscode.Uri,
+		viewType: string,
 		title: string,
 		viewColumn: vscode.ViewColumn,
 		options: vscode.WebviewOptions,
 		extensionFolderPath: string
 	): vscode.Webview {
 		const handle = ExtHostWebviews.handlePool++;
-		this._proxy.$createWebview(handle, uri, title, typeConverters.fromViewColumn(viewColumn), options, extensionFolderPath);
+		this._proxy.$createWebview(handle, viewType, title, typeConverters.fromViewColumn(viewColumn), options, extensionFolderPath);
 
-		const webview = new ExtHostWebview(handle, this._proxy, uri, viewColumn, options);
+		const webview = new ExtHostWebview(handle, this._proxy, viewType, viewColumn, options);
 		this._webviews.set(handle, webview);
 		return webview;
 	}
@@ -151,7 +165,22 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	}
 
 	$onDidChangeActiveWeview(handle: WebviewHandle | undefined): void {
-		this._onDidChangeActiveWebview.fire(this.getWebview(handle));
+		if (handle) {
+			const webview = this.getWebview(handle);
+			if (webview) {
+				if (webview !== this._activeWebview) {
+					this._activeWebview = webview;
+					webview.active = true;
+					webview.onDidChangeViewStateEmitter.fire({ viewColumn: webview.viewColumn, active: true });
+				}
+			}
+		} else {
+			if (this._activeWebview) {
+				this._activeWebview.active = false;
+				this._activeWebview.onDidChangeViewStateEmitter.fire({ viewColumn: this._activeWebview.viewColumn, active: false });
+				this._activeWebview = undefined;
+			}
+		}
 	}
 
 	$onDidDisposeWeview(handle: WebviewHandle): Thenable<void> {
@@ -159,6 +188,9 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		if (webview) {
 			webview.onDisposeEmitter.fire();
 			this._webviews.delete(handle);
+			if (this._activeWebview === webview) {
+				this._activeWebview = undefined;
+			}
 		}
 		return TPromise.as(void 0);
 	}
@@ -169,7 +201,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 			const newViewColumn = typeConverters.toViewColumn(newPosition);
 			if (webview.viewColumn !== newViewColumn) {
 				webview.viewColumn = newViewColumn;
-				webview.onDidChangeViewColumnEmitter.fire(newViewColumn);
+				webview.onDidChangeViewStateEmitter.fire({ viewColumn: newViewColumn, active: webview.active });
 			}
 		}
 	}

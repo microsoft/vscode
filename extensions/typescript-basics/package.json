@@ -46,7 +46,8 @@
         "tokenTypes": {
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template.ts": "other",
-          "entity.name.function.tagged-template.tsx": "other"
+          "entity.name.function.tagged-template.tsx": "other",
+          "meta.import string.quoted": "other"
         }
       },
       {
@@ -62,7 +63,8 @@
         "tokenTypes": {
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template.ts": "other",
-          "entity.name.function.tagged-template.tsx": "other"
+          "entity.name.function.tagged-template.tsx": "other",
+          "meta.import string.quoted": "other"
         }
       }
     ],

@@ -75,8 +75,8 @@ suite('ExtHostTreeView', function () {
 		testObject = new ExtHostTreeViews(target, new ExtHostCommands(rpcProtocol, new ExtHostHeapService(), new NullLogService()));
 		onDidChangeTreeNode = new Emitter<{ key: string }>();
 		onDidChangeTreeNodeWithId = new Emitter<{ key: string }>();
-		testObject.registerTreeDataProvider('testNodeTreeProvider', aNodeTreeDataProvider(), (fn) => fn);
-		testObject.registerTreeDataProvider('testNodeWithIdTreeProvider', aNodeWithIdTreeDataProvider(), (fn) => fn);
+		testObject.createTreeView('testNodeTreeProvider', { treeDataProvider: aNodeTreeDataProvider() });
+		testObject.createTreeView('testNodeWithIdTreeProvider', { treeDataProvider: aNodeWithIdTreeDataProvider() });
 
 		testObject.$getChildren('testNodeTreeProvider').then(elements => {
 			for (const element of elements) {
@@ -405,14 +405,14 @@ suite('ExtHostTreeView', function () {
 	});
 
 	test('reveal will throw an error if getParent is not implemented', () => {
-		const treeView = testObject.registerTreeDataProvider('treeDataProvider', aNodeTreeDataProvider(), (fn) => fn);
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aNodeTreeDataProvider() });
 		return treeView.reveal({ key: 'a' })
 			.then(() => assert.fail('Reveal should throw an error as getParent is not implemented'), () => null);
 	});
 
 	test('reveal will return empty array for root element', () => {
 		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.registerTreeDataProvider('treeDataProvider', aCompleteNodeTreeDataProvider(), (fn) => fn);
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() });
 		return treeView.reveal({ key: 'a' })
 			.then(() => {
 				assert.ok(revealTarget.calledOnce);
@@ -425,7 +425,7 @@ suite('ExtHostTreeView', function () {
 
 	test('reveal will return parents array for an element', () => {
 		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.registerTreeDataProvider('treeDataProvider', aCompleteNodeTreeDataProvider(), (fn) => fn);
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() });
 		return treeView.reveal({ key: 'aa' })
 			.then(() => {
 				assert.ok(revealTarget.calledOnce);
@@ -445,7 +445,7 @@ suite('ExtHostTreeView', function () {
 			}
 		};
 		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.registerTreeDataProvider('treeDataProvider', aCompleteNodeTreeDataProvider(), (fn) => fn);
+		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() });
 		return treeView.reveal({ key: 'bac' }, { select: false })
 			.then(() => {
 				assert.ok(revealTarget.calledOnce);

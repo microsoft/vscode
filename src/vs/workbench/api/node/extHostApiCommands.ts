@@ -6,7 +6,6 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as Objects from 'vs/base/common/objects';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
@@ -18,22 +17,21 @@ import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures';
-import * as TaskSystem from 'vs/workbench/parts/tasks/common/tasks';
-import { ExtHostWorkspace } from './extHostWorkspace';
+import { ExtHostTask } from './extHostTask';
 
 export class ExtHostApiCommands {
 
-	static register(commands: ExtHostCommands, workspace: ExtHostWorkspace) {
+	static register(commands: ExtHostCommands, workspace: ExtHostTask) {
 		return new ExtHostApiCommands(commands, workspace).registerCommands();
 	}
 
 	private _commands: ExtHostCommands;
-	private _workspace: ExtHostWorkspace;
+	private _tasks: ExtHostTask;
 	private _disposables: IDisposable[] = [];
 
-	private constructor(commands: ExtHostCommands, workspace: ExtHostWorkspace) {
+	private constructor(commands: ExtHostCommands, task: ExtHostTask) {
 		this._commands = commands;
-		this._workspace = workspace;
+		this._tasks = task;
 	}
 
 	registerCommands() {
@@ -476,29 +474,8 @@ export class ExtHostApiCommands {
 			.then(tryMapWith(typeConverters.DocumentLink.to));
 	}
 
-	private _executeTaskProvider(): Thenable<vscode.TaskItem[]> {
-		return this._commands.executeCommand<TaskSystem.TaskItemTransfer[]>('_executeTaskProvider').then<vscode.TaskItem[]>((values) => {
-			let workspace = this._workspace;
-			return values.map(handle => {
-				let definition: vscode.TaskDefinition = Objects.assign(Object.create(null), handle.definition);
-				delete definition._key;
-				let uri = URI.revive(handle.workspaceFolderUri);
-				return new class {
-					get id(): string {
-						return handle.id;
-					}
-					get label(): string {
-						return handle.label;
-					}
-					get definition(): vscode.TaskDefinition {
-						return definition;
-					}
-					get workspaceFolder(): vscode.WorkspaceFolder {
-						return uri ? workspace.resolveWorkspaceFolder(uri) : undefined;
-					}
-				};
-			});
-		});
+	private _executeTaskProvider(): Thenable<vscode.Task[]> {
+		return this._tasks.executeTaskProvider();
 	}
 }
 

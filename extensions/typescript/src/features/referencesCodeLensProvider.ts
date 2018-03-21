@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeLens, CancellationToken, TextDocument, Range, Location, workspace } from 'vscode';
+import { CodeLens, CancellationToken, TextDocument, Range, workspace } from 'vscode';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 
 import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens, CachedNavTreeResponse } from './baseCodeLensProvider';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
+import * as typeConverters from '../utils/typeConverters';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -37,7 +37,7 @@ export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBase
 
 	public resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
-		const args = vsPositionToTsFileLocation(codeLens.file, codeLens.range.start);
+		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
 		return this.client.execute('references', args, token).then(response => {
 			if (!response || !response.body) {
 				throw codeLens;
@@ -45,7 +45,7 @@ export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBase
 
 			const locations = response.body.refs
 				.map(reference =>
-					new Location(this.client.asUrl(reference.file), tsTextSpanToVsRange(reference)))
+					typeConverters.Location.fromTextSpan(this.client.asUrl(reference.file), reference))
 				.filter(location =>
 					// Exclude original definition from references
 					!(location.uri.toString() === codeLens.document.toString() &&

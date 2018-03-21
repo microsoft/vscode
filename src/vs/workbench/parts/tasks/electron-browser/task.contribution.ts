@@ -74,7 +74,7 @@ import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, T
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskIdentifier, TaskSorter, TaskItemTransfer
+	TaskIdentifier, TaskSorter, TaskItem
 } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, ITaskProvider, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
@@ -582,23 +582,12 @@ class TaskService implements ITaskService {
 
 		CommandsRegistry.registerCommand('_executeTaskProvider', (accessor, args) => {
 			return this.tasks().then((tasks) => {
-				let result: TaskItemTransfer[] = [];
+				let result: TaskItem[] = [];
 				for (let task of tasks) {
-					let folder: IWorkspaceFolder = Task.getWorkspaceFolder(task);
-					let folderUri = folder ? folder.uri : undefined;
-					let definition: TaskIdentifier;
-					if (ContributedTask.is(task)) {
-						definition = task.defines;
-					} else if (CustomTask.is(task) && task.command !== void 0) {
-						definition = CustomTask.getDefinition(task);
+					let item = Task.getTaskItem(task);
+					if (item) {
+						result.push(item);
 					}
-					let handle: TaskItemTransfer = {
-						id: task._id,
-						label: task._label,
-						definition: definition,
-						workspaceFolderUri: folderUri
-					};
-					result.push(handle);
 				}
 				return result;
 			});
@@ -685,7 +674,7 @@ class TaskService implements ITaskService {
 		return this._providers.delete(handle);
 	}
 
-	public getTask(folder: IWorkspaceFolder | string, alias: string): TPromise<Task> {
+	public getTask(folder: IWorkspaceFolder | string, alias: string, compareId: boolean = false): TPromise<Task> {
 		let name = Types.isString(folder) ? folder : folder.name;
 		if (this.ignoredWorkspaceFolders.some(ignored => ignored.name === name)) {
 			return TPromise.wrapError(new Error(nls.localize('TaskServer.folderIgnored', 'The folder {0} is ignored since it uses task version 0.1.0', name)));
@@ -696,7 +685,7 @@ class TaskService implements ITaskService {
 				return undefined;
 			}
 			for (let task of values) {
-				if (Task.matches(task, alias)) {
+				if (Task.matches(task, alias, compareId)) {
 					return task;
 				}
 			}

@@ -22,7 +22,7 @@ class TransposeLettersAction extends EditorAction {
 			alias: 'Transpose Letters',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: 0,
 				mac: {
 					primary: KeyMod.WinCtrl | KeyCode.KEY_T

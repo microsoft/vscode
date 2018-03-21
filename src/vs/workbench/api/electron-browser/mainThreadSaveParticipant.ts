@@ -28,6 +28,7 @@ import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common
 import { localize } from 'vs/nls';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
+import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 
 export interface ISaveParticipantParticipant extends ISaveParticipant {
 	// progressMessage: string;
@@ -261,7 +262,7 @@ class ExtHostSaveParticipant implements ISaveParticipantParticipant {
 
 	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
 
-		if (editorModel.textEditorModel.isTooLargeForHavingARichMode()) {
+		if (!shouldSynchronizeModel(editorModel.textEditorModel)) {
 			// the model never made it to the extension
 			// host meaning we cannot participate in its save
 			return undefined;

@@ -7,11 +7,12 @@ import { RenameProvider, WorkspaceEdit, TextDocument, Position, CancellationToke
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
+import * as typeConverters from '../utils/typeConverters';
 
 export default class TypeScriptRenameProvider implements RenameProvider {
 	public constructor(
-		private client: ITypeScriptServiceClient) { }
+		private readonly client: ITypeScriptServiceClient
+	) { }
 
 	public async provideRenameEdits(
 		document: TextDocument,
@@ -19,42 +20,48 @@ export default class TypeScriptRenameProvider implements RenameProvider {
 		newName: string,
 		token: CancellationToken
 	): Promise<WorkspaceEdit | null> {
-		const filepath = this.client.normalizePath(document.uri);
-		if (!filepath) {
+		const file = this.client.normalizePath(document.uri);
+		if (!file) {
 			return null;
 		}
 
 		const args: Proto.RenameRequestArgs = {
-			...vsPositionToTsFileLocation(filepath, position),
+			...typeConverters.Position.toFileLocationRequestArgs(file, position),
 			findInStrings: false,
 			findInComments: false
 		};
 
 		try {
 			const response = await this.client.execute('rename', args, token);
-			const renameResponse = response.body;
-			if (!renameResponse) {
+			if (!response.body) {
 				return null;
 			}
-			const renameInfo = renameResponse.info;
 
+			const renameInfo = response.body.info;
 			if (!renameInfo.canRename) {
 				return Promise.reject<WorkspaceEdit>(renameInfo.localizedErrorMessage);
 			}
-			const result = new WorkspaceEdit();
-			for (const spanGroup of renameResponse.locs) {
-				const resource = this.client.asUrl(spanGroup.file);
-				if (!resource) {
-					continue;
-				}
-				for (const textSpan of spanGroup.locs) {
-					result.replace(resource, tsTextSpanToVsRange(textSpan), newName);
-				}
-			}
-			return result;
-		} catch (e) {
+
+			return this.toWorkspaceEdit(response.body.locs, newName);
+		} catch {
 			// noop
 		}
 		return null;
+	}
+
+	private toWorkspaceEdit(
+		locations: ReadonlyArray<Proto.SpanGroup>,
+		newName: string
+	) {
+		const result = new WorkspaceEdit();
+		for (const spanGroup of locations) {
+			const resource = this.client.asUrl(spanGroup.file);
+			if (resource) {
+				for (const textSpan of spanGroup.locs) {
+					result.replace(resource, typeConverters.Range.fromTextSpan(textSpan), newName);
+				}
+			}
+		}
+		return result;
 	}
 }
