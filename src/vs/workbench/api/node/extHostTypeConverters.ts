@@ -606,6 +606,7 @@ export namespace ProgressLocation {
 		switch (loc) {
 			case types.ProgressLocation.SourceControl: return MainProgressLocation.Scm;
 			case types.ProgressLocation.Window: return MainProgressLocation.Window;
+			case types.ProgressLocation.Notification: return MainProgressLocation.Notification;
 		}
 		return undefined;
 	}

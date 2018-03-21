@@ -585,7 +585,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			return this.progressService.withProgress({
 				location: ProgressLocation.Extensions,
 				title: nls.localize('installingVSIXExtension', 'Installing extension from VSIX...'),
-				tooltip: `${extension}`
+				source: `${extension}`
 			}, () => this.extensionService.install(extension).then(() => null));
 		}
 
@@ -607,7 +607,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
 			title: nls.localize('installingMarketPlaceExtension', 'Installing extension from Marketplace....'),
-			tooltip: `${extension.id}`
+			source: `${extension.id}`
 		}, () => this.extensionService.installFromGallery(gallery).then(() => null));
 	}
 
@@ -648,7 +648,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
 			title: nls.localize('uninstallingExtension', 'Uninstalling extension....'),
-			tooltip: `${local.identifier.id}`
+			source: `${local.identifier.id}`
 		}, () => this.extensionService.uninstall(local));
 	}
 
@@ -666,7 +666,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
-			tooltip: `${local.identifier.id}`
+			source: `${local.identifier.id}`
 		}, () => this.extensionService.reinstallFromGallery(local).then(() => null));
 	}
 
