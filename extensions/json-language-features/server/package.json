@@ -1,7 +1,7 @@
 {
   "name": "vscode-json-languageserver",
   "description": "JSON language server",
-  "version": "1.0.0-next.3",
+  "version": "1.0.0",
   "author": "Microsoft Corporation",
   "license": "MIT",
   "engines": {
@@ -32,6 +32,7 @@
     "install-service-local": "yarn link vscode-json-languageservice",
     "install-server-next": "yarn add vscode-languageserver@next",
     "install-server-local": "yarn link vscode-languageserver-server",
-    "test": "npm run compile && ../../../node_modules/.bin/mocha"
+    "test": "npm run compile && ../../../node_modules/.bin/mocha",
+    "version": "git commit -m \"JSON Language Server $npm_package_version\" package.json"
   }
 }
