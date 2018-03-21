@@ -217,15 +217,38 @@ suite('HTML Path Completion', () => {
 	});
 
 	test('Trigger completion in middle of path', () => {
-		/* Trigger Completion In Middle of path
 		testCompletionFor('<script src="src/f|eature.js">', {
 			items: [
 				{ label: 'feature.js', resultText: '<script src="src/feature.js">' },
 				{ label: 'test.js', resultText: '<script src="src/test.js">' },
 			]
 		}, indexHtmlUri, [fixtureWorkspace]);
-		*/
 
+		testCompletionFor('<script src="s|rc/feature.js">', {
+			items: [
+				{ label: 'about/', resultText: '<script src="about/">' },
+				{ label: 'index.html', resultText: '<script src="index.html">' },
+				{ label: 'src/', resultText: '<script src="src/">' },
+			]
+		}, indexHtmlUri, [fixtureWorkspace]);
+	});
+
+	test('Trigger completion in middle of path and with whitespaces', () => {
+		testCompletionFor('<script src="./| about/about.html>', {
+			items: [
+				{ label: 'about/', resultText: '<script src="./about/ about/about.html>' },
+				{ label: 'index.html', resultText: '<script src="./index.html about/about.html>' },
+				{ label: 'src/', resultText: '<script src="./src/ about/about.html>' },
+			]
+		}, indexHtmlUri, [fixtureWorkspace]);
+
+		testCompletionFor('<script src="./a|bout /about.html>', {
+			items: [
+				{ label: 'about/', resultText: '<script src="./about/ /about.html>' },
+				{ label: 'index.html', resultText: '<script src="./index.html /about.html>' },
+				{ label: 'src/', resultText: '<script src="./src/ /about.html>' },
+			]
+		}, indexHtmlUri, [fixtureWorkspace]);
 	});
 
 	test('Unquoted Path', () => {

@@ -19,20 +19,30 @@ export function getPathCompletionParticipant(
 	result: CompletionList
 ): ICompletionParticipant {
 	return {
-		onHtmlAttributeValue: ({ tag, attribute, value, range }) => {
+		onHtmlAttributeValue: ({ tag, position, attribute, value: valueBeforeCursor, range }) => {
+			const fullValue = getFullValueWithoutQuotes(document, range);
 
-			if (shouldDoPathCompletion(tag, attribute, value)) {
+			if (shouldDoPathCompletion(tag, attribute, fullValue)) {
 				if (!workspaceFolders || workspaceFolders.length === 0) {
 					return;
 				}
 				const workspaceRoot = resolveWorkspaceRoot(document, workspaceFolders);
 
-				const paths = providePaths(value, URI.parse(document.uri).fsPath, workspaceRoot);
-				const suggestions = paths.map(p => pathToSuggestion(p, value, range));
+				const paths = providePaths(valueBeforeCursor, URI.parse(document.uri).fsPath, workspaceRoot);
+				const suggestions = paths.map(p => pathToSuggestion(p, valueBeforeCursor, fullValue, range));
 				result.items = [...suggestions, ...result.items];
 			}
 		}
 	};
+}
+
+function getFullValueWithoutQuotes(document: TextDocument, range: Range) {
+	const fullValue = document.getText(range);
+	if (startsWith(fullValue, `'`) || startsWith(fullValue, `"`)) {
+		return fullValue.slice(1, -1);
+	} else {
+		return fullValue;
+	}
 }
 
 function shouldDoPathCompletion(tag: string, attr: string, value: string): boolean {
@@ -54,19 +64,19 @@ function shouldDoPathCompletion(tag: string, attr: string, value: string): boole
 /**
  * Get a list of path suggestions. Folder suggestions are suffixed with a slash.
  */
-function providePaths(value: string, activeDocFsPath: string, root?: string): string[] {
-	if (startsWith(value, '/') && !root) {
+function providePaths(valueBeforeCursor: string, activeDocFsPath: string, root?: string): string[] {
+	if (startsWith(valueBeforeCursor, '/') && !root) {
 		return [];
 	}
 
-	const lastIndexOfSlash = value.lastIndexOf('/');
+	const lastIndexOfSlash = valueBeforeCursor.lastIndexOf('/');
 	let parentDir: string;
 	if (lastIndexOfSlash === -1) {
 		parentDir = path.resolve(root);
 	} else {
-		const valueBeforeLastSlash = value.slice(0, lastIndexOfSlash + 1);
+		const valueBeforeLastSlash = valueBeforeCursor.slice(0, lastIndexOfSlash + 1);
 
-		parentDir = startsWith(value, '/')
+		parentDir = startsWith(valueBeforeCursor, '/')
 			? path.resolve(root, '.' + valueBeforeLastSlash)
 			: path.resolve(activeDocFsPath, '..', valueBeforeLastSlash);
 	}
@@ -82,16 +92,27 @@ function providePaths(value: string, activeDocFsPath: string, root?: string): st
 	}
 }
 
-function pathToSuggestion(p: string, value: string, range: Range): CompletionItem {
+function pathToSuggestion(p: string, valueBeforeCursor: string, fullValue: string, range: Range): CompletionItem {
 	const isDir = p[p.length - 1] === '/';
 
 	let replaceRange: Range;
-	const lastIndexOfSlash = value.lastIndexOf('/');
+	const lastIndexOfSlash = valueBeforeCursor.lastIndexOf('/');
 	if (lastIndexOfSlash === -1) {
-		replaceRange = getFullReplaceRange(range);
+		replaceRange = shiftRange(range, 1, -1);
 	} else {
-		const valueAfterLastSlash = value.slice(lastIndexOfSlash + 1);
-		replaceRange = getReplaceRange(range, valueAfterLastSlash);
+		// For cases where cursor is in the middle of attribute value, like <script src="./s|rc/test.js">
+		// Find the last slash before cursor, and calculate the start of replace range from there
+		const valueAfterLastSlash = fullValue.slice(lastIndexOfSlash + 1);
+		const startPos = shiftPosition(range.end, -1 - valueAfterLastSlash.length);
+		// If whitespace exists, replace until it
+		const whiteSpaceIndex = valueAfterLastSlash.indexOf(' ');
+		let endPos;
+		if (whiteSpaceIndex !== -1) {
+			endPos = shiftPosition(startPos, whiteSpaceIndex);
+		} else {
+			endPos = shiftPosition(range.end, -1);
+		}
+		replaceRange = Range.create(startPos, endPos);
 	}
 
 	if (isDir) {
@@ -121,14 +142,12 @@ function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: Workspa
 	}
 }
 
-function getFullReplaceRange(valueRange: Range) {
-	const start = Position.create(valueRange.end.line, valueRange.start.character + 1);
-	const end = Position.create(valueRange.end.line, valueRange.end.character - 1);
-	return Range.create(start, end);
+function shiftPosition(pos: Position, offset: number): Position {
+	return Position.create(pos.line, pos.character + offset);
 }
-function getReplaceRange(valueRange: Range, valueAfterLastSlash: string) {
-	const start = Position.create(valueRange.end.line, valueRange.end.character - 1 - valueAfterLastSlash.length);
-	const end = Position.create(valueRange.end.line, valueRange.end.character - 1);
+function shiftRange(range: Range, startOffset: number, endOffset: number): Range {
+	const start = shiftPosition(range.start, startOffset);
+	const end = shiftPosition(range.end, endOffset);
 	return Range.create(start, end);
 }
 
