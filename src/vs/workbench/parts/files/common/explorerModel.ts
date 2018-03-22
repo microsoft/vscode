@@ -17,7 +17,7 @@ import { IEditorGroup, toResource, IEditorIdentifier } from 'vs/workbench/common
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
-import { startsWith } from 'vs/base/common/strings';
+import { startsWith, beginsWithIgnoreCase } from 'vs/base/common/strings';
 
 export class Model {
 
@@ -222,7 +222,7 @@ export class ExplorerItem {
 		child.parent = this;
 		child.updateResource(false);
 
-		this.children[this.lowercaseOnCaseInsensitivePlatforms(child.name)] = child;
+		this.children[this.getPlatformAwareName(child.name)] = child;
 	}
 
 	public getChild(name: string): ExplorerItem {
@@ -230,7 +230,7 @@ export class ExplorerItem {
 			return undefined;
 		}
 
-		return this.children[this.lowercaseOnCaseInsensitivePlatforms(name)];
+		return this.children[this.getPlatformAwareName(name)];
 	}
 
 	/**
@@ -256,10 +256,10 @@ export class ExplorerItem {
 	 * Removes a child element from this folder.
 	 */
 	public removeChild(child: ExplorerItem): void {
-		delete this.children[this.lowercaseOnCaseInsensitivePlatforms(child.name)];
+		delete this.children[this.getPlatformAwareName(child.name)];
 	}
 
-	private lowercaseOnCaseInsensitivePlatforms(name: string): string {
+	private getPlatformAwareName(name: string): string {
 		return isLinux ? name : name.toLowerCase();
 	}
 
@@ -316,7 +316,7 @@ export class ExplorerItem {
 	public find(resource: URI): ExplorerItem {
 		// Return if path found
 		if (resource && this.resource.scheme === resource.scheme && this.resource.authority === resource.authority &&
-			startsWith(this.lowercaseOnCaseInsensitivePlatforms(resource.path), this.lowercaseOnCaseInsensitivePlatforms(this.resource.path))
+			(isLinux ? startsWith(resource.path, this.resource.path) : beginsWithIgnoreCase(resource.path, this.resource.path))
 		) {
 			return this.findByPath(resource.path, this.resource.path.length);
 		}
@@ -343,7 +343,7 @@ export class ExplorerItem {
 			// The name to search is between two separators
 			const name = path.substring(index, indexOfNextSep);
 
-			const child = this.children[this.lowercaseOnCaseInsensitivePlatforms(name)];
+			const child = this.children[this.getPlatformAwareName(name)];
 
 			if (child) {
 				// We found a child with the given name, search inside it
