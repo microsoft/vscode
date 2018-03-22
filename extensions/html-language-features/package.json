@@ -17,7 +17,7 @@
   "enableProposedApi": true,
   "main": "./client/out/htmlMain",
   "scripts": {
-    "compile": "gulp compile-extension:html-language-features-client && gulp compile-extension:html-language-features-server",
+    "compile": "gulp compile-extension:html-language-features-client & gulp compile-extension:html-language-features-server",
     "postinstall": "cd server && yarn install",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
