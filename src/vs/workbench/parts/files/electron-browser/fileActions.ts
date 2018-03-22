@@ -1353,15 +1353,20 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 
 	const names: string[] = name.split(/[\\/]/).filter(part => !!part);
 
-	const pathAnalysis: IPathAnalysis = validatePath(parent, names);
+	const pathMapping: IPathMapping[] = mapPathsToExistingFolders(parent, names);
+	const fileWithDescendants = pathMapping.slice(0, -1)	// remove leaf
+		.filter(p => p.exists && p.isFile)	// check if one of the parents is a file
+		.reduce((prev, curr) => prev || curr, null);
 
 	// a file must always be a leaf
-	if (!pathAnalysis.leafInfo.isLeaf) {
-		return nls.localize('fileUsedAsFolderError', "**{0}** is a file and cannot have any descendants.", trimLongName(pathAnalysis.leafInfo.filename));
+	if (fileWithDescendants) {
+		return nls.localize('fileUsedAsFolderError', "**{0}** is a file and cannot have any descendants.", fileWithDescendants.name);
 	}
 
+	const fullPathAlreadyExists = pathMapping.every(p => p.exists);
+
 	// Do not allow to overwrite existing file
-	if (!allowOverwriting && pathAnalysis.fullPathAlreadyExists) {
+	if (!allowOverwriting && fullPathAlreadyExists) {
 		return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
 	}
 
@@ -1381,43 +1386,30 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 	return null;
 }
 
-
-interface IPathAnalysis {
-	fullPathAlreadyExists: boolean;
-	leafInfo: { isLeaf: boolean, filename: string };
+interface IPathMapping {
+	exists: boolean;
+	isFile: boolean;
+	name: string;
 }
 
-function validatePath(parent: IFileStat, names: string[]): IPathAnalysis {
-	const pathAnalysis: IPathAnalysis = {
-		fullPathAlreadyExists: true,
-		leafInfo: { isLeaf: true, filename: '' }
-	};
+function mapPathsToExistingFolders(parent: IFileStat, pathNames: string[]): IPathMapping[] {
+	const mapping: IPathMapping[] = [];
 
-	let p = parent;
-	for (let i = 0; i < names.length; i++) {
-		const pathSegment = names[i];
-
-		let { exists, child } = alreadyExists(p, pathSegment);
+	for (const name of pathNames) {
+		let { exists, child } = alreadyExists(parent, name);
 
 		if (!exists) {
-			pathAnalysis.fullPathAlreadyExists = false;
-			break;
+			mapping.push({ exists: false, isFile: false, name });
+			return mapping;
 		}
 
-		else if (!child.isDirectory) {
-			if (i !== names.length - 1) {
-				// it's not the last segment
-				pathAnalysis.leafInfo.isLeaf = false;
-				pathAnalysis.leafInfo.filename = child.name;
-			}
-		}
+		const isFile: boolean = !child.isDirectory;
+		mapping.push({ exists: true, isFile, name });
 
-		else {
-			p = child;
-		}
+		parent = child;
 	}
 
-	return pathAnalysis;
+	return mapping;
 }
 
 function alreadyExists(parent: IFileStat, name: string): { exists: boolean, child: IFileStat | undefined } {
