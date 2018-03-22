@@ -390,9 +390,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		this.syncDelayer = new ThrottledDelayer<void>(ExtensionsWorkbenchService.SyncPeriod);
 		this.autoUpdateDelayer = new ThrottledDelayer<void>(1000);
 
-		if (urlService.registerHandler) {
-			urlService.registerHandler(this);
-		}
+		urlService.registerHandler(this);
 
 		this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
