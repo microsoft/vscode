@@ -196,6 +196,10 @@ export class ModelLinesTokens {
 		this._lastState = null;
 	}
 
+	public get inValidLineStartIndex() {
+		return this._invalidLineStartIndex;
+	}
+
 	public getTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineText: string): LineTokens {
 		let rawLineTokens: ArrayBuffer = null;
 		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {

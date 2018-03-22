@@ -1630,15 +1630,17 @@ export class TextModel extends Disposable implements model.ITextModel {
 			return;
 		}
 
+		// we tokenize `this._tokens.inValidLineStartIndex` lines in around 20ms so it's a good baseline.
+		const contextBefore = Math.floor(this._tokens.inValidLineStartIndex * 0.3);
+		startLineNumber = Math.max(1, startLineNumber - contextBefore);
+		let nonWhitespaceColumn = this.getLineFirstNonWhitespaceColumn(startLineNumber);
+
 		if (startLineNumber <= this._tokens.inValidLineStartIndex) {
 			this.forceTokenization(endLineNumber);
 			return;
 		}
+
 		const eventBuilder = new ModelTokensChangedEventBuilder();
-		const viewPortLimit = 120;
-		const context = Math.floor(Math.max(viewPortLimit - (endLineNumber - startLineNumber), 0) / 2);
-		startLineNumber = Math.max(1, startLineNumber - context);
-		let nonWhitespaceColumn = this.getLineFirstNonWhitespaceColumn(startLineNumber);
 
 		let fakeLines = [];
 		let i = startLineNumber - 1;
@@ -1671,7 +1673,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 			}
 		}
 
-		endLineNumber = Math.min(this.getLineCount(), endLineNumber + context);
+		const contextAfter = Math.floor(this._tokens.inValidLineStartIndex * 0.4);
+		endLineNumber = Math.min(this.getLineCount(), endLineNumber + contextAfter);
 		for (let i = startLineNumber; i <= endLineNumber; i++) {
 			let text = this.getLineContent(i);
 			let r = this._tokens._tokenizeOneLine2(this._buffer, text, state, eventBuilder);
