@@ -9,7 +9,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { ActionBar, ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { ITree, IDataSource, ISorter, IAccessibilityProvider, IFilter, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
@@ -25,9 +25,9 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { WorkbenchTreeController, WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 
 export class SearchDataSource implements IDataSource {
 
@@ -361,61 +361,35 @@ export class SearchFilter implements IFilter {
 }
 
 export class SearchTreeController extends WorkbenchTreeController {
+	private contextMenu: IMenu;
+
 	constructor(
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IMenuService private menuService: IMenuService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({}, configurationService);
 	}
 
 	public onContextMenu(tree: WorkbenchTree, element: any, event: ContextMenuEvent): boolean {
-		tree.setFocus(element);
-		const actions = this._getMenuActions(tree);
-		if (!actions.length) {
-			return true;
+		if (!this.contextMenu) {
+			this.contextMenu = this.menuService.createMenu(MenuId.SearchContext, tree.contextKeyService);
 		}
+
+		tree.setFocus(element);
 
 		const anchor = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 
 			getActions: () => {
+				const actions: IAction[] = [];
+				fillInActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
 				return TPromise.as(actions);
 			},
-
-			getActionItem: (action) => {
-				const keybinding = this._keybindingService.lookupKeybinding(action.id);
-				if (keybinding) {
-					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
-				}
-				return null;
-			},
-
-			onHide: (wasCancelled?: boolean) => {
-				if (wasCancelled) {
-					tree.domFocus();
-				}
-			}
+			// getActionsContext: () => element instanceof OpenEditor ? { groupId: element.group.id, editorIndex: element.editorIndex } : { groupId: element.id }
 		});
 
 		return true;
-	}
-
-	private _getMenuActions(tree: WorkbenchTree): IAction[] {
-		const result: IAction[] = [];
-		const menu = this.menuService.createMenu(MenuId.SearchContext, tree.contextKeyService);
-		const groups = menu.getActions();
-		menu.dispose();
-
-		for (let group of groups) {
-			const [, actions] = group;
-			result.push(...actions);
-			result.push(new Separator());
-		}
-
-		result.pop(); // remove last separator
-		return result;
 	}
 }

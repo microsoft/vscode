@@ -126,15 +126,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.SearchContext, {
-	command: {
-		id: Constants.RemoveActionId,
-		title: RemoveAction.LABEL
-	},
-	when: Constants.FileMatchOrMatchFocusKey,
-	group: 'search'
-});
-
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.ReplaceActionId,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
@@ -146,15 +137,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const tree: ITree = searchView.getControl();
 		accessor.get(IInstantiationService).createInstance(ReplaceAction, tree, tree.getFocus(), searchView).run();
 	}
-});
-
-MenuRegistry.appendMenuItem(MenuId.SearchContext, {
-	command: {
-		id: Constants.ReplaceActionId,
-		title: ReplaceAction.LABEL
-	},
-	when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.MatchFocusKey),
-	group: 'search'
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -169,15 +151,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.SearchContext, {
-	command: {
-		id: Constants.ReplaceAllInFileActionId,
-		title: ReplaceAllAction.LABEL
-	},
-	when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FileFocusKey),
-	group: 'search'
-});
-
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.ReplaceAllInFolderActionId,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
@@ -188,15 +161,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const tree: ITree = searchView.getControl();
 		accessor.get(IInstantiationService).createInstance(ReplaceAllInFolderAction, tree, tree.getFocus()).run();
 	}
-});
-
-MenuRegistry.appendMenuItem(MenuId.SearchContext, {
-	command: {
-		id: Constants.ReplaceAllInFolderActionId,
-		title: ReplaceAllInFolderAction.LABEL
-	},
-	when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FolderFocusKey),
-	group: 'search'
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -227,6 +191,46 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		accessor.get(IInstantiationService).createInstance(FocusPreviousInputAction, FocusPreviousInputAction.ID, '').run();
 	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.SearchContext, {
+	command: {
+		id: Constants.ReplaceActionId,
+		title: ReplaceAction.LABEL
+	},
+	when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.MatchFocusKey),
+	group: 'search',
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.SearchContext, {
+	command: {
+		id: Constants.ReplaceAllInFolderActionId,
+		title: ReplaceAllInFolderAction.LABEL
+	},
+	when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FolderFocusKey),
+	group: 'search',
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.SearchContext, {
+	command: {
+		id: Constants.ReplaceAllInFileActionId,
+		title: ReplaceAllAction.LABEL
+	},
+	when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FileFocusKey),
+	group: 'search',
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.SearchContext, {
+	command: {
+		id: Constants.RemoveActionId,
+		title: RemoveAction.LABEL
+	},
+	when: Constants.FileMatchOrMatchFocusKey,
+	group: 'search',
+	order: 2
 });
 
 const FIND_IN_FOLDER_ID = 'filesExplorer.findInFolder';
