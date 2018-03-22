@@ -7,7 +7,7 @@
 import { getLanguageModelCache } from '../languageModelCache';
 import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration, ICompletionParticipant } from 'vscode-html-languageservice';
 import { TextDocument, Position, Range, CompletionItem } from 'vscode-languageserver-types';
-import { LanguageMode, Settings, Workspace } from './languageModes';
+import { LanguageMode, Workspace } from './languageModes';
 
 import { FoldingRange } from '../protocol/foldingProvider.proposed';
 import { getHTMLFoldingRegions } from './htmlFolding';
