@@ -17,12 +17,14 @@
 	padding: 6px;
 }
 
-.quick-input-box {
-	flex-grow: 1;
+.quick-input-select-all {
+	align-self: center;
+	margin: 0;
 }
 
-.quick-input-box .monaco-inputbox > .wrapper > .input {
-	padding-left: 15px;
+.quick-input-box {
+	flex-grow: 1;
+	margin-left: 5px;
 }
 
 .quick-input-action {
@@ -36,7 +38,6 @@
 }
 
 .quick-input-checkbox-list {
-	margin-left: 3px;
 	line-height: 22px;
 }
 
@@ -49,6 +50,7 @@
 	overflow: hidden;
 	display: flex;
 	height: 100%;
+	padding: 0 6px;
 }
 
 .quick-input-checkbox-list .quick-input-checkbox-list-label {
@@ -60,6 +62,7 @@
 
 .quick-input-checkbox-list .quick-input-checkbox-list-checkbox {
 	align-self: center;
+	margin: 0;
 	/* TODO */
 	/* margin-top: 5px; */
 }
@@ -71,7 +74,7 @@
 	flex-direction: column;
 	height: 100%;
 	flex: 1;
-	margin-left: 1px;
+	margin-left: 10px;
 }
 
 .quick-input-checkbox-list .quick-input-checkbox-list-rows > .quick-input-checkbox-list-row {

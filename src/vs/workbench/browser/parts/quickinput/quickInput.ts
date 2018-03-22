@@ -37,6 +37,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	private layoutDimensions: Dimension;
 	private container: HTMLElement;
+	private selectAll: HTMLInputElement;
 	private inputBox: QuickInputBox;
 	private checkboxList: QuickInputCheckboxList;
 
@@ -62,6 +63,13 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.container.style.display = 'none';
 
 		const headerContainer = dom.append(this.container, $('.quick-input-header'));
+
+		this.selectAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-select-all'));
+		this.selectAll.type = 'checkbox';
+		this.toUnbind.push(dom.addStandardDisposableListener(this.selectAll, dom.EventType.CHANGE, e => {
+			const checked = this.selectAll.checked;
+			this.checkboxList.setAllSelected(checked);
+		}));
 
 		this.inputBox = new QuickInputBox(headerContainer);
 		this.toUnbind.push(this.inputBox);
@@ -97,6 +105,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		this.checkboxList = this.instantiationService.createInstance(QuickInputCheckboxList, this.container);
 		this.toUnbind.push(this.checkboxList);
+		this.toUnbind.push(this.checkboxList.onSelectionChanged(() => {
+			this.selectAll.checked = this.checkboxList.getAllSelected();
+		}));
 
 		this.toUnbind.push(dom.addDisposableListener(this.container, 'focusout', (e: FocusEvent) => {
 			for (let element = <Element>e.relatedTarget; element; element = element.parentElement) {
@@ -150,6 +161,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.inputBox.setPlaceholder(options.placeHolder ? localize('quickInput.ctrlSpaceToSelectWithPlaceholder', "{1} ({0} to toggle)", 'Ctrl+Space', options.placeHolder) : localize('quickInput.ctrlSpaceToSelect', "{0} to toggle", 'Ctrl+Space'));
 		// TODO: Progress indication.
 		this.checkboxList.setElements(await picks);
+		this.selectAll.checked = this.checkboxList.getAllSelected();
 
 		this.container.style.display = null;
 		this.updateLayout();

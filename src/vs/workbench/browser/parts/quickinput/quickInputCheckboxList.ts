@@ -15,7 +15,7 @@ import { IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IMatch } from 'vs/base/common/filters';
 import { matchesFuzzyOcticonAware, parseOcticons } from 'vs/base/common/octicon';
 import { compareAnything } from 'vs/base/common/comparers';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -103,7 +103,7 @@ class SelectedElementRenderer implements IRenderer<SelectableElement, ISelectedE
 	}
 
 	renderElement(element: SelectableElement, index: number, data: ISelectedElementTemplateData): void {
-		dispose(data.toDisposeElement);
+		data.toDisposeElement = dispose(data.toDisposeElement);
 		data.element = element;
 		data.checkbox.checked = element.selected;
 		data.toDisposeElement.push(element.onSelected(selected => data.checkbox.checked = selected));
@@ -122,7 +122,8 @@ class SelectedElementRenderer implements IRenderer<SelectableElement, ISelectedE
 	}
 
 	disposeTemplate(data: ISelectedElementTemplateData): void {
-		dispose(data.toDisposeTemplate);
+		data.toDisposeElement = dispose(data.toDisposeElement);
+		data.toDisposeTemplate = dispose(data.toDisposeTemplate);
 	}
 }
 
@@ -142,6 +143,9 @@ export class QuickInputCheckboxList {
 	private container: HTMLElement;
 	private list: WorkbenchList<SelectableElement>;
 	private elements: SelectableElement[] = [];
+	private _onSelectionChanged = new Emitter<IPickOpenEntry>();
+	onSelectionChanged: Event<IPickOpenEntry> = this._onSelectionChanged.event;
+	private elementDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -163,12 +167,24 @@ export class QuickInputCheckboxList {
 		}));
 	}
 
+	getAllSelected() {
+		return this.getSelectedElements().length === this.elements.length;
+	}
+
+	setAllSelected(select: boolean) {
+		this.elements.forEach(element => element.selected = select);
+	}
+
 	setElements(elements: IPickOpenEntry[]): void {
+		this.elementDisposables = dispose(this.elementDisposables);
 		this.elements = elements.map((item, index) => new SelectableElement({
 			index,
 			item,
 			selected: !!item.selected
 		}));
+		this.elementDisposables.push(...this.elements.map(element => element.onSelected(() => {
+			this._onSelectionChanged.fire(element.item);
+		})));
 		this.list.splice(0, this.list.length, this.elements);
 		this.list.setSelection([]);
 		this.list.focusFirst();
@@ -244,6 +260,7 @@ export class QuickInputCheckboxList {
 	}
 
 	dispose() {
+		this.elementDisposables = dispose(this.elementDisposables);
 		this.disposables = dispose(this.disposables);
 	}
 }
