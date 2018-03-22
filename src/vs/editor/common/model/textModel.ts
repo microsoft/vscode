@@ -1633,7 +1633,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 		// we tokenize `this._tokens.inValidLineStartIndex` lines in around 20ms so it's a good baseline.
 		const contextBefore = Math.floor(this._tokens.inValidLineStartIndex * 0.3);
 		startLineNumber = Math.max(1, startLineNumber - contextBefore);
-		let nonWhitespaceColumn = this.getLineFirstNonWhitespaceColumn(startLineNumber);
 
 		if (startLineNumber <= this._tokens.inValidLineStartIndex) {
 			this.forceTokenization(endLineNumber);
@@ -1641,9 +1640,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 
 		const eventBuilder = new ModelTokensChangedEventBuilder();
-
+		let nonWhitespaceColumn = this.getLineFirstNonWhitespaceColumn(startLineNumber);
 		let fakeLines = [];
 		let i = startLineNumber - 1;
+		let initialState = null;
 		if (nonWhitespaceColumn > 0) {
 			while (nonWhitespaceColumn > 0 && i >= 1) {
 				let newNonWhitespaceIndex = this.getLineFirstNonWhitespaceColumn(i);
@@ -1654,6 +1654,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 				}
 
 				if (newNonWhitespaceIndex < nonWhitespaceColumn) {
+					initialState = this._tokens._getState(i - 1);
+					if (initialState) {
+						break;
+					}
 					fakeLines.push(this.getLineContent(i));
 					nonWhitespaceColumn = newNonWhitespaceIndex;
 				}
@@ -1662,10 +1666,13 @@ export class TextModel extends Disposable implements model.ITextModel {
 			}
 		}
 
-		const initialState = this._tokens.tokenizationSupport.getInitialState();
+		if (!initialState) {
+			initialState = this._tokens.tokenizationSupport.getInitialState();
+		}
+
 		let state = initialState.clone();
 		for (let i = fakeLines.length - 1; i >= 0; i--) {
-			let r = this._tokens._tokenizeOneLine2(this._buffer, fakeLines[i], state, eventBuilder);
+			let r = this._tokens._tokenizeText(this._buffer, fakeLines[i], state);
 			if (r) {
 				state = r.endState.clone();
 			} else {
@@ -1677,7 +1684,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		endLineNumber = Math.min(this.getLineCount(), endLineNumber + contextAfter);
 		for (let i = startLineNumber; i <= endLineNumber; i++) {
 			let text = this.getLineContent(i);
-			let r = this._tokens._tokenizeOneLine2(this._buffer, text, state, eventBuilder);
+			let r = this._tokens._tokenizeText(this._buffer, text, state);
 			if (r) {
 				state = r.endState.clone();
 				this._tokens._setTokens(this._tokens.languageIdentifier.id, i - 1, text.length, r.tokens);

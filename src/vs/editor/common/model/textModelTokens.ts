@@ -380,11 +380,7 @@ export class ModelLinesTokens {
 		return lineNumber;
 	}
 
-	public _tokenizeOneLine2(buffer: ITextBuffer, text: string, state: IState, eventBuilder: ModelTokensChangedEventBuilder): TokenizationResult2 {
-		if (!this.hasLinesToTokenize(buffer)) {
-			return null;
-		}
-
+	public _tokenizeText(buffer: ITextBuffer, text: string, state: IState): TokenizationResult2 {
 		let r: TokenizationResult2 = null;
 
 		try {
