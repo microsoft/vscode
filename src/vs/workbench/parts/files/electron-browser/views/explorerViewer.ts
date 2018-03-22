@@ -86,7 +86,7 @@ export class FileDataSource implements IDataSource {
 
 		// Return early if stat is already resolved
 		if (stat.isDirectoryResolved) {
-			return TPromise.as(Object.keys(stat.children).map(name => stat.children[name]));
+			return TPromise.as(stat.getChildrenArray());
 		}
 
 		// Resolve children and add to fileStat for future lookup
@@ -99,13 +99,13 @@ export class FileDataSource implements IDataSource {
 				const modelDirStat = ExplorerItem.create(dirStat, stat.root);
 
 				// Add children to folder
-				for (let childName in modelDirStat.children) {
-					stat.addChild(modelDirStat.children[childName]);
-				}
+				modelDirStat.getChildrenArray().forEach(child => {
+					stat.addChild(child);
+				});
 
 				stat.isDirectoryResolved = true;
 
-				return Object.keys(stat.children).map(name => stat.children[name]);
+				return stat.getChildrenArray();
 			}, (e: any) => {
 				// Do not show error for roots since we already use an explorer decoration to notify user
 				if (!(stat instanceof ExplorerItem && stat.isRoot)) {
@@ -693,7 +693,7 @@ export class FileFilter implements IFilter {
 		}
 
 		// Workaround for O(N^2) complexity (https://github.com/Microsoft/vscode/issues/9962)
-		let siblingNames = stat.parent && Object.keys(stat.parent.children);
+		let siblingNames = stat.parent && stat.parent.getChildrenNames();
 		if (siblingNames && siblingNames.length > FileFilter.MAX_SIBLINGS_FILTER_THRESHOLD) {
 			siblingNames = void 0;
 		}

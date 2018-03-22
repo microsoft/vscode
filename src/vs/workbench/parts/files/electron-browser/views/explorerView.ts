@@ -886,9 +886,9 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			}
 
 			// Recurse into children
-			for (let childName in stat.children) {
-				this.getResolvedDirectories(stat.children[childName], resolvedDirectories);
-			}
+			stat.getChildrenNames().forEach(name => {
+				this.getResolvedDirectories(stat.getChild(name), resolvedDirectories);
+			});
 		}
 	}
 

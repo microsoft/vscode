@@ -77,7 +77,7 @@ export class ExplorerItem {
 	public etag: string;
 	private _isDirectory: boolean;
 	private _isSymbolicLink: boolean;
-	public children: { [name: string]: ExplorerItem };
+	private children: { [name: string]: ExplorerItem };
 	public parent: ExplorerItem;
 
 	public isDirectoryResolved: boolean;
@@ -185,7 +185,8 @@ export class ExplorerItem {
 			const oldLocalChildren = new ResourceMap<ExplorerItem>();
 			if (local.children) {
 				for (let name in local.children) {
-					oldLocalChildren.set(local.children[name].resource, local.children[name]);
+					const child = local.children[name];
+					oldLocalChildren.set(child.resource, child);
 				}
 			}
 
@@ -221,17 +222,44 @@ export class ExplorerItem {
 		child.parent = this;
 		child.updateResource(false);
 
-		this.children[this.getPlatformAwareName(child.name)] = child;
+		this.children[this.lowercaseOnCaseInsensitivePlatforms(child.name)] = child;
+	}
+
+	public getChild(name: string): ExplorerItem {
+		if (!this.children) {
+			return undefined;
+		}
+
+		return this.children[this.lowercaseOnCaseInsensitivePlatforms(name)];
+	}
+
+	/**
+	 * Only use this method if you need all the children since it converts a map to an array
+	 */
+	public getChildrenArray(): ExplorerItem[] {
+		if (!this.children) {
+			return undefined;
+		}
+
+		return Object.keys(this.children).map(name => this.children[name]);
+	}
+
+	public getChildrenNames(): string[] {
+		if (!this.children) {
+			return [];
+		}
+
+		return Object.keys(this.children);
 	}
 
 	/**
 	 * Removes a child element from this folder.
 	 */
 	public removeChild(child: ExplorerItem): void {
-		delete this.children[this.getPlatformAwareName(child.name)];
+		delete this.children[this.lowercaseOnCaseInsensitivePlatforms(child.name)];
 	}
 
-	private getPlatformAwareName(name: string): string {
+	private lowercaseOnCaseInsensitivePlatforms(name: string): string {
 		return isLinux ? name : name.toLowerCase();
 	}
 
@@ -288,7 +316,7 @@ export class ExplorerItem {
 	public find(resource: URI): ExplorerItem {
 		// Return if path found
 		if (resource && this.resource.scheme === resource.scheme && this.resource.authority === resource.authority &&
-			startsWith(resource.path, this.resource.path)
+			startsWith(this.lowercaseOnCaseInsensitivePlatforms(resource.path), this.lowercaseOnCaseInsensitivePlatforms(this.resource.path))
 		) {
 			return this.findByPath(resource.path, this.resource.path.length);
 		}
@@ -296,25 +324,29 @@ export class ExplorerItem {
 		return null; //Unable to find
 	}
 
-	public findByPath(path: string, index: number): ExplorerItem {
+	private findByPath(path: string, index: number): ExplorerItem {
 		if (paths.isEqual(this.resource.path, path, !isLinux)) {
 			return this;
 		}
 
 		if (this.children) {
+			// Ignore separtor to more easily deduct the next name to search
 			while (index < path.length && path[index] === paths.sep) {
 				index++;
 			}
 
 			let indexOfNextSep = path.indexOf(paths.sep, index);
 			if (indexOfNextSep === -1) {
+				// If there is no separator take the remainder of the path
 				indexOfNextSep = path.length;
 			}
-
+			// The name to search is between two separators
 			const name = path.substring(index, indexOfNextSep);
-			const child = this.children[this.getPlatformAwareName(name)];
+
+			const child = this.children[this.lowercaseOnCaseInsensitivePlatforms(name)];
 
 			if (child) {
+				// We found a child with the given name, search inside it
 				return child.findByPath(path, indexOfNextSep);
 			}
 		}
@@ -368,11 +400,11 @@ export class NewStatPlaceholder extends ExplorerItem {
 		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
 	}
 
-	public rename(renamedStat: IFileStat): void {
+	public rename(renamedStat: NewStatPlaceholder): void {
 		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
 	}
 
-	public find(resource: URI): ExplorerItem {
+	public find(resource: URI): NewStatPlaceholder {
 		return null;
 	}
 

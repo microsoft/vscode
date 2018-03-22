@@ -1392,8 +1392,8 @@ export function validateFileName(parent: ExplorerItem, name: string, allowOverwr
 function alreadyExists(parent: ExplorerItem, name: string): { exists: boolean, child: ExplorerItem | undefined } {
 	let duplicateChild: ExplorerItem;
 
-	if (parent.children) {
-		duplicateChild = parent.children[isLinux ? name : name.toLowerCase()];
+	if (parent && parent.isDirectory) {
+		duplicateChild = parent.getChild(name);
 		return { exists: !!duplicateChild, child: duplicateChild };
 	}
 
