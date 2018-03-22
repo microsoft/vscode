@@ -1630,6 +1630,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 			return;
 		}
 
+		if (startLineNumber <= this._tokens.inValidLineStartIndex) {
+			this.forceTokenization(endLineNumber);
+			return;
+		}
 		const eventBuilder = new ModelTokensChangedEventBuilder();
 		const viewPortLimit = 120;
 		const context = Math.floor(Math.max(viewPortLimit - (endLineNumber - startLineNumber), 0) / 2);
