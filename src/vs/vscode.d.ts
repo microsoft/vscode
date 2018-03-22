@@ -6626,8 +6626,12 @@ declare module 'vscode' {
 		 * An optional expression that controls how many hits of the breakpoint are ignored.
 		 */
 		readonly hitCondition?: string;
+		/**
+		 * An optional message that gets logged when this breakpoint is hit. Embedded expressions within {} are interpolated by the debug adapter.
+		 */
+		readonly logMessage?: string;
 
-		protected constructor(enabled?: boolean, condition?: string, hitCondition?: string);
+		protected constructor(enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string);
 	}
 
 	/**
@@ -6642,7 +6646,7 @@ declare module 'vscode' {
 		/**
 		 * Create a new breakpoint for a source location.
 		 */
-		constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string);
+		constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string);
 	}
 
 	/**
@@ -6657,7 +6661,7 @@ declare module 'vscode' {
 		/**
 		 * Create a new function breakpoint.
 		 */
-		constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string);
+		constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string);
 	}
 
 	/**

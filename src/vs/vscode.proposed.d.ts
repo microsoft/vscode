@@ -383,13 +383,6 @@ declare module 'vscode' {
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
 
-	export interface Breakpoint {
-		/**
-		 * An optional message that gets logged when this breakpoint is hit.
-		 */
-		readonly logMessage?: string;
-	}
-
 	//#endregion
 
 	//#region Rob, Matt: logging
