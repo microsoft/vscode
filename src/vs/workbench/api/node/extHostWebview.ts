@@ -9,6 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { Position } from 'vs/platform/editor/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Disposable } from './extHostTypes';
 
 export class ExtHostWebview implements vscode.Webview {
 
@@ -19,6 +20,7 @@ export class ExtHostWebview implements vscode.Webview {
 	private _isDisposed: boolean = false;
 	private _viewColumn: vscode.ViewColumn;
 	private _active: boolean;
+	private _state: any;
 
 	public readonly onMessageEmitter = new Emitter<any>();
 	public readonly onDidReceiveMessage: Event<any> = this.onMessageEmitter.event;
@@ -85,6 +87,17 @@ export class ExtHostWebview implements vscode.Webview {
 		}
 	}
 
+	get state(): any {
+		this.assertNotDisposed();
+		return this._state;
+	}
+
+	set state(value: any) {
+		this.assertNotDisposed();
+		this._state = value;
+		this._proxy.$setState(this._handle, value);
+	}
+
 	get options(): vscode.WebviewOptions {
 		this.assertNotDisposed();
 		return this._options;
@@ -128,11 +141,12 @@ export class ExtHostWebview implements vscode.Webview {
 }
 
 export class ExtHostWebviews implements ExtHostWebviewsShape {
-	private static handlePool = 1;
+	private static webviewHandlePool = 1;
 
 	private readonly _proxy: MainThreadWebviewsShape;
 
 	private readonly _webviews = new Map<WebviewHandle, ExtHostWebview>();
+	private readonly _revivers = new Map<string, vscode.WebviewReviver>();
 
 	private _activeWebview: ExtHostWebview | undefined;
 
@@ -149,12 +163,29 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		options: vscode.WebviewOptions,
 		extensionFolderPath: string
 	): vscode.Webview {
-		const handle = ExtHostWebviews.handlePool++;
+		const handle = ExtHostWebviews.webviewHandlePool++ + '';
 		this._proxy.$createWebview(handle, viewType, title, typeConverters.fromViewColumn(viewColumn), options, extensionFolderPath);
 
 		const webview = new ExtHostWebview(handle, this._proxy, viewType, viewColumn, options);
 		this._webviews.set(handle, webview);
 		return webview;
+	}
+
+	registerWebviewReviver(
+		viewType: string,
+		reviver: vscode.WebviewReviver
+	): vscode.Disposable {
+		if (this._revivers.has(viewType)) {
+			throw new Error(`Reviver for '${viewType}' already registered`);
+		}
+
+		this._revivers.set(viewType, reviver);
+		this._proxy.$registerReviver(viewType);
+
+		return new Disposable(() => {
+			this._revivers.delete(viewType);
+			this._proxy.$unregisterReviver(viewType);
+		});
 	}
 
 	$onMessage(handle: WebviewHandle, message: any): void {
@@ -206,8 +237,24 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 	}
 
-	private readonly _onDidChangeActiveWebview = new Emitter<ExtHostWebview | undefined>();
-	public readonly onDidChangeActiveWebview = this._onDidChangeActiveWebview.event;
+	$reviveWebview(
+		webviewHandle: WebviewHandle,
+		viewType: string,
+		state: any,
+		position: Position,
+		options: vscode.WebviewOptions
+	): void {
+		const reviver = this._revivers.get(viewType);
+		if (!reviver) {
+			return;
+		}
+
+		const webview = new ExtHostWebview(webviewHandle, this._proxy, viewType, typeConverters.toViewColumn(position), options);
+		webview.state = state;
+
+		this._webviews.set(webviewHandle, webview);
+		reviver.reviveWebview(webview);
+	}
 
 	private getWebview(handle: WebviewHandle) {
 		return this._webviews.get(handle);

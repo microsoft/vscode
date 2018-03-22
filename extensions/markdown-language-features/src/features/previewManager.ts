@@ -14,7 +14,7 @@ import { isMarkdownFile } from '../util/file';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContributions } from '../markdownExtensions';
 
-export class MarkdownPreviewManager {
+export class MarkdownPreviewManager implements vscode.WebviewReviver {
 	private static readonly markdownPreviewActiveContextKey = 'markdownPreviewFocus';
 
 	private readonly topmostLineMonitor = new MarkdownFileTopmostLineMonitor();
@@ -29,15 +29,14 @@ export class MarkdownPreviewManager {
 		private readonly contributions: MarkdownContributions
 	) {
 		vscode.window.onDidChangeActiveTextEditor(editor => {
-			if (editor) {
-				if (isMarkdownFile(editor.document)) {
-					for (const preview of this.previews.filter(preview => !preview.locked)) {
-						preview.update(editor.document.uri);
-					}
+			if (editor && isMarkdownFile(editor.document)) {
+				for (const preview of this.previews.filter(preview => !preview.locked)) {
+					preview.update(editor.document.uri);
 				}
 			}
 		}, null, this.disposables);
 
+		this.disposables.push(vscode.window.registerWebviewReviver(MarkdownPreview.viewType, this));
 	}
 
 	public dispose(): void {
@@ -66,7 +65,6 @@ export class MarkdownPreviewManager {
 			preview.reveal(previewSettings.previewColumn);
 		} else {
 			preview = this.createNewPreview(resource, previewSettings);
-			this.previews.push(preview);
 		}
 
 		preview.update(resource);
@@ -90,6 +88,22 @@ export class MarkdownPreviewManager {
 		}
 	}
 
+	public reviveWebview(
+		webview: vscode.Webview
+	): void {
+		console.log('It\'s close to midnight...');
+
+		const preview = MarkdownPreview.revive(
+			webview,
+			this.contentProvider,
+			this.previewConfigurations,
+			this.logger,
+			this.topmostLineMonitor);
+
+		this.registerPreview(preview);
+		preview.refresh();
+	}
+
 	private getExistingPreview(
 		resource: vscode.Uri,
 		previewSettings: PreviewSettings
@@ -101,8 +115,8 @@ export class MarkdownPreviewManager {
 	private createNewPreview(
 		resource: vscode.Uri,
 		previewSettings: PreviewSettings
-	) {
-		const preview = new MarkdownPreview(
+	): MarkdownPreview {
+		const preview = MarkdownPreview.create(
 			resource,
 			previewSettings.previewColumn,
 			previewSettings.locked,
@@ -111,6 +125,14 @@ export class MarkdownPreviewManager {
 			this.logger,
 			this.topmostLineMonitor,
 			this.contributions);
+
+		return this.registerPreview(preview);
+	}
+
+	private registerPreview(
+		preview: MarkdownPreview
+	): MarkdownPreview {
+		this.previews.push(preview);
 
 		preview.onDispose(() => {
 			const existing = this.previews.indexOf(preview!);

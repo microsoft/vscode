@@ -10,36 +10,45 @@ import { extHostNamedCustomer } from './extHostCustomers';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import * as vscode from 'vscode';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import URI from 'vs/base/common/uri';
-import { WebviewInput } from 'vs/workbench/parts/webview/electron-browser/webviewInput';
+import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewInput';
 import { WebviewEditor } from 'vs/workbench/parts/webview/electron-browser/webviewEditor';
-
+import { IWebviewService, WebviewReviver } from 'vs/workbench/parts/webview/electron-browser/webviewService';
+import { IEditorGroupService } from '../../services/group/common/groupService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import URI from 'vs/base/common/uri';
+import { IExtensionService } from '../../services/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
-export class MainThreadWebviews implements MainThreadWebviewsShape {
+export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
+
+	private static readonly viewType = 'mainThreadWebview';
+
 	private static readonly standardSupportedLinkSchemes = ['http', 'https', 'mailto'];
+
+	private static revivalPool = 0;
 
 	private _toDispose: Disposable[] = [];
 
 	private readonly _proxy: ExtHostWebviewsShape;
-	private readonly _webviews = new Map<WebviewHandle, WebviewInput>();
+	private readonly _webviews = new Map<WebviewHandle, WebviewEditorInput>();
+	private readonly _revivers = new Set<string>();
 
-	private _activeWebview: WebviewInput | undefined = undefined;
+	private _activeWebview: WebviewEditorInput | undefined = undefined;
 
 	constructor(
 		context: IExtHostContext,
 		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IPartService private readonly _partService: IPartService,
+		@IEditorGroupService _editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
-		@IEditorGroupService private readonly _editorGroupService: IEditorGroupService,
-		@IOpenerService private readonly _openerService: IOpenerService
+		@IWebviewService private readonly _webviewService: IWebviewService,
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
 		_editorGroupService.onEditorsChanged(this.onEditorsChanged, this, this._toDispose);
+
+		_webviewService.registerReviver(MainThreadWebviews.viewType, this);
 	}
 
 	dispose(): void {
@@ -54,27 +63,28 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 		options: vscode.WebviewOptions,
 		extensionFolderPath: string
 	): void {
-		const webviewInput = new WebviewInput(title, options, '', {
+		const webview = this._webviewService.createWebview(MainThreadWebviews.viewType, title, column, options, extensionFolderPath, {
+			onDidClickLink: uri => this.onDidClickLink(uri, webview.options),
 			onMessage: message => this._proxy.$onMessage(handle, message),
 			onDidChangePosition: position => this._proxy.$onDidChangePosition(handle, position),
 			onDispose: () => {
 				this._proxy.$onDidDisposeWeview(handle).then(() => {
 					this._webviews.delete(handle);
 				});
-			},
-			onDidClickLink: (link, options) => this.onDidClickLink(link, options)
-		}, this._partService);
+			}
+		});
 
-		this._webviews.set(handle, webviewInput);
+		webview.state = {
+			viewType: viewType,
+			state: undefined
+		};
 
-		this._editorService.openEditor(webviewInput, { pinned: true }, column);
+		this._webviews.set(handle, webview);
 	}
 
 	$disposeWebview(handle: WebviewHandle): void {
 		const webview = this.getWebview(handle);
-		if (webview) {
-			this._editorService.closeEditor(webview.position, webview);
-		}
+		webview.dispose();
 	}
 
 	$setTitle(handle: WebviewHandle, value: string): void {
@@ -84,24 +94,25 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 
 	$setHtml(handle: WebviewHandle, value: string): void {
 		const webview = this.getWebview(handle);
-		webview.setHtml(value);
+		webview.html = value;
+	}
+
+	$setState(handle: WebviewHandle, value: string): void {
+		const webview = this.getWebview(handle);
+		webview.state.state = value;
 	}
 
 	$reveal(handle: WebviewHandle, column: Position): void {
-		const webviewInput = this.getWebview(handle);
-		if (webviewInput.position === column) {
-			this._editorService.openEditor(webviewInput, { preserveFocus: true }, column);
-		} else {
-			this._editorGroupService.moveEditor(webviewInput, webviewInput.position, column, { preserveFocus: true });
-		}
+		const webview = this.getWebview(handle);
+		this._webviewService.revealWebview(webview, column);
 	}
 
 	async $sendMessage(handle: WebviewHandle, message: any): Promise<boolean> {
-		const webviewInput = this.getWebview(handle);
+		const webview = this.getWebview(handle);
 		const editors = this._editorService.getVisibleEditors()
 			.filter(e => e instanceof WebviewEditor)
 			.map(e => e as WebviewEditor)
-			.filter(e => e.input.matches(webviewInput));
+			.filter(e => e.input.matches(webview));
 
 		for (const editor of editors) {
 			editor.sendMessage(message);
@@ -110,18 +121,52 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 		return (editors.length > 0);
 	}
 
-	private getWebview(handle: number): WebviewInput {
-		const webviewInput = this._webviews.get(handle);
-		if (!webviewInput) {
+	$registerReviver(viewType: string): void {
+		this._revivers.add(viewType);
+	}
+
+	$unregisterReviver(viewType: string): void {
+		this._revivers.delete(viewType);
+	}
+
+	reviveWebview(webview: WebviewEditorInput): boolean {
+		this._extensionService.activateByEvent(`onView:${webview.state.viewType}`).then(() => {
+			const handle = 'revival-' + MainThreadWebviews.revivalPool++;
+			this._webviews.set(handle, webview);
+
+			webview._events = {
+				onDidClickLink: uri => this.onDidClickLink(uri, webview.options),
+				onMessage: message => this._proxy.$onMessage(handle, message),
+				onDidChangePosition: position => this._proxy.$onDidChangePosition(handle, position),
+				onDispose: () => {
+					this._proxy.$onDidDisposeWeview(handle).then(() => {
+						this._webviews.delete(handle);
+					});
+				}
+			};
+
+			this._proxy.$reviveWebview(handle, webview.state.viewType, webview.state.state, webview.position, webview.options);
+		});
+
+		return true;
+	}
+
+	canRevive(webview: WebviewEditorInput): boolean {
+		return this._revivers.has(webview.viewType) || webview.reviver !== null;
+	}
+
+	private getWebview(handle: WebviewHandle): WebviewEditorInput {
+		const webview = this._webviews.get(handle);
+		if (!webview) {
 			throw new Error('Unknown webview handle:' + handle);
 		}
-		return webviewInput;
+		return webview;
 	}
 
 	private onEditorsChanged() {
 		const activeEditor = this._editorService.getActiveEditor();
-		let newActiveWebview: { input: WebviewInput, handle: WebviewHandle } | undefined = undefined;
-		if (activeEditor && activeEditor.input instanceof WebviewInput) {
+		let newActiveWebview: { input: WebviewEditorInput, handle: WebviewHandle } | undefined = undefined;
+		if (activeEditor && activeEditor.input instanceof WebviewEditorInput) {
 			for (const handle of map.keys(this._webviews)) {
 				const input = this._webviews.get(handle);
 				if (input.matches(activeEditor.input)) {
@@ -132,7 +177,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 		}
 
 		if (newActiveWebview) {
-			if (!this._activeWebview || !newActiveWebview.input.matches(this._activeWebview)) {
+			if (!this._activeWebview || newActiveWebview.input !== this._activeWebview) {
 				this._proxy.$onDidChangeActiveWeview(newActiveWebview.handle);
 				this._activeWebview = newActiveWebview.input;
 			}
@@ -154,4 +199,5 @@ export class MainThreadWebviews implements MainThreadWebviewsShape {
 			this._openerService.open(link);
 		}
 	}
+
 }

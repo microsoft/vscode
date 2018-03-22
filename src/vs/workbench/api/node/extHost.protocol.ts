@@ -347,7 +347,7 @@ export interface MainThreadTelemetryShape extends IDisposable {
 	$publicLog(eventName: string, data?: any): void;
 }
 
-export type WebviewHandle = number;
+export type WebviewHandle = string;
 
 export interface MainThreadWebviewsShape extends IDisposable {
 	$createWebview(handle: WebviewHandle, viewType: string, title: string, column: EditorPosition, options: vscode.WebviewOptions, extensionFolderPath: string): void;
@@ -355,13 +355,19 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$reveal(handle: WebviewHandle, column: EditorPosition): void;
 	$setTitle(handle: WebviewHandle, value: string): void;
 	$setHtml(handle: WebviewHandle, value: string): void;
+	$setState(handle: WebviewHandle, value: any): void;
 	$sendMessage(handle: WebviewHandle, value: any): Thenable<boolean>;
+
+	$registerReviver(viewType: string): void;
+	$unregisterReviver(viewType: string): void;
 }
+
 export interface ExtHostWebviewsShape {
 	$onMessage(handle: WebviewHandle, message: any): void;
 	$onDidChangeActiveWeview(handle: WebviewHandle | undefined): void;
 	$onDidDisposeWeview(handle: WebviewHandle): Thenable<void>;
 	$onDidChangePosition(handle: WebviewHandle, newPosition: EditorPosition): void;
+	$reviveWebview(newWebviewHandle: WebviewHandle, viewType: string, state: any, position: EditorPosition, options: vscode.WebviewOptions): void;
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {

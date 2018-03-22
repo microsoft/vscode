@@ -568,7 +568,7 @@ declare module 'vscode' {
 	 */
 	export interface Webview {
 		/**
-		 * The type of the webview, such as `'markdownw.preview'`
+		 * The type of the webview, such as `'markdown.preview'`
 		 */
 		readonly viewType: string;
 
@@ -588,6 +588,11 @@ declare module 'vscode' {
 		 * Should be a complete html document.
 		 */
 		html: string;
+
+		/**
+		 * JSON serializable blob of data saved on webviews for revival.
+		 */
+		state: any;
 
 		/**
 		 * The column in which the webview is showing.
@@ -636,16 +641,43 @@ declare module 'vscode' {
 		dispose(): any;
 	}
 
+	/**
+	 * Restores webviews that have been persisted when vscode shuts down.
+	 */
+	interface WebviewReviver {
+		/**
+		 * Restore a webview's `html` from its `state`.
+		 *
+		 * Called when a serialized webview first becomes active.
+		 *
+		 * @param webview Webview to revive.
+		 */
+		reviveWebview(webview: Webview): void;
+	}
+
 	namespace window {
 		/**
 		 * Create and show a new webview.
 		 *
-		 * @param viewType Identifier the type of the webview.
+		 * @param viewType Identifies the type of the webview.
 		 * @param title Title of the webview.
 		 * @param column Editor column to show the new webview in.
 		 * @param options Content settings for the webview.
 		 */
 		export function createWebview(viewType: string, title: string, column: ViewColumn, options: WebviewOptions): Webview;
+
+		/**
+		 * Registers a webview reviver.
+		 *
+		 * Extensions that support reviving should have an `"onView:viewType"` activation method and
+		 * make sure that `registerWebviewReviver` is called during activation.
+		 *
+		 * Only a single reviver may be registered at a time for a given `viewType`.
+		 *
+		 * @param viewType Type of the webview that can be revived.
+		 * @param reviver Webview revivier.
+		 */
+		export function registerWebviewReviver(viewType: string, reviver: WebviewReviver): Disposable;
 	}
 
 	//#endregion
