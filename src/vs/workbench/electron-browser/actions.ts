@@ -133,6 +133,7 @@ export class ToggleMenuBarAction extends Action {
 	static LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
 
 	private static readonly menuBarVisibilityKey = 'window.menuBarVisibility';
+	private static hiddenVisibilityValue = 'toggle';
 
 	constructor(
 		id: string,
@@ -150,8 +151,9 @@ export class ToggleMenuBarAction extends Action {
 
 		let newVisibilityValue: string;
 		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'default') {
-			newVisibilityValue = 'toggle';
+			newVisibilityValue = ToggleMenuBarAction.hiddenVisibilityValue;
 		} else {
+			ToggleMenuBarAction.hiddenVisibilityValue = currentVisibilityValue;
 			newVisibilityValue = 'default';
 		}
 
