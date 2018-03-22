@@ -130,36 +130,45 @@ export function parseDocument(document: vscode.TextDocument, showError: boolean 
 
 export function parsePartialStylesheet(document: vscode.TextDocument, position: vscode.Position): Node | undefined {
 
-	let line = position.line;
 	let startPosition = new vscode.Position(0, 0);
 	let endPosition = new vscode.Position(document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length);
-	while (line >= 0) {
-		const openBracesIndex = document.lineAt(line).text.indexOf('{');
-		if (openBracesIndex > -1) {
-			startPosition = new vscode.Position(line, 0);
-			break;
+	const closeBrace = 125;
+	const openBrace = 123;
+
+	// Go forward until we found a closing or opening brace
+	let stream = new DocumentStreamReader(document, position);
+	stream.eatWhile(char => { return char !== closeBrace && char !== openBrace; });
+	stream.eat(closeBrace);
+	endPosition = stream.pos;
+
+	// Go back until we found an opening brace. If we find a closing one, we first find its opening brace and then we continue.
+	stream.pos = position;
+	let openBracesRemaining = 1;
+	let unindentedRulesFound = 0;
+	while (openBracesRemaining > 0 && !(stream.pos.line === 0 && stream.pos.character === 0)) {
+		let ch = stream.backUp(1);
+		if (ch === openBrace) {
+			openBracesRemaining--;
+			// Heuristic to not parse the whole document.
+			if (unindentedRulesFound >= 10) {
+				break;
+			}
+		} else if (ch === closeBrace) {
+			if (stream.pos.character === 0) {
+				unindentedRulesFound++;
+			}
+			openBracesRemaining++;
 		}
-		const closeBracesIndex = document.lineAt(line).text.indexOf('}');
-		if (closeBracesIndex > -1) {
-			startPosition = new vscode.Position(line, closeBracesIndex + 1);
-			break;
-		}
-		line--;
 	}
-	line = position.line;
-	while (line < document.lineCount) {
-		const openBracesIndex = document.lineAt(line).text.indexOf('{');
-		if (openBracesIndex > -1) {
-			endPosition = new vscode.Position(line, openBracesIndex + 1);
+	// We are at an opening brace. We need to include its selector
+	while (stream.pos.character > 0) {
+		let ch = stream.backUp(1);
+		if (ch === closeBrace || ch === openBrace) {
+			stream.next();
 			break;
 		}
-		const closeBracesIndex = document.lineAt(line).text.indexOf('}');
-		if (closeBracesIndex > -1) {
-			endPosition = new vscode.Position(line, closeBracesIndex + 1);
-			break;
-		}
-		line++;
 	}
+	startPosition = stream.pos;
 	try {
 		return parseStylesheet(new DocumentStreamReader(document, startPosition, new vscode.Range(startPosition, endPosition)));
 	} catch (e) {
