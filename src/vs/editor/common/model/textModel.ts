@@ -1625,6 +1625,67 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	//#region Tokenization
 
+	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
+		if (!this._tokens.tokenizationSupport) {
+			return;
+		}
+
+		const eventBuilder = new ModelTokensChangedEventBuilder();
+		const viewPortLimit = 120;
+		const context = Math.floor(Math.max(viewPortLimit - (endLineNumber - startLineNumber), 0) / 2);
+		startLineNumber = Math.max(1, startLineNumber - context);
+		let nonWhitespaceColumn = this.getLineFirstNonWhitespaceColumn(startLineNumber);
+
+		let fakeLines = [];
+		let i = startLineNumber - 1;
+		if (nonWhitespaceColumn > 0) {
+			while (nonWhitespaceColumn > 0 && i >= 1) {
+				let newNonWhitespaceIndex = this.getLineFirstNonWhitespaceColumn(i);
+
+				if (newNonWhitespaceIndex === 0) {
+					i--;
+					continue;
+				}
+
+				if (newNonWhitespaceIndex < nonWhitespaceColumn) {
+					fakeLines.push(this.getLineContent(i));
+					nonWhitespaceColumn = newNonWhitespaceIndex;
+				}
+
+				i--;
+			}
+		}
+
+		const initialState = this._tokens.tokenizationSupport.getInitialState();
+		let state = initialState.clone();
+		for (let i = fakeLines.length - 1; i >= 0; i--) {
+			let r = this._tokens._tokenizeOneLine2(this._buffer, fakeLines[i], state, eventBuilder);
+			if (r) {
+				state = r.endState.clone();
+			} else {
+				state = initialState.clone();
+			}
+		}
+
+		endLineNumber = Math.min(this.getLineCount(), endLineNumber + context);
+		for (let i = startLineNumber; i <= endLineNumber; i++) {
+			let text = this.getLineContent(i);
+			let r = this._tokens._tokenizeOneLine2(this._buffer, text, state, eventBuilder);
+			if (r) {
+				state = r.endState.clone();
+				this._tokens._setTokens(this._tokens.languageIdentifier.id, i - 1, text.length, r.tokens);
+				eventBuilder.registerChangedTokens(i);
+			} else {
+				state = initialState.clone();
+			}
+		}
+
+		const e = eventBuilder.build();
+		if (e) {
+			this._onDidChangeTokens.fire(e);
+		}
+	}
+
 	public forceTokenization(lineNumber: number): void {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value for lineNumber');

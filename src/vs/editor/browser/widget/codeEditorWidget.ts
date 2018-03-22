@@ -25,7 +25,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground, editorHintForeground, editorHintBorder } from 'vs/editor/common/view/editorColorRegistry';
@@ -455,7 +455,12 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			return;
 		}
 		if (s && s.cursorState && s.viewState) {
-			this._view.restoreState(this.viewModel.viewLayout.reduceRestoreState(s.viewState));
+			const reducedState = this.viewModel.viewLayout.reduceRestoreState(s.viewState);
+			const linesViewportData = this.viewModel.viewLayout.getLinesViewportDataAtScrollTop(reducedState.scrollTop);
+			const startViewPosition = this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.startLineNumber, 1));
+			const endViewPosition = this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.endLineNumber, 1));
+			this.model.tokenizeViewport(startViewPosition.lineNumber, endViewPosition.lineNumber);
+			this._view.restoreState(reducedState);
 		}
 	}
 
