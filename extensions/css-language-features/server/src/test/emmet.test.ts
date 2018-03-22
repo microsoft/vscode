@@ -6,7 +6,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { getCSSLanguageService, getSCSSLanguageService } from 'vscode-css-languageservice/lib/umd/cssLanguageService';
+import { getCSSLanguageService, getSCSSLanguageService } from 'vscode-css-languageservice';
 import { TextDocument, CompletionList } from 'vscode-languageserver-types';
 import { getEmmetCompletionParticipants } from 'vscode-emmet-helper';
 

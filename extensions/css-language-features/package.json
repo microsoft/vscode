@@ -19,8 +19,7 @@
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-client && gulp compile-extension:css-language-features-server",
     "postinstall": "cd server && yarn install",
-    "install-client-next": "yarn add vscode-languageclient@next",
-    "update-grammar": "node ../../build/npm/update-grammar.js atom/language-css grammars/css.cson ./syntaxes/css.tmLanguage.json"
+    "install-client-next": "yarn add vscode-languageclient@next"
   },
   "contributes": {
     "configuration": [
