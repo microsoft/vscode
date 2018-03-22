@@ -6,7 +6,7 @@
 	},
 	{
 		"name": "ms-vscode.node-debug2",
-		"version": "1.22.3",
+		"version": "1.22.4",
 		"repo": "https://github.com/Microsoft/vscode-node-debug2"
 	}
 ]
