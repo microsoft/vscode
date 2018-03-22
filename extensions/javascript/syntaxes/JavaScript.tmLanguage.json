@@ -3406,13 +3406,13 @@
 			"patterns": [
 				{
 					"name": "string.regexp.js",
-					"begin": "(?<=[=(:,\\[?+!]|^return|[^\\._$[:alnum:]]return|^case|[^\\._$[:alnum:]]case|=>|&&|\\|\\||\\*\\/)\\s*(\\/)(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+\\/(?![\\/*])[gimuy]*(?!\\s*[a-zA-Z0-9_$]))",
+					"begin": "(?<=[=(:,\\[?+!]|^return|[^\\._$[:alnum:]]return|^case|[^\\._$[:alnum:]]case|=>|&&|\\|\\||\\*\\/)\\s*(\\/)(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+\\/(?![\\/*])[gimuys]*(?!\\s*[a-zA-Z0-9_$]))",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.string.begin.js"
 						}
 					},
-					"end": "(/)([gimuy]*)",
+					"end": "(/)([gimuys]*)",
 					"endCaptures": {
 						"1": {
 							"name": "punctuation.definition.string.end.js"
@@ -3429,13 +3429,13 @@
 				},
 				{
 					"name": "string.regexp.js",
-					"begin": "(?<![_$[:alnum:])\\]])\\/(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+\\/(?![\\/*])[gimuy]*(?!\\s*[a-zA-Z0-9_$]))",
+					"begin": "(?<![_$[:alnum:])\\]])\\/(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\])+\\/(?![\\/*])[gimuys]*(?!\\s*[a-zA-Z0-9_$]))",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.definition.string.begin.js"
 						}
 					},
-					"end": "(/)([gimuy]*)",
+					"end": "(/)([gimuys]*)",
 					"endCaptures": {
 						"1": {
 							"name": "punctuation.definition.string.end.js"
