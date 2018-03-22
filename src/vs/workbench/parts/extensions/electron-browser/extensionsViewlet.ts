@@ -133,8 +133,8 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 		viewDescriptors.push(this.createMarketPlaceExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createInstalledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createSearchInstalledExtensionsListViewDescriptor());
-		viewDescriptors.push(this.createSearchBuiltInBasicsExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createSearchBuiltInExtensionsListViewDescriptor());
+		viewDescriptors.push(this.createSearchBuiltInBasicsExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createSearchBuiltInThemesExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createDefaultRecommendedExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createOtherRecommendedExtensionsListViewDescriptor());
@@ -216,7 +216,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 	private createSearchBuiltInExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
 			id: 'extensions.builtInExtensionsList',
-			name: localize('builtInExtensions', "Built-In Extensions"),
+			name: localize('builtInExtensions', "Features"),
 			location: ViewLocation.Extensions,
 			ctor: BuiltInExtensionsView,
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),
@@ -228,7 +228,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 	private createSearchBuiltInThemesExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
 			id: 'extensions.builtInThemesExtensionsList',
-			name: localize('builtInThemesExtensions', "Built-In Themes"),
+			name: localize('builtInThemesExtensions', "Themes"),
 			location: ViewLocation.Extensions,
 			ctor: BuiltInThemesExtensionsView,
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),
@@ -240,7 +240,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 	private createSearchBuiltInBasicsExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
 			id: 'extensions.builtInBasicsExtensionsList',
-			name: localize('builtInBasicsExtensions', "Built-In Language Basics"),
+			name: localize('builtInBasicsExtensions', "Languages"),
 			location: ViewLocation.Extensions,
 			ctor: BuiltInBasicsExtensionsView,
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),
