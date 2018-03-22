@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { Node } from 'EmmetNode';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
-import { getEmmetHelper, getNode, getMappingForIncludedLanguages, parseDocument, getEmmetConfiguration, getEmmetMode, isStyleSheet } from './util';
+import { getEmmetHelper, getNode, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet } from './util';
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
@@ -38,7 +38,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 		// If document can be css parsed, get currentNode
 		if (isStyleSheet(document.languageId)) {
-			const rootNode = parseDocument(document, false);
+			const rootNode = parsePartialStylesheet(document, position);
 			if (!rootNode) {
 				return;
 			}

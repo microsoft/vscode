@@ -128,6 +128,44 @@ export function parseDocument(document: vscode.TextDocument, showError: boolean 
 	return undefined;
 }
 
+export function parsePartialStylesheet(document: vscode.TextDocument, position: vscode.Position): Node | undefined {
+
+	let line = position.line;
+	let startPosition = new vscode.Position(0, 0);
+	let endPosition = new vscode.Position(document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length);
+	while (line >= 0) {
+		const openBracesIndex = document.lineAt(line).text.indexOf('{');
+		if (openBracesIndex > -1) {
+			startPosition = new vscode.Position(line, 0);
+			break;
+		}
+		const closeBracesIndex = document.lineAt(line).text.indexOf('}');
+		if (closeBracesIndex > -1) {
+			startPosition = new vscode.Position(line, closeBracesIndex + 1);
+			break;
+		}
+		line--;
+	}
+	line = position.line;
+	while (line < document.lineCount) {
+		const openBracesIndex = document.lineAt(line).text.indexOf('{');
+		if (openBracesIndex > -1) {
+			endPosition = new vscode.Position(line, openBracesIndex + 1);
+			break;
+		}
+		const closeBracesIndex = document.lineAt(line).text.indexOf('}');
+		if (closeBracesIndex > -1) {
+			endPosition = new vscode.Position(line, closeBracesIndex + 1);
+			break;
+		}
+		line++;
+	}
+	try {
+		return parseStylesheet(new DocumentStreamReader(document, startPosition, new vscode.Range(startPosition, endPosition)));
+	} catch (e) {
+	}
+}
+
 /**
  * Returns node corresponding to given position in the given root node
  */
