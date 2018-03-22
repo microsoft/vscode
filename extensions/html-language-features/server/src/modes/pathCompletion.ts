@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TextDocument, CompletionList, CompletionItemKind, CompletionItem, TextEdit, Range, Position } from 'vscode-languageserver-types';
+import { TextDocument, CompletionItemKind, CompletionItem, TextEdit, Range, Position } from 'vscode-languageserver-types';
 import { WorkspaceFolder } from 'vscode-languageserver';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -15,22 +15,21 @@ import { contains } from '../utils/arrays';
 
 export function getPathCompletionParticipant(
 	document: TextDocument,
-	workspaceFolders: WorkspaceFolder[] | undefined,
-	result: CompletionList
+	workspaceFolders: WorkspaceFolder[],
+	result: CompletionItem[]
 ): ICompletionParticipant {
 	return {
 		onHtmlAttributeValue: ({ tag, position, attribute, value: valueBeforeCursor, range }) => {
 			const fullValue = getFullValueWithoutQuotes(document, range);
 
 			if (shouldDoPathCompletion(tag, attribute, fullValue)) {
-				if (!workspaceFolders || workspaceFolders.length === 0) {
+				if (workspaceFolders.length === 0) {
 					return;
 				}
 				const workspaceRoot = resolveWorkspaceRoot(document, workspaceFolders);
 
 				const paths = providePaths(valueBeforeCursor, URI.parse(document.uri).fsPath, workspaceRoot);
-				const suggestions = paths.map(p => pathToSuggestion(p, valueBeforeCursor, fullValue, range));
-				result.items = [...suggestions, ...result.items];
+				result.push(...paths.map(p => pathToSuggestion(p, valueBeforeCursor, fullValue, range)));
 			}
 		}
 	};

@@ -7,10 +7,9 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
-// import Uri from 'vscode-uri';
+import Uri from 'vscode-uri';
 import { TextDocument, CompletionList, CompletionItemKind } from 'vscode-languageserver-types';
 import { getLanguageModes } from '../modes/languageModes';
-import { getPathCompletionParticipant } from '../modes/pathCompletion';
 import { WorkspaceFolder } from 'vscode-languageserver';
 
 export interface ItemDescription {
@@ -22,7 +21,7 @@ export interface ItemDescription {
 	notAvailable?: boolean;
 }
 
-export function assertCompletion (completions: CompletionList, expected: ItemDescription, document: TextDocument, offset: number) {
+export function assertCompletion(completions: CompletionList, expected: ItemDescription, document: TextDocument, offset: number) {
 	let matches = completions.items.filter(completion => {
 		return completion.label === expected.label;
 	});
@@ -49,32 +48,22 @@ export function assertCompletion (completions: CompletionList, expected: ItemDes
 
 const testUri = 'test://test/test.html';
 
-export function testCompletionFor(
-	value: string,
-	expected: { count?: number, items?: ItemDescription[] },
-	uri = testUri,
-	workspaceFolders?: WorkspaceFolder[]
-): void {
+export function testCompletionFor(value: string, expected: { count?: number, items?: ItemDescription[] }, uri = testUri, workspaceFolders?: WorkspaceFolder[]): void {
 	let offset = value.indexOf('|');
 	value = value.substr(0, offset) + value.substr(offset + 1);
+
+	let workspace = {
+		settings: {},
+		folders: workspaceFolders || [{ name: 'x', uri: uri.substr(0, uri.lastIndexOf('/')) }]
+	};
 
 	let document = TextDocument.create(uri, 'html', 0, value);
 	let position = document.positionAt(offset);
 
-	var languageModes = getLanguageModes({ css: true, javascript: true });
+	var languageModes = getLanguageModes({ css: true, javascript: true }, workspace);
 	var mode = languageModes.getModeAtPosition(document, position)!;
 
-	if (!workspaceFolders) {
-		workspaceFolders = [{ name: 'x', uri: path.dirname(uri) }];
-	}
-
-	let participantResult = CompletionList.create([]);
-	if (mode.setCompletionParticipants) {
-		mode.setCompletionParticipants([getPathCompletionParticipant(document, workspaceFolders, participantResult)]);
-	}
-
-	let list = mode.doComplete!(document, position)!;
-	list.items = list.items.concat(participantResult.items);
+	let list = mode.doComplete!(document, position);
 
 	if (expected.count) {
 		assert.equal(list.items, expected.count);
@@ -107,10 +96,10 @@ suite('HTML Path Completion', () => {
 		command: 'editor.action.triggerSuggest'
 	};
 
-	const fixtureRoot = path.resolve(__dirname, 'pathcompletionfixtures');
-	const fixtureWorkspace = { name: 'fixture', uri: fixtureRoot };
-	const indexHtmlUri = path.resolve(fixtureRoot, 'index.html');
-	const aboutHtmlUri = path.resolve(fixtureRoot, 'about/about.html');
+	const fixtureRoot = path.resolve(__dirname, 'pathCompletionFixtures');
+	const fixtureWorkspace = { name: 'fixture', uri: Uri.file(fixtureRoot).toString() };
+	const indexHtmlUri = Uri.file(path.resolve(fixtureRoot, 'index.html')).toString();
+	const aboutHtmlUri = Uri.file(path.resolve(fixtureRoot, 'about/about.html')).toString();
 
 	test('Basics - Correct label/kind/result/command', () => {
 		testCompletionFor('<script src="./|">', {

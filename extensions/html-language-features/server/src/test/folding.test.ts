@@ -19,7 +19,11 @@ interface ExpectedIndentRange {
 
 function assertRanges(lines: string[], expected: ExpectedIndentRange[], message?: string, nRanges?: number): void {
 	let document = TextDocument.create('test://foo/bar.json', 'json', 1, lines.join('\n'));
-	let languageModes = getLanguageModes({ css: true, javascript: true });
+	let workspace = {
+		settings: {},
+		folders: [{ name: 'foo', uri: 'test://foo' }]
+	};
+	let languageModes = getLanguageModes({ css: true, javascript: true }, workspace);
 	let actual = getFoldingRegions(languageModes, document, nRanges, null)!.ranges;
 
 	let actualRanges = [];

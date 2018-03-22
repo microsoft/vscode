@@ -9,7 +9,7 @@ import {
 	CompletionItem, Location, SignatureHelp, Definition, TextEdit, TextDocument, Diagnostic, DocumentLink, Range,
 	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions, SymbolInformation
 } from 'vscode-languageserver-types';
-import { ColorInformation, ColorPresentation, Color } from 'vscode-languageserver';
+import { ColorInformation, ColorPresentation, Color, WorkspaceFolder } from 'vscode-languageserver';
 import { FoldingRange } from '../protocol/foldingProvider.proposed';
 
 import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
@@ -27,16 +27,15 @@ export interface Settings {
 	emmet?: { [key: string]: any };
 }
 
-export interface SettingProvider {
-	getDocumentSettings(textDocument: TextDocument): Thenable<Settings>;
+export interface Workspace {
+	readonly settings: Settings;
+	readonly folders: WorkspaceFolder[];
 }
 
 export interface LanguageMode {
 	getId(): string;
-	configure?: (options: Settings) => void;
 	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
-	doComplete?: (document: TextDocument, position: Position, settings?: Settings, registeredCompletionParticipants?: any[]) => CompletionList | null;
-	setCompletionParticipants?: (registeredCompletionParticipants: any[]) => void;
+	doComplete?: (document: TextDocument, position: Position, settings?: Settings, registeredCompletionParticipants?: any[]) => CompletionList;
 	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem;
 	doHover?: (document: TextDocument, position: Position) => Hover | null;
 	doSignatureHelp?: (document: TextDocument, position: Position) => SignatureHelp | null;
@@ -69,7 +68,7 @@ export interface LanguageModeRange extends Range {
 	attributeValue?: boolean;
 }
 
-export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }): LanguageModes {
+export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean; }, workspace: Workspace): LanguageModes {
 
 	var htmlLanguageService = getHTMLLanguageService();
 	let documentRegions = getLanguageModelCache<HTMLDocumentRegions>(10, 60, document => getDocumentRegions(htmlLanguageService, document));
@@ -78,12 +77,12 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 	modelCaches.push(documentRegions);
 
 	let modes = Object.create(null);
-	modes['html'] = getHTMLMode(htmlLanguageService);
+	modes['html'] = getHTMLMode(htmlLanguageService, workspace);
 	if (supportedLanguages['css']) {
-		modes['css'] = getCSSMode(documentRegions);
+		modes['css'] = getCSSMode(documentRegions, workspace);
 	}
 	if (supportedLanguages['javascript']) {
-		modes['javascript'] = getJavascriptMode(documentRegions);
+		modes['javascript'] = getJavascriptMode(documentRegions, workspace);
 	}
 	return {
 		getModeAtPosition(document: TextDocument, position: Position): LanguageMode | undefined {

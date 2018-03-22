@@ -6,40 +6,36 @@
 
 import { getLanguageModelCache } from '../languageModelCache';
 import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions, HTMLFormatConfiguration, ICompletionParticipant } from 'vscode-html-languageservice';
-import { TextDocument, Position, Range } from 'vscode-languageserver-types';
-import { LanguageMode, Settings } from './languageModes';
+import { TextDocument, Position, Range, CompletionItem } from 'vscode-languageserver-types';
+import { LanguageMode, Settings, Workspace } from './languageModes';
 
 import { FoldingRange } from '../protocol/foldingProvider.proposed';
 import { getHTMLFoldingRegions } from './htmlFolding';
+import { getPathCompletionParticipant } from './pathCompletion';
 
-export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageMode {
-	let globalSettings: Settings = {};
+export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace: Workspace): LanguageMode {
 	let htmlDocuments = getLanguageModelCache<HTMLDocument>(10, 60, document => htmlLanguageService.parseHTMLDocument(document));
-	let completionParticipants: ICompletionParticipant[] = [];
 	return {
 		getId() {
 			return 'html';
 		},
-		configure(options: any) {
-			globalSettings = options;
-		},
-		doComplete(document: TextDocument, position: Position, settings: Settings = globalSettings, registeredCompletionParticipants?: ICompletionParticipant[]) {
-			if (registeredCompletionParticipants) {
-				completionParticipants = registeredCompletionParticipants;
-			}
+		doComplete(document: TextDocument, position: Position, settings = workspace.settings, completionParticipants?: ICompletionParticipant[]) {
 			let options = settings && settings.html && settings.html.suggest;
 			let doAutoComplete = settings && settings.html && settings.html.autoClosingTags;
 			if (doAutoComplete) {
 				options.hideAutoCompleteProposals = true;
 			}
+			let pathCompletionProposals: CompletionItem[] = [];
+			let participants = [getPathCompletionParticipant(document, workspace.folders, pathCompletionProposals)];
+			if (completionParticipants) {
+				participants.push(...completionParticipants);
+			}
+			htmlLanguageService.setCompletionParticipants(participants);
 
 			const htmlDocument = htmlDocuments.get(document);
-			htmlLanguageService.setCompletionParticipants(completionParticipants);
-
-			return htmlLanguageService.doComplete(document, position, htmlDocument, options);
-		},
-		setCompletionParticipants(registeredCompletionParticipants: any[]) {
-			completionParticipants = registeredCompletionParticipants;
+			let completionList = htmlLanguageService.doComplete(document, position, htmlDocument, options);
+			completionList.items.push(...pathCompletionProposals);
+			return completionList;
 		},
 		doHover(document: TextDocument, position: Position) {
 			return htmlLanguageService.doHover(document, position, htmlDocuments.get(document));
@@ -53,7 +49,7 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageM
 		findDocumentSymbols(document: TextDocument) {
 			return htmlLanguageService.findDocumentSymbols(document, htmlDocuments.get(document));
 		},
-		format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings: Settings = globalSettings) {
+		format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings = workspace.settings) {
 			let formatSettings: HTMLFormatConfiguration = settings && settings.html && settings.html.format;
 			if (formatSettings) {
 				formatSettings = merge(formatSettings, {});
