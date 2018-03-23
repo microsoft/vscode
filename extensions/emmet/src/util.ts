@@ -145,15 +145,16 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	stream.pos = position;
 	let openBracesRemaining = 1;
 	while (openBracesRemaining > 0 && !stream.sof()) {
+		if (position.line - stream.pos.line > 1000) {
+			return parseStylesheet(new DocumentStreamReader(document, endPosition, new vscode.Range(0, 0, endPosition.line, endPosition.character)));
+		}
 		let ch = stream.backUp(1);
 		if (ch === openBrace) {
 			openBracesRemaining--;
 		} else if (ch === closeBrace) {
 			if (document.languageId !== 'css') {
-				openBracesRemaining++;
-			}
-			if (position.line - stream.pos.line > 1000) {
-				return parseStylesheet(new DocumentStreamReader(document, new vscode.Position(0, 0)));
+				stream.next();
+				return parseStylesheet(new DocumentStreamReader(document, stream.pos, new vscode.Range(stream.pos, endPosition)));
 			}
 		}
 	}
