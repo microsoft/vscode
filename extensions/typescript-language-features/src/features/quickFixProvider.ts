@@ -12,6 +12,7 @@ import FormattingConfigurationManager from './formattingConfigurationManager';
 import { getEditForCodeAction, applyCodeActionCommands } from '../utils/codeAction';
 import { Command, CommandManager } from '../utils/commandManager';
 import { DiagnosticsManager } from './diagnostics';
+import BufferSyncSupport from './bufferSyncSupport';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -132,7 +133,9 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 		private readonly client: ITypeScriptServiceClient,
 		private readonly formattingConfigurationManager: FormattingConfigurationManager,
 		commandManager: CommandManager,
-		private readonly diagnosticsManager: DiagnosticsManager
+		private readonly diagnosticsManager: DiagnosticsManager,
+		private readonly bufferSyncSupport: BufferSyncSupport
+
 	) {
 		commandManager.register(new ApplyCodeActionCommand(client));
 		commandManager.register(new ApplyFixAllCodeAction(client));
@@ -157,6 +160,10 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 
 		const fixableDiagnostics = await this.supportedCodeActionProvider.getFixableDiagnosticsForContext(context);
 		if (!fixableDiagnostics.length) {
+			return [];
+		}
+
+		if (this.bufferSyncSupport.hasPendingDiagnostics(document.uri)) {
 			return [];
 		}
 
