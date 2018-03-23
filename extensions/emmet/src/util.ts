@@ -144,20 +144,17 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	// Go back until we found an opening brace. If we find a closing one, we first find its opening brace and then we continue.
 	stream.pos = position;
 	let openBracesRemaining = 1;
-	let unindentedRulesFound = 0;
-	while (openBracesRemaining > 0 && !(stream.pos.line === 0 && stream.pos.character === 0)) {
+	while (openBracesRemaining > 0 && !stream.sof()) {
 		let ch = stream.backUp(1);
 		if (ch === openBrace) {
 			openBracesRemaining--;
-			// Heuristic to not parse the whole document.
-			if (unindentedRulesFound >= 10) {
-				break;
-			}
 		} else if (ch === closeBrace) {
-			if (stream.pos.character === 0) {
-				unindentedRulesFound++;
+			if (document.languageId !== 'css') {
+				openBracesRemaining++;
 			}
-			openBracesRemaining++;
+			if (position.line - stream.pos.line > 1000) {
+				return parseStylesheet(new DocumentStreamReader(document, new vscode.Position(0, 0)));
+			}
 		}
 	}
 	// We are at an opening brace. We need to include its selector
