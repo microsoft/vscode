@@ -152,7 +152,7 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 		if (ch === openBrace) {
 			openBracesRemaining--;
 		} else if (ch === closeBrace) {
-			if (document.languageId !== 'css') {
+			if (document.languageId === 'css') {
 				stream.next();
 				return parseStylesheet(new DocumentStreamReader(document, stream.pos, new vscode.Range(stream.pos, endPosition)));
 			}
