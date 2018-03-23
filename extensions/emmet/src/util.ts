@@ -135,10 +135,10 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	const closeBrace = 125;
 	const openBrace = 123;
 
-	// Go forward until we found a closing or opening brace
+	// Go forward until we found a closing brace.
 	let stream = new DocumentStreamReader(document, position);
-	stream.eatWhile(char => { return char !== closeBrace && char !== openBrace; });
-	stream.eat(closeBrace);
+	stream.eatWhile(char => { return char !== closeBrace; });
+	stream.next();
 	endPosition = stream.pos;
 
 	// Go back until we found an opening brace. If we find a closing one, we first find its opening brace and then we continue.
@@ -159,11 +159,13 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 			openBracesRemaining++;
 		}
 	}
-	// We are at an opening brace. We need to include its selector
-	while (stream.pos.character > 0) {
+	// We are at an opening brace. We need to include its selector, but with one nonspace character is enough.
+	while (!stream.sof()) {
 		let ch = stream.backUp(1);
 		if (ch === closeBrace || ch === openBrace) {
 			stream.next();
+			break;
+		} else if (!String.fromCharCode(ch).match(/\s/)) {
 			break;
 		}
 	}
