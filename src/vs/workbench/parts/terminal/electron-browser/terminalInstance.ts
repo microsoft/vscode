@@ -580,6 +580,25 @@ export class TerminalInstance implements ITerminalInstance {
 		document.execCommand('paste');
 	}
 
+	public sendFile(filePath: string, addNewLine: boolean): void {
+		this._processReady.then(() => {
+			let path: string;
+			const wslPattern = /(System32|Sysnative)\\(bash.exe|wsl.exe)/i;
+			if (wslPattern.exec(this._shellLaunchConfig.executable)) {
+				path = `"${filePath.replace(/([A-Za-z]):/, (m, g) => `mnt/${g.toLowerCase()}`)}"`;
+			} else {
+				path = `"${filePath.replace(/^\//, '')}"`;
+			}
+			if (addNewLine) {
+				path += '\r';
+			}
+			this._process.send({
+				event: 'input',
+				data: path
+			});
+		});
+	}
+
 	public sendText(text: string, addNewLine: boolean): void {
 		this._processReady.then(() => {
 			// Normalize line endings to 'enter' press.

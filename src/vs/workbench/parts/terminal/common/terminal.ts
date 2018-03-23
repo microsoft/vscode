@@ -351,6 +351,17 @@ export interface ITerminalInstance {
 	paste(): void;
 
 	/**
+	 * Send filepath to the terminal instance. The filepath is written to the stdin of the underlying pty
+	 * process (shell) of the terminal instance.
+	 *
+	 * @param filePath The filePath to send.
+	 * @param addNewLine Whether to add a new line to the text being sent, this is normally
+	 * required to run a command in the terminal. The character(s) added are \n or \r\n
+	 * depending on the platform. This defaults to `true`.
+	 */
+	sendFile(filePath: string, addNewLine: boolean): void;
+
+	/**
 	 * Send text to the terminal instance. The text is written to the stdin of the underlying pty
 	 * process (shell) of the terminal instance.
 	 *
