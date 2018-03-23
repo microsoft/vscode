@@ -42,7 +42,8 @@ export const DEFAULT_TERMINAL_OSX = 'Terminal.app';
 let _DEFAULT_TERMINAL_WINDOWS: string = null;
 export function getDefaultTerminalWindows(): string {
 	if (!_DEFAULT_TERMINAL_WINDOWS) {
-		_DEFAULT_TERMINAL_WINDOWS = `${process.env.windir}\\${process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432') ? 'Sysnative' : 'System32'}\\cmd.exe`;
+		const isWoW64 = !!process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
+		_DEFAULT_TERMINAL_WINDOWS = `${process.env.windir ? process.env.windir : 'C:'}\\${isWoW64 ? 'Sysnative' : 'System32'}\\cmd.exe`;
 	}
 	return _DEFAULT_TERMINAL_WINDOWS;
 }
