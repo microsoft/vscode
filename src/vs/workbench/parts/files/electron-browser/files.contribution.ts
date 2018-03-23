@@ -286,7 +286,7 @@ configurationRegistry.registerConfiguration({
 		'files.maxMemoryForLargeFilesMB': {
 			'type': 'number',
 			'default': 4096,
-			'description': nls.localize('maxMemoryForLargeFilesMB', "The new limit on memory in MB to be used by the application when trying to open large files. Alternatively, you can launch the application with --max-memory=NEWSIZE.")
+			'description': nls.localize('maxMemoryForLargeFilesMB', "The new limit on memory in MB to be used by the application when reloading to open large files. If you wish to start with a higher limit, you can launch the application from command line with --max-memory=NEWSIZE.")
 		}
 	}
 });

@@ -318,8 +318,9 @@ export class FileService implements IFileService {
 			// Return early if file is too large to load
 			if (typeof stat.size === 'number') {
 				if (stat.size > Math.max(this.environmentService.args['max-memory'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
+					let memoryLimit = this.textResourceConfigurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB');
 					return onStatError(new FileOperationError(
-						nls.localize('fileTooLargeForHeapError', "File size exceeds window memory limit. Try launching with a higher memory limit"),
+						nls.localize('fileTooLargeForHeapError', "File size exceeds the default memory limit. Reload the window with a higher limit. The current setting is configured to reload with {0}MB", memoryLimit),
 						FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
 					));
 				}
@@ -468,8 +469,9 @@ export class FileService implements IFileService {
 						}
 
 						if (totalBytesRead > Math.max(this.environmentService.args['max-memory'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
+							let memoryLimit = this.textResourceConfigurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB');
 							finish(new FileOperationError(
-								nls.localize('fileTooLargeForHeapError', "File size exceeds window memory limit. Try launching with a higher memory limit"),
+								nls.localize('fileTooLargeForHeapError', "File size exceeds the default memory limit. Reload the window with a higher limit. The current setting is configured to reload with {0}MB", memoryLimit),
 								FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
 							));
 						}
