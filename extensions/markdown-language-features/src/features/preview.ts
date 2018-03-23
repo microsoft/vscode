@@ -22,7 +22,7 @@ export class MarkdownPreview {
 
 	private readonly webview: vscode.Webview;
 	private throttleTimer: any;
-	private initialLine: number | undefined = undefined;
+	private line: number | undefined = undefined;
 	private readonly disposables: vscode.Disposable[] = [];
 	private firstUpdate = true;
 	private currentVersion?: { resource: vscode.Uri, version: number };
@@ -38,8 +38,9 @@ export class MarkdownPreview {
 	): MarkdownPreview {
 		const resource = vscode.Uri.parse(webview.state.resource);
 		const locked = webview.state.locked;
+		const line = webview.state.line;
 
-		return new MarkdownPreview(
+		const preview = new MarkdownPreview(
 			webview,
 			resource,
 			locked,
@@ -47,6 +48,11 @@ export class MarkdownPreview {
 			previewConfigurations,
 			logger,
 			topmostLineMonitor);
+
+		if (!isNaN(line)) {
+			preview.line = line;
+		}
+		return preview;
 	}
 
 	public static create(
@@ -167,9 +173,7 @@ export class MarkdownPreview {
 	public update(resource: vscode.Uri) {
 		const editor = vscode.window.activeTextEditor;
 		if (editor && editor.document.uri.fsPath === resource.fsPath) {
-			this.initialLine = getVisibleLine(editor);
-		} else {
-			this.initialLine = undefined;
+			this.line = getVisibleLine(editor);
 		}
 
 		// If we have changed resources, cancel any pending updates
@@ -260,7 +264,7 @@ export class MarkdownPreview {
 
 		if (typeof topLine === 'number') {
 			this.logger.log('updateForView', { markdownFile: resource });
-			this.initialLine = topLine;
+			this.line = topLine;
 			this.webview.postMessage({
 				type: 'updateView',
 				line: topLine,
@@ -277,15 +281,15 @@ export class MarkdownPreview {
 
 		const document = await vscode.workspace.openTextDocument(resource);
 		if (!this.forceUpdate && this.currentVersion && this.currentVersion.resource.fsPath === resource.fsPath && this.currentVersion.version === document.version) {
-			if (this.initialLine) {
-				this.updateForView(resource, this.initialLine);
+			if (this.line) {
+				this.updateForView(resource, this.line);
 			}
 			return;
 		}
 		this.forceUpdate = false;
 
 		this.currentVersion = { resource, version: document.version };
-		this.contentProvider.provideTextDocumentContent(document, this.previewConfigurations, this.initialLine)
+		this.contentProvider.provideTextDocumentContent(document, this.previewConfigurations, this.line)
 			.then(content => {
 				if (this._resource === resource) {
 					this.webview.title = MarkdownPreview.getPreviewTitle(this._resource, this.locked);
@@ -314,6 +318,7 @@ export class MarkdownPreview {
 	}
 
 	private onDidScrollPreview(line: number) {
+		this.line = line;
 		for (const editor of vscode.window.visibleTextEditors) {
 			if (!this.isPreviewOf(editor.document.uri)) {
 				continue;
@@ -328,6 +333,7 @@ export class MarkdownPreview {
 				new vscode.Range(sourceLine, start, sourceLine + 1, 0),
 				vscode.TextEditorRevealType.AtTop);
 		}
+		this.updateState();
 	}
 
 	private async onDidClickPreview(line: number): Promise<void> {
@@ -344,7 +350,8 @@ export class MarkdownPreview {
 	private updateState() {
 		this.webview.state = {
 			resource: this.resource.toString(),
-			locked: this.locked
+			locked: this.locked,
+			line: this.line
 		};
 	}
 }
