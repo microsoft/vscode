@@ -3,21 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Diagnostic, DiagnosticCollection, languages, Uri } from 'vscode';
+import *  as vscode from 'vscode';
 
 class DiagnosticSet {
-	private _map: ObjectMap<Diagnostic[]> = Object.create(null);
+	private _map: ObjectMap<vscode.Diagnostic[]> = Object.create(null);
 
 	public set(
-		file: Uri,
-		diagnostics: Diagnostic[]
+		file: vscode.Uri,
+		diagnostics: vscode.Diagnostic[]
 	) {
 		this._map[this.key(file)] = diagnostics;
 	}
 
-	public get(
-		file: Uri
-	): Diagnostic[] {
+	public get(file: vscode.Uri): vscode.Diagnostic[] {
 		return this._map[this.key(file)] || [];
 	}
 
@@ -25,7 +23,7 @@ class DiagnosticSet {
 		this._map = Object.create(null);
 	}
 
-	private key(file: Uri): string {
+	private key(file: vscode.Uri): string {
 		return file.toString(true);
 	}
 }
@@ -41,7 +39,7 @@ const allDiagnosticKinds = [DiagnosticKind.Syntax, DiagnosticKind.Semantic, Diag
 export class DiagnosticsManager {
 
 	private readonly diagnostics = new Map<DiagnosticKind, DiagnosticSet>();
-	private readonly currentDiagnostics: DiagnosticCollection;
+	private readonly currentDiagnostics: vscode.DiagnosticCollection;
 	private _validate: boolean = true;
 
 	constructor(
@@ -51,7 +49,7 @@ export class DiagnosticsManager {
 			this.diagnostics.set(kind, new DiagnosticSet());
 		}
 
-		this.currentDiagnostics = languages.createDiagnosticCollection(language);
+		this.currentDiagnostics = vscode.languages.createDiagnosticCollection(language);
 	}
 
 	public dispose() {
@@ -78,8 +76,8 @@ export class DiagnosticsManager {
 
 	public diagnosticsReceived(
 		kind: DiagnosticKind,
-		file: Uri,
-		syntaxDiagnostics: Diagnostic[]
+		file: vscode.Uri,
+		syntaxDiagnostics: vscode.Diagnostic[]
 	): void {
 		const diagnostics = this.diagnostics.get(kind);
 		if (diagnostics) {
@@ -88,15 +86,15 @@ export class DiagnosticsManager {
 		}
 	}
 
-	public configFileDiagnosticsReceived(file: Uri, diagnostics: Diagnostic[]): void {
+	public configFileDiagnosticsReceived(file: vscode.Uri, diagnostics: vscode.Diagnostic[]): void {
 		this.currentDiagnostics.set(file, diagnostics);
 	}
 
-	public delete(resource: Uri): void {
+	public delete(resource: vscode.Uri): void {
 		this.currentDiagnostics.delete(resource);
 	}
 
-	private updateCurrentDiagnostics(file: Uri) {
+	private updateCurrentDiagnostics(file: vscode.Uri) {
 		if (!this._validate) {
 			return;
 		}
@@ -104,11 +102,11 @@ export class DiagnosticsManager {
 		const allDiagnostics = allDiagnosticKinds.reduce((sum, kind) => {
 			sum.push(...this.diagnostics.get(kind)!.get(file));
 			return sum;
-		}, [] as Diagnostic[]);
+		}, [] as vscode.Diagnostic[]);
 		this.currentDiagnostics.set(file, allDiagnostics);
 	}
 
-	public getDiagnostics(file: Uri): Diagnostic[] {
+	public getDiagnostics(file: vscode.Uri): vscode.Diagnostic[] {
 		return this.currentDiagnostics.get(file) || [];
 	}
 }
