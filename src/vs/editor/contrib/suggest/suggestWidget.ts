@@ -624,6 +624,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			case State.Hidden:
 				hide(this.messageElement, this.details.element, this.listElement);
 				this.hide();
+				this.listHeight = 0;
 				if (stateChanged) {
 					this.list.splice(0, this.list.length);
 				}
