@@ -30,7 +30,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 /**
  * An implementation of editor for file system resources.
@@ -51,7 +51,7 @@ export class TextFileEditor extends BaseTextEditor {
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService,
-		@IWindowService private windowService: IWindowService,
+		@IWindowsService private windowsService: IWindowsService,
 		@IPreferencesService private preferencesService: IPreferencesService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
@@ -171,12 +171,16 @@ export class TextFileEditor extends BaseTextEditor {
 				}
 
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEED_MEMORY_LIMIT) {
-					let memoryLimit = this.configurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB');
+					let memoryLimit = this.configurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB') | 4096;
 
 					return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
 						actions: [
-							new Action('workbench.window.action.reloadWithIncreasedMemoryLimit', nls.localize('reloadWithIncreasedMemoryLimit', "Reload"), null, true, () => {
-								return this.windowService.reloadWindow({ _: [], 'max-memory': memoryLimit }).then(() => true);
+							new Action('workbench.window.action.relaunchWithIncreasedMemoryLimit', nls.localize('relaunchWithIncreasedMemoryLimit', "Relaunch"), null, true, () => {
+								return this.windowsService.relaunch({
+									addArgs: [
+										`--max-memory=${memoryLimit}`
+									]
+								});
 							}),
 							new Action('workbench.window.action.configureMemoryLimit', nls.localize('configureMemoryLimit', 'Configure'), null, true, () => {
 								return this.preferencesService.openGlobalSettings().then(editor => {
