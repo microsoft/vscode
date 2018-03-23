@@ -179,7 +179,8 @@ export class ExtensionsListView extends ViewsViewletPanel {
 					return e.local.manifest
 						&& e.local.manifest.contributes
 						&& Array.isArray(e.local.manifest.contributes.languages)
-						&& e.local.manifest.contributes.languages.length;
+						&& e.local.manifest.contributes.languages.length
+						&& e.local.identifier.id !== 'git';
 				});
 				return new PagedModel(this.sortExtensions(basics, options));
 			}
@@ -187,7 +188,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 				const others = result.filter(e => {
 					return e.local.manifest
 						&& e.local.manifest.contributes
-						&& !Array.isArray(e.local.manifest.contributes.languages)
+						&& (!Array.isArray(e.local.manifest.contributes.languages) || e.local.identifier.id === 'git')
 						&& !Array.isArray(e.local.manifest.contributes.themes);
 				});
 				return new PagedModel(this.sortExtensions(others, options));
