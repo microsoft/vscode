@@ -129,7 +129,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._revivers.delete(viewType);
 	}
 
-	reviveWebview(webview: WebviewEditorInput): boolean {
+	reviveWebview(webview: WebviewEditorInput) {
 		this._extensionService.activateByEvent(`onView:${webview.state.viewType}`).then(() => {
 			const handle = 'revival-' + MainThreadWebviews.revivalPool++;
 			this._webviews.set(handle, webview);
@@ -147,8 +147,6 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 			this._proxy.$reviveWebview(handle, webview.state.viewType, webview.state.state, webview.position, webview.options);
 		});
-
-		return true;
 	}
 
 	canRevive(webview: WebviewEditorInput): boolean {
@@ -199,5 +197,4 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			this._openerService.open(link);
 		}
 	}
-
 }

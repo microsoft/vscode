@@ -55,7 +55,7 @@ export interface WebviewReviver {
 
 	reviveWebview(
 		webview: WebviewEditorInput
-	): boolean;
+	): void;
 }
 
 export interface WebviewEvents {
