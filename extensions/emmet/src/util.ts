@@ -146,7 +146,7 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	let openBracesRemaining = 1;
 	while (openBracesRemaining > 0 && !stream.sof()) {
 		if (position.line - stream.pos.line > 1000) {
-			return parseStylesheet(new DocumentStreamReader(document, endPosition, new vscode.Range(0, 0, endPosition.line, endPosition.character)));
+			return parseStylesheet(new DocumentStreamReader(document, startPosition, new vscode.Range(startPosition, endPosition)));
 		}
 		let ch = stream.backUp(1);
 		if (ch === openBrace) {
@@ -156,6 +156,7 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 				stream.next();
 				return parseStylesheet(new DocumentStreamReader(document, stream.pos, new vscode.Range(stream.pos, endPosition)));
 			}
+			openBracesRemaining++;
 		}
 	}
 	// We are at an opening brace. We need to include its selector
