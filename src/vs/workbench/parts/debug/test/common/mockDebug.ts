@@ -201,6 +201,10 @@ export class MockSession implements ISession {
 		return TPromise.as(null);
 	}
 
+	public writeTTDLog(args: DebugProtocol.WriteTTDLogArguments): TPromise<DebugProtocol.WriteTTDLogResponse> {
+		return TPromise.as(null);
+	}
+
 	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {
 		return TPromise.as(null);
 	}
@@ -210,6 +214,22 @@ export class MockSession implements ISession {
 	}
 
 	public reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse> {
+		return TPromise.as(null);
+	}
+
+	public getTTDTraceWriteURI(args: DebugProtocol.GetTTDTraceWriteURIArguments): TPromise<DebugProtocol.GetTTDTraceWriteURIResponse> {
+		return TPromise.as(null);
+	}
+
+	public getTTDReplayConfiguration(args: DebugProtocol.GetTTDReplayConfigurationArguments): TPromise<DebugProtocol.GetTTDReplayConfigurationResponse> {
+		return TPromise.as(null);
+	}
+
+	public isTTDLiveMode(args: DebugProtocol.IsTTDLiveModeArguments): TPromise<DebugProtocol.IsTTDLiveModeResponse> {
+		return TPromise.as(null);
+	}
+
+	public isTTDReplayMode(args: DebugProtocol.IsTTDReplayModeArguments): TPromise<DebugProtocol.IsTTDReplayModeResponse> {
 		return TPromise.as(null);
 	}
 

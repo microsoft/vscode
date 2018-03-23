@@ -589,6 +589,25 @@ declare module DebugProtocol {
 	export interface StepOutResponse extends Response {
 	}
 
+	/** WriteTTDLog request; value of command field is 'writeTTDLog'.
+		The request writes out the ttd log for the current live debugging session to the specified location.
+	*/
+	export interface WriteTTDLogRequest extends Request {
+		// command: 'writeTTDLog';
+		arguments: WriteTTDLogArguments;
+	}
+
+	/** Arguments for 'writeTTDLog' request. */
+	export interface WriteTTDLogArguments {
+		/** Execute 'writeTTDLog' for this thread. */
+		threadId: number;
+		uri: string;
+	}
+
+	/** Response to 'writeTTDLog' request. This is just an acknowledgement, so no body field is required. */
+	export interface WriteTTDLogResponse extends Response {
+	}
+
 	/** StepBack request; value of command field is 'stepBack'.
 		The request starts the debuggee to run one step backwards.
 		The debug adapter first sends the StepBackResponse and then a StoppedEvent (event type 'step') after the step has completed. Clients should only call this request if the capability supportsStepBack is true.
@@ -624,6 +643,95 @@ declare module DebugProtocol {
 
 	/** Response to 'reverseContinue' request. This is just an acknowledgement, so no body field is required. */
 	export interface ReverseContinueResponse extends Response {
+	}
+
+	/** GetTTDTraceWriteURI request; value of command field is 'getTTDTraceWriteURI'.
+		The request gets the uri to store the trace for the current live debugging session.
+	*/
+	export interface GetTTDTraceWriteURIRequest extends Request {
+		// command: 'getTTDTraceWriteURI';
+		arguments: GetTTDTraceWriteURIArguments;
+	}
+
+	/** Arguments for 'getTTDTraceWriteURI' request. */
+	export interface GetTTDTraceWriteURIArguments {
+		/** Execute 'getTTDTraceWriteURI' for this thread. */
+		threadId: number;
+	}
+
+	/** Response to 'getTTDTraceWriteURI' request. */
+	export interface GetTTDTraceWriteURIResponse extends Response {
+		body: {
+			/** The fully qualified uri to write the trace to. */
+			uri: string;
+		};
+	}
+
+	/** GetTTDReplayConfiguration request; value of command field is 'getTTDReplayConfiguration'.
+		Gets the configuration for launching a replay debug session for trace written from a LiveTTD session.
+	*/
+	export interface GetTTDReplayConfigurationRequest extends Request {
+		// command: 'getTTDReplayConfiguration';
+		arguments: GetTTDReplayConfigurationArguments;
+	}
+
+	/** Arguments for 'getTTDReplayConfiguration' request. */
+	export interface GetTTDReplayConfigurationArguments {
+		/** Execute 'getTTDReplayConfiguration' for this thread. */
+		threadId: number;
+		uri: string;
+	}
+
+	/** Response to 'getTTDReplayConfiguration' request. */
+	export interface GetTTDReplayConfigurationResponse extends Response {
+		body: {
+			/** Json string representing the TTDReplay launch configuration. */
+			jsonLaunchConfig: string;
+		};
+	}
+
+	/** IsTTDLiveMode request; value of command field is 'isTTDLiveMode'.
+		Checks if the debugger is running in LiveTTD configuration.
+	*/
+	export interface IsTTDLiveModeRequest extends Request {
+		// command: 'isTTDLiveMode';
+		arguments: IsTTDLiveModeArguments;
+	}
+
+	/** Arguments for 'isTTDLiveMode' request. */
+	export interface IsTTDLiveModeArguments {
+		/** Execute 'isTTDLiveMode' for this thread. */
+		threadId: number;
+	}
+
+	/** Response to 'isTTDLiveMode' request. */
+	export interface IsTTDLiveModeResponse extends Response {
+		body: {
+			/** True if the debugger configuration is LiveTTD. */
+			isInLiveMode: boolean;
+		};
+	}
+
+	/** IsTTDReplayMode request; value of command field is 'isTTDReplayMode'.
+		Checks if the debugger is running in ReplayTTD configuration.
+	*/
+	export interface IsTTDReplayModeRequest extends Request {
+		// command: 'isTTDReplayMode';
+		arguments: IsTTDReplayModeArguments;
+	}
+
+	/** Arguments for 'isTTDReplayMode' request. */
+	export interface IsTTDReplayModeArguments {
+		/** Execute 'isTTDReplayMode' for this thread. */
+		threadId: number;
+	}
+
+	/** Response to 'isTTDReplayMode' request. */
+	export interface IsTTDReplayModeResponse extends Response {
+		body: {
+			/** True if the debugger configuration is ReplayTTD. */
+			isInReplayMode: boolean;
+		};
 	}
 
 	/** RestartFrame request; value of command field is 'restartFrame'.

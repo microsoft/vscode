@@ -120,9 +120,15 @@ export interface ISession {
 	stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse>;
 	stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse>;
 	continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse>;
+	writeTTDLog(args: DebugProtocol.WriteTTDLogArguments): TPromise<DebugProtocol.WriteTTDLogResponse>;
 	pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse>;
 	stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse>;
 	reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse>;
+
+	getTTDTraceWriteURI(args: DebugProtocol.GetTTDTraceWriteURIArguments): TPromise<DebugProtocol.GetTTDTraceWriteURIResponse>;
+	getTTDReplayConfiguration(args: DebugProtocol.GetTTDReplayConfigurationArguments): TPromise<DebugProtocol.GetTTDReplayConfigurationResponse>;
+	isTTDLiveMode(args: DebugProtocol.IsTTDLiveModeArguments): TPromise<DebugProtocol.IsTTDLiveModeResponse>;
+	isTTDReplayMode(args: DebugProtocol.IsTTDReplayModeArguments): TPromise<DebugProtocol.IsTTDReplayModeResponse>;
 
 	completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse>;
 	setVariable(args: DebugProtocol.SetVariableArguments): TPromise<DebugProtocol.SetVariableResponse>;
@@ -194,10 +200,16 @@ export interface IThread extends ITreeElement {
 	next(): TPromise<any>;
 	stepIn(): TPromise<any>;
 	stepOut(): TPromise<any>;
+	writeTTDLog(uri: string): TPromise<any>;
 	stepBack(): TPromise<any>;
 	continue(): TPromise<any>;
 	pause(): TPromise<any>;
 	reverseContinue(): TPromise<any>;
+
+	getTTDTraceWriteURI(): TPromise<DebugProtocol.GetTTDTraceWriteURIResponse>;
+	getTTDReplayConfiguration(uri: string): TPromise<DebugProtocol.GetTTDReplayConfigurationResponse>;
+	isTTDLiveMode(): TPromise<DebugProtocol.IsTTDLiveModeResponse>;
+	isTTDReplayMode(): TPromise<DebugProtocol.IsTTDReplayModeResponse>;
 }
 
 export interface IScope extends IExpressionContainer {

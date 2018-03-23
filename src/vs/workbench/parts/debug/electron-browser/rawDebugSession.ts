@@ -370,16 +370,46 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 		return this.send<DebugProtocol.EvaluateResponse>('evaluate', args);
 	}
 
+	public writeTTDLog(args: DebugProtocol.WriteTTDLogArguments): TPromise<DebugProtocol.WriteTTDLogResponse> {
+		return this.send<DebugProtocol.WriteTTDLogResponse>('writeTTDLog', args).then(response => {
+			return response;
+		});
+	}
+
 	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {
-		return this.send('stepBack', args).then(response => {
+		return this.send<DebugProtocol.StepBackResponse>('stepBack', args).then(response => {
 			this.fireFakeContinued(args.threadId);
 			return response;
 		});
 	}
 
 	public reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse> {
-		return this.send('reverseContinue', args).then(response => {
+		return this.send<DebugProtocol.ReverseContinueResponse>('reverseContinue', args).then(response => {
 			this.fireFakeContinued(args.threadId);
+			return response;
+		});
+	}
+
+	public getTTDTraceWriteURI(args: DebugProtocol.GetTTDTraceWriteURIArguments): TPromise<DebugProtocol.GetTTDTraceWriteURIResponse> {
+		return this.send<DebugProtocol.GetTTDTraceWriteURIResponse>('getTTDTraceWriteURI', args).then(response => {
+			return response;
+		});
+	}
+
+	public getTTDReplayConfiguration(args: DebugProtocol.GetTTDReplayConfigurationArguments): TPromise<DebugProtocol.GetTTDReplayConfigurationResponse> {
+		return this.send<DebugProtocol.GetTTDReplayConfigurationResponse>('getTTDReplayConfiguration', args).then(response => {
+			return response;
+		});
+	}
+
+	public isTTDLiveMode(args: DebugProtocol.IsTTDLiveModeArguments): TPromise<DebugProtocol.IsTTDLiveModeResponse> {
+		return this.send<DebugProtocol.IsTTDLiveModeResponse>('isTTDLiveMode', args).then(response => {
+			return response;
+		});
+	}
+
+	public isTTDReplayMode(args: DebugProtocol.IsTTDReplayModeArguments): TPromise<DebugProtocol.IsTTDReplayModeResponse> {
+		return this.send<DebugProtocol.IsTTDReplayModeResponse>('isTTDReplayMode', args).then(response => {
 			return response;
 		});
 	}

@@ -71,6 +71,10 @@
 	background-image: url('restart.svg');
 }
 
+.monaco-workbench .debug-actions-widget .debug-action.start-ttd {
+	background-image: url('start-ttd.svg');
+}
+
 .monaco-workbench .debug-actions-widget .debug-action.pause {
 	background-image: url('pause.svg');
 }
@@ -112,6 +116,11 @@
 .vs-dark .monaco-workbench .debug-actions-widget .debug-action.restart,
 .hc-black .monaco-workbench .debug-actions-widget .debug-action.restart {
 	background-image: url('restart-inverse.svg');
+}
+
+.vs-dark .monaco-workbench .debug-actions-widget .debug-action.start-ttd,
+.hc-black .monaco-workbench .debug-actions-widget .debug-action.start-ttd {
+	background-image: url('start-ttd-inverse.svg');
 }
 
 .vs-dark .monaco-workbench .debug-actions-widget .debug-action.pause,

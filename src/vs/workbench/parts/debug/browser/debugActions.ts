@@ -749,6 +749,69 @@ export class FocusProcessAction extends AbstractDebugAction {
 }
 
 // Actions used by the chakra debugger
+
+export class StartTTDAction extends AbstractDebugAction {
+	static readonly ID = 'workbench.action.debug.startTTD';
+	static LABEL = nls.localize('startTTD', "Start Time-Travel Debugging");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action start-ttd', debugService, keybindingService, 50);
+	}
+
+	ensureDirectoryAndEmpty(dir: string): TPromise<any> {
+		//
+		//TODO: what is the right api here??
+		//
+
+		return TPromise.as(null);
+	}
+
+	public run(process: IProcess): TPromise<any> {
+		const thread = this.debugService.getViewModel().focusedThread;
+
+		return thread.isTTDLiveMode().then((isLive: DebugProtocol.IsTTDLiveModeResponse) => {
+			if(!isLive.body.isInLiveMode) {
+				return TPromise.wrapError(new Error("Cannot start TTDReplay mode unless --tt-debug mode is enabled."));
+			}
+			else {
+				//
+				//TODO: Can we add a status bar or some sort of loading feedback here?
+				//TODO: What is the failire recovery strategy here (particularly once we add loading feedback info)?
+				//
+				//const statusItem = window.createStatusBarItem(StatusBarAlignment.Left);
+				//statusItem.text = "Preparing Time-Travel Debug Session...";
+				//statusItem.show();
+
+				return thread.getTTDTraceWriteURI()
+					.then((response: DebugProtocol.GetTTDTraceWriteURIResponse) => {
+						const uri = response.body.uri;
+						return this.ensureDirectoryAndEmpty(uri)
+							.then(() => {
+								return thread.writeTTDLog(uri);
+							})
+							.then(() => {
+								//statusItem.text = "Launching Time-Travel Debugger...";
+								return thread.getTTDReplayConfiguration(uri);
+							})
+							.then((config: DebugProtocol.GetTTDReplayConfigurationResponse) => {
+								return this.debugService.startDebugging(undefined, JSON.parse(config.body.jsonLaunchConfig));
+							})
+							.then(() => {
+								//statusItem.hide();
+								return TPromise.as(null);
+							});
+					});
+			}
+		});
+	}
+
+	protected isEnabled(state: State): boolean {
+		const process = this.debugService.getViewModel().focusedProcess;
+		return super.isEnabled(state) && state === State.Stopped &&
+			process && process.session.capabilities.supportsStepBack;
+	}
+}
+
 export class StepBackAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.action.debug.stepBack';
 	static LABEL = nls.localize('stepBackDebug', "Step Back");
@@ -762,7 +825,18 @@ export class StepBackAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.stepBack() : TPromise.as(null);
+		if(!thread) {
+			return TPromise.as(null);
+		}
+
+		return thread.isTTDReplayMode().then((response: DebugProtocol.IsTTDReplayModeResponse) => {
+			if(!response.body.isInReplayMode) {
+				return TPromise.wrapError(new Error("Cannot step-back unless running in TTDReplay mode."));
+			}
+			else {
+				return thread.stepBack();
+			}
+		});
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -785,7 +859,19 @@ export class ReverseContinueAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.reverseContinue() : TPromise.as(null);
+		if(!thread) {
+			return TPromise.as(null);
+		}
+
+
+		return thread.isTTDReplayMode().then((response: DebugProtocol.IsTTDReplayModeResponse) => {
+			if(!response.body.isInReplayMode) {
+				return TPromise.wrapError(new Error("Cannot reverse-continue unless running in TTDReplay mode."));
+			}
+			else {
+				return thread.reverseContinue();
+			}
+		});
 	}
 
 	protected isEnabled(state: State): boolean {
