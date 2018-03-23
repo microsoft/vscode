@@ -27,6 +27,8 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { overviewRulerWarning, overviewRulerError, overviewRulerInfo } from 'vs/editor/common/view/editorColorRegistry';
 import { ITextModel, IModelDeltaDecoration, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, DefaultEndOfLine, ITextModelCreationOptions, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBufferFactory, ITextBuffer, EndOfLinePreference } from 'vs/editor/common/model';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { basename } from 'vs/base/common/paths';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -141,7 +143,7 @@ class ModelMarkerHandler {
 		}
 
 		let hoverMessage: MarkdownString = null;
-		let { message, source } = marker;
+		let { message, source, relatedInformation } = marker;
 
 		if (typeof message === 'string') {
 			message = message.trim();
@@ -155,6 +157,16 @@ class ModelMarkerHandler {
 			}
 
 			hoverMessage = new MarkdownString().appendCodeblock('_', message);
+
+			if (!isFalsyOrEmpty(relatedInformation)) {
+				hoverMessage.appendMarkdown('\n');
+				for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
+					hoverMessage.appendMarkdown(
+						`* [${basename(resource.path)}(${startLineNumber}, ${startColumn})](${resource.toString(false)}#${startLineNumber},${startColumn}): \`${message}\` \n`
+					);
+				}
+				hoverMessage.appendMarkdown('\n');
+			}
 		}
 
 		return {
