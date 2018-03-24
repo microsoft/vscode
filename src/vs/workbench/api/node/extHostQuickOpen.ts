@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { wireCancellationToken, asWinJsPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { QuickPickOptions, QuickPickItem, InputBoxOptions, WorkspaceFolderPickOptions, WorkspaceFolder, MultiSelectQuickPickItem, MultiSelectQuickPickOptions } from 'vscode';
+import { QuickPickOptions, QuickPickItem, InputBoxOptions, WorkspaceFolderPickOptions, WorkspaceFolder } from 'vscode';
 import { MainContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems, IMainContext } from './extHost.protocol';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
@@ -29,7 +29,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 		this._commands = commands;
 	}
 
-	showQuickPick(itemsOrItemsPromise: MultiSelectQuickPickItem[] | Thenable<MultiSelectQuickPickItem[]>, options: MultiSelectQuickPickOptions, token?: CancellationToken): Thenable<MultiSelectQuickPickItem[] | undefined>;
+	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Thenable<QuickPickItem[]>, options: QuickPickOptions & { canSelectMany: true; }, token?: CancellationToken): Thenable<QuickPickItem[] | undefined>;
 	showQuickPick(itemsOrItemsPromise: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
 	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Thenable<QuickPickItem[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<QuickPickItem | undefined>;
 	showQuickPick(itemsOrItemsPromise: Item[] | Thenable<Item[]>, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Thenable<Item | Item[] | undefined> {
@@ -45,7 +45,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 			matchOnDescription: options && options.matchOnDescription,
 			matchOnDetail: options && options.matchOnDetail,
 			ignoreFocusLost: options && options.ignoreFocusOut,
-			multiSelect: options && options.multiSelect
+			canSelectMany: options && options.canSelectMany
 		});
 
 		const promise = TPromise.any(<TPromise<number | Item[]>[]>[quickPickWidget, itemsPromise]).then(values => {
@@ -70,7 +70,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 						label = item.label;
 						description = item.description;
 						detail = item.detail;
-						selected = options && options.multiSelect ? (<MultiSelectQuickPickItem>item).selected : undefined;
+						selected = item.selected;
 					}
 					pickItems.push({
 						label,
