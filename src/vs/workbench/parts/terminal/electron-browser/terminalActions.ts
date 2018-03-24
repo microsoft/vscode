@@ -310,7 +310,9 @@ export class SplitTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ICommandService private commandService: ICommandService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
 		super(id, label, 'terminal-action split');
 	}
@@ -320,8 +322,31 @@ export class SplitTerminalAction extends Action {
 		if (!instance) {
 			return TPromise.as(void 0);
 		}
-		this._terminalService.splitInstance(instance);
-		return this._terminalService.showPanel(true);
+
+		const folders = this.workspaceContextService.getWorkspace().folders;
+
+		let pathPromise: TPromise<any> = TPromise.as({});
+		if (folders.length > 1) {
+			// Only choose a path when there's more than 1 folder
+			const options: IPickOptions = {
+				placeHolder: nls.localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
+			};
+			pathPromise = this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]).then(workspace => {
+				if (!workspace) {
+					// Don't split the instance if the workspace picker was canceled
+					return null;
+				}
+				return TPromise.as({ cwd: workspace.uri.fsPath });
+			});
+		}
+
+		return pathPromise.then(path => {
+			if (!path) {
+				return TPromise.as(void 0);
+			}
+			this._terminalService.splitInstance(instance, path);
+			return this._terminalService.showPanel(true);
+		});
 	}
 }
 
