@@ -143,8 +143,8 @@ export class QuickInputCheckboxList {
 	private container: HTMLElement;
 	private list: WorkbenchList<SelectableElement>;
 	private elements: SelectableElement[] = [];
-	private _onSelectionChanged = new Emitter<IPickOpenEntry>();
-	onSelectionChanged: Event<IPickOpenEntry> = this._onSelectionChanged.event;
+	private _onAllSelectedChanged = new Emitter<boolean>(); // TODO: Debounce
+	onAllSelectedChanged: Event<boolean> = this._onAllSelectedChanged.event;
 	private elementDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
 
@@ -168,11 +168,15 @@ export class QuickInputCheckboxList {
 	}
 
 	getAllSelected() {
-		return this.getSelectedElements().length === this.elements.length;
+		return !this.elements.some(element => !element.hidden && !element.selected);
 	}
 
 	setAllSelected(select: boolean) {
-		this.elements.forEach(element => element.selected = select);
+		this.elements.forEach(element => {
+			if (!element.hidden) {
+				element.selected = select;
+			}
+		});
 	}
 
 	setElements(elements: IPickOpenEntry[]): void {
@@ -183,7 +187,7 @@ export class QuickInputCheckboxList {
 			selected: !!item.selected
 		}));
 		this.elementDisposables.push(...this.elements.map(element => element.onSelected(() => {
-			this._onSelectionChanged.fire(element.item);
+			this._onAllSelectedChanged.fire(this.getAllSelected());
 		})));
 		this.list.splice(0, this.list.length, this.elements);
 		this.list.setSelection([]);
@@ -250,6 +254,8 @@ export class QuickInputCheckboxList {
 		this.list.setSelection([]);
 		this.list.focusFirst();
 		this.list.layout();
+
+		this._onAllSelectedChanged.fire(this.getAllSelected());
 	}
 
 	toggleCheckbox() {
