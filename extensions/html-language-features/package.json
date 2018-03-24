@@ -1,7 +1,7 @@
 {
   "name": "html-language-features",
   "displayName": "%displayName%",
-	"description": "%description%",
+  "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
@@ -171,6 +171,7 @@
   "dependencies": {
     "vscode-extension-telemetry": "0.0.15",
     "vscode-languageclient": "^4.0.0",
+    "vscode-languageserver-protocol-foldingprovider": "^1.0.1",
     "vscode-nls": "^3.2.2"
   },
   "devDependencies": {

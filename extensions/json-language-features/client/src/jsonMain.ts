@@ -12,7 +12,7 @@ import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfig
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, CancellationToken } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-import { FoldingRangesRequest, FoldingRangeRequestParam } from './protocol/foldingProvider.proposed';
+import { FoldingRangesRequest, FoldingRangeRequestParam } from 'vscode-languageserver-protocol-foldingprovider';
 
 import { hash } from './utils/hash';
 

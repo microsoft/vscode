@@ -10,7 +10,7 @@ import {
 	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions, SymbolInformation
 } from 'vscode-languageserver-types';
 import { ColorInformation, ColorPresentation, Color, WorkspaceFolder } from 'vscode-languageserver';
-import { FoldingRange } from '../protocol/foldingProvider.proposed';
+import { FoldingRange } from 'vscode-languageserver-protocol-foldingprovider';
 
 import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
 import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';

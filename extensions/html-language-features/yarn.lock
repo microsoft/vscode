@@ -44,6 +44,13 @@ vscode-languageclient@^4.0.0:
   dependencies:
     vscode-languageserver-protocol "^3.6.0"
 
+vscode-languageserver-protocol-foldingprovider@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol-foldingprovider/-/vscode-languageserver-protocol-foldingprovider-1.0.1.tgz#85514aaf8fe905e91bf21e4106e0847f60d40f44"
+  dependencies:
+    vscode-languageserver-protocol "^3.6.0"
+    vscode-languageserver-types "^3.6.0"
+
 vscode-languageserver-protocol@^3.6.0:
   version "3.6.0"
   resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.6.0.tgz#579642cdcccf74b0cd771c33daa3239acb40d040"

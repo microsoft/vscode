@@ -6,7 +6,7 @@
 
 import { TextDocument, Position, CancellationToken } from 'vscode-languageserver';
 import { createScanner, SyntaxKind, ScanError } from 'jsonc-parser';
-import { FoldingRangeType, FoldingRange, FoldingRangeList } from './protocol/foldingProvider.proposed';
+import { FoldingRangeType, FoldingRange, FoldingRangeList } from 'vscode-languageserver-protocol-foldingprovider';
 
 export function getFoldingRegions(document: TextDocument, maxRanges: number | undefined, cancellationToken: CancellationToken | null) {
 	let ranges: FoldingRange[] = [];

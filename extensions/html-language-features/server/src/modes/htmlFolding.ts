@@ -6,7 +6,7 @@
 import { TextDocument, CancellationToken, Position } from 'vscode-languageserver';
 import { LanguageService as HTMLLanguageService, TokenType, Range } from 'vscode-html-languageservice';
 
-import { FoldingRangeType, FoldingRange, FoldingRangeList } from '../protocol/foldingProvider.proposed';
+import { FoldingRangeType, FoldingRange, FoldingRangeList } from 'vscode-languageserver-protocol-foldingprovider';
 import { LanguageModes } from './languageModes';
 import { binarySearch } from '../utils/arrays';
 
