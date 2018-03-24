@@ -110,6 +110,23 @@ nav#
 		});
 	});
 
+	test('Skip when typing the last property value in single line rules (CSS)', () => {
+		const testContent = `.foo {padding: 10px; margin: a}`;
+
+		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+			editor.selection = new Selection(0, 30, 0, 30);
+			return expandEmmetAbbreviation(null).then(() => {
+				assert.equal(editor.document.getText(), testContent);
+				const cancelSrc = new CancellationTokenSource();
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(0, 30), cancelSrc.token);
+				if (completionPromise) {
+					assert.equal(1, 2, `Invalid completion at property value`);
+				}
+				return Promise.resolve();
+			});
+		});
+	});
+
 	test('Allow hex color when typing property values when there is a property in the next line (CSS)', () => {
 		const testContent = `
 .foo {
