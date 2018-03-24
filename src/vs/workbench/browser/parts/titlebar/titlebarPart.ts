@@ -211,8 +211,9 @@ export class TitlebarPart extends Part implements ITitleService {
 		const appName = this.environmentService.appNameLong;
 		const separator = TitlebarPart.TITLE_SEPARATOR;
 		const titleTemplate = this.configurationService.getValue<string>('window.title');
+		console.log(process.platform);
+		if (titleTemplate === '${activeEditorLong}' && process.platform !== 'win32') {
 
-		if (titleTemplate === '${activeEditorLong}') {
 			var shortRegex = /[/\\]/g;
 			if (!shortRegex.test(labels.template(titleTemplate, {
 				activeEditorShort,
@@ -226,7 +227,8 @@ export class TitlebarPart extends Part implements ITitleService {
 				appName,
 				separator: { label: separator }
 			}))) {
-				return `${folderPath}`;
+
+				return `${folderPath}/${activeEditorMedium}`;
 
 			}
 		}
