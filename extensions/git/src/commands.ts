@@ -311,8 +311,21 @@ export class CommandCenter {
 	}
 
 	private getTitle(resource: Resource): string {
-		const basename = path.basename(resource.resourceUri.fsPath);
+		var basename = path.basename(resource.resourceUri.fsPath);
+		var fullPath = '';
+		var title = '';
 
+		var regexLong = /^(([A-Z]:)|(\/))/;
+		var regexShort = /[/\\]/g;
+		if (regexLong.test(title)) {
+			//is long
+			fullPath = path.join(resource.resourceUri.fsPath);
+			basename = fullPath;
+		} else if (regexShort.test(title)) {
+			//is short
+		} else {
+			//is medium
+		}
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
@@ -320,6 +333,7 @@ export class CommandCenter {
 				return `${basename} (Index)`;
 
 			case Status.MODIFIED:
+				return `${fullPath} (modified1)`;
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return `${basename} (Working Tree)`;
