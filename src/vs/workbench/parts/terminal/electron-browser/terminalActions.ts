@@ -325,6 +325,27 @@ export class SplitTerminalAction extends Action {
 	}
 }
 
+export class SplitInActiveWorkspaceTerminalAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.splitInActiveWorkspace';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.splitInActiveWorkspace', "Split Terminal (In Active Workspace)");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const instance = this._terminalService.getActiveInstance();
+		if (!instance) {
+			return TPromise.as(void 0);
+		}
+		this._terminalService.splitInstance(instance);
+		return this._terminalService.showPanel(true);
+	}
+}
+
 export class FocusPreviousPaneTerminalAction extends Action {
 	public static readonly ID = 'workbench.action.terminal.focusPreviousPane';
 	public static readonly LABEL = nls.localize('workbench.action.terminal.focusPreviousPane', "Focus Previous Pane");
