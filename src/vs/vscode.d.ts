@@ -1554,16 +1554,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options to configure the behavior of the multi-select quick pick UI. (Marker type.)
-	 */
-	export interface MultiSelectQuickPickOptions extends QuickPickOptions {
-		/**
-		 * Indicates that the pick allows multiple selections. Must be true for this interface.
-		 */
-		canSelectMany: true;
-	}
-
-	/**
 	 * Options to configure the behaviour of the [workspace folder](#WorkspaceFolder) pick UI.
 	 */
 	export interface WorkspaceFolderPickOptions {
@@ -5067,7 +5057,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to the selected items or `undefined`.
 		 */
-		export function showQuickPick(items: string[] | Thenable<string[]>, options: MultiSelectQuickPickOptions, token?: CancellationToken): Thenable<string[] | undefined>;
+		export function showQuickPick(items: string[] | Thenable<string[]>, options: QuickPickOptions & { canSelectMany: true; }, token?: CancellationToken): Thenable<string[] | undefined>;
 
 		/**
 		 * Shows a selection list.
@@ -5087,7 +5077,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to the selected items or `undefined`.
 		 */
-		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options: MultiSelectQuickPickOptions, token?: CancellationToken): Thenable<T[] | undefined>;
+		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options: QuickPickOptions & { canSelectMany: true; }, token?: CancellationToken): Thenable<T[] | undefined>;
 
 		/**
 		 * Shows a selection list.
