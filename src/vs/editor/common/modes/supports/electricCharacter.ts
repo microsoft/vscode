@@ -39,7 +39,7 @@ export class BracketElectricCharacterSupport {
 	}
 
 	public getElectricCharacters(): string[] {
-		var result: string[] = [];
+		let result: string[] = [];
 
 		if (this._richEditBrackets) {
 			for (let i = 0, len = this._richEditBrackets.brackets.length; i < len; i++) {

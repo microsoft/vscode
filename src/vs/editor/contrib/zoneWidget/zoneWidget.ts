@@ -15,9 +15,10 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZo
 import { Color, RGBA } from 'vs/base/common/color';
 import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { Position, IPosition } from 'vs/editor/common/core/position';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IdGenerator } from 'vs/base/common/idGenerator';
-import { ScrollType, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { TrackedRangeStickiness } from 'vs/editor/common/model';
 
 export interface IOptions {
 	showFrame?: boolean;
@@ -187,6 +188,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this._disposables.push(this.editor.onDidLayoutChange((info: EditorLayoutInfo) => {
 			const width = this._getWidth(info);
 			this.domNode.style.width = width + 'px';
+			this.domNode.style.left = this._getLeft(info) + 'px';
 			this._onWidth(width);
 		}));
 	}
@@ -249,8 +251,16 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}
 	}
 
-	private _getWidth(info: EditorLayoutInfo = this.editor.getLayoutInfo()): number {
+	private _getWidth(info: EditorLayoutInfo): number {
 		return info.width - info.minimapWidth - info.verticalScrollbarWidth;
+	}
+
+	private _getLeft(info: EditorLayoutInfo): number {
+		// If minimap is to the left, we move beyond it
+		if (info.minimapWidth > 0 && info.minimapLeft === 0) {
+			return info.minimapWidth;
+		}
+		return 0;
 	}
 
 	private _onViewZoneTop(top: number): void {
@@ -262,7 +272,8 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		let containerHeight = height - this._decoratingElementsHeight();
 		this.container.style.height = `${containerHeight}px`;
-		this._doLayout(containerHeight, this._getWidth());
+		const layoutInfo = this.editor.getLayoutInfo();
+		this._doLayout(containerHeight, this._getWidth(layoutInfo));
 
 		this._resizeSash.layout();
 	}
@@ -327,8 +338,10 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			column: where.startColumn
 		};
 
-		const width = this._getWidth();
+		const layoutInfo = this.editor.getLayoutInfo();
+		const width = this._getWidth(layoutInfo);
 		this.domNode.style.width = `${width}px`;
+		this.domNode.style.left = this._getLeft(layoutInfo) + 'px';
 
 		// Render the widget as zone (rendering) and widget (lifecycle)
 		const viewZoneDomNode = document.createElement('div');

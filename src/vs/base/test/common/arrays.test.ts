@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
-import arrays = require('vs/base/common/arrays');
+import * as arrays from 'vs/base/common/arrays';
 
 suite('Arrays', () => {
 	test('findFirst', function () {
@@ -217,18 +217,17 @@ suite('Arrays', () => {
 		assert.deepEqual(arrays.top([4, 6, 2, 7, 8, 3, 5, 1], cmp, 3), [1, 2, 3]);
 	});
 
-	test('topAsync', function (done) {
+	test('topAsync', function () {
 		const cmp = (a: number, b: number) => {
 			assert.strictEqual(typeof a, 'number', 'typeof a');
 			assert.strictEqual(typeof b, 'number', 'typeof b');
 			return a - b;
 		};
 
-		testTopAsync(cmp, 1)
+		return testTopAsync(cmp, 1)
 			.then(() => {
 				return testTopAsync(cmp, 2);
-			})
-			.then(done, done);
+			});
 	});
 
 	function testTopAsync(cmp: any, m: number) {
@@ -269,5 +268,41 @@ suite('Arrays', () => {
 				});
 		});
 	}
+
+	test('coalesce', function () {
+		let a = arrays.coalesce([null, 1, null, 2, 3]);
+		assert.equal(a.length, 3);
+		assert.equal(a[0], 1);
+		assert.equal(a[1], 2);
+		assert.equal(a[2], 3);
+
+		arrays.coalesce([null, 1, null, void 0, undefined, 2, 3]);
+		assert.equal(a.length, 3);
+		assert.equal(a[0], 1);
+		assert.equal(a[1], 2);
+		assert.equal(a[2], 3);
+
+		let b = [];
+		b[10] = 1;
+		b[20] = 2;
+		b[30] = 3;
+		b = arrays.coalesce(b);
+		assert.equal(b.length, 3);
+		assert.equal(b[0], 1);
+		assert.equal(b[1], 2);
+		assert.equal(b[2], 3);
+
+		let sparse = [];
+		sparse[0] = 1;
+		sparse[1] = 1;
+		sparse[17] = 1;
+		sparse[1000] = 1;
+		sparse[1001] = 1;
+
+		assert.equal(sparse.length, 1002);
+
+		sparse = arrays.coalesce(sparse);
+		assert.equal(sparse.length, 5);
+	});
 });
 

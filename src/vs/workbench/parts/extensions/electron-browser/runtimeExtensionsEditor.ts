@@ -20,14 +20,12 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
-import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { append, $, addClass, toggleClass } from 'vs/base/browser/dom';
 import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { clipboard } from 'electron';
@@ -38,8 +36,9 @@ import { writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { memoize } from 'vs/base/common/decorators';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { DisableForWorkspaceAction, DisableGloballyAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 
@@ -89,7 +88,7 @@ interface IRuntimeExtension {
 
 export class RuntimeExtensionsEditor extends BaseEditor {
 
-	static ID: string = 'workbench.editor.runtimeExtensions';
+	static readonly ID: string = 'workbench.editor.runtimeExtensions';
 
 	private _list: WorkbenchList<IRuntimeExtension>;
 	private _profileInfo: IExtensionHostProfile;
@@ -103,9 +102,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IThemeService themeService: IThemeService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IListService private readonly _listService: IListService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IMessageService private readonly _messageService: IMessageService,
+		@INotificationService private readonly _notificationService: INotificationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
@@ -270,7 +267,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const actionbar = new ActionBar(element, {
 					animated: false
 				});
-				actionbar.onDidRun(({ error }) => error && this._messageService.show(Severity.Error, error));
+				actionbar.onDidRun(({ error }) => error && this._notificationService.error(error));
 				actionbar.push(new ReportExtensionIssueAction(), { icon: true, label: true });
 
 				const disposables = [actionbar];
@@ -365,9 +362,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			}
 		};
 
-		this._list = new WorkbenchList<IRuntimeExtension>(container, delegate, [renderer], {
+		this._list = this._instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
 			multipleSelectionSupport: false
-		}, this._contextKeyService, this._listService, this.themeService);
+		}) as WorkbenchList<IRuntimeExtension>;
 
 		this._list.splice(0, this._list.length, this._elements);
 

@@ -60,26 +60,26 @@ export class SettingsDocument {
 	private provideFilesAssociationsCompletionItems(location: Location, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[]> {
 		const completions: vscode.CompletionItem[] = [];
 
-		// Key
-		if (location.path.length === 1) {
-			completions.push(this.newSnippetCompletionItem({
-				label: localize('assocLabelFile', "Files with Extension"),
-				documentation: localize('assocDescriptionFile', "Map all files matching the glob pattern in their filename to the language with the given identifier."),
-				snippet: location.isAtPropertyKey ? '"*.${1:extension}": "${2:language}"' : '{ "*.${1:extension}": "${2:language}" }',
-				range
-			}));
+		if (location.path.length === 2) {
+			// Key
+			if (!location.isAtPropertyKey || location.path[1] === '') {
+				completions.push(this.newSnippetCompletionItem({
+					label: localize('assocLabelFile', "Files with Extension"),
+					documentation: localize('assocDescriptionFile', "Map all files matching the glob pattern in their filename to the language with the given identifier."),
+					snippet: location.isAtPropertyKey ? '"*.${1:extension}": "${2:language}"' : '{ "*.${1:extension}": "${2:language}" }',
+					range
+				}));
 
-			completions.push(this.newSnippetCompletionItem({
-				label: localize('assocLabelPath', "Files with Path"),
-				documentation: localize('assocDescriptionPath', "Map all files matching the absolute path glob pattern in their path to the language with the given identifier."),
-				snippet: location.isAtPropertyKey ? '"/${1:path to file}/*.${2:extension}": "${3:language}"' : '{ "/${1:path to file}/*.${2:extension}": "${3:language}" }',
-				range
-			}));
-		}
-
-		// Value
-		else if (location.path.length === 2 && !location.isAtPropertyKey) {
-			return this.provideLanguageCompletionItems(location, range);
+				completions.push(this.newSnippetCompletionItem({
+					label: localize('assocLabelPath', "Files with Path"),
+					documentation: localize('assocDescriptionPath', "Map all files matching the absolute path glob pattern in their path to the language with the given identifier."),
+					snippet: location.isAtPropertyKey ? '"/${1:path to file}/*.${2:extension}": "${3:language}"' : '{ "/${1:path to file}/*.${2:extension}": "${3:language}" }',
+					range
+				}));
+			} else {
+				// Value
+				return this.provideLanguageCompletionItems(location, range);
+			}
 		}
 
 		return Promise.resolve(completions);

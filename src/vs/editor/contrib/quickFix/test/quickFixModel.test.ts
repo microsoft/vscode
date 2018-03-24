@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { QuickFixOracle } from 'vs/editor/contrib/quickFix/quickFixModel';
@@ -20,7 +20,7 @@ suite('QuickFix', () => {
 
 	const languageIdentifier = new LanguageIdentifier('foo-lang', 3);
 	let uri = URI.parse('untitled:path');
-	let model: Model;
+	let model: TextModel;
 	let markerService: MarkerService;
 	let editor: ICodeEditor;
 	let reg: IDisposable;
@@ -32,7 +32,7 @@ suite('QuickFix', () => {
 			}
 		});
 		markerService = new MarkerService();
-		model = Model.createFromString('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
+		model = TextModel.createFromString('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
 		editor = createTestCodeEditor(model);
 		editor.setPosition({ lineNumber: 1, column: 1 });
 	});
@@ -47,7 +47,7 @@ suite('QuickFix', () => {
 	test('Orcale -> marker added', done => {
 
 		const oracle = new QuickFixOracle(editor, markerService, e => {
-			assert.equal(e.type, 'auto');
+			assert.equal(e.trigger.type, 'auto');
 			assert.ok(e.fixes);
 
 			e.fixes.then(fixes => {
@@ -83,7 +83,7 @@ suite('QuickFix', () => {
 		return new Promise((resolve, reject) => {
 
 			const oracle = new QuickFixOracle(editor, markerService, e => {
-				assert.equal(e.type, 'auto');
+				assert.equal(e.trigger.type, 'auto');
 				assert.ok(e.fixes);
 				e.fixes.then(fixes => {
 					oracle.dispose();
@@ -160,7 +160,7 @@ suite('QuickFix', () => {
 		await new Promise(resolve => {
 
 			let oracle = new QuickFixOracle(editor, markerService, e => {
-				assert.equal(e.type, 'auto');
+				assert.equal(e.trigger.type, 'auto');
 				assert.deepEqual(e.range, { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 4 });
 				assert.deepEqual(e.position, { lineNumber: 3, column: 1 });
 

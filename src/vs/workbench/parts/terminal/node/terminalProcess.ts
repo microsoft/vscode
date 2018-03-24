@@ -45,8 +45,8 @@ if (cols && rows) {
 
 var ptyProcess = pty.fork(shell, args, options);
 
-var closeTimeout;
-var exitCode;
+var closeTimeout: number;
+var exitCode: number;
 
 // Allow any trailing data events to be sent before the exit event is sent.
 // See https://github.com/Tyriar/node-pty/issues/72
@@ -107,7 +107,9 @@ function getArgs() {
 function cleanEnv() {
 	var keys = [
 		'AMD_ENTRYPOINT',
+		'ELECTRON_NO_ASAR',
 		'ELECTRON_RUN_AS_NODE',
+		'GOOGLE_API_KEY',
 		'PTYCWD',
 		'PTYPID',
 		'PTYSHELL',
@@ -124,10 +126,11 @@ function cleanEnv() {
 	var i = 0;
 	while (process.env['PTYSHELLARG' + i]) {
 		delete process.env['PTYSHELLARG' + i];
+		i++;
 	}
 }
 
-function setupPlanB(parentPid) {
+function setupPlanB(parentPid: number) {
 	setInterval(function () {
 		try {
 			process.kill(parentPid, 0); // throws an exception if the main process doesn't exist anymore.

@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { MainThreadCommandsShape } from 'vs/workbench/api/node/extHost.protocol';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { OneGetThreadService } from './testThreadService';
+import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { NullLogService } from 'vs/platform/log/common/log';
 
@@ -28,8 +28,8 @@ suite('ExtHostCommands', function () {
 			}
 		};
 
-		const commands = new ExtHostCommands(OneGetThreadService(shape), undefined, new NullLogService());
-		commands.registerCommand('foo', (): any => { }).dispose();
+		const commands = new ExtHostCommands(SingleProxyRPCProtocol(shape), undefined, new NullLogService());
+		commands.registerCommand(true, 'foo', (): any => { }).dispose();
 		assert.equal(lastUnregister, 'foo');
 		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
 
@@ -48,8 +48,8 @@ suite('ExtHostCommands', function () {
 			}
 		};
 
-		const commands = new ExtHostCommands(OneGetThreadService(shape), undefined, new NullLogService());
-		const reg = commands.registerCommand('foo', (): any => { });
+		const commands = new ExtHostCommands(SingleProxyRPCProtocol(shape), undefined, new NullLogService());
+		const reg = commands.registerCommand(true, 'foo', (): any => { });
 		reg.dispose();
 		reg.dispose();
 		reg.dispose();

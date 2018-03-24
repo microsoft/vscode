@@ -1,7 +1,6 @@
 {
 	"version": "0.1.0",
 	"configurations": [
-
 		{
 			"type": "node",
 			"request": "launch",
@@ -9,7 +8,7 @@
 			"program": "${workspaceFolder}/node_modules/gulp/bin/gulp.js",
 			"stopOnEntry": true,
 			"args": [
-				"watch-extension:json-client"
+				"hygiene"
 			],
 			"cwd": "${workspaceFolder}"
 		},
@@ -81,12 +80,26 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
-			"name": "VS Code API Tests",
+			"name": "VS Code API Tests (single folder)",
 			"runtimeExecutable": "${execPath}",
 			"args": [
 				"${workspaceFolder}/extensions/vscode-api-tests/testWorkspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-api-tests",
-				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out"
+				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/singlefolder-tests"
+			],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			]
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code API Tests (workspace)",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceFolder}/extensions/vscode-api-tests/testworkspace.code-workspace",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-api-tests",
+				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/workspace-tests"
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
@@ -129,6 +142,9 @@
 			"runtimeArgs": [
 				"--inspect=5875"
 			],
+			"skipFiles": [
+				"**/winjs*.js"
+			],
 			"webRoot": "${workspaceFolder}"
 		},
 		{
@@ -141,6 +157,20 @@
 			"cwd": "${workspaceFolder}/extensions/git",
 			"outFiles": [
 				"${workspaceFolder}/extensions/git/out/**/*.js"
+			]
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code Markdown Extension Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceFolder}/extensions/markdown-language-features/test-fixtures",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/markdown-language-features",
+				"--extensionTestsPath=${workspaceFolder}/extensions/markdown-language-features/out/test"
+			],
+			"outFiles": [
+				"${workspaceFolder}/extensions/markdown-language-features/out/**/*.js"
 			]
 		},
 		{

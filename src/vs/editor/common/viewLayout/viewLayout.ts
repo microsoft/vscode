@@ -11,7 +11,7 @@ import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
 import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/common/viewModel/viewModel';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 
 const SMOOTH_SCROLLING_TIME = 125;
@@ -175,15 +175,15 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		};
 	}
 
-	public restoreState(state: editorCommon.IViewState): void {
+	public reduceRestoreState(state: editorCommon.IViewState): { scrollLeft: number; scrollTop: number; } {
 		let restoreScrollTop = state.scrollTop;
 		if (typeof state.scrollTopWithoutViewZones === 'number' && !this._linesLayout.hasWhitespace()) {
 			restoreScrollTop = state.scrollTopWithoutViewZones;
 		}
-		this.scrollable.setScrollPositionNow({
+		return {
 			scrollLeft: state.scrollLeft,
 			scrollTop: restoreScrollTop
-		});
+		};
 	}
 
 	// ---- IVerticalLayoutProvider

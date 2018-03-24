@@ -300,6 +300,7 @@
 				"keyword.operator.expression",
 				"keyword.operator.cast",
 				"keyword.operator.sizeof",
+				"keyword.operator.instanceof",
 				"keyword.operator.logical.python"
 			],
 			"settings": {

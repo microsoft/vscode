@@ -7,6 +7,126 @@
 
 declare module 'vscode' {
 
+	export namespace window {
+		export function sampleFunction(): Thenable<any>;
+	}
+
+	//#region Joh: readable diagnostics
+
+	export interface DiagnosticChangeEvent {
+		uris: Uri[];
+	}
+
+	export namespace languages {
+
+		/**
+		 *
+		 */
+		export const onDidChangeDiagnostics: Event<DiagnosticChangeEvent>;
+
+		/**
+		 *
+		 */
+		export function getDiagnostics(resource: Uri): Diagnostic[];
+
+		/**
+		 *
+		 */
+		export function getDiagnostics(): [Uri, Diagnostic[]][];
+	}
+
+	//#endregion
+
+	//#region Aeschli: folding
+
+	export class FoldingRangeList {
+
+		/**
+		 * The folding ranges.
+		 */
+		ranges: FoldingRange[];
+
+		/**
+		 * Creates mew folding range list.
+		 *
+		 * @param ranges The folding ranges
+		 */
+		constructor(ranges: FoldingRange[]);
+	}
+
+
+	export class FoldingRange {
+
+		/**
+		 * The start line number (zero-based) of the range to fold. The hidden area starts after the last character of that line.
+		 */
+		startLine: number;
+
+		/**
+		 * The end line number (0-based) of the range to fold. The hidden area ends at the last character of that line.
+		 */
+		endLine: number;
+
+		/**
+		 * The actual color value for this color range.
+		 */
+		type?: FoldingRangeType | string;
+
+		/**
+		 * Creates a new folding range.
+		 *
+		 * @param startLineNumber The first line of the fold
+		 * @param type The last line of the fold
+		 */
+		constructor(startLineNumber: number, endLineNumber: number, type?: FoldingRangeType | string);
+	}
+
+	export enum FoldingRangeType {
+		/**
+		 * Folding range for a comment
+		 */
+		Comment = 'comment',
+		/**
+		 * Folding range for a imports or includes
+		 */
+		Imports = 'imports',
+		/**
+		 * Folding range for a region (e.g. `#region`)
+		 */
+		Region = 'region'
+	}
+
+	export namespace languages {
+
+		/**
+		 * Register a folding provider.
+		 *
+		 * Multiple folding can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A folding provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerFoldingProvider(selector: DocumentSelector, provider: FoldingProvider): Disposable;
+	}
+
+	export interface FoldingContext {
+		maxRanges?: number;
+	}
+
+	export interface FoldingProvider {
+		/**
+		 * Returns a list of folding ranges or null if the provider does not want to participate or was cancelled.
+		 */
+		provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRangeList>;
+	}
+
+	//#endregion
+
+	//#region Joh: file system provider
+
 	// export enum FileErrorCodes {
 	// 	/**
 	// 	 * Not owner.
@@ -84,11 +204,11 @@ declare module 'vscode' {
 	}
 
 	// todo@joh discover files etc
+	// todo@joh CancellationToken everywhere
+	// todo@joh add open/close calls?
 	export interface FileSystemProvider {
 
 		readonly onDidChange?: Event<FileChange[]>;
-
-		readonly root: Uri;
 
 		// more...
 		//
@@ -98,6 +218,7 @@ declare module 'vscode' {
 
 		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
 
+		// todo@joh - have an option to create iff not exist
 		// todo@remote
 		// offset - byte offset to start
 		// count - number of bytes to write
@@ -126,19 +247,46 @@ declare module 'vscode' {
 
 		// todo@remote
 		// create(resource: Uri): Thenable<FileStat>;
-
-		// find files by names
-		findFiles?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace workspace {
-		export function registerFileSystemProvider(authority: string, provider: FileSystemProvider): Disposable;
+		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
 	}
 
-	export namespace window {
+	//#endregion
 
-		export function sampleFunction(): Thenable<any>;
+	//#region Joh: remote, search provider
+
+	export interface TextSearchQuery {
+		pattern: string;
+		isRegExp?: boolean;
+		isCaseSensitive?: boolean;
+		isWordMatch?: boolean;
 	}
+
+	export interface TextSearchOptions {
+		includes: GlobPattern[];
+		excludes: GlobPattern[];
+	}
+
+	export interface TextSearchResult {
+		uri: Uri;
+		range: Range;
+		preview: { leading: string, matching: string, trailing: string };
+	}
+
+	export interface SearchProvider {
+		provideFileSearchResults?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
+	}
+
+	export namespace workspace {
+		export function registerSearchProvider(scheme: string, provider: SearchProvider): Disposable;
+	}
+
+	//#endregion
+
+	//#region Joao: diff command
 
 	/**
 	 * The contiguous set of modified lines in a diff.
@@ -169,7 +317,9 @@ declare module 'vscode' {
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 	}
 
-	//#region decorations
+	//#endregion
+
+	//#region Joh: decorations
 
 	//todo@joh -> make class
 	export interface DecorationData {
@@ -198,143 +348,44 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region André: debug
+
 	/**
-	 * A code action represents a change that can be performed in code, e.g. to fix a problem or
-	 * to refactor code.
+	 * Represents a debug adapter executable and optional arguments passed to it.
 	 */
-	export class CodeAction {
+	export class DebugAdapterExecutable {
+		/**
+		 * The command path of the debug adapter executable.
+		 * A command must be either an absolute path or the name of an executable looked up via the PATH environment variable.
+		 * The special value 'node' will be mapped to VS Code's built-in node runtime.
+		 */
+		readonly command: string;
 
 		/**
-		 * A short, human-readanle, title for this code action.
+		 * Optional arguments passed to the debug adapter executable.
 		 */
-		title: string;
+		readonly args: string[];
 
 		/**
-		 * A workspace edit this code action performs.
-		 *
-		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
+		 * Create a new debug adapter specification.
 		 */
-		edit?: WorkspaceEdit;
-
-		/**
-		 * Diagnostics that this code action resolves.
-		 */
-		diagnostics?: Diagnostic[];
-
-		/**
-		 * A command this code action performs.
-		 *
-		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
-		 */
-		command?: Command;
-
-		/**
-		 * Creates a new code action.
-		 *
-		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edits)
-		 * or a [command](#CodeAction.command).
-		 *
-		 * @param title The title of the code action.
-		 * @param edits The edit of the code action.
-		 */
-		constructor(title: string, edit?: WorkspaceEdit);
+		constructor(command: string, args?: string[]);
 	}
 
-	export interface CodeActionProvider {
-
+	export interface DebugConfigurationProvider {
 		/**
-		 * Provide commands for the given document and range.
-		 *
-		 * If implemented, overrides `provideCodeActions`
-		 *
-		 * @param document The document in which the command was invoked.
-		 * @param range The range for which the command was invoked.
-		 * @param context Context carrying additional information.
+		 * This optional method is called just before a debug adapter is started to determine its excutable path and arguments.
+		 * Registering more than one debugAdapterExecutable for a type results in an error.
+		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
 		 * @param token A cancellation token.
-		 * @return An array of commands, quick fixes, or refactorings or a thenable of such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, or an empty array.
+		 * @return a [debug adapter's executable and optional arguments](#DebugAdapterExecutable) or undefined.
 		 */
-		provideCodeActions2?(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
+		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
 
-	export namespace debug {
+	//#endregion
 
-		/**
-		 * List of breakpoints.
-		 *
-		 * @readonly
-		 */
-		export let breakpoints: Breakpoint[];
-
-		/**
-		 * An event that is emitted when a breakpoint is added, removed, or changed.
-		 */
-		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
-	}
-
-	/**
-	 * An event describing a change to the set of [breakpoints](#debug.Breakpoint).
-	 */
-	export interface BreakpointsChangeEvent {
-		/**
-		 * Added breakpoints.
-		 */
-		readonly added: Breakpoint[];
-
-		/**
-		 * Removed breakpoints.
-		 */
-		readonly removed: Breakpoint[];
-
-		/**
-		 * Changed breakpoints.
-		 */
-		readonly changed: Breakpoint[];
-	}
-
-	/**
-	 * The base class of all breakpoint types.
-	 */
-	export class Breakpoint {
-		/**
-		 * Is breakpoint enabled.
-		 */
-		readonly enabled: boolean;
-		/**
-		 * An optional expression for conditional breakpoints.
-		 */
-		readonly condition?: string;
-		/**
-		 * An optional expression that controls how many hits of the breakpoint are ignored.
-		 */
-		readonly hitCondition?: string;
-
-		protected constructor(enabled: boolean, condition: string, hitCondition: string);
-	}
-
-	/**
-	 * A breakpoint specified by a source location.
-	 */
-	export class SourceBreakpoint extends Breakpoint {
-		/**
-		 * The source and line position of this breakpoint.
-		 */
-		readonly location: Location;
-
-		private constructor(enabled: boolean, condition: string, hitCondition: string, location: Location);
-	}
-
-	/**
-	 * A breakpoint specified by a function name.
-	 */
-	export class FunctionBreakpoint extends Breakpoint {
-		/**
-		 * The name of the function to which this breakpoint is attached.
-		 */
-		readonly functionName: string;
-
-		private constructor(enabled: boolean, condition: string, hitCondition: string, functionName: string);
-	}
+	//#region Rob, Matt: logging
 
 	/**
 	 * The severity level of a log message
@@ -353,10 +404,6 @@ declare module 'vscode' {
 	 * A logger for writing to an extension's log file, and accessing its dedicated log directory.
 	 */
 	export interface Logger {
-		readonly onDidChangeLogLevel: Event<LogLevel>;
-		readonly currentLevel: LogLevel;
-		readonly logDirectory: Thenable<string>;
-
 		trace(message: string, ...args: any[]): void;
 		debug(message: string, ...args: any[]): void;
 		info(message: string, ...args: any[]): void;
@@ -370,5 +417,341 @@ declare module 'vscode' {
 		 * This extension's logger
 		 */
 		logger: Logger;
+
+		/**
+		 * Path where an extension can write log files.
+		 *
+		 * Extensions must create this directory before writing to it. The parent directory will always exist.
+		 */
+		readonly logDirectory: string;
 	}
+
+	export namespace env {
+		/**
+		 * Current logging level.
+		 *
+		 * @readonly
+		 */
+		export const logLevel: LogLevel;
+	}
+
+	//#endregion
+
+	//#region Joh: rename context
+
+	export interface RenameContext {
+		range?: Range;
+		newName?: string;
+		message?: string;
+	}
+
+	export interface RenameProvider2 extends RenameProvider {
+
+		/**
+		 * Optional function for resolving and validating a position at which rename is
+		 * being carried out.
+		 *
+		 * @param document The document in which rename will be invoked.
+		 * @param position The position at which rename will be invoked.
+		 * @param token A cancellation token.
+		 * @return A `RenameContext` with more information. The lack of a result can signaled by returning `undefined` or `null`.
+		 */
+		resolveRenameLocation?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameContext>;
+
+	}
+
+	//#endregion
+
+	//#region Joao: SCM validation
+
+	/**
+	 * Represents the validation type of the Source Control input.
+	 */
+	export enum SourceControlInputBoxValidationType {
+
+		/**
+		 * Something not allowed by the rules of a language or other means.
+		 */
+		Error = 0,
+
+		/**
+		 * Something suspicious but allowed.
+		 */
+		Warning = 1,
+
+		/**
+		 * Something to inform about but not a problem.
+		 */
+		Information = 2
+	}
+
+	export interface SourceControlInputBoxValidation {
+
+		/**
+		 * The validation message to display.
+		 */
+		readonly message: string;
+
+		/**
+		 * The validation type.
+		 */
+		readonly type: SourceControlInputBoxValidationType;
+	}
+
+	/**
+	 * Represents the input box in the Source Control viewlet.
+	 */
+	export interface SourceControlInputBox {
+
+		/**
+		 * A validation function for the input box. It's possible to change
+		 * the validation provider simply by setting this property to a different function.
+		 */
+		validateInput?(value: string, cursorPosition: number): ProviderResult<SourceControlInputBoxValidation | undefined | null>;
+	}
+
+	//#endregion
+
+	//#region Matt: WebView
+
+	/**
+	 * Content settings for a webview.
+	 */
+	export interface WebviewOptions {
+		/**
+		 * Should scripts be enabled in the webview content?
+		 *
+		 * Defaults to false (scripts-disabled).
+		 */
+		readonly enableScripts?: boolean;
+
+		/**
+		 * Should command uris be enabled in webview content?
+		 *
+		 * Defaults to false.
+		 */
+		readonly enableCommandUris?: boolean;
+
+		/**
+		 * Should the find widget be enabled in the webview?
+		 *
+		 * Defaults to false.
+		 */
+		readonly enableFindWidget?: boolean;
+
+		/**
+		 * Should the webview's context be kept around even when the webview is no longer visible?
+		 *
+		 * Normally a webview's context is created when the webview becomes visible
+		 * and destroyed when the webview is hidden. Apps that have complex state
+		 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
+		 * context around, even when the webview moves to a background tab. When
+		 * the webview becomes visible again, the context is automatically restored
+		 * in the exact same state it was in originally.
+		 *
+		 * `retainContextWhenHidden` has a high memory overhead and should only be used if
+		 * your webview's context cannot be quickly saved and restored.
+		 */
+		readonly retainContextWhenHidden?: boolean;
+
+		/**
+		 * Root paths from which the webview can load local (filesystem) resources using the `vscode-resource:` scheme.
+		 *
+		 * Default to the root folders of the current workspace plus the extension's install directory.
+		 *
+		 * Pass in an empty array to disallow access to any local resources.
+		 */
+		readonly localResourceRoots?: Uri[];
+	}
+
+	export interface WebViewOnDidChangeViewStateEvent {
+		readonly viewColumn: ViewColumn;
+		readonly active: boolean;
+	}
+
+	/**
+	 * A webview displays html content, like an iframe.
+	 */
+	export interface Webview {
+		/**
+		 * The type of the webview, such as `'markdownw.preview'`
+		 */
+		readonly viewType: string;
+
+		/**
+		 * Content settings for the webview.
+		 */
+		readonly options: WebviewOptions;
+
+		/**
+		 * Title of the webview shown in UI.
+		 */
+		title: string;
+
+		/**
+		 * Contents of the webview.
+		 *
+		 * Should be a complete html document.
+		 */
+		html: string;
+
+		/**
+		 * The column in which the webview is showing.
+		 */
+		readonly viewColumn?: ViewColumn;
+
+		/**
+		 * Fired when the webview content posts a message.
+		 */
+		readonly onDidReceiveMessage: Event<any>;
+
+		/**
+		 * Fired when the webview is disposed.
+		 */
+		readonly onDidDispose: Event<void>;
+
+		/**
+		 * Fired when the webview's view state changes.
+		 */
+		readonly onDidChangeViewState: Event<WebViewOnDidChangeViewStateEvent>;
+
+		/**
+		 * Post a message to the webview content.
+		 *
+		 * Messages are only develivered if the webview is visible.
+		 *
+		 * @param message Body of the message.
+		 */
+		postMessage(message: any): Thenable<boolean>;
+
+		/**
+		 * Shows the webview in a given column.
+		 *
+		 * A webview may only be in a single column at a time. If it is already showing, this
+		 * command moves it to a new column.
+		 */
+		reveal(viewColumn: ViewColumn): void;
+
+		/**
+		 * Dispose of the the webview.
+		 *
+		 * This closes the webview if it showing and disposes of the resources owned by the webview.
+		 * Webview are also disposed when the user closes the webview editor. Both cases fire `onDispose`
+		 * event. Trying to use the webview after it has been disposed throws an exception.
+		 */
+		dispose(): any;
+	}
+
+	namespace window {
+		/**
+		 * Create and show a new webview.
+		 *
+		 * @param viewType Identifier the type of the webview.
+		 * @param title Title of the webview.
+		 * @param column Editor column to show the new webview in.
+		 * @param options Content settings for the webview.
+		 */
+		export function createWebview(viewType: string, title: string, column: ViewColumn, options: WebviewOptions): Webview;
+	}
+
+	//#endregion
+
+	//#region Alex: TextEditor.visibleRange and related event
+
+	export interface TextEditor {
+		/**
+		 * The current visible ranges in the editor (vertically).
+		 * This accounts only for vertical scrolling, and not for horizontal scrolling.
+		 */
+		readonly visibleRanges: Range[];
+	}
+
+	/**
+	 * Represents an event describing the change in a [text editor's visible ranges](#TextEditor.visibleRanges).
+	 */
+	export interface TextEditorVisibleRangesChangeEvent {
+		/**
+		 * The [text editor](#TextEditor) for which the visible ranges have changed.
+		 */
+		textEditor: TextEditor;
+		/**
+		 * The new value for the [text editor's visible ranges](#TextEditor.visibleRanges).
+		 */
+		visibleRanges: Range[];
+	}
+
+	export namespace window {
+		/**
+		 * An [event](#Event) which fires when the selection in an editor has changed.
+		 */
+		export const onDidChangeTextEditorVisibleRanges: Event<TextEditorVisibleRangesChangeEvent>;
+	}
+
+	//#endregion
+
+	//#region Tasks
+
+	/**
+	 * An object representing an executed Task. It can be used
+	 * to terminate a task.
+	 */
+	export interface TaskExecution {
+	}
+
+	/**
+	 * An event signaling the start of a task execution.
+	 */
+	interface TaskStartEvent {
+		/**
+		 * The task item representing the task that got started.
+		 */
+		execution: TaskExecution;
+	}
+
+	/**
+	 * An event signaling the end of an executed task.
+	 */
+	interface TaskEndEvent {
+		/**
+		 * The task item representing the task that finished.
+		 */
+		execution: TaskExecution;
+	}
+
+	export namespace workspace {
+
+		/**
+		 * Fetches all task available in the systems. This includes tasks
+		 * from `tasks.json` files as well as tasks from task providers
+		 * contributed through extensions.
+		 */
+		export function fetchTasks(): Thenable<Task[]>;
+
+		/**
+		 * Executes a task that is managed by VS Code. The returned
+		 * task execution can be used to terminate the task.
+		 *
+		 * @param task the task to execute
+		 */
+		export function executeTask(task: Task): Thenable<TaskExecution>;
+
+		/**
+		 * Fires when a task starts.
+		 */
+		export const onDidStartTask: Event<TaskStartEvent>;
+
+		/**
+		 * Terminates a task that was previously started using `executeTask`
+		 *
+		 * @param task the task to terminate
+		 */
+		export function terminateTask(task: TaskExecution): void;
+
+		/**
+		 * Fires when a task ends.
+		 */
+		export const onDidEndTask: Event<TaskEndEvent>;
+	}
+
+	//#endregion
 }

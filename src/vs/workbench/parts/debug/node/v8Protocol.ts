@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import stream = require('stream');
+import * as stream from 'stream';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { canceled } from 'vs/base/common/errors';
 
@@ -21,7 +21,7 @@ export abstract class V8Protocol {
 		this.sequence = 1;
 		this.contentLength = -1;
 		this.pendingRequests = new Map<number, (e: DebugProtocol.Response) => void>();
-		this.rawData = new Buffer(0);
+		this.rawData = Buffer.allocUnsafe(0);
 	}
 
 	public getId(): string {

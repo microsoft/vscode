@@ -1,6 +1,8 @@
 {
   "name": "configuration-editing",
-  "version": "0.0.1",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
   "publisher": "vscode",
   "engines": {
     "vscode": "^1.0.0"
@@ -20,7 +22,7 @@
   },
   "dependencies": {
     "jsonc-parser": "^1.0.0",
-    "vscode-nls": "^2.0.1"
+    "vscode-nls": "^3.2.1"
   },
   "contributes": {
     "jsonValidation": [
@@ -67,6 +69,10 @@
       {
         "fileMatch": "%APP_SETTINGS_HOME%/snippets/*.json",
         "url": "vscode://schemas/snippets"
+      },
+      {
+        "fileMatch": "**/*.code-snippets",
+        "url": "vscode://schemas/global-snippets"
       },
       {
         "fileMatch": "/.vscode/extensions.json",

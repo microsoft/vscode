@@ -1,9 +1,9 @@
 {
   "name": "git",
+  "displayName": "%displayName%",
+  "description": "%description%",
   "publisher": "vscode",
-  "displayName": "git",
-  "description": "Git",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "engines": {
     "vscode": "^1.5.0"
   },
@@ -16,9 +16,11 @@
     "*"
   ],
   "main": "./out/main",
+  "icon": "resources/icons/git.png",
   "scripts": {
     "compile": "gulp compile-extension:git",
-    "watch": "gulp watch-extension:git"
+    "watch": "gulp watch-extension:git",
+    "update-grammar": "node ./build/update-grammars.js"
   },
   "contributes": {
     "commands": [
@@ -66,6 +68,15 @@
         "icon": {
           "light": "resources/icons/light/open-file.svg",
           "dark": "resources/icons/dark/open-file.svg"
+        }
+      },
+      {
+        "command": "git.openFile2",
+        "title": "%command.openFile%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/open-file-mono.svg",
+          "dark": "resources/icons/dark/open-file-mono.svg"
         }
       },
       {
@@ -327,35 +338,35 @@
         },
         {
           "command": "git.close",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.refresh",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.openFile",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.openHEADFile",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.openChange",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stage",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stageAll",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stageSelectedRanges",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stageChange",
@@ -363,155 +374,159 @@
         },
         {
           "command": "git.revertSelectedRanges",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.revertChange",
           "when": "false"
         },
         {
+          "command": "git.openFile2",
+          "when": "false"
+        },
+        {
           "command": "git.unstage",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.unstageAll",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.unstageSelectedRanges",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.clean",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && !gitFreshRepository"
         },
         {
           "command": "git.cleanAll",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && !gitFreshRepository"
         },
         {
           "command": "git.commit",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.commitStaged",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.commitStagedSigned",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.commitStagedAmend",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.commitAll",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.commitAllSigned",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.commitAllAmend",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.undoCommit",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.checkout",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.branch",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.deleteBranch",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.renameBranch",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.pull",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.pullFrom",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.pullRebase",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.pullFrom",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.merge",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.createTag",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.fetch",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.push",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.pushTo",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.pushWithTags",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.sync",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.syncRebase",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.publish",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.showOutput",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.ignore",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stashIncludeUntracked",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stash",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stashPop",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stashPopLatest",
-          "when": "gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         }
       ],
       "scm/title": [
@@ -618,7 +633,7 @@
         {
           "command": "git.cleanAll",
           "group": "4_stage",
-          "when": "scmProvider == git"
+          "when": "scmProvider == git && !gitFreshRepository"
         },
         {
           "command": "git.stashIncludeUntracked",
@@ -676,7 +691,7 @@
         },
         {
           "command": "git.cleanAll",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && !gitFreshRepository",
           "group": "1_modification"
         },
         {
@@ -686,7 +701,7 @@
         },
         {
           "command": "git.cleanAll",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && !gitFreshRepository",
           "group": "inline"
         },
         {
@@ -712,8 +727,8 @@
           "group": "inline"
         },
         {
-          "command": "git.openFile",
-          "when": "scmProvider == git && scmResourceGroup == merge",
+          "command": "git.openFile2",
+          "when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction",
           "group": "inline0"
         },
         {
@@ -742,8 +757,8 @@
           "group": "inline"
         },
         {
-          "command": "git.openFile",
-          "when": "scmProvider == git && scmResourceGroup == index",
+          "command": "git.openFile2",
+          "when": "scmProvider == git && scmResourceGroup == index && config.git.showInlineOpenFileAction",
           "group": "inline0"
         },
         {
@@ -768,12 +783,12 @@
         },
         {
           "command": "git.clean",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && !gitFreshRepository",
           "group": "1_modification"
         },
         {
           "command": "git.clean",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && !gitFreshRepository",
           "group": "inline"
         },
         {
@@ -782,8 +797,8 @@
           "group": "inline"
         },
         {
-          "command": "git.openFile",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "command": "git.openFile2",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.showInlineOpenFileAction",
           "group": "inline0"
         },
         {
@@ -796,27 +811,44 @@
         {
           "command": "git.openFile",
           "group": "navigation",
-          "when": "gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme != extension && resourceScheme != merge-conflict.conflict-diff"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
           "command": "git.openChange",
           "group": "navigation",
-          "when": "gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file"
         },
         {
           "command": "git.stageSelectedRanges",
           "group": "2_git@1",
-          "when": "gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme != merge-conflict.conflict-diff"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
           "command": "git.unstageSelectedRanges",
           "group": "2_git@2",
-          "when": "gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme != merge-conflict.conflict-diff"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
           "command": "git.revertSelectedRanges",
           "group": "2_git@3",
-          "when": "gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme != merge-conflict.conflict-diff"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "git.stageSelectedRanges",
+          "group": "2_git@1",
+          "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+        },
+        {
+          "command": "git.unstageSelectedRanges",
+          "group": "2_git@2",
+          "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+        },
+        {
+          "command": "git.revertSelectedRanges",
+          "group": "2_git@3",
+          "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         }
       ],
       "scm/change/title": [
@@ -923,6 +955,38 @@
           "type": "boolean",
           "default": true,
           "description": "%config.decorations.enabled%"
+        },
+        "git.promptToSaveFilesBeforeCommit": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.promptToSaveFilesBeforeCommit%"
+        },
+        "git.showInlineOpenFileAction": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.showInlineOpenFileAction%"
+        },
+        "git.inputValidation": {
+          "type": "string",
+          "enum": [
+            "always",
+            "warn",
+            "off"
+          ],
+          "default": "warn",
+          "description": "%config.inputValidation%"
+        },
+        "git.detectSubmodules": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%config.detectSubmodules%"
+        },
+        "git.detectSubmodulesLimit": {
+          "type": "number",
+          "scope": "resource",
+          "default": 10,
+          "description": "%config.detectSubmodulesLimit%"
         }
       }
     },
@@ -981,14 +1045,76 @@
           "highContrast": "#8db9e2"
         }
       }
-    ]
+    ],
+    "languages": [
+      {
+        "id": "git-commit",
+        "aliases": [
+          "Git Commit Message",
+          "git-commit"
+        ],
+        "filenames": [
+          "COMMIT_EDITMSG",
+          "MERGE_MSG"
+        ],
+        "configuration": "./languages/git-commit.language-configuration.json"
+      },
+      {
+        "id": "git-rebase",
+        "aliases": [
+          "Git Rebase Message",
+          "git-rebase"
+        ],
+        "filenames": [
+          "git-rebase-todo"
+        ],
+        "configuration": "./languages/git-rebase.language-configuration.json"
+      },
+      {
+        "id": "diff",
+        "aliases": [
+          "Diff",
+          "diff"
+        ],
+        "extensions": [
+          ".patch",
+          ".diff",
+          ".rej"
+        ],
+        "configuration": "./languages/diff.language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "git-commit",
+        "scopeName": "text.git-commit",
+        "path": "./syntaxes/git-commit.tmLanguage.json"
+      },
+      {
+        "language": "git-rebase",
+        "scopeName": "text.git-rebase",
+        "path": "./syntaxes/git-rebase.tmLanguage.json"
+      },
+      {
+        "language": "diff",
+        "scopeName": "source.diff",
+        "path": "./syntaxes/diff.tmLanguage.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[git-commit]": {
+        "editor.rulers": [
+          72
+        ]
+      }
+    }
   },
   "dependencies": {
     "byline": "^5.0.0",
     "file-type": "^7.2.0",
     "iconv-lite": "0.4.19",
-    "vscode-extension-telemetry": "0.0.8",
-    "vscode-nls": "2.0.2",
+    "vscode-extension-telemetry": "0.0.15",
+    "vscode-nls": "^3.2.1",
     "which": "^1.3.0"
   },
   "devDependencies": {

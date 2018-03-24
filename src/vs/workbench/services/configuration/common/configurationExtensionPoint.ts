@@ -7,10 +7,10 @@ import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ExtensionsRegistry, IExtensionPointUser } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { workspaceSettingsSchemaId } from 'vs/workbench/services/configuration/common/configuration';
+import { workspaceSettingsSchemaId, launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 
@@ -94,7 +94,7 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 configurationExtPoint.setHandler(extensions => {
 	const configurations: IConfigurationNode[] = [];
 
-	function handleConfiguration(node: IConfigurationNode, id: string, extension: IExtensionPointUser<any>) {
+	function handleConfiguration(node: IConfigurationNode, extension: IExtensionPointUser<any>) {
 		let configuration = objects.deepClone(node);
 
 		if (configuration.title && (typeof configuration.title !== 'string')) {
@@ -103,17 +103,17 @@ configurationExtPoint.setHandler(extensions => {
 
 		validateProperties(configuration, extension);
 
-		configuration.id = id;
+		configuration.id = extension.description.uuid || extension.description.id;
+		configuration.title = configuration.title || extension.description.displayName || extension.description.id;
 		configurations.push(configuration);
 	}
 
 	for (let extension of extensions) {
 		const value = <IConfigurationNode | IConfigurationNode[]>extension.value;
-		const id = extension.description.id;
 		if (!Array.isArray(value)) {
-			handleConfiguration(value, id, extension);
+			handleConfiguration(value, extension);
 		} else {
-			value.forEach(v => handleConfiguration(v, id, extension));
+			value.forEach(v => handleConfiguration(v, extension));
 		}
 	}
 	configurationRegistry.registerConfigurations(configurations, registeredDefaultConfigurations, false);
@@ -200,6 +200,12 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			default: {},
 			description: nls.localize('workspaceConfig.settings.description', "Workspace settings"),
 			$ref: workspaceSettingsSchemaId
+		},
+		'launch': {
+			type: 'object',
+			default: { configurations: [], compounds: [] },
+			description: nls.localize('workspaceConfig.launch.description', "Workspace launch configurations"),
+			$ref: launchSchemaId
 		},
 		'extensions': {
 			type: 'object',

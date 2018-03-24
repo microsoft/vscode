@@ -12,7 +12,7 @@
 	flex-shrink: 0;
 	align-items: center;
 	justify-content: center;
-	-webkit-user-select: none;
+	user-select: none;
 	-webkit-app-region: drag;
 	zoom: 1; /* prevent zooming */
 	line-height: 22px;

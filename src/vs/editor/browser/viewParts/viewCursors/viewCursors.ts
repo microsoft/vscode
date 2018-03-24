@@ -49,7 +49,7 @@ export class ViewCursors extends ViewPart {
 		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
 		this._selectionIsEmpty = true;
 
-		this._primaryCursor = new ViewCursor(this._context, false);
+		this._primaryCursor = new ViewCursor(this._context);
 		this._secondaryCursors = [];
 		this._renderData = [];
 
@@ -109,7 +109,7 @@ export class ViewCursors extends ViewPart {
 			// Create new cursors
 			let addCnt = secondaryPositions.length - this._secondaryCursors.length;
 			for (let i = 0; i < addCnt; i++) {
-				let newCursor = new ViewCursor(this._context, true);
+				let newCursor = new ViewCursor(this._context);
 				this._domNode.domNode.insertBefore(newCursor.getDomNode().domNode, this._primaryCursor.getDomNode().domNode.nextSibling);
 				this._secondaryCursors.push(newCursor);
 			}

@@ -6,11 +6,11 @@
 
 import 'vs/css!./builder';
 import { TPromise } from 'vs/base/common/winjs.base';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import strings = require('vs/base/common/strings');
-import assert = require('vs/base/common/assert');
-import DOM = require('vs/base/browser/dom');
+import * as strings from 'vs/base/common/strings';
+import * as assert from 'vs/base/common/assert';
+import * as DOM from 'vs/base/browser/dom';
 
 /**
  * Welcome to the monaco builder. The recommended way to use it is:
@@ -918,50 +918,6 @@ export class Builder implements IDisposable {
 	}
 
 	/**
-	 *  Sets the CSS property min-size.
-	 */
-	public minSize(size: string): Builder;
-	public minSize(width: number, height?: number): Builder;
-	public minSize(width: string, height?: string): Builder;
-	public minSize(width: any, height?: any): Builder {
-		if (types.isString(width) && width.indexOf(' ') >= 0) {
-			return this.minSize.apply(this, width.split(' '));
-		}
-
-		if (!types.isUndefinedOrNull(width)) {
-			this.currentElement.style.minWidth = this.toPixel(width);
-		}
-
-		if (!types.isUndefinedOrNull(height)) {
-			this.currentElement.style.minHeight = this.toPixel(height);
-		}
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property max-size.
-	 */
-	public maxSize(size: string): Builder;
-	public maxSize(width: number, height?: number): Builder;
-	public maxSize(width: string, height?: string): Builder;
-	public maxSize(width: any, height?: any): Builder {
-		if (types.isString(width) && width.indexOf(' ') >= 0) {
-			return this.maxSize.apply(this, width.split(' '));
-		}
-
-		if (!types.isUndefinedOrNull(width)) {
-			this.currentElement.style.maxWidth = this.toPixel(width);
-		}
-
-		if (!types.isUndefinedOrNull(height)) {
-			this.currentElement.style.maxHeight = this.toPixel(height);
-		}
-
-		return this;
-	}
-
-	/**
 	 *  Sets the CSS property display.
 	 */
 	public display(display: string): Builder {
@@ -974,8 +930,8 @@ export class Builder implements IDisposable {
 	 *  Shows the current element of the builder.
 	 */
 	public show(): Builder {
-		if (this.hasClass('builder-hidden')) {
-			this.removeClass('builder-hidden');
+		if (this.hasClass('monaco-builder-hidden')) {
+			this.removeClass('monaco-builder-hidden');
 		}
 
 		this.attr('aria-hidden', 'false');
@@ -1013,8 +969,8 @@ export class Builder implements IDisposable {
 	 *  Hides the current element of the builder.
 	 */
 	public hide(): Builder {
-		if (!this.hasClass('builder-hidden')) {
-			this.addClass('builder-hidden');
+		if (!this.hasClass('monaco-builder-hidden')) {
+			this.addClass('monaco-builder-hidden');
 		}
 		this.attr('aria-hidden', 'true');
 
@@ -1028,7 +984,7 @@ export class Builder implements IDisposable {
 	 *  Returns true if the current element of the builder is hidden.
 	 */
 	public isHidden(): boolean {
-		return this.hasClass('builder-hidden') || this.currentElement.style.display === 'none';
+		return this.hasClass('monaco-builder-hidden') || this.currentElement.style.display === 'none';
 	}
 
 	private cancelVisibilityPromise(): void {
@@ -1037,121 +993,6 @@ export class Builder implements IDisposable {
 			promise.cancel();
 			this.removeProperty(VISIBILITY_BINDING_ID);
 		}
-	}
-
-	/**
-	 *  Sets the CSS property border.
-	 */
-	public border(border: string): Builder;
-	public border(width: number, style?: string, color?: string): Builder;
-	public border(width: any, style?: string, color?: string): Builder {
-		if (types.isString(width) && width.indexOf(' ') >= 0) {
-			return this.border.apply(this, width.split(' '));
-		}
-
-		this.currentElement.style.borderWidth = this.toPixel(width);
-
-		if (color) {
-			this.currentElement.style.borderColor = color;
-		}
-
-		if (style) {
-			this.currentElement.style.borderStyle = style;
-		}
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property border-top.
-	 */
-	public borderTop(border: string): Builder;
-	public borderTop(width: number, style: string, color: string): Builder;
-	public borderTop(width: any, style?: string, color?: string): Builder {
-		if (types.isString(width) && width.indexOf(' ') >= 0) {
-			return this.borderTop.apply(this, width.split(' '));
-		}
-
-		this.currentElement.style.borderTopWidth = this.toPixel(width);
-
-		if (color) {
-			this.currentElement.style.borderTopColor = color;
-		}
-
-		if (style) {
-			this.currentElement.style.borderTopStyle = style;
-		}
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property border-bottom.
-	 */
-	public borderBottom(border: string): Builder;
-	public borderBottom(width: number, style: string, color: string): Builder;
-	public borderBottom(width: any, style?: string, color?: string): Builder {
-		if (types.isString(width) && width.indexOf(' ') >= 0) {
-			return this.borderBottom.apply(this, width.split(' '));
-		}
-
-		this.currentElement.style.borderBottomWidth = this.toPixel(width);
-
-		if (color) {
-			this.currentElement.style.borderBottomColor = color;
-		}
-
-		if (style) {
-			this.currentElement.style.borderBottomStyle = style;
-		}
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property border-left.
-	 */
-	public borderLeft(border: string): Builder;
-	public borderLeft(width: number, style: string, color: string): Builder;
-	public borderLeft(width: any, style?: string, color?: string): Builder {
-		if (types.isString(width) && width.indexOf(' ') >= 0) {
-			return this.borderLeft.apply(this, width.split(' '));
-		}
-
-		this.currentElement.style.borderLeftWidth = this.toPixel(width);
-
-		if (color) {
-			this.currentElement.style.borderLeftColor = color;
-		}
-
-		if (style) {
-			this.currentElement.style.borderLeftStyle = style;
-		}
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property border-right.
-	 */
-	public borderRight(border: string): Builder;
-	public borderRight(width: number, style: string, color: string): Builder;
-	public borderRight(width: any, style?: string, color?: string): Builder {
-		if (types.isString(width) && width.indexOf(' ') >= 0) {
-			return this.borderRight.apply(this, width.split(' '));
-		}
-
-		this.currentElement.style.borderRightWidth = this.toPixel(width);
-
-		if (color) {
-			this.currentElement.style.borderRightColor = color;
-		}
-
-		if (style) {
-			this.currentElement.style.borderRightStyle = style;
-		}
-
-		return this;
 	}
 
 	private toPixel(obj: any): string {

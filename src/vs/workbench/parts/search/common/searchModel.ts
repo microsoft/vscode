@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import objects = require('vs/base/common/objects');
-import strings = require('vs/base/common/strings');
-import errors = require('vs/base/common/errors');
+import * as objects from 'vs/base/common/objects';
+import * as strings from 'vs/base/common/strings';
+import * as errors from 'vs/base/common/errors';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { values, ResourceMap, TernarySearchTree } from 'vs/base/common/map';
-import Event, { Emitter, fromPromise, stopwatch, anyEvent } from 'vs/base/common/event';
+import { Event, Emitter, fromPromise, stopwatch, anyEvent } from 'vs/base/common/event';
 import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IPatternInfo, IFileMatch } from 'vs/platform/search/common/search';
 import { ReplacePattern } from 'vs/platform/search/common/replace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, FindMatch } from 'vs/editor/common/editorCommon';
+import { ITextModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, FindMatch } from 'vs/editor/common/model';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { getBaseLabel } from 'vs/base/common/labels';
@@ -118,13 +118,13 @@ export class FileMatch extends Disposable {
 	}
 
 	private _onChange = this._register(new Emitter<boolean>());
-	public onChange: Event<boolean> = this._onChange.event;
+	public readonly onChange: Event<boolean> = this._onChange.event;
 
 	private _onDispose = this._register(new Emitter<void>());
-	public onDispose: Event<void> = this._onDispose.event;
+	public readonly onDispose: Event<void> = this._onDispose.event;
 
 	private _resource: URI;
-	private _model: IModel;
+	private _model: ITextModel;
 	private _modelListener: IDisposable;
 	private _matches: Map<string, Match>;
 	private _removedMatches: Set<string>;
@@ -161,14 +161,14 @@ export class FileMatch extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.modelService.onModelAdded((model: IModel) => {
+		this._register(this.modelService.onModelAdded((model: ITextModel) => {
 			if (model.uri.toString() === this._resource.toString()) {
 				this.bindModel(model);
 			}
 		}));
 	}
 
-	private bindModel(model: IModel): void {
+	private bindModel(model: ITextModel): void {
 		this._model = model;
 		this._modelListener = this._model.onDidChangeContent(() => {
 			this._updateScheduler.schedule();
@@ -338,10 +338,10 @@ export interface IChangeEvent {
 export class FolderMatch extends Disposable {
 
 	private _onChange = this._register(new Emitter<IChangeEvent>());
-	public onChange: Event<IChangeEvent> = this._onChange.event;
+	public readonly onChange: Event<IChangeEvent> = this._onChange.event;
 
 	private _onDispose = this._register(new Emitter<void>());
-	public onDispose: Event<void> = this._onDispose.event;
+	public readonly onDispose: Event<void> = this._onDispose.event;
 
 	private _fileMatches: ResourceMap<FileMatch>;
 	private _unDisposedFileMatches: ResourceMap<FileMatch>;
@@ -499,7 +499,7 @@ export class FolderMatch extends Disposable {
 export class SearchResult extends Disposable {
 
 	private _onChange = this._register(new Emitter<IChangeEvent>());
-	public onChange: Event<IChangeEvent> = this._onChange.event;
+	public readonly onChange: Event<IChangeEvent> = this._onChange.event;
 
 	private _folderMatches: FolderMatch[] = [];
 	private _folderMatchesMap: TernarySearchTree<FolderMatch> = TernarySearchTree.forPaths<FolderMatch>();
@@ -578,7 +578,7 @@ export class SearchResult extends Disposable {
 		const onDone = stopwatch(fromPromise(promise));
 		/* __GDPR__
 			"replaceAll.started" : {
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
 		onDone(duration => this.telemetryService.publicLog('replaceAll.started', { duration }));
@@ -682,12 +682,12 @@ export class SearchModel extends Disposable {
 	private _replaceString: string = null;
 	private _replacePattern: ReplacePattern = null;
 
-	private _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
-	public onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
+	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
 
 	private currentRequest: PPromise<ISearchComplete, ISearchProgressItem>;
 
-	constructor( @ISearchService private searchService: ISearchService, @ITelemetryService private telemetryService: ITelemetryService, @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(@ISearchService private searchService: ISearchService, @ITelemetryService private telemetryService: ITelemetryService, @IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
 	}
@@ -736,7 +736,7 @@ export class SearchModel extends Disposable {
 		const onFirstRenderStopwatch = stopwatch(onFirstRender);
 		/* __GDPR__
 			"searchResultsFirstRender" : {
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
 		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
@@ -746,7 +746,7 @@ export class SearchModel extends Disposable {
 
 		/* __GDPR__
 			"searchResultsFinished" : {
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
 		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
@@ -775,11 +775,11 @@ export class SearchModel extends Disposable {
 		delete options.pattern;
 		/* __GDPR__
 			"searchResultsShown" : {
-				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"options": { "${inline}": [ "${IPatternInfo}" ] },
-				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"useRipgrep": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"useRipgrep": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.publicLog('searchResultsShown', {
@@ -829,7 +829,7 @@ export class SearchWorkbenchService implements ISearchWorkbenchService {
 	_serviceBrand: any;
 	private _searchModel: SearchModel;
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
 	}
 
 	get searchModel(): SearchModel {
@@ -855,7 +855,7 @@ export interface ISearchWorkbenchService {
 export class RangeHighlightDecorations implements IDisposable {
 
 	private _decorationId: string = null;
-	private _model: IModel = null;
+	private _model: ITextModel = null;
 	private _modelDisposables: IDisposable[] = [];
 
 	constructor(
@@ -870,8 +870,8 @@ export class RangeHighlightDecorations implements IDisposable {
 		this._decorationId = null;
 	}
 
-	public highlightRange(resource: URI | IModel, range: Range, ownerId: number = 0): void {
-		let model: IModel;
+	public highlightRange(resource: URI | ITextModel, range: Range, ownerId: number = 0): void {
+		let model: ITextModel;
 		if (URI.isUri(resource)) {
 			model = this._modelService.getModel(resource);
 		} else {
@@ -883,13 +883,13 @@ export class RangeHighlightDecorations implements IDisposable {
 		}
 	}
 
-	private doHighlightRange(model: IModel, range: Range) {
+	private doHighlightRange(model: ITextModel, range: Range) {
 		this.removeHighlightRange();
 		this._decorationId = model.deltaDecorations([], [{ range: range, options: RangeHighlightDecorations._RANGE_HIGHLIGHT_DECORATION }])[0];
 		this.setModel(model);
 	}
 
-	private setModel(model: IModel) {
+	private setModel(model: ITextModel) {
 		if (this._model !== model) {
 			this.disposeModelListeners();
 			this._model = model;

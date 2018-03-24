@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
 import { asWinJsPromise } from 'vs/base/common/async';
@@ -13,17 +13,20 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedExternalError, illegalArgument } from 'vs/base/common/errors';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, mergeSort } from 'vs/base/common/arrays';
+import { CodeActionKind } from './codeActionTrigger';
 
-export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<CodeAction[]> {
+export function getCodeActions(model: ITextModel, range: Range, scope?: CodeActionKind): TPromise<CodeAction[]> {
 
 	const allResults: CodeAction[] = [];
 	const promises = CodeActionProviderRegistry.all(model).map(support => {
-		return asWinJsPromise(token => support.provideCodeActions(model, range, token)).then(result => {
+		return asWinJsPromise(token => support.provideCodeActions(model, range, { only: scope ? scope.value : undefined }, token)).then(result => {
 			if (Array.isArray(result)) {
 				for (const quickFix of result) {
 					if (quickFix) {
-						allResults.push(quickFix);
+						if (!scope || (quickFix.kind && scope.contains(quickFix.kind))) {
+							allResults.push(quickFix);
+						}
 					}
 				}
 			}
@@ -33,7 +36,7 @@ export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<Co
 	});
 
 	return TPromise.join(promises).then(
-		() => allResults.sort(codeActionsComparator)
+		() => mergeSort(allResults, codeActionsComparator)
 	);
 }
 

@@ -1,0 +1,45 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench > .notifications-toasts {
+	position: absolute;
+	z-index: 1000;
+	right: 3px;
+	bottom: 26px;
+	display: none;
+	overflow: hidden;
+}
+
+.monaco-workbench.nostatusbar > .notifications-toasts {
+	bottom: 3px;
+}
+
+.monaco-workbench > .notifications-toasts.visible {
+	display: flex;
+	flex-direction: column;
+}
+
+.monaco-workbench > .notifications-toasts .notification-toast-container {
+	overflow: hidden; /* this ensures that the notification toast does not shine through */
+}
+
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast {
+	margin: 5px; /* enables separation and drop shadows around toasts */
+	transform: translateY(100%); /* move the notification 50px to the bottom (to prevent bleed through) */
+	opacity: 0; /*  fade the toast in */
+	transition:	transform 300ms ease-out, opacity 300ms ease-out;
+	will-change: transform, opacity; /* force a separate layer for the toast to speed things up */
+}
+
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast.notification-fade-in {
+	opacity: 1;
+	transform: none;
+}
+
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast.notification-fade-in-done {
+	opacity: 1;
+	transform: none;
+	transition:	none;
+}

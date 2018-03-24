@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
 import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
 
@@ -17,7 +17,7 @@ interface ExpectedIndentRange {
 }
 
 function assertRanges(lines: string[], expected: ExpectedIndentRange[], offside: boolean, markers?: FoldingMarkers): void {
-	let model = Model.createFromString(lines.join('\n'));
+	let model = TextModel.createFromString(lines.join('\n'));
 	let actual = computeRanges(model, offside, markers);
 
 	let actualRanges = [];

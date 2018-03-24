@@ -5,7 +5,6 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as marshalling from 'vs/base/common/marshalling';
 import * as errors from 'vs/base/common/errors';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/node/lazyPromise';
@@ -46,21 +45,17 @@ export class RPCProtocol implements IRPCProtocol {
 
 	public getProxy<T>(identifier: ProxyIdentifier<T>): T {
 		if (!this._proxies[identifier.id]) {
-			this._proxies[identifier.id] = this._createProxy(identifier.id, identifier.isFancy);
+			this._proxies[identifier.id] = this._createProxy(identifier.id);
 		}
 		return this._proxies[identifier.id];
 	}
 
-	private _createProxy<T>(proxyId: string, isFancy: boolean): T {
+	private _createProxy<T>(proxyId: string): T {
 		let handler = {
 			get: (target, name: string) => {
 				if (!target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
 					target[name] = (...myArgs: any[]) => {
-						return (
-							isFancy
-								? this.fancyRemoteCall(proxyId, name, myArgs)
-								: this.remoteCall(proxyId, name, myArgs)
-						);
+						return this._remoteCall(proxyId, name, myArgs);
 					};
 				}
 				return target[name];
@@ -94,17 +89,11 @@ export class RPCProtocol implements IRPCProtocol {
 			case MessageType.Request:
 				this._receiveRequest(msg);
 				break;
-			case MessageType.FancyRequest:
-				this._receiveRequest(marshalling.revive(msg, 0));
-				break;
 			case MessageType.Cancel:
 				this._receiveCancel(msg);
 				break;
 			case MessageType.Reply:
 				this._receiveReply(msg);
-				break;
-			case MessageType.FancyReply:
-				this._receiveReply(marshalling.revive(msg, 0));
 				break;
 			case MessageType.ReplyErr:
 				this._receiveReplyErr(msg);
@@ -112,20 +101,15 @@ export class RPCProtocol implements IRPCProtocol {
 		}
 	}
 
-	private _receiveRequest(msg: RequestMessage | FancyRequestMessage): void {
+	private _receiveRequest(msg: RequestMessage): void {
 		const callId = msg.id;
 		const proxyId = msg.proxyId;
-		const isFancy = (msg.type === MessageType.FancyRequest); // a fancy request gets a fancy reply
 
 		this._invokedHandlers[callId] = this._invokeHandler(proxyId, msg.method, msg.args);
 
 		this._invokedHandlers[callId].then((r) => {
 			delete this._invokedHandlers[callId];
-			if (isFancy) {
-				this._multiplexor.send(MessageFactory.fancyReplyOK(callId, r));
-			} else {
-				this._multiplexor.send(MessageFactory.replyOK(callId, r));
-			}
+			this._multiplexor.send(MessageFactory.replyOK(callId, r));
 		}, (err) => {
 			delete this._invokedHandlers[callId];
 			this._multiplexor.send(MessageFactory.replyErr(callId, err));
@@ -139,7 +123,7 @@ export class RPCProtocol implements IRPCProtocol {
 		}
 	}
 
-	private _receiveReply(msg: ReplyMessage | FancyReplyMessage): void {
+	private _receiveReply(msg: ReplyMessage): void {
 		const callId = msg.id;
 		if (!this._pendingRPCReplies.hasOwnProperty(callId)) {
 			return;
@@ -190,15 +174,7 @@ export class RPCProtocol implements IRPCProtocol {
 		return method.apply(actor, args);
 	}
 
-	private remoteCall(proxyId: string, methodName: string, args: any[]): TPromise<any> {
-		return this._remoteCall(proxyId, methodName, args, false);
-	}
-
-	private fancyRemoteCall(proxyId: string, methodName: string, args: any[]): TPromise<any> {
-		return this._remoteCall(proxyId, methodName, args, true);
-	}
-
-	private _remoteCall(proxyId: string, methodName: string, args: any[], isFancy: boolean): TPromise<any> {
+	private _remoteCall(proxyId: string, methodName: string, args: any[]): TPromise<any> {
 		if (this._isDisposed) {
 			return TPromise.wrapError<any>(errors.canceled());
 		}
@@ -209,13 +185,7 @@ export class RPCProtocol implements IRPCProtocol {
 		});
 
 		this._pendingRPCReplies[callId] = result;
-
-		if (isFancy) {
-			this._multiplexor.send(MessageFactory.fancyRequest(callId, proxyId, methodName, args));
-		} else {
-			this._multiplexor.send(MessageFactory.request(callId, proxyId, methodName, args));
-		}
-
+		this._multiplexor.send(MessageFactory.request(callId, proxyId, methodName, args));
 		return result;
 	}
 }
@@ -268,22 +238,11 @@ class MessageFactory {
 		return `{"type":${MessageType.Request},"id":"${req}","proxyId":"${rpcId}","method":"${method}","args":${JSON.stringify(args)}}`;
 	}
 
-	public static fancyRequest(req: string, rpcId: string, method: string, args: any[]): string {
-		return `{"type":${MessageType.FancyRequest},"id":"${req}","proxyId":"${rpcId}","method":"${method}","args":${marshalling.stringify(args)}}`;
-	}
-
 	public static replyOK(req: string, res: any): string {
 		if (typeof res === 'undefined') {
 			return `{"type":${MessageType.Reply},"id":"${req}"}`;
 		}
 		return `{"type":${MessageType.Reply},"id":"${req}","res":${JSON.stringify(res)}}`;
-	}
-
-	public static fancyReplyOK(req: string, res: any): string {
-		if (typeof res === 'undefined') {
-			return `{"type":${MessageType.Reply},"id":"${req}"}`;
-		}
-		return `{"type":${MessageType.FancyReply},"id":"${req}","res":${marshalling.stringify(res)}}`;
 	}
 
 	public static replyErr(req: string, err: any): string {
@@ -296,22 +255,13 @@ class MessageFactory {
 
 const enum MessageType {
 	Request = 1,
-	FancyRequest = 2,
-	Cancel = 3,
-	Reply = 4,
-	FancyReply = 5,
-	ReplyErr = 6
+	Cancel = 2,
+	Reply = 3,
+	ReplyErr = 4
 }
 
 class RequestMessage {
 	type: MessageType.Request;
-	id: string;
-	proxyId: string;
-	method: string;
-	args: any[];
-}
-class FancyRequestMessage {
-	type: MessageType.FancyRequest;
 	id: string;
 	proxyId: string;
 	method: string;
@@ -326,15 +276,10 @@ class ReplyMessage {
 	id: string;
 	res: any;
 }
-class FancyReplyMessage {
-	type: MessageType.FancyReply;
-	id: string;
-	res: any;
-}
 class ReplyErrMessage {
 	type: MessageType.ReplyErr;
 	id: string;
 	err: errors.SerializedError;
 }
 
-type RPCMessage = RequestMessage | FancyRequestMessage | CancelMessage | ReplyMessage | FancyReplyMessage | ReplyErrMessage;
+type RPCMessage = RequestMessage | CancelMessage | ReplyMessage | ReplyErrMessage;

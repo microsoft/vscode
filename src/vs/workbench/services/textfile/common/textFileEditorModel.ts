@@ -5,33 +5,33 @@
 'use strict';
 
 import * as path from 'vs/base/common/paths';
-import nls = require('vs/nls');
-import Event, { Emitter } from 'vs/base/common/event';
+import * as nls from 'vs/nls';
+import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import paths = require('vs/base/common/paths');
-import diagnostics = require('vs/base/common/diagnostics');
-import types = require('vs/base/common/types');
+import * as diagnostics from 'vs/base/common/diagnostics';
+import * as types from 'vs/base/common/types';
 import { IMode } from 'vs/editor/common/modes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { IBackupFileService, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
-import { IFileService, IFileStat, FileOperationError, FileOperationResult, IContent, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IFileService, IFileStat, FileOperationError, FileOperationResult, CONTENT_CHANGE_EVENT_BUFFER_DELAY, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IRawTextSource } from 'vs/editor/common/model/textSource';
+import { ITextBufferFactory } from 'vs/editor/common/model';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
+import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
@@ -62,8 +62,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private disposed: boolean;
 	private lastSaveAttemptTime: number;
 	private createTextEditorModelPromise: TPromise<TextFileEditorModel>;
-	private _onDidContentChange: Emitter<StateChange>;
-	private _onDidStateChange: Emitter<StateChange>;
+	private readonly _onDidContentChange: Emitter<StateChange>;
+	private readonly _onDidStateChange: Emitter<StateChange>;
 
 	private inConflictMode: boolean;
 	private inOrphanMode: boolean;
@@ -72,7 +72,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	constructor(
 		resource: URI,
 		preferredEncoding: string,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IFileService private fileService: IFileService,
@@ -85,10 +85,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IHashService private hashService: IHashService
 	) {
 		super(modelService, modeService);
-
-		// TODO@remote
-		// assert.ok(resource.scheme === 'file', 'TextFileEditorModel can only handle file:// resources.');
-
 		this.resource = resource;
 		this.toDispose = [];
 		this._onDidContentChange = new Emitter<StateChange>();
@@ -192,7 +188,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return;
 		}
 
-		const firstLineText = this.getFirstLineText(this.textEditorModel.getValue());
+		const firstLineText = this.getFirstLineText(this.textEditorModel);
 		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
 
 		this.modelService.setMode(this.textEditorModel, mode);
@@ -294,12 +290,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// If we have a backup, continue loading with it
 			if (!!backup) {
-				const content: IContent = {
+				const content: IRawTextContent = {
 					resource: this.resource,
-					name: paths.basename(this.resource.fsPath),
+					name: path.basename(this.resource.fsPath),
 					mtime: Date.now(),
 					etag: void 0,
-					value: '', /* will be filled later from backup */
+					value: createTextBufferFactory(''), /* will be filled later from backup */
 					encoding: this.fileService.getEncoding(this.resource, this.preferredEncoding)
 				};
 
@@ -359,7 +355,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return TPromise.wrapError<TextFileEditorModel>(error);
 	}
 
-	private loadWithContent(content: IRawTextContent | IContent, backup?: URI): TPromise<TextFileEditorModel> {
+	private loadWithContent(content: IRawTextContent, backup?: URI): TPromise<TextFileEditorModel> {
 		return this.doLoadWithContent(content, backup).then(model => {
 
 			// Telemetry: We log the fileGet telemetry event after the model has been loaded to ensure a good mimetype
@@ -373,17 +369,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					"fileGet" : {
 						"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+						"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
-				this.telemetryService.publicLog('fileGet', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.resource.fsPath), path: this.hashService.createSHA1(this.resource.fsPath) });
+				this.telemetryService.publicLog('fileGet', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: path.extname(this.resource.fsPath), path: this.hashService.createSHA1(this.resource.fsPath) });
 			}
 
 			return model;
 		});
 	}
 
-	private doLoadWithContent(content: IRawTextContent | IContent, backup?: URI): TPromise<TextFileEditorModel> {
+	private doLoadWithContent(content: IRawTextContent, backup?: URI): TPromise<TextFileEditorModel> {
 		diag('load() - resolved content', this.resource, new Date());
 
 		// Update our resolved disk stat model
@@ -393,8 +389,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			mtime: content.mtime,
 			etag: content.etag,
 			isDirectory: false,
-			hasChildren: false,
-			children: void 0,
+			isSymbolicLink: false,
+			children: void 0
 		};
 		this.updateLastResolvedDiskStat(resolvedStat);
 
@@ -425,7 +421,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.doCreateTextModel(content.resource, content.value, backup);
 	}
 
-	private doUpdateTextModel(value: string | IRawTextSource): TPromise<TextFileEditorModel> {
+	private doUpdateTextModel(value: ITextBufferFactory): TPromise<TextFileEditorModel> {
 		diag('load() - updated text editor model', this.resource, new Date());
 
 		// Ensure we are not tracking a stale state
@@ -445,11 +441,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return TPromise.as<TextFileEditorModel>(this);
 	}
 
-	private doCreateTextModel(resource: URI, value: string | IRawTextSource, backup: URI): TPromise<TextFileEditorModel> {
+	private doCreateTextModel(resource: URI, value: ITextBufferFactory, backup: URI): TPromise<TextFileEditorModel> {
 		diag('load() - created text editor model', this.resource, new Date());
 
 		this.createTextEditorModelPromise = this.doLoadBackup(backup).then(backupContent => {
-			const hasBackupContent = (typeof backupContent === 'string');
+			const hasBackupContent = !!backupContent;
 
 			return this.createTextEditorModel(hasBackupContent ? backupContent : value, resource).then(() => {
 				this.createTextEditorModelPromise = null;
@@ -493,14 +489,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.toDispose.push(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
 	}
 
-	private doLoadBackup(backup: URI): TPromise<string> {
+	private doLoadBackup(backup: URI): TPromise<ITextBufferFactory> {
 		if (!backup) {
 			return TPromise.as(null);
 		}
 
-		return this.textFileService.resolveTextContent(backup, BACKUP_FILE_RESOLVE_OPTIONS).then(backup => {
-			return this.backupFileService.parseBackupContent(backup.value);
-		}, error => null /* ignore errors */);
+		return this.backupFileService.resolveBackupContent(backup).then(backupContent => backupContent, error => null /* ignore errors */);
 	}
 
 	protected getOrCreateMode(modeService: IModeService, preferredModeIds: string, firstLineText?: string): TPromise<IMode> {
@@ -707,7 +701,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Save to Disk
 			// mark the save operation as currently pending with the versionId (it might have changed from a save participant triggering)
 			diag(`doSave(${versionId}) - before updateContent()`, this.resource, new Date());
-			return this.saveSequentializer.setPending(newVersionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, this.getValue(), {
+			return this.saveSequentializer.setPending(newVersionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, this.createSnapshot(), {
 				overwriteReadonly: options.overwriteReadonly,
 				overwriteEncoding: options.overwriteEncoding,
 				mtime: this.lastResolvedDiskStat.mtime,
@@ -730,7 +724,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 							"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						}
 					*/
-					this.telemetryService.publicLog('filePUT', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: paths.extname(this.lastResolvedDiskStat.resource.fsPath) });
+					this.telemetryService.publicLog('filePUT', { mimeType: guessMimeTypes(this.resource.fsPath).join(', '), ext: path.extname(this.lastResolvedDiskStat.resource.fsPath) });
 				}
 
 				// Update dirty state unless model has changed meanwhile
@@ -778,7 +772,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Check for workspace settings file
 		return this.contextService.getWorkspace().folders.some(folder => {
-			return paths.isEqualOrParent(this.resource.fsPath, path.join(folder.uri.fsPath, '.vscode'));
+			return path.isEqualOrParent(this.resource.fsPath, path.join(folder.uri.fsPath, '.vscode'));
 		});
 	}
 
@@ -919,7 +913,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Decode: Load with encoding
 		else {
 			if (this.isDirty()) {
-				this.messageService.show(Severity.Info, nls.localize('saveFileFirst', "The file is dirty. Please save it first before reopening it with another encoding."));
+				this.notificationService.info(nls.localize('saveFileFirst', "The file is dirty. Please save it first before reopening it with another encoding."));
 
 				return;
 			}
@@ -1087,10 +1081,10 @@ export class SaveSequentializer {
 
 class DefaultSaveErrorHandler implements ISaveErrorHandler {
 
-	constructor( @IMessageService private messageService: IMessageService) { }
+	constructor(@INotificationService private notificationService: INotificationService) { }
 
 	public onSaveError(error: any, model: TextFileEditorModel): void {
-		this.messageService.show(Severity.Error, nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(model.getResource().fsPath), toErrorMessage(error, false)));
+		this.notificationService.error(nls.localize('genericSaveError', "Failed to save '{0}': {1}", path.basename(model.getResource().fsPath), toErrorMessage(error, false)));
 	}
 }
 

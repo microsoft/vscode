@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { CharCode } from 'vs/base/common/charCode';
 import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import * as strings from 'vs/base/common/strings';
@@ -38,7 +38,7 @@ export class RenderLineInput {
 	public readonly lineContent: string;
 	public readonly mightContainRTL: boolean;
 	public readonly fauxIndentLength: number;
-	public readonly lineTokens: ViewLineToken[];
+	public readonly lineTokens: IViewLineTokens;
 	public readonly lineDecorations: LineDecoration[];
 	public readonly tabSize: number;
 	public readonly spaceWidth: number;
@@ -52,7 +52,7 @@ export class RenderLineInput {
 		lineContent: string,
 		mightContainRTL: boolean,
 		fauxIndentLength: number,
-		lineTokens: ViewLineToken[],
+		lineTokens: IViewLineTokens,
 		lineDecorations: LineDecoration[],
 		tabSize: number,
 		spaceWidth: number,
@@ -94,7 +94,7 @@ export class RenderLineInput {
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.fontLigatures === other.fontLigatures
 			&& LineDecoration.equalsArr(this.lineDecorations, other.lineDecorations)
-			&& ViewLineToken.equalsArr(this.lineTokens, other.lineTokens)
+			&& this.lineTokens.equals(other.lineTokens)
 		);
 	}
 }
@@ -357,7 +357,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
  * In the rendering phase, characters are always looped until token.endIndex.
  * Ensure that all tokens end before `len` and the last one ends precisely at `len`.
  */
-function transformAndRemoveOverflowing(tokens: ViewLineToken[], fauxIndentLength: number, len: number): LinePart[] {
+function transformAndRemoveOverflowing(tokens: IViewLineTokens, fauxIndentLength: number, len: number): LinePart[] {
 	let result: LinePart[] = [], resultLen = 0;
 
 	// The faux indent part of the line should have no token type
@@ -365,14 +365,13 @@ function transformAndRemoveOverflowing(tokens: ViewLineToken[], fauxIndentLength
 		result[resultLen++] = new LinePart(fauxIndentLength, '');
 	}
 
-	for (let tokenIndex = 0, tokensLen = tokens.length; tokenIndex < tokensLen; tokenIndex++) {
-		const token = tokens[tokenIndex];
-		const endIndex = token.endIndex;
+	for (let tokenIndex = 0, tokensLen = tokens.getCount(); tokenIndex < tokensLen; tokenIndex++) {
+		const endIndex = tokens.getEndOffset(tokenIndex);
 		if (endIndex <= fauxIndentLength) {
 			// The faux indent part of the line should have no token type
 			continue;
 		}
-		const type = token.getType();
+		const type = tokens.getClassName(tokenIndex);
 		if (endIndex >= len) {
 			result[resultLen++] = new LinePart(len, type);
 			break;
@@ -451,6 +450,8 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: LinePa
 		const chCode = lineContent.charCodeAt(charIndex);
 		if (chCode === CharCode.Tab) {
 			tmpIndent = tabSize;
+		} else if (strings.isFullWidthCharacter(chCode)) {
+			tmpIndent += 2;
 		} else {
 			tmpIndent++;
 		}
@@ -502,6 +503,8 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: LinePa
 
 		if (chCode === CharCode.Tab) {
 			tmpIndent = tabSize;
+		} else if (strings.isFullWidthCharacter(chCode)) {
+			tmpIndent += 2;
 		} else {
 			tmpIndent++;
 		}
@@ -638,6 +641,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 						_tabsCharDelta += insertSpacesCount - 1;
 						partContentCnt += insertSpacesCount;
 					} else {
+						// must be CharCode.Space
 						partContentCnt++;
 					}
 				}
@@ -736,6 +740,9 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 						break;
 
 					default:
+						if (strings.isFullWidthCharacter(charCode)) {
+							tabsCharDelta++;
+						}
 						if (renderControlCharacters && charCode < 32) {
 							sb.write1(9216 + charCode);
 							partContentCnt++;

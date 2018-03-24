@@ -3,22 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import cp = require('child_process');
-import net = require('net');
-import Event, { Emitter } from 'vs/base/common/event';
-import platform = require('vs/base/common/platform');
-import objects = require('vs/base/common/objects');
+import * as nls from 'vs/nls';
+import * as cp from 'child_process';
+import * as net from 'net';
+import { Event, Emitter } from 'vs/base/common/event';
+import * as platform from 'vs/base/common/platform';
+import * as objects from 'vs/base/common/objects';
 import { Action } from 'vs/base/common/actions';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import severity from 'vs/base/common/severity';
-import stdfork = require('vs/base/node/stdFork');
-import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
+import * as stdfork from 'vs/base/node/stdFork';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITerminalService as IExternalTerminalService } from 'vs/workbench/parts/execution/common/execution';
-import debug = require('vs/workbench/parts/debug/common/debug');
+import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { V8Protocol } from 'vs/workbench/parts/debug/node/v8Protocol';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
@@ -26,6 +24,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { TerminalSupport } from 'vs/workbench/parts/debug/electron-browser/terminalSupport';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export interface SessionExitedEvent extends debug.DebugEvent {
 	body: {
@@ -55,16 +54,16 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 	private _capabilities: DebugProtocol.Capabilities;
 	private allThreadsContinued: boolean;
 
-	private _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
-	private _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
-	private _onDidContinued: Emitter<DebugProtocol.ContinuedEvent>;
-	private _onDidTerminateDebugee: Emitter<SessionTerminatedEvent>;
-	private _onDidExitAdapter: Emitter<SessionExitedEvent>;
-	private _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
-	private _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
-	private _onDidBreakpoint: Emitter<DebugProtocol.BreakpointEvent>;
-	private _onDidCustomEvent: Emitter<debug.DebugEvent>;
-	private _onDidEvent: Emitter<DebugProtocol.Event>;
+	private readonly _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
+	private readonly _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
+	private readonly _onDidContinued: Emitter<DebugProtocol.ContinuedEvent>;
+	private readonly _onDidTerminateDebugee: Emitter<SessionTerminatedEvent>;
+	private readonly _onDidExitAdapter: Emitter<SessionExitedEvent>;
+	private readonly _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
+	private readonly _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
+	private readonly _onDidBreakpoint: Emitter<DebugProtocol.BreakpointEvent>;
+	private readonly _onDidCustomEvent: Emitter<debug.DebugEvent>;
+	private readonly _onDidEvent: Emitter<DebugProtocol.Event>;
 
 	constructor(
 		id: string,
@@ -72,7 +71,7 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 		private adapter: Adapter,
 		public customTelemetryService: ITelemetryService,
 		public root: IWorkspaceFolder,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IOutputService private outputService: IOutputService,
 		@ITerminalService private terminalService: ITerminalService,
@@ -166,7 +165,7 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 				if (error && error.sendTelemetry) {
 					/* __GDPR__
 						"debugProtocolErrorResponse" : {
-							"error" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							"error" : { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
 						}
 					*/
 					this.telemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
@@ -183,7 +182,7 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 				if (error && error.url) {
 					const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
 					return TPromise.wrapError<R>(errors.create(userMessage, {
-						actions: [CloseAction, new Action('debug.moreInfo', label, null, true, () => {
+						actions: [new Action('debug.moreInfo', label, null, true, () => {
 							window.open(error.url);
 							return TPromise.as(null);
 						})]
@@ -206,6 +205,9 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 		if (event.event === 'initialized') {
 			this.readyForBreakpoints = true;
 			this._onDidInitialize.fire(event);
+		} else if (event.event === 'capabilities' && event.body) {
+			const capabilites = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
+			this._capabilities = objects.mixin(this._capabilities, capabilites);
 		} else if (event.event === 'stopped') {
 			this.emittedStopped = true;
 			this._onDidStop.fire(<DebugProtocol.StoppedEvent>event);
@@ -524,7 +526,7 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 	}
 
 	protected onServerError(err: Error): void {
-		this.messageService.show(severity.Error, nls.localize('stoppingDebugAdapter', "{0}. Stopping the debug adapter.", err.message));
+		this.notificationService.error(nls.localize('stoppingDebugAdapter', "{0}. Stopping the debug adapter.", err.message));
 		this.stopServer().done(null, errors.onUnexpectedError);
 	}
 
@@ -532,7 +534,7 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 		this.serverProcess = null;
 		this.cachedInitServer = null;
 		if (!this.disconnected) {
-			this.messageService.show(severity.Error, nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly"));
+			this.notificationService.error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly"));
 		}
 		this.onEvent({ event: 'exit', type: 'event', seq: 0 });
 	}

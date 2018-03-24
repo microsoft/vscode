@@ -7,7 +7,7 @@ import uri from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
@@ -39,7 +39,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		textModelResolverService.registerTextModelContentProvider(DEBUG_SCHEME, this);
 	}
 
-	public provideTextContent(resource: uri): TPromise<IModel> {
+	public provideTextContent(resource: uri): TPromise<ITextModel> {
 
 		let process: IProcess;
 		let sourceRef: number;
@@ -56,7 +56,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		}
 
 		if (!process) {
-			return TPromise.wrapError<IModel>(new Error(localize('unable', "Unable to resolve the resource without a debug session")));
+			return TPromise.wrapError<ITextModel>(new Error(localize('unable', "Unable to resolve the resource without a debug session")));
 		}
 		const source = process.sources.get(resource.toString());
 		let rawSource: DebugProtocol.Source;
@@ -73,20 +73,24 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 			};
 		}
 
+		const createErrModel = (message: string) => {
+			this.debugService.sourceIsNotAvailable(resource);
+			const modePromise = this.modeService.getOrCreateMode(MIME_TEXT);
+			const model = this.modelService.createModel(message, modePromise, resource);
+
+			return model;
+		};
+
 		return process.session.source({ sourceReference: sourceRef, source: rawSource }).then(response => {
+			if (!response) {
+				return createErrModel(localize('canNotResolveSource', "Could not resolve resource {0}, no response from debug extension.", resource.toString()));
+			}
 
 			const mime = response.body.mimeType || guessMimeTypes(resource.path)[0];
 			const modePromise = this.modeService.getOrCreateMode(mime);
 			const model = this.modelService.createModel(response.body.content, modePromise, resource);
 
 			return model;
-		}, (err: DebugProtocol.ErrorResponse) => {
-
-			this.debugService.sourceIsNotAvailable(resource);
-			const modePromise = this.modeService.getOrCreateMode(MIME_TEXT);
-			const model = this.modelService.createModel(err.message, modePromise, resource);
-
-			return model;
-		});
+		}, (err: DebugProtocol.ErrorResponse) => createErrModel(err.message));
 	}
 }

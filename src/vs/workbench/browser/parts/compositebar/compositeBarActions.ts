@@ -5,14 +5,14 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { BaseActionItem, IBaseActionItemOptions, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, empty, toDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
@@ -21,7 +21,7 @@ import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export interface ICompositeActivity {
 	badge: IBadge;
@@ -53,6 +53,7 @@ export interface ICompositeBar {
 
 export class ActivityAction extends Action {
 	private badge: IBadge;
+	private clazz: string | undefined;
 	private _onDidChangeBadge = new Emitter<this>();
 
 	constructor(private _activity: IActivity) {
@@ -85,8 +86,13 @@ export class ActivityAction extends Action {
 		return this.badge;
 	}
 
-	public setBadge(badge: IBadge): void {
+	public getClass(): string | undefined {
+		return this.clazz;
+	}
+
+	public setBadge(badge: IBadge, clazz?: string): void {
 		this.badge = badge;
+		this.clazz = clazz;
 		this._onDidChangeBadge.fire(this);
 	}
 }
@@ -110,6 +116,7 @@ export class ActivityActionItem extends BaseActionItem {
 	protected options: IActivityActionItemOptions;
 
 	private $badgeContent: Builder;
+	private badgeDisposable: IDisposable = empty;
 	private mouseUpTimeout: number;
 
 	constructor(
@@ -199,7 +206,14 @@ export class ActivityActionItem extends BaseActionItem {
 		this.updateStyles();
 	}
 
-	protected updateBadge(badge: IBadge): void {
+	protected updateBadge(badge: IBadge, clazz?: string): void {
+		if (!this.$badge || !this.$badgeContent) {
+			return;
+		}
+
+		this.badgeDisposable.dispose();
+		this.badgeDisposable = empty;
+
 		this.$badgeContent.empty();
 		this.$badge.hide();
 
@@ -234,6 +248,11 @@ export class ActivityActionItem extends BaseActionItem {
 			else if (badge instanceof ProgressBadge) {
 				this.$badge.show();
 			}
+
+			if (clazz) {
+				this.$badge.addClass(clazz);
+				this.badgeDisposable = toDisposable(() => this.$badge.removeClass(clazz));
+			}
 		}
 
 		// Title
@@ -259,7 +278,7 @@ export class ActivityActionItem extends BaseActionItem {
 	private handleBadgeChangeEvenet(): void {
 		const action = this.getAction();
 		if (action instanceof ActivityAction) {
-			this.updateBadge(action.getBadge());
+			this.updateBadge(action.getBadge(), action.getClass());
 		}
 	}
 

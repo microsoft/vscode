@@ -7,7 +7,7 @@
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Node, build, find } from './tokenTree';
 import { Position } from 'vs/editor/common/core/position';
@@ -24,7 +24,7 @@ export class TokenSelectionSupport {
 
 	private _modelService: IModelService;
 
-	constructor( @IModelService modelService: IModelService) {
+	constructor(@IModelService modelService: IModelService) {
 		this._modelService = modelService;
 	}
 
@@ -48,7 +48,7 @@ export class TokenSelectionSupport {
 		return entries;
 	}
 
-	private _doGetRangesToPosition(model: IModel, position: Position): Range[] {
+	private _doGetRangesToPosition(model: ITextModel, position: Position): Range[] {
 
 		var tree = build(model),
 			node: Node,

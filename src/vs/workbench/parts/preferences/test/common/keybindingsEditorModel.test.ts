@@ -14,7 +14,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsEditorModel, IKeybindingItemEntry } from 'vs/workbench/parts/preferences/common/keybindingsEditorModel';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -254,6 +254,28 @@ suite('Keybindings Editor Model test', () => {
 
 		return testObject.resolve({}).then(() => {
 			const actual = testObject.fetch('user').filter(element => element.keybindingItem.command === command)[0];
+			assert.ok(actual);
+		});
+	});
+
+	test('filter by default source with "@source: " prefix', () => {
+		const command = 'a' + uuid.generateUuid();
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'context1 && context2', isDefault: true });
+		prepareKeybindingService(expected);
+
+		return testObject.resolve({}).then(() => {
+			const actual = testObject.fetch('@source: default').filter(element => element.keybindingItem.command === command)[0];
+			assert.ok(actual);
+		});
+	});
+
+	test('filter by user source with "@source: " prefix', () => {
+		const command = 'a' + uuid.generateUuid();
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'context1 && context2', isDefault: false });
+		prepareKeybindingService(expected);
+
+		return testObject.resolve({}).then(() => {
+			const actual = testObject.fetch('@source: user').filter(element => element.keybindingItem.command === command)[0];
 			assert.ok(actual);
 		});
 	});

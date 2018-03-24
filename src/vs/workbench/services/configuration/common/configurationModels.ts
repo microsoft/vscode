@@ -14,7 +14,7 @@ import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { StrictResourceMap } from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
 
-export class WorkspaceSettingsModel extends ConfigurationModel {
+export class SettingsModel extends ConfigurationModel {
 
 	private _unsupportedKeys: string[];
 
@@ -32,29 +32,48 @@ export class WorkspaceSettingsModel extends ConfigurationModel {
 export class WorkspaceConfigurationModelParser extends ConfigurationModelParser {
 
 	private _folders: IStoredWorkspaceFolder[] = [];
-	private _workspaceSettingsModelParser: FolderSettingsModelParser;
+	private _settingsModelParser: FolderSettingsModelParser;
+	private _launchModel: ConfigurationModel;
 
 	constructor(name: string) {
 		super(name);
-		this._workspaceSettingsModelParser = new FolderSettingsModelParser(name);
+		this._settingsModelParser = new FolderSettingsModelParser(name);
+		this._launchModel = new ConfigurationModel();
 	}
 
 	get folders(): IStoredWorkspaceFolder[] {
 		return this._folders;
 	}
 
-	get workspaceSettingsModel(): WorkspaceSettingsModel {
-		return this._workspaceSettingsModelParser.folderSettingsModel;
+	get settingsModel(): SettingsModel {
+		return this._settingsModelParser.settingsModel;
+	}
+
+	get launchModel(): ConfigurationModel {
+		return this._launchModel;
 	}
 
 	reprocessWorkspaceSettings(): void {
-		this._workspaceSettingsModelParser.reprocess();
+		this._settingsModelParser.reprocess();
 	}
 
 	protected parseRaw(raw: any): IConfigurationModel {
 		this._folders = (raw['folders'] || []) as IStoredWorkspaceFolder[];
-		this._workspaceSettingsModelParser.parse(raw['settings']);
+		this._settingsModelParser.parse(raw['settings']);
+		this._launchModel = this.createConfigurationModelFrom(raw, 'launch');
 		return super.parseRaw(raw);
+	}
+
+	private createConfigurationModelFrom(raw: any, key: string): ConfigurationModel {
+		const data = raw[key];
+		if (data) {
+			const contents = toValuesTree(data, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
+			const scopedContents = Object.create(null);
+			scopedContents[key] = contents;
+			const keys = Object.keys(data).map(k => `${key}.${k}`);
+			return new ConfigurationModel(scopedContents, keys, []);
+		}
+		return new ConfigurationModel();
 	}
 }
 
@@ -77,7 +96,7 @@ export class StandaloneConfigurationModelParser extends ConfigurationModelParser
 export class FolderSettingsModelParser extends ConfigurationModelParser {
 
 	private _raw: any;
-	private _workspaceSettingsModel: WorkspaceSettingsModel;
+	private _settingsModel: SettingsModel;
 
 	constructor(name: string, private configurationScope?: ConfigurationScope) {
 		super(name);
@@ -89,11 +108,11 @@ export class FolderSettingsModelParser extends ConfigurationModelParser {
 	}
 
 	get configurationModel(): ConfigurationModel {
-		return this._workspaceSettingsModel || new WorkspaceSettingsModel({}, [], [], []);
+		return this._settingsModel || new SettingsModel({}, [], [], []);
 	}
 
-	get folderSettingsModel(): WorkspaceSettingsModel {
-		return <WorkspaceSettingsModel>this.configurationModel;
+	get settingsModel(): SettingsModel {
+		return <SettingsModel>this.configurationModel;
 	}
 
 	reprocess(): void {
@@ -114,7 +133,7 @@ export class FolderSettingsModelParser extends ConfigurationModelParser {
 			}
 		}
 		const configurationModel = this.parseRaw(rawWorkspaceSettings);
-		this._workspaceSettingsModel = new WorkspaceSettingsModel(configurationModel.contents, configurationModel.keys, configurationModel.overrides, unsupportedKeys);
+		this._settingsModel = new SettingsModel(configurationModel.contents, configurationModel.keys, configurationModel.overrides, unsupportedKeys);
 	}
 
 	private getScope(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): ConfigurationScope {

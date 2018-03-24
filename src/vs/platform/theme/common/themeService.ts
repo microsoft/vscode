@@ -7,9 +7,9 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import platform = require('vs/platform/registry/common/platform');
+import * as platform from 'vs/platform/registry/common/platform';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
 
@@ -20,6 +20,14 @@ export interface ThemeColor {
 export function themeColorFromId(id: ColorIdentifier) {
 	return { id };
 }
+
+// theme icon
+export interface ThemeIcon {
+	readonly id: string;
+}
+
+export const FileThemeIcon = { id: 'file' };
+export const FolderThemeIcon = { id: 'folder' };
 
 // base themes
 export const DARK: ThemeType = 'dark';
@@ -92,7 +100,7 @@ export interface IThemingRegistry {
 
 class ThemingRegistry implements IThemingRegistry {
 	private themingParticipants: IThemingParticipant[] = [];
-	private onThemingParticipantAddedEmitter: Emitter<IThemingParticipant>;
+	private readonly onThemingParticipantAddedEmitter: Emitter<IThemingParticipant>;
 
 	constructor() {
 		this.themingParticipants = [];

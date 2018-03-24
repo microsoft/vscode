@@ -5,17 +5,10 @@
 
 'use strict';
 
-import { IExtensionService, IExtensionDescription, ProfileSession, IExtensionHostProfile, ProfileSegmentId } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, IExtensionDescription, ProfileSession, IExtensionHostProfile, ProfileSegmentId } from 'vs/workbench/services/extensions/common/extensions';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { localize } from 'vs/nls';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { realpathSync } from 'vs/base/node/extfs';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IStatusbarService, StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
-import { writeFile } from 'vs/base/node/pfs';
-import * as path from 'path';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { setTimeout } from 'timers';
 import { Profile, ProfileNode } from 'v8-inspect-profiler';
 
 export class ExtensionHostProfiler {
@@ -128,27 +121,3 @@ export class ExtensionHostProfiler {
 		};
 	}
 }
-
-
-CommandsRegistry.registerCommand('exthost.profile.start', async accessor => {
-	const statusbarService = accessor.get(IStatusbarService);
-	const extensionService = accessor.get(IExtensionService);
-	const environmentService = accessor.get(IEnvironmentService);
-
-	const handle = statusbarService.addEntry({ text: localize('message', "$(zap) Profiling Extension Host...") }, StatusbarAlignment.LEFT);
-
-	extensionService.startExtensionHostProfile().then(session => {
-		setTimeout(() => {
-			session.stop().then(result => {
-				result.getAggregatedTimes().forEach((val, index) => {
-					console.log(`${index} : ${Math.round(val / 1000)} ms`);
-				});
-				let profilePath = path.join(environmentService.userHome, 'extHostProfile.cpuprofile');
-				console.log(`Saving profile at ${profilePath}`);
-				return writeFile(profilePath, JSON.stringify(result.data));
-			}).then(() => {
-				handle.dispose();
-			});
-		}, 5000);
-	});
-});

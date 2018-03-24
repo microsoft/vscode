@@ -4,20 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-// --- THIS FILE IS TEMPORARY UNTIL ENV.TS IS CLEANED UP. IT CAN SAFELY BE USED IN ALL TARGET EXECUTION ENVIRONMENTS (node & dom) ---
-
 let _isWindows = false;
 let _isMacintosh = false;
 let _isLinux = false;
-let _isRootUser = false;
 let _isNative = false;
 let _isWeb = false;
 let _locale: string = undefined;
 let _language: string = undefined;
+let _translationsConfigFile: string = undefined;
 
 interface NLSConfig {
 	locale: string;
 	availableLanguages: { [key: string]: string; };
+	_translationsConfigFile: string;
 }
 
 export interface IProcessEnvironment {
@@ -28,6 +27,7 @@ interface INodeProcess {
 	platform: string;
 	env: IProcessEnvironment;
 	getuid(): number;
+	nextTick: Function;
 }
 declare let process: INodeProcess;
 declare let global: any;
@@ -42,25 +42,25 @@ declare let self: any;
 export const LANGUAGE_DEFAULT = 'en';
 
 // OS detection
-if (typeof process === 'object') {
+if (typeof process === 'object' && typeof process.nextTick === 'function' && typeof process.platform === 'string') {
 	_isWindows = (process.platform === 'win32');
 	_isMacintosh = (process.platform === 'darwin');
 	_isLinux = (process.platform === 'linux');
-	_isRootUser = !_isWindows && (process.getuid() === 0);
-	let rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
+	const rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
 	if (rawNlsConfig) {
 		try {
-			let nlsConfig: NLSConfig = JSON.parse(rawNlsConfig);
-			let resolved = nlsConfig.availableLanguages['*'];
+			const nlsConfig: NLSConfig = JSON.parse(rawNlsConfig);
+			const resolved = nlsConfig.availableLanguages['*'];
 			_locale = nlsConfig.locale;
 			// VSCode's default language is 'en'
 			_language = resolved ? resolved : LANGUAGE_DEFAULT;
+			_translationsConfigFile = nlsConfig._translationsConfigFile;
 		} catch (e) {
 		}
 	}
 	_isNative = true;
 } else if (typeof navigator === 'object') {
-	let userAgent = navigator.userAgent;
+	const userAgent = navigator.userAgent;
 	_isWindows = userAgent.indexOf('Windows') >= 0;
 	_isMacintosh = userAgent.indexOf('Macintosh') >= 0;
 	_isLinux = userAgent.indexOf('Linux') >= 0;
@@ -90,10 +90,13 @@ if (_isNative) {
 export const isWindows = _isWindows;
 export const isMacintosh = _isMacintosh;
 export const isLinux = _isLinux;
-export const isRootUser = _isRootUser;
 export const isNative = _isNative;
 export const isWeb = _isWeb;
 export const platform = _platform;
+
+export function isRootUser(): boolean {
+	return _isNative && !_isWindows && (process.getuid() === 0);
+}
 
 /**
  * The language used for the user interface. The format of
@@ -109,29 +112,13 @@ export const language = _language;
  */
 export const locale = _locale;
 
-export interface TimeoutToken {
-}
+/**
+ * The translatios that are available through language packs.
+ */
+export const translationsConfigFile = _translationsConfigFile;
 
-export interface IntervalToken {
-}
-
-interface IGlobals {
-	Worker?: any;
-	setTimeout(callback: (...args: any[]) => void, delay: number, ...args: any[]): TimeoutToken;
-	clearTimeout(token: TimeoutToken): void;
-
-	setInterval(callback: (...args: any[]) => void, delay: number, ...args: any[]): IntervalToken;
-	clearInterval(token: IntervalToken): void;
-}
-
-const _globals = <IGlobals>(typeof self === 'object' ? self : global);
+const _globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {} as any);
 export const globals: any = _globals;
-
-export const setTimeout = _globals.setTimeout.bind(_globals);
-export const clearTimeout = _globals.clearTimeout.bind(_globals);
-
-export const setInterval = _globals.setInterval.bind(_globals);
-export const clearInterval = _globals.clearInterval.bind(_globals);
 
 export const enum OperatingSystem {
 	Windows = 1,

@@ -18,6 +18,7 @@ import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/ed
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ICursors, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { ITextModel, IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration } from 'vs/editor/common/model';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -309,6 +310,11 @@ export interface IOverviewRuler {
  */
 export interface ICodeEditor extends editorCommon.IEditor {
 	/**
+	 * This editor is used as an alternative to an <input> box, i.e. as a simple widget.
+	 * @internal
+	 */
+	readonly isSimpleWidget: boolean;
+	/**
 	 * An event emitted when the content of the current model has changed.
 	 * @event
 	 */
@@ -480,7 +486,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Type the getModel() of IEditor.
 	 */
-	getModel(): editorCommon.IModel;
+	getModel(): ITextModel;
 
 	/**
 	 * Returns the current editor's configuration
@@ -495,13 +501,13 @@ export interface ICodeEditor extends editorCommon.IEditor {
 
 	/**
 	 * Get value of the current model attached to this editor.
-	 * @see IModel.getValue
+	 * @see `ITextModel.getValue`
 	 */
 	getValue(options?: { preserveBOM: boolean; lineEnding: string; }): string;
 
 	/**
 	 * Set the value of the current model attached to this editor.
-	 * @see IModel.setValue
+	 * @see `ITextModel.setValue`
 	 */
 	setValue(newValue: string): void;
 
@@ -563,7 +569,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @param edits The edits to execute.
 	 * @param endCursoState Cursor state after the edits were applied.
 	 */
-	executeEdits(source: string, edits: editorCommon.IIdentifiedSingleEditOperation[], endCursoState?: Selection[]): boolean;
+	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursoState?: Selection[]): boolean;
 
 	/**
 	 * Execute multiple (concommitent) commands on the editor.
@@ -585,13 +591,13 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).
 	 */
-	getLineDecorations(lineNumber: number): editorCommon.IModelDecoration[];
+	getLineDecorations(lineNumber: number): IModelDecoration[];
 
 	/**
 	 * All decorations added through this call will get the ownerId of this editor.
-	 * @see IModel.deltaDecorations
+	 * @see `ITextModel.deltaDecorations`
 	 */
-	deltaDecorations(oldDecorations: string[], newDecorations: editorCommon.IModelDeltaDecoration[]): string[];
+	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 
 	/**
 	 * @internal
@@ -617,6 +623,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Returns the range that is currently centered in the view port.
 	 */
 	getCenteredRangeInViewport(): Range;
+
+	/**
+	 * Returns the ranges that are currently visible.
+	 * Does not account for horizontal scrolling.
+	 */
+	getVisibleRanges(): Range[];
 
 	/**
 	 * Get the view zones.

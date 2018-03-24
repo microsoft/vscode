@@ -6,3 +6,4 @@
 'use strict';
 
 import './startupProfiler';
+import './stats';

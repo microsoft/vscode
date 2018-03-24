@@ -7,15 +7,16 @@
 
 import 'vs/css!./media/gotoSymbolHandler';
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import errors = require('vs/base/common/errors');
-import types = require('vs/base/common/types');
-import strings = require('vs/base/common/strings');
+import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
+import * as types from 'vs/base/common/types';
+import * as strings from 'vs/base/common/strings';
 import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, EditorQuickOpenEntryGroup, QuickOpenAction } from 'vs/workbench/browser/quickopen';
-import filters = require('vs/base/common/filters');
-import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IModel, ITokenizedModel, IDiffEditorModel, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import * as filters from 'vs/base/common/filters';
+import { IEditor, IDiffEditorModel, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -426,8 +427,8 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 				model = (<IDiffEditorModel>model).modified; // Support for diff editor models
 			}
 
-			if (model && types.isFunction((<ITokenizedModel>model).getLanguageIdentifier)) {
-				canRun = DocumentSymbolProviderRegistry.has(<IModel>model);
+			if (model && types.isFunction((<ITextModel>model).getLanguageIdentifier)) {
+				canRun = DocumentSymbolProviderRegistry.has(<ITextModel>model);
 			}
 		}
 
@@ -485,15 +486,15 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 				model = (<IDiffEditorModel>model).modified; // Support for diff editor models
 			}
 
-			if (model && types.isFunction((<ITokenizedModel>model).getLanguageIdentifier)) {
+			if (model && types.isFunction((<ITextModel>model).getLanguageIdentifier)) {
 
 				// Ask cache first
-				const modelId = (<IModel>model).id;
+				const modelId = (<ITextModel>model).id;
 				if (this.outlineToModelCache[modelId]) {
 					return TPromise.as(this.outlineToModelCache[modelId]);
 				}
 
-				return getDocumentSymbols(<IModel>model).then(outline => {
+				return getDocumentSymbols(<ITextModel>model).then(outline => {
 
 					const model = new OutlineModel(outline, this.toQuickOpenEntries(outline.entries));
 

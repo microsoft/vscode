@@ -5,46 +5,45 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import network = require('vs/base/common/network');
-import Event, { Emitter } from 'vs/base/common/event';
+import * as network from 'vs/base/common/network';
+import { Event, Emitter } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
+import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
-import { IRawTextSource, TextSource, RawTextSource, ITextSource } from 'vs/editor/common/model/textSource';
 import { IModelLanguageChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
-import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { overviewRulerWarning, overviewRulerError, overviewRulerInfo } from 'vs/editor/common/view/editorColorRegistry';
+import { ITextModel, IModelDeltaDecoration, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, DefaultEndOfLine, ITextModelCreationOptions, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBufferFactory, ITextBuffer, EndOfLinePreference } from 'vs/editor/common/model';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { basename } from 'vs/base/common/paths';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
 }
 
 class ModelData implements IDisposable {
-	model: editorCommon.IModel;
+	model: ITextModel;
 
 	private _markerDecorations: string[];
 	private _modelEventListeners: IDisposable[];
 
 	constructor(
-		model: editorCommon.IModel,
-		onWillDispose: (model: editorCommon.IModel) => void,
-		onDidChangeLanguage: (model: editorCommon.IModel, e: IModelLanguageChangedEvent) => void
+		model: ITextModel,
+		onWillDispose: (model: ITextModel) => void,
+		onDidChangeLanguage: (model: ITextModel, e: IModelLanguageChangedEvent) => void
 	) {
 		this.model = model;
 
@@ -61,7 +60,7 @@ class ModelData implements IDisposable {
 		this.model = null;
 	}
 
-	public acceptMarkerDecorations(newDecorations: editorCommon.IModelDeltaDecoration[]): void {
+	public acceptMarkerDecorations(newDecorations: IModelDeltaDecoration[]): void {
 		this._markerDecorations = this.model.deltaDecorations(this._markerDecorations, newDecorations);
 	}
 }
@@ -73,7 +72,7 @@ class ModelMarkerHandler {
 		// Limit to the first 500 errors/warnings
 		const markers = markerService.read({ resource: modelData.model.uri, take: 500 });
 
-		let newModelDecorations: editorCommon.IModelDeltaDecoration[] = markers.map((marker) => {
+		let newModelDecorations: IModelDeltaDecoration[] = markers.map((marker) => {
 			return {
 				range: this._createDecorationRange(modelData.model, marker),
 				options: this._createDecorationOption(marker)
@@ -83,7 +82,7 @@ class ModelMarkerHandler {
 		modelData.acceptMarkerDecorations(newModelDecorations);
 	}
 
-	private static _createDecorationRange(model: editorCommon.IModel, rawMarker: IMarker): Range {
+	private static _createDecorationRange(model: ITextModel, rawMarker: IMarker): Range {
 		let marker = model.validateRange(new Range(rawMarker.startLineNumber, rawMarker.startColumn, rawMarker.endLineNumber, rawMarker.endColumn));
 		let ret: Range = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
 		if (ret.isEmpty()) {
@@ -115,27 +114,27 @@ class ModelMarkerHandler {
 		return ret;
 	}
 
-	private static _createDecorationOption(marker: IMarker): editorCommon.IModelDecorationOptions {
+	private static _createDecorationOption(marker: IMarker): IModelDecorationOptions {
 
 		let className: string;
 		let color: ThemeColor;
 		let darkColor: ThemeColor;
 
 		switch (marker.severity) {
-			case Severity.Ignore:
-				// do something
+			case MarkerSeverity.Hint:
+				className = ClassName.EditorHintDecoration;
 				break;
-			case Severity.Warning:
+			case MarkerSeverity.Warning:
 				className = ClassName.EditorWarningDecoration;
 				color = themeColorFromId(overviewRulerWarning);
 				darkColor = themeColorFromId(overviewRulerWarning);
 				break;
-			case Severity.Info:
+			case MarkerSeverity.Info:
 				className = ClassName.EditorInfoDecoration;
 				color = themeColorFromId(overviewRulerInfo);
 				darkColor = themeColorFromId(overviewRulerInfo);
 				break;
-			case Severity.Error:
+			case MarkerSeverity.Error:
 			default:
 				className = ClassName.EditorErrorDecoration;
 				color = themeColorFromId(overviewRulerError);
@@ -144,7 +143,7 @@ class ModelMarkerHandler {
 		}
 
 		let hoverMessage: MarkdownString = null;
-		let { message, source } = marker;
+		let { message, source, relatedInformation } = marker;
 
 		if (typeof message === 'string') {
 			message = message.trim();
@@ -158,17 +157,27 @@ class ModelMarkerHandler {
 			}
 
 			hoverMessage = new MarkdownString().appendCodeblock('_', message);
+
+			if (!isFalsyOrEmpty(relatedInformation)) {
+				hoverMessage.appendMarkdown('\n');
+				for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
+					hoverMessage.appendMarkdown(
+						`* [${basename(resource.path)}(${startLineNumber}, ${startColumn})](${resource.toString(false)}#${startLineNumber},${startColumn}): \`${message}\` \n`
+					);
+				}
+				hoverMessage.appendMarkdown('\n');
+			}
 		}
 
 		return {
-			stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			className,
 			hoverMessage,
 			showIfCollapsed: true,
 			overviewRuler: {
 				color,
 				darkColor,
-				position: editorCommon.OverviewRulerLane.Right
+				position: OverviewRulerLane.Right
 			}
 		};
 	}
@@ -186,7 +195,7 @@ interface IRawConfig {
 	};
 }
 
-const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? editorCommon.DefaultEndOfLine.LF : editorCommon.DefaultEndOfLine.CRLF;
+const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? DefaultEndOfLine.LF : DefaultEndOfLine.CRLF;
 
 export class ModelServiceImpl implements IModelService {
 	public _serviceBrand: any;
@@ -196,12 +205,12 @@ export class ModelServiceImpl implements IModelService {
 	private _configurationService: IConfigurationService;
 	private _configurationServiceSubscription: IDisposable;
 
-	private _onModelAdded: Emitter<editorCommon.IModel>;
-	private _onModelRemoved: Emitter<editorCommon.IModel>;
-	private _onModelModeChanged: Emitter<{ model: editorCommon.IModel; oldModeId: string; }>;
+	private readonly _onModelAdded: Emitter<ITextModel>;
+	private readonly _onModelRemoved: Emitter<ITextModel>;
+	private readonly _onModelModeChanged: Emitter<{ model: ITextModel; oldModeId: string; }>;
 
 	private _modelCreationOptionsByLanguageAndResource: {
-		[languageAndResource: string]: editorCommon.ITextModelCreationOptions;
+		[languageAndResource: string]: ITextModelCreationOptions;
 	};
 
 	/**
@@ -217,9 +226,9 @@ export class ModelServiceImpl implements IModelService {
 		this._configurationService = configurationService;
 		this._models = {};
 		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
-		this._onModelAdded = new Emitter<editorCommon.IModel>();
-		this._onModelRemoved = new Emitter<editorCommon.IModel>();
-		this._onModelModeChanged = new Emitter<{ model: editorCommon.IModel; oldModeId: string; }>();
+		this._onModelAdded = new Emitter<ITextModel>();
+		this._onModelRemoved = new Emitter<ITextModel>();
+		this._onModelModeChanged = new Emitter<{ model: ITextModel; oldModeId: string; }>();
 
 		if (this._markerService) {
 			this._markerServiceSubscription = this._markerService.onMarkerChanged(this._handleMarkerChange, this);
@@ -229,7 +238,7 @@ export class ModelServiceImpl implements IModelService {
 		this._updateModelOptions();
 	}
 
-	private static _readModelOptions(config: IRawConfig): editorCommon.ITextModelCreationOptions {
+	private static _readModelOptions(config: IRawConfig, isForSimpleWidget: boolean): ITextModelCreationOptions {
 		let tabSize = EDITOR_MODEL_DEFAULTS.tabSize;
 		if (config.editor && typeof config.editor.tabSize !== 'undefined') {
 			let parsedTabSize = parseInt(config.editor.tabSize, 10);
@@ -246,9 +255,9 @@ export class ModelServiceImpl implements IModelService {
 		let newDefaultEOL = DEFAULT_EOL;
 		const eol = config.files && config.files.eol;
 		if (eol === '\r\n') {
-			newDefaultEOL = editorCommon.DefaultEndOfLine.CRLF;
+			newDefaultEOL = DefaultEndOfLine.CRLF;
 		} else if (eol === '\n') {
-			newDefaultEOL = editorCommon.DefaultEndOfLine.LF;
+			newDefaultEOL = DefaultEndOfLine.LF;
 		}
 
 		let trimAutoWhitespace = EDITOR_MODEL_DEFAULTS.trimAutoWhitespace;
@@ -262,6 +271,7 @@ export class ModelServiceImpl implements IModelService {
 		}
 
 		return {
+			isForSimpleWidget: isForSimpleWidget,
 			tabSize: tabSize,
 			insertSpaces: insertSpaces,
 			detectIndentation: detectIndentation,
@@ -270,10 +280,10 @@ export class ModelServiceImpl implements IModelService {
 		};
 	}
 
-	public getCreationOptions(language: string, resource: URI): editorCommon.ITextModelCreationOptions {
+	public getCreationOptions(language: string, resource: URI, isForSimpleWidget: boolean): ITextModelCreationOptions {
 		let creationOptions = this._modelCreationOptionsByLanguageAndResource[language + resource];
 		if (!creationOptions) {
-			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getValue({ overrideIdentifier: language, resource }));
+			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getValue({ overrideIdentifier: language, resource }), isForSimpleWidget);
 			this._modelCreationOptionsByLanguageAndResource[language + resource] = creationOptions;
 		}
 		return creationOptions;
@@ -291,12 +301,12 @@ export class ModelServiceImpl implements IModelService {
 			const language = modelData.model.getLanguageIdentifier().language;
 			const uri = modelData.model.uri;
 			const oldOptions = oldOptionsByLanguageAndResource[language + uri];
-			const newOptions = this.getCreationOptions(language, uri);
+			const newOptions = this.getCreationOptions(language, uri, modelData.model.isForSimpleWidget);
 			ModelServiceImpl._setModelOptionsForModel(modelData.model, newOptions, oldOptions);
 		}
 	}
 
-	private static _setModelOptionsForModel(model: editorCommon.IModel, newOptions: editorCommon.ITextModelCreationOptions, currentOptions: editorCommon.ITextModelCreationOptions): void {
+	private static _setModelOptionsForModel(model: ITextModel, newOptions: ITextModelCreationOptions, currentOptions: ITextModelCreationOptions): void {
 		if (currentOptions
 			&& (currentOptions.detectIndentation === newOptions.detectIndentation)
 			&& (currentOptions.insertSpaces === newOptions.insertSpaces)
@@ -339,7 +349,7 @@ export class ModelServiceImpl implements IModelService {
 		});
 	}
 
-	private _cleanUp(model: editorCommon.IModel): void {
+	private _cleanUp(model: ITextModel): void {
 		// clean up markers for internal, transient models
 		if (model.uri.scheme === network.Schemas.inMemory
 			|| model.uri.scheme === network.Schemas.internal
@@ -355,19 +365,18 @@ export class ModelServiceImpl implements IModelService {
 
 	// --- begin IModelService
 
-	private _createModelData(value: string | IRawTextSource, languageIdentifier: LanguageIdentifier, resource: URI): ModelData {
+	private _createModelData(value: string | ITextBufferFactory, languageIdentifier: LanguageIdentifier, resource: URI, isForSimpleWidget: boolean): ModelData {
 		// create & save the model
-		const options = this.getCreationOptions(languageIdentifier.language, resource);
-		const rawTextSource = (typeof value === 'string' ? RawTextSource.fromString(value) : value);
-		let model: Model = new Model(rawTextSource, options, languageIdentifier, resource);
-		let modelId = MODEL_ID(model.uri);
+		const options = this.getCreationOptions(languageIdentifier.language, resource, isForSimpleWidget);
+		const model: TextModel = new TextModel(value, options, languageIdentifier, resource);
+		const modelId = MODEL_ID(model.uri);
 
 		if (this._models[modelId]) {
 			// There already exists a model with this id => this is a programmer error
 			throw new Error('ModelService: Cannot add model because it already exists!');
 		}
 
-		let modelData = new ModelData(
+		const modelData = new ModelData(
 			model,
 			(model) => this._onWillDispose(model),
 			(model, e) => this._onDidChangeLanguage(model, e)
@@ -377,122 +386,82 @@ export class ModelServiceImpl implements IModelService {
 		return modelData;
 	}
 
-	public updateModel(model: editorCommon.IModel, value: string | IRawTextSource): void {
-		let options = this.getCreationOptions(model.getLanguageIdentifier().language, model.uri);
-		const textSource = TextSource.create(value, options.defaultEOL);
+	public updateModel(model: ITextModel, value: string | ITextBufferFactory): void {
+		const options = this.getCreationOptions(model.getLanguageIdentifier().language, model.uri, model.isForSimpleWidget);
+		const textBuffer = createTextBuffer(value, options.defaultEOL);
 
 		// Return early if the text is already set in that form
-		if (model.equals(textSource)) {
+		if (model.equalsTextBuffer(textBuffer)) {
 			return;
 		}
 
 		// Otherwise find a diff between the values and update model
-		model.setEOL(textSource.EOL === '\r\n' ? editorCommon.EndOfLineSequence.CRLF : editorCommon.EndOfLineSequence.LF);
+		model.setEOL(textBuffer.getEOL() === '\r\n' ? EndOfLineSequence.CRLF : EndOfLineSequence.LF);
 		model.pushEditOperations(
 			[new Selection(1, 1, 1, 1)],
-			ModelServiceImpl._computeEdits(model, textSource),
-			(inverseEditOperations: editorCommon.IIdentifiedSingleEditOperation[]) => [new Selection(1, 1, 1, 1)]
+			ModelServiceImpl._computeEdits(model, textBuffer),
+			(inverseEditOperations: IIdentifiedSingleEditOperation[]) => [new Selection(1, 1, 1, 1)]
 		);
+	}
+
+	private static _commonPrefix(a: ILineSequence, aLen: number, aDelta: number, b: ILineSequence, bLen: number, bDelta: number): number {
+		const maxResult = Math.min(aLen, bLen);
+
+		let result = 0;
+		for (let i = 0; i < maxResult && a.getLineContent(aDelta + i) === b.getLineContent(bDelta + i); i++) {
+			result++;
+		}
+		return result;
+	}
+
+	private static _commonSuffix(a: ILineSequence, aLen: number, aDelta: number, b: ILineSequence, bLen: number, bDelta: number): number {
+		const maxResult = Math.min(aLen, bLen);
+
+		let result = 0;
+		for (let i = 0; i < maxResult && a.getLineContent(aDelta + aLen - i) === b.getLineContent(bDelta + bLen - i); i++) {
+			result++;
+		}
+		return result;
 	}
 
 	/**
 	 * Compute edits to bring `model` to the state of `textSource`.
 	 */
-	public static _computeEdits(model: editorCommon.IModel, textSource: ITextSource): editorCommon.IIdentifiedSingleEditOperation[] {
-		const modelLineSequence = new class implements ISequence {
-			public getLength(): number {
-				return model.getLineCount();
-			}
-			public getElementHash(index: number): string {
-				return model.getLineContent(index + 1);
-			}
-		};
-		const textSourceLineSequence = new class implements ISequence {
-			public getLength(): number {
-				return textSource.lines.length;
-			}
-			public getElementHash(index: number): string {
-				return textSource.lines[index];
-			}
-		};
-
-		const diffResult = new LcsDiff(modelLineSequence, textSourceLineSequence).ComputeDiff(false);
-
-		let edits: editorCommon.IIdentifiedSingleEditOperation[] = [], editsLen = 0;
+	public static _computeEdits(model: ITextModel, textBuffer: ITextBuffer): IIdentifiedSingleEditOperation[] {
 		const modelLineCount = model.getLineCount();
-		for (let i = 0, len = diffResult.length; i < len; i++) {
-			const diff = diffResult[i];
-			const originalStart = diff.originalStart;
-			const originalLength = diff.originalLength;
-			const modifiedStart = diff.modifiedStart;
-			const modifiedLength = diff.modifiedLength;
+		const textBufferLineCount = textBuffer.getLineCount();
+		const commonPrefix = this._commonPrefix(model, modelLineCount, 1, textBuffer, textBufferLineCount, 1);
 
-			let lines: string[] = [];
-			for (let j = 0; j < modifiedLength; j++) {
-				lines[j] = textSource.lines[modifiedStart + j];
-			}
-			let text = lines.join('\n');
-
-			let range: Range;
-			if (originalLength === 0) {
-				// insertion
-
-				if (originalStart === modelLineCount) {
-					// insert at the end
-					const maxLineColumn = model.getLineMaxColumn(modelLineCount);
-					range = new Range(
-						modelLineCount, maxLineColumn,
-						modelLineCount, maxLineColumn
-					);
-					text = '\n' + text;
-				} else {
-					// insert
-					range = new Range(
-						originalStart + 1, 1,
-						originalStart + 1, 1
-					);
-					text = text + '\n';
-				}
-
-			} else if (modifiedLength === 0) {
-				// deletion
-
-				if (originalStart + originalLength >= modelLineCount) {
-					// delete at the end
-					range = new Range(
-						originalStart, model.getLineMaxColumn(originalStart),
-						originalStart + originalLength, model.getLineMaxColumn(originalStart + originalLength)
-					);
-				} else {
-					// delete
-					range = new Range(
-						originalStart + 1, 1,
-						originalStart + originalLength + 1, 1
-					);
-				}
-
-			} else {
-				// modification
-				range = new Range(
-					originalStart + 1, 1,
-					originalStart + originalLength, model.getLineMaxColumn(originalStart + originalLength)
-				);
-			}
-
-			edits[editsLen++] = EditOperation.replace(range, text);
+		if (modelLineCount === textBufferLineCount && commonPrefix === modelLineCount) {
+			// equality case
+			return [];
 		}
 
-		return edits;
+		const commonSuffix = this._commonSuffix(model, modelLineCount - commonPrefix, commonPrefix, textBuffer, textBufferLineCount - commonPrefix, commonPrefix);
+
+		let oldRange: Range, newRange: Range;
+		if (commonSuffix > 0) {
+			oldRange = new Range(commonPrefix + 1, 1, modelLineCount - commonSuffix + 1, 1);
+			newRange = new Range(commonPrefix + 1, 1, textBufferLineCount - commonSuffix + 1, 1);
+		} else if (commonPrefix > 0) {
+			oldRange = new Range(commonPrefix, model.getLineMaxColumn(commonPrefix), modelLineCount, model.getLineMaxColumn(modelLineCount));
+			newRange = new Range(commonPrefix, 1 + textBuffer.getLineLength(commonPrefix), textBufferLineCount, 1 + textBuffer.getLineLength(textBufferLineCount));
+		} else {
+			oldRange = new Range(1, 1, modelLineCount, model.getLineMaxColumn(modelLineCount));
+			newRange = new Range(1, 1, textBufferLineCount, 1 + textBuffer.getLineLength(textBufferLineCount));
+		}
+
+		return [EditOperation.replace(oldRange, textBuffer.getValueInRange(newRange, EndOfLinePreference.TextDefined))];
 	}
 
-	public createModel(value: string | IRawTextSource, modeOrPromise: TPromise<IMode> | IMode, resource: URI): editorCommon.IModel {
+	public createModel(value: string | ITextBufferFactory, modeOrPromise: TPromise<IMode> | IMode, resource: URI, isForSimpleWidget: boolean = false): ITextModel {
 		let modelData: ModelData;
 
 		if (!modeOrPromise || TPromise.is(modeOrPromise)) {
-			modelData = this._createModelData(value, PLAINTEXT_LANGUAGE_IDENTIFIER, resource);
+			modelData = this._createModelData(value, PLAINTEXT_LANGUAGE_IDENTIFIER, resource, isForSimpleWidget);
 			this.setMode(modelData.model, modeOrPromise);
 		} else {
-			modelData = this._createModelData(value, modeOrPromise.getLanguageIdentifier(), resource);
+			modelData = this._createModelData(value, modeOrPromise.getLanguageIdentifier(), resource, isForSimpleWidget);
 		}
 
 		// handle markers (marker service => model)
@@ -505,7 +474,7 @@ export class ModelServiceImpl implements IModelService {
 		return modelData.model;
 	}
 
-	public setMode(model: editorCommon.IModel, modeOrPromise: TPromise<IMode> | IMode): void {
+	public setMode(model: ITextModel, modeOrPromise: TPromise<IMode> | IMode): void {
 		if (!modeOrPromise) {
 			return;
 		}
@@ -529,8 +498,8 @@ export class ModelServiceImpl implements IModelService {
 		modelData.model.dispose();
 	}
 
-	public getModels(): editorCommon.IModel[] {
-		let ret: editorCommon.IModel[] = [];
+	public getModels(): ITextModel[] {
+		let ret: ITextModel[] = [];
 
 		let keys = Object.keys(this._models);
 		for (let i = 0, len = keys.length; i < len; i++) {
@@ -541,7 +510,7 @@ export class ModelServiceImpl implements IModelService {
 		return ret;
 	}
 
-	public getModel(resource: URI): editorCommon.IModel {
+	public getModel(resource: URI): ITextModel {
 		let modelId = MODEL_ID(resource);
 		let modelData = this._models[modelId];
 		if (!modelData) {
@@ -550,21 +519,21 @@ export class ModelServiceImpl implements IModelService {
 		return modelData.model;
 	}
 
-	public get onModelAdded(): Event<editorCommon.IModel> {
+	public get onModelAdded(): Event<ITextModel> {
 		return this._onModelAdded ? this._onModelAdded.event : null;
 	}
 
-	public get onModelRemoved(): Event<editorCommon.IModel> {
+	public get onModelRemoved(): Event<ITextModel> {
 		return this._onModelRemoved ? this._onModelRemoved.event : null;
 	}
 
-	public get onModelModeChanged(): Event<{ model: editorCommon.IModel; oldModeId: string; }> {
+	public get onModelModeChanged(): Event<{ model: ITextModel; oldModeId: string; }> {
 		return this._onModelModeChanged ? this._onModelModeChanged.event : null;
 	}
 
 	// --- end IModelService
 
-	private _onWillDispose(model: editorCommon.IModel): void {
+	private _onWillDispose(model: ITextModel): void {
 		let modelId = MODEL_ID(model.uri);
 		let modelData = this._models[modelId];
 
@@ -575,12 +544,16 @@ export class ModelServiceImpl implements IModelService {
 		this._onModelRemoved.fire(model);
 	}
 
-	private _onDidChangeLanguage(model: editorCommon.IModel, e: IModelLanguageChangedEvent): void {
+	private _onDidChangeLanguage(model: ITextModel, e: IModelLanguageChangedEvent): void {
 		const oldModeId = e.oldLanguage;
 		const newModeId = model.getLanguageIdentifier().language;
-		const oldOptions = this.getCreationOptions(oldModeId, model.uri);
-		const newOptions = this.getCreationOptions(newModeId, model.uri);
+		const oldOptions = this.getCreationOptions(oldModeId, model.uri, model.isForSimpleWidget);
+		const newOptions = this.getCreationOptions(newModeId, model.uri, model.isForSimpleWidget);
 		ModelServiceImpl._setModelOptionsForModel(model, newOptions, oldOptions);
 		this._onModelModeChanged.fire({ model, oldModeId });
 	}
+}
+
+export interface ILineSequence {
+	getLineContent(lineNumber: number): string;
 }

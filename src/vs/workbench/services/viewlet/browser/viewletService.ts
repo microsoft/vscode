@@ -7,12 +7,17 @@
 import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import Event from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+
+const ActiveViewletContextId = 'activeViewlet';
+export const ActiveViewletContext = new RawContextKey<string>(ActiveViewletContextId, '');
 
 export class ViewletService implements IViewletService {
 
@@ -24,18 +29,40 @@ export class ViewletService implements IViewletService {
 	private extensionViewlets: ViewletDescriptor[];
 	private extensionViewletsLoaded: TPromise<void>;
 	private extensionViewletsLoadedPromiseComplete: ValueCallback;
+	private activeViewletContextKey: IContextKey<string>;
+	private _onDidViewletEnable = new Emitter<{ id: string, enabled: boolean }>();
+	private disposables: IDisposable[] = [];
 
 	public get onDidViewletOpen(): Event<IViewlet> { return this.sidebarPart.onDidViewletOpen; }
 	public get onDidViewletClose(): Event<IViewlet> { return this.sidebarPart.onDidViewletClose; }
+	public get onDidViewletEnablementChange(): Event<{ id: string, enabled: boolean }> { return this._onDidViewletEnable.event; }
 
 	constructor(
 		sidebarPart: SidebarPart,
-		@IExtensionService private extensionService: IExtensionService
+		@IExtensionService private extensionService: IExtensionService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.sidebarPart = sidebarPart;
 		this.viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
 
+		this.activeViewletContextKey = ActiveViewletContext.bindTo(contextKeyService);
+
+		this.onDidViewletOpen(this._onDidViewletOpen, this, this.disposables);
+		this.onDidViewletClose(this._onDidViewletClose, this, this.disposables);
+
 		this.loadExtensionViewlets();
+	}
+
+	private _onDidViewletOpen(viewlet: IViewlet): void {
+		this.activeViewletContextKey.set(viewlet.getId());
+	}
+
+	private _onDidViewletClose(viewlet: IViewlet): void {
+		const id = viewlet.getId();
+
+		if (this.activeViewletContextKey.get() === id) {
+			this.activeViewletContextKey.set('');
+		}
 	}
 
 	private loadExtensionViewlets(): void {
@@ -55,6 +82,14 @@ export class ViewletService implements IViewletService {
 
 			this.extensionViewletsLoadedPromiseComplete(void 0);
 		});
+	}
+
+	public setViewletEnablement(id: string, enabled: boolean): void {
+		const descriptor = this.getBuiltInViewlets().filter(desc => desc.id === id).pop();
+		if (descriptor && descriptor.enabled !== enabled) {
+			descriptor.enabled = enabled;
+			this._onDidViewletEnable.fire({ id, enabled });
+		}
 	}
 
 	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
@@ -83,8 +118,9 @@ export class ViewletService implements IViewletService {
 
 	public getViewlets(): ViewletDescriptor[] {
 		const builtInViewlets = this.getBuiltInViewlets();
+		const viewlets = builtInViewlets.concat(this.extensionViewlets);
 
-		return builtInViewlets.concat(this.extensionViewlets);
+		return viewlets.filter(v => v.enabled);
 	}
 
 	private getBuiltInViewlets(): ViewletDescriptor[] {
@@ -103,5 +139,9 @@ export class ViewletService implements IViewletService {
 
 	public getProgressIndicator(id: string): IProgressService {
 		return this.sidebarPart.getProgressIndicator(id);
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }

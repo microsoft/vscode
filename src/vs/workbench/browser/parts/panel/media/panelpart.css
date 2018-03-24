@@ -74,7 +74,6 @@
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label {
 	border-bottom: 1px solid;
-	height: 82%;
 }
 
 .monaco-workbench  > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .badge .badge-content {
@@ -91,7 +90,7 @@
 	cursor: default;
 }
 
-.monaco-workbench .panel .monaco-action-bar .action-item .select-box {
+.monaco-workbench .panel .monaco-action-bar .action-item .monaco-select-box {
 	cursor: pointer;
 	min-width: 110px;
 }

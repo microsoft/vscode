@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileOperation, FileOperationEvent, FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, FileChangesEvent, FileChangeType, IFileService, snapshotToString } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { once } from 'vs/base/common/event';
 
@@ -28,7 +28,7 @@ class TestFileEditorTracker extends FileEditorTracker {
 }
 
 function toResource(self: any, path: string) {
-	return URI.file(join('C:\\', new Buffer(self.test.fullTitle()).toString('base64'), path));
+	return URI.file(join('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
 }
 
 class ServiceAccessor {
@@ -184,25 +184,23 @@ suite('Files - FileEditorTracker', () => {
 		tracker.dispose();
 	});
 
-	test('file change event updates model', function (done) {
+	test('file change event updates model', function () {
 		const tracker = instantiationService.createInstance(FileEditorTracker);
 
 		const resource = toResource(this, '/path/index.txt');
 
-		accessor.textFileService.models.loadOrCreate(resource).then((model: TextFileEditorModel) => {
+		return accessor.textFileService.models.loadOrCreate(resource).then((model: TextFileEditorModel) => {
 			model.textEditorModel.setValue('Super Good');
-			assert.equal(model.getValue(), 'Super Good');
+			assert.equal(snapshotToString(model.createSnapshot()), 'Super Good');
 
-			model.save().then(() => {
+			return model.save().then(() => {
 
 				// change event (watcher)
 				accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }]));
 
-				assert.equal(model.getValue(), 'Hello Html');
+				assert.equal(snapshotToString(model.createSnapshot()), 'Hello Html');
 
 				tracker.dispose();
-
-				done();
 			});
 		});
 	});

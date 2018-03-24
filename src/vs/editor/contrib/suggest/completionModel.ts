@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { fuzzyScore, fuzzyScoreGracefulAggressive } from 'vs/base/common/filters';
+import { fuzzyScore, fuzzyScoreGracefulAggressive, skipScore } from 'vs/base/common/filters';
 import { ISuggestSupport, ISuggestResult } from 'vs/editor/common/modes';
 import { ISuggestionItem, SnippetConfig } from './suggest';
 import { isDisposable } from 'vs/base/common/lifecycle';
@@ -20,9 +20,9 @@ export interface ICompletionItem extends ISuggestionItem {
 
 /* __GDPR__FRAGMENT__
 	"ICompletionStats" : {
-		"suggestionCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"snippetCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"textCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		"suggestionCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"snippetCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"textCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 	}
 */
 // __GDPR__TODO__: This is a dynamically extensible structure which can not be declared statically.
@@ -174,6 +174,7 @@ export class CompletionModel {
 				// use a score of `-100` because that is out of the
 				// bound of values `fuzzyScore` will return
 				item.score = -100;
+				item.matches = undefined;
 
 			} else if (typeof suggestion.filterText === 'string') {
 				// when there is a `filterText` it must match the `word`.
@@ -185,11 +186,8 @@ export class CompletionModel {
 					continue;
 				}
 				item.score = match[0];
-				item.matches = [];
-				match = scoreFn(word, suggestion.label, suggestion.overwriteBefore);
-				if (match) {
-					item.matches = match[1];
-				}
+				item.matches = skipScore(word, suggestion.label)[1];
+
 			} else {
 				// by default match `word` against the `label`
 				let match = scoreFn(word, suggestion.label, suggestion.overwriteBefore);

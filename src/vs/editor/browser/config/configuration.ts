@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
@@ -102,7 +102,7 @@ class CSSBasedConfiguration extends Disposable {
 	private _evictUntrustedReadingsTimeout: number;
 
 	private _onDidChange = this._register(new Emitter<void>());
-	public onDidChange: Event<void> = this._onDidChange.event;
+	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor() {
 		super();
@@ -335,6 +335,8 @@ export class Configuration extends CommonEditorConfiguration {
 			extra += 'ff ';
 		} else if (browser.isEdge) {
 			extra += 'edge ';
+		} else if (browser.isSafari) {
+			extra += 'safari ';
 		}
 		if (platform.isMacintosh) {
 			extra += 'mac ';

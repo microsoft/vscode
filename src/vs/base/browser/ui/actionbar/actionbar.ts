@@ -6,18 +6,19 @@
 'use strict';
 
 import 'vs/css!./actionbar';
-import nls = require('vs/nls');
-import lifecycle = require('vs/base/common/lifecycle');
+import * as nls from 'vs/nls';
+import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
-import DOM = require('vs/base/browser/dom');
-import types = require('vs/base/common/types');
+import * as DOM from 'vs/base/browser/dom';
+import * as types from 'vs/base/common/types';
 import { EventType, Gesture } from 'vs/base/browser/touch';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import Event, { Emitter } from 'vs/base/common/event';
+import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export interface IActionItem {
 	actionRunner: IActionRunner;
@@ -138,7 +139,7 @@ export class BaseActionItem implements IActionItem {
 			if (this.options && this.options.isMenu) {
 				this.onClick(e);
 			} else {
-				setTimeout(() => this.onClick(e), 50);
+				setImmediate(() => this.onClick(e));
 			}
 		});
 
@@ -755,17 +756,18 @@ export class SelectActionItem extends BaseActionItem {
 	protected selectBox: SelectBox;
 	protected toDispose: lifecycle.IDisposable[];
 
-	constructor(ctx: any, action: IAction, options: string[], selected: number) {
+	constructor(ctx: any, action: IAction, options: string[], selected: number, contextViewProvider: IContextViewProvider
+	) {
 		super(ctx, action);
-		this.selectBox = new SelectBox(options, selected);
+		this.selectBox = new SelectBox(options, selected, contextViewProvider);
 
 		this.toDispose = [];
 		this.toDispose.push(this.selectBox);
 		this.registerListeners();
 	}
 
-	public setOptions(options: string[], selected?: number): void {
-		this.selectBox.setOptions(options, selected);
+	public setOptions(options: string[], selected?: number, disabled?: number): void {
+		this.selectBox.setOptions(options, selected, disabled);
 	}
 
 	public select(index: number): void {

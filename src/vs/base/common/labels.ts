@@ -5,9 +5,10 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import platform = require('vs/base/common/platform');
+import * as platform from 'vs/base/common/platform';
 import { nativeSep, normalize, isEqualOrParent, isEqual, basename as pathsBasename, join } from 'vs/base/common/paths';
 import { endsWith, ltrim } from 'vs/base/common/strings';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IWorkspaceFolderProvider {
 	getWorkspaceFolder(resource: URI): { uri: URI };
@@ -29,8 +30,8 @@ export function getPathLabel(resource: URI | string, rootProvider?: IWorkspaceFo
 		resource = URI.file(resource);
 	}
 
-	if (resource.scheme !== 'file' && resource.scheme !== 'untitled') {
-		return resource.authority + resource.path;
+	if (resource.scheme !== Schemas.file && resource.scheme !== Schemas.untitled) {
+		return resource.with({ query: null, fragment: null }).toString(true);
 	}
 
 	// return early if we can resolve a relative path label from the root
@@ -324,7 +325,7 @@ export function template(template: string, values: { [key: string]: string | ISe
 			const left = segments[index - 1];
 			const right = segments[index + 1];
 
-			return [left, right].every(segment => segment && segment.type === Type.VARIABLE && segment.value.length > 0);
+			return [left, right].every(segment => segment && (segment.type === Type.VARIABLE || segment.type === Type.TEXT) && segment.value.length > 0);
 		}
 
 		// accept any TEXT and VARIABLE

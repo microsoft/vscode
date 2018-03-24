@@ -6,10 +6,10 @@
 import 'vs/css!./list';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { range } from 'vs/base/common/arrays';
-import { IDelegate, IRenderer, IListEvent } from './list';
-import { List, IListOptions, IListStyles } from './listWidget';
+import { IDelegate, IRenderer, IListEvent, IListOpenEvent } from './list';
+import { List, IListStyles, IListOptions } from './listWidget';
 import { IPagedModel } from 'vs/base/common/paging';
-import Event, { mapEvent } from 'vs/base/common/event';
+import { Event, mapEvent } from 'vs/base/common/event';
 
 export interface IPagedRenderer<TElement, TTemplateData> extends IRenderer<TElement, TTemplateData> {
 	renderPlaceholder(index: number, templateData: TTemplateData): void;
@@ -58,7 +58,7 @@ class PagedRenderer<TElement, TTemplateData> implements IRenderer<number, ITempl
 	}
 }
 
-export class PagedList<T> {
+export class PagedList<T> implements IDisposable {
 
 	private list: List<number>;
 	private _model: IPagedModel<T>;
@@ -67,7 +67,7 @@ export class PagedList<T> {
 		container: HTMLElement,
 		delegate: IDelegate<number>,
 		renderers: IPagedRenderer<T, any>[],
-		options: IListOptions<any> = {} // TODO@Joao: should be IListOptions<T>
+		options: IListOptions<any> = {}
 	) {
 		const pagedRenderers = renderers.map(r => new PagedRenderer<T, ITemplateData<T>>(r, () => this.model));
 		this.list = new List(container, delegate, pagedRenderers, options);
@@ -79,6 +79,10 @@ export class PagedList<T> {
 
 	isDOMFocused(): boolean {
 		return this.list.getHTMLElement() === document.activeElement;
+	}
+
+	domFocus(): void {
+		this.list.domFocus();
 	}
 
 	get onDidFocus(): Event<void> {
@@ -93,8 +97,16 @@ export class PagedList<T> {
 		return this.list;
 	}
 
+	get onDidDispose(): Event<void> {
+		return this.list.onDidDispose;
+	}
+
 	get onFocusChange(): Event<IListEvent<T>> {
 		return mapEvent(this.list.onFocusChange, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
+	}
+
+	get onOpen(): Event<IListOpenEvent<T>> {
+		return mapEvent(this.list.onOpen, ({ elements, indexes, browserEvent }) => ({ elements: elements.map(e => this._model.get(e)), indexes, browserEvent }));
 	}
 
 	get onSelectionChange(): Event<IListEvent<T>> {
@@ -126,8 +138,8 @@ export class PagedList<T> {
 		this.list.scrollTop = scrollTop;
 	}
 
-	open(indexes: number[]): void {
-		this.list.open(indexes);
+	open(indexes: number[], browserEvent?: UIEvent): void {
+		this.list.open(indexes, browserEvent);
 	}
 
 	setFocus(indexes: number[]): void {
@@ -166,6 +178,10 @@ export class PagedList<T> {
 		this.list.setSelection(indexes);
 	}
 
+	getSelection(): number[] {
+		return this.list.getSelection();
+	}
+
 	layout(height?: number): void {
 		this.list.layout(height);
 	}
@@ -176,5 +192,9 @@ export class PagedList<T> {
 
 	style(styles: IListStyles): void {
 		this.list.style(styles);
+	}
+
+	dispose(): void {
+		this.list.dispose();
 	}
 }

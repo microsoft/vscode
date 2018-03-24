@@ -5,87 +5,79 @@
 
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 
-import mimeCommon = require('vs/base/common/mime');
-import mime = require('vs/base/node/mime');
+import * as mimeCommon from 'vs/base/common/mime';
+import * as mime from 'vs/base/node/mime';
 import { readExactlyByFile } from 'vs/base/node/stream';
 
 suite('Mime', () => {
 
-	test('detectMimesFromFile (JSON saved as PNG)', function (done: (err?: any) => void) {
+	test('detectMimesFromFile (JSON saved as PNG)', function () {
 		const file = require.toUrl('./fixtures/some.json.png');
 
-		readExactlyByFile(file, 512).then(buffer => {
+		return readExactlyByFile(file, 512).then(buffer => {
 			const mimes = mime.detectMimeAndEncodingFromBuffer(buffer);
 			assert.deepEqual(mimes.mimes, ['text/plain']);
-			done();
 		});
 	});
 
-	test('detectMimesFromFile (PNG saved as TXT)', function (done: (err?: any) => void) {
+	test('detectMimesFromFile (PNG saved as TXT)', function () {
 		mimeCommon.registerTextMime({ id: 'text', mime: 'text/plain', extension: '.txt' });
 		const file = require.toUrl('./fixtures/some.png.txt');
-		readExactlyByFile(file, 512).then(buffer => {
+		return readExactlyByFile(file, 512).then(buffer => {
 			const mimes = mime.detectMimeAndEncodingFromBuffer(buffer);
 			assert.deepEqual(mimes.mimes, ['application/octet-stream']);
-			done();
-		}, done);
+		});
 	});
 
-	test('detectMimesFromFile (XML saved as PNG)', function (done: (err?: any) => void) {
+	test('detectMimesFromFile (XML saved as PNG)', function () {
 		const file = require.toUrl('./fixtures/some.xml.png');
-		readExactlyByFile(file, 512).then(buffer => {
+		return readExactlyByFile(file, 512).then(buffer => {
 			const mimes = mime.detectMimeAndEncodingFromBuffer(buffer);
 			assert.deepEqual(mimes.mimes, ['text/plain']);
-			done();
-		}, done);
+		});
 	});
 
-	test('detectMimesFromFile (QWOFF saved as TXT)', function (done: (err?: any) => void) {
+	test('detectMimesFromFile (QWOFF saved as TXT)', function () {
 		const file = require.toUrl('./fixtures/some.qwoff.txt');
-		readExactlyByFile(file, 512).then(buffer => {
+		return readExactlyByFile(file, 512).then(buffer => {
 			const mimes = mime.detectMimeAndEncodingFromBuffer(buffer);
 			assert.deepEqual(mimes.mimes, ['application/octet-stream']);
-			done();
-		}, done);
+		});
 	});
 
-	test('detectMimesFromFile (CSS saved as QWOFF)', function (done: (err?: any) => void) {
+	test('detectMimesFromFile (CSS saved as QWOFF)', function () {
 		const file = require.toUrl('./fixtures/some.css.qwoff');
-		readExactlyByFile(file, 512).then(buffer => {
+		return readExactlyByFile(file, 512).then(buffer => {
 			const mimes = mime.detectMimeAndEncodingFromBuffer(buffer);
 			assert.deepEqual(mimes.mimes, ['text/plain']);
-			done();
-		}, done);
+		});
 	});
 
-	test('detectMimesFromFile (PDF)', function (done: () => void) {
+	test('detectMimesFromFile (PDF)', function () {
 		const file = require.toUrl('./fixtures/some.pdf');
-		readExactlyByFile(file, 512).then(buffer => {
+		return readExactlyByFile(file, 512).then(buffer => {
 			const mimes = mime.detectMimeAndEncodingFromBuffer(buffer);
 			assert.deepEqual(mimes.mimes, ['application/octet-stream']);
-			done();
-		}, done);
+		});
 	});
 
-	test('autoGuessEncoding (ShiftJIS)', function (done: () => void) {
+	test('autoGuessEncoding (ShiftJIS)', function () {
 		const file = require.toUrl('./fixtures/some.shiftjis.txt');
-		readExactlyByFile(file, 512 * 8).then(buffer => {
-			mime.detectMimeAndEncodingFromBuffer(buffer, true).then(mimes => {
+		return readExactlyByFile(file, 512 * 8).then(buffer => {
+			return mime.detectMimeAndEncodingFromBuffer(buffer, true).then(mimes => {
 				assert.equal(mimes.encoding, 'shiftjis');
-				done();
 			});
-		}, done);
+		});
 	});
 
-	test('autoGuessEncoding (CP1252)', function (done: () => void) {
+	test('autoGuessEncoding (CP1252)', function () {
 		const file = require.toUrl('./fixtures/some.cp1252.txt');
-		readExactlyByFile(file, 512 * 8).then(buffer => {
-			mime.detectMimeAndEncodingFromBuffer(buffer, true).then(mimes => {
+		return readExactlyByFile(file, 512 * 8).then(buffer => {
+			return mime.detectMimeAndEncodingFromBuffer(buffer, true).then(mimes => {
 				assert.equal(mimes.encoding, 'windows1252');
-				done();
 			});
-		}, done);
+		});
 	});
 });

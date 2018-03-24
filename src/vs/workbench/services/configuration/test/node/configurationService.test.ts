@@ -16,15 +16,15 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import extfs = require('vs/base/node/extfs');
-import uuid = require('vs/base/common/uuid');
+import * as pfs from 'vs/base/node/pfs';
+import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { workbenchInstantiationService, TestTextResourceConfigurationService, TestTextFileService, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestTextResourceConfigurationService, TestTextFileService, TestLifecycleService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -34,7 +34,6 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { mkdirp } from 'vs/base/node/pfs';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -54,7 +53,7 @@ function setUpFolderWorkspace(folderName: string): TPromise<{ parentDir: string,
 function setUpFolder(folderName: string, parentDir: string): TPromise<string> {
 	const folderDir = path.join(parentDir, folderName);
 	const workspaceSettingsDir = path.join(folderDir, '.vscode');
-	return mkdirp(workspaceSettingsDir, 493).then(() => folderDir);
+	return pfs.mkdirp(workspaceSettingsDir, 493).then(() => folderDir);
 }
 
 function setUpWorkspace(folders: string[]): TPromise<{ parentDir: string, configPath: string }> {
@@ -62,7 +61,7 @@ function setUpWorkspace(folders: string[]): TPromise<{ parentDir: string, config
 	const id = uuid.generateUuid();
 	const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 
-	return mkdirp(parentDir, 493)
+	return pfs.mkdirp(parentDir, 493)
 		.then(() => {
 			const configPath = path.join(parentDir, 'vsctests.code-workspace');
 			const workspace = { folders: folders.map(path => ({ path })) };
@@ -91,13 +90,14 @@ suite('WorkspaceContextService - Folder', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (workspaceContextService) {
 			(<WorkspaceService>workspaceContextService).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('getWorkspace()', () => {
@@ -151,7 +151,7 @@ suite('WorkspaceContextService - Workspace', () => {
 
 				return workspaceService.initialize({ id: configPath, configPath }).then(() => {
 
-					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), { disableWatcher: true }));
+					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), { disableWatcher: true }));
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 					workspaceService.setInstantiationService(instantiationService);
@@ -161,13 +161,14 @@ suite('WorkspaceContextService - Workspace', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (testObject) {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('workspace folders', () => {
@@ -181,6 +182,34 @@ suite('WorkspaceContextService - Workspace', () => {
 	test('add folders', () => {
 		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
 		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }])
+			.then(() => {
+				const actual = testObject.getWorkspace().folders;
+
+				assert.equal(actual.length, 4);
+				assert.equal(path.basename(actual[0].uri.fsPath), 'a');
+				assert.equal(path.basename(actual[1].uri.fsPath), 'b');
+				assert.equal(path.basename(actual[2].uri.fsPath), 'd');
+				assert.equal(path.basename(actual[3].uri.fsPath), 'c');
+			});
+	});
+
+	test('add folders (at specific index)', () => {
+		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
+		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }], 0)
+			.then(() => {
+				const actual = testObject.getWorkspace().folders;
+
+				assert.equal(actual.length, 4);
+				assert.equal(path.basename(actual[0].uri.fsPath), 'd');
+				assert.equal(path.basename(actual[1].uri.fsPath), 'c');
+				assert.equal(path.basename(actual[2].uri.fsPath), 'a');
+				assert.equal(path.basename(actual[3].uri.fsPath), 'b');
+			});
+	});
+
+	test('add folders (at specific wrong index)', () => {
+		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
+		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }], 10)
 			.then(() => {
 				const actual = testObject.getWorkspace().folders;
 
@@ -246,6 +275,68 @@ suite('WorkspaceContextService - Workspace', () => {
 			});
 	});
 
+	test('remove folders and add them back by writing into the file', done => {
+		const folders = testObject.getWorkspace().folders;
+		testObject.removeFolders([folders[0].uri])
+			.then(() => {
+				testObject.onDidChangeWorkspaceFolders(actual => {
+					assert.deepEqual(actual.added.map(r => r.uri.toString()), [folders[0].uri.toString()]);
+					done();
+				});
+				const workspace = { folders: [{ path: folders[0].uri.fsPath }, { path: folders[1].uri.fsPath }] };
+				fs.writeFileSync(testObject.getWorkspace().configuration.fsPath, JSON.stringify(workspace, null, '\t'));
+			}, done);
+	});
+
+	test('update folders (remove last and add to end)', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeWorkspaceFolders(target);
+		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
+		const addedFolders = [{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }];
+		const removedFolders = [testObject.getWorkspace().folders[1]].map(f => f.uri);
+		return testObject.updateFolders(addedFolders, removedFolders)
+			.then(() => {
+				assert.ok(target.calledOnce);
+				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
+				assert.deepEqual(actual.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
+				assert.deepEqual(actual.removed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
+				assert.deepEqual(actual.changed, []);
+			});
+	});
+
+	test('update folders (rename first via add and remove)', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeWorkspaceFolders(target);
+		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
+		const addedFolders = [{ uri: URI.file(path.join(workspaceDir, 'a')), name: 'The Folder' }];
+		const removedFolders = [testObject.getWorkspace().folders[0]].map(f => f.uri);
+		return testObject.updateFolders(addedFolders, removedFolders, 0)
+			.then(() => {
+				assert.ok(target.calledOnce);
+				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
+				assert.deepEqual(actual.added, []);
+				assert.deepEqual(actual.removed, []);
+				assert.deepEqual(actual.changed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
+			});
+	});
+
+	test('update folders (remove first and add to end)', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeWorkspaceFolders(target);
+		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
+		const addedFolders = [{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }];
+		const removedFolders = [testObject.getWorkspace().folders[0]].map(f => f.uri);
+		const changedFolders = [testObject.getWorkspace().folders[1]].map(f => f.uri);
+		return testObject.updateFolders(addedFolders, removedFolders)
+			.then(() => {
+				assert.ok(target.calledOnce);
+				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
+				assert.deepEqual(actual.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
+				assert.deepEqual(actual.removed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
+				assert.deepEqual(actual.changed.map(r => r.uri.toString()), changedFolders.map(a => a.toString()));
+			});
+	});
+
 	test('reorder folders trigger change event', () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
@@ -281,7 +372,7 @@ suite('WorkspaceContextService - Workspace', () => {
 suite('WorkspaceService - Initialization', () => {
 
 	let parentResource: string, workspaceConfigPath: string, testObject: WorkspaceService, globalSettingsFile: string;
-	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
@@ -318,7 +409,7 @@ suite('WorkspaceService - Initialization', () => {
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize(<IWindowConfiguration>{}).then(() => {
-					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), { disableWatcher: true }));
+					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), { disableWatcher: true }));
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 					workspaceService.setInstantiationService(instantiationService);
@@ -327,13 +418,14 @@ suite('WorkspaceService - Initialization', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (testObject) {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('initialize a folder workspace from an empty workspace with no configuration changes', () => {
@@ -533,7 +625,7 @@ suite('WorkspaceService - Initialization', () => {
 suite('WorkspaceConfigurationService - Folder', () => {
 
 	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IWorkspaceConfigurationService, globalSettingsFile: string;
-	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
@@ -570,7 +662,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize(folderDir).then(() => {
-					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), { disableWatcher: true }));
+					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), { disableWatcher: true }));
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 					workspaceService.setInstantiationService(instantiationService);
@@ -579,13 +671,14 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (testObject) {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('defaults', () => {
@@ -818,7 +911,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 suite('WorkspaceConfigurationService - Multiroot', () => {
 
 	let parentResource: string, workspaceContextService: IWorkspaceContextService, environmentService: IEnvironmentService, jsonEditingServce: IJSONEditingService, testObject: IWorkspaceConfigurationService;
-	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
@@ -865,7 +958,7 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 
 				return workspaceService.initialize({ id: configPath, configPath }).then(() => {
 
-					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), { disableWatcher: true }));
+					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), { disableWatcher: true }));
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 					workspaceService.setInstantiationService(instantiationService);
@@ -877,13 +970,14 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (testObject) {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('executable settings are not read from workspace', () => {
@@ -1038,6 +1132,56 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 			});
 	});
 
+	test('get launch configuration', () => {
+		const expectedLaunchConfiguration = {
+			'version': '0.1.0',
+			'configurations': [
+				{
+					'type': 'node',
+					'request': 'launch',
+					'name': 'Gulp Build',
+					'program': '${workspaceFolder}/node_modules/gulp/bin/gulp.js',
+					'stopOnEntry': true,
+					'args': [
+						'watch-extension:json-client'
+					],
+					'cwd': '${workspaceFolder}'
+				}
+			]
+		};
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'launch', value: expectedLaunchConfiguration }, true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => {
+				const actual = testObject.getValue('launch');
+				assert.deepEqual(actual, expectedLaunchConfiguration);
+			});
+	});
+
+	test('inspect launch configuration', () => {
+		const expectedLaunchConfiguration = {
+			'version': '0.1.0',
+			'configurations': [
+				{
+					'type': 'node',
+					'request': 'launch',
+					'name': 'Gulp Build',
+					'program': '${workspaceFolder}/node_modules/gulp/bin/gulp.js',
+					'stopOnEntry': true,
+					'args': [
+						'watch-extension:json-client'
+					],
+					'cwd': '${workspaceFolder}'
+				}
+			]
+		};
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'launch', value: expectedLaunchConfiguration }, true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => {
+				const actual = testObject.inspect('launch').workspace;
+				assert.deepEqual(actual, expectedLaunchConfiguration);
+			});
+	});
+
 	test('update user configuration', () => {
 		return testObject.updateValue('configurationService.workspace.testSetting', 'userValue', ConfigurationTarget.USER)
 			.then(() => assert.equal(testObject.getValue('configurationService.workspace.testSetting'), 'userValue'));
@@ -1088,10 +1232,10 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET));
 	});
 
-	test('update launch configuration in a workspace is not supported', () => {
+	test('update launch configuration in a workspace', () => {
 		const workspace = workspaceContextService.getWorkspace();
 		return testObject.updateValue('launch', { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true)
-			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET));
+			.then(() => assert.deepEqual(testObject.getValue('launch'), { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] }));
 	});
 
 	test('task configurations are not read from workspace', () => {
@@ -1099,15 +1243,6 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
 				const actual = testObject.inspect('tasks.version');
-				assert.equal(actual.workspace, void 0);
-			});
-	});
-
-	test('launch configurations are not read from workspace', () => {
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'launch', value: { 'version': '1.0' } }, true)
-			.then(() => testObject.reloadConfiguration())
-			.then(() => {
-				const actual = testObject.inspect('launch.version');
 				assert.equal(actual.workspace, void 0);
 			});
 	});

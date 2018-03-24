@@ -1,16 +1,11 @@
 {
 	"name": "php",
-	"version": "0.1.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
 	"publisher": "vscode",
 	"engines": {
 		"vscode": "0.10.x"
-	},
-	"activationEvents": [
-		"onLanguage:php"
-	],
-	"main": "./out/phpMain",
-	"dependencies": {
-		"vscode-nls": "^1.0.4"
 	},
 	"contributes": {
 		"languages": [
@@ -37,8 +32,13 @@
 		"grammars": [
 			{
 				"language": "php",
+				"scopeName": "source.php",
+				"path": "./syntaxes/php.tmLanguage.json"
+			},
+			{
+				"language": "php",
 				"scopeName": "text.html.php",
-				"path": "./syntaxes/php.tmLanguage.json",
+				"path": "./syntaxes/html.tmLanguage.json",
 				"embeddedLanguages": {
 					"text.html": "html",
 					"source.php": "php",
@@ -55,69 +55,9 @@
 				"language": "php",
 				"path": "./snippets/php.snippets.json"
 			}
-		],
-		"configuration": {
-			"title": "%configuration.title%",
-			"type": "object",
-			"order": 20,
-			"properties": {
-				"php.suggest.basic": {
-					"type": "boolean",
-					"default": true,
-					"description": "%configuration.suggest.basic%"
-				},
-				"php.validate.enable": {
-					"type": "boolean",
-					"default": true,
-					"description": "%configuration.validate.enable%"
-				},
-				"php.validate.executablePath": {
-					"type": [
-						"string",
-						"null"
-					],
-					"default": null,
-					"description": "%configuration.validate.executablePath%"
-				},
-				"php.validate.run": {
-					"type": "string",
-					"enum": [
-						"onSave",
-						"onType"
-					],
-					"default": "onSave",
-					"description": "%configuration.validate.run%"
-				}
-			}
-		},
-		"jsonValidation": [
-			{
-				"fileMatch": "composer.json",
-				"url": "https://getcomposer.org/schema.json"
-			}
-		],
-		"commands": [
-			{
-				"title": "%command.untrustValidationExecutable%",
-				"category": "%commands.categroy.php%",
-				"command": "php.untrustValidationExecutable"
-			}
-		],
-		"menus": {
-			"commandPalette": [
-				{
-					"command": "php.untrustValidationExecutable",
-					"when": "php.untrustValidationExecutableContext"
-				}
-			]
-		}
+		]
 	},
 	"scripts": {
-		"compile": "gulp compile-extension:php",
-		"watch": "gulp watch-extension:php",
 		"update-grammar": "node ./build/update-grammar.js"
-	},
-	"devDependencies": {
-		"@types/node": "7.0.43"
 	}
 }

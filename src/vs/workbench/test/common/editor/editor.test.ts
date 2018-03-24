@@ -14,9 +14,10 @@ import URI from 'vs/base/common/uri';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { Schemas } from 'vs/base/common/network';
 
 class ServiceAccessor {
-	constructor( @IUntitledEditorService public untitledEditorService: UntitledEditorService) {
+	constructor(@IUntitledEditorService public untitledEditorService: UntitledEditorService) {
 	}
 }
 
@@ -63,26 +64,26 @@ suite('Workbench - Editor', () => {
 
 		assert.equal(toResource(untitled).toString(), untitled.getResource().toString());
 		assert.equal(toResource(untitled, { supportSideBySide: true }).toString(), untitled.getResource().toString());
-		assert.equal(toResource(untitled, { filter: 'untitled' }).toString(), untitled.getResource().toString());
-		assert.equal(toResource(untitled, { filter: ['file', 'untitled'] }).toString(), untitled.getResource().toString());
-		assert.ok(!toResource(untitled, { filter: 'file' }));
+		assert.equal(toResource(untitled, { filter: Schemas.untitled }).toString(), untitled.getResource().toString());
+		assert.equal(toResource(untitled, { filter: [Schemas.file, Schemas.untitled] }).toString(), untitled.getResource().toString());
+		assert.ok(!toResource(untitled, { filter: Schemas.file }));
 
 		const file = new FileEditorInput(URI.file('/some/path.txt'));
 
 		assert.equal(toResource(file).toString(), file.getResource().toString());
 		assert.equal(toResource(file, { supportSideBySide: true }).toString(), file.getResource().toString());
-		assert.equal(toResource(file, { filter: 'file' }).toString(), file.getResource().toString());
-		assert.equal(toResource(file, { filter: ['file', 'untitled'] }).toString(), file.getResource().toString());
-		assert.ok(!toResource(file, { filter: 'untitled' }));
+		assert.equal(toResource(file, { filter: Schemas.file }).toString(), file.getResource().toString());
+		assert.equal(toResource(file, { filter: [Schemas.file, Schemas.untitled] }).toString(), file.getResource().toString());
+		assert.ok(!toResource(file, { filter: Schemas.untitled }));
 
 		const diffEditorInput = new DiffEditorInput('name', 'description', untitled, file);
 
 		assert.ok(!toResource(diffEditorInput));
-		assert.ok(!toResource(diffEditorInput, { filter: 'file' }));
+		assert.ok(!toResource(diffEditorInput, { filter: Schemas.file }));
 		assert.ok(!toResource(diffEditorInput, { supportSideBySide: false }));
 
 		assert.equal(toResource(file, { supportSideBySide: true }).toString(), file.getResource().toString());
-		assert.equal(toResource(file, { supportSideBySide: true, filter: 'file' }).toString(), file.getResource().toString());
-		assert.equal(toResource(file, { supportSideBySide: true, filter: ['file', 'untitled'] }).toString(), file.getResource().toString());
+		assert.equal(toResource(file, { supportSideBySide: true, filter: Schemas.file }).toString(), file.getResource().toString());
+		assert.equal(toResource(file, { supportSideBySide: true, filter: [Schemas.file, Schemas.untitled] }).toString(), file.getResource().toString());
 	});
 });

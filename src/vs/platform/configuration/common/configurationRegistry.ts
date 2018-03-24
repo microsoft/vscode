@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import Event, { Emitter } from 'vs/base/common/event';
+import * as nls from 'vs/nls';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/registry/common/platform';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import * as strings from 'vs/base/common/strings';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { deepClone } from 'vs/base/common/objects';
@@ -108,7 +108,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	private overrideIdentifiers: string[] = [];
 	private overridePropertyPattern: string;
 
-	private _onDidRegisterConfiguration: Emitter<string[]> = new Emitter<string[]>();
+	private readonly _onDidRegisterConfiguration: Emitter<string[]> = new Emitter<string[]>();
 	readonly onDidRegisterConfiguration: Event<string[]> = this._onDidRegisterConfiguration.event;
 
 	constructor() {
@@ -143,7 +143,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	public notifyConfigurationSchemaUpdated(configuration: IConfigurationNode) {
-		contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
+		contributionRegistry.notifySchemaChanged(editorConfigurationSchemaId);
 	}
 
 	public registerOverrideIdentifiers(overrideIdentifiers: string[]): void {
@@ -336,7 +336,13 @@ export function validateProperty(property: string): string {
 	return null;
 }
 
-export function getScopes(keys: string[]): ConfigurationScope[] {
+export function getScopes(): { [key: string]: ConfigurationScope } {
+	const scopes = {};
 	const configurationProperties = configurationRegistry.getConfigurationProperties();
-	return keys.map(key => configurationProperties[key].scope);
+	for (const key of Object.keys(configurationProperties)) {
+		scopes[key] = configurationProperties[key].scope;
+	}
+	scopes['launch'] = ConfigurationScope.RESOURCE;
+	scopes['task'] = ConfigurationScope.RESOURCE;
+	return scopes;
 }

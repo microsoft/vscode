@@ -10,7 +10,7 @@ import * as cp from 'child_process';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
-import processes = require('vs/base/node/processes');
+import * as processes from 'vs/base/node/processes';
 
 function fork(id: string): cp.ChildProcess {
 	const opts: any = {

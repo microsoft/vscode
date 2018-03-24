@@ -23,11 +23,12 @@ import { Range } from 'vs/editor/common/core/range';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ISingleEditOperation } from 'vs/editor/common/model';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 
-function alertFormattingEdits(edits: editorCommon.ISingleEditOperation[]): void {
+function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
 	edits = edits.filter(edit => edit.range);
 	if (!edits.length) {
@@ -160,7 +161,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 				return;
 			}
 
-			EditOperationsCommand.execute(this.editor, edits);
+			EditOperationsCommand.execute(this.editor, edits, true);
 			alertFormattingEdits(edits);
 
 		}, (err) => {
@@ -243,7 +244,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 			if (!state.validate(this.editor) || isFalsyOrEmpty(edits)) {
 				return;
 			}
-			EditOperationsCommand.execute(this.editor, edits);
+			EditOperationsCommand.execute(this.editor, edits, false);
 			alertFormattingEdits(edits);
 		});
 	}
@@ -263,7 +264,7 @@ export abstract class AbstractFormatAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 
 		const workerService = accessor.get(IEditorWorkerService);
-		const messageService = accessor.get(IMessageService);
+		const notificationService = accessor.get(INotificationService);
 
 		const formattingPromise = this._getFormattingEdits(editor);
 		if (!formattingPromise) {
@@ -279,22 +280,19 @@ export abstract class AbstractFormatAction extends EditorAction {
 				return;
 			}
 
-			EditOperationsCommand.execute(editor, edits);
+			EditOperationsCommand.execute(editor, edits, false);
 			alertFormattingEdits(edits);
 			editor.focus();
 		}, err => {
 			if (err instanceof Error && err.name === NoProviderError.Name) {
-				messageService.show(
-					Severity.Info,
-					nls.localize('no.provider', "Sorry, but there is no formatter for '{0}'-files installed.", editor.getModel().getLanguageIdentifier().language),
-				);
+				notificationService.info(nls.localize('no.provider', "There is no formatter for '{0}'-files installed.", editor.getModel().getLanguageIdentifier().language));
 			} else {
 				throw err;
 			}
 		});
 	}
 
-	protected abstract _getFormattingEdits(editor: ICodeEditor): TPromise<editorCommon.ISingleEditOperation[]>;
+	protected abstract _getFormattingEdits(editor: ICodeEditor): TPromise<ISingleEditOperation[]>;
 }
 
 export class FormatDocumentAction extends AbstractFormatAction {
@@ -306,7 +304,7 @@ export class FormatDocumentAction extends AbstractFormatAction {
 			alias: 'Format Document',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 				// secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D)],
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
@@ -319,7 +317,7 @@ export class FormatDocumentAction extends AbstractFormatAction {
 		});
 	}
 
-	protected _getFormattingEdits(editor: ICodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
+	protected _getFormattingEdits(editor: ICodeEditor): TPromise<ISingleEditOperation[]> {
 		const model = editor.getModel();
 		const { tabSize, insertSpaces } = model.getOptions();
 		return getDocumentFormattingEdits(model, { tabSize, insertSpaces });
@@ -335,7 +333,7 @@ export class FormatSelectionAction extends AbstractFormatAction {
 			alias: 'Format Code',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasNonEmptySelection),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_F)
 			},
 			menuOpts: {
@@ -346,7 +344,7 @@ export class FormatSelectionAction extends AbstractFormatAction {
 		});
 	}
 
-	protected _getFormattingEdits(editor: ICodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
+	protected _getFormattingEdits(editor: ICodeEditor): TPromise<ISingleEditOperation[]> {
 		const model = editor.getModel();
 		const { tabSize, insertSpaces } = model.getOptions();
 		return getDocumentRangeFormattingEdits(model, editor.getSelection(), { tabSize, insertSpaces });
@@ -367,7 +365,7 @@ CommandsRegistry.registerCommand('editor.action.format', accessor => {
 			constructor() {
 				super({} as IActionOptions);
 			}
-			_getFormattingEdits(editor: ICodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
+			_getFormattingEdits(editor: ICodeEditor): TPromise<ISingleEditOperation[]> {
 				const model = editor.getModel();
 				const editorSelection = editor.getSelection();
 				const { tabSize, insertSpaces } = model.getOptions();

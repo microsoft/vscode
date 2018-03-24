@@ -4,13 +4,9 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/mmims/language-batchfile/commit/40b605c75db3967a24b7015f6d3a885360b84e28",
-	"scopeName": "source.batchfile",
+	"version": "https://github.com/mmims/language-batchfile/commit/9b2d868a43d6a04a4dc27cb31f907b960a4fdab1",
 	"name": "Batch File",
-	"fileTypes": [
-		"bat",
-		"cmd"
-	],
+	"scopeName": "source.batchfile",
 	"patterns": [
 		{
 			"include": "#commands"
@@ -114,7 +110,7 @@
 					"include": "#parens"
 				},
 				{
-					"begin": "(\")\\s*([^ ][^=]*)(=)\"?",
+					"begin": "(\")\\s*([^ ][^=]*)(=)",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.string.begin.batchfile"
@@ -129,9 +125,10 @@
 					"end": "\"",
 					"endCaptures": {
 						"0": {
-							"name": "string.quoted.double.batchfile"
+							"name": "punctuation.definition.string.end.batchfile"
 						}
 					},
+					"name": "string.quoted.double.batchfile",
 					"patterns": [
 						{
 							"include": "#variables"
@@ -454,11 +451,15 @@
 				{
 					"begin": "\\(",
 					"beginCaptures": {
-						"0": "punctuation.section.group.begin.batchfile"
+						"0": {
+							"name": "punctuation.section.group.begin.batchfile"
+						}
 					},
 					"end": "\\)",
 					"endCaptures": {
-						"0": "punctuation.section.group.end.batchfile"
+						"0": {
+							"name": "punctuation.section.group.end.batchfile"
+						}
 					},
 					"name": "meta.group.batchfile",
 					"patterns": [
@@ -494,6 +495,10 @@
 					"name": "string.quoted.double.batchfile",
 					"patterns": [
 						{
+							"match": "%%",
+							"name": "constant.character.escape.batchfile"
+						},
+						{
 							"include": "#variables"
 						}
 					]
@@ -507,9 +512,11 @@
 					"captures": {
 						"1": {
 							"name": "punctuation.definition.variable.batchfile"
+						},
+						"2": {
+							"name": "variable.parameter.batchfile"
 						}
-					},
-					"name": "variable.parameter.batchfile"
+					}
 				},
 				{
 					"include": "#variable"

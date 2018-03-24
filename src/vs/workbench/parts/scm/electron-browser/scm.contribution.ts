@@ -45,10 +45,10 @@ const viewletDescriptor = new ViewletDescriptor(
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
 	.registerViewlet(viewletDescriptor);
 
-Registry.as(WorkbenchExtensions.Workbench)
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Running);
 
-Registry.as(WorkbenchExtensions.Workbench)
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(StatusBarController, LifecyclePhase.Running);
 
 // Register Action to Open Viewlet
@@ -80,11 +80,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 'all',
 			description: localize('diffDecorations', "Controls diff decorations in the editor.")
 		},
-		'scm.inputCounter': {
-			type: 'string',
-			enum: ['always', 'warn', 'off'],
-			default: 'warn',
-			description: localize('inputCounter', "Controls when to display the input counter.")
+		'scm.diffDecorationsGutterWidth': {
+			type: 'number',
+			enum: [1, 2, 3, 4, 5],
+			default: 3,
+			description: localize('diffGutterWidth', "Controls the width(px) of diff decorations in gutter (added & modified).")
 		}
 	}
 });

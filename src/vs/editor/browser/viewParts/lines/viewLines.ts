@@ -455,6 +455,10 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 	// --- implementation
 
+	public updateLineWidths(): void {
+		this._updateLineWidths(false);
+	}
+
 	/**
 	 * Updates the max line width if it is fast to compute.
 	 * Returns true if all lines were taken into account.

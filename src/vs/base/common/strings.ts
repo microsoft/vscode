@@ -712,3 +712,15 @@ export function fuzzyContains(target: string, query: string): boolean {
 
 	return true;
 }
+
+export function containsUppercaseCharacter(target: string, ignoreEscapedChars = false): boolean {
+	if (!target) {
+		return false;
+	}
+
+	if (ignoreEscapedChars) {
+		target = target.replace(/\\./g, '');
+	}
+
+	return target.toLowerCase() !== target;
+}

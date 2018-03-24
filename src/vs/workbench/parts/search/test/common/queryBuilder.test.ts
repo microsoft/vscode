@@ -14,7 +14,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceContextService, Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { QueryBuilder, ISearchPathsResult } from 'vs/workbench/parts/search/common/queryBuilder';
-import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { TestContextService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
+
 
 import { ISearchQuery, QueryType, IPatternInfo, IFolderQuery } from 'vs/platform/search/common/search';
 
@@ -43,6 +45,8 @@ suite('QueryBuilder', () => {
 		mockWorkspace = new Workspace('workspace', 'workspace', toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }]));
 		mockContextService.setWorkspace(mockWorkspace);
 		instantiationService.stub(IWorkspaceContextService, mockContextService);
+
+		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 
 		queryBuilder = instantiationService.createInstance(QueryBuilder);
 	});
@@ -596,6 +600,146 @@ suite('QueryBuilder', () => {
 				]
 			];
 			cases.forEach(testIncludesDataItem);
+		});
+	});
+
+	suite('smartCase', () => {
+		test('no flags -> no change', () => {
+			const query = queryBuilder.text(
+				{
+					pattern: 'a'
+				},
+				[]);
+
+			assert(!query.contentPattern.isCaseSensitive);
+		});
+
+		test('maintains isCaseSensitive when smartCase not set', () => {
+			const query = queryBuilder.text(
+				{
+					pattern: 'a',
+					isCaseSensitive: true
+				},
+				[]);
+
+			assert(query.contentPattern.isCaseSensitive);
+		});
+
+		test('maintains isCaseSensitive when smartCase set', () => {
+			const query = queryBuilder.text(
+				{
+					pattern: 'a',
+					isCaseSensitive: true,
+					isSmartCase: true
+				},
+				[]);
+
+			assert(query.contentPattern.isCaseSensitive);
+		});
+
+		test('smartCase determines not case sensitive', () => {
+			const query = queryBuilder.text(
+				{
+					pattern: 'abcd',
+					isSmartCase: true
+				},
+				[]);
+
+			assert(!query.contentPattern.isCaseSensitive);
+		});
+
+		test('smartCase determines case sensitive', () => {
+			const query = queryBuilder.text(
+				{
+					pattern: 'abCd',
+					isSmartCase: true
+				},
+				[]);
+
+			assert(query.contentPattern.isCaseSensitive);
+		});
+
+		test('smartCase determines not case sensitive (regex)', () => {
+			const query = queryBuilder.text(
+				{
+					pattern: 'ab\\Sd',
+					isRegExp: true,
+					isSmartCase: true
+				},
+				[]);
+
+			assert(!query.contentPattern.isCaseSensitive);
+		});
+
+		test('smartCase determines case sensitive (regex)', () => {
+			const query = queryBuilder.text(
+				{
+					pattern: 'ab[A-Z]d',
+					isRegExp: true,
+					isSmartCase: true
+				},
+				[]);
+
+			assert(query.contentPattern.isCaseSensitive);
+		});
+	});
+
+	suite('file', () => {
+		test('simple file query', () => {
+			const cacheKey = 'asdf';
+			const query = queryBuilder.file([ROOT_1_URI], {
+				cacheKey,
+				sortByScore: true
+			});
+
+			assert.equal(query.folderQueries.length, 1);
+			assert.equal(query.cacheKey, cacheKey);
+			assert(query.sortByScore);
+		});
+	});
+
+	suite('parseIncludeExcludePattern', () => {
+		test('nothing', () => {
+			assert.deepEqual(
+				queryBuilder.parseIncludeExcludePattern(''),
+				{});
+		});
+
+		test('includes', () => {
+			assert.deepEqual(
+				queryBuilder.parseIncludeExcludePattern('src'),
+				{
+					includePattern: 'src'
+				});
+
+			assert.deepEqual(
+				queryBuilder.parseIncludeExcludePattern('src,         test'),
+				{
+					includePattern: 'src, test'
+				});
+		});
+
+		test('excludes', () => {
+			assert.deepEqual(
+				queryBuilder.parseIncludeExcludePattern('!src'),
+				{
+					excludePattern: 'src'
+				});
+
+			assert.deepEqual(
+				queryBuilder.parseIncludeExcludePattern('!src,         !test'),
+				{
+					excludePattern: 'src, test'
+				});
+		});
+
+		test('includes and excludes', () => {
+			assert.deepEqual(
+				queryBuilder.parseIncludeExcludePattern('!src, test, !foo, bar'),
+				{
+					includePattern: 'test, bar',
+					excludePattern: 'src, foo'
+				});
 		});
 	});
 });

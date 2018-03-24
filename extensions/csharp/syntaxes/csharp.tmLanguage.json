@@ -4,13 +4,9 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/a334939a6493290f874264712447107bc9545835",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/ca22c5211b87a6a1a8fd5356895237bb821df728",
 	"name": "C#",
 	"scopeName": "source.cs",
-	"fileTypes": [
-		"cs"
-	],
-	"uuid": "f7de61e2-bdde-4e2a-a139-8221b179584e",
 	"patterns": [
 		{
 			"include": "#preprocessor"
@@ -3634,7 +3630,7 @@
 		},
 		"ref-modifier": {
 			"name": "storage.modifier.cs",
-			"match": "ref"
+			"match": "\\b(ref)\\b"
 		},
 		"tuple-type": {
 			"begin": "\\(",

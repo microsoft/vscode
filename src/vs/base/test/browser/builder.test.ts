@@ -8,8 +8,8 @@ import * as assert from 'assert';
 import { Build, Builder, MultiBuilder, $, bindElement, withElement, setPropertyOnElement, getPropertyFromElement } from 'vs/base/browser/builder';
 import * as Types from 'vs/base/common/types';
 import * as DomUtils from 'vs/base/browser/dom';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { timeout } from 'vs/base/common/async';
 
 let withElementsBySelector = function (selector: string, offdom: boolean = false) {
 	let elements = window.document.querySelectorAll(selector);
@@ -612,14 +612,6 @@ suite('Builder', () => {
 
 		assert.strictEqual(b.style('width'), '100px');
 		assert.strictEqual(b.style('height'), '200px');
-
-		b.minSize(300, 400);
-		b.maxSize(500, 600);
-
-		assert.strictEqual(b.style('minWidth'), '300px');
-		assert.strictEqual(b.style('minHeight'), '400px');
-		assert.strictEqual(b.style('maxWidth'), '500px');
-		assert.strictEqual(b.style('maxHeight'), '600px');
 	});
 
 	test('Builder.show() and .hide()', function () {
@@ -627,78 +619,41 @@ suite('Builder', () => {
 		b.div();
 
 		b.show();
-		assert(!b.hasClass('builder-hidden'));
+		assert(!b.hasClass('monaco-builder-hidden'));
 		assert(!b.isHidden());
 		b.hide();
 		assert(b.isHidden());
-		assert(!b.hasClass('builder-visible'));
+		assert(!b.hasClass('monaco-builder-visible'));
 		b.show();
 		b.hide();
-		assert(b.hasClass('builder-hidden'));
+		assert(b.hasClass('monaco-builder-hidden'));
 		assert(b.isHidden());
 	});
 
-	test('Builder.showDelayed()', function (done) {
+	test('Builder.showDelayed()', function () {
 		let b = Build.withElementById(fixtureId);
 		b.div().hide();
 
 		b.showDelayed(20);
-		assert(b.hasClass('builder-hidden'));
+		assert(b.hasClass('monaco-builder-hidden'));
 
-		TPromise.timeout(30).then(() => {
-			assert(!b.hasClass('builder-hidden'));
-			done();
+		return timeout(30).then(() => {
+			assert(!b.hasClass('monaco-builder-hidden'));
 		});
 	});
 
-	test('Builder.showDelayed() but interrupted', function (done) {
+	test('Builder.showDelayed() but interrupted', function () {
 		let b = Build.withElementById(fixtureId);
 		b.div().hide();
 
 		b.showDelayed(20);
-		assert(b.hasClass('builder-hidden'));
+		assert(b.hasClass('monaco-builder-hidden'));
 
 		b.hide(); // Should cancel the visibility promise
 
-		TPromise.timeout(30).then(() => {
-			assert(b.hasClass('builder-hidden'));
-			done();
+		return timeout(30).then(() => {
+			assert(b.hasClass('monaco-builder-hidden'));
 		});
-	});
-
-	test('Builder.border(), .borderTop(), .borderBottom(), .borderLeft(), .borderRight()', function () {
-		let b = Build.withElementById(fixtureId);
-		b.div();
-
-		b.border('1px solid red');
-
-		assert.strictEqual(b.style('border-width'), '1px');
-		assert.strictEqual(b.style('border-color'), 'red');
-		assert.strictEqual(b.style('border-style'), 'solid');
-
-		b.borderTop('2px dotted yellow');
-
-		assert.strictEqual(b.style('border-top-width'), '2px');
-		assert.strictEqual(b.style('border-top-color'), 'yellow');
-		assert.strictEqual(b.style('border-top-style'), 'dotted');
-
-		b.borderRight('3px dashed green');
-
-		assert.strictEqual(b.style('border-right-width'), '3px');
-		assert.strictEqual(b.style('border-right-color'), 'green');
-		assert.strictEqual(b.style('border-right-style'), 'dashed');
-
-		b.borderBottom('4px solid blue');
-
-		assert.strictEqual(b.style('border-bottom-width'), '4px');
-		assert.strictEqual(b.style('border-bottom-color'), 'blue');
-		assert.strictEqual(b.style('border-bottom-style'), 'solid');
-
-		b.borderLeft('5px dashed white');
-
-		assert.strictEqual(b.style('border-left-width'), '5px');
-		assert.strictEqual(b.style('border-left-color'), 'white');
-		assert.strictEqual(b.style('border-left-style'), 'dashed');
 	});
 
 	test('Builder.innerHtml()', function () {

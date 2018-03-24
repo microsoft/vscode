@@ -5,14 +5,16 @@
 'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 
 export enum ContextKeyExprType {
 	Defined = 1,
 	Not = 2,
 	Equals = 3,
 	NotEquals = 4,
-	And = 5
+	And = 5,
+	Regex = 6
 }
 
 export abstract class ContextKeyExpr {
@@ -27,6 +29,10 @@ export abstract class ContextKeyExpr {
 
 	public static notEquals(key: string, value: any): ContextKeyExpr {
 		return new ContextKeyNotEqualsExpr(key, value);
+	}
+
+	public static regex(key: string, value: RegExp): ContextKeyExpr {
+		return new ContextKeyRegexExpr(key, value);
 	}
 
 	public static not(key: string): ContextKeyExpr {
@@ -60,6 +66,11 @@ export abstract class ContextKeyExpr {
 			return new ContextKeyEqualsExpr(pieces[0].trim(), this._deserializeValue(pieces[1]));
 		}
 
+		if (serializedOne.indexOf('=~') >= 0) {
+			let pieces = serializedOne.split('=~');
+			return new ContextKeyRegexExpr(pieces[0].trim(), this._deserializeRegexValue(pieces[1]));
+		}
+
 		if (/^\!\s*/.test(serializedOne)) {
 			return new ContextKeyNotExpr(serializedOne.substr(1).trim());
 		}
@@ -86,6 +97,30 @@ export abstract class ContextKeyExpr {
 		return serializedValue;
 	}
 
+	private static _deserializeRegexValue(serializedValue: string): RegExp {
+
+		if (isFalsyOrWhitespace(serializedValue)) {
+			console.warn('missing regexp-value for =~-expression');
+			return null;
+		}
+
+		let start = serializedValue.indexOf('/');
+		let end = serializedValue.lastIndexOf('/');
+		if (start === end || start < 0 /* || to < 0 */) {
+			console.warn(`bad regexp-value '${serializedValue}', missing /-enclosure`);
+			return null;
+		}
+
+		let value = serializedValue.slice(start + 1, end);
+		let caseIgnoreFlag = serializedValue[end + 1] === 'i' ? 'i' : '';
+		try {
+			return new RegExp(value, caseIgnoreFlag);
+		} catch (e) {
+			console.warn(`bad regexp-value '${serializedValue}', parse error: ${e}`);
+			return null;
+		}
+	}
+
 	public abstract getType(): ContextKeyExprType;
 	public abstract equals(other: ContextKeyExpr): boolean;
 	public abstract evaluate(context: IContext): boolean;
@@ -109,6 +144,8 @@ function cmp(a: ContextKeyExpr, b: ContextKeyExpr): number {
 			return (<ContextKeyEqualsExpr>a).cmp(<ContextKeyEqualsExpr>b);
 		case ContextKeyExprType.NotEquals:
 			return (<ContextKeyNotEqualsExpr>a).cmp(<ContextKeyNotEqualsExpr>b);
+		case ContextKeyExprType.Regex:
+			return (<ContextKeyRegexExpr>a).cmp(<ContextKeyRegexExpr>b);
 		default:
 			throw new Error('Unknown ContextKeyExpr!');
 	}
@@ -320,6 +357,58 @@ export class ContextKeyNotExpr implements ContextKeyExpr {
 	}
 }
 
+export class ContextKeyRegexExpr implements ContextKeyExpr {
+
+	constructor(private key: string, private regexp: RegExp) {
+		//
+	}
+
+	public getType(): ContextKeyExprType {
+		return ContextKeyExprType.Regex;
+	}
+
+	public cmp(other: ContextKeyRegexExpr): number {
+		if (this.key < other.key) {
+			return -1;
+		}
+		if (this.key > other.key) {
+			return 1;
+		}
+		const source = this.regexp ? this.regexp.source : undefined;
+		if (source < other.regexp.source) {
+			return -1;
+		}
+		if (source > other.regexp.source) {
+			return 1;
+		}
+		return 0;
+	}
+
+	public equals(other: ContextKeyExpr): boolean {
+		if (other instanceof ContextKeyRegexExpr) {
+			const source = this.regexp ? this.regexp.source : undefined;
+			return (this.key === other.key && source === other.regexp.source);
+		}
+		return false;
+	}
+
+	public evaluate(context: IContext): boolean {
+		return this.regexp ? this.regexp.test(context.getValue(this.key)) : false;
+	}
+
+	public normalize(): ContextKeyExpr {
+		return this;
+	}
+
+	public serialize(): string {
+		return `${this.key} =~ /${this.regexp ? this.regexp.source : '<invalid>'}/${this.regexp.ignoreCase ? 'i' : ''}`;
+	}
+
+	public keys(): string[] {
+		return [this.key];
+	}
+}
+
 export class ContextKeyAndExpr implements ContextKeyExpr {
 	public readonly expr: ContextKeyExpr[];
 
@@ -438,6 +527,10 @@ export class RawContextKey<T> extends ContextKeyDefinedExpr {
 
 	public isEqualTo(value: string): ContextKeyExpr {
 		return ContextKeyExpr.equals(this.key, value);
+	}
+
+	public notEqualsTo(value: string): ContextKeyExpr {
+		return ContextKeyExpr.notEquals(this.key, value);
 	}
 }
 

@@ -5,13 +5,13 @@
 
 'use strict';
 
-import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, CancellationTokenSource, StatusBarAlignment } from 'vscode';
+import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, CancellationTokenSource, StatusBarAlignment, MessageOptions } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
-import { Repository, Resource, Status, CommitOptions, ResourceGroupType, RepositoryState } from './repository';
+import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
-import { grep, eventToPromise, isDescendant } from './util';
-import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
+import { grep, isDescendant } from './util';
+import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange, getModifiedRange } from './staging';
 import * as path from 'path';
 import { lstat, Stats } from 'fs';
 import * as os from 'os';
@@ -237,7 +237,7 @@ export class CommandCenter {
 			}
 
 			const { size, object } = await repository.lstree(gitRef, uri.fsPath);
-			const { mimetype, encoding } = await repository.detectObjectType(object);
+			const { mimetype } = await repository.detectObjectType(object);
 
 			if (mimetype === 'text/plain') {
 				return toGitUri(uri, ref);
@@ -533,6 +533,11 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.openFile2')
+	async openFile2(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		this.openFile(arg, ...resourceStates);
+	}
+
 	@command('git.openHEADFile')
 	async openHEADFile(arg?: Resource | Uri): Promise<void> {
 		let resource: Resource | undefined = undefined;
@@ -731,10 +736,7 @@ export class CommandCenter {
 		const modifiedDocument = textEditor.document;
 		const selections = textEditor.selections;
 		const selectedChanges = changes.filter(change => {
-			const modifiedRange = change.modifiedEndLineNumber === 0
-				? new Range(modifiedDocument.lineAt(change.modifiedStartLineNumber - 1).range.end, modifiedDocument.lineAt(change.modifiedStartLineNumber).range.start)
-				: new Range(modifiedDocument.lineAt(change.modifiedStartLineNumber - 1).range.start, modifiedDocument.lineAt(change.modifiedEndLineNumber - 1).range.end);
-
+			const modifiedRange = getModifiedRange(modifiedDocument, change);
 			return selections.every(selection => !selection.intersection(modifiedRange));
 		});
 
@@ -961,26 +963,30 @@ export class CommandCenter {
 		getCommitMessage: () => Promise<string | undefined>,
 		opts?: CommitOptions
 	): Promise<boolean> {
-		const unsavedTextDocuments = workspace.textDocuments
-			.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
+		const config = workspace.getConfiguration('git');
+		const promptToSaveFilesBeforeCommit = config.get<boolean>('promptToSaveFilesBeforeCommit') === true;
 
-		if (unsavedTextDocuments.length > 0) {
-			const message = unsavedTextDocuments.length === 1
-				? localize('unsaved files single', "The following file is unsaved: {0}.\n\nWould you like to save it before comitting?", path.basename(unsavedTextDocuments[0].uri.fsPath))
-				: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before comitting?", unsavedTextDocuments.length);
-			const saveAndCommit = localize('save and commit', "Save All & Commit");
-			const commit = localize('commit', "Commit Anyway");
-			const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
+		if (promptToSaveFilesBeforeCommit) {
+			const unsavedTextDocuments = workspace.textDocuments
+				.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
 
-			if (pick === saveAndCommit) {
-				await Promise.all(unsavedTextDocuments.map(d => d.save()));
-				await repository.status();
-			} else if (pick !== commit) {
-				return false; // do not commit on cancel
+			if (unsavedTextDocuments.length > 0) {
+				const message = unsavedTextDocuments.length === 1
+					? localize('unsaved files single', "The following file is unsaved: {0}.\n\nWould you like to save it before comitting?", path.basename(unsavedTextDocuments[0].uri.fsPath))
+					: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before comitting?", unsavedTextDocuments.length);
+				const saveAndCommit = localize('save and commit', "Save All & Commit");
+				const commit = localize('commit', "Commit Anyway");
+				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
+
+				if (pick === saveAndCommit) {
+					await Promise.all(unsavedTextDocuments.map(d => d.save()));
+					await repository.status();
+				} else if (pick !== commit) {
+					return false; // do not commit on cancel
+				}
 			}
 		}
 
-		const config = workspace.getConfiguration('git');
 		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
 		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
 		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
@@ -1044,13 +1050,6 @@ export class CommandCenter {
 			if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
 				value = (await repository.getCommit(repository.HEAD.commit)).message;
 			}
-
-			const getPreviousCommitMessage = async () => {
-				//Only return the previous commit message if it's an amend commit and the repo already has a commit
-				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
-					return (await repository.getCommit('HEAD')).message;
-				}
-			};
 
 			return await window.showInputBox({
 				value,
@@ -1334,7 +1333,7 @@ export class CommandCenter {
 
 		const remoteCharCnt = remotePick.label.length;
 
-		repository.pull(false, remotePick.label, branchPick.label.slice(remoteCharCnt + 1));
+		repository.pullFrom(false, remotePick.label, branchPick.label.slice(remoteCharCnt + 1));
 	}
 
 	@command('git.pull', { repository: true })
@@ -1346,7 +1345,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.pull();
+		await repository.pull(repository.HEAD);
 	}
 
 	@command('git.pullRebase', { repository: true })
@@ -1358,7 +1357,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.pullWithRebase();
+		await repository.pullWithRebase(repository.HEAD);
 	}
 
 	@command('git.push', { repository: true })
@@ -1376,7 +1375,7 @@ export class CommandCenter {
 		}
 
 		try {
-			await repository.push();
+			await repository.push(repository.HEAD);
 		} catch (err) {
 			if (err.gitErrorCode !== GitErrorCodes.NoUpstreamBranch) {
 				throw err;
@@ -1444,9 +1443,9 @@ export class CommandCenter {
 		const shouldPrompt = config.get<boolean>('confirmSync') === true;
 
 		if (shouldPrompt) {
-			const message = localize('sync is unpredictable', "This action will push and pull commits to and from '{0}'.", HEAD.upstream);
+			const message = localize('sync is unpredictable', "This action will push and pull commits to and from '{0}/{1}'.", HEAD.upstream.remote, HEAD.upstream.name);
 			const yes = localize('ok', "OK");
-			const neverAgain = localize('never again', "OK, Never Show Again");
+			const neverAgain = localize('never again', "OK, Don't Show Again");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
 
 			if (pick === neverAgain) {
@@ -1457,9 +1456,9 @@ export class CommandCenter {
 		}
 
 		if (rebase) {
-			await repository.syncRebase();
+			await repository.syncRebase(HEAD);
 		} else {
-			await repository.sync();
+			await repository.sync(HEAD);
 		}
 	}
 
@@ -1477,7 +1476,7 @@ export class CommandCenter {
 				return;
 			}
 
-			await repository.sync();
+			await repository.sync(HEAD);
 		}));
 	}
 
@@ -1636,6 +1635,10 @@ export class CommandCenter {
 			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });
 
 			return result.catch(async err => {
+				const options: MessageOptions = {
+					modal: err.gitErrorCode === GitErrorCodes.DirtyWorkTree
+				};
+
 				let message: string;
 
 				switch (err.gitErrorCode) {
@@ -1665,9 +1668,11 @@ export class CommandCenter {
 					return;
 				}
 
+				options.modal = true;
+
 				const outputChannel = this.outputChannel as OutputChannel;
 				const openOutputChannelChoice = localize('open git log', "Open Git Log");
-				const choice = await window.showErrorMessage(message, openOutputChannelChoice);
+				const choice = await window.showErrorMessage(message, options, openOutputChannelChoice);
 
 				if (choice === openOutputChannelChoice) {
 					outputChannel.show();

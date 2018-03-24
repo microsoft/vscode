@@ -13,12 +13,13 @@
     "documentdb": "1.13.0",
     "mime": "^1.3.4",
     "minimist": "^1.2.0",
-    "typescript": "2.6.1",
+    "typescript": "2.7.2",
     "xml2js": "^0.4.17"
   },
   "scripts": {
-    "compile": "tsc",
-    "watch": "tsc --watch",
-    "postinstall": "npm run compile"
+    "compile": "tsc -p tsconfig.build.json",
+    "watch": "tsc -p tsconfig.build.json --watch",
+    "postinstall": "npm run compile",
+    "npmCheckJs": "tsc --noEmit"
   }
 }

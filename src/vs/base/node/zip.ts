@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as path from 'path';
 import { createWriteStream } from 'fs';
 import { Readable } from 'stream';
 import { nfcall, ninvoke, SimpleThrottler } from 'vs/base/common/async';
 import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { open as openZip, Entry, ZipFile } from 'yauzl';
+import { open as _openZip, Entry, ZipFile } from 'yauzl';
 
 export interface IExtractOptions {
 	overwrite?: boolean;
@@ -26,12 +26,47 @@ interface IOptions {
 	sourcePathRegex: RegExp;
 }
 
+export enum ExtractErrorType {
+	Undefined,
+	CorruptZip
+}
+
+export class ExtractError extends Error {
+
+	readonly type: ExtractErrorType;
+	readonly cause: Error;
+
+	constructor(type: ExtractErrorType, cause: Error) {
+		let message = cause.message;
+
+		switch (type) {
+			case ExtractErrorType.CorruptZip: message = `Corrupt ZIP: ${message}`; break;
+		}
+
+		super(message);
+		this.type = type;
+		this.cause = cause;
+	}
+}
+
 function modeFromEntry(entry: Entry) {
 	let attr = entry.externalFileAttributes >> 16 || 33188;
 
 	return [448 /* S_IRWXU */, 56 /* S_IRWXG */, 7 /* S_IRWXO */]
 		.map(mask => attr & mask)
 		.reduce((a, b) => a + b, attr & 61440 /* S_IFMT */);
+}
+
+function toExtractError(err: Error): ExtractError {
+	let type = ExtractErrorType.CorruptZip;
+
+	console.log('WHAT');
+
+	if (/end of central directory record signature not found/.test(err.message)) {
+		type = ExtractErrorType.CorruptZip;
+	}
+
+	return new ExtractError(type, err);
 }
 
 function extractEntry(stream: Readable, fileName: string, mode: number, targetPath: string, options: IOptions): TPromise<void> {
@@ -41,7 +76,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 
 	return mkdirp(targetDirName).then(() => new TPromise((c, e) => {
 		let istream = createWriteStream(targetFileName, { mode });
-		istream.once('finish', () => c(null));
+		istream.once('close', () => c(null));
 		istream.once('error', e);
 		stream.once('error', e);
 		stream.pipe(istream);
@@ -74,13 +109,18 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): TP
 
 			last = throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options)));
 		});
-	});
+	}).then(null, err => TPromise.wrapError(toExtractError(err)));
+}
+
+function openZip(zipFile: string): TPromise<ZipFile> {
+	return nfcall<ZipFile>(_openZip, zipFile)
+		.then(null, err => TPromise.wrapError(toExtractError(err)));
 }
 
 export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}): TPromise<void> {
 	const sourcePathRegex = new RegExp(options.sourcePath ? `^${options.sourcePath}` : '');
 
-	let promise = nfcall<ZipFile>(openZip, zipPath);
+	let promise = openZip(zipPath);
 
 	if (options.overwrite) {
 		promise = promise.then(zipfile => rimraf(targetPath).then(() => zipfile));
@@ -90,7 +130,7 @@ export function extract(zipPath: string, targetPath: string, options: IExtractOp
 }
 
 function read(zipPath: string, filePath: string): TPromise<Readable> {
-	return nfcall(openZip, zipPath).then((zipfile: ZipFile) => {
+	return openZip(zipPath).then(zipfile => {
 		return new TPromise<Readable>((c, e) => {
 			zipfile.on('entry', (entry: Entry) => {
 				if (entry.fileName === filePath) {

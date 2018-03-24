@@ -27,10 +27,6 @@
 	height: calc(100% - 38px);
 }
 
-.extensions-viewlet > .extensions .extensions-list > .monaco-list {
-	height: auto;
-}
-
 .extensions-viewlet > .extensions .list-actionbar-container .monaco-action-bar .action-item > .octicon {
 	font-size: 12px;
 	line-height: 1;
@@ -77,7 +73,6 @@
 	position: absolute;
 	top: 1px;
 	left: 1px;
-	color: white;
 	font-size: 90%;
 }
 
@@ -196,10 +191,14 @@
 	opacity: 0.9;
 }
 
-.extensions-viewlet > .extensions .extension.disabled > .icon,
-.extensions-viewlet > .extensions .extension.disabled > .details > .header-container,
-.extensions-viewlet > .extensions .extension.disabled > .details > .description
-.extensions-viewlet > .extensions .extension.disabled > .details > .footer > .author {
+.vs .extensions-viewlet > .extensions .extension.disabled > .icon,
+.vs-dark .extensions-viewlet > .extensions .extension.disabled > .icon,
+.vs .extensions-viewlet > .extensions .extension.disabled > .details > .header-container,
+.vs-dark .extensions-viewlet > .extensions .extension.disabled > .details > .header-container,
+.vs .extensions-viewlet > .extensions .extension.disabled > .details > .description,
+.vs-dark .extensions-viewlet > .extensions .extension.disabled > .details > .description,
+.vs .extensions-viewlet > .extensions .extension.disabled > .details > .footer > .author,
+.vs-dark .extensions-viewlet > .extensions .extension.disabled > .details > .footer > .author {
 	opacity: 0.5;
 }
 

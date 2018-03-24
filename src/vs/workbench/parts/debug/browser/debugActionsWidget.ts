@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!vs/workbench/parts/debug/browser/media/debugActionsWidget';
+import 'vs/css!./media/debugActionsWidget';
 import * as errors from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import * as browser from 'vs/base/browser/browser';
-import severity from 'vs/base/common/severity';
 import * as builder from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
@@ -21,7 +20,6 @@ import { AbstractDebugAction, PauseAction, ContinueAction, StepBackAction, Rever
 import { FocusProcessActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Themable } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -29,6 +27,9 @@ import { registerColor, contrastBorder, widgetShadow } from 'vs/platform/theme/c
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const $ = builder.$;
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
@@ -51,12 +52,13 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	private actionBar: ActionBar;
 	private allActions: AbstractDebugAction[];
 	private activeActions: AbstractDebugAction[];
+	private updateScheduler: RunOnceScheduler;
 
 	private isVisible: boolean;
 	private isBuilt: boolean;
 
 	constructor(
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IPartService private partService: IPartService,
@@ -64,7 +66,8 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(themeService);
 
@@ -80,12 +83,27 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action: IAction) => {
 				if (action.id === FocusProcessAction.ID) {
-					return new FocusProcessActionItem(action, this.debugService, this.themeService);
+					return new FocusProcessActionItem(action, this.debugService, this.themeService, contextViewService);
 				}
 
 				return null;
 			}
 		});
+
+		this.updateScheduler = new RunOnceScheduler(() => {
+			const state = this.debugService.state;
+			if (state === State.Inactive || state === State.Initializing || this.configurationService.getValue<IDebugConfiguration>('debug').hideActionBar) {
+				return this.hide();
+			}
+
+			const actions = this.getActions();
+			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id)) {
+				this.actionBar.clear();
+				this.actionBar.push(actions, { icon: true, label: false });
+				this.activeActions = actions;
+			}
+			this.show();
+		}, 20);
 
 		this.updateStyles();
 
@@ -97,12 +115,13 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.debugService.onDidChangeState(state => this.update(state)));
+		this.toUnbind.push(this.debugService.onDidChangeState(() => this.updateScheduler.schedule()));
+		this.toUnbind.push(this.debugService.getViewModel().onDidFocusProcess(() => this.updateScheduler.schedule()));
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onDidConfigurationChange(e)));
 		this.toUnbind.push(this.actionBar.actionRunner.onDidRun((e: IRunEvent) => {
 			// check for error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
-				this.messageService.show(severity.Error, e.error);
+				this.notificationService.error(e.error);
 			}
 
 			// log in telemetry
@@ -199,22 +218,8 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 	private onDidConfigurationChange(event: IConfigurationChangeEvent): void {
 		if (event.affectsConfiguration('debug.hideActionBar')) {
-			this.update(this.debugService.state);
+			this.updateScheduler.schedule();
 		}
-	}
-
-	private update(state: State): void {
-		if (state === State.Inactive || state === State.Initializing || this.configurationService.getValue<IDebugConfiguration>('debug').hideActionBar) {
-			return this.hide();
-		}
-
-		const actions = this.getActions();
-		if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id)) {
-			this.actionBar.clear();
-			this.actionBar.push(actions, { icon: true, label: false });
-			this.activeActions = actions;
-		}
-		this.show();
 	}
 
 	private show(): void {
