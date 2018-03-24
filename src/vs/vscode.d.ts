@@ -1528,6 +1528,14 @@ declare module 'vscode' {
 		 * A human readable string which is rendered less prominent.
 		 */
 		detail?: string;
+
+		/**
+		 * Optional flag indicating if this item is selected initially.
+		 * (Only honored when the picker allows multiple selections.)
+		 *
+		 * @see [QuickPickOptions.canSelectMany](#QuickPickOptions.canSelectMany)
+		 */
+		selected?: boolean;
 	}
 
 	/**
@@ -1555,28 +1563,14 @@ declare module 'vscode' {
 		ignoreFocusOut?: boolean;
 
 		/**
-		 * An optional flag to make the picker multi-select, if true the result is an array of picks.
+		 * An optional flag to make the picker accept multiple selections, if true the result is an array of picks.
 		 */
-		multiSelect?: boolean;
+		canSelectMany?: boolean;
 
 		/**
 		 * An optional function that is invoked whenever an item is selected.
 		 */
 		onDidSelectItem?(item: QuickPickItem | string): any;
-	}
-
-	/**
-	 * Represents an item that can be selected in a multi-select quick pick UI.
-	 */
-	export interface MultiSelectQuickPickItem extends QuickPickItem {
-		selected?: boolean;
-	}
-
-	/**
-	 * Options to configure the behavior of the multi-select quick pick UI. (Marker type.)
-	 */
-	export interface MultiSelectQuickPickOptions extends QuickPickOptions {
-		multiSelect: true;
 	}
 
 	/**
@@ -5081,15 +5075,34 @@ declare module 'vscode' {
 		export function showErrorMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
 
 		/**
+		 * Shows a selection list allowing multiple selections.
+		 *
+		 * @param items An array of strings, or a promise that resolves to an array of strings.
+		 * @param options Configures the behavior of the selection list.
+		 * @param token A token that can be used to signal cancellation.
+		 * @return A promise that resolves to the selected items or `undefined`.
+		 */
+		export function showQuickPick(items: string[] | Thenable<string[]>, options: QuickPickOptions & { canSelectMany: true; }, token?: CancellationToken): Thenable<string[] | undefined>;
+
+		/**
 		 * Shows a selection list.
 		 *
 		 * @param items An array of strings, or a promise that resolves to an array of strings.
 		 * @param options Configures the behavior of the selection list.
 		 * @param token A token that can be used to signal cancellation.
-		 * @return A promise that resolves to the selected item(s) or `undefined`.
+		 * @return A promise that resolves to the selection or `undefined`.
 		 */
-		export function showQuickPick(items: string[] | Thenable<string[]>, options: MultiSelectQuickPickOptions, token?: CancellationToken): Thenable<string[] | undefined>;
 		export function showQuickPick(items: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
+
+		/**
+		 * Shows a selection list allowing multiple selections.
+		 *
+		 * @param items An array of items, or a promise that resolves to an array of items.
+		 * @param options Configures the behavior of the selection list.
+		 * @param token A token that can be used to signal cancellation.
+		 * @return A promise that resolves to the selected items or `undefined`.
+		 */
+		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options: QuickPickOptions & { canSelectMany: true; }, token?: CancellationToken): Thenable<T[] | undefined>;
 
 		/**
 		 * Shows a selection list.
@@ -5097,9 +5110,8 @@ declare module 'vscode' {
 		 * @param items An array of items, or a promise that resolves to an array of items.
 		 * @param options Configures the behavior of the selection list.
 		 * @param token A token that can be used to signal cancellation.
-		 * @return A promise that resolves to the selected item(s) or `undefined`.
+		 * @return A promise that resolves to the selected item or `undefined`.
 		 */
-		export function showQuickPick<T extends MultiSelectQuickPickItem>(items: T[] | Thenable<T[]>, options: MultiSelectQuickPickOptions, token?: CancellationToken): Thenable<T[] | undefined>;
 		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<T | undefined>;
 
 		/**
