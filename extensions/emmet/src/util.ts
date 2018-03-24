@@ -134,29 +134,66 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	let endPosition = new vscode.Position(document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length);
 	const closeBrace = 125;
 	const openBrace = 123;
+	let slash = 47;
+	let star = 42;
 
 	// Go forward until we found a closing brace.
 	let stream = new DocumentStreamReader(document, position);
-	stream.eatWhile(char => { return char !== closeBrace; });
-	stream.next();
+	while (!stream.eof()) {
+		if (stream.eat(closeBrace)) {
+			break;
+		} else if (stream.eat(slash)) {
+			if (stream.eat(slash) && document.languageId !== 'css') {
+				// Single line Comment, we continue searching from next line.
+				stream.pos = new vscode.Position(stream.pos.line + 1, 0);
+			} else if (stream.eat(star)) {
+				// Start of block comment, we need to find the closing '*/'
+				let endCommentFound = false;
+				while (!endCommentFound) {
+					stream.eatWhile(char => { return char !== star; });
+					stream.eat(star);
+					endCommentFound = stream.eat(slash);
+				}
+			}
+		} else {
+			stream.next();
+		}
+	}
+
 	endPosition = stream.pos;
 
 	// Go back until we found an opening brace. If we find a closing one, we first find its opening brace and then we continue.
 	stream.pos = position;
 	let openBracesRemaining = 1;
+	let currentLine = position.line;
+	let isCSS = document.languageId === 'css';
+
 	while (openBracesRemaining > 0 && !stream.sof()) {
 		if (position.line - stream.pos.line > 1000) {
 			return parseStylesheet(new DocumentStreamReader(document, startPosition, new vscode.Range(startPosition, endPosition)));
+		} else if (!isCSS && stream.pos.line !== currentLine) {
+			// In not CSS stylesheets, we need to skip singleLine comments.
+			currentLine = stream.pos.line;
+			let startLineComment = document.lineAt(currentLine).text.indexOf('//');
+			if (startLineComment > -1) {
+				stream.pos = new vscode.Position(currentLine, startLineComment);
+			}
 		}
 		let ch = stream.backUp(1);
 		if (ch === openBrace) {
 			openBracesRemaining--;
 		} else if (ch === closeBrace) {
-			if (document.languageId === 'css') {
+			if (isCSS) {
 				stream.next();
 				return parseStylesheet(new DocumentStreamReader(document, stream.pos, new vscode.Range(stream.pos, endPosition)));
 			}
 			openBracesRemaining++;
+		} else if (ch === slash) {
+			stream.backUp(1);
+			if (!stream.eat(char => { return char !== star; })) {
+				// Closing block comment. We need to find the corresponding opening '*/'
+				stream.pos = findOpeningComment(document, stream.pos);
+			}
 		}
 	}
 	// We are at an opening brace. We need to include its selector, but with one nonspace character is enough.
@@ -174,6 +211,12 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 		return parseStylesheet(new DocumentStreamReader(document, startPosition, new vscode.Range(startPosition, endPosition)));
 	} catch (e) {
 	}
+}
+
+function findOpeningComment(document: vscode.TextDocument, position: vscode.Position): vscode.Position {
+	let text = document.getText(new vscode.Range(0, 0, position.line, position.character));
+	let offset = text.lastIndexOf('/*');
+	return document.positionAt(offset);
 }
 
 /**
