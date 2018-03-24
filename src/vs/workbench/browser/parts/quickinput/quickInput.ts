@@ -105,7 +105,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		this.checkboxList = this.instantiationService.createInstance(QuickInputCheckboxList, this.container);
 		this.toUnbind.push(this.checkboxList);
-		this.toUnbind.push(this.checkboxList.onSelectionChanged(() => {
+		this.toUnbind.push(this.checkboxList.onAllSelectedChanged(() => {
 			this.selectAll.checked = this.checkboxList.getAllSelected();
 		}));
 
