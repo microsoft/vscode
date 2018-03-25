@@ -22,6 +22,8 @@
 	padding: 0;
 	font-weight: normal;
 	font-size: 1.2em;
+	display: flex;
+	justify-content: space-between;
 }
 
 .monaco-shell .feedback-form .content {
@@ -44,8 +46,20 @@
 	font-size: 0.9em;
 }
 
-.monaco-shell .char-counter {
-	padding-left: 3px;
+.monaco-shell .feedback-form .char-counter-indicator {
+	stroke: #007ACC;
+	transition: stroke-dashoffset 0.5s ease-out;
+}
+.monaco-shell .feedback-form .char-counter-indicator.warn {
+	stroke: #F48771;
+}
+.monaco-shell .feedback-form .char-counter-indicator.full {
+	stroke: #E51400;
+	animation: pop 0.2s ease-out;
+}
+.monaco-shell .feedback-form .char-counter-track {
+	stroke: currentColor;
+	stroke-opacity: 0.2;
 }
 
 /* TODO @C5 review link color */
@@ -279,4 +293,8 @@
 	height: 16px;
 	width: 16px;
 	display: inline-block;
+}
+
+@keyframes pop {
+	50% { stroke-width: 4 }
 }

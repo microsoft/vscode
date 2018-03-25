@@ -32,7 +32,8 @@ export interface IFeedback {
 
 export interface IFeedbackService {
 	submitFeedback(feedback: IFeedback): void;
-	getCharacterLimit(sentiment: number): number;
+	getCharacterLimit(): number;
+	getCharacterCount(feedbackText: string, sentiment: number): number;
 }
 
 export interface IFeedbackDropdownOptions {
@@ -48,8 +49,6 @@ enum FormEvent {
 }
 
 export class FeedbackDropdown extends Dropdown {
-	private maxFeedbackCharacters: number;
-
 	private feedback: string;
 	private sentiment: number;
 	private isSendingFeedback: boolean;
@@ -63,7 +62,9 @@ export class FeedbackDropdown extends Dropdown {
 	private frownyInput: Builder;
 	private sendButton: Builder;
 	private hideButton: HTMLInputElement;
-	private remainingCharacterCount: Builder;
+	private characterLimit: number;
+	private remainingCharacterCount: HTMLElement;
+	private remainingCharCountIndicator: SVGCircleElement;
 
 	private requestFeatureLink: string;
 
@@ -101,7 +102,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.feedback = '';
 		this.sentiment = 1;
-		this.maxFeedbackCharacters = this.feedbackService.getCharacterLimit(this.sentiment);
+		this.characterLimit = this.feedbackService.getCharacterLimit();
 
 		this.feedbackForm = null;
 		this.feedbackDescriptionInput = null;
@@ -221,7 +222,8 @@ export class FeedbackDropdown extends Dropdown {
 		$('div').append($('a').attr('target', '_blank').attr('href', this.requestFeatureLink).text(nls.localize("request a missing feature", "Request a missing feature")).attr('tabindex', '0'))
 			.appendTo($contactUsContainer);
 
-		this.remainingCharacterCount = $('span.char-counter').text(this.getCharCountText(0));
+		this.remainingCharacterCount = <HTMLElement>this.createCharacterCountIndicator();
+		this.updateCharCountIndicator('', this.sentiment);
 
 		$('h3').text(nls.localize("tell us why?", "Tell us why?"))
 			.append(this.remainingCharacterCount)
@@ -229,7 +231,6 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.feedbackDescriptionInput = <HTMLTextAreaElement>$('textarea.feedback-description').attr({
 			rows: 3,
-			maxlength: this.maxFeedbackCharacters,
 			'aria-label': nls.localize("commentsHeader", "Comments")
 		})
 			.text(this.feedback).attr('required', 'required')
@@ -278,17 +279,54 @@ export class FeedbackDropdown extends Dropdown {
 		};
 	}
 
-	private getCharCountText(charCount: number): string {
-		const remaining = this.maxFeedbackCharacters - charCount;
-		const text = (remaining === 1)
-			? nls.localize("character left", "character left")
-			: nls.localize("characters left", "characters left");
+	private createCharacterCountIndicator(): Node {
+		const size = 20;
+		const width = 2;
+		const r = size / 2 - width;
 
-		return '(' + remaining + ' ' + text + ')';
+		const svgNS = 'http://www.w3.org/2000/svg';
+		const svg = document.createElementNS(svgNS, 'svg');
+		svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+		svg.setAttribute('width', `${size}`);
+		svg.setAttribute('height', `${size}`);
+
+		const trackCircle = document.createElementNS(svgNS, 'circle');
+		trackCircle.setAttribute('r', `${r}`);
+		trackCircle.setAttribute('cx', `${size / 2}`);
+		trackCircle.setAttribute('cy', `${size / 2}`);
+		trackCircle.setAttribute('fill', 'none');
+		trackCircle.setAttribute('stroke-width', `${width}`);
+		trackCircle.classList.add('char-counter-track');
+
+		const circle = document.createElementNS(svgNS, 'circle');
+		circle.setAttribute('r', `${r}`);
+		circle.setAttribute('cx', `${size / 2}`);
+		circle.setAttribute('cy', `${size / 2}`);
+		circle.setAttribute('fill', 'none');
+		circle.setAttribute('stroke-width', `${width}`);
+		circle.setAttribute('transform', `rotate(-90 ${size / 2} ${size / 2})`);
+		circle.setAttribute('stroke-dasharray', `${2 * Math.PI * r}`);
+		circle.classList.add('char-counter-indicator');
+		this.remainingCharCountIndicator = circle;
+
+		svg.appendChild(trackCircle);
+		svg.appendChild(circle);
+		return svg;
+	}
+
+	private updateCharCountIndicator(feedbackText: string, sentiment: number): void {
+		const used = this.feedbackService.getCharacterCount(feedbackText, sentiment);
+		const percentLeft = Math.max((this.characterLimit - used) / this.characterLimit, 0);
+		const maxLength = parseFloat(this.remainingCharCountIndicator.getAttribute('stroke-dasharray'));
+		this.remainingCharCountIndicator.setAttribute('stroke-dashoffset', `${percentLeft * maxLength}`);
+
+		// add relevant classes
+		this.remainingCharCountIndicator.classList.toggle('warn', percentLeft < 0.07 && percentLeft > 0);
+		this.remainingCharCountIndicator.classList.toggle('full', percentLeft === 0);
 	}
 
 	private updateCharCountText(): void {
-		this.remainingCharacterCount.text(this.getCharCountText(this.feedbackDescriptionInput.value.length));
+		this.updateCharCountIndicator(this.feedbackDescriptionInput.value, this.sentiment);
 		this.feedbackDescriptionInput.value ? this.sendButton.removeAttribute('disabled') : this.sendButton.attr('disabled', '');
 	}
 
@@ -306,9 +344,7 @@ export class FeedbackDropdown extends Dropdown {
 		}
 
 		this.sentiment = smile ? 1 : 0;
-		this.maxFeedbackCharacters = this.feedbackService.getCharacterLimit(this.sentiment);
 		this.updateCharCountText();
-		$(this.feedbackDescriptionInput).attr({ maxlength: this.maxFeedbackCharacters });
 	}
 
 	private invoke(element: Builder, callback: () => void): Builder {
@@ -415,7 +451,6 @@ export class FeedbackDropdown extends Dropdown {
 		}
 
 		this.sentiment = 1;
-		this.maxFeedbackCharacters = this.feedbackService.getCharacterLimit(this.sentiment);
 	}
 }
 

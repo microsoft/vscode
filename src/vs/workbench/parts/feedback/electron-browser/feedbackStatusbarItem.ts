@@ -21,6 +21,7 @@ import { $ } from 'vs/base/browser/builder';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
+import { parseTweet } from 'twitter-text';
 
 class TwitterFeedbackService implements IFeedbackService {
 
@@ -39,19 +40,21 @@ class TwitterFeedbackService implements IFeedbackService {
 		window.open(url);
 	}
 
-	public getCharacterLimit(sentiment: number): number {
-		let length: number = 0;
+	public getCharacterLimit(): number {
+		return 1000;
+	}
+
+	public getCharacterCount(feedbackText: string, sentiment: number): number {
+		let text = feedbackText;
 		if (sentiment === 1) {
 			TwitterFeedbackService.HASHTAGS.forEach(element => {
-				length += element.length + 2;
+				text = `${text} #${element} `;
 			});
 		}
-
 		if (TwitterFeedbackService.VIA_NAME) {
-			length += ` via @${TwitterFeedbackService.VIA_NAME}`.length;
+			text = `${text} via @${TwitterFeedbackService.VIA_NAME}`;
 		}
-
-		return 280 - length;
+		return parseTweet(text).permillage;
 	}
 }
 
