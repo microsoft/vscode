@@ -311,14 +311,13 @@ export class CommandCenter {
 	}
 
 	private getTitle(resource: Resource): string {
-		const basename = path.basename(resource.resourceUri.fsPath);
+		var basename = path.basename(resource.resourceUri.fsPath);
 
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
 			case Status.DELETED_BY_THEM:
 				return `${basename} (Index)`;
-
 			case Status.MODIFIED:
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
