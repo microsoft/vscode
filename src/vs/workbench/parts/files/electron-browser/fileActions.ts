@@ -1352,22 +1352,16 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 	}
 
 	const names: string[] = name.split(/[\\/]/).filter(part => !!part);
-
-	const pathMapping: IPathMapping[] = mapPathsToExistingFolders(parent, names);
-	const fileWithDescendants = pathMapping.slice(0, -1)	// remove leaf
-		.filter(p => p.exists && p.isFile)	// check if one of the parents is a file
-		.reduce((prev, curr) => prev || curr, null);
-
-	// a file must always be a leaf
-	if (fileWithDescendants) {
-		return nls.localize('fileUsedAsFolderError', "**{0}** is a file and cannot have any descendants.", fileWithDescendants.name);
-	}
-
-	const fullPathAlreadyExists = pathMapping.every(p => p.exists);
+	const pathMapping = mapPathsToExistingFolders(parent, names);
 
 	// Do not allow to overwrite existing file
-	if (!allowOverwriting && fullPathAlreadyExists) {
+	if (!allowOverwriting && pathMapping.fullPathAlreadyExists) {
 		return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
+	}
+
+	// a file must always be a leaf
+	if (pathMapping.last.isFile) {
+		return nls.localize('fileUsedAsFolderError', "**{0}** is a file and cannot have any descendants.", pathMapping.last.name);
 	}
 
 	// Invalid File name
@@ -1386,30 +1380,34 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 	return null;
 }
 
-interface IPathMapping {
-	exists: boolean;
-	isFile: boolean;
-	name: string;
+interface IMappedPath {
+	fullPathAlreadyExists: boolean;
+	last: {
+		isFile: boolean;
+		name: string;
+	};
 }
 
-function mapPathsToExistingFolders(parent: IFileStat, pathNames: string[]): IPathMapping[] {
-	const mapping: IPathMapping[] = [];
+function mapPathsToExistingFolders(parent: IFileStat, pathNames: string[]): IMappedPath {
+	let fullPathAlreadyExists = true;
+	let lastPath = { isFile: false, name: '' };
 
 	for (const name of pathNames) {
-		let { exists, child } = alreadyExists(parent, name);
+		const { exists, child } = alreadyExists(parent, name);
 
 		if (!exists) {
-			mapping.push({ exists: false, isFile: false, name });
-			return mapping;
+			fullPathAlreadyExists = false;
+			break;
 		}
 
 		const isFile: boolean = !child.isDirectory;
-		mapping.push({ exists: true, isFile, name });
+		lastPath.isFile = isFile;
+		lastPath.name = name;
 
 		parent = child;
 	}
 
-	return mapping;
+	return { fullPathAlreadyExists, last: lastPath };
 }
 
 function alreadyExists(parent: IFileStat, name: string): { exists: boolean, child: IFileStat | undefined } {
