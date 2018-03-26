@@ -149,6 +149,8 @@ export class QuickInputCheckboxList {
 	onAllVisibleSelectedChanged: Event<boolean> = this._onAllVisibleSelectedChanged.event;
 	private _onSelectedCountChanged = new Emitter<number>(); // TODO: Debounce
 	onSelectedCountChanged: Event<number> = this._onSelectedCountChanged.event;
+	private _onLeave = new Emitter<void>();
+	onLeave: Event<void> = this._onLeave.event;
 	private elementDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
 
@@ -165,8 +167,16 @@ export class QuickInputCheckboxList {
 		this.disposables.push(this.list);
 		this.disposables.push(this.list.onKeyDown(e => {
 			const event = new StandardKeyboardEvent(e);
-			if (event.keyCode === KeyCode.Space) {
-				this.toggleCheckbox();
+			switch (event.keyCode) {
+				case KeyCode.Space:
+					this.toggleCheckbox();
+					break;
+				case KeyCode.UpArrow:
+					const focus = this.list.getFocus();
+					if (focus.length === 1 && focus[0] === 0) {
+						this._onLeave.fire();
+					}
+					break;
 			}
 		}));
 	}
@@ -210,6 +220,10 @@ export class QuickInputCheckboxList {
 
 	focus(what: 'Next' | 'Previous' | 'NextPage' | 'PreviousPage'): void {
 		this.list['focus' + what]();
+	}
+
+	domFocus() {
+		this.list.domFocus();
 	}
 
 	layout(): void {
