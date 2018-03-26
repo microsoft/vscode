@@ -17,7 +17,7 @@ import { IEditorGroup, toResource, IEditorIdentifier } from 'vs/workbench/common
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
-import { startsWith, beginsWithIgnoreCase } from 'vs/base/common/strings';
+import { startsWith, beginsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
 
 export class Model {
 
@@ -325,7 +325,10 @@ export class ExplorerItem {
 	}
 
 	private findByPath(path: string, index: number): ExplorerItem {
-		if (paths.isEqual(this.resource.path, path, !isLinux)) {
+		if (this.resource.path === path) {
+			return this;
+		}
+		if (!isLinux && equalsIgnoreCase(this.resource.path, path)) {
 			return this;
 		}
 
