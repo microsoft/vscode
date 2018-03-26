@@ -43,7 +43,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 		}
 	}
 
-	public focusPreviousCommand(retainSelection: boolean = false): void {
+	public scrollToPreviousCommand(retainSelection: boolean = false): void {
 		if (!retainSelection) {
 			this._selectionStart = null;
 		}
@@ -67,7 +67,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 		this._xterm.scrollToLine(this._currentMarker.line);
 	}
 
-	public focusNextCommand(retainSelection: boolean = false): void {
+	public scrollToNextCommand(retainSelection: boolean = false): void {
 		if (!retainSelection) {
 			this._selectionStart = null;
 		}
@@ -95,7 +95,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 		if (this._selectionStart === null) {
 			this._selectionStart = this._currentMarker;
 		}
-		this.focusPreviousCommand(true);
+		this.scrollToPreviousCommand(true);
 		this._selectLines(this._currentMarker, this._selectionStart);
 	}
 
@@ -103,8 +103,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 		if (this._selectionStart === null) {
 			this._selectionStart = this._currentMarker;
 		}
-		this.focusNextCommand(true);
-		// if (!this._currentMarker
+		this.scrollToNextCommand(true);
 		this._selectLines(this._currentMarker, this._selectionStart);
 	}
 
