@@ -136,14 +136,18 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	const openBrace = 123;
 	let slash = 47;
 	let star = 42;
+	let isCSS = document.languageId === 'css';
+
+	let singleLineCommentIndex = document.lineAt(position.line).text.indexOf('//');
+	if (!isCSS && singleLineCommentIndex > -1 && singleLineCommentIndex < position.character) {
+		return;
+	}
 
 	// Go forward until we found a closing brace.
 	let stream = new DocumentStreamReader(document, position);
-	while (!stream.eof()) {
-		if (stream.eat(closeBrace)) {
-			break;
-		} else if (stream.eat(slash)) {
-			if (stream.eat(slash) && document.languageId !== 'css') {
+	while (!stream.eof() && !stream.eat(closeBrace)) {
+		if (stream.eat(slash)) {
+			if (stream.eat(slash) && !isCSS) {
 				// Single line Comment, we continue searching from next line.
 				stream.pos = new vscode.Position(stream.pos.line + 1, 0);
 			} else if (stream.eat(star)) {
@@ -152,7 +156,7 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 				while (!endCommentFound) {
 					stream.eatWhile(char => { return char !== star; });
 					stream.eat(star);
-					endCommentFound = stream.eat(slash);
+					endCommentFound = stream.eat(slash) || stream.eof();
 				}
 			}
 		} else {
@@ -166,7 +170,6 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	stream.pos = position;
 	let openBracesRemaining = 1;
 	let currentLine = position.line;
-	let isCSS = document.languageId === 'css';
 
 	while (openBracesRemaining > 0 && !stream.sof()) {
 		if (position.line - stream.pos.line > 1000) {
@@ -190,9 +193,10 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 			openBracesRemaining++;
 		} else if (ch === slash) {
 			stream.backUp(1);
-			if (!stream.eat(char => { return char !== star; })) {
-				// Closing block comment. We need to find the corresponding opening '*/'
+			if (stream.peek() === star) {
 				stream.pos = findOpeningComment(document, stream.pos);
+			} else {
+				stream.next();
 			}
 		}
 	}
