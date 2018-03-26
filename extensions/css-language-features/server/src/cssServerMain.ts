@@ -16,7 +16,7 @@ import { getLanguageModelCache } from './languageModelCache';
 import { formatError, runSafe } from './utils/errors';
 import URI from 'vscode-uri';
 import { getPathCompletionParticipant } from './pathCompletion';
-import { FoldingProviderServerCapabilities, FoldingRangesRequest } from './protocol/foldingProvider.proposed';
+import { FoldingProviderServerCapabilities, FoldingRangesRequest } from 'vscode-languageserver-protocol-foldingprovider';
 
 export interface Settings {
 	css: LanguageSettings;

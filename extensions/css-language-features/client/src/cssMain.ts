@@ -10,7 +10,7 @@ const localize = nls.loadMessageBundle();
 
 import { languages, window, commands, ExtensionContext, Range, Position, TextDocument, CompletionItem, CompletionItemKind, TextEdit, SnippetString, FoldingRangeList, FoldingRange, FoldingContext, CancellationToken } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient';
-import { FoldingRangesRequest, FoldingRangeRequestParam } from './protocol/foldingProvider.proposed';
+import { FoldingRangesRequest, FoldingRangeRequestParam } from 'vscode-languageserver-protocol-foldingprovider';
 
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
