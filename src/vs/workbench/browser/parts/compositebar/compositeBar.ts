@@ -99,6 +99,7 @@ export class CompositeBar implements ICompositeBar {
 		}
 
 		this.options.composites = this.options.composites.filter(c => c.id !== id);
+		this.deactivateComposite(id);
 		this.unpin(id);
 		this.pullComposite(id);
 	}
@@ -122,6 +123,12 @@ export class CompositeBar implements ICompositeBar {
 	public deactivateComposite(id: string): void {
 		if (this.compositeIdToActions[id]) {
 			this.compositeIdToActions[id].deactivate();
+		}
+		if (this.activeCompositeId === id) {
+			this.activeCompositeId = undefined;
+		}
+		if (this.activeUnpinnedCompositeId === id) {
+			this.activeUnpinnedCompositeId = undefined;
 		}
 	}
 
