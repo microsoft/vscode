@@ -336,7 +336,7 @@ phases:
       MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
       ./build/tfs/linux/release2.sh "$(VSCODE_ARCH)" "$(LINUX_REPO_PASSWORD)"
 
-- phase: Linux
+- phase: Linux32
   condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
   queue:
     name: linux-ia32
