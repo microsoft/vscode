@@ -182,7 +182,7 @@ export class PreviousPanelItemAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const panels = this.panelService.getPanels();
+		const panels = this.panelService.getOrderedPanels();
 		const activePanel = this.panelService.getActivePanel();
 
 		if (!activePanel) {
@@ -191,8 +191,8 @@ export class PreviousPanelItemAction extends Action {
 
 		let targetPanelId: string;
 		for (let i = 0; i < panels.length; i++) {
-			if (panels[i].id === activePanel.getId()) {
-				targetPanelId = panels[(i + panels.length - 1) % panels.length].id;
+			if (panels[i] === activePanel.getId()) {
+				targetPanelId = panels[(i + panels.length - 1) % panels.length];
 				break;
 			}
 		}
@@ -214,7 +214,7 @@ export class NextPanelItemAction extends Action {
 
 
 	public run(): TPromise<any> {
-		const panels = this.panelService.getPanels();
+		const panels = this.panelService.getOrderedPanels();
 		const activePanel = this.panelService.getActivePanel();
 
 		if (!activePanel) {
@@ -223,8 +223,8 @@ export class NextPanelItemAction extends Action {
 
 		let targetPanelId: string;
 		for (let i = 0; i < panels.length; i++) {
-			if (panels[i].id === activePanel.getId()) {
-				targetPanelId = panels[(i + 1) % panels.length].id;
+			if (panels[i] === activePanel.getId()) {
+				targetPanelId = panels[(i + 1) % panels.length];
 				break;
 			}
 		}

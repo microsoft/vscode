@@ -39,6 +39,11 @@ export interface IPanelService {
 	getPanels(): IPanelIdentifier[];
 
 	/**
+	 * Returns all enabled panels
+	 */
+	getOrderedPanels(): string[];
+
+	/**
 	 * Enables or disables a panel. Disabled panels are completly hidden from UI.
 	 * By default all panels are enabled.
 	 */
