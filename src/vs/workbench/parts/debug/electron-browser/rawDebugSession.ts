@@ -372,14 +372,18 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 
 	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {
 		return this.send('stepBack', args).then(response => {
-			this.fireFakeContinued(args.threadId);
+			if (response.body === undefined) {
+				this.fireFakeContinued(args.threadId);
+			}
 			return response;
 		});
 	}
 
 	public reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse> {
 		return this.send('reverseContinue', args).then(response => {
-			this.fireFakeContinued(args.threadId);
+			if (response.body === undefined) {
+				this.fireFakeContinued(args.threadId);
+			}
 			return response;
 		});
 	}
