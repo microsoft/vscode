@@ -1231,9 +1231,12 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		}
 
+		// Compute x/y based on display bounds
+		// Note: important to use Math.round() because Electron does not seem to be too happy about
+		// display coordinates that are not absolute numbers.
 		let state = defaultWindowState() as INewWindowState;
-		state.x = displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width / 2);
-		state.y = displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height / 2);
+		state.x = Math.round(displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width / 2));
+		state.y = Math.round(displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height / 2));
 
 		// Check for newWindowDimensions setting and adjust accordingly
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
