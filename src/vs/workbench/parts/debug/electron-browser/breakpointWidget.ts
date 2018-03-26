@@ -64,7 +64,7 @@ export class BreakpointWidget extends ZoneWidget {
 	private get placeholder(): string {
 		switch (this.context) {
 			case Context.LOG_MESSAGE:
-				return nls.localize('breakpointWidgetLogMessagePlaceholder', "Message to log when breakpoint is hit. 'Enter' to accept, 'esc' to cancel.");
+				return nls.localize('breakpointWidgetLogMessagePlaceholder', "Message to log when breakpoint is hit. Expressions within {} are interpolated. 'Enter' to accept, 'esc' to cancel.");
 			case Context.HIT_COUNT:
 				return nls.localize('breakpointWidgetHitCountPlaceholder', "Break when hit count condition is met. 'Enter' to accept, 'esc' to cancel.");
 			default:
