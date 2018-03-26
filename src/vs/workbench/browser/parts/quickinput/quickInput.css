@@ -14,7 +14,7 @@
 
 .quick-input-header {
 	display: flex;
-	padding: 6px;
+	padding: 6px 6px 4px 6px;
 }
 
 .quick-input-select-all {
@@ -51,6 +51,11 @@
 
 .quick-input-action:focus {
 	outline:0;
+}
+
+.quick-input-progress.monaco-progress-container,
+.quick-input-progress.monaco-progress-container .progress-bit {
+	height: 2px;
 }
 
 .quick-input-checkbox-list {
