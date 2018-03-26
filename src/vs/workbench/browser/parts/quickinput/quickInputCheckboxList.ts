@@ -143,6 +143,8 @@ export class QuickInputCheckboxList {
 	private container: HTMLElement;
 	private list: WorkbenchList<SelectableElement>;
 	private elements: SelectableElement[] = [];
+	matchOnDescription = false;
+	matchOnDetail = false;
 	private _onAllVisibleSelectedChanged = new Emitter<boolean>(); // TODO: Debounce
 	onAllVisibleSelectedChanged: Event<boolean> = this._onAllVisibleSelectedChanged.event;
 	private _onSelectedCountChanged = new Emitter<number>(); // TODO: Debounce
@@ -231,8 +233,8 @@ export class QuickInputCheckboxList {
 		else {
 			this.elements.forEach(element => {
 				const labelHighlights = matchesFuzzyOcticonAware(query, parseOcticons(element.item.label));
-				const descriptionHighlights = matchesFuzzyOcticonAware(query, parseOcticons(element.item.description || ''));
-				const detailHighlights = matchesFuzzyOcticonAware(query, parseOcticons(element.item.detail || ''));
+				const descriptionHighlights = this.matchOnDescription ? matchesFuzzyOcticonAware(query, parseOcticons(element.item.description || '')) : undefined;
+				const detailHighlights = this.matchOnDetail ? matchesFuzzyOcticonAware(query, parseOcticons(element.item.detail || '')) : undefined;
 
 				if (element.shouldAlwaysShow || labelHighlights || descriptionHighlights || detailHighlights) {
 					element.labelHighlights = labelHighlights;

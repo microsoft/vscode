@@ -27,6 +27,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const $ = dom.$;
 
@@ -43,10 +44,12 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private inputBox: QuickInputBox;
 	private count: CountBadge;
 	private checkboxList: QuickInputCheckboxList;
+	private ignoreFocusLost = false;
 
 	private resolve: (value?: object[] | Thenable<object[]>) => void;
 
 	constructor(
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
@@ -125,7 +128,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 					return;
 				}
 			}
-			if (this.configurationService.getValue(CLOSE_ON_FOCUS_LOST_CONFIG)) {
+			if (!this.ignoreFocusLost && !this.environmentService.args['sticky-quickopen'] && this.configurationService.getValue(CLOSE_ON_FOCUS_LOST_CONFIG)) {
 				this.close(false);
 			}
 		}));
@@ -157,7 +160,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.container.style.display = 'none';
 	}
 
-	async pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options?: IPickOptions, token?: CancellationToken): TPromise<T[]> {
+	async pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options: IPickOptions = {}, token?: CancellationToken): TPromise<T[]> {
 		this.create();
 		this.quickOpenService.close();
 		if (this.resolve) {
@@ -171,8 +174,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.inputBox.setPlaceholder(options.placeHolder ? localize('quickInput.ctrlSpaceToSelectWithPlaceholder', "{1} ({0} to toggle)", 'Ctrl+Space', options.placeHolder) : localize('quickInput.ctrlSpaceToSelect', "{0} to toggle", 'Ctrl+Space'));
 		// TODO: Progress indication.
 		this.checkboxList.setElements(await picks);
+		this.checkboxList.matchOnDescription = options.matchOnDescription;
+		this.checkboxList.matchOnDetail = options.matchOnDetail;
 		this.selectAll.checked = this.checkboxList.getAllVisibleSelected();
 		this.count.setCount(this.checkboxList.getSelectedCount());
+		this.ignoreFocusLost = options.ignoreFocusLost;
 
 		this.container.style.display = null;
 		this.updateLayout();
