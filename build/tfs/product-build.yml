@@ -225,7 +225,7 @@ phases:
 - phase: Linux
   condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
   queue:
-    name: Hosted Linux Preview
+    name: linux-x64
     parallel: 2
     matrix:
       x64:
