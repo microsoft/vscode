@@ -10,6 +10,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
+import { Position } from 'vs/editor/common/core/position';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -24,6 +25,12 @@ import { ServicesAccessor, EditorCommand, registerEditorCommand } from 'vs/edito
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import uri from 'vs/base/common/uri';
+import { SuggestRegistry, ISuggestResult, SuggestContext } from 'vs/editor/common/modes';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { ITextModel } from 'vs/editor/common/model';
+import { wireCancellationToken } from 'vs/base/common/async';
+import { provideSuggestionItems } from 'vs/editor/contrib/suggest/suggest';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 const $ = dom.$;
 const IPrivateBreakopintWidgetService = createDecorator<IPrivateBreakopintWidgetService>('privateBreakopintWidgetService');
@@ -139,11 +146,10 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 
 		this.input.getModel().setValue(this.getInputValue(this.breakpoint));
 		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
-		setTimeout(() => this.input.focus(), 50);
+		setTimeout(() => this.input.focus(), 70);
 	}
 
 	public close(success: boolean): void {
-		// TODO@isidor check if we should check the disposed check
 		if (success) {
 			// if there is already a breakpoint on this location - remove it.
 
@@ -187,7 +193,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
-		this.input.layout({ height: 18, width: widthInPixel - 133 });
+		this.input.layout({ height: 18, width: widthInPixel - 113 });
 	}
 
 	private createBreakpointInput(container: HTMLElement): void {
@@ -202,6 +208,37 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:breakpointinput`), true);
 		this.input.setModel(model);
 		this.toDispose.push(model);
+
+		SuggestRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
+			triggerCharacters: ['.'],
+			provideCompletionItems: (model: ITextModel, position: Position, _context: SuggestContext, token: CancellationToken): Thenable<ISuggestResult> => {
+				let suggestions: TPromise<ISuggestResult>;
+				if (this.context === Context.CONDITION || this.context === Context.LOG_MESSAGE && this.isCurlyBracketOpen()) {
+					suggestions = provideSuggestionItems(this.editor.getModel(), this.editor.getPosition(), 'none').then(suggestions => {
+						return { suggestions: suggestions.map(s => s.suggestion) };
+					});
+				} else {
+					suggestions = TPromise.as({ suggestions: [] });
+				}
+
+				return wireCancellationToken(token, suggestions);
+			}
+		});
+	}
+
+	private isCurlyBracketOpen(): boolean {
+		const value = this.input.getModel().getValue();
+		for (let i = this.input.getPosition().column - 2; i >= 0; i--) {
+			if (value[i] === '{') {
+				return true;
+			}
+
+			if (value[i] === '}') {
+				return false;
+			}
+		}
+
+		return false;
 	}
 
 	public dispose(): void {

@@ -14,6 +14,7 @@
 	justify-content: center;
 	flex-direction: column;
 	padding: 0 10px;
+	flex-shrink: 0;
 }
 
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .inputContainer {
