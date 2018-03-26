@@ -119,7 +119,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			terminalService.openTerminal(root.fsPath);
 		} else {
 			//Opens current file's folder, if no folder is open in editor
-			const path = historyService.getLastActiveFile().path;
+			const path = historyService.getLastActiveFile().fsPath;
 			terminalService.openTerminal(paths.dirname(path));
 		}
 	}
