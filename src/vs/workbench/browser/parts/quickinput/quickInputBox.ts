@@ -50,7 +50,11 @@ export class QuickInputBox {
 		return this.inputBox.onDidChange(handler);
 	}
 
-	setValue(value: string) {
+	get value() {
+		return this.inputBox.value;
+	}
+
+	set value(value: string) {
 		this.inputBox.value = value;
 	}
 

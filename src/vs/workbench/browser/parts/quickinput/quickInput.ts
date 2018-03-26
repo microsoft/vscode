@@ -28,6 +28,7 @@ import { CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 
 const $ = dom.$;
 
@@ -43,6 +44,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private selectAll: HTMLInputElement;
 	private inputBox: QuickInputBox;
 	private count: CountBadge;
+	private ready = false;
+	private progressBar: ProgressBar;
 	private checkboxList: QuickInputCheckboxList;
 	private ignoreFocusLost = false;
 
@@ -99,7 +102,14 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		const ok = dom.append(headerContainer, $('button.quick-input-action'));
 		ok.textContent = localize('ok', "OK");
-		this.toUnbind.push(dom.addDisposableListener(ok, dom.EventType.CLICK, e => this.close(this.checkboxList.getSelectedElements())));
+		this.toUnbind.push(dom.addDisposableListener(ok, dom.EventType.CLICK, e => {
+			if (this.ready) {
+				this.close(this.checkboxList.getSelectedElements());
+			}
+		}));
+
+		this.progressBar = new ProgressBar(this.container); // TODO theme
+		this.progressBar.getContainer().addClass('quick-input-progress');
 
 		this.checkboxList = this.instantiationService.createInstance(QuickInputCheckboxList, this.container);
 		this.toUnbind.push(this.checkboxList);
@@ -130,8 +140,10 @@ export class QuickInputService extends Component implements IQuickInputService {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
 				case KeyCode.Enter:
-					dom.EventHelper.stop(e, true);
-					this.close(this.checkboxList.getSelectedElements());
+					if (this.ready) {
+						dom.EventHelper.stop(e, true);
+						this.close(this.checkboxList.getSelectedElements());
+					}
 					break;
 				case KeyCode.Escape:
 					dom.EventHelper.stop(e, true);
@@ -157,11 +169,14 @@ export class QuickInputService extends Component implements IQuickInputService {
 			this.resolve();
 		}
 
-		this.inputBox.setValue('');
+		this.inputBox.value = '';
 		this.inputBox.setPlaceholder(options.placeHolder || '');
 		this.checkboxList.matchOnDescription = options.matchOnDescription;
 		this.checkboxList.matchOnDetail = options.matchOnDetail;
 		this.ignoreFocusLost = options.ignoreFocusLost;
+
+		this.progressBar.stop();
+		this.ready = false;
 
 		this.checkboxList.setElements([]);
 		this.selectAll.checked = this.checkboxList.getAllVisibleSelected();
@@ -175,11 +190,24 @@ export class QuickInputService extends Component implements IQuickInputService {
 		const d = token.onCancellationRequested(() => this.close());
 		result.then(() => d.dispose(), () => d.dispose());
 
-		// TODO: Progress indication.
+		const delay = TPromise.timeout(800);
+		delay.then(() => this.progressBar.infinite(), () => { /* ignore */ });
+
+		const wasResolve = this.resolve;
 		picks.then(elements => {
+			delay.cancel();
+			if (this.resolve !== wasResolve) {
+				return;
+			}
+
+			this.progressBar.stop();
+			this.ready = true;
+
 			this.checkboxList.setElements(elements);
+			this.checkboxList.filter(this.inputBox.value);
 			this.selectAll.checked = this.checkboxList.getAllVisibleSelected();
 			this.count.setCount(this.checkboxList.getSelectedCount());
+
 			this.updateLayout();
 		}).then(null, reason => this.close(TPromise.wrapError(reason)));
 
