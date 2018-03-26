@@ -27,6 +27,15 @@
 	margin-left: 5px;
 }
 
+.quick-input-count {
+	align-self: center;
+	margin-left: 5px;
+}
+
+.quick-input-count .monaco-count-badge {
+	vertical-align: middle;
+}
+
 .quick-input-action {
 	margin-left: 6px;
 	border: 0;
