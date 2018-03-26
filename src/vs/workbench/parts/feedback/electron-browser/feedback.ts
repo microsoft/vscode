@@ -17,10 +17,11 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as errors from 'vs/base/common/errors';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { editorWidgetBackground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder, darken } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const FEEDBACK_VISIBLE_CONFIG = 'workbench.statusBar.feedback.visible';
@@ -61,7 +62,8 @@ export class FeedbackDropdown extends Dropdown {
 	private feedbackDescriptionInput: HTMLTextAreaElement;
 	private smileyInput: Builder;
 	private frownyInput: Builder;
-	private sendButton: Builder;
+	private sendButton: Button;
+	private $sendButton: Builder;
 	private hideButton: HTMLInputElement;
 	private remainingCharacterCount: Builder;
 
@@ -110,6 +112,7 @@ export class FeedbackDropdown extends Dropdown {
 		this.frownyInput = null;
 
 		this.sendButton = null;
+		this.$sendButton = null;
 
 		this.requestFeatureLink = product.sendASmile.requestFeatureUrl;
 	}
@@ -246,11 +249,17 @@ export class FeedbackDropdown extends Dropdown {
 
 		$('label').attr('for', 'hide-button').text(nls.localize('showFeedback', "Show Feedback Smiley in Status Bar")).appendTo($hideButtonContainer);
 
-		this.sendButton = this.invoke($('input.send').type('button').attr('disabled', '').value(nls.localize('tweet', "Tweet")).appendTo($buttons), () => {
+		this.sendButton = new Button($buttons);
+		this.sendButton.enabled = false;
+		this.sendButton.label = nls.localize('tweet', "Tweet");
+		this.$sendButton = new Builder(this.sendButton.element);
+		this.$sendButton.addClass('send');
+		this.toDispose.push(attachButtonStyler(this.sendButton, this.themeService));
+
+		this.invoke(this.$sendButton, () => {
 			if (this.isSendingFeedback) {
 				return;
 			}
-
 			this.onSubmit();
 		});
 
@@ -289,7 +298,7 @@ export class FeedbackDropdown extends Dropdown {
 
 	private updateCharCountText(): void {
 		this.remainingCharacterCount.text(this.getCharCountText(this.feedbackDescriptionInput.value.length));
-		this.feedbackDescriptionInput.value ? this.sendButton.removeAttribute('disabled') : this.sendButton.attr('disabled', '');
+		this.sendButton.enabled = this.feedbackDescriptionInput.value.length > 0;
 	}
 
 	private setSentiment(smile: boolean): void {
@@ -386,25 +395,28 @@ export class FeedbackDropdown extends Dropdown {
 		switch (event) {
 			case FormEvent.SENDING:
 				this.isSendingFeedback = true;
-				this.sendButton.setClass('send in-progress');
-				this.sendButton.value(nls.localize('feedbackSending', "Sending"));
+				this.sendButton.label = nls.localize('feedbackSending', "Sending");
+				this.$sendButton.addClass('in-progress');
 				break;
 			case FormEvent.SENT:
 				this.isSendingFeedback = false;
-				this.sendButton.setClass('send success').value(nls.localize('feedbackSent', "Thanks"));
+				this.sendButton.label = nls.localize('feedbackSent', "Thanks");
+				this.$sendButton.addClass('success');
 				this.resetForm();
 				this.autoHideTimeout = setTimeout(() => {
 					this.hide();
 				}, 1000);
-				this.sendButton.off(['click', 'keypress']);
-				this.invoke(this.sendButton, () => {
+				this.$sendButton.off(['click', 'keypress']);
+				this.invoke(this.$sendButton, () => {
 					this.hide();
-					this.sendButton.off(['click', 'keypress']);
+					this.$sendButton.off(['click', 'keypress']);
+					this.$sendButton.removeClass('in-progress');
 				});
 				break;
 			case FormEvent.SEND_ERROR:
 				this.isSendingFeedback = false;
-				this.sendButton.setClass('send error').value(nls.localize('feedbackSendingError', "Try again"));
+				this.$sendButton.addClass('error');
+				this.sendButton.label = nls.localize('feedbackSendingError', "Try again");
 				break;
 		}
 	}
