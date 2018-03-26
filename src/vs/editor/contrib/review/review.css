@@ -1,0 +1,60 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .margin-view-overlays .review {
+	background-image: url('comment.svg');
+	cursor: pointer;
+}
+
+.monaco-editor .review-widget {
+	width: 100%;
+	position: absolute;
+	margin: 0px 20px 20px 20px;
+}
+
+.monaco-editor .review-widget pre {
+	overflow: auto;
+	word-wrap: normal;
+	white-space: pre;
+}
+.monaco-editor.vs-dark .review-widget .author {
+	color: #fff;
+}
+
+.monaco-editor.vs-dark .review-widget span.created_at {
+	color: #e0e0e0;
+}
+
+.monaco-editor .review-widget p,
+.monaco-editor .review-widget ul {
+	margin: 8px 0;
+}
+
+.monaco-editor .review-widget p:first-child,
+.monaco-editor .review-widget ul:first-child {
+	margin-top: 0;
+}
+
+.monaco-editor .review-widget p:last-child,
+.monaco-editor .review-widget ul:last-child {
+	margin-bottom: 0;
+}
+
+.monaco-editor .review-widget ul {
+	padding-left: 20px;
+}
+
+.monaco-editor .review-widget li > p {
+	margin-bottom: 0;
+}
+
+.monaco-editor .review-widget li > ul {
+	margin-top: 0;
+}
+
+.monaco-editor .review-widget code {
+	border-radius: 3px;
+	padding: 0 0.4em;
+}
