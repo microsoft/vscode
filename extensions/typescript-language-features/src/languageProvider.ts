@@ -150,7 +150,7 @@ export default class LanguageProvider {
 
 	private async initFoldingProvider(): Promise<void> {
 		let enable = workspace.getConfiguration().get(foldingSetting, false);
-		if (enable) {
+		if (enable && this.client.apiVersion.has280Features()) {
 			if (!this.foldingProviderRegistration) {
 				this.foldingProviderRegistration = languages.registerFoldingProvider(this.documentSelector, new (await import('./features/folderingProvider')).default(this.client));
 			}
