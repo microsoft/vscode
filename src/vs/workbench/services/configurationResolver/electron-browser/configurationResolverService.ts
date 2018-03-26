@@ -65,6 +65,9 @@ class VariableResolver {
 						if (types.isString(env)) {
 							return env;
 						}
+
+						// For `env` we should do the same as a normal shell does - evaluates missing envs to an empty string #46436
+						return '';
 					}
 				}
 				case 'config': {
