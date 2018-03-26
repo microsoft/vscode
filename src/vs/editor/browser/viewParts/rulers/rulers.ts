@@ -103,6 +103,6 @@ export class Rulers extends ViewPart {
 registerThemingParticipant((theme, collector) => {
 	let rulerColor = theme.getColor(editorRuler);
 	if (rulerColor) {
-		collector.addRule(`.monaco-editor .view-ruler { --box-shadow-color: ${rulerColor}; }`);
+		collector.addRule(`.monaco-editor .view-ruler { box-shadow: 1px 0 0 0 ${rulerColor} inset; }`);
 	}
 });
