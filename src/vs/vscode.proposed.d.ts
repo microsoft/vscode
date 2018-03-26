@@ -439,12 +439,6 @@ declare module 'vscode' {
 
 	//#region Joh: rename context
 
-	export interface RenameContext {
-		range?: Range;
-		newName?: string;
-		message?: string;
-	}
-
 	export interface RenameProvider2 extends RenameProvider {
 
 		/**
@@ -454,9 +448,9 @@ declare module 'vscode' {
 		 * @param document The document in which rename will be invoked.
 		 * @param position The position at which rename will be invoked.
 		 * @param token A cancellation token.
-		 * @return A `RenameContext` with more information. The lack of a result can signaled by returning `undefined` or `null`.
+		 * @return The range of the identifier that is to be renamed. The lack of a result can signaled by returning `undefined` or `null`.
 		 */
-		resolveRenameLocation?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameContext>;
+		resolveRenameLocation?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range>;
 
 	}
 

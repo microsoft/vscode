@@ -924,15 +924,9 @@ export interface WorkspaceEdit {
 	rejectReason?: string; // TODO@joh, move to rename
 }
 
-export interface RenameContext {
-	range: IRange;
-	text: string;
-	message?: string;
-}
-
 export interface RenameProvider {
 	provideRenameEdits(model: model.ITextModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
-	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): RenameContext | Thenable<RenameContext>;
+	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): IRange | Thenable<IRange>;
 }
 
 

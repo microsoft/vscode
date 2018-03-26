@@ -506,7 +506,7 @@ class RenameAdapter {
 		});
 	}
 
-	resolveRenameLocation(resource: URI, position: IPosition): TPromise<modes.RenameContext> {
+	resolveRenameLocation(resource: URI, position: IPosition): TPromise<IRange> {
 		if (typeof this._provider.resolveRenameLocation !== 'function') {
 			return TPromise.as(undefined);
 		}
@@ -514,22 +514,18 @@ class RenameAdapter {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 
-		return asWinJsPromise(token => this._provider.resolveRenameLocation(doc, pos, token)).then(context => {
-			if (!context) {
+		return asWinJsPromise(token => this._provider.resolveRenameLocation(doc, pos, token)).then(range => {
+			if (!range) {
 				return undefined;
 			}
-			if (context.range && (!context.range.isSingleLine || context.range.start.line !== pos.line)) {
+			if (range && (!range.isSingleLine || range.start.line !== pos.line)) {
 				console.warn('INVALID rename context, range must be single line and on the same line');
 				return undefined;
 			}
-			return <modes.RenameContext>{
-				range: TypeConverters.fromRange(context.range),
-				text: context.newName || doc.getText(context.range)
-			};
+			return TypeConverters.fromRange(range);
 		});
 	}
 }
-
 
 class SuggestAdapter {
 
@@ -1092,7 +1088,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.provideRenameEdits(URI.revive(resource), position, newName));
 	}
 
-	$resolveRenameLocation(handle: number, resource: URI, position: IPosition): TPromise<modes.RenameContext> {
+	$resolveRenameLocation(handle: number, resource: URI, position: IPosition): TPromise<IRange> {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(resource, position));
 	}
 
