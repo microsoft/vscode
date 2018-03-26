@@ -11,10 +11,6 @@ export interface TaskDefinitionDTO {
 	[name: string]: any;
 }
 
-export interface TaskExecutionDTO {
-	id: string;
-}
-
 export interface TaskPresentationOptionsDTO {
 	reveal?: number;
 	echo?: boolean;
@@ -85,4 +81,9 @@ export interface TaskDTO {
 	presentationOptions: TaskPresentationOptionsDTO;
 	problemMatchers: string[];
 	hasDefinedMatchers: boolean;
+}
+
+export interface TaskExecutionDTO {
+	id: string;
+	task: TaskDTO;
 }

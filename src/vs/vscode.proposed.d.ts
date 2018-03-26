@@ -688,12 +688,25 @@ declare module 'vscode' {
 	/**
 	 * An object representing an executed Task. It can be used
 	 * to terminate a task.
+	 *
+	 * This interface is not intended to be implemented.
 	 */
 	export interface TaskExecution {
+		/**
+		 * The task that got started.
+		 */
+		task: Task;
+
+		/**
+		 * Terminates the task execution.
+		 */
+		terminate(): void;
 	}
 
 	/**
 	 * An event signaling the start of a task execution.
+	 *
+	 * This interface is not intended to be implemented.
 	 */
 	interface TaskStartEvent {
 		/**
@@ -704,6 +717,8 @@ declare module 'vscode' {
 
 	/**
 	 * An event signaling the end of an executed task.
+	 *
+	 * This interface is not intended to be implemented.
 	 */
 	interface TaskEndEvent {
 		/**
@@ -733,13 +748,6 @@ declare module 'vscode' {
 		 * Fires when a task starts.
 		 */
 		export const onDidStartTask: Event<TaskStartEvent>;
-
-		/**
-		 * Terminates a task that was previously started using `executeTask`
-		 *
-		 * @param task the task to terminate
-		 */
-		export function terminateTask(task: TaskExecution): void;
 
 		/**
 		 * Fires when a task ends.

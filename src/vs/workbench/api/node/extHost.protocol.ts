@@ -391,7 +391,7 @@ export interface MainThreadTaskShape extends IDisposable {
 	$registerTaskProvider(handle: number): TPromise<void>;
 	$executeTaskProvider(): TPromise<TaskDTO[]>;
 	$executeTask(task: TaskHandleDTO | TaskDTO): TPromise<TaskExecutionDTO>;
-	$terminateTask(task: TaskExecutionDTO): TPromise<void>;
+	$terminateTask(id: string): TPromise<void>;
 	$unregisterTaskProvider(handle: number): TPromise<void>;
 }
 

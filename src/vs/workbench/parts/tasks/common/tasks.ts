@@ -642,7 +642,8 @@ export namespace Task {
 
 	export function getTaskExecution(task: Task): TaskExecution {
 		let result: TaskExecution = {
-			id: task._id
+			id: task._id,
+			task: task
 		};
 		return result;
 	}
@@ -657,6 +658,7 @@ export interface TaskItem {
 
 export interface TaskExecution {
 	id: string;
+	task: Task;
 }
 
 export enum ExecutionEngine {
