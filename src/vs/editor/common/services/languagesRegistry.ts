@@ -111,13 +111,9 @@ export class LanguagesRegistry {
 
 		let primaryMime: string = null;
 
-		if (typeof lang.mimetypes !== 'undefined' && Array.isArray(lang.mimetypes)) {
-			for (let i = 0; i < lang.mimetypes.length; i++) {
-				if (!primaryMime) {
-					primaryMime = lang.mimetypes[i];
-				}
-				resolvedLanguage.mimetypes.push(lang.mimetypes[i]);
-			}
+		if (Array.isArray(lang.mimetypes) && lang.mimetypes.length) {
+			resolvedLanguage.mimetypes.push(...lang.mimetypes);
+			primaryMime = lang.mimetypes[0];
 		}
 
 		if (!primaryMime) {
