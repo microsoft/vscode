@@ -25,6 +25,8 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
+import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
+import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 
 const $ = dom.$;
 
@@ -39,6 +41,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private container: HTMLElement;
 	private selectAll: HTMLInputElement;
 	private inputBox: QuickInputBox;
+	private count: CountBadge;
 	private checkboxList: QuickInputCheckboxList;
 
 	private resolve: (value?: object[] | Thenable<object[]>) => void;
@@ -68,7 +71,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.selectAll.type = 'checkbox';
 		this.toUnbind.push(dom.addStandardDisposableListener(this.selectAll, dom.EventType.CHANGE, e => {
 			const checked = this.selectAll.checked;
-			this.checkboxList.setAllSelected(checked);
+			this.checkboxList.setAllVisibleSelected(checked);
 		}));
 
 		this.inputBox = new QuickInputBox(headerContainer);
@@ -103,10 +106,17 @@ export class QuickInputService extends Component implements IQuickInputService {
 		ok.textContent = localize('ok', "OK");
 		this.toUnbind.push(dom.addDisposableListener(ok, dom.EventType.CLICK, e => this.close(true)));
 
+		const badgeContainer = dom.append(headerContainer, $('.quick-input-count'));
+		this.count = new CountBadge(badgeContainer);
+		this.toUnbind.push(attachBadgeStyler(this.count, this.themeService));
+
 		this.checkboxList = this.instantiationService.createInstance(QuickInputCheckboxList, this.container);
 		this.toUnbind.push(this.checkboxList);
-		this.toUnbind.push(this.checkboxList.onAllSelectedChanged(() => {
-			this.selectAll.checked = this.checkboxList.getAllSelected();
+		this.toUnbind.push(this.checkboxList.onAllVisibleSelectedChanged(allSelected => {
+			this.selectAll.checked = allSelected;
+		}));
+		this.toUnbind.push(this.checkboxList.onSelectedCountChanged(count => {
+			this.count.setCount(count);
 		}));
 
 		this.toUnbind.push(dom.addDisposableListener(this.container, 'focusout', (e: FocusEvent) => {
@@ -161,7 +171,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.inputBox.setPlaceholder(options.placeHolder ? localize('quickInput.ctrlSpaceToSelectWithPlaceholder', "{1} ({0} to toggle)", 'Ctrl+Space', options.placeHolder) : localize('quickInput.ctrlSpaceToSelect', "{0} to toggle", 'Ctrl+Space'));
 		// TODO: Progress indication.
 		this.checkboxList.setElements(await picks);
-		this.selectAll.checked = this.checkboxList.getAllSelected();
+		this.selectAll.checked = this.checkboxList.getAllVisibleSelected();
+		this.count.setCount(this.checkboxList.getSelectedCount());
 
 		this.container.style.display = null;
 		this.updateLayout();
