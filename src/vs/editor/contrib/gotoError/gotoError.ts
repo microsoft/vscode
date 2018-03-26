@@ -26,6 +26,7 @@ import { compare } from 'vs/base/common/strings';
 import { binarySearch } from 'vs/base/common/arrays';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 class MarkerModel {
 
@@ -233,11 +234,18 @@ class MarkerController implements editorCommon.IEditorContribution {
 		this._model = new MarkerModel(this._editor, markers);
 		this._markerService.onMarkerChanged(this._onMarkerChanged, this, this._disposeOnClose);
 
-		this._widget = new MarkerNavigationWidget(this._editor, this._themeService, this._editorService);
+		this._widget = new MarkerNavigationWidget(this._editor, this._themeService);
 		this._widgetVisible.set(true);
 
 		this._disposeOnClose.push(this._model);
 		this._disposeOnClose.push(this._widget);
+		this._disposeOnClose.push(this._widget.onDidSelectRelatedInformation(related => {
+			this._editorService.openEditor({
+				resource: related.resource,
+				options: { pinned: true, revealIfOpened: true, selection: Range.lift(related).collapseToStart() }
+			}).then(undefined, onUnexpectedError);
+			this.closeMarkersNavigation(false);
+		}));
 		this._disposeOnClose.push(this._editor.onDidChangeModel(() => this._cleanUp()));
 
 		this._disposeOnClose.push(this._model.onCurrentMarkerChanged(marker => {
@@ -261,9 +269,11 @@ class MarkerController implements editorCommon.IEditorContribution {
 		return this._model;
 	}
 
-	public closeMarkersNavigation(): void {
+	public closeMarkersNavigation(focusEditor: boolean = true): void {
 		this._cleanUp();
-		this._editor.focus();
+		if (focusEditor) {
+			this._editor.focus();
+		}
 	}
 
 	private _onMarkerChanged(changedResources: URI[]): void {
