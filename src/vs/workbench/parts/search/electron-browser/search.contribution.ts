@@ -54,10 +54,11 @@ import { Schemas } from 'vs/base/common/network';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { openSearchView, getSearchView, ReplaceAllInFolderAction, ReplaceAllAction, CloseReplaceAction, FocusNextInputAction, FocusPreviousInputAction, FocusNextSearchResultAction, FocusPreviousSearchResultAction, ReplaceInFilesAction, FindInFilesAction, FocusActiveEditorCommand, toggleCaseSensitiveCommand, ShowNextSearchTermAction, ShowPreviousSearchTermAction, toggleRegexCommand, ShowPreviousSearchIncludeAction, ShowNextSearchIncludeAction, CollapseDeepestExpandedLevelAction, toggleWholeWordCommand, RemoveAction, ReplaceAction, ClearSearchResultsAction } from 'vs/workbench/parts/search/browser/searchActions';
-import { VIEW_ID } from 'vs/platform/search/common/search';
+import { VIEW_ID, ISearchConfigurationProperties } from 'vs/platform/search/common/search';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { SearchViewLocationUpdater } from 'vs/workbench/parts/search/browser/searchViewLocationUpdater';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -231,6 +232,28 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 	when: Constants.FileMatchOrMatchFocusKey,
 	group: 'search',
 	order: 2
+});
+
+CommandsRegistry.registerCommand({
+	id: Constants.ToggleSearchViewPositionCommandId,
+	handler: (accessor) => {
+		const configurationService = accessor.get(IConfigurationService);
+		const currentValue = configurationService.getValue<ISearchConfigurationProperties>('search').location;
+		const toggleValue = currentValue === 'sidebar' ? 'panel' : 'sidebar';
+
+		configurationService.updateValue('search.location', toggleValue);
+	}
+});
+
+const toggleSearchViewPositionLabel = nls.localize('toggleSearchViewPositionLabel', "Toggle Search View Position");
+MenuRegistry.appendMenuItem(MenuId.SearchContext, {
+	command: {
+		id: Constants.ToggleSearchViewPositionCommandId,
+		title: toggleSearchViewPositionLabel
+	},
+	when: Constants.SearchViewVisibleKey,
+	group: 'search',
+	order: 3
 });
 
 const FIND_IN_FOLDER_ID = 'filesExplorer.findInFolder';
