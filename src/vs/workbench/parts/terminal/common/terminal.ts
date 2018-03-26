@@ -448,8 +448,8 @@ export interface ITerminalInstance {
 }
 
 export interface ITerminalCommandTracker {
-	focusPreviousCommand(): void;
-	focusNextCommand(): void;
+	scrollToPreviousCommand(): void;
+	scrollToNextCommand(): void;
 	selectToPreviousCommand(): void;
 	selectToNextCommand(): void;
 }

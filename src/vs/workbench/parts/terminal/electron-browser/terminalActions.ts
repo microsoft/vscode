@@ -982,9 +982,9 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 	}
 }
 
-export class FocusPreviousCommandAction extends Action {
-	public static readonly ID = 'workbench.action.terminal.focusPreviousCommand';
-	public static readonly LABEL = nls.localize('workbench.action.terminal.focusPreviousCommand', "Focus Previous Command");
+export class ScrollToPreviousCommandAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.scrollToPreviousCommand';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.scrollToPreviousCommand', "Scroll To Previous Command");
 
 	constructor(
 		id: string, label: string,
@@ -996,15 +996,15 @@ export class FocusPreviousCommandAction extends Action {
 	public run(): TPromise<any> {
 		const instance = this.terminalService.getActiveInstance();
 		if (instance) {
-			instance.commandTracker.focusPreviousCommand();
+			instance.commandTracker.scrollToPreviousCommand();
 		}
 		return TPromise.as(void 0);
 	}
 }
 
-export class FocusNextCommandAction extends Action {
-	public static readonly ID = 'workbench.action.terminal.focusNextCommand';
-	public static readonly LABEL = nls.localize('workbench.action.terminal.focusNextCommand', "Focus Next Command");
+export class ScrollToNextCommandAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.scrollToNextCommand';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.scrollToNextCommand', "Scroll To Next Command");
 
 	constructor(
 		id: string, label: string,
@@ -1016,7 +1016,7 @@ export class FocusNextCommandAction extends Action {
 	public run(): TPromise<any> {
 		const instance = this.terminalService.getActiveInstance();
 		if (instance) {
-			instance.commandTracker.focusNextCommand();
+			instance.commandTracker.scrollToNextCommand();
 		}
 		return TPromise.as(void 0);
 	}

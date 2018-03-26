@@ -86,7 +86,7 @@ suite('Configuration Resolver Service', () => {
 		if (platform.isWindows) {
 			assert.strictEqual(configurationResolverService.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - Value for key1');
 		} else {
-			assert.strictEqual(configurationResolverService.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - ${env:Key1}');
+			assert.strictEqual(configurationResolverService.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - ');
 		}
 	});
 
@@ -216,7 +216,7 @@ suite('Configuration Resolver Service', () => {
 
 		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService());
 		assert.strictEqual(service.resolve(workspace, 'abc ${invalidVariable} xyz'), 'abc ${invalidVariable} xyz');
-		assert.strictEqual(service.resolve(workspace, 'abc ${env:invalidVariable} xyz'), 'abc ${env:invalidVariable} xyz');
+		assert.strictEqual(service.resolve(workspace, 'abc ${env:invalidVariable} xyz'), 'abc  xyz');
 		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.abc.def} xyz'), 'abc ${config:editor.abc.def} xyz');
 		assert.strictEqual(service.resolve(workspace, 'abc ${config:panel.abc} xyz'), 'abc ${config:panel.abc} xyz');
 	});

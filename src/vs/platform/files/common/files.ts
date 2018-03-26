@@ -11,7 +11,7 @@ import * as glob from 'vs/base/common/glob';
 import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
-import { beginsWithIgnoreCase } from 'vs/base/common/strings';
+import { startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
@@ -348,27 +348,10 @@ export function isParent(path: string, candidate: string, ignoreCase?: boolean):
 	}
 
 	if (ignoreCase) {
-		return beginsWithIgnoreCase(path, candidate);
+		return startsWithIgnoreCase(path, candidate);
 	}
 
 	return path.indexOf(candidate) === 0;
-}
-
-export function indexOf(path: string, candidate: string, ignoreCase?: boolean): number {
-	if (candidate.length > path.length) {
-		return -1;
-	}
-
-	if (path === candidate) {
-		return 0;
-	}
-
-	if (ignoreCase) {
-		path = path.toLowerCase();
-		candidate = candidate.toLowerCase();
-	}
-
-	return path.indexOf(candidate);
 }
 
 export interface IBaseStat {

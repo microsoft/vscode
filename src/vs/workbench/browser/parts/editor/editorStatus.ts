@@ -311,7 +311,7 @@ export class EditorStatus implements IStatusbarItem {
 		hide(this.selectionElement);
 
 		this.indentationElement = append(this.element, $('a.editor-status-indentation'));
-		this.indentationElement.title = nls.localize('indentation', "Indentation");
+		this.indentationElement.title = nls.localize('selectIndentation', "Select Indentation");
 		this.indentationElement.onclick = () => this.onIndentationClick();
 		hide(this.indentationElement);
 
