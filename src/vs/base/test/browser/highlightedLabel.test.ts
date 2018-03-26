@@ -54,7 +54,7 @@ suite('HighlightedLabel', () => {
 	});
 
 	test('highlights are adjusted accordingly when escaped newline is present', function () {
-		label.set('foo\\nbar\\nfoo\\nfoo', [{ start: 0, end: 3 }, { start: 8, end: 11 }, { start: 12, end: 16 }]);
+		label.set('foo\\nbar\\nfoo\\nfoo', [{ start: 0, end: 3 }, { start: 8, end: 11 }, { start: 12, end: 16 }], true);
 		assert.equal(label.element.innerHTML, '<span class="highlight">foo</span><span>\\nbar\\n</span><span class="highlight">foo</span><span>\\n</span><span class="highlight">foo</span>');
 	});
 });

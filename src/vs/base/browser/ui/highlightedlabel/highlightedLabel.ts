@@ -32,7 +32,7 @@ export class HighlightedLabel implements IDisposable {
 		return this.domNode;
 	}
 
-	set(text: string, highlights: IHighlight[] = []) {
+	set(text: string, highlights: IHighlight[] = [], escapedNewLines: boolean = false) {
 		if (!text) {
 			text = '';
 		}
@@ -44,9 +44,14 @@ export class HighlightedLabel implements IDisposable {
 			highlights = [];
 		}
 
+		const originalHighlights = [...highlights];
 		this.text = text;
 		this.highlights = highlights;
+		if (escapedNewLines) {
+			this.highlights = this.adjustHighlightsForEscapedLineBreaks(this.highlights);
+		}
 		this.render();
+		this.highlights = originalHighlights;
 	}
 
 	private adjustHighlightsForEscapedLineBreaks(highlights: IHighlight[]): IHighlight[] {
@@ -83,14 +88,13 @@ export class HighlightedLabel implements IDisposable {
 	private render() {
 		dom.clearNode(this.domNode);
 
-		const highlights = this.adjustHighlightsForEscapedLineBreaks(this.highlights);
 
 		let htmlContent: string[] = [],
 			highlight: IHighlight,
 			pos = 0;
 
-		for (let i = 0; i < highlights.length; i++) {
-			highlight = highlights[i];
+		for (let i = 0; i < this.highlights.length; i++) {
+			highlight = this.highlights[i];
 			if (highlight.end === highlight.start) {
 				continue;
 			}
