@@ -1549,7 +1549,6 @@ declare module 'vscode' {
 
 		/**
 		 * An optional function that is invoked whenever an item is selected.
-		 * (Only honored when the picker does not allow multiple selections.)
 		 */
 		onDidSelectItem?(item: QuickPickItem | string): any;
 	}
