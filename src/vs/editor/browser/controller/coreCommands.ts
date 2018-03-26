@@ -377,7 +377,7 @@ export namespace CoreNavigationCommands {
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow,
 			linux: { primary: 0 }
 		}
 	}));
@@ -415,7 +415,7 @@ export namespace CoreNavigationCommands {
 		kbOpts: {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow,
 			linux: { primary: 0 }
 		}
 	}));
@@ -587,7 +587,6 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.Shift | KeyCode.UpArrow,
-			secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow],
 			mac: { primary: KeyMod.Shift | KeyCode.UpArrow },
 			linux: { primary: KeyMod.Shift | KeyCode.UpArrow }
 		}
@@ -655,7 +654,6 @@ export namespace CoreNavigationCommands {
 			weight: CORE_WEIGHT,
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.Shift | KeyCode.DownArrow,
-			secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow],
 			mac: { primary: KeyMod.Shift | KeyCode.DownArrow },
 			linux: { primary: KeyMod.Shift | KeyCode.DownArrow }
 		}
