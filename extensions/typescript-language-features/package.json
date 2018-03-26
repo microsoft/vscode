@@ -413,6 +413,18 @@
           "type": "boolean",
           "default": true,
           "description": "%typescript.experimental.syntaxFolding%"
+        },
+        "javascript.suggestionActions.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%javascript.suggestionActions.enabled%",
+          "scope": "window"
+        },
+        "typescript.suggestionActions.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.suggestionActions.enabled%",
+          "scope": "window"
         }
       }
     },

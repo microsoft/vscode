@@ -41,6 +41,7 @@ export class DiagnosticsManager {
 	private readonly _diagnostics = new Map<DiagnosticKind, DiagnosticSet>();
 	private readonly _currentDiagnostics: vscode.DiagnosticCollection;
 	private _validate: boolean = true;
+	private _enableSuggestions: boolean = true;
 
 	constructor(
 		language: string
@@ -68,7 +69,19 @@ export class DiagnosticsManager {
 		if (this._validate === value) {
 			return;
 		}
+
 		this._validate = value;
+		if (!value) {
+			this._currentDiagnostics.clear();
+		}
+	}
+
+	public set enableSuggestions(value: boolean) {
+		if (this._enableSuggestions === value) {
+			return;
+		}
+
+		this._enableSuggestions = value;
 		if (!value) {
 			this._currentDiagnostics.clear();
 		}
@@ -99,10 +112,12 @@ export class DiagnosticsManager {
 			return;
 		}
 
-		const allDiagnostics = allDiagnosticKinds.reduce((sum, kind) => {
-			sum.push(...this._diagnostics.get(kind)!.get(file));
-			return sum;
-		}, [] as vscode.Diagnostic[]);
+		const allDiagnostics: vscode.Diagnostic[] = [];
+		allDiagnostics.push(...this._diagnostics.get(DiagnosticKind.Syntax)!.get(file));
+		allDiagnostics.push(...this._diagnostics.get(DiagnosticKind.Semantic)!.get(file));
+		if (this._enableSuggestions) {
+			allDiagnostics.push(...this._diagnostics.get(DiagnosticKind.Suggestion)!.get(file));
+		}
 		this._currentDiagnostics.set(file, allDiagnostics);
 	}
 
