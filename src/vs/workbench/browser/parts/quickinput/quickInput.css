@@ -22,6 +22,12 @@
 	margin: 0;
 }
 
+.quick-input-filter {
+	flex-grow: 1;
+	display: flex;
+	position: relative;
+}
+
 .quick-input-box {
 	flex-grow: 1;
 	margin-left: 5px;
@@ -29,7 +35,8 @@
 
 .quick-input-count {
 	align-self: center;
-	margin-left: 5px;
+	position: absolute;
+	right: 4px;
 }
 
 .quick-input-count .monaco-count-badge {

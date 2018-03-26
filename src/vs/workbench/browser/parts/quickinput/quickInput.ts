@@ -77,7 +77,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 			this.checkboxList.setAllVisibleSelected(checked);
 		}));
 
-		this.inputBox = new QuickInputBox(headerContainer);
+		const filterContainer = dom.append(headerContainer, $('.quick-input-filter'));
+
+		this.inputBox = new QuickInputBox(filterContainer);
 		this.toUnbind.push(this.inputBox);
 		this.inputBox.style(this.themeService.getTheme());
 		this.inputBox.onDidChange(value => {
@@ -105,13 +107,13 @@ export class QuickInputService extends Component implements IQuickInputService {
 			}
 		}));
 
+		const badgeContainer = dom.append(filterContainer, $('.quick-input-count'));
+		this.count = new CountBadge(badgeContainer, { countFormat: localize('quickInput.countSelected', "{0} Selected") });
+		this.toUnbind.push(attachBadgeStyler(this.count, this.themeService));
+
 		const ok = dom.append(headerContainer, $('button.quick-input-action'));
 		ok.textContent = localize('ok', "OK");
 		this.toUnbind.push(dom.addDisposableListener(ok, dom.EventType.CLICK, e => this.close(true)));
-
-		const badgeContainer = dom.append(headerContainer, $('.quick-input-count'));
-		this.count = new CountBadge(badgeContainer);
-		this.toUnbind.push(attachBadgeStyler(this.count, this.themeService));
 
 		this.checkboxList = this.instantiationService.createInstance(QuickInputCheckboxList, this.container);
 		this.toUnbind.push(this.checkboxList);
