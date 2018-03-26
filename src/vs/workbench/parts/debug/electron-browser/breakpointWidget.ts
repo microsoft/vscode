@@ -31,6 +31,9 @@ import { ITextModel } from 'vs/editor/common/model';
 import { wireCancellationToken } from 'vs/base/common/async';
 import { provideSuggestionItems } from 'vs/editor/contrib/suggest/suggest';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IDecorationOptions } from '../../../../editor/common/editorCommon';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 
 const $ = dom.$;
 const IPrivateBreakopintWidgetService = createDecorator<IPrivateBreakopintWidgetService>('privateBreakopintWidgetService');
@@ -38,6 +41,7 @@ export interface IPrivateBreakopintWidgetService {
 	_serviceBrand: any;
 	close(success: boolean): void;
 }
+const DECORATION_KEY = 'breakpointwidgetdecoration';
 
 export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWidgetService {
 	public _serviceBrand: any;
@@ -56,7 +60,8 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 		@IThemeService private themeService: IThemeService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModelService private modelService: IModelService
+		@IModelService private modelService: IModelService,
+		@ICodeEditorService private codeEditorService: ICodeEditorService,
 	) {
 		super(editor, { showFrame: true, showArrow: false, frameWidth: 1 });
 
@@ -79,30 +84,21 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 				this.dispose();
 			}
 		}));
+		this.codeEditorService.registerDecorationType(DECORATION_KEY, {});
+
 		this.create();
 	}
 
-	// private get placeholder(): string {
-	// 	switch (this.context) {
-	// 		case Context.LOG_MESSAGE:
-	// 			return nls.localize('breakpointWidgetLogMessagePlaceholder', "Message to log when breakpoint is hit. Expressions within {} are interpolated. 'Enter' to accept, 'esc' to cancel.");
-	// 		case Context.HIT_COUNT:
-	// 			return nls.localize('breakpointWidgetHitCountPlaceholder', "Break when hit count condition is met. 'Enter' to accept, 'esc' to cancel.");
-	// 		default:
-	// 			return nls.localize('breakpointWidgetExpressionPlaceholder', "Break when expression evaluates to true. 'Enter' to accept, 'esc' to cancel.");
-	// 	}
-	// }
-
-	// private get ariaLabel(): string {
-	// 	switch (this.context) {
-	// 		case Context.LOG_MESSAGE:
-	// 			return nls.localize('breakpointWidgetLogMessageAriaLabel', "The program will log this message everytime this breakpoint is hit. Press Enter to accept or Escape to cancel.");
-	// 		case Context.HIT_COUNT:
-	// 			return nls.localize('breakpointWidgetHitCountAriaLabel', "The program will only stop here if the hit count is met. Press Enter to accept or Escape to cancel.");
-	// 		default:
-	// 			return nls.localize('breakpointWidgetAriaLabel', "The program will only stop here if this condition is true. Press Enter to accept or Escape to cancel.");
-	// 	}
-	// }
+	private get placeholder(): string {
+		switch (this.context) {
+			case Context.LOG_MESSAGE:
+				return nls.localize('breakpointWidgetLogMessagePlaceholder', "Message to log when breakpoint is hit. Expressions within {} are interpolated. 'Enter' to accept, 'esc' to cancel.");
+			case Context.HIT_COUNT:
+				return nls.localize('breakpointWidgetHitCountPlaceholder', "Break when hit count condition is met. 'Enter' to accept, 'esc' to cancel.");
+			default:
+				return nls.localize('breakpointWidgetExpressionPlaceholder', "Break when expression evaluates to true. 'Enter' to accept, 'esc' to cancel.");
+		}
+	}
 
 	private getInputValue(breakpoint: IBreakpoint): string {
 		switch (this.context) {
@@ -139,7 +135,8 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 			this.rememberInput();
 			this.context = e.index;
 
-			this.input.getModel().setValue(this.getInputValue(this.breakpoint));
+			const value = this.getInputValue(this.breakpoint);
+			this.input.getModel().setValue(value);
 		});
 
 		this.createBreakpointInput(dom.append(container, $('.inputContainer')));
@@ -208,6 +205,13 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:breakpointinput`), true);
 		this.input.setModel(model);
 		this.toDispose.push(model);
+		const setDecorations = () => {
+			const value = this.input.getModel().getValue();
+			const decorations = !!value ? [] : this.createDecorations();
+			this.input.setDecorations(DECORATION_KEY, decorations);
+		};
+		this.input.getModel().onDidChangeContent(() => setDecorations());
+		this.themeService.onThemeChange(() => setDecorations());
 
 		SuggestRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
 			triggerCharacters: ['.'],
@@ -224,6 +228,23 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 				return wireCancellationToken(token, suggestions);
 			}
 		});
+	}
+
+	private createDecorations(): IDecorationOptions[] {
+		return [{
+			range: {
+				startLineNumber: 0,
+				endLineNumber: 0,
+				startColumn: 0,
+				endColumn: 1
+			},
+			renderOptions: {
+				after: {
+					contentText: this.placeholder,
+					color: transparent(editorForeground, 0.4)(this.themeService.getTheme()).toString()
+				}
+			}
+		}];
 	}
 
 	private isCurlyBracketOpen(): boolean {
