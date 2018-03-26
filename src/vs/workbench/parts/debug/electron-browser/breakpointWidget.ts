@@ -25,7 +25,7 @@ import { ServicesAccessor, EditorCommand, registerEditorCommand } from 'vs/edito
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import uri from 'vs/base/common/uri';
-import { SuggestRegistry, ISuggestResult, SuggestContext } from 'vs/editor/common/modes';
+import { SuggestRegistry, ISuggestResult, SuggestContext, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModel } from 'vs/editor/common/model';
 import { wireCancellationToken } from 'vs/base/common/async';
@@ -218,7 +218,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 			provideCompletionItems: (model: ITextModel, position: Position, _context: SuggestContext, token: CancellationToken): Thenable<ISuggestResult> => {
 				let suggestions: TPromise<ISuggestResult>;
 				if (this.context === Context.CONDITION || this.context === Context.LOG_MESSAGE && this.isCurlyBracketOpen()) {
-					suggestions = provideSuggestionItems(this.editor.getModel(), this.editor.getPosition(), 'none').then(suggestions => {
+					suggestions = provideSuggestionItems(this.editor.getModel(), this.editor.getPosition(), 'none', undefined, { triggerKind: SuggestTriggerKind.Invoke }).then(suggestions => {
 						return { suggestions: suggestions.map(s => s.suggestion) };
 					});
 				} else {
