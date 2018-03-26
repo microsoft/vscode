@@ -26,7 +26,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { attachBadgeStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 
@@ -108,8 +108,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 			}
 		}));
 
-		this.progressBar = new ProgressBar(this.container); // TODO theme
+		this.progressBar = new ProgressBar(this.container);
 		this.progressBar.getContainer().addClass('quick-input-progress');
+		this.toUnbind.push(attachProgressBarStyler(this.progressBar, this.themeService));
 
 		this.checkboxList = this.instantiationService.createInstance(QuickInputCheckboxList, this.container);
 		this.toUnbind.push(this.checkboxList);
