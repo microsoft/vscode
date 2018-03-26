@@ -230,8 +230,8 @@ phases:
     matrix:
       x64:
         VSCODE_ARCH: x64
-      ia32:
-        VSCODE_ARCH: ia32
+      # ia32:
+      #   VSCODE_ARCH: ia32
 
   steps:
   - script: |
