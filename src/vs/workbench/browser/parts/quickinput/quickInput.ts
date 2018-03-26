@@ -46,7 +46,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private checkboxList: QuickInputCheckboxList;
 	private ignoreFocusLost = false;
 
-	private resolve: (value?: object[] | Thenable<object[]>) => void;
+	private resolve: (value?: IPickOpenEntry[] | Thenable<IPickOpenEntry[]>) => void;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -99,7 +99,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		const ok = dom.append(headerContainer, $('button.quick-input-action'));
 		ok.textContent = localize('ok', "OK");
-		this.toUnbind.push(dom.addDisposableListener(ok, dom.EventType.CLICK, e => this.close(true)));
+		this.toUnbind.push(dom.addDisposableListener(ok, dom.EventType.CLICK, e => this.close(this.checkboxList.getSelectedElements())));
 
 		this.checkboxList = this.instantiationService.createInstance(QuickInputCheckboxList, this.container);
 		this.toUnbind.push(this.checkboxList);
@@ -123,7 +123,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 				}
 			}
 			if (!this.ignoreFocusLost && !this.environmentService.args['sticky-quickopen'] && this.configurationService.getValue(CLOSE_ON_FOCUS_LOST_CONFIG)) {
-				this.close(false);
+				this.close();
 			}
 		}));
 		this.toUnbind.push(dom.addDisposableListener(this.container, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -131,54 +131,59 @@ export class QuickInputService extends Component implements IQuickInputService {
 			switch (event.keyCode) {
 				case KeyCode.Enter:
 					dom.EventHelper.stop(e, true);
-					this.close(true);
+					this.close(this.checkboxList.getSelectedElements());
 					break;
 				case KeyCode.Escape:
 					dom.EventHelper.stop(e, true);
-					this.close(false);
+					this.close();
 					break;
 			}
 		}));
 
-		this.toUnbind.push(this.quickOpenService.onShow(() => this.close(false)));
+		this.toUnbind.push(this.quickOpenService.onShow(() => this.close()));
 	}
 
-	private close(ok: boolean) {
+	private close(value?: IPickOpenEntry[] | Thenable<IPickOpenEntry[]>) {
 		if (this.resolve) {
-			if (ok) {
-				this.resolve(this.checkboxList.getSelectedElements());
-			} else {
-				this.resolve();
-			}
+			this.resolve(value);
 		}
 		this.container.style.display = 'none';
 	}
 
-	async pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options: IPickOptions = {}, token?: CancellationToken): TPromise<T[]> {
+	pick<T extends IPickOpenEntry>(picks: TPromise<T[]>, options: IPickOptions = {}, token: CancellationToken = CancellationToken.None): TPromise<T[]> {
 		this.create();
 		this.quickOpenService.close();
 		if (this.resolve) {
 			this.resolve();
 		}
 
-		// TODO: Listen on cancellation token.
-
 		this.inputBox.setValue('');
-		// TODO: Localize shortcut.
 		this.inputBox.setPlaceholder(options.placeHolder || '');
-		// TODO: Progress indication.
-		this.checkboxList.setElements(await picks);
 		this.checkboxList.matchOnDescription = options.matchOnDescription;
 		this.checkboxList.matchOnDetail = options.matchOnDetail;
+		this.ignoreFocusLost = options.ignoreFocusLost;
+
+		this.checkboxList.setElements([]);
 		this.selectAll.checked = this.checkboxList.getAllVisibleSelected();
 		this.count.setCount(this.checkboxList.getSelectedCount());
-		this.ignoreFocusLost = options.ignoreFocusLost;
 
 		this.container.style.display = null;
 		this.updateLayout();
 		this.inputBox.setFocus();
 
-		return new TPromise<T[]>(resolve => this.resolve = resolve);
+		const result = new TPromise<T[]>(resolve => this.resolve = resolve);
+		const d = token.onCancellationRequested(() => this.close());
+		result.then(() => d.dispose(), () => d.dispose());
+
+		// TODO: Progress indication.
+		picks.then(elements => {
+			this.checkboxList.setElements(elements);
+			this.selectAll.checked = this.checkboxList.getAllVisibleSelected();
+			this.count.setCount(this.checkboxList.getSelectedCount());
+			this.updateLayout();
+		}).then(null, reason => this.close(TPromise.wrapError(reason)));
+
+		return result;
 	}
 
 	public layout(dimension: Dimension): void {
