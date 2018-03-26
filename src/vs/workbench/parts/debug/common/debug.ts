@@ -244,6 +244,8 @@ export interface IBaseBreakpoint extends IEnablement {
 	condition: string;
 	hitCondition: string;
 	logMessage: string;
+	verified: boolean;
+	idFromAdapter: number;
 }
 
 export interface IBreakpoint extends IBaseBreakpoint {
@@ -252,15 +254,11 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	endLineNumber?: number;
 	column: number;
 	endColumn?: number;
-	verified: boolean;
-	idFromAdapter: number;
 	message: string;
 }
 
 export interface IFunctionBreakpoint extends IBaseBreakpoint {
 	name: string;
-	verified: boolean;
-	idFromAdapter: number;
 }
 
 export interface IExceptionBreakpoint extends IEnablement {

@@ -149,17 +149,23 @@ class SplitPaneContainer {
 	}
 
 	public layout(width: number, height: number): void {
-		if (!this._isManuallySized) {
-			this.resetSize();
-		}
-		this._width = width;
-		this._height = height;
-		if (this.orientation === Orientation.HORIZONTAL) {
-			this._children.forEach(c => c.orthogonalLayout(height));
-			this._splitView.layout(width);
+		const resizeCallback = () => {
+			this._width = width;
+			this._height = height;
+			if (this.orientation === Orientation.HORIZONTAL) {
+				this._children.forEach(c => c.orthogonalLayout(height));
+				this._splitView.layout(width);
+			} else {
+				this._children.forEach(c => c.orthogonalLayout(width));
+				this._splitView.layout(height);
+			}
+		};
+
+		if (this._isManuallySized) {
+			resizeCallback();
 		} else {
-			this._children.forEach(c => c.orthogonalLayout(width));
-			this._splitView.layout(height);
+			this._withDisabledLayout(resizeCallback);
+			this.resetSize();
 		}
 	}
 

@@ -201,7 +201,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 		const timeout = this._configurationService.getValue('editor.formatOnSaveTimeout', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() });
 
 		return new Promise<ISingleEditOperation[]>((resolve, reject) => {
-			setTimeout(reject, timeout);
+			setTimeout(() => reject(localize('timeout.formatOnSave', "Aborted format on save after {0}ms", timeout)), timeout);
 			getDocumentFormattingEdits(model, { tabSize, insertSpaces })
 				.then(edits => this._editorWorkerService.computeMoreMinimalEdits(model.uri, edits))
 				.then(resolve, err => {
@@ -269,7 +269,7 @@ class ExtHostSaveParticipant implements ISaveParticipantParticipant {
 		}
 
 		return new Promise<any>((resolve, reject) => {
-			setTimeout(reject, 1750);
+			setTimeout(() => reject(localize('timeout.onWillSave', "Aborted onWillSaveTextDocument-event after 1750ms")), 1750);
 			this._proxy.$participateInSave(editorModel.getResource(), env.reason).then(values => {
 				for (const success of values) {
 					if (!success) {
@@ -315,7 +315,7 @@ export class SaveParticipant implements ISaveParticipant {
 			const promiseFactory = this._saveParticipants.map(p => () => {
 				return Promise.resolve(p.participate(model, env));
 			});
-			return sequence(promiseFactory).then(() => { }, err => this._logService.error(err));
+			return sequence(promiseFactory).then(() => { }, err => this._logService.warn(err));
 		});
 	}
 }

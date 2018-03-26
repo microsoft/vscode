@@ -107,6 +107,17 @@
           "description": "%typescript.tsserver.log%",
           "scope": "window"
         },
+        "typescript.tsserver.pluginPaths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "description": "%typescript.tsserver.pluginPaths.item%"
+          },
+          "default": [],
+          "description": "%typescript.tsserver.pluginPaths%",
+          "scope": "window",
+          "isExecutable": true
+        },
         "typescript.tsserver.trace": {
           "type": "string",
           "enum": [

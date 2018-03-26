@@ -8,6 +8,8 @@
 	"typescript.tsdk.desc": "Specifies the folder path containing the tsserver and lib*.d.ts files to use.",
 	"typescript.disableAutomaticTypeAcquisition": "Disables automatic type acquisition. Requires TypeScript >= 2.0.6.",
 	"typescript.tsserver.log": "Enables logging of the TS server to a file. This log can be used to diagnose TS Server issues. The log may contain file paths, source code, and other potentially sensitive information from your project.",
+	"typescript.tsserver.pluginPaths": "Additional paths to discover Typescript Language Service plugins. Requires TypeScript >= 2.3.0.",
+	"typescript.tsserver.pluginPaths.item": "Either an absolute or relative path. Relative path will be resolved against workspace folder(s).",
 	"typescript.tsserver.trace": "Enables tracing of messages sent to the TS server. This trace can be used to diagnose TS Server issues. The trace may contain file paths, source code, and other potentially sensitive information from your project.",
 	"typescript.validate.enable": "Enable/disable TypeScript validation.",
 	"typescript.format.enable": "Enable/disable default TypeScript formatter.",

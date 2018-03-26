@@ -629,19 +629,19 @@ export abstract class CommonCodeEditor extends Disposable {
 		if (!this.cursor || !this.hasView) {
 			return null;
 		}
-		let contributionsState: { [key: string]: any } = {};
+		const contributionsState: { [key: string]: any } = {};
 
-		let keys = Object.keys(this._contributions);
+		const keys = Object.keys(this._contributions);
 		for (let i = 0, len = keys.length; i < len; i++) {
-			let id = keys[i];
-			let contribution = this._contributions[id];
+			const id = keys[i];
+			const contribution = this._contributions[id];
 			if (typeof contribution.saveViewState === 'function') {
 				contributionsState[id] = contribution.saveViewState();
 			}
 		}
 
-		let cursorState = this.cursor.saveState();
-		let viewState = this.viewModel.viewLayout.saveState();
+		const cursorState = this.cursor.saveState();
+		const viewState = this.viewModel.viewLayout.saveState();
 		return {
 			cursorState: cursorState,
 			viewState: viewState,

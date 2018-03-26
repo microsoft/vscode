@@ -62,8 +62,17 @@
 	max-width: fit-content;
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink.close-button-left::after,
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink.close-button-off::after {
+	content: "";
+	display: flex;
+	flex: 0;
+	width: 5px; /* Reserve space to hide tab fade when close button is left or off (fixes https://github.com/Microsoft/vscode/issues/45728) */
+}
+
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink.close-button-left {
 	min-width: 80px; /* make more room for close button when it shows to the left */
+	padding-right: 5px; /* we need less room when sizing is shrink */
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dragged {
@@ -188,6 +197,10 @@
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off {
 	padding-right: 10px; /* give a little bit more room if close button is off */
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink.close-button-off {
+	padding-right: 5px; /* we need less room when sizing is shrink */
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off.dirty {

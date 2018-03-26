@@ -651,6 +651,11 @@ export interface ITextModel {
 	isDisposed(): boolean;
 
 	/**
+	 * @internal
+	 */
+	tokenizeViewport(startLineNumber: number, endLineNumber: number): void;
+
+	/**
 	 * Only basic mode supports allowed on this model because it is simply too large.
 	 * (tokenization is allowed and other basic supports)
 	 * @internal

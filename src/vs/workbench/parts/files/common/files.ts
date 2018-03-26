@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
+import { ExplorerItem, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -98,9 +98,9 @@ export interface IFileResource {
 /**
  * Helper to get an explorer item from an object.
  */
-export function explorerItemToFileResource(obj: FileStat | OpenEditor): IFileResource {
-	if (obj instanceof FileStat) {
-		const stat = obj as FileStat;
+export function explorerItemToFileResource(obj: ExplorerItem | OpenEditor): IFileResource {
+	if (obj instanceof ExplorerItem) {
+		const stat = obj as ExplorerItem;
 
 		return {
 			resource: stat.resource,

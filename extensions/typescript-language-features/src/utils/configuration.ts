@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { WorkspaceConfiguration, workspace } from 'vscode';
+import * as arrays from './arrays';
 
 export enum TsServerLogLevel {
 	Off,
@@ -47,6 +48,7 @@ export class TypeScriptServiceConfiguration {
 	public readonly localTsdk: string | null;
 	public readonly npmLocation: string | null;
 	public readonly tsServerLogLevel: TsServerLogLevel = TsServerLogLevel.Off;
+	public readonly tsServerPluginPaths: string[];
 	public readonly checkJs: boolean;
 	public readonly experimentalDecorators: boolean;
 	public readonly disableAutomaticTypeAcquisition: boolean;
@@ -63,6 +65,7 @@ export class TypeScriptServiceConfiguration {
 		this.localTsdk = TypeScriptServiceConfiguration.extractLocalTsdk(configuration);
 		this.npmLocation = TypeScriptServiceConfiguration.readNpmLocation(configuration);
 		this.tsServerLogLevel = TypeScriptServiceConfiguration.readTsServerLogLevel(configuration);
+		this.tsServerPluginPaths = TypeScriptServiceConfiguration.readTsServerPluginPaths(configuration);
 		this.checkJs = TypeScriptServiceConfiguration.readCheckJs(configuration);
 		this.experimentalDecorators = TypeScriptServiceConfiguration.readExperimentalDecorators(configuration);
 		this.disableAutomaticTypeAcquisition = TypeScriptServiceConfiguration.readDisableAutomaticTypeAcquisition(configuration);
@@ -76,7 +79,8 @@ export class TypeScriptServiceConfiguration {
 			&& this.tsServerLogLevel === other.tsServerLogLevel
 			&& this.checkJs === other.checkJs
 			&& this.experimentalDecorators === other.experimentalDecorators
-			&& this.disableAutomaticTypeAcquisition === other.disableAutomaticTypeAcquisition;
+			&& this.disableAutomaticTypeAcquisition === other.disableAutomaticTypeAcquisition
+			&& arrays.equals(this.tsServerPluginPaths, other.tsServerPluginPaths);
 	}
 
 	private static extractGlobalTsdk(configuration: WorkspaceConfiguration): string | null {
@@ -98,6 +102,10 @@ export class TypeScriptServiceConfiguration {
 	private static readTsServerLogLevel(configuration: WorkspaceConfiguration): TsServerLogLevel {
 		const setting = configuration.get<string>('typescript.tsserver.log', 'off');
 		return TsServerLogLevel.fromString(setting);
+	}
+
+	private static readTsServerPluginPaths(configuration: WorkspaceConfiguration): string[] {
+		return configuration.get<string[]>('typescript.tsserver.pluginPaths', []);
 	}
 
 	private static readCheckJs(configuration: WorkspaceConfiguration): boolean {

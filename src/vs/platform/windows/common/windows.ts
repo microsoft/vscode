@@ -16,6 +16,7 @@ import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { PerformanceEntry } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -293,6 +294,7 @@ export interface IOpenFileRequest {
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
 	filesToWait?: IPathsToWaitFor;
+	termProgram?: string;
 }
 
 export interface IAddFoldersRequest {
@@ -332,4 +334,27 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 export interface IRunActionInWindowRequest {
 	id: string;
 	from: 'menu' | 'touchbar' | 'mouse';
+}
+
+export class ActiveWindowManager implements IDisposable {
+
+	private disposables: IDisposable[] = [];
+	private _activeWindowId: number;
+
+	constructor(@IWindowsService windowsService: IWindowsService) {
+		windowsService.onWindowOpen(this.setActiveWindow, this, this.disposables);
+		windowsService.onWindowFocus(this.setActiveWindow, this, this.disposables);
+	}
+
+	private setActiveWindow(windowId: number) {
+		this._activeWindowId = windowId;
+	}
+
+	get activeClientId(): string {
+		return `window:${this._activeWindowId}`;
+	}
+
+	dispose() {
+		this.disposables = dispose(this.disposables);
+	}
 }

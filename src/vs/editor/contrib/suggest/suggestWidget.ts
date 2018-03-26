@@ -597,6 +597,12 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.currentSuggestionDetails = item.resolve()
 			.then(() => {
+				// item can have extra information, so re-render
+				this.ignoreFocusEvents = true;
+				this.list.splice(index, 1, [item]);
+				this.list.setFocus([index]);
+				this.ignoreFocusEvents = false;
+
 				if (this.expandDocsSettingFromStorage()) {
 					this.showDetails();
 				} else {
@@ -624,6 +630,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			case State.Hidden:
 				hide(this.messageElement, this.details.element, this.listElement);
 				this.hide();
+				this.listHeight = 0;
 				if (stateChanged) {
 					this.list.splice(0, this.list.length);
 				}

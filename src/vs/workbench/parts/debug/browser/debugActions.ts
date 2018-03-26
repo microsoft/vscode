@@ -138,9 +138,9 @@ export class StartAction extends AbstractDebugAction {
 		if (!launch) {
 			const rootUri = this.historyService.getLastActiveWorkspaceRoot();
 			launch = configurationManager.getLaunch(rootUri);
-			if (!launch) {
+			if (!launch || launch.getConfigurationNames().length === 0) {
 				const launches = configurationManager.getLaunches();
-				launch = first(launches, l => !!l.getConfigurationNames().length, launches.length ? launches[0] : undefined);
+				launch = first(launches, l => !!l.getConfigurationNames().length, launches.length ? launches[0] : launch);
 			}
 
 			configurationManager.selectConfiguration(launch);
