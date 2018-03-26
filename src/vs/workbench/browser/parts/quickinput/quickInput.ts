@@ -88,21 +88,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.toUnbind.push(this.inputBox.onKeyDown(event => {
 			switch (event.keyCode) {
 				case KeyCode.DownArrow:
-					this.checkboxList.focus('Next');
-					break;
-				case KeyCode.UpArrow:
-					this.checkboxList.focus('Previous');
-					break;
-				case KeyCode.PageDown:
-					this.checkboxList.focus('NextPage');
-					break;
-				case KeyCode.PageUp:
-					this.checkboxList.focus('PreviousPage');
-					break;
-				case KeyCode.Space:
-					if (event.ctrlKey) {
-						this.checkboxList.toggleCheckbox();
-					}
+					this.checkboxList.domFocus();
 					break;
 			}
 		}));
@@ -122,6 +108,12 @@ export class QuickInputService extends Component implements IQuickInputService {
 		}));
 		this.toUnbind.push(this.checkboxList.onSelectedCountChanged(count => {
 			this.count.setCount(count);
+		}));
+		this.toUnbind.push(this.checkboxList.onLeave(() => {
+			// Defer to avoid the input field reacting to the triggering key.
+			setTimeout(() => {
+				this.inputBox.setFocus();
+			}, 0);
 		}));
 
 		this.toUnbind.push(dom.addDisposableListener(this.container, 'focusout', (e: FocusEvent) => {
@@ -173,7 +165,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		this.inputBox.setValue('');
 		// TODO: Localize shortcut.
-		this.inputBox.setPlaceholder(options.placeHolder ? localize('quickInput.ctrlSpaceToSelectWithPlaceholder', "{1} ({0} to toggle)", 'Ctrl+Space', options.placeHolder) : localize('quickInput.ctrlSpaceToSelect', "{0} to toggle", 'Ctrl+Space'));
+		this.inputBox.setPlaceholder(options.placeHolder || '');
 		// TODO: Progress indication.
 		this.checkboxList.setElements(await picks);
 		this.checkboxList.matchOnDescription = options.matchOnDescription;
