@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { editorFindMatchHighlight, editorFindMatch } from 'vs/platform/theme/common/colorRegistry';
+import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IModelDecorationsChangeAccessor, FindMatch, IModelDeltaDecoration, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model';
@@ -208,6 +208,50 @@ export class FindDecorations implements IDisposable {
 		});
 	}
 
+	public matchBeforePosition(position: Position): Range {
+		if (this._decorations.length === 0) {
+			return null;
+		}
+		for (let i = this._decorations.length - 1; i >= 0; i--) {
+			let decorationId = this._decorations[i];
+			let r = this._editor.getModel().getDecorationRange(decorationId);
+			if (!r || r.endLineNumber > position.lineNumber) {
+				continue;
+			}
+			if (r.endLineNumber < position.lineNumber) {
+				return r;
+			}
+			if (r.endColumn > position.column) {
+				continue;
+			}
+			return r;
+		}
+
+		return this._editor.getModel().getDecorationRange(this._decorations[this._decorations.length - 1]);
+	}
+
+	public matchAfterPosition(position: Position): Range {
+		if (this._decorations.length === 0) {
+			return null;
+		}
+		for (let i = 0, len = this._decorations.length; i < len; i++) {
+			let decorationId = this._decorations[i];
+			let r = this._editor.getModel().getDecorationRange(decorationId);
+			if (!r || r.startLineNumber < position.lineNumber) {
+				continue;
+			}
+			if (r.startLineNumber > position.lineNumber) {
+				return r;
+			}
+			if (r.startColumn < position.column) {
+				continue;
+			}
+			return r;
+		}
+
+		return this._editor.getModel().getDecorationRange(this._decorations[0]);
+	}
+
 	private _allDecorations(): string[] {
 		let result: string[] = [];
 		result = result.concat(this._decorations);
@@ -226,8 +270,8 @@ export class FindDecorations implements IDisposable {
 		className: 'currentFindMatch',
 		showIfCollapsed: true,
 		overviewRuler: {
-			color: themeColorFromId(editorFindMatch),
-			darkColor: themeColorFromId(editorFindMatch),
+			color: themeColorFromId(overviewRulerFindMatchForeground),
+			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});
@@ -237,8 +281,8 @@ export class FindDecorations implements IDisposable {
 		className: 'findMatch',
 		showIfCollapsed: true,
 		overviewRuler: {
-			color: themeColorFromId(editorFindMatchHighlight),
-			darkColor: themeColorFromId(editorFindMatchHighlight),
+			color: themeColorFromId(overviewRulerFindMatchForeground),
+			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});
@@ -252,8 +296,8 @@ export class FindDecorations implements IDisposable {
 	private static readonly _FIND_MATCH_ONLY_OVERVIEW_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		overviewRuler: {
-			color: themeColorFromId(editorFindMatchHighlight),
-			darkColor: themeColorFromId(editorFindMatchHighlight),
+			color: themeColorFromId(overviewRulerFindMatchForeground),
+			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});

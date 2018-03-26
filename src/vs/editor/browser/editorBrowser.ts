@@ -310,6 +310,11 @@ export interface IOverviewRuler {
  */
 export interface ICodeEditor extends editorCommon.IEditor {
 	/**
+	 * This editor is used as an alternative to an <input> box, i.e. as a simple widget.
+	 * @internal
+	 */
+	readonly isSimpleWidget: boolean;
+	/**
 	 * An event emitted when the content of the current model has changed.
 	 * @event
 	 */
@@ -618,6 +623,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Returns the range that is currently centered in the view port.
 	 */
 	getCenteredRangeInViewport(): Range;
+
+	/**
+	 * Returns the ranges that are currently visible.
+	 * Does not account for horizontal scrolling.
+	 */
+	getVisibleRanges(): Range[];
 
 	/**
 	 * Get the view zones.

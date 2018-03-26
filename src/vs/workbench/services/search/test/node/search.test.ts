@@ -5,8 +5,8 @@
 
 'use strict';
 
-import path = require('path');
-import assert = require('assert');
+import * as path from 'path';
+import * as assert from 'assert';
 
 import { join, normalize } from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
@@ -479,6 +479,26 @@ suite('FileSearchEngine', () => {
 		}, () => { }, (error) => {
 			assert.ok(!error);
 			assert.equal(count, 13);
+			done();
+		});
+	});
+
+	test('Files: *.* include with unicode', function (done: () => void) {
+		this.timeout(testTimeout);
+		let engine = new FileSearchEngine({
+			folderQueries: ROOT_FOLDER_QUERY,
+			filePattern: '*.*',
+			includePattern: { '**/üm laut汉语/*': true }
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
 			done();
 		});
 	});

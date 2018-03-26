@@ -23,9 +23,9 @@ import { Range } from 'vs/editor/common/core/range';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ISingleEditOperation } from 'vs/editor/common/model';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 
 function alertFormattingEdits(edits: ISingleEditOperation[]): void {
@@ -264,7 +264,7 @@ export abstract class AbstractFormatAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 
 		const workerService = accessor.get(IEditorWorkerService);
-		const messageService = accessor.get(IMessageService);
+		const notificationService = accessor.get(INotificationService);
 
 		const formattingPromise = this._getFormattingEdits(editor);
 		if (!formattingPromise) {
@@ -285,10 +285,7 @@ export abstract class AbstractFormatAction extends EditorAction {
 			editor.focus();
 		}, err => {
 			if (err instanceof Error && err.name === NoProviderError.Name) {
-				messageService.show(
-					Severity.Info,
-					nls.localize('no.provider', "Sorry, but there is no formatter for '{0}'-files installed.", editor.getModel().getLanguageIdentifier().language),
-				);
+				notificationService.info(nls.localize('no.provider', "There is no formatter for '{0}'-files installed.", editor.getModel().getLanguageIdentifier().language));
 			} else {
 				throw err;
 			}
@@ -307,7 +304,7 @@ export class FormatDocumentAction extends AbstractFormatAction {
 			alias: 'Format Document',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 				// secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D)],
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
@@ -336,7 +333,7 @@ export class FormatSelectionAction extends AbstractFormatAction {
 			alias: 'Format Code',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasNonEmptySelection),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_F)
 			},
 			menuOpts: {

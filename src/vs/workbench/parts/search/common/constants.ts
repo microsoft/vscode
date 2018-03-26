@@ -5,9 +5,6 @@
 
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
-export const VIEWLET_ID = 'workbench.view.search';
-export const SEARCH_OUTPUT_CHANNEL_ID = 'search';
-
 export const FindInFilesActionId = 'workbench.action.findInFiles';
 export const FocusActiveEditorCommandId = 'search.action.focusActiveEditor';
 
@@ -23,13 +20,14 @@ export const ToggleCaseSensitiveCommandId = 'toggleSearchCaseSensitive';
 export const ToggleWholeWordCommandId = 'toggleSearchWholeWord';
 export const ToggleRegexCommandId = 'toggleSearchRegex';
 
-export const SearchViewletVisibleKey = new RawContextKey<boolean>('searchViewletVisible', true);
+export const SearchViewVisibleKey = new RawContextKey<boolean>('searchViewletVisible', true);
 export const InputBoxFocusedKey = new RawContextKey<boolean>('inputBoxFocus', false);
 export const SearchInputBoxFocusedKey = new RawContextKey<boolean>('searchInputBoxFocus', false);
 export const ReplaceInputBoxFocusedKey = new RawContextKey<boolean>('replaceInputBoxFocus', false);
 export const PatternIncludesFocusedKey = new RawContextKey<boolean>('patternIncludesInputBoxFocus', false);
 export const PatternExcludesFocusedKey = new RawContextKey<boolean>('patternExcludesInputBoxFocus', false);
 export const ReplaceActiveKey = new RawContextKey<boolean>('replaceActive', false);
+export const HasSearchResults = new RawContextKey<boolean>('hasSearchResult', false);
 
 export const FirstMatchFocusKey = new RawContextKey<boolean>('firstMatchFocus', false);
 export const FileMatchOrMatchFocusKey = new RawContextKey<boolean>('fileMatchOrMatchFocus', false);

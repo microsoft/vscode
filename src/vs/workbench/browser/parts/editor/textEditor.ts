@@ -5,14 +5,14 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { Dimension, Builder } from 'vs/base/browser/builder';
-import objects = require('vs/base/common/objects');
-import types = require('vs/base/common/types');
-import errors = require('vs/base/common/errors');
-import DOM = require('vs/base/browser/dom');
+import * as objects from 'vs/base/common/objects';
+import * as types from 'vs/base/common/types';
+import * as errors from 'vs/base/common/errors';
+import * as DOM from 'vs/base/browser/dom';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -50,11 +50,11 @@ export abstract class BaseTextEditor extends BaseEditor {
 	constructor(
 		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService private _instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
-		@ITextResourceConfigurationService private _configurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService private readonly _configurationService: ITextResourceConfigurationService,
 		@IThemeService protected themeService: IThemeService,
-		@ITextFileService private _textFileService: ITextFileService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService
 	) {
 		super(id, telemetryService, themeService);

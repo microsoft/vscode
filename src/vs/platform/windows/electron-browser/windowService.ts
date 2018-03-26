@@ -5,13 +5,13 @@
 
 'use strict';
 
-import Event, { filterEvent, mapEvent, anyEvent } from 'vs/base/common/event';
+import { Event, filterEvent, mapEvent, anyEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 export class WindowService implements IWindowService {
 
@@ -22,8 +22,7 @@ export class WindowService implements IWindowService {
 	constructor(
 		private windowId: number,
 		private configuration: IWindowConfiguration,
-		@IWindowsService private windowsService: IWindowsService,
-		@ILogService private logService: ILogService // TODO@Ben remove logging when no longer needed
+		@IWindowsService private windowsService: IWindowsService
 	) {
 		const onThisWindowFocus = mapEvent(filterEvent(windowsService.onWindowFocus, id => id === windowId), _ => true);
 		const onThisWindowBlur = mapEvent(filterEvent(windowsService.onWindowBlur, id => id === windowId), _ => false);
@@ -41,15 +40,11 @@ export class WindowService implements IWindowService {
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		options.windowId = this.windowId;
 
-		this.logService.info('pickFileFolderAndOpen: begin');
-
 		return this.windowsService.pickFileFolderAndOpen(options);
 	}
 
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		options.windowId = this.windowId;
-
-		this.logService.info('pickFileAndOpen: begin');
 
 		return this.windowsService.pickFileAndOpen(options);
 	}
@@ -57,21 +52,17 @@ export class WindowService implements IWindowService {
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		options.windowId = this.windowId;
 
-		this.logService.info('pickFolderAndOpen: begin');
-
 		return this.windowsService.pickFolderAndOpen(options);
 	}
 
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		options.windowId = this.windowId;
 
-		this.logService.info('pickWorkspaceAndOpen: begin');
-
 		return this.windowsService.pickWorkspaceAndOpen(options);
 	}
 
-	reloadWindow(): TPromise<void> {
-		return this.windowsService.reloadWindow(this.windowId);
+	reloadWindow(args?: ParsedArgs): TPromise<void> {
+		return this.windowsService.reloadWindow(this.windowId, args);
 	}
 
 	openDevTools(): TPromise<void> {
@@ -131,27 +122,15 @@ export class WindowService implements IWindowService {
 	}
 
 	showMessageBox(options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
-		this.logService.info('showMessageBox begin: ', options);
-		return this.windowsService.showMessageBox(this.windowId, options).then(result => {
-			this.logService.info('showMessageBox closed, response: ', result);
-			return result;
-		});
+		return this.windowsService.showMessageBox(this.windowId, options);
 	}
 
 	showSaveDialog(options: Electron.SaveDialogOptions): TPromise<string> {
-		this.logService.info('showSaveDialog begin: ', options);
-		return this.windowsService.showSaveDialog(this.windowId, options).then(result => {
-			this.logService.info('showSaveDialog begin: ', result);
-			return result;
-		});
+		return this.windowsService.showSaveDialog(this.windowId, options);
 	}
 
 	showOpenDialog(options: Electron.OpenDialogOptions): TPromise<string[]> {
-		this.logService.info('showOpenDialog begin: ', options);
-		return this.windowsService.showOpenDialog(this.windowId, options).then(result => {
-			this.logService.info('showOpenDialog closed: ', result);
-			return result;
-		});
+		return this.windowsService.showOpenDialog(this.windowId, options);
 	}
 
 	updateTouchBar(items: ICommandAction[][]): TPromise<void> {

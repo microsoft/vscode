@@ -9,7 +9,7 @@ import { binarySearch } from 'vs/base/common/arrays';
 import { globals } from 'vs/base/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import Errors = require('vs/base/common/errors');
+import * as Errors from 'vs/base/common/errors';
 import { safeStringify } from 'vs/base/common/objects';
 
 interface ErrorEvent {
@@ -145,12 +145,14 @@ export default class ErrorTelemetry {
 		for (let error of this._buffer) {
 			/* __GDPR__
 			"UnhandledError" : {
-					"message" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"name": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"stack": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"line": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"column": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+					"filename" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+					"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+					"name": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+					"stack": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+					"id": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+					"line": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+					"column": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+					"count": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 				}
 			*/
 			// __GDPR__TODO__ what's the complete set of properties?

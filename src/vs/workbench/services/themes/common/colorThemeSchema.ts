@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -10,7 +10,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import { Extensions as ThemeingExtensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 
-let themingRegistry = <IColorRegistry>Registry.as(ThemeingExtensions.ColorContribution);
+let themingRegistry = Registry.as<IColorRegistry>(ThemeingExtensions.ColorContribution);
 let textMateScopes = [
 	'comment',
 	'comment.block',
@@ -130,12 +130,13 @@ export const tokenColorizationSettingSchema: IJSONSchema = {
 		},
 		fontStyle: {
 			type: 'string',
-			description: nls.localize('schema.token.fontStyle', 'Font style of the rule: One or a combination of \'italic\', \'bold\' and \'underline\''),
+			description: nls.localize('schema.token.fontStyle', 'Font style of the rule: \'italic\', \'bold\' or \'underline\' or a combination. The empty string unsets inherited settings.'),
 			pattern: '^(\\s*\\b(italic|bold|underline))*\\s*$',
-			patternErrorMessage: nls.localize('schema.fontStyle.error', 'Font style must be a combination of \'italic\', \'bold\' and \'underline\''),
-			defaultSnippets: [{ body: 'italic' }, { body: 'bold' }, { body: 'underline' }, { body: 'italic bold' }, { body: 'italic underline' }, { body: 'bold underline' }, { body: 'italic bold underline' }]
+			patternErrorMessage: nls.localize('schema.fontStyle.error', 'Font style must be \'italic\', \'bold\' or \'underline\' or a combination or the empty string.'),
+			defaultSnippets: [{ label: nls.localize('schema.token.fontStyle.none', 'None (clear inherited style)'), bodyText: '""' }, { body: 'italic' }, { body: 'bold' }, { body: 'underline' }, { body: 'italic bold' }, { body: 'italic underline' }, { body: 'bold underline' }, { body: 'italic bold underline' }]
 		}
 	},
+	additionalProperties: false,
 	defaultSnippets: [{ body: { foreground: '${1:#FF0000}', fontStyle: '${2:bold}' } }]
 };
 
@@ -175,8 +176,12 @@ export function tokenColorsSchema(description: string): IJSONSchema {
 						}
 					]
 				},
-				settings: tokenColorizationSettingSchema
-			}
+				settings: tokenColorizationSettingSchema,
+			},
+			required: [
+				'settings', 'scope'
+			],
+			additionalProperties: false
 		}
 	};
 }
@@ -199,7 +204,7 @@ const schema: IJSONSchema = {
 };
 
 export function register() {
-	let schemaRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
+	let schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 	schemaRegistry.registerSchema(schemaId, schema);
 }
 

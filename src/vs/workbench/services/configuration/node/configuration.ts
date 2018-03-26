@@ -6,7 +6,7 @@
 import URI from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { readFile } from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
 import * as collections from 'vs/base/common/collections';
@@ -16,7 +16,7 @@ import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files
 import { isLinux } from 'vs/base/common/platform';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
-import { WorkspaceConfigurationModelParser, FolderSettingsModelParser, StandaloneConfigurationModelParser, WorkspaceSettingsModel } from 'vs/workbench/services/configuration/common/configurationModels';
+import { WorkspaceConfigurationModelParser, FolderSettingsModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS, FOLDER_SETTINGS_PATH, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspace, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import * as extfs from 'vs/base/node/extfs';
@@ -79,8 +79,11 @@ export class WorkspaceConfiguration extends Disposable {
 	private _workspaceConfigurationWatcher: ConfigWatcher<WorkspaceConfigurationModelParser>;
 	private _workspaceConfigurationWatcherDisposables: IDisposable[] = [];
 
-	private _onDidUpdateConfiguration: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidUpdateConfiguration: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidUpdateConfiguration: Event<void> = this._onDidUpdateConfiguration.event;
+
+	private _workspaceConfigurationModelParser: WorkspaceConfigurationModelParser = new WorkspaceConfigurationModelParser(this._workspaceConfigPath ? this._workspaceConfigPath.fsPath : '');
+	private _cache: ConfigurationModel = new ConfigurationModel();
 
 	load(workspaceConfigPath: URI): TPromise<void> {
 		if (this._workspaceConfigPath && this._workspaceConfigPath.fsPath === workspaceConfigPath.fsPath) {
@@ -89,27 +92,26 @@ export class WorkspaceConfiguration extends Disposable {
 
 		this._workspaceConfigPath = workspaceConfigPath;
 
-		this.stopListeningToWatcher();
 		return new TPromise<void>((c, e) => {
 			const defaultConfig = new WorkspaceConfigurationModelParser(this._workspaceConfigPath.fsPath);
 			defaultConfig.parse(JSON.stringify({ folders: [] } as IStoredWorkspace, null, '\t'));
+			if (this._workspaceConfigurationWatcher) {
+				this.disposeConfigurationWatcher();
+			}
 			this._workspaceConfigurationWatcher = new ConfigWatcher(this._workspaceConfigPath.fsPath, {
 				changeBufferDelay: 300,
 				onError: error => errors.onUnexpectedError(error),
 				defaultConfig,
 				parse: (content: string, parseErrors: any[]) => {
-					const workspaceConfigurationModel = new WorkspaceConfigurationModelParser(this._workspaceConfigPath.fsPath);
-					workspaceConfigurationModel.parse(content);
-					parseErrors = [...workspaceConfigurationModel.errors];
-					return workspaceConfigurationModel;
+					this._workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser(this._workspaceConfigPath.fsPath);
+					this._workspaceConfigurationModelParser.parse(content);
+					parseErrors = [...this._workspaceConfigurationModelParser.errors];
+					this.consolidate();
+					return this._workspaceConfigurationModelParser;
 				}, initCallback: () => c(null)
 			});
 			this.listenToWatcher();
 		});
-	}
-
-	private get workspaceConfigurationModelParser(): WorkspaceConfigurationModelParser {
-		return this._workspaceConfigurationWatcher ? this._workspaceConfigurationWatcher.getConfig() : new WorkspaceConfigurationModelParser(this._workspaceConfigPath ? this._workspaceConfigPath.fsPath : '');
 	}
 
 	reload(): TPromise<void> {
@@ -121,7 +123,7 @@ export class WorkspaceConfiguration extends Disposable {
 	}
 
 	getFolders(): IStoredWorkspaceFolder[] {
-		return this.workspaceConfigurationModelParser.folders;
+		return this._workspaceConfigurationModelParser.folders;
 	}
 
 	setFolders(folders: IStoredWorkspaceFolder[], jsonEditingService: JSONEditingService): TPromise<void> {
@@ -130,20 +132,20 @@ export class WorkspaceConfiguration extends Disposable {
 	}
 
 	getConfiguration(): ConfigurationModel {
-		return this.workspaceConfigurationModelParser.workspaceSettingsModel;
+		return this._cache;
 	}
 
-	getWorkspaceSettings(): WorkspaceSettingsModel {
-		return this.workspaceConfigurationModelParser.workspaceSettingsModel;
+	getUnsupportedKeys(): string[] {
+		return this._workspaceConfigurationModelParser.settingsModel.unsupportedKeys;
 	}
 
 	reprocessWorkspaceSettings(): ConfigurationModel {
-		this.workspaceConfigurationModelParser.reprocessWorkspaceSettings();
+		this._workspaceConfigurationModelParser.reprocessWorkspaceSettings();
+		this.consolidate();
 		return this.getConfiguration();
 	}
 
 	private listenToWatcher() {
-		this._workspaceConfigurationWatcherDisposables.push(this._workspaceConfigurationWatcher);
 		this._workspaceConfigurationWatcher.onDidUpdateConfiguration(() => this._onDidUpdateConfiguration.fire(), this, this._workspaceConfigurationWatcherDisposables);
 	}
 
@@ -151,8 +153,19 @@ export class WorkspaceConfiguration extends Disposable {
 		this._workspaceConfigurationWatcherDisposables = dispose(this._workspaceConfigurationWatcherDisposables);
 	}
 
+	private consolidate(): void {
+		this._cache = this._workspaceConfigurationModelParser.settingsModel.merge(this._workspaceConfigurationModelParser.launchModel);
+	}
+
+	private disposeConfigurationWatcher(): void {
+		this.stopListeningToWatcher();
+		if (this._workspaceConfigurationWatcher) {
+			this._workspaceConfigurationWatcher.dispose();
+		}
+	}
+
 	dispose(): void {
-		dispose(this._workspaceConfigurationWatcherDisposables);
+		this.disposeConfigurationWatcher();
 		super.dispose();
 	}
 }
@@ -169,7 +182,7 @@ export class FolderConfiguration extends Disposable {
 	private _cache: ConfigurationModel = new ConfigurationModel();
 
 	private reloadConfigurationScheduler: RunOnceScheduler;
-	private reloadConfigurationEventEmitter: Emitter<ConfigurationModel> = new Emitter<ConfigurationModel>();
+	private readonly reloadConfigurationEventEmitter: Emitter<ConfigurationModel> = new Emitter<ConfigurationModel>();
 
 	constructor(private folder: URI, private configFolderRelativePath: string, workbenchState: WorkbenchState) {
 		super();
@@ -190,20 +203,20 @@ export class FolderConfiguration extends Disposable {
 	}
 
 	reprocess(): ConfigurationModel {
-		const oldContents = this._folderSettingsModelParser.folderSettingsModel.contents;
+		const oldContents = this._folderSettingsModelParser.settingsModel.contents;
 		this._folderSettingsModelParser.reprocess();
-		if (!equals(oldContents, this._folderSettingsModelParser.folderSettingsModel.contents)) {
+		if (!equals(oldContents, this._folderSettingsModelParser.settingsModel.contents)) {
 			this.consolidate();
 		}
 		return this._cache;
 	}
 
 	getUnsupportedKeys(): string[] {
-		return this._folderSettingsModelParser.folderSettingsModel.unsupportedKeys;
+		return this._folderSettingsModelParser.settingsModel.unsupportedKeys;
 	}
 
 	private consolidate(): void {
-		this._cache = this._folderSettingsModelParser.folderSettingsModel.merge(...this._standAloneConfigurations);
+		this._cache = this._folderSettingsModelParser.settingsModel.merge(...this._standAloneConfigurations);
 	}
 
 	private loadWorkspaceConfigFiles(): TPromise<{ [relativeWorkspacePath: string]: ConfigurationModelParser }> {
@@ -241,7 +254,7 @@ export class FolderConfiguration extends Disposable {
 		for (let i = 0, len = events.length; i < len; i++) {
 			const resource = events[i].resource;
 			const isJson = paths.extname(resource.fsPath) === '.json';
-			const isDeletedSettingsFolder = (events[i].type === FileChangeType.DELETED && paths.isEqual(paths.basename(resource.fsPath), this.configFolderRelativePath));
+			const isDeletedSettingsFolder = (events[i].type === FileChangeType.DELETED && paths.basename(resource.fsPath) === this.configFolderRelativePath);
 			if (!isJson && !isDeletedSettingsFolder) {
 				continue; // only JSON files or the actual settings folder
 			}

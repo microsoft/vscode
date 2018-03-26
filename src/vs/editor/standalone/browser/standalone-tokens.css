@@ -192,18 +192,22 @@
 	}
 
 	/* squiggles */
-	.monaco-editor.vs .squiggly-c-error,
-	.monaco-editor.vs-dark .squiggly-c-error {
+	.monaco-editor.vs .squiggly-d-error,
+	.monaco-editor.vs-dark .squiggly-d-error {
 		background: transparent !important;
 		border-bottom: 4px double #E47777;
 	}
-	.monaco-editor.vs .squiggly-b-warning,
-	.monaco-editor.vs-dark .squiggly-b-warning {
+	.monaco-editor.vs .squiggly-c-warning,
+	.monaco-editor.vs-dark .squiggly-c-warning {
 		border-bottom: 4px double #71B771;
 	}
-	.monaco-editor.vs .squiggly-a-info,
-	.monaco-editor.vs-dark .squiggly-a-info {
+	.monaco-editor.vs .squiggly-b-info,
+	.monaco-editor.vs-dark .squiggly-b-info {
 		border-bottom: 4px double #71B771;
+	}
+	.monaco-editor.vs .squiggly-a-hint,
+	.monaco-editor.vs-dark .squiggly-a-hint {
+		border-bottom: 4px double #6c6c6c;
 	}
 
 	/* contextmenu */

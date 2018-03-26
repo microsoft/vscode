@@ -11,17 +11,20 @@ import { StringDecoder, NodeStringDecoder } from 'string_decoder';
 import * as cp from 'child_process';
 import { rgPath } from 'vscode-ripgrep';
 
-import objects = require('vs/base/common/objects');
-import platform = require('vs/base/common/platform');
+import * as objects from 'vs/base/common/objects';
+import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
 import * as extfs from 'vs/base/node/extfs';
 import * as encoding from 'vs/base/node/encoding';
 import * as glob from 'vs/base/common/glob';
-import { ISearchLog } from 'vs/platform/search/common/search';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, IFolderSearch, LineMatch, FileMatch } from './search';
+import { IProgress } from 'vs/platform/search/common/search';
+
+// If vscode-ripgrep is in an .asar file, then the binary is unpacked.
+const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
 export class RipgrepEngine {
 	private isDone = false;
@@ -44,7 +47,7 @@ export class RipgrepEngine {
 	}
 
 	// TODO@Rob - make promise-based once the old search is gone, and I don't need them to have matching interfaces anymore
-	search(onResult: (match: ISerializedFileMatch) => void, onMessage: (message: ISearchLog) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+	search(onResult: (match: ISerializedFileMatch) => void, onMessage: (message: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		if (!this.config.folderQueries.length && !this.config.extraFiles.length) {
 			process.removeListener('exit', this.killRgProcFn);
 			done(null, {
@@ -61,17 +64,18 @@ export class RipgrepEngine {
 
 		const cwd = platform.isWindows ? 'c:/' : '/';
 		process.nextTick(() => { // Allow caller to register progress callback
-			const escapedArgs = rgArgs.globArgs
+			const escapedArgs = rgArgs.args
 				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
 				.join(' ');
 
-			const rgCmd = `rg ${escapedArgs}\n - cwd: ${cwd}\n`;
-			onMessage({ message: rgCmd });
+			let rgCmd = `rg ${escapedArgs}\n - cwd: ${cwd}`;
 			if (rgArgs.siblingClauses) {
-				onMessage({ message: ` - Sibling clauses: ${JSON.stringify(rgArgs.siblingClauses)}\n` });
+				rgCmd += `\n - Sibling clauses: ${JSON.stringify(rgArgs.siblingClauses)}`;
 			}
+
+			onMessage({ message: rgCmd });
 		});
-		this.rgProc = cp.spawn(rgPath, rgArgs.globArgs, { cwd });
+		this.rgProc = cp.spawn(rgDiskPath, rgArgs.args, { cwd });
 		process.once('exit', this.killRgProcFn);
 
 		this.ripgrepParser = new RipgrepParser(this.config.maxResults, cwd, this.config.extraFiles);
@@ -156,15 +160,20 @@ export function rgErrorMsgForDisplay(msg: string): string | undefined {
 		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
 	}
 
+	if (strings.startsWith(firstLine, 'Literal ')) {
+		// e.g. "Literal \n not allowed"
+		return firstLine;
+	}
+
 	return undefined;
 }
 
 export class RipgrepParser extends EventEmitter {
-	private static readonly RESULT_REGEX = /^\u001b\[m(\d+)\u001b\[m:(.*)(\r?)/;
-	private static readonly FILE_REGEX = /^\u001b\[m(.+)\u001b\[m$/;
+	private static readonly RESULT_REGEX = /^\u001b\[0m(\d+)\u001b\[0m:(.*)(\r?)/;
+	private static readonly FILE_REGEX = /^\u001b\[0m(.+)\u001b\[0m$/;
 
-	public static readonly MATCH_START_MARKER = '\u001b[m\u001b[31m';
-	public static readonly MATCH_END_MARKER = '\u001b[m';
+	public static readonly MATCH_START_MARKER = '\u001b[0m\u001b[31m';
+	public static readonly MATCH_END_MARKER = '\u001b[0m';
 
 	private fileMatch: FileMatch;
 	private remainder: string;
@@ -421,13 +430,9 @@ export function fixDriveC(path: string): string {
 		path;
 }
 
-function getRgArgs(config: IRawSearch): IRgGlobResult {
+function getRgArgs(config: IRawSearch) {
 	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
-	if (config.contentPattern.isSmartCase) {
-		args.push('--smart-case');
-	} else {
-		args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
-	}
+	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
 	// includePattern can't have siblingClauses
 	foldersToIncludeGlobs(config.folderQueries, config.includePattern).forEach(globArg => {
@@ -499,7 +504,7 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 	args.push(...config.folderQueries.map(q => q.folder));
 	args.push(...config.extraFiles);
 
-	return { globArgs: args, siblingClauses };
+	return { args, siblingClauses };
 }
 
 function getSiblings(file: string): TPromise<string[]> {

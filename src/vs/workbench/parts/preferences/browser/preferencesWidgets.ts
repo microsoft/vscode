@@ -10,8 +10,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, IViewZone, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -22,7 +21,7 @@ import { ISettingsGroup } from 'vs/workbench/parts/preferences/common/preference
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IAction, Action } from 'vs/base/common/actions';
-import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -32,7 +31,6 @@ import { Separator, ActionBar, ActionsOrientation, BaseActionItem } from 'vs/bas
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
-import { render as renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 
@@ -103,32 +101,20 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 
 export class DefaultSettingsHeaderWidget extends SettingsHeaderWidget {
 
-	private linkElement: HTMLElement;
 	private _onClick = this._register(new Emitter<void>());
-	public onClick: Event<void> = this._onClick.event;
+	public readonly onClick: Event<void> = this._onClick.event;
 
 	protected create() {
 		super.create();
 
-		this.linkElement = DOM.append(this.titleContainer, DOM.$('a.settings-header-natural-language-link'));
-		this.linkElement.textContent = localize('defaultSettingsFuzzyPrompt', "Try natural language search!");
-
-		this.onclick(this.linkElement, e => this._onClick.fire());
 		this.toggleMessage(true);
 	}
 
-	public toggleMessage(hasSettings: boolean, promptFuzzy = false): void {
+	public toggleMessage(hasSettings: boolean): void {
 		if (hasSettings) {
 			this.setMessage(localize('defaultSettings', "Place your settings in the right hand side editor to override."));
-			DOM.addClass(this.linkElement, 'hidden');
 		} else {
 			this.setMessage(localize('noSettingsFound', "No Settings Found."));
-
-			if (promptFuzzy) {
-				DOM.removeClass(this.linkElement, 'hidden');
-			} else {
-				DOM.addClass(this.linkElement, 'hidden');
-			}
 		}
 	}
 }
@@ -144,7 +130,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	private title: HTMLElement;
 
 	private _onToggled = this._register(new Emitter<boolean>());
-	public onToggled: Event<boolean> = this._onToggled.event;
+	public readonly onToggled: Event<boolean> = this._onToggled.event;
 
 	private previousPosition: Position;
 
@@ -295,6 +281,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 export class FolderSettingsActionItem extends BaseActionItem {
 
 	private _folder: IWorkspaceFolder;
+	private _folderSettingCounts = new Map<string, number>();
 
 	private container: HTMLElement;
 	private anchorElement: HTMLElement;
@@ -324,6 +311,12 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		this.update();
 	}
 
+	public setCount(settingsTarget: URI, count: number): void {
+		const folder = this.contextService.getWorkspaceFolder(settingsTarget).uri;
+		this._folderSettingCounts.set(folder.toString(), count);
+		this.update();
+	}
+
 	public render(container: HTMLElement): void {
 		this.builder = $(container);
 
@@ -331,7 +324,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		this.labelElement = DOM.$('.action-title');
 		this.detailsElement = DOM.$('.action-details');
 		this.dropDownElement = DOM.$('.dropdown-icon.octicon.octicon-triangle-down.hide');
-		this.anchorElement = DOM.$('a.action-label', {
+		this.anchorElement = DOM.$('a.action-label.folder-settings', {
 			role: 'button',
 			'aria-haspopup': 'true',
 			'tabindex': '0'
@@ -391,14 +384,19 @@ export class FolderSettingsActionItem extends BaseActionItem {
 	}
 
 	private update(): void {
+		let total = 0;
+		this._folderSettingCounts.forEach(n => total += n);
+
 		const workspace = this.contextService.getWorkspace();
 		if (this._folder) {
 			this.labelElement.textContent = this._folder.name;
 			this.anchorElement.title = this._folder.name;
-			this.detailsElement.textContent = this._action.label;
+			const detailsText = this.labelWithCount(this._action.label, total);
+			this.detailsElement.textContent = detailsText;
 			DOM.toggleClass(this.dropDownElement, 'hide', workspace.folders.length === 1 || !this._action.checked);
 		} else {
-			this.labelElement.textContent = this._action.label;
+			const labelText = this.labelWithCount(this._action.label, total);
+			this.labelElement.textContent = labelText;
 			this.detailsElement.textContent = '';
 			this.anchorElement.title = this._action.label;
 			DOM.removeClass(this.dropDownElement, 'hide');
@@ -424,9 +422,10 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && workspaceFolders.length > 0) {
 			actions.push(new Separator());
 			actions.push(...workspaceFolders.map((folder, index) => {
+				const folderCount = this._folderSettingCounts.get(folder.uri.toString());
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
-					label: folder.name,
+					label: this.labelWithCount(folder.name, folderCount),
 					checked: this.folder && this.folder.uri.toString() === folder.uri.toString(),
 					enabled: true,
 					run: () => this._action.run(folder)
@@ -434,6 +433,15 @@ export class FolderSettingsActionItem extends BaseActionItem {
 			}));
 		}
 		return actions;
+	}
+
+	private labelWithCount(label: string, count: number | undefined): string {
+		// Append the count if it's >0 and not undefined
+		if (count) {
+			label += ` (${count})`;
+		}
+
+		return label;
 	}
 
 	public dispose(): void {
@@ -453,7 +461,7 @@ export class SettingsTargetsWidget extends Widget {
 
 	private _settingsTarget: SettingsTarget;
 
-	private _onDidTargetChange: Emitter<SettingsTarget> = new Emitter<SettingsTarget>();
+	private readonly _onDidTargetChange: Emitter<SettingsTarget> = new Emitter<SettingsTarget>();
 	public readonly onDidTargetChange: Event<SettingsTarget> = this._onDidTargetChange.event;
 
 	constructor(
@@ -506,6 +514,26 @@ export class SettingsTargetsWidget extends Widget {
 		}
 	}
 
+	public setResultCount(settingsTarget: SettingsTarget, count: number): void {
+		if (settingsTarget === ConfigurationTarget.WORKSPACE) {
+			let label = localize('workspaceSettings', "Workspace Settings");
+			if (count) {
+				label += ` (${count})`;
+			}
+
+			this.workspaceSettings.label = label;
+		} else if (settingsTarget === ConfigurationTarget.USER) {
+			let label = localize('userSettings', "User Settings");
+			if (count) {
+				label += ` (${count})`;
+			}
+
+			this.userSettings.label = label;
+		} else if (settingsTarget instanceof URI) {
+			this.folderSettings.setCount(settingsTarget, count);
+		}
+	}
+
 	private onWorkbenchStateChanged(): void {
 		this.folderSettings.folder = null;
 		this.update();
@@ -533,7 +561,6 @@ export class SettingsTargetsWidget extends Widget {
 
 export interface SearchOptions extends IInputOptions {
 	focusKey?: IContextKey<boolean>;
-	showFuzzyToggle?: boolean;
 	showResultCount?: boolean;
 }
 
@@ -544,13 +571,12 @@ export class SearchWidget extends Widget {
 	private countElement: HTMLElement;
 	private searchContainer: HTMLElement;
 	private inputBox: InputBox;
-	private fuzzyToggle: Checkbox;
 	private controlsDiv: HTMLElement;
 
-	private _onDidChange: Emitter<string> = this._register(new Emitter<string>());
+	private readonly _onDidChange: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onDidChange: Event<string> = this._onDidChange.event;
 
-	private _onFocus: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onFocus: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onFocus: Event<void> = this._onFocus.event;
 
 	constructor(parent: HTMLElement, protected options: SearchOptions,
@@ -562,32 +588,10 @@ export class SearchWidget extends Widget {
 		this.create(parent);
 	}
 
-	public get fuzzyEnabled(): boolean {
-		return this.fuzzyToggle.checked && this.fuzzyToggle.enabled;
-	}
-
-	public set fuzzyEnabled(value: boolean) {
-		this.fuzzyToggle.checked = value;
-	}
-
 	private create(parent: HTMLElement) {
 		this.domNode = DOM.append(parent, DOM.$('div.settings-header-widget'));
 		this.createSearchContainer(DOM.append(this.domNode, DOM.$('div.settings-search-container')));
 		this.controlsDiv = DOM.append(this.domNode, DOM.$('div.settings-search-controls'));
-		if (this.options.showFuzzyToggle) {
-			this.fuzzyToggle = this._register(new Checkbox({
-				actionClassName: 'prefs-natural-language-search-toggle',
-				isChecked: false,
-				onChange: () => {
-					this.inputBox.focus();
-					this._onDidChange.fire();
-				},
-				title: localize('enableFuzzySearch', 'Enable natural language search')
-			}));
-			this.fuzzyToggle.domNode.innerHTML = renderOcticons('$(light-bulb)');
-			DOM.append(this.controlsDiv, this.fuzzyToggle.domNode);
-			this._register(attachCheckboxStyler(this.fuzzyToggle, this.themeService));
-		}
 
 		if (this.options.showResultCount) {
 			this.countElement = DOM.append(this.controlsDiv, DOM.$('.settings-count-widget'));
@@ -639,16 +643,6 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	public setFuzzyToggleVisible(visible: boolean): void {
-		if (visible) {
-			this.fuzzyToggle.domNode.classList.remove('hidden');
-			this.fuzzyToggle.enable();
-		} else {
-			this.fuzzyToggle.domNode.classList.add('hidden');
-			this.fuzzyToggle.disable();
-		}
-	}
-
 	private styleCountElementForeground() {
 		const colorId = DOM.hasClass(this.countElement, 'no-results') ? errorForeground : badgeForeground;
 		const color = this.themeService.getTheme().getColor(colorId);
@@ -673,8 +667,7 @@ export class SearchWidget extends Widget {
 
 	private getControlsWidth(): number {
 		const countWidth = this.countElement ? DOM.getTotalWidth(this.countElement) : 0;
-		const fuzzyToggleWidth = this.fuzzyToggle ? DOM.getTotalWidth(this.fuzzyToggle.domNode) : 0;
-		return countWidth + fuzzyToggleWidth + 20;
+		return countWidth + 20;
 	}
 
 	public focus() {
@@ -712,8 +705,8 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
 	private _domNode: HTMLElement;
 
-	private _onClick: Emitter<void> = this._register(new Emitter<void>());
-	public onClick: Event<void> = this._onClick.event;
+	private readonly _onClick: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onClick: Event<void> = this._onClick.event;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -735,8 +728,8 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 	public render() {
 		this._domNode = DOM.$('.floating-click-widget');
 		this._register(attachStylerCallback(this.themeService, { buttonBackground, buttonForeground }, colors => {
-			this._domNode.style.backgroundColor = colors.buttonBackground;
-			this._domNode.style.color = colors.buttonForeground;
+			this._domNode.style.backgroundColor = colors.buttonBackground ? colors.buttonBackground.toString() : null;
+			this._domNode.style.color = colors.buttonForeground ? colors.buttonForeground.toString() : null;
 		}));
 
 		DOM.append(this._domNode, DOM.$('')).textContent = this.label;
@@ -773,7 +766,7 @@ export class EditPreferenceWidget<T> extends Disposable {
 
 	private _editPreferenceDecoration: string[];
 
-	private _onClick: Emitter<IEditorMouseEvent> = new Emitter<IEditorMouseEvent>();
+	private readonly _onClick: Emitter<IEditorMouseEvent> = new Emitter<IEditorMouseEvent>();
 	public get onClick(): Event<IEditorMouseEvent> { return this._onClick.event; }
 
 	constructor(private editor: ICodeEditor
@@ -890,7 +883,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				outline-style: solid;
 				border-bottom: none;
 				padding-bottom: 0;
-				outline-offset: 3px;
+				outline-offset: 2px;
 			}
 
 			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):hover {

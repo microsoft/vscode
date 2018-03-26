@@ -12,8 +12,10 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelContentChange, ModelRawChange } from 'vs/editor/common/model/textModelEvents';
+import { ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelContentChange } from 'vs/editor/common/model/textModelEvents';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
+import { SearchData } from 'vs/editor/common/model/textModelSearch';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -388,6 +390,7 @@ export interface ITextModelCreationOptions {
 	detectIndentation: boolean;
 	trimAutoWhitespace: boolean;
 	defaultEOL: DefaultEndOfLine;
+	isForSimpleWidget: boolean;
 }
 
 export interface ITextModelUpdateOptions {
@@ -448,6 +451,12 @@ export interface ITextModel {
 	readonly id: string;
 
 	/**
+	 * This model is constructed for a simple widget code editor.
+	 * @internal
+	 */
+	readonly isForSimpleWidget: boolean;
+
+	/**
 	 * If true, the text model might contain RTL.
 	 * If false, the text model **contains only** contain LTR.
 	 * @internal
@@ -498,6 +507,14 @@ export interface ITextModel {
 	 * @return The text.
 	 */
 	getValue(eol?: EndOfLinePreference, preserveBOM?: boolean): string;
+
+	/**
+	 * Get the text stored in this model.
+	 * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
+	 * @return The text snapshot (it is safe to consume it asynchronously).
+	 * @internal
+	 */
+	createSnapshot(preserveBOM?: boolean): ITextSnapshot;
 
 	/**
 	 * Get the length of the text stored in this model.
@@ -634,6 +651,11 @@ export interface ITextModel {
 	isDisposed(): boolean;
 
 	/**
+	 * @internal
+	 */
+	tokenizeViewport(startLineNumber: number, endLineNumber: number): void;
+
+	/**
 	 * Only basic mode supports allowed on this model because it is simply too large.
 	 * (tokenization is allowed and other basic supports)
 	 * @internal
@@ -657,7 +679,7 @@ export interface ITextModel {
 	 * @param limitResultCount Limit the number of results
 	 * @return The ranges where the matches are. It is empty if not matches have been found.
 	 */
-	findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean, limitResultCount?: number): FindMatch[];
+	findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount?: number): FindMatch[];
 	/**
 	 * Search the model.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -669,7 +691,7 @@ export interface ITextModel {
 	 * @param limitResultCount Limit the number of results
 	 * @return The ranges where the matches are. It is empty if no matches have been found.
 	 */
-	findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean, limitResultCount?: number): FindMatch[];
+	findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount?: number): FindMatch[];
 	/**
 	 * Search the model for the next match. Loops to the beginning of the model if needed.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -680,7 +702,7 @@ export interface ITextModel {
 	 * @param captureMatches The result will contain the captured groups.
 	 * @return The range where the next match is. It is null if no next match has been found.
 	 */
-	findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): FindMatch;
+	findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch;
 	/**
 	 * Search the model for the previous match. Loops to the end of the model if needed.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -691,7 +713,7 @@ export interface ITextModel {
 	 * @param captureMatches The result will contain the captured groups.
 	 * @return The range where the previous match is. It is null if no previous match has been found.
 	 */
-	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): FindMatch;
+	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch;
 
 	/**
 	 * Get the language associated with this model.
@@ -1078,7 +1100,9 @@ export interface ITextBuffer {
 	getRangeAt(offset: number, length: number): Range;
 
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
+	createSnapshot(preserveBOM: boolean): ITextSnapshot;
 	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
+	getLength(): number;
 	getLineCount(): number;
 	getLinesContent(): string[];
 	getLineContent(lineNumber: number): string;
@@ -1087,8 +1111,9 @@ export interface ITextBuffer {
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 
-	setEOL(newEOL: string): void;
+	setEOL(newEOL: '\r\n' | '\n'): void;
 	applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult;
+	findMatchesLineByLine?(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[];
 }
 
 /**
@@ -1098,7 +1123,6 @@ export class ApplyEditsResult {
 
 	constructor(
 		public readonly reverseEdits: IIdentifiedSingleEditOperation[],
-		public readonly rawChanges: ModelRawChange[],
 		public readonly changes: IInternalModelContentChange[],
 		public readonly trimAutoWhitespaceLineNumbers: number[]
 	) { }
@@ -1110,7 +1134,6 @@ export class ApplyEditsResult {
  */
 export interface IInternalModelContentChange extends IModelContentChange {
 	range: Range;
-	lines: string[];
 	rangeOffset: number;
 	forceMoveMarkers: boolean;
 }

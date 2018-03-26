@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import arrays = require('vs/base/common/arrays');
-import strings = require('vs/base/common/strings');
-import paths = require('vs/base/common/paths');
+import * as arrays from 'vs/base/common/arrays';
+import * as strings from 'vs/base/common/strings';
+import * as paths from 'vs/base/common/paths';
 import { LRUCache } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -220,8 +220,12 @@ function parseRegExp(pattern: string): string {
 				}
 			}
 
-			// Tail: Add the slash we had split on if there is more to come and the next one is not a globstar
-			if (index < segments.length - 1 && segments[index + 1] !== GLOBSTAR) {
+			// Tail: Add the slash we had split on if there is more to come and the remaining pattern is not a globstar
+			// For example if pattern: some/**/*.js we want the "/" after some to be included in the RegEx to prevent
+			// a folder called "something" to match as well.
+			// However, if pattern: some/**, we tolerate that we also match on "something" because our globstar behaviour
+			// is to match 0-N segments.
+			if (index < segments.length - 1 && (segments[index + 1] !== GLOBSTAR || index + 2 < segments.length)) {
 				regEx += PATH_REGEX;
 			}
 

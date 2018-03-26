@@ -751,6 +751,7 @@ suite('Editor Contrib - Line Operations', () => {
 				'function baz() {'
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,

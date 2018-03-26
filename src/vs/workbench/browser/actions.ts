@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import { Action, IAction } from 'vs/base/common/actions';
 import { BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
@@ -169,7 +169,7 @@ export function prepareActions(actions: IAction[]): IAction[] {
 	for (let l = 0; l < actions.length; l++) {
 		const a = <any>actions[l];
 		if (types.isUndefinedOrNull(a.order)) {
-			a.order = lastOrder++;
+			a.order = ++lastOrder;
 			orderOffset++;
 		} else {
 			a.order += orderOffset;

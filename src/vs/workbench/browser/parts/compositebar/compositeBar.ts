@@ -5,7 +5,7 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { illegalArgument } from 'vs/base/common/errors';
 import * as dom from 'vs/base/browser/dom';
@@ -16,7 +16,7 @@ import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar, IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem, ActivityAction, ICompositeBar, ICompositeBarColors } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -24,7 +24,7 @@ export interface ICompositeBarOptions {
 	icon: boolean;
 	storageId: string;
 	orientation: ActionsOrientation;
-	composites: { id: string, name: string }[];
+	composites: { id: string, name: string, order: number }[];
 	colors: ICompositeBarColors;
 	overflowActionSize: number;
 	getActivityAction: (compositeId: string) => ActivityAction;
@@ -37,7 +37,7 @@ export interface ICompositeBarOptions {
 
 export class CompositeBar implements ICompositeBar {
 
-	private _onDidContextMenu: Emitter<MouseEvent>;
+	private readonly _onDidContextMenu: Emitter<MouseEvent>;
 
 	private dimension: Dimension;
 	private toDispose: IDisposable[];
@@ -79,6 +79,28 @@ export class CompositeBar implements ICompositeBar {
 
 	public get onDidContextMenu(): Event<MouseEvent> {
 		return this._onDidContextMenu.event;
+	}
+
+	public addComposite(compositeData: { id: string; name: string, order: number }): void {
+		if (this.options.composites.filter(c => c.id === compositeData.id).length) {
+			return;
+		}
+		let i = 0;
+		while (i < this.options.composites.length && this.options.composites[i].order < compositeData.order) {
+			i++;
+		}
+		this.options.composites.push(compositeData);
+		this.pin(compositeData.id, true, i);
+	}
+
+	public removeComposite(id: string): void {
+		if (this.options.composites.filter(c => c.id === id).length === 0) {
+			return;
+		}
+
+		this.options.composites = this.options.composites.filter(c => c.id !== id);
+		this.unpin(id);
+		this.pullComposite(id);
 	}
 
 	public activateComposite(id: string): void {
@@ -180,6 +202,7 @@ export class CompositeBar implements ICompositeBar {
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),
 			animated: false,
 		});
+		this.toDispose.push(this.compositeSwitcherBar);
 
 		// Contextmenu for composites
 		this.toDispose.push(dom.addDisposableListener(parent, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
@@ -371,6 +394,7 @@ export class CompositeBar implements ICompositeBar {
 		const visibleComposites = this.getVisibleComposites();
 
 		let unpinPromise: TPromise<any>;
+
 		// remove from pinned
 		const index = this.pinnedComposites.indexOf(compositeId);
 		this.pinnedComposites.splice(index, 1);
@@ -402,24 +426,30 @@ export class CompositeBar implements ICompositeBar {
 		unpinPromise.then(() => {
 			this.updateCompositeSwitcher();
 		});
+
+		// Persist
+		this.savePinnedComposites();
 	}
 
 	public isPinned(compositeId: string): boolean {
 		return this.pinnedComposites.indexOf(compositeId) >= 0;
 	}
 
-	public pin(compositeId: string, update = true): void {
+	public pin(compositeId: string, update = true, index = this.pinnedComposites.length): void {
 		if (this.isPinned(compositeId)) {
 			return;
 		}
 
 		this.options.openComposite(compositeId).then(() => {
-			this.pinnedComposites.push(compositeId);
+			this.pinnedComposites.splice(index, 0, compositeId);
 			this.pinnedComposites = arrays.distinct(this.pinnedComposites);
 
 			if (update) {
 				this.updateCompositeSwitcher();
 			}
+
+			// Persist
+			this.savePinnedComposites();
 		});
 	}
 
@@ -449,6 +479,9 @@ export class CompositeBar implements ICompositeBar {
 		setTimeout(() => {
 			this.updateCompositeSwitcher();
 		}, 0);
+
+		// Persist
+		this.savePinnedComposites();
 	}
 
 	public layout(dimension: Dimension): void {
@@ -472,7 +505,7 @@ export class CompositeBar implements ICompositeBar {
 		this.updateCompositeSwitcher();
 	}
 
-	public store(): void {
+	private savePinnedComposites(): void {
 		this.storageService.store(this.options.storageId, JSON.stringify(this.pinnedComposites), StorageScope.GLOBAL);
 	}
 

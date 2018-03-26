@@ -7,18 +7,20 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, LocalExtensionType, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata } from './extensionManagement';
-import Event, { buffer } from 'vs/base/common/event';
+import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, LocalExtensionType, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension } from './extensionManagement';
+import { Event, buffer } from 'vs/base/common/event';
 
 export interface IExtensionManagementChannel extends IChannel {
 	call(command: 'event:onInstallExtension'): TPromise<void>;
 	call(command: 'event:onDidInstallExtension'): TPromise<void>;
 	call(command: 'event:onUninstallExtension'): TPromise<void>;
 	call(command: 'event:onDidUninstallExtension'): TPromise<void>;
-	call(command: 'install', path: string): TPromise<void>;
-	call(command: 'installFromGallery', extension: IGalleryExtension): TPromise<void>;
+	call(command: 'install', path: string): TPromise<ILocalExtension>;
+	call(command: 'installFromGallery', extension: IGalleryExtension): TPromise<ILocalExtension>;
 	call(command: 'uninstall', args: [ILocalExtension, boolean]): TPromise<void>;
+	call(command: 'reinstallFromGallery', args: [ILocalExtension]): TPromise<ILocalExtension>;
 	call(command: 'getInstalled'): TPromise<ILocalExtension[]>;
+	call(command: 'getExtensionsReport'): TPromise<IReportedExtension[]>;
 	call(command: string, arg?: any): TPromise<any>;
 }
 
@@ -45,8 +47,10 @@ export class ExtensionManagementChannel implements IExtensionManagementChannel {
 			case 'install': return this.service.install(arg);
 			case 'installFromGallery': return this.service.installFromGallery(arg[0]);
 			case 'uninstall': return this.service.uninstall(arg[0], arg[1]);
+			case 'reinstallFromGallery': return this.service.reinstallFromGallery(arg[0]);
 			case 'getInstalled': return this.service.getInstalled(arg);
 			case 'updateMetadata': return this.service.updateMetadata(arg[0], arg[1]);
+			case 'getExtensionsReport': return this.service.getExtensionsReport();
 		}
 		return undefined;
 	}
@@ -70,16 +74,20 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 	private _onDidUninstallExtension = eventFromCall<DidUninstallExtensionEvent>(this.channel, 'event:onDidUninstallExtension');
 	get onDidUninstallExtension(): Event<DidUninstallExtensionEvent> { return this._onDidUninstallExtension; }
 
-	install(zipPath: string): TPromise<void> {
+	install(zipPath: string): TPromise<ILocalExtension> {
 		return this.channel.call('install', zipPath);
 	}
 
-	installFromGallery(extension: IGalleryExtension): TPromise<void> {
+	installFromGallery(extension: IGalleryExtension): TPromise<ILocalExtension> {
 		return this.channel.call('installFromGallery', [extension]);
 	}
 
 	uninstall(extension: ILocalExtension, force = false): TPromise<void> {
 		return this.channel.call('uninstall', [extension, force]);
+	}
+
+	reinstallFromGallery(extension: ILocalExtension): TPromise<ILocalExtension> {
+		return this.channel.call('reinstallFromGallery', [extension]);
 	}
 
 	getInstalled(type: LocalExtensionType = null): TPromise<ILocalExtension[]> {
@@ -88,5 +96,9 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): TPromise<ILocalExtension> {
 		return this.channel.call('updateMetadata', [local, metadata]);
+	}
+
+	getExtensionsReport(): TPromise<IReportedExtension[]> {
+		return this.channel.call('getExtensionsReport');
 	}
 }

@@ -8,23 +8,19 @@
 import 'vs/css!./media/actions';
 
 import URI from 'vs/base/common/uri';
-import * as collections from 'vs/base/common/collections';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService, IWindowsService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import errors = require('vs/base/common/errors');
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import * as errors from 'vs/base/common/errors';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManagementService, LocalExtensionType, ILocalExtension, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import paths = require('vs/base/common/paths');
-import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
+import * as paths from 'vs/base/common/paths';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
@@ -41,11 +37,19 @@ import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { FileKind, IFileService } from 'vs/platform/files/common/files';
+import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, ActivationTimes } from 'vs/workbench/services/extensions/common/extensions';
 import { getEntries } from 'vs/base/common/performance';
-import { IEditor } from 'vs/platform/editor/common/editor';
+import { IssueType } from 'vs/platform/issue/common/issue';
+import { domEvent } from 'vs/base/browser/event';
+import { once } from 'vs/base/common/event';
+import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
+import { getDomNodePagePosition, createStyleSheet, createCSSRule } from 'vs/base/browser/dom';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 // --- actions
 
@@ -74,7 +78,7 @@ export class CloseWorkspaceAction extends Action {
 		id: string,
 		label: string,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IWindowService private windowService: IWindowService
 	) {
 		super(id, label);
@@ -82,7 +86,7 @@ export class CloseWorkspaceAction extends Action {
 
 	run(): TPromise<void> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.messageService.show(Severity.Info, nls.localize('noWorkspaceOpened', "There is currently no workspace opened in this instance to close."));
+			this.notificationService.info(nls.localize('noWorkspaceOpened', "There is currently no workspace opened in this instance to close."));
 
 			return TPromise.as(null);
 		}
@@ -367,6 +371,7 @@ export class ShowStartupPerformance extends Action {
 
 		if (metrics.initialStartup) {
 			table.push({ Topic: '[main] start => app.isReady', 'Took (ms)': metrics.timers.ellapsedAppReady });
+			table.push({ Topic: '[main] nls:start => nls:end', 'Took (ms)': metrics.timers.ellapsedNlsGeneration });
 			table.push({ Topic: '[main] app.isReady => window.loadUrl()', 'Took (ms)': metrics.timers.ellapsedWindowLoad });
 		}
 
@@ -547,6 +552,24 @@ export class ReloadWindowAction extends Action {
 
 	run(): TPromise<boolean> {
 		return this.windowService.reloadWindow().then(() => true);
+	}
+}
+
+export class ReloadWindowWithExtensionsDisabledAction extends Action {
+
+	static readonly ID = 'workbench.action.reloadWindowWithExtensionsDisabled';
+	static LABEL = nls.localize('reloadWindowWithExntesionsDisabled', "Reload Window With Extensions Disabled");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<boolean> {
+		return this.windowService.reloadWindow({ _: [], 'disable-extensions': true }).then(() => true);
 	}
 }
 
@@ -830,138 +853,44 @@ export class QuickOpenRecentAction extends BaseOpenRecentAction {
 	}
 }
 
-export class CloseMessagesAction extends Action {
-
-	public static readonly ID = 'workbench.action.closeMessages';
-	public static readonly LABEL = nls.localize('closeMessages', "Close Notification Messages");
-
-	constructor(
-		id: string,
-		label: string,
-		@IMessageService private messageService: IMessageService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<boolean> {
-
-		// Close any Message if visible
-		this.messageService.hideAll();
-
-		// Restore focus if we got an editor
-		const editor = this.editorService.getActiveEditor();
-		if (editor) {
-			editor.focus();
-		}
-
-		return TPromise.as(true);
-	}
-}
-
-export class ReportIssueAction extends Action {
-
-	public static readonly ID = 'workbench.action.reportIssues';
+export class OpenIssueReporterAction extends Action {
+	public static readonly ID = 'workbench.action.openIssueReporter';
 	public static readonly LABEL = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
 
 	constructor(
 		id: string,
 		label: string,
-		@IIntegrityService private integrityService: IIntegrityService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IWorkbenchIssueService private issueService: IWorkbenchIssueService
 	) {
 		super(id, label);
 	}
 
-	private _optimisticIsPure(): TPromise<boolean> {
-		let isPure = true;
-		let integrityPromise = this.integrityService.isPure().then(res => {
-			isPure = res.isPure;
-		});
-
-		return TPromise.any([TPromise.timeout(100), integrityPromise]).then(() => {
-			return isPure;
-		});
-	}
-
 	public run(): TPromise<boolean> {
-		return this._optimisticIsPure().then(isPure => {
-			return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-				extensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension.identifier));
-				const issueUrl = this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, isPure, extensions, this.environmentService.disableExtensions);
-
-				window.open(issueUrl);
-
-				return TPromise.as(true);
-			});
-		});
-	}
-
-	private generateNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, extensions: ILocalExtension[], areExtensionsDisabled: boolean): string {
-		// Avoid backticks, these can trigger XSS detectors. (https://github.com/Microsoft/vscode/issues/13098)
-		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
-		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
-		const body = encodeURIComponent(
-			`<ul>
-	<li>VSCode Version: ${name} ${version}${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})</li>
-	<li>OS Version: ${osVersion}</li>
-	<li>${areExtensionsDisabled ? 'Extensions: Extensions are disabled' : this.generateExtensionTable(extensions)}</li>
-</ul>
-
----
-
-Steps to Reproduce:
-
-1.
-2.` + (extensions.length ? `
-
-<!-- Launch with \`code --disable-extensions\` to check. -->
-Reproduces without extensions: Yes/No` : '')
-		);
-
-		return `${baseUrl}${queryStringPrefix}body=${body}`;
-	}
-
-	private generateExtensionTable(extensions: ILocalExtension[]): string {
-		const { nonThemes, themes } = collections.groupBy(extensions, ext => {
-			const manifestKeys = ext.manifest.contributes ? Object.keys(ext.manifest.contributes) : [];
-			const onlyTheme = !ext.manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
-			return onlyTheme ? 'themes' : 'nonThemes';
-		});
-
-		const themeExclusionStr = (themes && themes.length) ? `\n(${themes.length} theme extensions excluded)` : '';
-		extensions = nonThemes || [];
-
-		if (!extensions.length) {
-			return 'Extensions: none' + themeExclusionStr;
-		}
-
-		let tableHeader = `Extension|Author (truncated)|Version
----|---|---`;
-		const table = extensions.map(e => {
-			return `${e.manifest.name}|${e.manifest.publisher.substr(0, 3)}|${e.manifest.version}`;
-		}).join('\n');
-
-		const extensionTable = `<details><summary>Extensions (${extensions.length})</summary>
-
-${tableHeader}
-${table}
-${themeExclusionStr}
-
-</details>`;
-
-		// 2000 chars is browsers de-facto limit for URLs, 400 chars are allowed for other string parts of the issue URL
-		// http://stackoverflow.com/questions/417142/what-is-the-maximum-length-of-a-url-in-different-browsers
-		if (encodeURIComponent(extensionTable).length > 1600) {
-			return 'the listing length exceeds browsers\' URL characters limit';
-		}
-
-		return extensionTable;
+		return this.issueService.openReporter()
+			.then(() => true);
 	}
 }
 
+export class ReportPerformanceIssueUsingReporterAction extends Action {
+	public static readonly ID = 'workbench.action.reportPerformanceIssueUsingReporter';
+	public static readonly LABEL = nls.localize('reportPerformanceIssue', "Report Performance Issue");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchIssueService private issueService: IWorkbenchIssueService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+		// TODO: Reporter should send timings table as well
+		return this.issueService.openReporter({ issueType: IssueType.PerformanceIssue })
+			.then(() => true);
+	}
+}
+
+// NOTE: This is still used when running --prof-startup, which already opens a dialog, so the reporter is not used.
 export class ReportPerformanceIssueAction extends Action {
 
 	public static readonly ID = 'workbench.action.reportPerformanceIssue';
@@ -1622,44 +1551,80 @@ export class ToggleWindowTabsBar extends Action {
 	}
 }
 
-export class ConfigureLocaleAction extends Action {
-	public static readonly ID = 'workbench.action.configureLocale';
-	public static readonly LABEL = nls.localize('configureLocale', "Configure Language");
+export class ShowAboutDialogAction extends Action {
 
-	private static DEFAULT_CONTENT: string = [
-		'{',
-		`\t// ${nls.localize('displayLanguage', 'Defines VSCode\'s display language.')}`,
-		`\t// ${nls.localize('doc', 'See {0} for a list of supported languages.', 'https://go.microsoft.com/fwlink/?LinkId=761051')}`,
-		`\t// ${nls.localize('restart', 'Changing the value requires restarting VSCode.')}`,
-		`\t"locale":"${language}"`,
-		'}'
-	].join('\n');
+	public static readonly ID = 'workbench.action.showAboutDialog';
+	public static LABEL = nls.localize('about', "About {0}", product.applicationName);
 
-	constructor(id: string, label: string,
-		@IFileService private fileService: IFileService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<IEditor> {
-		const file = URI.file(paths.join(this.environmentService.appSettingsHome, 'locale.json'));
-		return this.fileService.resolveFile(file).then(null, (error) => {
-			return this.fileService.createFile(file, ConfigureLocaleAction.DEFAULT_CONTENT);
-		}).then((stat) => {
-			if (!stat) {
-				return undefined;
-			}
-			return this.editorService.openEditor({
-				resource: stat.resource,
-				options: {
-					forceOpen: true
-				}
-			});
-		}, (error) => {
-			throw new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", getPathLabel(file, this.contextService), error));
-		});
+	run(): TPromise<void> {
+		return this.windowsService.openAboutDialog();
+	}
+}
+
+export class InspectContextKeysAction extends Action {
+
+	public static readonly ID = 'workbench.action.inspectContextKeys';
+	public static LABEL = nls.localize('inspect context keys', "Inspect Context Keys");
+
+	constructor(
+		id: string,
+		label: string,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IWindowService private windowService: IWindowService,
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<void> {
+		const disposables: IDisposable[] = [];
+
+		const stylesheet = createStyleSheet();
+		disposables.push(toDisposable(() => stylesheet.parentNode.removeChild(stylesheet)));
+		createCSSRule('*', 'cursor: crosshair !important;', stylesheet);
+
+		const hoverFeedback = document.createElement('div');
+		document.body.appendChild(hoverFeedback);
+		disposables.push(toDisposable(() => document.body.removeChild(hoverFeedback)));
+
+		hoverFeedback.style.position = 'absolute';
+		hoverFeedback.style.pointerEvents = 'none';
+		hoverFeedback.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
+		hoverFeedback.style.zIndex = '1000';
+
+		const onMouseMove = domEvent(document.body, 'mousemove', true);
+		disposables.push(onMouseMove(e => {
+			const target = e.target as HTMLElement;
+			const position = getDomNodePagePosition(target);
+
+			hoverFeedback.style.top = `${position.top}px`;
+			hoverFeedback.style.left = `${position.left}px`;
+			hoverFeedback.style.width = `${position.width}px`;
+			hoverFeedback.style.height = `${position.height}px`;
+		}));
+
+		const onMouseDown = once(domEvent(document.body, 'mousedown', true));
+		onMouseDown(e => { e.preventDefault(); e.stopPropagation(); }, null, disposables);
+
+		const onMouseUp = once(domEvent(document.body, 'mouseup', true));
+		onMouseUp(e => {
+			e.preventDefault();
+			e.stopPropagation();
+
+			const context = this.contextKeyService.getContext(e.target as HTMLElement) as Context;
+			console.log(context.collectAllValues());
+			this.windowService.openDevTools();
+
+			dispose(disposables);
+		}, null, disposables);
+
+		return TPromise.as(null);
 	}
 }

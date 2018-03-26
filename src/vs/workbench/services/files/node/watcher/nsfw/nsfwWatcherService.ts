@@ -8,9 +8,9 @@ import * as paths from 'vs/base/common/paths';
 import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as watcher from 'vs/workbench/services/files/node/watcher/common';
-import * as nsfw from 'nsfw';
+import * as nsfw from 'vscode-nsfw';
 import { IWatcherService, IWatcherRequest } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
-import { TPromise, ProgressCallback, TValueCallback } from 'vs/base/common/winjs.base';
+import { TPromise, ProgressCallback, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { normalizeNFC } from 'vs/base/common/strings';
@@ -37,13 +37,16 @@ export class NsfwWatcherService implements IWatcherService {
 	private _pathWatchers: { [watchPath: string]: IPathWatcher } = {};
 	private _watcherPromise: TPromise<void>;
 	private _progressCallback: ProgressCallback;
+	private _errorCallback: ErrorCallback;
 	private _verboseLogging: boolean;
-
+	private enospcErrorLogged: boolean;
 
 	public initialize(verboseLogging: boolean): TPromise<void> {
-		this._verboseLogging = verboseLogging;
+		this._verboseLogging = true;
 		this._watcherPromise = new TPromise<void>((c, e, p) => {
+			this._errorCallback = e;
 			this._progressCallback = p;
+
 		});
 		return this._watcherPromise;
 	}
@@ -57,6 +60,19 @@ export class NsfwWatcherService implements IWatcherService {
 			ready: new TPromise<IWatcherObjet>(c => readyPromiseCallback = c),
 			ignored: request.ignored
 		};
+
+		process.on('uncaughtException', e => {
+
+			// Specially handle ENOSPC errors that can happen when
+			// the watcher consumes so many file descriptors that
+			// we are running into a limit. We only want to warn
+			// once in this case to avoid log spam.
+			// See https://github.com/Microsoft/vscode/issues/7950
+			if (e === 'Inotify limit reached' && !this.enospcErrorLogged) {
+				this.enospcErrorLogged = true;
+				this._errorCallback(new Error('Inotify limit reached (ENOSPC)'));
+			}
+		});
 
 		nsfw(request.basePath, events => {
 			for (let i = 0; i < events.length; i++) {

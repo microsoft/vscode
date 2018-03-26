@@ -1,9 +1,10 @@
 {
   "name": "gulp",
   "publisher": "vscode",
-  "description": "Extension to add Gulp capabilities to VSCode.",
-  "displayName": "Gulp support for VSCode",
-  "version": "0.0.1",
+  "description": "%description%",
+  "displayName": "%displayName%",
+  "version": "1.0.0",
+  "icon": "images/gulp.png",
   "engines": {
     "vscode": "*"
   },
@@ -15,7 +16,7 @@
     "watch": "gulp watch-extension:gulp"
   },
   "dependencies": {
-    "vscode-nls": "^2.0.2"
+    "vscode-nls": "^3.2.1"
   },
   "devDependencies": {
     "@types/node": "7.0.43"
@@ -49,11 +50,11 @@
         "properties": {
           "task": {
             "type": "string",
-            "description": "The Gulp task to customize"
+            "description": "%gulp.taskDefinition.type.description%"
           },
           "file": {
             "type": "string",
-            "description": "The Gulp file that provides the task. Can be omitted."
+            "description": "%gulp.taskDefinition.file.description%"
           }
         }
       }

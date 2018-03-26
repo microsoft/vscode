@@ -13,14 +13,17 @@ fi
 cd $ROOT
 
 # Tests in the extension host
-./scripts/code.sh $ROOT/extensions/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out --disableExtensions --user-data-dir=$VSCODEUSERDATADIR --skip-getting-started
+./scripts/code.sh $ROOT/extensions/vscode-api-tests/testWorkspace --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out/singlefolder-tests --disableExtensions --user-data-dir=$VSCODEUSERDATADIR --skip-getting-started
+./scripts/code.sh $ROOT/extensions/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out/workspace-tests --disableExtensions --user-data-dir=$VSCODEUSERDATADIR --skip-getting-started
 ./scripts/code.sh $ROOT/extensions/vscode-colorize-tests/test --extensionDevelopmentPath=$ROOT/extensions/vscode-colorize-tests --extensionTestsPath=$ROOT/extensions/vscode-colorize-tests/out --disableExtensions --user-data-dir=$VSCODEUSERDATADIR --skip-getting-started
-./scripts/code.sh $ROOT/extensions/emmet/test-fixtures --extensionDevelopmentPath=$ROOT/extensions/emmet --extensionTestsPath=$ROOT/extensions/emmet/out/test --disableExtensions --user-data-dir=$VSCODEUSERDATADIR --skip-getting-started
+mkdir $ROOT/extensions/emmet/test-fixtures
+./scripts/code.sh $ROOT/extensions/emmet/test-fixtures --extensionDevelopmentPath=$ROOT/extensions/emmet --extensionTestsPath=$ROOT/extensions/emmet/out/test --disableExtensions --user-data-dir=$VSCODEUSERDATADIR --skip-getting-started .
+rm -r $ROOT/extensions/emmet/test-fixtures
 
 # Integration tests in AMD
 ./scripts/test.sh --runGlob **/*.integrationTest.js "$@"
 
-# Tests in commonJS (language server tests...)
-./scripts/node-electron.sh ./node_modules/mocha/bin/_mocha ./extensions/html/server/out/test/
+# Tests in commonJS (HTML, CSS, JSON language server tests...)
+./scripts/node-electron.sh ./node_modules/mocha/bin/_mocha ./extensions/*/server/out/test/
 
 rm -r $VSCODEUSERDATADIR

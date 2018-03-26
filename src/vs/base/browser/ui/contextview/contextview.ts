@@ -8,7 +8,7 @@
 
 import 'vs/css!./contextview';
 import { Builder, $ } from 'vs/base/browser/builder';
-import DOM = require('vs/base/browser/dom');
+import * as DOM from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export interface IAnchor {
@@ -128,6 +128,7 @@ export class ContextView {
 
 	public setContainer(container: HTMLElement): void {
 		if (this.$container) {
+			this.$container.getHTMLElement().removeChild(this.$view.getHTMLElement());
 			this.$container.off(ContextView.BUBBLE_UP_EVENTS);
 			this.$container.off(ContextView.BUBBLE_DOWN_EVENTS, true);
 			this.$container = null;

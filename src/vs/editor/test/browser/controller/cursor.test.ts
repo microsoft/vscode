@@ -1134,6 +1134,7 @@ suite('Editor Controller - Regression tests', () => {
 				'another line'
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
@@ -1159,6 +1160,7 @@ suite('Editor Controller - Regression tests', () => {
 				''
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
@@ -1224,6 +1226,7 @@ suite('Editor Controller - Regression tests', () => {
 				'     function baz() {'
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				insertSpaces: true,
 				tabSize: 4,
 				detectIndentation: false,
@@ -1252,6 +1255,7 @@ suite('Editor Controller - Regression tests', () => {
 				'      '
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				insertSpaces: true,
 				tabSize: 4,
 				detectIndentation: false,
@@ -1284,6 +1288,7 @@ suite('Editor Controller - Regression tests', () => {
 				''
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
@@ -1349,7 +1354,7 @@ suite('Editor Controller - Regression tests', () => {
 				'hello'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { tabSize: 4, insertSpaces: true, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, tabSize: 4, insertSpaces: true, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 3, false);
 			moveTo(cursor, 1, 5, true);
@@ -1373,6 +1378,7 @@ suite('Editor Controller - Regression tests', () => {
 				'};'
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				tabSize: 4,
 				insertSpaces: true,
 				detectIndentation: false,
@@ -1494,6 +1500,7 @@ suite('Editor Controller - Regression tests', () => {
 				'just some text',
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				insertSpaces: true,
 				tabSize: 4,
 				detectIndentation: false,
@@ -1552,7 +1559,7 @@ suite('Editor Controller - Regression tests', () => {
 				'just some text',
 			],
 			languageIdentifier: null,
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 1, false);
 
@@ -1576,6 +1583,7 @@ suite('Editor Controller - Regression tests', () => {
 				'}',
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				insertSpaces: true,
 				tabSize: 4,
 				detectIndentation: false,
@@ -1600,6 +1608,7 @@ suite('Editor Controller - Regression tests', () => {
 				'var bar = 4;       // another comment'
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				insertSpaces: false,
 				tabSize: 4,
 				detectIndentation: false,
@@ -1852,6 +1861,87 @@ suite('Editor Controller - Regression tests', () => {
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
 		});
 	});
+
+	test('issue #41573 - delete across multiple lines does not shrink the selection when word wraps', () => {
+		const model = TextModel.createFromString([
+			'Authorization: \'Bearer pHKRfCTFSnGxs6akKlb9ddIXcca0sIUSZJutPHYqz7vEeHdMTMh0SGN0IGU3a0n59DXjTLRsj5EJ2u33qLNIFi9fk5XF8pK39PndLYUZhPt4QvHGLScgSkK0L4gwzkzMloTQPpKhqiikiIOvyNNSpd2o8j29NnOmdTUOKi9DVt74PD2ohKxyOrWZ6oZprTkb3eKajcpnS0LABKfaw2rmv4\','
+		].join('\n'));
+		const config = new TestConfiguration({
+			wordWrap: 'wordWrapColumn',
+			wordWrapColumn: 100
+		});
+		const viewModel = new ViewModel(0, config, model, null);
+		const cursor = new Cursor(config, model, viewModel);
+
+		moveTo(cursor, 1, 43, false);
+		moveTo(cursor, 1, 147, true);
+		assertCursor(cursor, new Selection(1, 43, 1, 147));
+
+		model.applyEdits([{
+			range: new Range(1, 1, 1, 43),
+			text: ''
+		}]);
+
+		assertCursor(cursor, new Selection(1, 1, 1, 105));
+
+		cursor.dispose();
+		viewModel.dispose();
+		config.dispose();
+		model.dispose();
+	});
+
+	test('issue #22717: Moving text cursor cause an incorrect position in Chinese', () => {
+		// a single model line => 4 view lines
+		withTestCodeEditor([
+			[
+				'一二三四五六七八九十',
+				'12345678901234567890',
+			].join('\n')
+		], {}, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
+
+			moveDown(cursor);
+			assertCursor(cursor, new Selection(2, 9, 2, 9));
+
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(2, 10, 2, 10));
+
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(2, 11, 2, 11));
+
+			moveUp(cursor);
+			assertCursor(cursor, new Selection(1, 6, 1, 6));
+		});
+	});
+
+	test('issue #44805: Should not be able to undo in readonly editor', () => {
+		let model = TextModel.createFromString(
+			[
+				''
+			].join('\n'),
+			{
+				isForSimpleWidget: false,
+				defaultEOL: DefaultEndOfLine.LF,
+				detectIndentation: false,
+				insertSpaces: false,
+				tabSize: 4,
+				trimAutoWhitespace: true
+			}
+		);
+
+		withTestCodeEditor(null, { readOnly: true, model: model }, (editor, cursor) => {
+			model.pushEditOperations([new Selection(1, 1, 1, 1)], [{
+				range: new Range(1, 1, 1, 1),
+				text: 'Hello world!'
+			}], () => [new Selection(1, 1, 1, 1)]);
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'Hello world!');
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'Hello world!');
+		});
+
+		model.dispose();
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {
@@ -1865,7 +1955,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'',
 				'1'
 			],
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(1, 21), source: 'keyboard' });
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
@@ -1884,6 +1974,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'1'
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				insertSpaces: true,
 				tabSize: 13,
 				detectIndentation: false,
@@ -1958,7 +2049,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'\thello'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
 			assertCursor(cursor, new Selection(1, 7, 1, 7));
@@ -1976,7 +2067,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'\thello'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
 			assertCursor(cursor, new Selection(1, 7, 1, 7));
@@ -1994,7 +2085,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'\thell()'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
 			assertCursor(cursor, new Selection(1, 7, 1, 7));
@@ -2011,6 +2102,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'    some  line abc  '
 			],
 			modelOpts: {
+				isForSimpleWidget: false,
 				insertSpaces: true,
 				tabSize: 4,
 				detectIndentation: false,
@@ -2039,6 +2131,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'    '
 			],
 			modelOpts: {
+				isForSimpleWidget: false,
 				insertSpaces: true,
 				tabSize: 4,
 				detectIndentation: false,
@@ -2065,6 +2158,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'function foo (params: string) {}'
 			],
 			modelOpts: {
+				isForSimpleWidget: false,
 				insertSpaces: true,
 				tabSize: 4,
 				detectIndentation: false,
@@ -2113,6 +2207,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'    }'
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				insertSpaces: true,
 				tabSize: 4,
 				detectIndentation: false,
@@ -2157,6 +2252,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'    some  line abc  '
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				insertSpaces: true,
 				tabSize: 4,
 				detectIndentation: false,
@@ -2223,6 +2319,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'    '
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				insertSpaces: true,
 				tabSize: 4,
 				detectIndentation: false,
@@ -2249,6 +2346,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'    '
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				insertSpaces: true,
 				tabSize: 4,
 				detectIndentation: false,
@@ -2320,6 +2418,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				''
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
@@ -2400,7 +2499,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\tif (true) {'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			modelOpts: { isForSimpleWidget: false, insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
 			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 12, false);
@@ -2424,7 +2523,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			modelOpts: { isForSimpleWidget: false, insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
 			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 2, false);
@@ -2443,7 +2542,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t\treturn true'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			modelOpts: { isForSimpleWidget: false, insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
 			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 15, false);
@@ -2463,7 +2562,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t\t\treturn true'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			modelOpts: { isForSimpleWidget: false, insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
 			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 14, false);
@@ -2487,6 +2586,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\tif (true)'
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
@@ -2520,7 +2620,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			modelOpts: { isForSimpleWidget: false, insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
 			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 13, false);
@@ -2541,7 +2641,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 4, 3, false);
 			moveTo(cursor, 4, 4, true);
@@ -2560,7 +2660,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\tif (true) {'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 12, false);
 			moveTo(cursor, 2, 13, true);
@@ -2581,7 +2681,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\tif (true) {'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
@@ -2606,7 +2706,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'    if (true) {'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
@@ -2630,7 +2730,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'    if (true) {'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
@@ -2658,7 +2758,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			modelOpts: { isForSimpleWidget: false, insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
 			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 5, 4, false);
@@ -2679,7 +2779,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 9, false);
 			assertCursor(cursor, new Selection(3, 9, 3, 9));
@@ -2699,7 +2799,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 3, false);
 			assertCursor(cursor, new Selection(3, 3, 3, 3));
@@ -2719,7 +2819,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'  }a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 11, false);
 			assertCursor(cursor, new Selection(3, 11, 3, 11));
@@ -2739,7 +2839,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 2, false);
 			assertCursor(cursor, new Selection(3, 2, 3, 2));
@@ -2766,7 +2866,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 4, false);
 			assertCursor(cursor, new Selection(3, 4, 3, 4));
@@ -2793,7 +2893,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 2, false);
 			assertCursor(cursor, new Selection(3, 2, 3, 2));
@@ -2823,7 +2923,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 3, false);
 			assertCursor(cursor, new Selection(3, 3, 3, 3));
@@ -2849,7 +2949,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				''
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: true, tabSize: 2, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 5, false);
 			moveTo(cursor, 4, 3, true);
@@ -2870,6 +2970,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}'
 			],
 			modelOpts: {
+				isForSimpleWidget: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
@@ -2897,6 +2998,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}'
 			],
 			modelOpts: {
+				isForSimpleWidget: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
@@ -2925,7 +3027,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}',
 				'?>'
 			],
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 5, 3, false);
 			assertCursor(cursor, new Selection(5, 3, 5, 3));
@@ -2944,7 +3046,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'		return 5;',
 				'	'
 			],
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 2, false);
 			assertCursor(cursor, new Selection(3, 2, 3, 2));
@@ -2966,6 +3068,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}'
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
@@ -2998,6 +3101,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}'
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
@@ -3030,6 +3134,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}'
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
@@ -3061,6 +3166,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}'
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
@@ -3092,6 +3198,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}'
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
@@ -3123,6 +3230,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'    }'
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				insertSpaces: true,
 				tabSize: 4,
 				detectIndentation: false,
@@ -3159,6 +3267,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'    en'
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: true,
@@ -3190,7 +3299,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 5, 3, false);
 			assertCursor(cursor, new Selection(5, 3, 5, 3));
@@ -3212,7 +3321,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { isForSimpleWidget: false, insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 3, false);
 			assertCursor(cursor, new Selection(2, 3, 2, 3));
@@ -3231,7 +3340,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			modelOpts: { isForSimpleWidget: false, insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
 			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 3, false);
@@ -3362,7 +3471,7 @@ suite('Editor Controller - Indentation Rules', () => {
 				'',
 				')',
 			].join('\n'),
-			{ insertSpaces: true, detectIndentation: false, tabSize: 2, trimAutoWhitespace: false, defaultEOL: DefaultEndOfLine.LF },
+			{ isForSimpleWidget: false, insertSpaces: true, detectIndentation: false, tabSize: 2, trimAutoWhitespace: false, defaultEOL: DefaultEndOfLine.LF },
 			mode.getLanguageIdentifier()
 		);
 

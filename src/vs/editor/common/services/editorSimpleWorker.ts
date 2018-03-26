@@ -21,6 +21,7 @@ import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceRepl
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import { IWordAtPosition, EndOfLineSequence } from 'vs/editor/common/model';
+import { globals } from 'vs/base/common/platform';
 
 export interface IMirrorModel {
 	readonly uri: URI;
@@ -290,10 +291,21 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 /**
  * @internal
  */
+export interface IForeignModuleFactory {
+	(ctx: IWorkerContext, createData: any): any;
+}
+
+declare var require;
+
+/**
+ * @internal
+ */
 export abstract class BaseEditorSimpleWorker {
+	private _foreignModuleFactory: IForeignModuleFactory;
 	private _foreignModule: any;
 
-	constructor() {
+	constructor(foreignModuleFactory: IForeignModuleFactory) {
+		this._foreignModuleFactory = foreignModuleFactory;
 		this._foreignModule = null;
 	}
 
@@ -473,14 +485,25 @@ export abstract class BaseEditorSimpleWorker {
 	// ---- BEGIN foreign module support --------------------------------------------------------------------------
 
 	public loadForeignModule(moduleId: string, createData: any): TPromise<string[]> {
+		let ctx: IWorkerContext = {
+			getMirrorModels: (): IMirrorModel[] => {
+				return this._getModels();
+			}
+		};
+
+		if (this._foreignModuleFactory) {
+			this._foreignModule = this._foreignModuleFactory(ctx, createData);
+			// static foreing module
+			let methods: string[] = [];
+			for (let prop in this._foreignModule) {
+				if (typeof this._foreignModule[prop] === 'function') {
+					methods.push(prop);
+				}
+			}
+			return TPromise.as(methods);
+		}
 		return new TPromise<any>((c, e) => {
-			// Use the global require to be sure to get the global config
-			(<any>self).require([moduleId], (foreignModule: { create: (ctx: IWorkerContext, createData: any) => any; }) => {
-				let ctx: IWorkerContext = {
-					getMirrorModels: (): IMirrorModel[] => {
-						return this._getModels();
-					}
-				};
+			require([moduleId], (foreignModule: { create: IForeignModuleFactory }) => {
 				this._foreignModule = foreignModule.create(ctx, createData);
 
 				let methods: string[] = [];
@@ -520,8 +543,8 @@ export class EditorSimpleWorkerImpl extends BaseEditorSimpleWorker implements IR
 
 	private _models: { [uri: string]: MirrorModel; };
 
-	constructor() {
-		super();
+	constructor(foreignModuleFactory: IForeignModuleFactory) {
+		super(foreignModuleFactory);
 		this._models = Object.create(null);
 	}
 
@@ -564,11 +587,13 @@ export class EditorSimpleWorkerImpl extends BaseEditorSimpleWorker implements IR
  * @internal
  */
 export function create(): IRequestHandler {
-	return new EditorSimpleWorkerImpl();
+	return new EditorSimpleWorkerImpl(null);
 }
 
-var global: any = self;
-let isWebWorker = (typeof global.importScripts === 'function');
-if (isWebWorker) {
-	global.monaco = createMonacoBaseAPI();
+// This is only available in a Web Worker
+declare function importScripts(...urls: string[]): void;
+
+if (typeof importScripts === 'function') {
+	// Running in a web worker
+	globals.monaco = createMonacoBaseAPI();
 }

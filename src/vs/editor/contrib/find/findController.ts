@@ -228,6 +228,9 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 
 	public setSearchString(searchString: string): void {
+		if (this._state.isRegex) {
+			searchString = strings.escapeRegExpCharacters(searchString);
+		}
 		this._state.change({ searchString: searchString }, false);
 	}
 
@@ -342,14 +345,20 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 
 	public getGlobalBufferTerm(): string {
-		if (this._editor.getConfiguration().contribInfo.find.globalFindClipboard && this._clipboardService) {
+		if (this._editor.getConfiguration().contribInfo.find.globalFindClipboard
+			&& this._clipboardService
+			&& !this._editor.getModel().isTooLargeForHavingARichMode()
+		) {
 			return this._clipboardService.readFindText();
 		}
 		return '';
 	}
 
 	public setGlobalBufferTerm(text: string) {
-		if (this._editor.getConfiguration().contribInfo.find.globalFindClipboard && this._clipboardService) {
+		if (this._editor.getConfiguration().contribInfo.find.globalFindClipboard
+			&& this._clipboardService
+			&& !this._editor.getModel().isTooLargeForHavingARichMode()
+		) {
 			this._clipboardService.writeFindText(text);
 		}
 	}
@@ -362,10 +371,10 @@ export class FindController extends CommonFindController implements IFindControl
 
 	constructor(
 		editor: ICodeEditor,
-		@IContextViewService private _contextViewService: IContextViewService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IKeybindingService private _keybindingService: IKeybindingService,
-		@IThemeService private _themeService: IThemeService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IThemeService private readonly _themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@optional(IClipboardService) clipboardService: IClipboardService
 	) {
@@ -538,7 +547,7 @@ export abstract class SelectionMatchFindAction extends EditorAction {
 		if (!this._run(controller)) {
 			controller.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: false,
+				seedSearchStringFromSelection: editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection,
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true

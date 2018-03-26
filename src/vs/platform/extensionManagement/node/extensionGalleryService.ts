@@ -9,7 +9,7 @@ import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { distinct } from 'vs/base/common/arrays';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest, IExtensionIdentifier, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -23,6 +23,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { readFile } from 'vs/base/node/pfs';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { generateUuid, isUUID } from 'vs/base/common/uuid';
+import { values } from 'vs/base/common/map';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -229,6 +230,13 @@ function getVersionAsset(version: IRawGalleryExtensionVersion, type: string): IG
 			return { uri, fallbackUri: uri };
 		}
 
+		if (type === AssetType.Repository) {
+			return {
+				uri: null,
+				fallbackUri: null
+			};
+		}
+
 		return null;
 	}
 
@@ -295,7 +303,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		},
 		/* __GDPR__FRAGMENT__
 			"GalleryExtensionTelemetryData2" : {
-				"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"searchText": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"querySource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
@@ -309,11 +317,17 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 	};
 }
 
+interface IRawExtensionsReport {
+	malicious: string[];
+	slow: string[];
+}
+
 export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	_serviceBrand: any;
 
 	private extensionsGalleryUrl: string;
+	private extensionsControlUrl: string;
 
 	private readonly commonHeadersPromise: TPromise<{ [key: string]: string; }>;
 
@@ -324,6 +338,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	) {
 		const config = product.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
+		this.extensionsControlUrl = config && config.controlUrl;
 		this.commonHeadersPromise = resolveMarketplaceHeaders(this.environmentService);
 	}
 
@@ -469,7 +484,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				const startTime = new Date().getTime();
 				/* __GDPR__
 					"galleryService:downloadVSIX" : {
-						"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 						"${include}": [
 							"${GalleryExtensionTelemetryData}"
 						]
@@ -619,8 +634,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					/* __GDPR__
 						"galleryService:requestError" : {
 							"url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"cdn": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							"cdn": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
 						}
 					*/
 					this.telemetryService.publicLog('galleryService:requestError', { url, cdn: true, message });
@@ -643,7 +658,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 							"galleryService:requestError" : {
 								"url" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 								"cdn": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
 							}
 						*/
 						this.telemetryService.publicLog('galleryService:requestError', { url: fallbackUrl, cdn: false, message });
@@ -710,6 +725,34 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			}
 		}
 		return false;
+	}
+
+	getExtensionsReport(): TPromise<IReportedExtension[]> {
+		if (!this.isEnabled()) {
+			return TPromise.wrapError(new Error('No extension gallery service configured.'));
+		}
+
+		if (!this.extensionsControlUrl) {
+			return TPromise.as([]);
+		}
+
+		return this.requestService.request({ type: 'GET', url: this.extensionsControlUrl }).then(context => {
+			if (context.res.statusCode !== 200) {
+				return TPromise.wrapError(new Error('Could not get extensions report.'));
+			}
+
+			return asJson<IRawExtensionsReport>(context).then(result => {
+				const map = new Map<string, IReportedExtension>();
+
+				for (const id of result.malicious) {
+					const ext = map.get(id) || { id: { id }, malicious: true, slow: false };
+					ext.malicious = true;
+					map.set(id, ext);
+				}
+
+				return TPromise.as(values(map));
+			});
+		});
 	}
 }
 

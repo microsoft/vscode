@@ -44,11 +44,11 @@ interface ILoaderPluginReqFunc {
 
 export interface IEntryPoint {
 	name: string;
-	include: string[];
-	exclude: string[];
+	include?: string[];
+	exclude?: string[];
 	prepend: string[];
-	append: string[];
-	dest: string;
+	append?: string[];
+	dest?: string;
 }
 
 interface IEntryPointMap {
@@ -339,6 +339,7 @@ function removeDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
 		{ start: /^var __metadata/, end: /^};$/ },
 		{ start: /^var __param/, end: /^};$/ },
 		{ start: /^var __awaiter/, end: /^};$/ },
+		{ start: /^var __generator/, end: /^};$/ },
 	];
 
 	destFiles.forEach((destFile) => {

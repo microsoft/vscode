@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { LogLevel } from 'vs/platform/log/common/log';
 
 export interface ParsedArgs {
 	[arg: string]: any;
@@ -47,14 +46,17 @@ export interface ParsedArgs {
 	'skip-getting-started'?: boolean;
 	'skip-release-notes'?: boolean;
 	'sticky-quickopen'?: boolean;
+	'disable-restore-windows'?: boolean;
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'install-source'?: string;
 	'disable-updates'?: string;
 	'disable-crash-reporter'?: string;
 	'skip-add-to-recently-opened'?: boolean;
+	'max-memory'?: number;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
+	'upload-logs'?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -114,7 +116,6 @@ export interface IEnvironmentService {
 	// logging
 	logsPath: string;
 	verbose: boolean;
-	logLevel: LogLevel;
 
 	skipGettingStarted: boolean | undefined;
 	skipReleaseNotes: boolean | undefined;

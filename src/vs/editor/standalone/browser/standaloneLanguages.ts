@@ -24,6 +24,7 @@ import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import * as model from 'vs/editor/common/model';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 /**
  * Register information about a new language.
@@ -329,11 +330,11 @@ export function registerCodeLensProvider(languageId: string, provider: modes.Cod
  */
 export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider): IDisposable {
 	return modes.CodeActionProviderRegistry.register(languageId, {
-		provideCodeActions: (model: model.ITextModel, range: Range, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Thenable<(modes.Command | modes.CodeAction)[]> => {
+		provideCodeActions: (model: model.ITextModel, range: Range, context: modes.CodeActionContext, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Thenable<(modes.Command | modes.CodeAction)[]> => {
 			let markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
-			return provider.provideCodeActions(model, range, { markers }, token);
+			return provider.provideCodeActions(model, range, { markers, only: context.only }, token);
 		}
 	});
 }
@@ -390,6 +391,14 @@ export function registerColorProvider(languageId: string, provider: modes.Docume
 }
 
 /**
+ * Register a folding provider
+ */
+/*export function registerFoldingProvider(languageId: string, provider: modes.FoldingProvider): IDisposable {
+	return modes.FoldingProviderRegistry.register(languageId, provider);
+}*/
+
+
+/**
  * Contains additional diagnostic information about the context in which
  * a [code action](#CodeActionProvider.provideCodeActions) is run.
  */
@@ -401,6 +410,11 @@ export interface CodeActionContext {
 	 * @readonly
 	 */
 	readonly markers: IMarkerData[];
+
+	/**
+	 * Requested kind of actions to return.
+	 */
+	readonly only?: string;
 }
 
 /**
@@ -481,7 +495,7 @@ export interface CompletionItem {
 	/**
 	 * A human-readable string that represents a doc-comment.
 	 */
-	documentation?: string;
+	documentation?: string | IMarkdownString;
 	/**
 	 * A command that should be run upon acceptance of this item.
 	 */
@@ -515,6 +529,12 @@ export interface CompletionItem {
 	 */
 	range?: Range;
 	/**
+	 * An optional set of characters that when pressed while this completion is active will accept it first and
+	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
+	 * characters will be ignored.
+	 */
+	commitCharacters?: string[];
+	/**
 	 * @deprecated **Deprecated** in favor of `CompletionItem.insertText` and `CompletionItem.range`.
 	 *
 	 * ~~An [edit](#TextEdit) which is applied to a document when selecting
@@ -525,6 +545,12 @@ export interface CompletionItem {
 	 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.~~
 	 */
 	textEdit?: model.ISingleEditOperation;
+	/**
+	 * An optional array of additional text edits that are applied when
+	 * selecting this completion. Edits must not overlap with the main edit
+	 * nor with themselves.
+	 */
+	additionalTextEdits?: model.ISingleEditOperation[];
 }
 /**
  * Represents a collection of [completion items](#CompletionItem) to be presented
@@ -634,7 +660,9 @@ class SuggestAdapter {
 			command: item.command,
 			sortText: item.sortText,
 			filterText: item.filterText,
-			snippetType: 'internal'
+			snippetType: 'internal',
+			additionalTextEdits: item.additionalTextEdits,
+			commitCharacters: item.commitCharacters
 		};
 		let editRange = item.textEdit ? item.textEdit.range : item.range;
 		if (editRange) {

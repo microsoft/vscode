@@ -5,7 +5,7 @@
 'use strict';
 
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export enum ScrollbarVisibility {
 	Auto = 1,
@@ -186,7 +186,7 @@ export class Scrollable extends Disposable {
 	private _smoothScrolling: SmoothScrollingOperation;
 
 	private _onScroll = this._register(new Emitter<ScrollEvent>());
-	public onScroll: Event<ScrollEvent> = this._onScroll.event;
+	public readonly onScroll: Event<ScrollEvent> = this._onScroll.event;
 
 	constructor(smoothScrollDuration: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
 		super();

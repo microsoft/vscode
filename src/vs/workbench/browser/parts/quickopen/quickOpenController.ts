@@ -7,24 +7,23 @@
 
 import 'vs/css!./media/quickopen';
 import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { Dimension, withElementById } from 'vs/base/browser/builder';
-import strings = require('vs/base/common/strings');
-import filters = require('vs/base/common/filters');
-import DOM = require('vs/base/browser/dom');
+import * as strings from 'vs/base/common/strings';
+import * as DOM from 'vs/base/browser/dom';
 import URI from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import { Action, IAction } from 'vs/base/common/actions';
-import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup, compareEntries, QuickOpenItemAccessorClass } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenWidget, HideReason } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
-import labels = require('vs/base/common/labels');
+import * as labels from 'vs/base/common/labels';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
@@ -33,15 +32,14 @@ import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { Component } from 'vs/workbench/common/component';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPickOpenEntry, IFilePickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions, IShowOptions, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -53,8 +51,12 @@ import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
-import { getBaseLabel } from 'vs/base/common/labels';
-import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { matchesFuzzyOcticonAware, parseOcticons, IParsedOcticons } from 'vs/base/common/octicon';
+import { IMatch } from 'vs/base/common/filters';
+import { Schemas } from 'vs/base/common/network';
+import Severity from 'vs/base/common/severity';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const HELP_PREFIX = '?';
 
@@ -81,8 +83,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 	private static readonly ID = 'workbench.component.quickopen';
 
-	private _onShow: Emitter<void>;
-	private _onHide: Emitter<void>;
+	private readonly _onShow: Emitter<void>;
+	private readonly _onHide: Emitter<void>;
 
 	private quickOpenWidget: QuickOpenWidget;
 	private pickOpenWidget: QuickOpenWidget;
@@ -102,12 +104,11 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
-		@IListService private listService: IListService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -181,7 +182,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 			// open quick pick with just one choice. we will recurse whenever
 			// the validation/success message changes
-			this.doPick(TPromise.as([{ label: currentPick }]), {
+			this.doPick(TPromise.as([{ label: currentPick, tooltip: currentPick /* make sure message/validation can be read through the hover */ }]), {
 				ignoreFocusLost: options.ignoreFocusLost,
 				autoFocus: { autoFocusFirstEntry: true },
 				password: options.password,
@@ -204,7 +205,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 									currentDecoration = !!message ? Severity.Error : void 0;
 									const newPick = message || defaultMessage;
 									if (newPick !== currentPick) {
-										options.valueSelection = [lastValue.length, lastValue.length];
+										options.valueSelection = null;
 										currentPick = newPick;
 										resolve(new TPromise<any>(init));
 									}
@@ -311,7 +312,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				}, {
 					inputPlaceHolder: options.placeHolder || '',
 					keyboardSupport: false,
-					treeCreator: (container, config, opts) => new WorkbenchTree(container, config, opts, this.contextKeyService, this.listService, this.themeService)
+					treeCreator: (container, config, opts) => this.instantiationService.createInstance(WorkbenchTree, container, config, opts)
 				}
 			);
 			this.toUnbind.push(attachQuickOpenStyler(this.pickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
@@ -432,12 +433,10 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 							});
 						}
 
-						// Filter by value
+						// Filter by value (since we support octicons, use octicon aware fuzzy matching)
 						else {
 							entries.forEach(entry => {
-								const labelHighlights = filters.matchesFuzzy(value, entry.getLabel());
-								const descriptionHighlights = options.matchOnDescription && filters.matchesFuzzy(value, entry.getDescription());
-								const detailHighlights = options.matchOnDetail && entry.getDetail() && filters.matchesFuzzy(value, entry.getDetail());
+								const { labelHighlights, descriptionHighlights, detailHighlights } = entry.matchesFuzzy(value, options);
 
 								if (entry.shouldAlwaysShow() || labelHighlights || descriptionHighlights || detailHighlights) {
 									entry.setHighlights(labelHighlights, descriptionHighlights, detailHighlights);
@@ -569,7 +568,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				}, {
 					inputPlaceHolder: this.hasHandler(HELP_PREFIX) ? nls.localize('quickOpenInput', "Type '?' to get help on the actions you can take from here") : '',
 					keyboardSupport: false,
-					treeCreator: (container, config, opts) => new WorkbenchTree(container, config, opts, this.contextKeyService, this.listService, this.themeService)
+					treeCreator: (container, config, opts) => this.instantiationService.createInstance(WorkbenchTree, container, config, opts)
 				}
 			);
 			this.toUnbind.push(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
@@ -799,7 +798,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}, (error: any) => {
 			resultPromiseDone = true;
 			errors.onUnexpectedError(error);
-			this.messageService.show(Severity.Error, types.isString(error) ? new Error(error) : error);
+			this.notificationService.error(types.isString(error) ? new Error(error) : error);
 		});
 	}
 
@@ -1025,6 +1024,8 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 	private _shouldRunWithContext: IEntryRunContext;
 	private description: string;
 	private detail: string;
+	private tooltip: string;
+	private descriptionTooltip: string;
 	private hasSeparator: boolean;
 	private separatorLabel: string;
 	private alwaysShow: boolean;
@@ -1033,6 +1034,9 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 	private _action: IAction;
 	private removed: boolean;
 	private payload: any;
+	private labelOcticons: IParsedOcticons;
+	private descriptionOcticons: IParsedOcticons;
+	private detailOcticons: IParsedOcticons;
 
 	constructor(
 		item: IPickOpenEntry,
@@ -1046,6 +1050,9 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 
 		this.description = item.description;
 		this.detail = item.detail;
+		this.tooltip = item.tooltip;
+		this.descriptionOcticons = item.description ? parseOcticons(item.description) : void 0;
+		this.descriptionTooltip = this.descriptionOcticons ? this.descriptionOcticons.text : void 0;
 		this.hasSeparator = item.separator && item.separator.border;
 		this.separatorLabel = item.separator && item.separator.label;
 		this.alwaysShow = item.alwaysShow;
@@ -1055,6 +1062,23 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 		const fileItem = <IFilePickOpenEntry>item;
 		this.resource = fileItem.resource;
 		this.fileKind = fileItem.fileKind;
+	}
+
+	public matchesFuzzy(query: string, options: IInternalPickOptions): { labelHighlights: IMatch[], descriptionHighlights: IMatch[], detailHighlights: IMatch[] } {
+		if (!this.labelOcticons) {
+			this.labelOcticons = parseOcticons(this.getLabel()); // parse on demand
+		}
+
+		const detail = this.getDetail();
+		if (detail && options.matchOnDetail && !this.detailOcticons) {
+			this.detailOcticons = parseOcticons(detail); // parse on demand
+		}
+
+		return {
+			labelHighlights: matchesFuzzyOcticonAware(query, this.labelOcticons),
+			descriptionHighlights: options.matchOnDescription && this.descriptionOcticons ? matchesFuzzyOcticonAware(query, this.descriptionOcticons) : void 0,
+			detailHighlights: options.matchOnDetail && this.detailOcticons ? matchesFuzzyOcticonAware(query, this.detailOcticons) : void 0
+		};
 	}
 
 	public getPayload(): any {
@@ -1080,7 +1104,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 		return this._index;
 	}
 
-	public getLabelOptions(): IIconLabelOptions {
+	public getLabelOptions(): IIconLabelValueOptions {
 		return {
 			extraClasses: this.resource ? getIconClasses(this.modelService, this.modeService, this.resource, this.fileKind) : []
 		};
@@ -1096,6 +1120,14 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 
 	public getDetail(): string {
 		return this.detail;
+	}
+
+	public getTooltip(): string {
+		return this.tooltip;
+	}
+
+	public getDescriptionTooltip(): string {
+		return this.descriptionTooltip;
 	}
 
 	public showBorder(): boolean {
@@ -1259,7 +1291,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		} else {
 			const resourceInput = input as IResourceInput;
 			this.resource = resourceInput.resource;
-			this.label = getBaseLabel(resourceInput.resource);
+			this.label = labels.getBaseLabel(resourceInput.resource);
 			this.description = labels.getPathLabel(resources.dirname(this.resource), contextService, environmentService);
 			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
 
@@ -1277,7 +1309,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		return this.label;
 	}
 
-	public getLabelOptions(): IIconLabelOptions {
+	public getLabelOptions(): IIconLabelValueOptions {
 		return {
 			extraClasses: getIconClasses(this.modelService, this.modeService, this.resource)
 		};
@@ -1301,7 +1333,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
-			const sideBySide = !context.quickNavigateConfiguration && context.keymods.ctrlCmd;
+			const sideBySide = !context.quickNavigateConfiguration && (context.keymods.alt || context.keymods.ctrlCmd);
 			const pinned = !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen || context.keymods.alt;
 
 			if (this.input instanceof EditorInput) {
@@ -1322,7 +1354,7 @@ function resourceForEditorHistory(input: EditorInput, fileService: IFileService)
 
 	// For the editor history we only prefer resources that are either untitled or
 	// can be handled by the file service which indicates they are editable resources.
-	if (resource && (fileService.canHandleResource(resource) || resource.scheme === 'untitled')) {
+	if (resource && (fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 		return resource;
 	}
 

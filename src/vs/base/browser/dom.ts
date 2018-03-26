@@ -13,7 +13,7 @@ import * as browser from 'vs/base/browser/browser';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CharCode } from 'vs/base/common/charCode';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 
 export function clearNode(node: HTMLElement) {
@@ -251,41 +251,26 @@ export function addDisposableNonBubblingMouseOutListener(node: Element, handler:
 	});
 }
 
-const _animationFrame = (function () {
-	let emulatedRequestAnimationFrame = (callback: (time: number) => void): number => {
-		return setTimeout(() => callback(new Date().getTime()), 0);
-	};
-	let nativeRequestAnimationFrame: (callback: (time: number) => void) => number =
-		self.requestAnimationFrame
-		|| (<any>self).msRequestAnimationFrame
-		|| (<any>self).webkitRequestAnimationFrame
-		|| (<any>self).mozRequestAnimationFrame
-		|| (<any>self).oRequestAnimationFrame;
-
-
-
-	let emulatedCancelAnimationFrame = (id: number) => { };
-	let nativeCancelAnimationFrame: (id: number) => void =
-		self.cancelAnimationFrame || (<any>self).cancelRequestAnimationFrame
-		|| (<any>self).msCancelAnimationFrame || (<any>self).msCancelRequestAnimationFrame
-		|| (<any>self).webkitCancelAnimationFrame || (<any>self).webkitCancelRequestAnimationFrame
-		|| (<any>self).mozCancelAnimationFrame || (<any>self).mozCancelRequestAnimationFrame
-		|| (<any>self).oCancelAnimationFrame || (<any>self).oCancelRequestAnimationFrame;
-
-	let isNative = !!nativeRequestAnimationFrame;
-	let request = nativeRequestAnimationFrame || emulatedRequestAnimationFrame;
-	let cancel = nativeCancelAnimationFrame || emulatedCancelAnimationFrame;
-
-	return {
-		isNative: isNative,
-		request: (callback: (time: number) => void): number => {
-			return request(callback);
-		},
-		cancel: (id: number) => {
-			return cancel(id);
-		}
-	};
-})();
+interface IRequestAnimationFrame {
+	(callback: (time: number) => void): number;
+}
+let _animationFrame: IRequestAnimationFrame = null;
+function doRequestAnimationFrame(callback: (time: number) => void): number {
+	if (!_animationFrame) {
+		const emulatedRequestAnimationFrame = (callback: (time: number) => void): number => {
+			return setTimeout(() => callback(new Date().getTime()), 0);
+		};
+		_animationFrame = (
+			self.requestAnimationFrame
+			|| (<any>self).msRequestAnimationFrame
+			|| (<any>self).webkitRequestAnimationFrame
+			|| (<any>self).mozRequestAnimationFrame
+			|| (<any>self).oRequestAnimationFrame
+			|| emulatedRequestAnimationFrame
+		);
+	}
+	return _animationFrame(callback);
+}
 
 /**
  * Schedule a callback to be run at the next animation frame.
@@ -375,7 +360,7 @@ class AnimationFrameQueueItem implements IDisposable {
 
 		if (!animFrameRequested) {
 			animFrameRequested = true;
-			_animationFrame.request(animationFrameRunner);
+			doRequestAnimationFrame(animationFrameRunner);
 		}
 
 		return item;
@@ -474,6 +459,9 @@ const sizeUtils = {
 	getBorderLeftWidth: function (element: HTMLElement): number {
 		return getDimension(element, 'border-left-width', 'borderLeftWidth');
 	},
+	getBorderRightWidth: function (element: HTMLElement): number {
+		return getDimension(element, 'border-right-width', 'borderRightWidth');
+	},
 	getBorderTopWidth: function (element: HTMLElement): number {
 		return getDimension(element, 'border-top-width', 'borderTopWidth');
 	},
@@ -481,6 +469,12 @@ const sizeUtils = {
 		return getDimension(element, 'border-bottom-width', 'borderBottomWidth');
 	},
 
+	getPaddingLeft: function (element: HTMLElement): number {
+		return getDimension(element, 'padding-left', 'paddingLeft');
+	},
+	getPaddingRight: function (element: HTMLElement): number {
+		return getDimension(element, 'padding-right', 'paddingRight');
+	},
 	getPaddingTop: function (element: HTMLElement): number {
 		return getDimension(element, 'padding-top', 'paddingTop');
 	},
@@ -586,6 +580,12 @@ export function getTotalWidth(element: HTMLElement): number {
 	return element.offsetWidth + margin;
 }
 
+export function getContentWidth(element: HTMLElement): number {
+	let border = sizeUtils.getBorderLeftWidth(element) + sizeUtils.getBorderRightWidth(element);
+	let padding = sizeUtils.getPaddingLeft(element) + sizeUtils.getPaddingRight(element);
+	return element.offsetWidth - border - padding;
+}
+
 export function getTotalScrollWidth(element: HTMLElement): number {
 	let margin = sizeUtils.getMarginLeft(element) + sizeUtils.getMarginRight(element);
 	return element.scrollWidth + margin;
@@ -662,7 +662,13 @@ export function createStyleSheet(container: HTMLElement = document.getElementsBy
 	return style;
 }
 
-const sharedStyle = <any>createStyleSheet();
+let _sharedStyleSheet: HTMLStyleElement = null;
+function getSharedStyleSheet(): HTMLStyleElement {
+	if (!_sharedStyleSheet) {
+		_sharedStyleSheet = createStyleSheet();
+	}
+	return _sharedStyleSheet;
+}
 
 function getDynamicStyleSheetRules(style: any) {
 	if (style && style.sheet && style.sheet.rules) {
@@ -676,7 +682,7 @@ function getDynamicStyleSheetRules(style: any) {
 	return [];
 }
 
-export function createCSSRule(selector: string, cssText: string, style: HTMLStyleElement = sharedStyle): void {
+export function createCSSRule(selector: string, cssText: string, style: HTMLStyleElement = getSharedStyleSheet()): void {
 	if (!style || !cssText) {
 		return;
 	}
@@ -684,7 +690,7 @@ export function createCSSRule(selector: string, cssText: string, style: HTMLStyl
 	(<CSSStyleSheet>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
 }
 
-export function removeCSSRulesContainingSelector(ruleName: string, style = sharedStyle): void {
+export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLStyleElement = getSharedStyleSheet()): void {
 	if (!style) {
 		return;
 	}
@@ -699,7 +705,7 @@ export function removeCSSRulesContainingSelector(ruleName: string, style = share
 	}
 
 	for (let i = toDelete.length - 1; i >= 0; i--) {
-		style.sheet.deleteRule(toDelete[i]);
+		(<any>style.sheet).deleteRule(toDelete[i]);
 	}
 }
 

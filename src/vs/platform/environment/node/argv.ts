@@ -28,7 +28,8 @@ const options: minimist.Opts = {
 		'debugBrkSearch',
 		'enable-proposed-api',
 		'export-default-configuration',
-		'install-source'
+		'install-source',
+		'upload-logs'
 	],
 	boolean: [
 		'help',
@@ -49,9 +50,11 @@ const options: minimist.Opts = {
 		'list-extensions',
 		'show-versions',
 		'nolazy',
+		'issue',
 		'skip-getting-started',
 		'skip-release-notes',
 		'sticky-quickopen',
+		'disable-restore-windows',
 		'disable-telemetry',
 		'disable-updates',
 		'disable-crash-reporter',
@@ -135,11 +138,11 @@ const optionsHelp: { [name: string]: string; } = {
 	'-d, --diff <file> <file>': localize('diff', "Compare two files with each other."),
 	'-a, --add <dir>': localize('add', "Add folder(s) to the last active window."),
 	'-g, --goto <file:line[:character]>': localize('goto', "Open a file at the path on the specified line and character position."),
-	'-n, --new-window': localize('newWindow', "Force a new instance of Code."),
-	'-r, --reuse-window': localize('reuseWindow', "Force opening a file or folder in the last active window."),
+	'-n, --new-window': localize('newWindow', "Force to open a new window."),
+	'-r, --reuse-window': localize('reuseWindow', "Force to open a file or folder in the last active window."),
 	'-w, --wait': localize('wait', "Wait for the files to be closed before returning."),
 	'--locale <locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
-	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in, useful when running as root."),
+	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code."),
 	'-v, --version': localize('version', "Print version."),
 	'-h, --help': localize('help', "Print usage.")
 };
@@ -162,7 +165,9 @@ const troubleshootingHelp: { [name: string]: string; } = {
 	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
 	'--inspect-extensions': localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection uri."),
 	'--inspect-brk-extensions': localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection uri."),
-	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration.")
+	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),
+	'--upload-logs': localize('uploadLogs', "Uploads logs from current session to a secure endpoint."),
+	'--max-memory': localize('maxMemory', "Max memory size for a window (in Mbytes).")
 };
 
 export function formatOptions(options: { [name: string]: string; }, columns: number): string {

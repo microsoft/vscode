@@ -14,15 +14,15 @@ import { Position } from 'vs/editor/common/core/position';
 import { overlap, compare, startsWith, isFalsyOrWhitespace, endsWith } from 'vs/base/common/strings';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { join, basename, extname } from 'path';
 import { mkdirp, readdir, exists } from 'vs/base/node/pfs';
-import { watch } from 'fs';
+import { watch } from 'vs/base/node/extfs';
 import { SnippetFile, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ExtensionsRegistry, IExtensionPointUser } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -48,7 +48,7 @@ namespace schema {
 		} else if (isFalsyOrWhitespace(snippet.language) && !endsWith(snippet.path, '.code-snippets')) {
 			extension.collector.error(localize(
 				'invalid.language.0',
-				"When omitting the language, the value of `contribtes.{0}.path` must be a `.code-snippets`-file. Provided value: {1}",
+				"When omitting the language, the value of `contributes.{0}.path` must be a `.code-snippets`-file. Provided value: {1}",
 				extension.description.name, String(snippet.path)
 			));
 			return false;
@@ -167,7 +167,7 @@ class SnippetsService implements ISnippetsService {
 						this._files.get(contribution.path).defaultScopes.push(contribution.language);
 
 					} else {
-						const file = new SnippetFile(contribution.path, [contribution.language], extension.description);
+						const file = new SnippetFile(contribution.path, contribution.language ? [contribution.language] : undefined, extension.description);
 						this._files.set(file.filepath, file);
 
 						if (this._environmentService.isExtensionDevelopment) {
@@ -217,9 +217,7 @@ class SnippetsService implements ISnippetsService {
 			}
 		}).then(() => {
 			// watch
-			const watcher = watch(userSnippetsFolder);
-			this._disposables.push({ dispose: () => watcher.close() });
-			watcher.on('change', (type, filename) => {
+			const watcher = watch(userSnippetsFolder, (type, filename) => {
 				if (typeof filename !== 'string') {
 					return;
 				}
@@ -237,7 +235,16 @@ class SnippetsService implements ISnippetsService {
 						this._files.delete(filepath);
 					}
 				});
+			}, (error: string) => this._logService.error(error));
+			this._disposables.push({
+				dispose: () => {
+					if (watcher) {
+						watcher.removeAllListeners();
+						watcher.close();
+					}
+				}
 			});
+
 		}).then(undefined, err => {
 			this._logService.error('Failed to load user snippets', err);
 		});
@@ -291,8 +298,8 @@ export class SnippetSuggestion implements ISuggestion {
 export class SnippetSuggestProvider implements ISuggestSupport {
 
 	constructor(
-		@IModeService private _modeService: IModeService,
-		@ISnippetsService private _snippets: ISnippetsService
+		@IModeService private readonly _modeService: IModeService,
+		@ISnippetsService private readonly _snippets: ISnippetsService
 	) {
 		//
 	}
@@ -330,16 +337,19 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 			}
 
 			// dismbiguate suggestions with same labels
-			let lastItem: SnippetSuggestion;
-			for (const item of suggestions.sort(SnippetSuggestion.compareByLabel)) {
-				if (lastItem && lastItem.label === item.label) {
-					// use the disambiguateLabel instead of the actual label
-					lastItem.label = localize('snippetSuggest.longLabel', "{0}, {1}", lastItem.label, lastItem.snippet.name);
-					item.label = localize('snippetSuggest.longLabel', "{0}, {1}", item.label, item.snippet.name);
-				}
-				lastItem = item;
-			}
+			suggestions.sort(SnippetSuggestion.compareByLabel);
 
+			for (let i = 0; i < suggestions.length; i++) {
+				let item = suggestions[i];
+				let to = i + 1;
+				for (; to < suggestions.length && item.label === suggestions[to].label; to++) {
+					suggestions[to].label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label, suggestions[to].snippet.name);
+				}
+				if (to > i + 1) {
+					suggestions[i].label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[i].label, suggestions[i].snippet.name);
+					i = to;
+				}
+			}
 			return { suggestions };
 		});
 	}

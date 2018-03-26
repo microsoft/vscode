@@ -1,5 +1,6 @@
 {
     newReleaseLabel: 'new release',
-    newReleases: ['1.18.1'],
-    perform: false
+    newReleaseColor: '006b75',
+    action: 'remove',
+    perform: true
 }

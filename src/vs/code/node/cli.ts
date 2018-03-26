@@ -123,7 +123,7 @@ export async function main(argv: string[]): TPromise<any> {
 
 		const processCallbacks: ((child: ChildProcess) => Thenable<any>)[] = [];
 
-		const verbose = args.verbose || args.status;
+		const verbose = args.verbose || args.status || typeof args['upload-logs'] !== 'undefined';
 		if (verbose) {
 			env['ELECTRON_ENABLE_LOGGING'] = '1';
 
@@ -306,12 +306,21 @@ export async function main(argv: string[]): TPromise<any> {
 			});
 		}
 
+		if (args['js-flags']) {
+			const match = /max_old_space_size=(\d+)/g.exec(args['js-flags']);
+			if (match && !args['max-memory']) {
+				argv.push(`--max-memory=${match[1]}`);
+			}
+		}
+
 		const options = {
 			detached: true,
 			env
 		};
 
-		if (!verbose) {
+		if (typeof args['upload-logs'] !== undefined) {
+			options['stdio'] = ['pipe', 'pipe', 'pipe'];
+		} else if (!verbose) {
 			options['stdio'] = 'ignore';
 		}
 
@@ -347,6 +356,6 @@ function eventuallyExit(code: number): void {
 main(process.argv)
 	.then(() => eventuallyExit(0))
 	.then(null, err => {
-		console.error(err.stack ? err.stack : err);
+		console.error(err.message || err.stack || err);
 		eventuallyExit(1);
 	});

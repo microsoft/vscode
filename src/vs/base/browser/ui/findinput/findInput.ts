@@ -11,7 +11,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IMessage as InputBoxMessage, IInputValidator, InputBox, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { Widget } from 'vs/base/browser/ui/widget';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -20,14 +20,14 @@ import { Color } from 'vs/base/common/color';
 import { ICheckboxStyles } from 'vs/base/browser/ui/checkbox/checkbox';
 
 export interface IFindInputOptions extends IFindInputStyles {
-	placeholder?: string;
-	width?: number;
-	validation?: IInputValidator;
-	label: string;
+	readonly placeholder?: string;
+	readonly width?: number;
+	readonly validation?: IInputValidator;
+	readonly label: string;
 
-	appendCaseSensitiveLabel?: string;
-	appendWholeWordsLabel?: string;
-	appendRegexLabel?: string;
+	readonly appendCaseSensitiveLabel?: string;
+	readonly appendWholeWordsLabel?: string;
+	readonly appendRegexLabel?: string;
 }
 
 export interface IFindInputStyles extends IInputBoxStyles {
@@ -38,7 +38,7 @@ const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
 
 export class FindInput extends Widget {
 
-	static OPTION_CHANGE: string = 'optionChange';
+	static readonly OPTION_CHANGE: string = 'optionChange';
 
 	private contextViewProvider: IContextViewProvider;
 	private width: number;
@@ -64,23 +64,23 @@ export class FindInput extends Widget {
 	public domNode: HTMLElement;
 	public inputBox: InputBox;
 
-	private _onDidOptionChange = this._register(new Emitter<boolean>());
-	public onDidOptionChange: Event<boolean /* via keyboard */> = this._onDidOptionChange.event;
+	private readonly _onDidOptionChange = this._register(new Emitter<boolean>());
+	public readonly onDidOptionChange: Event<boolean /* via keyboard */> = this._onDidOptionChange.event;
 
-	private _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	public onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+	private readonly _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
+	public readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
 
-	private _onMouseDown = this._register(new Emitter<IMouseEvent>());
-	public onMouseDown: Event<IMouseEvent> = this._onMouseDown.event;
+	private readonly _onMouseDown = this._register(new Emitter<IMouseEvent>());
+	public readonly onMouseDown: Event<IMouseEvent> = this._onMouseDown.event;
 
-	private _onInput = this._register(new Emitter<void>());
-	public onInput: Event<void> = this._onInput.event;
+	private readonly _onInput = this._register(new Emitter<void>());
+	public readonly onInput: Event<void> = this._onInput.event;
 
-	private _onKeyUp = this._register(new Emitter<IKeyboardEvent>());
-	public onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
+	private readonly _onKeyUp = this._register(new Emitter<IKeyboardEvent>());
+	public readonly onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
 
 	private _onCaseSensitiveKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	public onCaseSensitiveKeyDown: Event<IKeyboardEvent> = this._onCaseSensitiveKeyDown.event;
+	public readonly onCaseSensitiveKeyDown: Event<IKeyboardEvent> = this._onCaseSensitiveKeyDown.event;
 
 	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options?: IFindInputOptions) {
 		super();

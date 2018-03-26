@@ -8,7 +8,6 @@ import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
 import { Node, HtmlNode, CssToken, Property, Rule } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
-import * as path from 'path';
 
 let _emmetHelper: any;
 let _currentExtensionsPath: string | undefined = undefined;
@@ -26,12 +25,9 @@ export function resolveUpdateExtensionsPath() {
 		return;
 	}
 	let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
-	if (extensionsPath && !path.isAbsolute(extensionsPath)) {
-		extensionsPath = path.join(vscode.workspace.rootPath || '', extensionsPath);
-	}
 	if (_currentExtensionsPath !== extensionsPath) {
 		_currentExtensionsPath = extensionsPath;
-		_emmetHelper.updateExtensionsPath(_currentExtensionsPath).then(null, (err: string) => vscode.window.showErrorMessage(err));
+		_emmetHelper.updateExtensionsPath(extensionsPath, vscode.workspace.rootPath).then(null, (err: string) => vscode.window.showErrorMessage(err));
 	}
 }
 
@@ -42,13 +38,13 @@ export const LANGUAGE_MODES: any = {
 	'haml': ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'xml': ['.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'xsl': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'css': [':', ';', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'scss': [':', ';', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'css': [':', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'scss': [':', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'sass': [':', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'less': [':', ';', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'less': [':', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'stylus': [':', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'javascriptreact': ['.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'typescriptreact': ['.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+	'javascriptreact': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'typescriptreact': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 };
 
 const emmetModes = ['html', 'pug', 'slim', 'haml', 'xml', 'xsl', 'jsx', 'css', 'scss', 'sass', 'less', 'stylus'];
@@ -58,7 +54,6 @@ const emmetModes = ['html', 'pug', 'slim', 'haml', 'xml', 'xsl', 'jsx', 'css', '
 // For other languages, users will have to use `emmet.includeLanguages` or
 // language specific extensions can provide emmet completion support
 export const MAPPED_MODES: Object = {
-	'handlebars': 'html',
 	'php': 'html'
 };
 
@@ -314,7 +309,7 @@ export function sameNodes(node1: Node, node2: Node): boolean {
 export function getEmmetConfiguration(syntax: string) {
 	const emmetConfig = vscode.workspace.getConfiguration('emmet');
 	const syntaxProfiles = Object.assign({}, emmetConfig['syntaxProfiles'] || {});
-
+	const preferences = Object.assign({}, emmetConfig['preferences'] || {});
 	// jsx, xml and xsl syntaxes need to have self closing tags unless otherwise configured by user
 	if (syntax === 'jsx' || syntax === 'xml' || syntax === 'xsl') {
 		syntaxProfiles[syntax] = syntaxProfiles[syntax] || {};
@@ -327,11 +322,13 @@ export function getEmmetConfiguration(syntax: string) {
 	}
 
 	return {
-		preferences: emmetConfig['preferences'],
+		preferences,
 		showExpandedAbbreviation: emmetConfig['showExpandedAbbreviation'],
 		showAbbreviationSuggestions: emmetConfig['showAbbreviationSuggestions'],
 		syntaxProfiles,
-		variables: emmetConfig['variables']
+		variables: emmetConfig['variables'],
+		excludeLanguages: emmetConfig['excludeLanguages'],
+		showSuggestionsAsSnippets: emmetConfig['showSuggestionsAsSnippets']
 	};
 }
 

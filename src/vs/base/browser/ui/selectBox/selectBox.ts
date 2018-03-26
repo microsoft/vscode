@@ -6,7 +6,7 @@
 import 'vs/css!./selectBox';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
 import { deepClone, mixin } from 'vs/base/common/objects';
@@ -36,6 +36,7 @@ export interface ISelectBoxDelegate {
 
 export interface ISelectBoxStyles extends IListStyles {
 	selectBackground?: Color;
+	selectListBackground?: Color;
 	selectForeground?: Color;
 	selectBorder?: Color;
 	focusBorder?: Color;

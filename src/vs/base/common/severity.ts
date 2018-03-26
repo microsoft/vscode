@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import strings = require('vs/base/common/strings');
+import * as nls from 'vs/nls';
+import * as strings from 'vs/base/common/strings';
 
 enum Severity {
 	Ignore = 0,
@@ -46,16 +46,7 @@ namespace Severity {
 		if (strings.equalsIgnoreCase(_info, value)) {
 			return Severity.Info;
 		}
-
 		return Severity.Ignore;
-	}
-
-	export function toString(value: Severity): string {
-		return _displayStrings[value] || strings.empty;
-	}
-
-	export function compare(a: Severity, b: Severity): number {
-		return b - a;
 	}
 }
 

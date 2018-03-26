@@ -148,7 +148,7 @@ class InPlaceReplaceUp extends EditorAction {
 			alias: 'Replace with Previous Value',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA
 			}
 		});
@@ -172,7 +172,7 @@ class InPlaceReplaceDown extends EditorAction {
 			alias: 'Replace with Next Value',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT
 			}
 		});

@@ -5,71 +5,63 @@
 
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 
-import encoding = require('vs/base/node/encoding');
-import { encodingExists } from 'vs/base/node/encoding';
+import * as encoding from 'vs/base/node/encoding';
 
 suite('Encoding', () => {
-	test('detectBOM UTF-8', (done: (err?: any) => void) => {
+	test('detectBOM UTF-8', () => {
 		const file = require.toUrl('./fixtures/some_utf8.css');
 
-		encoding.detectEncodingByBOM(file).then((encoding: string) => {
+		return encoding.detectEncodingByBOM(file).then((encoding: string) => {
 			assert.equal(encoding, 'utf8');
-			done();
-		}, done);
+		});
 	});
 
-	test('detectBOM UTF-16 LE', (done: (err?: any) => void) => {
+	test('detectBOM UTF-16 LE', () => {
 		const file = require.toUrl('./fixtures/some_utf16le.css');
 
-		encoding.detectEncodingByBOM(file).then((encoding: string) => {
+		return encoding.detectEncodingByBOM(file).then((encoding: string) => {
 			assert.equal(encoding, 'utf16le');
-			done();
-		}, done);
+		});
 	});
 
-	test('detectBOM UTF-16 BE', (done: (err?: any) => void) => {
+	test('detectBOM UTF-16 BE', () => {
 		const file = require.toUrl('./fixtures/some_utf16be.css');
 
-		encoding.detectEncodingByBOM(file).then((encoding: string) => {
+		return encoding.detectEncodingByBOM(file).then((encoding: string) => {
 			assert.equal(encoding, 'utf16be');
-			done();
-		}, done);
+		});
 	});
 
-	test('detectBOM ANSI', function (done: (err?: any) => void) {
+	test('detectBOM ANSI', function () {
 		const file = require.toUrl('./fixtures/some_ansi.css');
 
-		encoding.detectEncodingByBOM(file).then((encoding: string) => {
+		return encoding.detectEncodingByBOM(file).then((encoding: string) => {
 			assert.equal(encoding, null);
-			done();
-		}, done);
+		});
 	});
 
-	test('detectBOM ANSI', function (done: (err?: any) => void) {
+	test('detectBOM ANSI', function () {
 		const file = require.toUrl('./fixtures/empty.txt');
 
-		encoding.detectEncodingByBOM(file).then((encoding: string) => {
+		return encoding.detectEncodingByBOM(file).then((encoding: string) => {
 			assert.equal(encoding, null);
-			done();
-		}, done);
+		});
 	});
 
-	test('resolve terminal encoding (detect)', function (done: (err?: any) => void) {
-		encoding.resolveTerminalEncoding().then(encoding => {
-			assert.ok(encodingExists(encoding));
-			done();
-		}, done);
+	test('resolve terminal encoding (detect)', function () {
+		return encoding.resolveTerminalEncoding().then(enc => {
+			assert.ok(encoding.encodingExists(enc));
+		});
 	});
 
-	test('resolve terminal encoding (environment)', function (done: (err?: any) => void) {
+	test('resolve terminal encoding (environment)', function () {
 		process.env['VSCODE_CLI_ENCODING'] = 'utf16le';
 
-		encoding.resolveTerminalEncoding().then(encoding => {
-			assert.ok(encodingExists(encoding));
-			assert.equal(encoding, 'utf16le');
-			done();
-		}, done);
+		return encoding.resolveTerminalEncoding().then(enc => {
+			assert.ok(encoding.encodingExists(enc));
+			assert.equal(enc, 'utf16le');
+		});
 	});
 });

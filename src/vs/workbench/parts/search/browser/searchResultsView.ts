@@ -16,7 +16,7 @@ import { ITree, IDataSource, ISorter, IAccessibilityProvider, IFilter, IRenderer
 import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel, FolderMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Range } from 'vs/editor/common/core/range';
-import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
+import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 import { RemoveAction, ReplaceAllAction, ReplaceAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
@@ -31,7 +31,7 @@ export class SearchDataSource implements IDataSource {
 	private includeFolderMatch: boolean;
 	private listener: IDisposable;
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		this.updateIncludeFolderMatch();
 		this.listener = this.contextService.onDidChangeWorkbenchState(() => this.updateIncludeFolderMatch());
 	}
@@ -154,7 +154,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 
 	constructor(
 		actionRunner: IActionRunner,
-		private viewlet: SearchViewlet,
+		private searchView: SearchView,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
 	) {
@@ -275,7 +275,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 
 		const actions: IAction[] = [];
 		if (input.searchModel.isReplaceActive() && count > 0) {
-			actions.push(this.instantiationService.createInstance(ReplaceAllAction, tree, fileMatch, this.viewlet));
+			actions.push(this.instantiationService.createInstance(ReplaceAllAction, tree, fileMatch, this.searchView));
 		}
 		actions.push(new RemoveAction(tree, fileMatch));
 		templateData.actions.push(actions, { icon: true, label: false });
@@ -295,7 +295,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 
 		templateData.actions.clear();
 		if (searchModel.isReplaceActive()) {
-			templateData.actions.push([this.instantiationService.createInstance(ReplaceAction, tree, match, this.viewlet), new RemoveAction(tree, match)], { icon: true, label: false });
+			templateData.actions.push([this.instantiationService.createInstance(ReplaceAction, tree, match, this.searchView), new RemoveAction(tree, match)], { icon: true, label: false });
 		} else {
 			templateData.actions.push([new RemoveAction(tree, match)], { icon: true, label: false });
 		}
@@ -303,17 +303,23 @@ export class SearchRenderer extends Disposable implements IRenderer {
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
 		if (SearchRenderer.FOLDER_MATCH_TEMPLATE_ID === templateId) {
-			(<IFolderMatchTemplate>templateData).label.dispose();
-		}
-		if (SearchRenderer.FILE_MATCH_TEMPLATE_ID === templateId) {
-			(<IFileMatchTemplate>templateData).label.dispose();
+			const template = <IFolderMatchTemplate>templateData;
+			template.label.dispose();
+			template.actions.dispose();
+		} else if (SearchRenderer.FILE_MATCH_TEMPLATE_ID === templateId) {
+			const template = <IFileMatchTemplate>templateData;
+			template.label.dispose();
+			template.actions.dispose();
+		} else if (SearchRenderer.MATCH_TEMPLATE_ID === templateId) {
+			const template = <IMatchTemplate>templateData;
+			template.actions.dispose();
 		}
 	}
 }
 
 export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
 	}
 
 	public getAriaLabel(tree: ITree, element: FileMatchOrMatch): string {

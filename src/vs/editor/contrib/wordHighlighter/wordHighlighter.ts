@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 
 import { sequence, asWinJsPromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -15,7 +15,7 @@ import { registerEditorContribution, EditorAction, IActionOptions, registerEdito
 import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
-import { registerColor, editorSelectionHighlight, activeContrastBorder, overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorSelectionHighlight, overviewRulerSelectionHighlightForeground, activeContrastBorder, editorSelectionHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -27,11 +27,13 @@ import { firstIndex } from 'vs/base/common/arrays';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel, TrackedRangeStickiness, OverviewRulerLane, IModelDeltaDecoration } from 'vs/editor/common/model';
 
-export const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable.'));
-export const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable.'));
+export const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable. The color must not be opaque to not hide underlying decorations.'), true);
+export const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable. The color must not be opaque to not hide underlying decorations.'), true);
+export const editorWordHighlightBorder = registerColor('editor.wordHighlightBorder', { light: null, dark: null, hc: activeContrastBorder }, nls.localize('wordHighlightBorder', 'Border color of a symbol during read-access, like reading a variable.'));
+export const editorWordHighlightStrongBorder = registerColor('editor.wordHighlightStrongBorder', { light: null, dark: null, hc: activeContrastBorder }, nls.localize('wordHighlightStrongBorder', 'Border color of a symbol during write-access, like writing to a variable.'));
 
-export const overviewRulerWordHighlightForeground = registerColor('editorOverviewRuler.wordHighlightForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerWordHighlightForeground', 'Overview ruler marker color for symbol highlights.'));
-export const overviewRulerWordHighlightStrongForeground = registerColor('editorOverviewRuler.wordHighlightStrongForeground', { dark: '#C0A0C0', light: '#C0A0C0', hc: '#C0A0C0' }, nls.localize('overviewRulerWordHighlightStrongForeground', 'Overview ruler marker color for write-access symbol highlights.'));
+export const overviewRulerWordHighlightForeground = registerColor('editorOverviewRuler.wordHighlightForeground', { dark: '#A0A0A0CC', light: '#A0A0A0CC', hc: '#A0A0A0CC' }, nls.localize('overviewRulerWordHighlightForeground', 'Overview ruler marker color for symbol highlights. The color must not be opaque to not hide underlying decorations.'), true);
+export const overviewRulerWordHighlightStrongForeground = registerColor('editorOverviewRuler.wordHighlightStrongForeground', { dark: '#C0A0C0CC', light: '#C0A0C0CC', hc: '#C0A0C0CC' }, nls.localize('overviewRulerWordHighlightStrongForeground', 'Overview ruler marker color for write-access symbol highlights. The color must not be opaque to not hide underlying decorations.'), true);
 
 export const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlights', false);
 
@@ -475,7 +477,7 @@ class NextWordHighlightAction extends WordHighlightNavigationAction {
 			alias: 'Go to Next Symbol Highlight',
 			precondition: ctxHasWordHighlights,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyCode.F7
 			}
 		});
@@ -490,7 +492,7 @@ class PrevWordHighlightAction extends WordHighlightNavigationAction {
 			alias: 'Go to Previous Symbol Highlight',
 			precondition: ctxHasWordHighlights,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyCode.F7
 			}
 		});
@@ -515,11 +517,17 @@ registerThemingParticipant((theme, collector) => {
 	if (wordHighlightStrong) {
 		collector.addRule(`.monaco-editor .wordHighlightStrong { background-color: ${wordHighlightStrong}; }`);
 	}
-	let hcOutline = theme.getColor(activeContrastBorder);
-	if (hcOutline) {
-		collector.addRule(`.monaco-editor .selectionHighlight { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
-		collector.addRule(`.monaco-editor .wordHighlight { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);
-		collector.addRule(`.monaco-editor .wordHighlightStrong { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);
+	let selectionHighlightBorder = theme.getColor(editorSelectionHighlightBorder);
+	if (selectionHighlightBorder) {
+		collector.addRule(`.monaco-editor .selectionHighlight { border: 1px dotted ${selectionHighlightBorder}; box-sizing: border-box; }`);
+	}
+	let wordHighlightBorder = theme.getColor(editorWordHighlightBorder);
+	if (wordHighlightBorder) {
+		collector.addRule(`.monaco-editor .wordHighlight { border: 1px dashed ${wordHighlightBorder}; box-sizing: border-box; }`);
+	}
+	let wordHighlightStrongBorder = theme.getColor(editorWordHighlightStrongBorder);
+	if (wordHighlightStrongBorder) {
+		collector.addRule(`.monaco-editor .wordHighlightStrong { border: 1px dashed ${wordHighlightStrongBorder}; box-sizing: border-box; }`);
 	}
 
 });

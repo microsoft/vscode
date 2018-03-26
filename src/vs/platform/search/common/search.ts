@@ -14,6 +14,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const ID = 'searchService';
+export const VIEW_ID = 'workbench.view.search';
 
 export const ISearchService = createDecorator<ISearchService>(ID);
 
@@ -81,11 +82,12 @@ export enum QueryType {
 /* __GDPR__FRAGMENT__
 	"IPatternInfo" : {
 		"pattern" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		"isRegExp": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"isWordMatch": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"isRegExp": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"isWordMatch": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 		"wordSeparators": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"isMultiline": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"isCaseSensitive": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		"isMultiline": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"isCaseSensitive": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"isSmartCase": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 	}
 */
 export interface IPatternInfo {
@@ -112,13 +114,10 @@ export interface ILineMatch {
 export interface IProgress {
 	total?: number;
 	worked?: number;
-}
-
-export interface ISearchLog {
 	message?: string;
 }
 
-export interface ISearchProgressItem extends IFileMatch, IProgress, ISearchLog {
+export interface ISearchProgressItem extends IFileMatch, IProgress {
 	// Marker interface to indicate the possible values for progress calls from the engine
 }
 
@@ -180,6 +179,8 @@ export interface ISearchConfigurationProperties {
 	useIgnoreFiles: boolean;
 	followSymlinks: boolean;
 	smartCase: boolean;
+	globalFindClipboard: boolean;
+	location: 'sidebar' | 'panel';
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

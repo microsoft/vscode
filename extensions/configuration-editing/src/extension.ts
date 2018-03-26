@@ -2,16 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 'use strict';
 
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
 import * as vscode from 'vscode';
-import { getLocation, visit, parse } from 'jsonc-parser';
+import { getLocation, visit, parse, ParseErrorCode } from 'jsonc-parser';
 import * as path from 'path';
 import { SettingsDocument } from './settingsDocumentHelper';
-import * as nls from 'vscode-nls';
-
-const localize = nls.loadMessageBundle();
 
 const decoration = vscode.window.createTextEditorDecorationType({
 	color: '#9e9e9e'
@@ -20,7 +18,6 @@ const decoration = vscode.window.createTextEditorDecorationType({
 let pendingLaunchJsonDecoration: NodeJS.Timer;
 
 export function activate(context: vscode.ExtensionContext): void {
-
 	//keybindings.json command-suggestions
 	context.subscriptions.push(registerKeybindingsCompletions());
 
@@ -41,6 +38,45 @@ export function activate(context: vscode.ExtensionContext): void {
 		}
 	}, null, context.subscriptions));
 	updateLaunchJsonDecorations(vscode.window.activeTextEditor);
+
+	context.subscriptions.push(vscode.workspace.onWillSaveTextDocument(e => {
+		if (!e.document.fileName.endsWith('/settings.json')) {
+			return;
+		}
+
+		autoFixSettingsJSON(e);
+	}));
+}
+
+function autoFixSettingsJSON(willSaveEvent: vscode.TextDocumentWillSaveEvent): void {
+	const document = willSaveEvent.document;
+	const text = document.getText();
+	const edit = new vscode.WorkspaceEdit();
+
+	let lastEndOfSomething = -1;
+	visit(text, {
+		onArrayEnd(offset: number, length: number): void {
+			lastEndOfSomething = offset + length;
+		},
+
+		onLiteralValue(value: any, offset: number, length: number): void {
+			lastEndOfSomething = offset + length;
+		},
+
+		onObjectEnd(offset: number, length: number): void {
+			lastEndOfSomething = offset + length;
+		},
+
+		onError(error: ParseErrorCode, offset: number, length: number): void {
+			if (error === ParseErrorCode.CommaExpected && lastEndOfSomething > -1) {
+				const fixPosition = document.positionAt(lastEndOfSomething);
+				edit.insert(document.uri, fixPosition, ',');
+			}
+		}
+	});
+
+	willSaveEvent.waitUntil(
+		vscode.workspace.applyEdit(edit));
 }
 
 function registerKeybindingsCompletions(): vscode.Disposable {

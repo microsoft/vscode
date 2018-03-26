@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -27,6 +27,7 @@ export interface IPickOpenEntry {
 	label: string;
 	description?: string;
 	detail?: string;
+	tooltip?: string;
 	separator?: ISeparator;
 	alwaysShow?: boolean;
 	run?: (context: IEntryRunContext) => void;

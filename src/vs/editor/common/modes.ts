@@ -12,11 +12,12 @@ import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegis
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 import { Color } from 'vs/base/common/color';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import * as model from 'vs/editor/common/model';
+import { isObject } from 'vs/base/common/types';
 
 /**
  * Open ended enum at runtime
@@ -314,7 +315,8 @@ export interface ISuggestResult {
  */
 export enum SuggestTriggerKind {
 	Invoke = 0,
-	TriggerCharacter = 1
+	TriggerCharacter = 1,
+	TriggerForIncompleteCompletions = 2
 }
 
 /**
@@ -342,6 +344,14 @@ export interface CodeAction {
 	command?: Command;
 	edit?: WorkspaceEdit;
 	diagnostics?: IMarkerData[];
+	kind?: string;
+}
+
+/**
+ * @internal
+ */
+export interface CodeActionContext {
+	only?: string;
 }
 
 /**
@@ -353,7 +363,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: model.ITextModel, range: Range, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
+	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
 }
 
 /**
@@ -728,7 +738,7 @@ export interface IInplaceReplaceSupportResult {
  */
 export interface ILink {
 	range: IRange;
-	url: string;
+	url?: string;
 }
 /**
  * A provider of links.
@@ -816,17 +826,107 @@ export interface DocumentColorProvider {
 	provideColorPresentations(model: model.ITextModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
 }
 
-export interface IResourceEdit {
+/**
+ * @internal
+ */
+export interface FoldingContext {
+	maxRanges?: number;
+}
+
+/**
+ * A provider of colors for editor models.
+ */
+/**
+ * @internal
+ */
+export interface FoldingProvider {
+	/**
+	 * Provides the color ranges for a specific model.
+	 */
+	provideFoldingRanges(model: model.ITextModel, context: FoldingContext, token: CancellationToken): IFoldingRangeList | Thenable<IFoldingRangeList>;
+}
+/**
+ * @internal
+ */
+export interface IFoldingRangeList {
+
+	ranges: IFoldingRange[];
+}
+/**
+ * @internal
+ */
+export interface IFoldingRange {
+
+	/**
+	 * The start line number
+	 */
+	startLineNumber: number;
+
+	/**
+	 * The end line number
+	 */
+	endLineNumber: number;
+
+	/**
+	 * The optional type of the folding range
+	 */
+	type?: FoldingRangeType | string;
+
+	// auto-collapse
+	// header span
+
+}
+/**
+ * @internal
+ */
+export enum FoldingRangeType {
+	/**
+	 * Folding range for a comment
+	 */
+	Comment = 'comment',
+	/**
+	 * Folding range for a imports or includes
+	 */
+	Imports = 'imports',
+	/**
+	 * Folding range for a region (e.g. `#region`)
+	 */
+	Region = 'region'
+}
+
+/**
+ * @internal
+ */
+export function isResourceFileEdit(thing: any): thing is ResourceFileEdit {
+	return isObject(thing) && (Boolean((<ResourceFileEdit>thing).newUri) || Boolean((<ResourceFileEdit>thing).oldUri));
+}
+
+/**
+ * @internal
+ */
+export function isResourceTextEdit(thing: any): thing is ResourceTextEdit {
+	return isObject(thing) && (<ResourceTextEdit>thing).resource && Array.isArray((<ResourceTextEdit>thing).edits);
+}
+
+export interface ResourceFileEdit {
+	oldUri: URI;
+	newUri: URI;
+}
+
+export interface ResourceTextEdit {
 	resource: URI;
-	range: IRange;
-	newText: string;
+	modelVersionId?: number;
+	edits: TextEdit[];
 }
+
 export interface WorkspaceEdit {
-	edits: IResourceEdit[];
-	rejectReason?: string;
+	edits: Array<ResourceTextEdit | ResourceFileEdit>;
+	rejectReason?: string; // TODO@joh, move to rename
 }
+
 export interface RenameProvider {
 	provideRenameEdits(model: model.ITextModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
+	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): IRange | Thenable<IRange>;
 }
 
 
@@ -933,6 +1033,11 @@ export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
  * @internal
  */
 export const ColorProviderRegistry = new LanguageFeatureRegistry<DocumentColorProvider>();
+
+/**
+ * @internal
+ */
+export const FoldingProviderRegistry = new LanguageFeatureRegistry<FoldingProvider>();
 
 /**
  * @internal

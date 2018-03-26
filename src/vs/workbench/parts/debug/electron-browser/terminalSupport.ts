@@ -5,6 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
+import * as cp from 'child_process';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITerminalService, ITerminalInstance, ITerminalConfiguration } from 'vs/workbench/parts/terminal/common/terminal';
@@ -24,11 +25,6 @@ export class TerminalSupport {
 			return nativeTerminalService.runInTerminal(args.title, args.cwd, args.args, args.env || {});
 		}
 
-		let delay = 0;
-		if (!TerminalSupport.integratedTerminalInstance) {
-			TerminalSupport.integratedTerminalInstance = terminalService.createInstance({ name: args.title || nls.localize('debug.terminal.title', "debuggee") });
-			delay = 2000;	// delay the first sendText so that the newly created terminal is ready.
-		}
 		if (!TerminalSupport.terminalDisposedListener) {
 			// React on terminal disposed and check if that is the debug terminal #12956
 			TerminalSupport.terminalDisposedListener = terminalService.onInstanceDisposed(terminal => {
@@ -37,22 +33,53 @@ export class TerminalSupport {
 				}
 			});
 		}
-		terminalService.setActiveInstance(TerminalSupport.integratedTerminalInstance);
+
+		let t = TerminalSupport.integratedTerminalInstance;
+		if ((t && this.isBusy(t)) || !t) {
+			t = terminalService.createInstance({ name: args.title || nls.localize('debug.terminal.title', "debuggee") });
+			TerminalSupport.integratedTerminalInstance = t;
+		}
+		terminalService.setActiveInstance(t);
 		terminalService.showPanel(true);
 
-		return new TPromise<void>((c, e) => {
+		const command = this.prepareCommand(args, configurationService);
 
-			setTimeout(() => {
-				if (TerminalSupport.integratedTerminalInstance) {
-					const command = this.prepareCommand(args, configurationService);
-					TerminalSupport.integratedTerminalInstance.sendText(command, true);
-					c(void 0);
-				} else {
-					e(new Error(nls.localize('debug.terminal.not.available.error', "Integrated terminal not available")));
-				}
-			}, delay);
-
+		return new TPromise((resolve, error) => {
+			setTimeout(_ => {
+				t.sendText(command, true);
+				resolve(void 0);
+			}, 500);
 		});
+	}
+
+	private static isBusy(t: ITerminalInstance): boolean {
+		if (t.processId) {
+			try {
+				// if shell has at least one child process, assume that shell is busy
+				if (platform.isWindows) {
+					const result = cp.spawnSync('wmic', ['process', 'get', 'ParentProcessId']);
+					if (result.stdout) {
+						const pids = result.stdout.toString().split('\r\n');
+						if (!pids.some(p => parseInt(p) === t.processId)) {
+							return false;
+						}
+					}
+				} else {
+					const result = cp.spawnSync('/usr/bin/pgrep', ['-lP', String(t.processId)]);
+					if (result.stdout) {
+						const r = result.stdout.toString().trim();
+						if (r.length === 0 || r.indexOf(' tmux') >= 0) { // ignore 'tmux'; see #43683
+							return false;
+						}
+					}
+				}
+			}
+			catch (e) {
+				// silently ignore
+			}
+		}
+		// fall back to safe side
+		return true;
 	}
 
 	private static prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments, configurationService: IConfigurationService): string {

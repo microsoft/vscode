@@ -12,7 +12,7 @@ import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import * as Async from 'vs/base/common/async';
 import Severity from 'vs/base/common/severity';
 import * as Strings from 'vs/base/common/strings';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 import { SuccessData, ErrorData } from 'vs/base/common/processes';
 import { LineProcess, LineData } from 'vs/base/node/processes';
@@ -22,7 +22,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ProblemMatcher, ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
+import { ProblemMatcher, ProblemMatcherRegistry } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind } from 'vs/workbench/parts/tasks/common/problemCollectors';
@@ -54,7 +54,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 	private activeTask: CustomTask;
 	private activeTaskPromise: TPromise<ITaskSummary>;
 
-	private _onDidStateChange: Emitter<TaskEvent>;
+	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
 	constructor(markerService: IMarkerService, modelService: IModelService, telemetryService: ITelemetryService,
 		outputService: IOutputService, configurationResolverService: IConfigurationResolverService, outputChannelId: string) {
@@ -206,9 +206,19 @@ export class ProcessTaskSystem implements ITaskSystem {
 			this.clearOutput();
 		}
 
-		let args: string[] = commandConfig.args ? commandConfig.args.slice() : [];
+		let args: string[] = [];
+		if (commandConfig.args) {
+			for (let arg of commandConfig.args) {
+				if (Types.isString(arg)) {
+					args.push(arg);
+				} else {
+					this.log(`Quoting individual arguments is not supported in the process runner. Using plain value: ${arg.value}`);
+					args.push(arg.value);
+				}
+			}
+		}
 		args = this.resolveVariables(task, args);
-		let command: string = this.resolveVariable(task, commandConfig.name);
+		let command: string = this.resolveVariable(task, Types.isString(commandConfig.name) ? commandConfig.name : commandConfig.name.value);
 		this.childProcess = new LineProcess(command, args, commandConfig.runtime === RuntimeType.Shell, this.resolveOptions(task, commandConfig.options));
 		telemetryEvent.command = this.childProcess.getSanitizedCommand();
 		// we have no problem matchers defined. So show the output log

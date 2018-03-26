@@ -35,7 +35,7 @@ export class NodeCachedDataManager implements IWorkbenchContribution {
 			if (err) {
 				/* __GDPR__
 					"cachedDataError" : {
-						"errorCode" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"errorCode" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 						"path": { "classification": "CustomerContent", "purpose": "PerformanceAndHealth" }
 					}
 				*/
@@ -49,9 +49,9 @@ export class NodeCachedDataManager implements IWorkbenchContribution {
 		// log summary
 		/* __GDPR__
 			"cachedDataInfo" : {
-				"didRequestCachedData" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"didRejectCachedData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"didProduceCachedData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"didRequestCachedData" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"didRejectCachedData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"didProduceCachedData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
 		this._telemetryService.publicLog('cachedDataInfo', {

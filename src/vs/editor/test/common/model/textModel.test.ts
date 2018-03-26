@@ -9,11 +9,13 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { UTF8_BOM_CHARACTER } from 'vs/base/common/strings';
 
 function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
 	var m = TextModel.createFromString(
 		text.join('\n'),
 		{
+			isForSimpleWidget: false,
 			tabSize: defaultTabSize,
 			insertSpaces: defaultInsertSpaces,
 			detectIndentation: true,
@@ -706,6 +708,7 @@ suite('Editor Model - TextModel', () => {
 	test('normalizeIndentation 1', () => {
 		let model = TextModel.createFromString('',
 			{
+				isForSimpleWidget: false,
 				detectIndentation: false,
 				tabSize: 4,
 				insertSpaces: false,
@@ -742,6 +745,7 @@ suite('Editor Model - TextModel', () => {
 	test('normalizeIndentation 2', () => {
 		let model = TextModel.createFromString('',
 			{
+				isForSimpleWidget: false,
 				detectIndentation: false,
 				tabSize: 4,
 				insertSpaces: true,
@@ -762,6 +766,66 @@ suite('Editor Model - TextModel', () => {
 		assert.equal(model.normalizeIndentation(' \ta'), '     a');
 
 		model.dispose();
+	});
+
+	test('getLineFirstNonWhitespaceColumn', () => {
+		let model = TextModel.createFromString([
+			'asd',
+			' asd',
+			'\tasd',
+			'  asd',
+			'\t\tasd',
+			' ',
+			'  ',
+			'\t',
+			'\t\t',
+			'  \tasd',
+			'',
+			''
+		].join('\n'));
+
+		assert.equal(model.getLineFirstNonWhitespaceColumn(1), 1, '1');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(2), 2, '2');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(3), 2, '3');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(4), 3, '4');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(5), 3, '5');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(6), 0, '6');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(7), 0, '7');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(8), 0, '8');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(9), 0, '9');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(10), 4, '10');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(11), 0, '11');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(12), 0, '12');
+	});
+
+	test('getLineLastNonWhitespaceColumn', () => {
+		let model = TextModel.createFromString([
+			'asd',
+			'asd ',
+			'asd\t',
+			'asd  ',
+			'asd\t\t',
+			' ',
+			'  ',
+			'\t',
+			'\t\t',
+			'asd  \t',
+			'',
+			''
+		].join('\n'));
+
+		assert.equal(model.getLineLastNonWhitespaceColumn(1), 4, '1');
+		assert.equal(model.getLineLastNonWhitespaceColumn(2), 4, '2');
+		assert.equal(model.getLineLastNonWhitespaceColumn(3), 4, '3');
+		assert.equal(model.getLineLastNonWhitespaceColumn(4), 4, '4');
+		assert.equal(model.getLineLastNonWhitespaceColumn(5), 4, '5');
+		assert.equal(model.getLineLastNonWhitespaceColumn(6), 0, '6');
+		assert.equal(model.getLineLastNonWhitespaceColumn(7), 0, '7');
+		assert.equal(model.getLineLastNonWhitespaceColumn(8), 0, '8');
+		assert.equal(model.getLineLastNonWhitespaceColumn(9), 0, '9');
+		assert.equal(model.getLineLastNonWhitespaceColumn(10), 4, '10');
+		assert.equal(model.getLineLastNonWhitespaceColumn(11), 0, '11');
+		assert.equal(model.getLineLastNonWhitespaceColumn(12), 0, '12');
 	});
 });
 
@@ -789,6 +853,63 @@ suite('TextModel.mightContainRTL', () => {
 		assert.equal(model.mightContainRTL(), true);
 		model.setValue('hello world!');
 		assert.equal(model.mightContainRTL(), false);
+	});
+
+});
+
+suite('TextModel.createSnapshot', () => {
+
+	test('empty file', () => {
+		let model = TextModel.createFromString('');
+		let snapshot = model.createSnapshot();
+		assert.equal(snapshot.read(), null);
+		model.dispose();
+	});
+
+	test('file with BOM', () => {
+		let model = TextModel.createFromString(UTF8_BOM_CHARACTER + 'Hello');
+		assert.equal(model.getLineContent(1), 'Hello');
+		let snapshot = model.createSnapshot(true);
+		assert.equal(snapshot.read(), UTF8_BOM_CHARACTER + 'Hello');
+		assert.equal(snapshot.read(), null);
+		model.dispose();
+	});
+
+	test('regular file', () => {
+		let model = TextModel.createFromString('My First Line\n\t\tMy Second Line\n    Third Line\n\n1');
+		let snapshot = model.createSnapshot();
+		assert.equal(snapshot.read(), 'My First Line\n\t\tMy Second Line\n    Third Line\n\n1');
+		assert.equal(snapshot.read(), null);
+		model.dispose();
+	});
+
+	test('large file', () => {
+		let lines: string[] = [];
+		for (let i = 0; i < 1000; i++) {
+			lines[i] = 'Just some text that is a bit long such that it can consume some memory';
+		}
+		const text = lines.join('\n');
+
+		let model = TextModel.createFromString(text);
+		let snapshot = model.createSnapshot();
+		let actual = '';
+
+		// 70999 length => at most 2 read calls are necessary
+		let tmp1 = snapshot.read();
+		assert.ok(tmp1);
+		actual += tmp1;
+
+		let tmp2 = snapshot.read();
+		if (tmp2 === null) {
+			// all good
+		} else {
+			actual += tmp2;
+			assert.equal(snapshot.read(), null);
+		}
+
+		assert.equal(actual, text);
+
+		model.dispose();
 	});
 
 });

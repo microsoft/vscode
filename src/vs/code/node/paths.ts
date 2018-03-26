@@ -18,6 +18,7 @@ export function validatePaths(args: ParsedArgs): ParsedArgs {
 	// Track URLs if they're going to be used
 	if (args['open-url']) {
 		args._urls = args._;
+		args._ = [];
 	}
 
 	// Realpath/normalize paths and watch out for goto line mode

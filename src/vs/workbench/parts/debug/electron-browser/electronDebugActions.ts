@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { Variable } from 'vs/workbench/parts/debug/common/debugModel';
-import { IDebugService, IStackFrame } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IStackFrame, IReplElement } from 'vs/workbench/parts/debug/common/debug';
 import { clipboard } from 'electron';
 
 export class CopyValueAction extends Action {
@@ -30,6 +30,23 @@ export class CopyValueAction extends Action {
 		}
 
 		clipboard.writeText(this.value);
+		return TPromise.as(null);
+	}
+}
+
+export class CopyEvaluatePathAction extends Action {
+	static readonly ID = 'workbench.debug.viewlet.action.copyEvaluatePath';
+	static LABEL = nls.localize('copyAsExpression', "Copy as Expression");
+
+	constructor(id: string, label: string, private value: any) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		if (this.value instanceof Variable) {
+			clipboard.writeText(this.value.evaluateName);
+		}
+
 		return TPromise.as(null);
 	}
 }
@@ -60,7 +77,7 @@ export class CopyAllAction extends Action {
 			if (text) {
 				text += `\n`;
 			}
-			text += navigator.current().toString();
+			text += (<IReplElement>navigator.current()).toString();
 		}
 
 		clipboard.writeText(removeAnsiEscapeCodes(text));

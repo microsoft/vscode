@@ -10,25 +10,33 @@ import { forEach } from 'vs/base/common/collections';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import * as json from 'vs/base/common/json';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ExtensionRecommendationReason, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModel } from 'vs/editor/common/model';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import product from 'vs/platform/node/product';
-import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ShowRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction, InstallRecommendedExtensionAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
-import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsConfiguration, ConfigurationKey, ShowRecommendationsOnlyOnDemandKey, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as pfs from 'vs/base/node/pfs';
 import * as os from 'os';
-import { flatten, distinct } from 'vs/base/common/arrays';
+import { flatten, distinct, shuffle } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { guessMimeTypes, MIME_UNKNOWN } from 'vs/base/common/mime';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { getHashedRemotesFromUri } from 'vs/workbench/parts/stats/node/workspaceStats';
+import { IRequestService } from 'vs/platform/request/node/request';
+import { asJson } from 'vs/base/node/request';
+import { isNumber } from 'vs/base/common/types';
+import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { INotificationService, PromptOption } from 'vs/platform/notification/common/notification';
 
 interface IExtensionsContent {
 	recommendations: string[];
@@ -36,6 +44,14 @@ interface IExtensionsContent {
 
 const empty: { [key: string]: any; } = Object.create(null);
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
+const choiceNever = localize('neverShowAgain', "Don't Show Again");
+const searchMarketplace = localize('searchMarketplace', "Search Marketplace");
+const coreLanguages = ['de', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'tr', 'zh-cn', 'zh-tw'];
+
+interface IDynamicWorkspaceRecommendations {
+	remoteSet: string[];
+	recommendations: string[];
+}
 
 export class ExtensionTipsService extends Disposable implements IExtensionTipsService {
 
@@ -44,49 +60,196 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private _fileBasedRecommendations: { [id: string]: number; } = Object.create(null);
 	private _exeBasedRecommendations: { [id: string]: string; } = Object.create(null);
 	private _availableRecommendations: { [pattern: string]: string[] } = Object.create(null);
-	private _disposables: IDisposable[] = [];
-
 	private _allWorkspaceRecommendedExtensions: string[] = [];
+	private _dynamicWorkspaceRecommendations: string[] = [];
+	private _extensionsRecommendationsUrl: string;
+	private _disposables: IDisposable[] = [];
 	public promptWorkspaceRecommendationsPromise: TPromise<any>;
+	private proactiveRecommendationsFetched: boolean = false;
 
 	constructor(
-		@IExtensionGalleryService private _galleryService: IExtensionGalleryService,
-		@IModelService private _modelService: IModelService,
+		@IExtensionGalleryService private readonly _galleryService: IExtensionGalleryService,
+		@IModelService private readonly _modelService: IModelService,
 		@IStorageService private storageService: IStorageService,
-		@IChoiceService private choiceService: IChoiceService,
 		@IExtensionManagementService private extensionsService: IExtensionManagementService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IFileService private fileService: IFileService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IExtensionService private extensionService: IExtensionService,
+		@IRequestService private requestService: IRequestService,
+		@IViewletService private viewletService: IViewletService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		super();
 
-		if (!this._galleryService.isEnabled() || this.environmentService.extensionDevelopmentPath) {
+		if (!this.isEnabled()) {
 			return;
 		}
 
+		if (product.extensionsGallery && product.extensionsGallery.recommendationsUrl) {
+			this._extensionsRecommendationsUrl = product.extensionsGallery.recommendationsUrl;
+		}
+
+		this.getLanguageExtensionRecommendations();
+		this.getCachedDynamicWorkspaceRecommendations();
 		this._suggestFileBasedRecommendations();
 		this.promptWorkspaceRecommendationsPromise = this._suggestWorkspaceRecommendations();
 
-		// Executable based recommendations carry out a lot of file stats, so run them after 10 secs
-		// So that the startup is not affected
-		setTimeout(() => this._suggestBasedOnExecutables(this._exeBasedRecommendations), 10000);
+		if (!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
+			this.fetchProactiveRecommendations(true);
+		}
+
 		this._register(this.contextService.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChanged(e)));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (!this.proactiveRecommendationsFetched && !this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
+				this.fetchProactiveRecommendations();
+			}
+		}));
 	}
 
-	getAllRecommendationsWithReason(): { [id: string]: string; } {
-		let output: { [id: string]: string; } = Object.create(null);
-		Object.keys(this._fileBasedRecommendations).forEach(x => output[x.toLowerCase()] = localize('fileBasedRecommendation', "This extension is recommended based on the files you recently opened."));
-		this._allWorkspaceRecommendedExtensions.forEach(x => output[x.toLowerCase()] = localize('workspaceRecommendation', "This extension is recommended by users of the current workspace."));
-		forEach(this._exeBasedRecommendations, entry => output[entry.key.toLowerCase()] = localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", entry.value));
+	private fetchProactiveRecommendations(calledDuringStartup?: boolean): TPromise<void> {
+		let fetchPromise = TPromise.as(null);
+		if (!this.proactiveRecommendationsFetched) {
+			this.proactiveRecommendationsFetched = true;
+
+			// Executable based recommendations carry out a lot of file stats, so run them after 10 secs
+			// So that the startup is not affected
+
+			fetchPromise = new TPromise((c, e) => {
+				setTimeout(() => {
+					TPromise.join([this._suggestBasedOnExecutables(), this.getDynamicWorkspaceRecommendations()]).then(() => c(null));
+				}, calledDuringStartup ? 10000 : 0);
+			});
+
+		}
+		return fetchPromise;
+	}
+
+	private isEnabled(): boolean {
+		return this._galleryService.isEnabled() && !this.environmentService.extensionDevelopmentPath;
+	}
+
+	private getLanguageExtensionRecommendations() {
+		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
+		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get
+			('extensionsAssistant/languagePackSuggestionIgnore', StorageScope.GLOBAL, '[]'));
+
+		if (!language
+			|| language === LANGUAGE_DEFAULT
+			|| coreLanguages.some(x => language === x || language.indexOf(x + '-') === 0)
+			|| config.ignoreRecommendations
+			|| config.showRecommendationsOnlyOnDemand
+			|| languagePackSuggestionIgnoreList.indexOf(language) > -1) {
+			return;
+		}
+
+		this.extensionsService.getInstalled(LocalExtensionType.User).then(locals => {
+			for (var i = 0; i < locals.length; i++) {
+				if (locals[i].manifest
+					&& locals[i].manifest.contributes
+					&& Array.isArray(locals[i].manifest.contributes.localizations)
+					&& locals[i].manifest.contributes.localizations.some(x => x.languageId === language)) {
+					return;
+				}
+			}
+
+			this._galleryService.query({ text: `tag:lp-${language}` }).then(pager => {
+				if (!pager || !pager.firstPage || !pager.firstPage.length) {
+					return;
+				}
+				const message = localize('showLanguagePackExtensions', "The Marketplace has extensions that can help localizing VS Code to '{0}' locale", language);
+				const options: PromptOption[] = [
+					searchMarketplace,
+					{ label: choiceNever }
+				];
+
+				this.notificationService.prompt(Severity.Info, message, options).done(choice => {
+					switch (choice) {
+						case 0 /* Search Marketplace */:
+							/* __GDPR__
+								"languagePackSuggestion:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+									"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+								}
+							*/
+							this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction: 'ok', language });
+							this.viewletService.openViewlet('workbench.view.extensions', true)
+								.then(viewlet => viewlet as IExtensionsViewlet)
+								.then(viewlet => {
+									viewlet.search(`tag:lp-${language}`);
+									viewlet.focus();
+								});
+							break;
+						case 1 /* Never show again */:
+							languagePackSuggestionIgnoreList.push(language);
+							this.storageService.store(
+								'extensionsAssistant/languagePackSuggestionIgnore',
+								JSON.stringify(languagePackSuggestionIgnoreList),
+								StorageScope.GLOBAL
+							);
+							/* __GDPR__
+								"languagePackSuggestion:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+									"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+								}
+							*/
+							this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction: 'neverShowAgain', language });
+							break;
+					}
+				}, () => {
+					/* __GDPR__
+						"languagePackSuggestion:popup" : {
+							"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"language": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+						}
+					*/
+					this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction: 'cancelled', language });
+				});
+			});
+		});
+	}
+
+
+	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } {
+		let output: { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } = Object.create(null);
+
+		if (!this.proactiveRecommendationsFetched) {
+			return output;
+		}
+
+		if (this.contextService.getWorkspace().folders && this.contextService.getWorkspace().folders.length === 1) {
+			const currentRepo = this.contextService.getWorkspace().folders[0].name;
+			this._dynamicWorkspaceRecommendations.forEach(x => output[x.toLowerCase()] = {
+				reasonId: ExtensionRecommendationReason.DynamicWorkspace,
+				reasonText: localize('dynamicWorkspaceRecommendation', "This extension may interest you because it's popular among users of the {0} repository.", currentRepo)
+			});
+		}
+
+		forEach(this._exeBasedRecommendations, entry => output[entry.key.toLowerCase()] = {
+			reasonId: ExtensionRecommendationReason.Executable,
+			reasonText: localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", entry.value)
+		});
+
+		Object.keys(this._fileBasedRecommendations).forEach(x => output[x.toLowerCase()] = {
+			reasonId: ExtensionRecommendationReason.File,
+			reasonText: localize('fileBasedRecommendation', "This extension is recommended based on the files you recently opened.")
+		});
+
+		this._allWorkspaceRecommendedExtensions.forEach(x => output[x.toLowerCase()] = {
+			reasonId: ExtensionRecommendationReason.Workspace,
+			reasonText: localize('workspaceRecommendation', "This extension is recommended by users of the current workspace.")
+		});
+
 		return output;
 	}
 
 	getWorkspaceRecommendations(): TPromise<string[]> {
+		if (!this.isEnabled()) {
+			return TPromise.as([]);
+		}
 		const workspace = this.contextService.getWorkspace();
 		return TPromise.join([this.resolveWorkspaceRecommendations(workspace), ...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderRecommendations(workspaceFolder))])
 			.then(recommendations => {
@@ -104,8 +267,11 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	private resolveWorkspaceFolderRecommendations(workspaceFolder: IWorkspaceFolder): TPromise<string[]> {
-		return this.fileService.resolveContent(workspaceFolder.toResource(paths.join('.vscode', 'extensions.json')))
-			.then(content => this.processWorkspaceRecommendations(json.parse(content.value, [])), err => []);
+		const extensionsJsonUri = workspaceFolder.toResource(paths.join('.vscode', 'extensions.json'));
+		return this.fileService.resolveFile(extensionsJsonUri).then(() => {
+			return this.fileService.resolveContent(extensionsJsonUri)
+				.then(content => this.processWorkspaceRecommendations(json.parse(content.value, [])), err => []);
+		}, err => []);
 	}
 
 	private processWorkspaceRecommendations(extensionsContent: IExtensionsContent): TPromise<string[]> {
@@ -143,11 +309,13 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					});
 				}
 
-				if (countBadRecommendations > 0) {
-					console.log('The below ' +
+				if (countBadRecommendations > 0 && this.notificationService) {
+					this.notificationService.warn(
+						'The below ' +
 						countBadRecommendations +
 						' extension(s) in workspace recommendations have issues:\n' +
-						badRecommendationsString);
+						badRecommendationsString
+					);
 				}
 
 				return validRecommendations;
@@ -169,6 +337,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					}
 				});
 		}
+		this._dynamicWorkspaceRecommendations = [];
 	}
 
 	getFileBasedRecommendations(): string[] {
@@ -187,8 +356,12 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		return fileBased;
 	}
 
-	getOtherRecommendations(): string[] {
-		return Object.keys(this._exeBasedRecommendations);
+	getOtherRecommendations(): TPromise<string[]> {
+		return this.fetchProactiveRecommendations().then(() => {
+			const others = distinct([...Object.keys(this._exeBasedRecommendations), ...this._dynamicWorkspaceRecommendations]);
+			shuffle(others);
+			return others;
+		});
 	}
 
 	getKeymapRecommendations(): string[] {
@@ -224,7 +397,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			}
 		});
 
-		const allRecommendations = [];
+		const allRecommendations: string[] = [];
 		forEach(this._availableRecommendations, ({ value: ids }) => {
 			allRecommendations.push(...ids);
 		});
@@ -254,8 +427,15 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		this._modelService.getModels().forEach(model => this._suggest(model));
 	}
 
+	private getMimeTypes(path: string): TPromise<string[]> {
+		return this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			return guessMimeTypes(path);
+		});
+	}
+
 	private _suggest(model: ITextModel): void {
 		const uri = model.uri;
+		let hasSuggestion = false;
 
 		if (!uri || uri.scheme !== Schemas.file) {
 			return;
@@ -282,91 +462,161 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			);
 
 			const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
-			const importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/importantRecommendationsIgnore', StorageScope.GLOBAL, '[]'));
-
-			if (config.ignoreRecommendations || !product.extensionImportantTips) {
+			if (config.ignoreRecommendations || config.showRecommendationsOnlyOnDemand) {
 				return;
 			}
 
-			this.extensionsService.getInstalled(LocalExtensionType.User).done(local => {
-				Object.keys(product.extensionImportantTips)
-					.filter(id => importantRecommendationsIgnoreList.indexOf(id) === -1)
-					.filter(id => local.every(local => `${local.manifest.publisher}.${local.manifest.name}` !== id))
-					.forEach(id => {
-						const { pattern, name } = product.extensionImportantTips[id];
+			const importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/importantRecommendationsIgnore', StorageScope.GLOBAL, '[]'));
+			let recommendationsToSuggest = Object.keys(product.extensionImportantTips || [])
+				.filter(id => importantRecommendationsIgnoreList.indexOf(id) === -1 && match(product.extensionImportantTips[id]['pattern'], uri.fsPath));
 
-						if (!match(pattern, uri.fsPath)) {
-							return;
-						}
+			const importantTipsPromise = recommendationsToSuggest.length === 0 ? TPromise.as(null) : this.extensionsService.getInstalled(LocalExtensionType.User).then(local => {
+				recommendationsToSuggest = recommendationsToSuggest.filter(id => local.every(local => `${local.manifest.publisher}.${local.manifest.name}` !== id));
+				if (!recommendationsToSuggest.length) {
+					return;
+				}
+				const id = recommendationsToSuggest[0];
+				const name = product.extensionImportantTips[id]['name'];
 
-						let message = localize('reallyRecommended2', "The '{0}' extension is recommended for this file type.", name);
-						// Temporary fix for the only extension pack we recommend. See https://github.com/Microsoft/vscode/issues/35364
-						if (id === 'vscjava.vscode-java-pack') {
-							message = localize('reallyRecommendedExtensionPack', "The '{0}' extension pack is recommended for this file type.", name);
-						}
+				// Indicates we have a suggested extension via the whitelist
+				hasSuggestion = true;
 
-						const recommendationsAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
-						const installAction = this.instantiationService.createInstance(InstallRecommendedExtensionAction, id);
-						const options = [
-							localize('install', 'Install'),
-							recommendationsAction.label,
-							localize('neverShowAgain', "Don't show again"),
-							localize('close', "Close")
-						];
+				let message = localize('reallyRecommended2', "The '{0}' extension is recommended for this file type.", name);
+				// Temporary fix for the only extension pack we recommend. See https://github.com/Microsoft/vscode/issues/35364
+				if (id === 'vscjava.vscode-java-pack') {
+					message = localize('reallyRecommendedExtensionPack', "The '{0}' extension pack is recommended for this file type.", name);
+				}
 
-						this.choiceService.choose(Severity.Info, message, options, 3).done(choice => {
-							switch (choice) {
-								case 0:
-									/* __GDPR__
-										"extensionRecommendations:popup" : {
-											"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-											"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-										}
-									*/
-									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'install', extensionId: name });
-									return installAction.run();
-								case 1:
-									/* __GDPR__
-										"extensionRecommendations:popup" : {
-											"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-											"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-										}
-									*/
-									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'show', extensionId: name });
-									return recommendationsAction.run();
-								case 2: importantRecommendationsIgnoreList.push(id);
-									this.storageService.store(
-										'extensionsAssistant/importantRecommendationsIgnore',
-										JSON.stringify(importantRecommendationsIgnoreList),
-										StorageScope.GLOBAL
-									);
-									/* __GDPR__
-										"extensionRecommendations:popup" : {
-											"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-											"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-										}
-									*/
-									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'neverShowAgain', extensionId: name });
-									return this.ignoreExtensionRecommendations();
-								case 3:
-									/* __GDPR__
-										"extensionRecommendations:popup" : {
-											"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-											"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-										}
-									*/
-									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'close', extensionId: name });
-							}
-						}, () => {
+				const recommendationsAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
+				const installAction = this.instantiationService.createInstance(InstallRecommendedExtensionAction, id);
+				const options: PromptOption[] = [
+					localize('install', 'Install'),
+					recommendationsAction.label,
+					{ label: choiceNever }
+				];
+
+				this.notificationService.prompt(Severity.Info, message, options).done(choice => {
+					switch (choice) {
+						case 0 /* Install */:
 							/* __GDPR__
 								"extensionRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 									"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
 								}
 							*/
-							this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'cancelled', extensionId: name });
-						});
+							this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'install', extensionId: name });
+							return installAction.run();
+						case 1 /* Show Recommendations */:
+							/* __GDPR__
+								"extensionRecommendations:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+									"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+								}
+							*/
+							this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'show', extensionId: name });
+							return recommendationsAction.run();
+						case 2 /* Never show again */:
+							importantRecommendationsIgnoreList.push(id);
+							this.storageService.store(
+								'extensionsAssistant/importantRecommendationsIgnore',
+								JSON.stringify(importantRecommendationsIgnoreList),
+								StorageScope.GLOBAL
+							);
+							/* __GDPR__
+								"extensionRecommendations:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+									"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+								}
+							*/
+							this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'neverShowAgain', extensionId: name });
+							return this.ignoreExtensionRecommendations();
+					}
+				}, () => {
+					/* __GDPR__
+						"extensionRecommendations:popup" : {
+							"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+						}
+					*/
+					this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'cancelled', extensionId: name });
+				});
+			});
+
+			const mimeTypesPromise = this.getMimeTypes(uri.fsPath);
+			TPromise.join([importantTipsPromise, mimeTypesPromise]).then(result => {
+
+				const fileExtensionSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get
+					('extensionsAssistant/fileExtensionsSuggestionIgnore', StorageScope.GLOBAL, '[]'));
+				const mimeTypes = result[1];
+				let fileExtension = paths.extname(uri.fsPath);
+				if (fileExtension) {
+					fileExtension = fileExtension.substr(1); // Strip the dot
+				}
+
+				if (hasSuggestion ||
+					!fileExtension ||
+					mimeTypes.length !== 1 ||
+					mimeTypes[0] !== MIME_UNKNOWN ||
+					fileExtensionSuggestionIgnoreList.indexOf(fileExtension) > -1
+				) {
+					return;
+				}
+
+				const keywords = this.getKeywordsForExtension(fileExtension);
+				this._galleryService.query({ text: `tag:"__ext_${fileExtension}" ${keywords.map(tag => `tag:"${tag}"`)}` }).then(pager => {
+					if (!pager || !pager.firstPage || !pager.firstPage.length) {
+						return;
+					}
+
+					const message = localize('showLanguageExtensions', "The Marketplace has extensions that can help with '.{0}' files", fileExtension);
+					const options: PromptOption[] = [
+						searchMarketplace,
+						{ label: choiceNever }
+					];
+
+					this.notificationService.prompt(Severity.Info, message, options).done(choice => {
+						switch (choice) {
+							case 0 /* Search Marketplace */:
+								/* __GDPR__
+									"fileExtensionSuggestion:popup" : {
+										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+										"fileExtension": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+									}
+								*/
+								this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'ok', fileExtension: fileExtension });
+								this.viewletService.openViewlet('workbench.view.extensions', true)
+									.then(viewlet => viewlet as IExtensionsViewlet)
+									.then(viewlet => {
+										viewlet.search(`ext:${fileExtension}`);
+										viewlet.focus();
+									});
+								break;
+							case 1 /* Never show again */:
+								fileExtensionSuggestionIgnoreList.push(fileExtension);
+								this.storageService.store(
+									'extensionsAssistant/fileExtensionsSuggestionIgnore',
+									JSON.stringify(fileExtensionSuggestionIgnoreList),
+									StorageScope.GLOBAL
+								);
+								/* __GDPR__
+									"fileExtensionSuggestion:popup" : {
+										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+										"fileExtension": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+									}
+								*/
+								this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'neverShowAgain', fileExtension: fileExtension });
+								break;
+						}
+					}, () => {
+						/* __GDPR__
+							"fileExtensionSuggestion:popup" : {
+								"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								"fileExtension": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+							}
+						*/
+						this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'cancelled', fileExtension: fileExtension });
 					});
+				});
 			});
 		});
 	}
@@ -376,7 +626,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
 
 		return this.getWorkspaceRecommendations().then(allRecommendations => {
-			if (!allRecommendations.length || config.ignoreRecommendations || this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false)) {
+			if (!allRecommendations.length || config.ignoreRecommendations || config.showRecommendationsOnlyOnDemand || this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false)) {
 				return;
 			}
 
@@ -392,16 +642,15 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				const showAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
 				const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, localize('installAll', "Install All"));
 
-				const options = [
+				const options: PromptOption[] = [
 					installAllAction.label,
 					showAction.label,
-					localize('neverShowAgain', "Don't show again"),
-					localize('close', "Close")
+					{ label: choiceNever }
 				];
 
-				return this.choiceService.choose(Severity.Info, message, options, 3).done(choice => {
+				return this.notificationService.prompt(Severity.Info, message, options).done(choice => {
 					switch (choice) {
-						case 0:
+						case 0 /* Install */:
 							/* __GDPR__
 								"extensionRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -409,7 +658,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'install' });
 							return installAllAction.run();
-						case 1:
+						case 1 /* Show Recommendations */:
 							/* __GDPR__
 								"extensionRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -417,7 +666,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'show' });
 							return showAction.run();
-						case 2:
+						case 2 /* Never show again */:
 							/* __GDPR__
 								"extensionRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -425,13 +674,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'neverShowAgain' });
 							return this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
-						case 3:
-							/* __GDPR__
-								"extensionRecommendations:popup" : {
-									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-								}
-							*/
-							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'close' });
 					}
 				}, () => {
 					/* __GDPR__
@@ -449,39 +691,38 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		const message = localize('ignoreExtensionRecommendations', "Do you want to ignore all extension recommendations?");
 		const options = [
 			localize('ignoreAll', "Yes, Ignore All"),
-			localize('no', "No"),
-			localize('cancel', "Cancel")
+			localize('no', "No")
 		];
 
-		this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
+		this.notificationService.prompt(Severity.Info, message, options).done(choice => {
 			switch (choice) {
 				case 0:	// If the user ignores the current message and selects different file type
-					// we should hide all the stacked up messages as he has selected Yes, Ignore All
-					this.messageService.hideAll();
 					return this.setIgnoreRecommendationsConfig(true);
-				case 1: return this.setIgnoreRecommendationsConfig(false);
+				case 1:
+					return this.setIgnoreRecommendationsConfig(false);
 			}
 		});
 	}
 
-	private _suggestBasedOnExecutables(recommendations: { [id: string]: string; }): void {
+	private _suggestBasedOnExecutables(): TPromise<any> {
 		const homeDir = os.homedir();
 		let foundExecutables: Set<string> = new Set<string>();
 
-		let findExecutable = (exeName, path) => {
+		let findExecutable = (exeName: string, path: string) => {
 			return pfs.fileExists(path).then(exists => {
 				if (exists && !foundExecutables.has(exeName)) {
 					foundExecutables.add(exeName);
 					(product.exeBasedExtensionTips[exeName]['recommendations'] || [])
 						.forEach(x => {
 							if (product.exeBasedExtensionTips[exeName]['friendlyName']) {
-								recommendations[x] = product.exeBasedExtensionTips[exeName]['friendlyName'];
+								this._exeBasedRecommendations[x] = product.exeBasedExtensionTips[exeName]['friendlyName'];
 							}
 						});
 				}
 			});
 		};
 
+		let promises: TPromise<any>[] = [];
 		// Loop through recommended extensions
 		forEach(product.exeBasedExtensionTips, entry => {
 			if (typeof entry.value !== 'object' || !Array.isArray(entry.value['recommendations'])) {
@@ -498,12 +739,14 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					.replace('%ProgramFiles(x86)%', process.env['ProgramFiles(x86)'])
 					.replace('%ProgramFiles%', process.env['ProgramFiles'])
 					.replace('%APPDATA%', process.env['APPDATA']);
-				findExecutable(exeName, windowsPath);
+				promises.push(findExecutable(exeName, windowsPath));
 			} else {
-				findExecutable(exeName, paths.join('/usr/local/bin', exeName));
-				findExecutable(exeName, paths.join(homeDir, exeName));
+				promises.push(findExecutable(exeName, paths.join('/usr/local/bin', exeName)));
+				promises.push(findExecutable(exeName, paths.join(homeDir, exeName)));
 			}
 		});
+
+		return TPromise.join(promises);
 	}
 
 	private setIgnoreRecommendationsConfig(configVal: boolean) {
@@ -512,6 +755,84 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			const ignoreWorkspaceRecommendationsStorageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
 			this.storageService.store(ignoreWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE);
 		}
+	}
+
+	private getCachedDynamicWorkspaceRecommendations() {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
+			return;
+		}
+
+		const storageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';
+		let storedRecommendationsJson = {};
+		try {
+			storedRecommendationsJson = JSON.parse(this.storageService.get(storageKey, StorageScope.WORKSPACE, '{}'));
+		} catch (e) {
+			this.storageService.remove(storageKey, StorageScope.WORKSPACE);
+		}
+
+		if (Array.isArray(storedRecommendationsJson['recommendations'])
+			&& isNumber(storedRecommendationsJson['timestamp'])
+			&& storedRecommendationsJson['timestamp'] > 0
+			&& (Date.now() - storedRecommendationsJson['timestamp']) / milliSecondsInADay < 14) {
+			this._dynamicWorkspaceRecommendations = storedRecommendationsJson['recommendations'];
+			/* __GDPR__
+				"dynamicWorkspaceRecommendations" : {
+					"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+				}
+			*/
+			this.telemetryService.publicLog('dynamicWorkspaceRecommendations', { count: this._dynamicWorkspaceRecommendations.length, cache: 1 });
+		}
+	}
+
+	private getDynamicWorkspaceRecommendations(): TPromise<void> {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER
+			|| this._dynamicWorkspaceRecommendations.length
+			|| !this._extensionsRecommendationsUrl) {
+			return TPromise.as(null);
+		}
+
+		const storageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';
+		const workspaceUri = this.contextService.getWorkspace().folders[0].uri;
+		return TPromise.join([getHashedRemotesFromUri(workspaceUri, this.fileService, false), getHashedRemotesFromUri(workspaceUri, this.fileService, true)]).then(([hashedRemotes1, hashedRemotes2]) => {
+			const hashedRemotes = (hashedRemotes1 || []).concat(hashedRemotes2 || []);
+			if (!hashedRemotes.length) {
+				return null;
+			}
+
+			return this.requestService.request({ type: 'GET', url: this._extensionsRecommendationsUrl }).then(context => {
+				if (context.res.statusCode !== 200) {
+					return TPromise.as(null);
+				}
+				return asJson(context).then((result) => {
+					const allRecommendations: IDynamicWorkspaceRecommendations[] = Array.isArray(result['workspaceRecommendations']) ? result['workspaceRecommendations'] : [];
+					if (!allRecommendations.length) {
+						return;
+					}
+
+					let foundRemote = false;
+					for (let i = 0; i < hashedRemotes.length && !foundRemote; i++) {
+						for (let j = 0; j < allRecommendations.length && !foundRemote; j++) {
+							if (Array.isArray(allRecommendations[j].remoteSet) && allRecommendations[j].remoteSet.indexOf(hashedRemotes[i]) > -1) {
+								foundRemote = true;
+								this._dynamicWorkspaceRecommendations = allRecommendations[j].recommendations || [];
+								this.storageService.store(storageKey, JSON.stringify({
+									recommendations: this._dynamicWorkspaceRecommendations,
+									timestamp: Date.now()
+								}), StorageScope.WORKSPACE);
+								/* __GDPR__
+									"dynamicWorkspaceRecommendations" : {
+										"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+										"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+									}
+								*/
+								this.telemetryService.publicLog('dynamicWorkspaceRecommendations', { count: this._dynamicWorkspaceRecommendations.length, cache: 0 });
+							}
+						}
+					}
+				});
+			});
+		});
 	}
 
 	getKeywordsForExtension(extension: string): string[] {

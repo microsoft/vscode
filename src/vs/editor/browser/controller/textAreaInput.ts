@@ -8,7 +8,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as strings from 'vs/base/common/strings';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITypeData, TextAreaState, ITextAreaWrapper } from 'vs/editor/browser/controller/textAreaState';
@@ -53,37 +53,37 @@ export interface ITextAreaInputHost {
 export class TextAreaInput extends Disposable {
 
 	private _onFocus = this._register(new Emitter<void>());
-	public onFocus: Event<void> = this._onFocus.event;
+	public readonly onFocus: Event<void> = this._onFocus.event;
 
 	private _onBlur = this._register(new Emitter<void>());
-	public onBlur: Event<void> = this._onBlur.event;
+	public readonly onBlur: Event<void> = this._onBlur.event;
 
 	private _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	public onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+	public readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
 
 	private _onKeyUp = this._register(new Emitter<IKeyboardEvent>());
-	public onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
+	public readonly onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
 
 	private _onCut = this._register(new Emitter<void>());
-	public onCut: Event<void> = this._onCut.event;
+	public readonly onCut: Event<void> = this._onCut.event;
 
 	private _onPaste = this._register(new Emitter<IPasteData>());
-	public onPaste: Event<IPasteData> = this._onPaste.event;
+	public readonly onPaste: Event<IPasteData> = this._onPaste.event;
 
 	private _onType = this._register(new Emitter<ITypeData>());
-	public onType: Event<ITypeData> = this._onType.event;
+	public readonly onType: Event<ITypeData> = this._onType.event;
 
 	private _onCompositionStart = this._register(new Emitter<void>());
-	public onCompositionStart: Event<void> = this._onCompositionStart.event;
+	public readonly onCompositionStart: Event<void> = this._onCompositionStart.event;
 
 	private _onCompositionUpdate = this._register(new Emitter<ICompositionData>());
-	public onCompositionUpdate: Event<ICompositionData> = this._onCompositionUpdate.event;
+	public readonly onCompositionUpdate: Event<ICompositionData> = this._onCompositionUpdate.event;
 
 	private _onCompositionEnd = this._register(new Emitter<void>());
-	public onCompositionEnd: Event<void> = this._onCompositionEnd.event;
+	public readonly onCompositionEnd: Event<void> = this._onCompositionEnd.event;
 
 	private _onSelectionChangeRequest = this._register(new Emitter<Selection>());
-	public onSelectionChangeRequest: Event<Selection> = this._onSelectionChangeRequest.event;
+	public readonly onSelectionChangeRequest: Event<Selection> = this._onSelectionChangeRequest.event;
 
 	// ---
 
@@ -164,6 +164,26 @@ export class TextAreaInput extends Disposable {
 			return [newState, typeInput];
 		};
 
+		const compositionDataInValid = (locale: string): boolean => {
+			// https://github.com/Microsoft/monaco-editor/issues/339
+			// Multi-part Japanese compositions reset cursor in Edge/IE, Chinese and Korean IME don't have this issue.
+			// The reason that we can't use this path for all CJK IME is IE and Edge behave differently when handling Korean IME,
+			// which breaks this path of code.
+			if (browser.isEdgeOrIE && locale === 'ja') {
+				return true;
+			}
+
+			// https://github.com/Microsoft/monaco-editor/issues/545
+			// On IE11, we can't trust composition data when typing Chinese as IE11 doesn't emit correct
+			// events when users type numbers in IME.
+			// Chinese: zh-Hans-CN, zh-Hans-SG, zh-Hant-TW, zh-Hant-HK
+			if (browser.isIE && locale.indexOf('zh-Han') === 0) {
+				return true;
+			}
+
+			return false;
+		};
+
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionupdate', (e: CompositionEvent) => {
 			if (browser.isChromev56) {
 				// See https://github.com/Microsoft/monaco-editor/issues/320
@@ -174,11 +194,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
-			if (browser.isEdgeOrIE && e.locale === 'ja') {
-				// https://github.com/Microsoft/monaco-editor/issues/339
-				// Multi-part Japanese compositions reset cursor in Edge/IE, Chinese and Korean IME don't have this issue.
-				// The reason that we can't use this path for all CJK IME is IE and Edge behave differently when handling Korean IME,
-				// which breaks this path of code.
+			if (compositionDataInValid(e.locale)) {
 				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
@@ -193,13 +209,12 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionend', (e: CompositionEvent) => {
-			if (browser.isEdgeOrIE && e.locale === 'ja') {
+			if (compositionDataInValid(e.locale)) {
 				// https://github.com/Microsoft/monaco-editor/issues/339
 				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
-			}
-			else {
+			} else {
 				const [newState, typeInput] = deduceComposition(e.data);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
@@ -404,6 +419,12 @@ export class TextAreaInput extends Disposable {
 		}
 		this._hasFocus = newHasFocus;
 
+		if (this._isDoingComposition) {
+			// textarea gets focus, so the state should be clean
+			// https://github.com/Microsoft/monaco-editor/issues/552
+			this._isDoingComposition = false;
+		}
+
 		if (this._hasFocus) {
 			if (browser.isEdge) {
 				// Edge has a bug where setting the selection range while the focus event
@@ -558,6 +579,10 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
 		if (currentIsFocused && currentSelectionStart === selectionStart && currentSelectionEnd === selectionEnd) {
 			// No change
+			// Firefox iframe bug https://github.com/Microsoft/monaco-editor/issues/643#issuecomment-367871377
+			if (browser.isFirefox && window.parent !== window) {
+				textArea.focus();
+			}
 			return;
 		}
 
@@ -567,6 +592,9 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 			// No need to focus, only need to change the selection range
 			this.setIgnoreSelectionChangeTime('setSelectionRange');
 			textArea.setSelectionRange(selectionStart, selectionEnd);
+			if (browser.isFirefox && window.parent !== window) {
+				textArea.focus();
+			}
 			return;
 		}
 

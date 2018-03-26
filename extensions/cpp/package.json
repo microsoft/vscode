@@ -1,10 +1,12 @@
 {
 	"name": "cpp",
-	"version": "0.1.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-c grammars/c.cson ./syntaxes/c.json grammars/c%2B%2B.cson ./syntaxes/c++.json"
+		"update-grammar": "node ./build/update-grammars.js"
 	},
 	"contributes": {
 		"languages": [{
@@ -15,23 +17,23 @@
 		},
 		{
 			"id": "cpp",
-			"extensions": [ ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h", ".ino", ".inl" ],
+			"extensions": [ ".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h", ".ino", ".inl", ".ipp" ],
 			"aliases": [ "C++", "Cpp", "cpp"],
 			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "c",
 			"scopeName": "source.c",
-			"path": "./syntaxes/c.json"
+			"path": "./syntaxes/c.tmLanguage.json"
 		},
 		{
 			"language": "cpp",
 			"scopeName": "source.cpp",
-			"path": "./syntaxes/c++.json"
+			"path": "./syntaxes/cpp.tmLanguage.json"
 		},
 		{
 			"scopeName": "source.c.platform",
-			"path": "./syntaxes/Platform.tmLanguage"
+			"path": "./syntaxes/platform.tmLanguage.json"
 		}],
 		"snippets": [{
 			"language": "c",

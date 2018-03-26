@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import { LRUCache } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 
@@ -576,7 +576,7 @@ export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIg
 	_matchesCount = 0;
 	_topScore = -100;
 	_patternStartPos = patternStartPos;
-	_findAllMatches(patternLen, wordLen, 0, new LazyArray(), false);
+	_findAllMatches(patternLen, wordLen, patternLen === wordLen ? 1 : 0, new LazyArray(), false);
 
 	if (_matchesCount === 0) {
 		return undefined;

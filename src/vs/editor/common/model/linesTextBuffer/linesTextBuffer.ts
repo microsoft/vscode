@@ -9,8 +9,8 @@ import { Position } from 'vs/editor/common/core/position';
 import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ModelRawChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 import { ISingleEditOperationIdentifier, IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange } from 'vs/editor/common/model';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -47,6 +47,45 @@ export interface ITextSource {
 	 * The text contains only characters inside the ASCII range 32-126 or \t \r \n
 	 */
 	readonly isBasicASCII: boolean;
+}
+
+class LinesTextBufferSnapshot implements ITextSnapshot {
+
+	private readonly _lines: string[];
+	private readonly _linesLength: number;
+	private readonly _eol: string;
+	private readonly _bom: string;
+	private _lineIndex: number;
+
+	constructor(lines: string[], eol: string, bom: string) {
+		this._lines = lines;
+		this._linesLength = this._lines.length;
+		this._eol = eol;
+		this._bom = bom;
+		this._lineIndex = 0;
+	}
+
+	public read(): string {
+		if (this._lineIndex >= this._linesLength) {
+			return null;
+		}
+
+		let result: string = null;
+
+		if (this._lineIndex === 0) {
+			result = this._bom + this._lines[this._lineIndex];
+		} else {
+			result = this._lines[this._lineIndex];
+		}
+
+		this._lineIndex++;
+
+		if (this._lineIndex < this._linesLength) {
+			result += this._eol;
+		}
+
+		return result;
+	}
 }
 
 export class LinesTextBuffer implements ITextBuffer {
@@ -177,6 +216,10 @@ export class LinesTextBuffer implements ITextBuffer {
 		return resultLines.join(lineEnding);
 	}
 
+	public createSnapshot(preserveBOM: boolean): ITextSnapshot {
+		return new LinesTextBufferSnapshot(this._lines.slice(0), this._EOL, preserveBOM ? this._BOM : '');
+	}
+
 	public getValueLengthInRange(range: Range, eol: EndOfLinePreference): number {
 		if (range.isEmpty()) {
 			return 0;
@@ -197,6 +240,10 @@ export class LinesTextBuffer implements ITextBuffer {
 
 	public getLinesContent(): string[] {
 		return this._lines.slice(0);
+	}
+
+	public getLength(): number {
+		return this._lineStarts.getTotalValue();
 	}
 
 	public getLineContent(lineNumber: number): string {
@@ -229,7 +276,7 @@ export class LinesTextBuffer implements ITextBuffer {
 
 	//#region Editing
 
-	public setEOL(newEOL: string): void {
+	public setEOL(newEOL: '\r\n' | '\n'): void {
 		this._EOL = newEOL;
 		this._constructLineStarts();
 	}
@@ -252,7 +299,7 @@ export class LinesTextBuffer implements ITextBuffer {
 
 	public applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult {
 		if (rawOperations.length === 0) {
-			return new ApplyEditsResult([], [], [], []);
+			return new ApplyEditsResult([], [], []);
 		}
 
 		let mightContainRTL = this._mightContainRTL;
@@ -341,7 +388,7 @@ export class LinesTextBuffer implements ITextBuffer {
 		this._mightContainRTL = mightContainRTL;
 		this._mightContainNonBasicASCII = mightContainNonBasicASCII;
 
-		const [rawContentChanges, contentChanges] = this._doApplyEdits(operations);
+		const contentChanges = this._doApplyEdits(operations);
 
 		let trimAutoWhitespaceLineNumbers: number[] = null;
 		if (recordTrimAutoWhitespace && newTrimAutoWhitespaceCandidates.length > 0) {
@@ -369,7 +416,6 @@ export class LinesTextBuffer implements ITextBuffer {
 
 		return new ApplyEditsResult(
 			reverseOperations,
-			rawContentChanges,
 			contentChanges,
 			trimAutoWhitespaceLineNumbers
 		);
@@ -451,18 +497,16 @@ export class LinesTextBuffer implements ITextBuffer {
 		};
 	}
 
-	private _setLineContent(lineNumber: number, content: string, rawContentChanges: ModelRawChange[]): void {
+	private _setLineContent(lineNumber: number, content: string): void {
 		this._lines[lineNumber - 1] = content;
 		this._lineStarts.changeValue(lineNumber - 1, content.length + this._EOL.length);
-		rawContentChanges.push(new ModelRawLineChanged(lineNumber, content));
 	}
 
-	private _doApplyEdits(operations: IValidatedEditOperation[]): [ModelRawChange[], IInternalModelContentChange[]] {
+	private _doApplyEdits(operations: IValidatedEditOperation[]): IInternalModelContentChange[] {
 
 		// Sort operations descending
 		operations.sort(LinesTextBuffer._sortOpsDescending);
 
-		let rawContentChanges: ModelRawChange[] = [];
 		let contentChanges: IInternalModelContentChange[] = [];
 
 		for (let i = 0, len = operations.length; i < len; i++) {
@@ -497,7 +541,7 @@ export class LinesTextBuffer implements ITextBuffer {
 					);
 				}
 
-				this._setLineContent(editLineNumber, editText, rawContentChanges);
+				this._setLineContent(editLineNumber, editText);
 			}
 
 			if (editingLinesCnt < deletingLinesCnt) {
@@ -507,12 +551,10 @@ export class LinesTextBuffer implements ITextBuffer {
 				const endLineRemains = this._lines[endLineNumber - 1].substring(endColumn - 1);
 
 				// Reconstruct first line
-				this._setLineContent(spliceStartLineNumber, this._lines[spliceStartLineNumber - 1] + endLineRemains, rawContentChanges);
+				this._setLineContent(spliceStartLineNumber, this._lines[spliceStartLineNumber - 1] + endLineRemains);
 
 				this._lines.splice(spliceStartLineNumber, endLineNumber - spliceStartLineNumber);
 				this._lineStarts.removeValues(spliceStartLineNumber, endLineNumber - spliceStartLineNumber);
-
-				rawContentChanges.push(new ModelRawLinesDeleted(spliceStartLineNumber + 1, endLineNumber));
 			}
 
 			if (editingLinesCnt < insertingLinesCnt) {
@@ -527,7 +569,7 @@ export class LinesTextBuffer implements ITextBuffer {
 				// Split last line
 				const leftoverLine = this._lines[spliceLineNumber - 1].substring(spliceColumn - 1);
 
-				this._setLineContent(spliceLineNumber, this._lines[spliceLineNumber - 1].substring(0, spliceColumn - 1), rawContentChanges);
+				this._setLineContent(spliceLineNumber, this._lines[spliceLineNumber - 1].substring(0, spliceColumn - 1));
 
 				// Lines in the middle
 				let newLines: string[] = new Array<string>(insertingLinesCnt - editingLinesCnt);
@@ -540,8 +582,6 @@ export class LinesTextBuffer implements ITextBuffer {
 				newLinesLengths[newLines.length - 1] += leftoverLine.length;
 				this._lines = arrays.arrayInsert(this._lines, startLineNumber + editingLinesCnt, newLines);
 				this._lineStarts.insertValues(startLineNumber + editingLinesCnt, newLinesLengths);
-
-				rawContentChanges.push(new ModelRawLinesInserted(spliceLineNumber + 1, startLineNumber + insertingLinesCnt, newLines));
 			}
 
 			const contentChangeRange = new Range(startLineNumber, startColumn, endLineNumber, endColumn);
@@ -550,13 +590,12 @@ export class LinesTextBuffer implements ITextBuffer {
 				range: contentChangeRange,
 				rangeLength: op.rangeLength,
 				text: text,
-				lines: op.lines,
 				rangeOffset: op.rangeOffset,
 				forceMoveMarkers: op.forceMoveMarkers
 			});
 		}
 
-		return [rawContentChanges, contentChanges];
+		return contentChanges;
 	}
 
 	/**

@@ -17,9 +17,10 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextFileService, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
+import { snapshotToString } from 'vs/platform/files/common/files';
 
 class ServiceAccessor {
-	constructor( @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
+	constructor(@ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
 	}
 }
 
@@ -38,10 +39,10 @@ suite('MainThreadSaveParticipant', function () {
 		TextFileEditorModel.setSaveParticipant(null); // reset any set participant
 	});
 
-	test('insert final new line', function (done) {
+	test('insert final new line', function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/final_new_line.txt'), 'utf8');
 
-		model.load().then(() => {
+		return model.load().then(() => {
 			const configService = new TestConfigurationService();
 			configService.setUserConfiguration('files', { 'insertFinalNewline': true });
 
@@ -51,34 +52,32 @@ suite('MainThreadSaveParticipant', function () {
 			let lineContent = '';
 			model.textEditorModel.setValue(lineContent);
 			participant.participate(model, { reason: SaveReason.EXPLICIT });
-			assert.equal(model.getValue(), lineContent);
+			assert.equal(snapshotToString(model.createSnapshot()), lineContent);
 
 			// No new line if last line already empty
 			lineContent = `Hello New Line${model.textEditorModel.getEOL()}`;
 			model.textEditorModel.setValue(lineContent);
 			participant.participate(model, { reason: SaveReason.EXPLICIT });
-			assert.equal(model.getValue(), lineContent);
+			assert.equal(snapshotToString(model.createSnapshot()), lineContent);
 
 			// New empty line added (single line)
 			lineContent = 'Hello New Line';
 			model.textEditorModel.setValue(lineContent);
 			participant.participate(model, { reason: SaveReason.EXPLICIT });
-			assert.equal(model.getValue(), `${lineContent}${model.textEditorModel.getEOL()}`);
+			assert.equal(snapshotToString(model.createSnapshot()), `${lineContent}${model.textEditorModel.getEOL()}`);
 
 			// New empty line added (multi line)
 			lineContent = `Hello New Line${model.textEditorModel.getEOL()}Hello New Line${model.textEditorModel.getEOL()}Hello New Line`;
 			model.textEditorModel.setValue(lineContent);
 			participant.participate(model, { reason: SaveReason.EXPLICIT });
-			assert.equal(model.getValue(), `${lineContent}${model.textEditorModel.getEOL()}`);
-
-			done();
+			assert.equal(snapshotToString(model.createSnapshot()), `${lineContent}${model.textEditorModel.getEOL()}`);
 		});
 	});
 
-	test('trim final new lines', function (done) {
+	test('trim final new lines', function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8');
 
-		model.load().then(() => {
+		return model.load().then(() => {
 			const configService = new TestConfigurationService();
 			configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
 
@@ -91,34 +90,32 @@ suite('MainThreadSaveParticipant', function () {
 			let lineContent = `${textContent}`;
 			model.textEditorModel.setValue(lineContent);
 			participant.participate(model, { reason: SaveReason.EXPLICIT });
-			assert.equal(model.getValue(), lineContent);
+			assert.equal(snapshotToString(model.createSnapshot()), lineContent);
 
 			// No new line removal if last line is single new line
 			lineContent = `${textContent}${eol}`;
 			model.textEditorModel.setValue(lineContent);
 			participant.participate(model, { reason: SaveReason.EXPLICIT });
-			assert.equal(model.getValue(), lineContent);
+			assert.equal(snapshotToString(model.createSnapshot()), lineContent);
 
 			// Remove new line (single line with two new lines)
 			lineContent = `${textContent}${eol}${eol}`;
 			model.textEditorModel.setValue(lineContent);
 			participant.participate(model, { reason: SaveReason.EXPLICIT });
-			assert.equal(model.getValue(), `${textContent}${eol}`);
+			assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}`);
 
 			// Remove new lines (multiple lines with multiple new lines)
 			lineContent = `${textContent}${eol}${textContent}${eol}${eol}${eol}`;
 			model.textEditorModel.setValue(lineContent);
 			participant.participate(model, { reason: SaveReason.EXPLICIT });
-			assert.equal(model.getValue(), `${textContent}${eol}${textContent}${eol}`);
-
-			done();
+			assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}${textContent}${eol}`);
 		});
 	});
 
-	test('trim final new lines bug#39750', function (done) {
+	test('trim final new lines bug#39750', function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8');
 
-		model.load().then(() => {
+		return model.load().then(() => {
 			const configService = new TestConfigurationService();
 			configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
 
@@ -134,12 +131,11 @@ suite('MainThreadSaveParticipant', function () {
 			model.textEditorModel.pushEditOperations([new Selection(1, 14, 1, 14)], textEdits, () => { return [new Selection(1, 15, 1, 15)]; });
 			// undo
 			model.textEditorModel.undo();
-			assert.equal(model.getValue(), `${textContent}`);
+			assert.equal(snapshotToString(model.createSnapshot()), `${textContent}`);
 			// trim final new lines should not mess the undo stack
 			participant.participate(model, { reason: SaveReason.EXPLICIT });
 			model.textEditorModel.redo();
-			assert.equal(model.getValue(), `${textContent}.`);
-			done();
+			assert.equal(snapshotToString(model.createSnapshot()), `${textContent}.`);
 		});
 	});
 

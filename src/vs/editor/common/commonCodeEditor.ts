@@ -5,7 +5,7 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -89,6 +89,7 @@ export abstract class CommonCodeEditor extends Disposable {
 	private readonly _onDidPaste: Emitter<Range> = this._register(new Emitter<Range>());
 	public readonly onDidPaste = this._onDidPaste.event;
 
+	public readonly isSimpleWidget: boolean;
 
 	protected readonly domElement: IContextKeyServiceTarget;
 	protected readonly id: number;
@@ -118,6 +119,7 @@ export abstract class CommonCodeEditor extends Disposable {
 	constructor(
 		domElement: IContextKeyServiceTarget,
 		options: editorOptions.IEditorOptions,
+		isSimpleWidget: boolean,
 		instantiationService: IInstantiationService,
 		contextKeyService: IContextKeyService
 	) {
@@ -126,6 +128,7 @@ export abstract class CommonCodeEditor extends Disposable {
 		this.id = (++EDITOR_ID);
 		this._decorationTypeKeysToIds = {};
 		this._decorationTypeSubtypes = {};
+		this.isSimpleWidget = isSimpleWidget;
 
 		options = options || {};
 		this._configuration = this._register(this._createConfiguration(options));
@@ -254,6 +257,13 @@ export abstract class CommonCodeEditor extends Disposable {
 			return null;
 		}
 		return this.viewModel.getCenteredRangeInViewport();
+	}
+
+	public getVisibleRanges(): Range[] {
+		if (!this.hasView) {
+			return [];
+		}
+		return this.viewModel.getVisibleRanges();
 	}
 
 	public getWhitespaces(): IEditorWhitespace[] {
@@ -619,19 +629,19 @@ export abstract class CommonCodeEditor extends Disposable {
 		if (!this.cursor || !this.hasView) {
 			return null;
 		}
-		let contributionsState: { [key: string]: any } = {};
+		const contributionsState: { [key: string]: any } = {};
 
-		let keys = Object.keys(this._contributions);
+		const keys = Object.keys(this._contributions);
 		for (let i = 0, len = keys.length; i < len; i++) {
-			let id = keys[i];
-			let contribution = this._contributions[id];
+			const id = keys[i];
+			const contribution = this._contributions[id];
 			if (typeof contribution.saveViewState === 'function') {
 				contributionsState[id] = contribution.saveViewState();
 			}
 		}
 
-		let cursorState = this.cursor.saveState();
-		let viewState = this.viewModel.viewLayout.saveState();
+		const cursorState = this.cursor.saveState();
+		const viewState = this.viewModel.viewLayout.saveState();
 		return {
 			cursorState: cursorState,
 			viewState: viewState,
@@ -940,6 +950,9 @@ export abstract class CommonCodeEditor extends Disposable {
 
 			this.listenersToRemove.push(this.model.onDidChangeDecorations((e) => this._onDidChangeModelDecorations.fire(e)));
 			this.listenersToRemove.push(this.model.onDidChangeLanguage((e) => {
+				if (!this.model) {
+					return;
+				}
 				this.domElement.setAttribute('data-mode-id', this.model.getLanguageIdentifier().language);
 				this._onDidChangeModelLanguage.fire(e);
 			}));
@@ -1038,6 +1051,7 @@ class EditorContextKeysManager extends Disposable {
 
 	private _editor: CommonCodeEditor;
 	private _editorFocus: IContextKey<boolean>;
+	private _textInputFocus: IContextKey<boolean>;
 	private _editorTextFocus: IContextKey<boolean>;
 	private _editorTabMovesFocus: IContextKey<boolean>;
 	private _editorReadonly: IContextKey<boolean>;
@@ -1054,7 +1068,8 @@ class EditorContextKeysManager extends Disposable {
 
 		contextKeyService.createKey('editorId', editor.getId());
 		this._editorFocus = EditorContextKeys.focus.bindTo(contextKeyService);
-		this._editorTextFocus = EditorContextKeys.textFocus.bindTo(contextKeyService);
+		this._textInputFocus = EditorContextKeys.textInputFocus.bindTo(contextKeyService);
+		this._editorTextFocus = EditorContextKeys.editorTextFocus.bindTo(contextKeyService);
 		this._editorTabMovesFocus = EditorContextKeys.tabMovesFocus.bindTo(contextKeyService);
 		this._editorReadonly = EditorContextKeys.readOnly.bindTo(contextKeyService);
 		this._hasMultipleSelections = EditorContextKeys.hasMultipleSelections.bindTo(contextKeyService);
@@ -1091,8 +1106,9 @@ class EditorContextKeysManager extends Disposable {
 	}
 
 	private _updateFromFocus(): void {
-		this._editorFocus.set(this._editor.hasWidgetFocus());
-		this._editorTextFocus.set(this._editor.isFocused());
+		this._editorFocus.set(this._editor.hasWidgetFocus() && !this._editor.isSimpleWidget);
+		this._editorTextFocus.set(this._editor.isFocused() && !this._editor.isSimpleWidget);
+		this._textInputFocus.set(this._editor.isFocused());
 	}
 }
 

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
+import { Event, Emitter } from 'vs/base/common/event';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as TypeConverters from './extHostTypeConverters';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -95,7 +95,9 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		return this._proxy.$tryCreateDocument(options).then(data => URI.revive(data));
 	}
 
-	public $acceptModelModeChanged(strURL: string, oldModeId: string, newModeId: string): void {
+	public $acceptModelModeChanged(uriComponents: UriComponents, oldModeId: string, newModeId: string): void {
+		const uri = URI.revive(uriComponents);
+		const strURL = uri.toString();
 		let data = this._documentsAndEditors.getDocument(strURL);
 
 		// Treat a mode change as a remove + add
@@ -105,13 +107,17 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		this._onDidAddDocument.fire(data.document);
 	}
 
-	public $acceptModelSaved(strURL: string): void {
+	public $acceptModelSaved(uriComponents: UriComponents): void {
+		const uri = URI.revive(uriComponents);
+		const strURL = uri.toString();
 		let data = this._documentsAndEditors.getDocument(strURL);
-		this.$acceptDirtyStateChanged(strURL, false);
+		this.$acceptDirtyStateChanged(uriComponents, false);
 		this._onDidSaveDocument.fire(data.document);
 	}
 
-	public $acceptDirtyStateChanged(strURL: string, isDirty: boolean): void {
+	public $acceptDirtyStateChanged(uriComponents: UriComponents, isDirty: boolean): void {
+		const uri = URI.revive(uriComponents);
+		const strURL = uri.toString();
 		let data = this._documentsAndEditors.getDocument(strURL);
 		data._acceptIsDirty(isDirty);
 		this._onDidChangeDocument.fire({
@@ -120,7 +126,9 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		});
 	}
 
-	public $acceptModelChanged(strURL: string, events: IModelChangedEvent, isDirty: boolean): void {
+	public $acceptModelChanged(uriComponents: UriComponents, events: IModelChangedEvent, isDirty: boolean): void {
+		const uri = URI.revive(uriComponents);
+		const strURL = uri.toString();
 		let data = this._documentsAndEditors.getDocument(strURL);
 		data._acceptIsDirty(isDirty);
 		data.onEvents(events);

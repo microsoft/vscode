@@ -13,11 +13,17 @@ import { normalizeNFD, startsWith } from 'vs/base/common/strings';
 import { IFolderSearch, IRawSearch } from './search';
 import { foldersToIncludeGlobs, foldersToRgExcludeGlobs } from './ripgrepTextSearch';
 
+// If vscode-ripgrep is in an .asar file, then the binary is unpacked.
+const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
+
 export function spawnRipgrepCmd(config: IRawSearch, folderQuery: IFolderSearch, includePattern: glob.IExpression, excludePattern: glob.IExpression) {
 	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern);
+	const cwd = folderQuery.folder;
 	return {
-		cmd: cp.spawn(rgPath, rgArgs.globArgs, { cwd: folderQuery.folder }),
-		siblingClauses: rgArgs.siblingClauses
+		cmd: cp.spawn(rgDiskPath, rgArgs.args, { cwd }),
+		siblingClauses: rgArgs.siblingClauses,
+		rgArgs,
+		cwd
 	};
 }
 
@@ -26,14 +32,29 @@ function getRgArgs(config: IRawSearch, folderQuery: IFolderSearch, includePatter
 
 	// includePattern can't have siblingClauses
 	foldersToIncludeGlobs([folderQuery], includePattern, false).forEach(globArg => {
-		args.push('-g', anchor(isMac ? normalizeNFD(globArg) : globArg));
+		const inclusion = anchor(globArg);
+		args.push('-g', inclusion);
+		if (isMac) {
+			const normalized = normalizeNFD(inclusion);
+			if (normalized !== inclusion) {
+				args.push('-g', normalized);
+			}
+		}
 	});
 
 	let siblingClauses: glob.IExpression;
 
 	const rgGlobs = foldersToRgExcludeGlobs([folderQuery], excludePattern, undefined, false);
-	rgGlobs.globArgs
-		.forEach(rgGlob => args.push('-g', `!${anchor(isMac ? normalizeNFD(rgGlob) : rgGlob)}`));
+	rgGlobs.globArgs.forEach(globArg => {
+		const exclusion = `!${anchor(globArg)}`;
+		args.push('-g', exclusion);
+		if (isMac) {
+			const normalized = normalizeNFD(exclusion);
+			if (normalized !== exclusion) {
+				args.push('-g', normalized);
+			}
+		}
+	});
 	siblingClauses = rgGlobs.siblingClauses;
 
 	if (folderQuery.disregardIgnoreFiles !== false) {
@@ -57,7 +78,7 @@ function getRgArgs(config: IRawSearch, folderQuery: IFolderSearch, includePatter
 
 	args.push('.');
 
-	return { globArgs: args, siblingClauses };
+	return { args, siblingClauses };
 }
 
 function anchor(glob: string) {

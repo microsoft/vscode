@@ -6,7 +6,7 @@
 'use strict';
 
 import { Registry } from 'vs/platform/registry/common/platform';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import product from 'vs/platform/node/product';
 import * as os from 'os';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -14,15 +14,12 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseWorkspaceAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ShowStartupPerformance, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, ConfigureLocaleAction } from 'vs/workbench/electron-browser/actions';
-import { MessagesVisibleContext } from 'vs/workbench/electron-browser/workbench';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenIssueReporterAction, ReportPerformanceIssueUsingReporterAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseWorkspaceAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ShowStartupPerformance, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, ShowAboutDialogAction, InspectContextKeysAction } from 'vs/workbench/electron-browser/actions';
 import { registerCommands } from 'vs/workbench/electron-browser/commands';
 import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, OpenFolderAsWorkspaceInNewWindowAction, OpenFileFolderAction, OpenFileAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 
 // Contribute Commands
 registerCommands();
@@ -47,8 +44,8 @@ if (isMacintosh) {
 
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseWorkspaceAction, CloseWorkspaceAction.ID, CloseWorkspaceAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Workspace', fileCategory);
 if (!!product.reportIssueUrl) {
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportIssueAction, ReportIssueAction.ID, ReportIssueAction.LABEL), 'Help: Report Issues', helpCategory);
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL), 'Help: Report Performance Issue', helpCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenIssueReporterAction, OpenIssueReporterAction.ID, OpenIssueReporterAction.LABEL), 'Help: Open Issue Reporter', helpCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportPerformanceIssueUsingReporterAction, ReportPerformanceIssueUsingReporterAction.ID, ReportPerformanceIssueUsingReporterAction.LABEL), 'Help: Report Performance Issue', helpCategory);
 }
 
 if (KeybindingsReferenceAction.AVAILABLE) {
@@ -66,6 +63,8 @@ if (OpenIntroductoryVideosUrlAction.AVAILABLE) {
 if (OpenTipsAndTricksUrlAction.AVAILABLE) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenTipsAndTricksUrlAction, OpenTipsAndTricksUrlAction.ID, OpenTipsAndTricksUrlAction.LABEL), 'Help: Tips and Tricks', helpCategory);
 }
+
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowAboutDialogAction, ShowAboutDialogAction.ID, ShowAboutDialogAction.LABEL), 'Help: About', helpCategory);
 
 workbenchActionsRegistry.registerWorkbenchAction(
 	new SyncActionDescriptor(ZoomInAction, ZoomInAction.ID, ZoomInAction.LABEL, {
@@ -87,7 +86,6 @@ workbenchActionsRegistry.registerWorkbenchAction(
 	}), 'View: Reset Zoom', viewCategory
 );
 
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseMessagesAction, CloseMessagesAction.ID, CloseMessagesAction.LABEL, { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, MessagesVisibleContext), 'Close Notification Messages');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleFullScreenAction, ToggleFullScreenAction.ID, ToggleFullScreenAction.LABEL, { primary: KeyCode.F11, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F } }), 'View: Toggle Full Screen', viewCategory);
 if (isWindows || isLinux) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMenuBarAction, ToggleMenuBarAction.ID, ToggleMenuBarAction.LABEL), 'View: Toggle Menu Bar', viewCategory);
@@ -112,6 +110,7 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFo
 const developerCategory = nls.localize('developer', "Developer");
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowStartupPerformance, ShowStartupPerformance.ID, ShowStartupPerformance.LABEL), 'Developer: Startup Performance', developerCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSharedProcessAction, ToggleSharedProcessAction.ID, ToggleSharedProcessAction.LABEL), 'Developer: Toggle Shared Process', developerCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(InspectContextKeysAction, InspectContextKeysAction.ID, InspectContextKeysAction.LABEL), 'Developer: Inspect Context Keys', developerCategory);
 
 const recentFilesPickerContext = ContextKeyExpr.and(inQuickOpenContext, ContextKeyExpr.has(inRecentFilesPickerContextKey));
 
@@ -253,24 +252,29 @@ configurationRegistry.registerConfiguration({
 			'default': true,
 			'description': nls.localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
 		},
+		'workbench.view.alwaysShowHeaderActions': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('viewVisibility', "Controls the visibility of view header actions. View header actions may either be always visible, or only visible when that view is focused or hovered over.")
+		},
 		'workbench.fontAliasing': {
 			'type': 'string',
-			'enum': ['default', 'antialiased', 'none'],
+			'enum': ['default', 'antialiased', 'none', 'auto'],
 			'default': 'default',
 			'description':
-				nls.localize('fontAliasing', "Controls font aliasing method in the workbench.\n- default: Sub-pixel font smoothing. On most non-retina displays this will give the sharpest text\n- antialiased: Smooth the font on the level of the pixel, as opposed to the subpixel. Can make the font appear lighter overall\n- none: Disables font smoothing. Text will show with jagged sharp edges"),
+				nls.localize('fontAliasing', "Controls font aliasing method in the workbench.\n- default: Sub-pixel font smoothing. On most non-retina displays this will give the sharpest text\n- antialiased: Smooth the font on the level of the pixel, as opposed to the subpixel. Can make the font appear lighter overall\n- none: Disables font smoothing. Text will show with jagged sharp edges\n- auto: Applies `default` or `antialiased` automatically based on the DPI of displays."),
 			'enumDescriptions': [
 				nls.localize('workbench.fontAliasing.default', "Sub-pixel font smoothing. On most non-retina displays this will give the sharpest text."),
 				nls.localize('workbench.fontAliasing.antialiased', "Smooth the font on the level of the pixel, as opposed to the subpixel. Can make the font appear lighter overall."),
-				nls.localize('workbench.fontAliasing.none', "Disables font smoothing. Text will show with jagged sharp edges.")
+				nls.localize('workbench.fontAliasing.none', "Disables font smoothing. Text will show with jagged sharp edges."),
+				nls.localize('workbench.fontAliasing.auto', "Applies `default` or `antialiased` automatically based on the DPI of displays.")
 			],
 			'included': isMacintosh
 		},
 		'workbench.settings.enableNaturalLanguageSearch': {
 			'type': 'boolean',
 			'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings."),
-			'default': true,
-			'included': product.quality !== 'stable'
+			'default': true
 		}
 	}
 });
@@ -289,11 +293,15 @@ configurationRegistry.registerConfiguration({
 			'enumDescriptions': [
 				nls.localize('window.openFilesInNewWindow.on', "Files will open in a new window"),
 				nls.localize('window.openFilesInNewWindow.off', "Files will open in the window with the files' folder open or the last active window"),
-				nls.localize('window.openFilesInNewWindow.default', "Files will open in the window with the files' folder open or the last active window unless opened via the dock or from finder (macOS only)")
+				isMacintosh ?
+					nls.localize('window.openFilesInNewWindow.defaultMac', "Files will open in the window with the files' folder open or the last active window unless opened via the Dock or from Finder") :
+					nls.localize('window.openFilesInNewWindow.default', "Files will open in a new window unless picked from within the application (e.g. via the File menu)")
 			],
 			'default': 'off',
 			'description':
-				nls.localize('openFilesInNewWindow', "Controls if files should open in a new window.\n- default: files will open in the window with the files' folder open or the last active window unless opened via the dock or from finder (macOS only)\n- on: files will open in a new window\n- off: files will open in the window with the files' folder open or the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
+				isMacintosh ?
+					nls.localize('openFilesInNewWindowMac', "Controls if files should open in a new window.\n- default: files will open in the window with the files' folder open or the last active window unless opened via the Dock or from Finder\n- on: files will open in a new window\n- off: files will open in the window with the files' folder open or the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).") :
+					nls.localize('openFilesInNewWindow', "Controls if files should open in a new window.\n- default: files will open in a new window unless picked from within the application (e.g. via the File menu)\n- on: files will open in a new window\n- off: files will open in the window with the files' folder open or the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
 		},
 		'window.openFoldersInNewWindow': {
 			'type': 'string',
@@ -305,6 +313,16 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': 'default',
 			'description': nls.localize('openFoldersInNewWindow', "Controls if folders should open in a new window or replace the last active window.\n- default: folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)\n- on: folders will open in a new window\n- off: folders will replace the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
+		},
+		'window.openWithoutArgumentsInNewWindow': {
+			'type': 'string',
+			'enum': ['on', 'off'],
+			'enumDescriptions': [
+				nls.localize('window.openWithoutArgumentsInNewWindow.on', "Open a new empty window"),
+				nls.localize('window.openWithoutArgumentsInNewWindow.off', "Focus the last active running instance")
+			],
+			'default': isMacintosh ? 'off' : 'on',
+			'description': nls.localize('openWithoutArgumentsInNewWindow', "Controls if a new empty window should open when starting a second instance without arguments or if the last running instance should get focus.\n- on: open a new empty window\n- off: the last active running instance will get focus\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
 		},
 		'window.restoreWindows': {
 			'type': 'string',
@@ -332,7 +350,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'default': isMacintosh ? '${activeEditorShort}${separator}${rootName}' : '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}',
 			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'title' },
-				"Controls the window title based on the active editor. Variables are substituted based on the context:\n\${activeEditorShort}: the file name (e.g. myFile.txt)\n\${activeEditorMedium}: the path of the file relative to the workspace folder (e.g. myFolder/myFile.txt)\n\${activeEditorLong}: the full path of the file (e.g. /Users/Development/myProject/myFolder/myFile.txt)\n\${folderName}: name of the workspace folder the file is contained in (e.g. myFolder)\n\${folderPath}: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)\n\${rootName}: name of the workspace (e.g. myFolder or myWorkspace)\n\${rootPath}: file path of the workspace (e.g. /Users/Development/myWorkspace)\n\${appName}: e.g. VS Code\n\${dirty}: a dirty indicator if the active editor is dirty\n\${separator}: a conditional separator (\" - \") that only shows when surrounded by variables with values")
+				"Controls the window title based on the active editor. Variables are substituted based on the context:\n\${activeEditorShort}: the file name (e.g. myFile.txt)\n\${activeEditorMedium}: the path of the file relative to the workspace folder (e.g. myFolder/myFile.txt)\n\${activeEditorLong}: the full path of the file (e.g. /Users/Development/myProject/myFolder/myFile.txt)\n\${folderName}: name of the workspace folder the file is contained in (e.g. myFolder)\n\${folderPath}: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)\n\${rootName}: name of the workspace (e.g. myFolder or myWorkspace)\n\${rootPath}: file path of the workspace (e.g. /Users/Development/myWorkspace)\n\${appName}: e.g. VS Code\n\${dirty}: a dirty indicator if the active editor is dirty\n\${separator}: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text")
 		},
 		'window.newWindowDimensions': {
 			'type': 'string',
@@ -374,7 +392,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if Windows is using a high contrast theme, and to dark theme when switching away from a Windows high contrast theme."),
-			'included': !isWindows
+			'included': isWindows
 		},
 		'window.titleBarStyle': {
 			'type': 'string',
@@ -388,6 +406,12 @@ configurationRegistry.registerConfiguration({
 			'default': false,
 			'description': nls.localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
 			'included': isMacintosh && parseFloat(os.release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
+		},
+		'window.smoothScrollingWorkaround': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('window.smoothScrollingWorkaround', "Enable this workaround if scrolling is no longer smooth after restoring a minimized VS Code window. This is a workaround for an issue (https://github.com/Microsoft/vscode/issues/13612) where scrolling starts to lag on devices with precision trackpads like the Surface devices from Microsoft. Enabling this workaround can result in a little bit of layout flickering after restoring the window from minimized state but is otherwise harmless."),
+			'included': isWindows
 		}
 	}
 });
@@ -403,6 +427,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('zenMode.fullScreen', "Controls if turning on Zen Mode also puts the workbench into full screen mode.")
+		},
+		'zenMode.centerLayout': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('zenMode.centerLayout', "Controls if turning on Zen Mode also centers the layout.")
 		},
 		'zenMode.hideTabs': {
 			'type': 'boolean',
@@ -426,37 +455,3 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
-
-// Register action to configure locale and related settings
-
-const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLocaleAction, ConfigureLocaleAction.ID, ConfigureLocaleAction.LABEL), 'Configure Language');
-
-let enumValues: string[] = ['de', 'en', 'en-US', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-CN', 'zh-TW'];
-if (product.quality !== 'stable') {
-	enumValues.push('hu');
-}
-
-const schemaId = 'vscode://schemas/locale';
-// Keep en-US since we generated files with that content.
-const schema: IJSONSchema =
-	{
-		id: schemaId,
-		allowComments: true,
-		description: 'Locale Definition file',
-		type: 'object',
-		default: {
-			'locale': 'en'
-		},
-		required: ['locale'],
-		properties: {
-			locale: {
-				type: 'string',
-				enum: enumValues,
-				description: nls.localize('JsonSchema.locale', 'The UI Language to use.')
-			}
-		}
-	};
-
-const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-jsonRegistry.registerSchema(schemaId, schema);

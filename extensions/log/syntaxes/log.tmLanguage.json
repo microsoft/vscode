@@ -4,12 +4,9 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/3f3ea0a69165bc95f62bb487fda73e925ae229a6",
-	"scopeName": "text.log",
-	"fileTypes": [
-		"log"
-	],
+	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/73d0058c4712dc93bb4f8f6ca3629d421da0651d",
 	"name": "Log file",
+	"scopeName": "text.log",
 	"patterns": [
 		{
 			"match": "\\b(DEBUG)\\b|(?i)\\b(debug)\\:",
@@ -52,8 +49,12 @@
 			"name": "comment log.date"
 		},
 		{
-			"match": "\\d{2}:\\d{2}(:\\d{2}([.,]\\d{3,6})?)?(Z| ?[+-]\\d{2}:\\d{2})?\\b",
+			"match": "\\d{2}:\\d{2}(:\\d{2}([.,]\\d{3,})?)?(Z| ?[+-]\\d{2}:\\d{2})?\\b",
 			"name": "comment log.date"
+		},
+		{
+			"match": "\\b([0-9a-fA-F]{40}|[0-9a-fA-F]{10}|[0-9a-fA-F]{7})\\b",
+			"name": "constant.language"
 		},
 		{
 			"match": "[0-9a-fA-F]{8}[-]?([0-9a-fA-F]{4}[-]?){3}[0-9a-fA-F]{12}",
@@ -73,7 +74,7 @@
 		},
 		{
 			"match": "\\b([a-zA-Z.]*Exception)\\b",
-			"name": "string.regexp, emphasis log.type"
+			"name": "string.regexp, emphasis log.exceptiontype"
 		},
 		{
 			"begin": "^[\\t ]*at",
@@ -85,9 +86,12 @@
 			"name": "constant.language log.constant"
 		},
 		{
-			"match": "\\b([\\w]+\\.)+(\\w)+\\b",
+			"match": "(([a-zA-Z]\\:)|(\\.\\.)|(\\.))?((/|\\\\)[\\w\\-\\.]*)",
+			"name": "constant.language log.constant"
+		},
+		{
+			"match": "\\b([\\w-]+\\.)+([\\w-])+\\b",
 			"name": "constant.language log.constant"
 		}
-	],
-	"uuid": "E81BB6AB-CAC7-4C27-9A79-4137A4693EBD"
+	]
 }

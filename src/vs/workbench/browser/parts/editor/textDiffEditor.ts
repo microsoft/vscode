@@ -7,16 +7,16 @@
 
 import 'vs/css!./media/textdiffeditor';
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import objects = require('vs/base/common/objects');
+import * as nls from 'vs/nls';
+import * as objects from 'vs/base/common/objects';
 import { Builder } from 'vs/base/browser/builder';
 import { Action, IAction } from 'vs/base/common/actions';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IFileEditorInput } from 'vs/workbench/common/editor';
+import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
@@ -32,10 +32,10 @@ import { IWorkbenchEditorService, DelegatingWorkbenchEditorService } from 'vs/wo
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -205,12 +205,13 @@ export class TextDiffEditor extends BaseTextEditor {
 			const binaryDiffInput = new DiffEditorInput(input.getName(), input.getDescription(), originalInput, modifiedInput, true);
 
 			// Forward binary flag to input if supported
-			if (types.isFunction(((originalInput as IEditorInput) as IFileEditorInput).setForceOpenAsBinary)) {
-				((originalInput as IEditorInput) as IFileEditorInput).setForceOpenAsBinary();
+			const fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileInputFactory();
+			if (fileInputFactory.isFileInput(originalInput)) {
+				originalInput.setForceOpenAsBinary();
 			}
 
-			if (types.isFunction(((modifiedInput as IEditorInput) as IFileEditorInput).setForceOpenAsBinary)) {
-				((modifiedInput as IEditorInput) as IFileEditorInput).setForceOpenAsBinary();
+			if (fileInputFactory.isFileInput(modifiedInput)) {
+				modifiedInput.setForceOpenAsBinary();
 			}
 
 			this.editorService.openEditor(binaryDiffInput, options, this.position).done(null, onUnexpectedError);

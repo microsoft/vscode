@@ -5,7 +5,7 @@
 
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -23,8 +23,8 @@ export class Menu implements IMenu {
 	constructor(
 		id: MenuId,
 		startupSignal: TPromise<boolean>,
-		@ICommandService private _commandService: ICommandService,
-		@IContextKeyService private _contextKeyService: IContextKeyService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		startupSignal.then(_ => {
 			const menuItems = MenuRegistry.getMenuItems(id);

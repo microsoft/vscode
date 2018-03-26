@@ -6,15 +6,15 @@
 'use strict';
 
 import 'vs/css!./media/compositepart';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import { Emitter } from 'vs/base/common/event';
-import types = require('vs/base/common/types');
-import errors = require('vs/base/common/errors');
+import * as types from 'vs/base/common/types';
+import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -31,12 +31,12 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export interface ICompositeTitleLabel {
 
@@ -69,7 +69,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	protected _onDidCompositeClose = new Emitter<IComposite>();
 
 	constructor(
-		private messageService: IMessageService,
+		private notificationService: INotificationService,
 		private storageService: IStorageService,
 		private telemetryService: ITelemetryService,
 		protected contextMenuService: IContextMenuService,
@@ -283,7 +283,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 				// Check for Error
 				if (e.error && !errors.isPromiseCanceledError(e.error)) {
-					this.messageService.show(Severity.Error, e.error);
+					this.notificationService.error(e.error);
 				}
 
 				// Log in telemetry
@@ -496,7 +496,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	private onError(error: any): void {
-		this.messageService.show(Severity.Error, types.isString(error) ? new Error(error) : error);
+		this.notificationService.error(types.isString(error) ? new Error(error) : error);
 	}
 
 	public getProgressIndicator(id: string): IProgressService {

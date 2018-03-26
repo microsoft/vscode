@@ -5,9 +5,9 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter, once } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
@@ -16,6 +16,7 @@ import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/insta
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
+import { Schemas } from 'vs/base/common/network';
 
 export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
@@ -30,13 +31,18 @@ export enum ConfirmResult {
  */
 export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
 
+export const PREFERENCES_EDITOR_ID = 'workbench.editor.preferencesEditor';
+
 /**
  * Binary diff editor id.
  */
 export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor';
 
 export interface IFileInputFactory {
+
 	createFileInput(resource: URI, encoding: string, instantiationService: IInstantiationService): IFileEditorInput;
+
+	isFileInput(obj: any): obj is IFileEditorInput;
 }
 
 export interface IEditorInputFactoryRegistry {
@@ -90,7 +96,7 @@ export interface IEditorInputFactory {
  * Each editor input is mapped to an editor that is capable of opening it through the Platform facade.
  */
 export abstract class EditorInput implements IEditorInput {
-	private _onDispose: Emitter<void>;
+	private readonly _onDispose: Emitter<void>;
 	protected _onDidChangeDirty: Emitter<void>;
 	protected _onDidChangeLabel: Emitter<void>;
 
@@ -351,7 +357,7 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
  */
 export class SideBySideEditorInput extends EditorInput {
 
-	public static ID: string = 'workbench.editorinputs.sidebysideEditorInput';
+	public static readonly ID: string = 'workbench.editorinputs.sidebysideEditorInput';
 
 	private _toUnbind: IDisposable[];
 
@@ -469,7 +475,7 @@ export interface ITextEditorModel extends IEditorModel {
  * are typically cached for some while because they are expensive to construct.
  */
 export class EditorModel extends Disposable implements IEditorModel {
-	private _onDispose: Emitter<void>;
+	private readonly _onDispose: Emitter<void>;
 
 	constructor() {
 		super();
@@ -788,8 +794,14 @@ export interface IEditorIdentifier {
 	editor: IEditorInput;
 }
 
-export interface IEditorContext extends IEditorIdentifier {
-	event?: any;
+/**
+ * The editor commands context is used for editor commands (e.g. in the editor title)
+ * and we must ensure that the context is serializable because it potentially travels
+ * to the extension host!
+ */
+export interface IEditorCommandsContext {
+	groupId: GroupIdentifier;
+	editorIndex?: number;
 }
 
 export interface IEditorCloseEvent extends IEditorIdentifier {
@@ -853,7 +865,7 @@ export const EditorCommands = {
 
 export interface IResourceOptions {
 	supportSideBySide?: boolean;
-	filter?: 'file' | 'untitled' | ['file', 'untitled'] | ['untitled', 'file'];
+	filter?: string | string[];
 }
 
 export function toResource(editor: IEditorInput, options?: IResourceOptions): URI {
@@ -878,18 +890,18 @@ export function toResource(editor: IEditorInput, options?: IResourceOptions): UR
 	let includeFiles: boolean;
 	let includeUntitled: boolean;
 	if (Array.isArray(options.filter)) {
-		includeFiles = (options.filter.indexOf('file') >= 0);
-		includeUntitled = (options.filter.indexOf('untitled') >= 0);
+		includeFiles = (options.filter.indexOf(Schemas.file) >= 0);
+		includeUntitled = (options.filter.indexOf(Schemas.untitled) >= 0);
 	} else {
-		includeFiles = (options.filter === 'file');
-		includeUntitled = (options.filter === 'untitled');
+		includeFiles = (options.filter === Schemas.file);
+		includeUntitled = (options.filter === Schemas.untitled);
 	}
 
-	if (includeFiles && resource.scheme === 'file') {
+	if (includeFiles && resource.scheme === Schemas.file) {
 		return resource;
 	}
 
-	if (includeUntitled && resource.scheme === 'untitled') {
+	if (includeUntitled && resource.scheme === Schemas.untitled) {
 		return resource;
 	}
 

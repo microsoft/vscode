@@ -34,7 +34,7 @@ export class InsertCursorAbove extends EditorAction {
 			alias: 'Add Cursor Above',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
 				linux: {
 					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
@@ -70,7 +70,7 @@ export class InsertCursorBelow extends EditorAction {
 			alias: 'Add Cursor Below',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
 				linux: {
 					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
@@ -107,7 +107,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 			alias: 'Add Cursors to Line Ends',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I
 			}
 		});
@@ -603,7 +603,7 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 			alias: 'Change All Occurrences',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F2
 			},
 			menuOpts: {
@@ -810,6 +810,11 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		}
 
 		const model = this.editor.getModel();
+		if (model.isTooLargeForTokenization()) {
+			// the file is too large, so searching word under cursor in the whole document takes is blocking the UI.
+			return;
+		}
+
 		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model);
 
 		let allMatches = model.findMatches(this.state.searchText, true, false, this.state.matchCase, this.state.wordSeparators, false).map(m => m.range);

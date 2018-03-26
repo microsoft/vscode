@@ -19,6 +19,7 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } fro
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ShowLogsAction, OpenLogsFolderAction, SetLogLevelAction, OpenLogFileAction } from 'vs/workbench/parts/logs/electron-browser/logsActions';
 
+
 class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
 	constructor(
@@ -27,19 +28,19 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
-		let outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);
+		let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
 		outputChannelRegistry.registerChannel(Constants.mainLogChannelId, nls.localize('mainLog', "Log (Main)"), URI.file(join(this.environmentService.logsPath, `main.log`)));
 		outputChannelRegistry.registerChannel(Constants.sharedLogChannelId, nls.localize('sharedLog', "Log (Shared)"), URI.file(join(this.environmentService.logsPath, `sharedprocess.log`)));
 		outputChannelRegistry.registerChannel(Constants.rendererLogChannelId, nls.localize('rendererLog', "Log (Window)"), URI.file(join(this.environmentService.logsPath, `renderer${this.windowService.getCurrentWindowId()}.log`)));
-		outputChannelRegistry.registerChannel(Constants.extHostLogChannelId, nls.localize('extensionsLog', "Log (Extension Host)"), URI.file(join(this.environmentService.logsPath, `extHost${this.windowService.getCurrentWindowId()}.log`)));
+		outputChannelRegistry.registerChannel(Constants.extHostLogChannelId, nls.localize('extensionsLog', "Log (Extension Host)"), URI.file(join(this.environmentService.logsPath, `exthost${this.windowService.getCurrentWindowId()}.log`)));
+
+		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
+		const devCategory = nls.localize('developer', "Developer");
+		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenLogsFolderAction, OpenLogsFolderAction.ID, OpenLogsFolderAction.LABEL), 'Developer: Open Log Folder', devCategory);
+		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SetLogLevelAction, SetLogLevelAction.ID, SetLogLevelAction.LABEL), 'Developer: Set Log Level', devCategory);
+		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowLogsAction, ShowLogsAction.ID, ShowLogsAction.LABEL), 'Developer: Show Logs...', devCategory);
+		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenLogFileAction, OpenLogFileAction.ID, OpenLogFileAction.LABEL), 'Developer: Open Log File...', devCategory);
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LogOutputChannels, LifecyclePhase.Restoring);
-
-const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
-const devCategory = nls.localize('developer', "Developer");
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowLogsAction, ShowLogsAction.ID, ShowLogsAction.LABEL), 'Developer: Show Logs...', devCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenLogFileAction, OpenLogFileAction.ID, OpenLogFileAction.LABEL), 'Developer: Open Log File...', devCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenLogsFolderAction, OpenLogsFolderAction.ID, OpenLogsFolderAction.LABEL), 'Developer: Open Log Folder', devCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SetLogLevelAction, SetLogLevelAction.ID, SetLogLevelAction.LABEL), 'Developer: Set Log Level', devCategory);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LogOutputChannels, LifecyclePhase.Eventually);

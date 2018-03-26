@@ -56,8 +56,8 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 	}
 
 	constructor(editor: ICodeEditor,
-		@IOpenerService private _openerService: IOpenerService,
-		@IModeService private _modeService: IModeService
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IModeService private readonly _modeService: IModeService
 	) {
 		this._editor = editor;
 
@@ -193,7 +193,7 @@ class ShowHoverAction extends EditorAction {
 			alias: 'Show Hover',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
 			}
 		});

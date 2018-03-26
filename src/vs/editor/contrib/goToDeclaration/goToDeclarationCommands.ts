@@ -9,10 +9,8 @@ import * as nls from 'vs/nls';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorService } from 'vs/platform/editor/common/editor';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { Range } from 'vs/editor/common/core/range';
 import { registerEditorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { Location } from 'vs/editor/common/modes';
@@ -27,6 +25,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class DefinitionActionConfig {
 
@@ -50,7 +49,7 @@ export class DefinitionAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
-		const messageService = accessor.get(IMessageService);
+		const notificationService = accessor.get(INotificationService);
 		const editorService = accessor.get(IEditorService);
 		const progressService = accessor.get(IProgressService);
 
@@ -105,7 +104,7 @@ export class DefinitionAction extends EditorAction {
 
 		}, (err) => {
 			// report an error
-			messageService.show(Severity.Error, err);
+			notificationService.error(err);
 		});
 
 		progressService.showWhile(definitionPromise, 250);
@@ -151,7 +150,7 @@ export class DefinitionAction extends EditorAction {
 			resource: uri,
 			options: {
 				selection: Range.collapseToStart(range),
-				revealIfVisible: !sideBySide,
+				revealIfVisible: true,
 				revealInCenterIfOutsideViewport: true
 			}
 		}, sideBySide).then(editor => {
@@ -194,7 +193,7 @@ export class GoToDefinitionAction extends DefinitionAction {
 				EditorContextKeys.hasDefinitionProvider,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: goToDeclarationKb
 			},
 			menuOpts: {
@@ -218,7 +217,7 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 				EditorContextKeys.hasDefinitionProvider,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb)
 			}
 		});
@@ -236,7 +235,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 				PeekContext.notInPeekEditor,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyCode.F12,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 }
 			},
@@ -277,7 +276,7 @@ export class GoToImplementationAction extends ImplementationAction {
 				EditorContextKeys.hasImplementationProvider,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F12
 			}
 		});
@@ -297,7 +296,7 @@ export class PeekImplementationAction extends ImplementationAction {
 				EditorContextKeys.hasImplementationProvider,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F12
 			}
 		});
@@ -333,7 +332,7 @@ export class GoToTypeDefintionAction extends TypeDefinitionAction {
 				EditorContextKeys.hasTypeDefinitionProvider,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: 0
 			},
 			menuOpts: {
@@ -357,7 +356,7 @@ export class PeekTypeDefinitionAction extends TypeDefinitionAction {
 				EditorContextKeys.hasTypeDefinitionProvider,
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: 0
 			}
 		});

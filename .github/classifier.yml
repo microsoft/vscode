@@ -3,10 +3,16 @@
     alwaysRequireAssignee: false,
     labelsRequiringAssignee: [ feature-request ],
     autoAssignees: {
-        api: [],
+        api: {
+            assignees: [ jrieken ],
+            assignLabel: false
+        },
         color-picker: [],
-        css-less-sass: [],
-        debug: [ isidorn ],
+        css-less-sass: [ aeschli ],
+        debug: {
+            assignees: [ isidorn ],
+            assignLabel: false
+        },
         diff-editor: [],
         editor: [],
         editor-1000-limit: [],
@@ -28,8 +34,22 @@
         emmet: [ ramya-rao-a ],
         error-list: [],
         extensions: [],
-        file-encoding: [ bpasero ],
-        file-explorer: [ isidorn ],
+        file-encoding: {
+            assignees: [ bpasero ],
+            assignLabel: false
+        },
+        file-io: {
+            assignees: [ bpasero ],
+            assignLabel: false
+        },
+        file-watcher: {
+            assignees: [ bpasero ],
+            assignLabel: false
+        },
+        file-explorer: {
+            assignees: [ isidorn ],
+            assignLabel: false
+        },
         format: [],
         git: [ joaomoreno ],
         hot-exit: [ Tyriar ],
@@ -44,26 +64,83 @@
         languages basic: [],
         markdown: [ mjbvz ],
         merge-conflict: [ chrmarti ],
+        multi-root: {
+            assignees: [ bpasero ],
+            assignLabel: false
+        },
         perf-profile: [],
         php: [ roblourens ],
         proxy: [],
+        remote: {
+            assignees: [ jrieken ],
+            assignLabel: false
+        },
         scm: [],
         search: [ roblourens ],
-        snippets: [ jrieken ],
+        snippets: {
+            assignees: [ jrieken ],
+            assignLabel: false
+        },
         tasks: [ dbaeumer ],
         telemetry: [],
         themes: [],
         typescript: [ mjbvz ],
-        workbench: [ bpasero ],
-        workbench-dnd: [ bpasero ],
-        workbench-editors: [ bpasero ],
-        workbench-feedback: [ bpasero ],
-        workbench-layout: [ bpasero ],
-        workbench-menu: [ bpasero ],
-        workbench-notifications: [ bpasero ],
-        workbench-state: [ bpasero ],
-        workbench-status: [ bpasero ],
-        workbench-tabs: [ bpasero ],
-        workbench-welcome: [ chrmarti ],
+        workbench: {
+            assignees: [ bpasero ],
+            assignLabel: false
+        },
+        workbench-dnd: {
+            assignees: [ bpasero ],
+            assignLabel: false
+        },
+        workbench-editors: {
+            assignees: [ bpasero ],
+            assignLabel: false
+        },
+        workbench-electron: {
+            assignees: [ bpasero ],
+            assignLabel: false
+        },
+        workbench-feedback: {
+            assignees: [ bpasero ],
+            assignLabel: false
+        },
+        workbench-history: {
+            assignees: [ bpasero ],
+            assignLabel: false
+        },
+        workbench-layout: {
+            assignees: [ bpasero ],
+            assignLabel: false
+        },
+        workbench-menu: {
+            assignees: [ bpasero ],
+            assignLabel: false
+        },
+        workbench-notifications: {
+            assignees: [ bpasero ],
+            assignLabel: false
+        },
+        workbench-state: {
+            assignees: [ bpasero ],
+            assignLabel: false
+        },
+        workbench-status: {
+            assignees: [ bpasero ],
+            assignLabel: false
+        },
+        workbench-tabs: {
+            assignees: [ bpasero ],
+            assignLabel: false
+        },
+        workbench-title: {
+            assignees: [ bpasero ],
+            assignLabel: false
+        },
+        workbench-touchbar: {
+            assignees: [ bpasero ],
+            assignLabel: false
+        },
+        workbench-welcome: [ chrmarti ]
     }
 }

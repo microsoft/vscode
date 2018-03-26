@@ -5,18 +5,18 @@
 
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Action } from 'vs/base/common/actions';
-import severity from 'vs/base/common/severity';
-import paths = require('vs/base/common/paths');
-import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService } from 'vs/platform/message/common/message';
+import { Action, IAction } from 'vs/base/common/actions';
+import * as paths from 'vs/base/common/paths';
+import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IFileService } from 'vs/platform/files/common/files';
 import URI from 'vs/base/common/uri';
+import Severity from 'vs/base/common/severity';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export class OpenExtensionsFolderAction extends Action {
 
@@ -38,7 +38,7 @@ export class OpenExtensionsFolderAction extends Action {
 
 		return this.fileService.resolveFile(URI.file(extensionsHome)).then(file => {
 			let itemToShow: string;
-			if (file.hasChildren) {
+			if (file.children && file.children.length > 0) {
 				itemToShow = file.children[0].resource.fsPath;
 			} else {
 				itemToShow = paths.normalize(extensionsHome, true);
@@ -58,8 +58,7 @@ export class InstallVSIXAction extends Action {
 		id = InstallVSIXAction.ID,
 		label = InstallVSIXAction.LABEL,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IMessageService private messageService: IMessageService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@INotificationService private notificationService: INotificationService,
 		@IWindowService private windowsService: IWindowService
 	) {
 		super(id, label, 'extension-action install-vsix', true);
@@ -77,14 +76,74 @@ export class InstallVSIXAction extends Action {
 			}
 
 			return TPromise.join(result.map(vsix => this.extensionsWorkbenchService.install(vsix))).then(() => {
-				this.messageService.show(
-					severity.Info,
-					{
-						message: localize('InstallVSIXAction.success', "Successfully installed the extension. Restart to enable it."),
-						actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('InstallVSIXAction.reloadNow', "Reload Now"))]
+				return this.notificationService.prompt(Severity.Info, localize('InstallVSIXAction.success', "Successfully installed the extension. Reload to enable it."), [localize('InstallVSIXAction.reloadNow', "Reload Now")]).then(choice => {
+					if (choice === 0) {
+						return this.windowsService.reloadWindow();
 					}
-				);
+
+					return TPromise.as(undefined);
+				});
 			});
 		});
+	}
+}
+
+export class ReinstallAction extends Action {
+
+	static readonly ID = 'workbench.extensions.action.reinstall';
+	static LABEL = localize('reinstall', "Reinstall Extension...");
+
+	constructor(
+		id: string = ReinstallAction.ID, label: string = ReinstallAction.LABEL,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@INotificationService private notificationService: INotificationService,
+		@IWindowService private windowService: IWindowService
+	) {
+		super(id, label);
+	}
+
+	get enabled(): boolean {
+		return this.extensionsWorkbenchService.local.filter(l => l.type === LocalExtensionType.User && l.local).length > 0;
+	}
+
+	run(): TPromise<any> {
+		return this.quickOpenService.pick(this.getEntries(), { placeHolder: localize('selectExtension', "Select Extension to Reinstall") });
+	}
+
+	private getEntries(): TPromise<IPickOpenEntry[]> {
+		return this.extensionsWorkbenchService.queryLocal()
+			.then(local => {
+				const entries: IPickOpenEntry[] = local
+					.filter(extension => extension.type === LocalExtensionType.User)
+					.map(extension => {
+						return <IPickOpenEntry>{
+							id: extension.id,
+							label: extension.displayName,
+							description: extension.id,
+							run: () => this.reinstallExtension(extension),
+						};
+					});
+				return entries;
+			});
+	}
+
+	private reinstallExtension(extension: IExtension): TPromise<void> {
+		return this.extensionsWorkbenchService.reinstall(extension)
+			.then(() => {
+				this.notificationService.notify({
+					message: localize('ReinstallAction.success', "Successfully reinstalled the extension."),
+					severity: Severity.Info,
+					actions: {
+						primary: [<IAction>{
+							id: 'reload',
+							label: localize('ReinstallAction.reloadNow', "Reload Now"),
+							enabled: true,
+							run: () => this.windowService.reloadWindow(),
+							dispose: () => null
+						}]
+					}
+				});
+			}, error => this.notificationService.error(error));
 	}
 }

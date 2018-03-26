@@ -13,9 +13,9 @@ import { IDisposable, toDisposable, IReference, ReferenceCollection, ImmortalRef
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import network = require('vs/base/common/network');
+import * as network from 'vs/base/common/network';
 import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IUntitledEditorService, UNTITLED_SCHEMA } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 
 class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorModel>> {
@@ -119,7 +119,7 @@ export class TextModelResolverService implements ITextModelService {
 
 		// Untitled Schema: go through cached input
 		// TODO ImmortalReference is a hack
-		if (resource.scheme === UNTITLED_SCHEMA) {
+		if (resource.scheme === network.Schemas.untitled) {
 			return this.untitledEditorService.loadOrCreate({ resource }).then(model => new ImmortalReference(model));
 		}
 

@@ -30,15 +30,18 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { IChoiceService } from 'vs/platform/message/common/message';
-import { ChoiceChannelClient } from 'vs/platform/message/common/messageIpc';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, ActiveWindowManager } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { ipcRenderer } from 'electron';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createSharedProcessContributions } from 'vs/code/electron-browser/sharedProcess/contrib/contributions';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
+import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
+import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { LocalizationsChannel } from 'vs/platform/localizations/common/localizationsIpc';
+import { DialogChannelClient } from 'vs/platform/dialogs/common/dialogIpc';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -51,28 +54,7 @@ export function startup(configuration: ISharedProcessConfiguration) {
 interface ISharedProcessInitData {
 	sharedIPCHandle: string;
 	args: ParsedArgs;
-}
-
-class ActiveWindowManager implements IDisposable {
-	private disposables: IDisposable[] = [];
-	private _activeWindowId: number;
-
-	constructor( @IWindowsService windowsService: IWindowsService) {
-		windowsService.onWindowOpen(this.setActiveWindow, this, this.disposables);
-		windowsService.onWindowFocus(this.setActiveWindow, this, this.disposables);
-	}
-
-	private setActiveWindow(windowId: number) {
-		this._activeWindowId = windowId;
-	}
-
-	public get activeClientId(): string {
-		return `window:${this._activeWindowId}`;
-	}
-
-	public dispose() {
-		this.disposables = dispose(this.disposables);
-	}
+	logLevel: LogLevel;
 }
 
 const eventPrefix = 'monacoworkbench';
@@ -81,7 +63,8 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	const services = new ServiceCollection();
 
 	const environmentService = new EnvironmentService(initData.args, process.execPath);
-	const logService = createSpdLogService('sharedprocess', environmentService);
+	const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', { route: () => 'main' }));
+	const logService = new FollowerLogService(logLevelClient, createSpdLogService('sharedprocess', initData.logLevel, environmentService.logsPath));
 	process.once('exit', () => logService.dispose());
 
 	logService.info('main', JSON.stringify(configuration));
@@ -96,13 +79,13 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	services.set(IWindowsService, windowsService);
 
 	const activeWindowManager = new ActiveWindowManager(windowsService);
-	const choiceChannel = server.getChannel('choice', {
+	const dialogChannel = server.getChannel('dialog', {
 		route: () => {
-			logService.info('Routing choice request to the client', activeWindowManager.activeClientId);
+			logService.info('Routing dialog request to the client', activeWindowManager.activeClientId);
 			return activeWindowManager.activeClientId;
 		}
 	});
-	services.set(IChoiceService, new ChoiceChannelClient(choiceChannel));
+	services.set(IDialogService, new DialogChannelClient(dialogChannel));
 
 	const instantiationService = new InstantiationService(services);
 
@@ -138,6 +121,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
 
 		const instantiationService2 = instantiationService.createChild(services);
 
@@ -148,6 +132,10 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 			// clean up deprecated extensions
 			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
+
+			const localizationsService = accessor.get(ILocalizationsService);
+			const localizationsChannel = new LocalizationsChannel(localizationsService);
+			server.registerChannel('localizations', localizationsChannel);
 
 			createSharedProcessContributions(instantiationService2);
 		});

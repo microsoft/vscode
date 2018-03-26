@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Command } from 'vs/editor/common/modes';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
@@ -68,6 +68,21 @@ export interface ISCMProvider extends IDisposable {
 	getOriginalResource(uri: URI): TPromise<URI>;
 }
 
+export enum InputValidationType {
+	Error = 0,
+	Warning = 1,
+	Information = 2
+}
+
+export interface IInputValidation {
+	message: string;
+	type: InputValidationType;
+}
+
+export interface IInputValidator {
+	(value: string, cursorPosition: number): TPromise<IInputValidation | undefined>;
+}
+
 export interface ISCMInput {
 	value: string;
 	readonly onDidChange: Event<string>;
@@ -75,7 +90,8 @@ export interface ISCMInput {
 	placeholder: string;
 	readonly onDidChangePlaceholder: Event<string>;
 
-	lineWarningLength: number | undefined;
+	validateInput: IInputValidator;
+	readonly onDidChangeValidateInput: Event<void>;
 }
 
 export interface ISCMRepository extends IDisposable {

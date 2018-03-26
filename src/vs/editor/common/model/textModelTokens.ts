@@ -25,7 +25,7 @@ function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
 	) >>> 0;
 }
 
-const EMPTY_LINE_TOKENS = new Uint32Array(0);
+const EMPTY_LINE_TOKENS = (new Uint32Array(0)).buffer;
 
 class ModelLineTokens {
 	_state: IState;
@@ -196,9 +196,13 @@ export class ModelLinesTokens {
 		this._lastState = null;
 	}
 
+	public get inValidLineStartIndex() {
+		return this._invalidLineStartIndex;
+	}
+
 	public getTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineText: string): LineTokens {
 		let rawLineTokens: ArrayBuffer = null;
-		if (lineIndex < this._tokens.length) {
+		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			rawLineTokens = this._tokens[lineIndex]._lineTokens;
 		}
 
@@ -230,20 +234,20 @@ export class ModelLinesTokens {
 	}
 
 	private _setIsInvalid(lineIndex: number, invalid: boolean): void {
-		if (lineIndex < this._tokens.length) {
+		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			this._tokens[lineIndex]._invalid = invalid;
 		}
 	}
 
 	_isInvalid(lineIndex: number): boolean {
-		if (lineIndex < this._tokens.length) {
+		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			return this._tokens[lineIndex]._invalid;
 		}
 		return true;
 	}
 
 	_getState(lineIndex: number): IState {
-		if (lineIndex < this._tokens.length) {
+		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			return this._tokens[lineIndex]._state;
 		}
 		return null;
@@ -251,7 +255,7 @@ export class ModelLinesTokens {
 
 	_setTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, tokens: Uint32Array): void {
 		let target: ModelLineTokens;
-		if (lineIndex < this._tokens.length) {
+		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			target = this._tokens[lineIndex];
 		} else {
 			target = new ModelLineTokens(null);
@@ -275,7 +279,7 @@ export class ModelLinesTokens {
 	}
 
 	private _setState(lineIndex: number, state: IState): void {
-		if (lineIndex < this._tokens.length) {
+		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
 			this._tokens[lineIndex]._state = state;
 		} else {
 			const tmp = new ModelLineTokens(state);
@@ -285,34 +289,18 @@ export class ModelLinesTokens {
 
 	//#region Editing
 
-	// TODO: simplify
-	public applyEdits(range: Range, lines: string[]): void {
+	public applyEdits(range: Range, eolCount: number, firstLineLength: number): void {
 
 		const deletingLinesCnt = range.endLineNumber - range.startLineNumber;
-		const insertingLinesCnt = (lines ? lines.length - 1 : 0);
+		const insertingLinesCnt = eolCount;
 		const editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
 
-		// Iterating descending to overlap with previous op
-		// in case there are common lines being edited in both
 		for (let j = editingLinesCnt; j >= 0; j--) {
-			const editLineNumber = range.startLineNumber + j;
-			this.invalidateLine(editLineNumber - 1);
-		}
-
-		if (editingLinesCnt < deletingLinesCnt) {
-			// Must delete some lines
-			const spliceStartLineNumber = range.startLineNumber + editingLinesCnt;
-			this.invalidateLine(spliceStartLineNumber - 1);
-		}
-
-		if (editingLinesCnt < insertingLinesCnt) {
-			// Must insert some lines
-			const spliceLineNumber = range.startLineNumber + editingLinesCnt;
-			this.invalidateLine(spliceLineNumber - 1);
+			this.invalidateLine(range.startLineNumber + j - 1);
 		}
 
 		this._acceptDeleteRange(range);
-		this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), lines);
+		this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount, firstLineLength);
 	}
 
 	private _acceptDeleteRange(range: Range): void {
@@ -350,9 +338,9 @@ export class ModelLinesTokens {
 		this._tokens.splice(range.startLineNumber, range.endLineNumber - range.startLineNumber);
 	}
 
-	private _acceptInsertText(position: Position, insertLines: string[]): void {
+	private _acceptInsertText(position: Position, eolCount: number, firstLineLength: number): void {
 
-		if (!insertLines || insertLines.length === 0) {
+		if (eolCount === 0 && firstLineLength === 0) {
 			// Nothing to insert
 			return;
 		}
@@ -362,18 +350,18 @@ export class ModelLinesTokens {
 			return;
 		}
 
-		if (insertLines.length === 1) {
+		if (eolCount === 0) {
 			// Inserting text on one line
-			this._tokens[lineIndex].insert(position.column - 1, insertLines[0].length);
+			this._tokens[lineIndex].insert(position.column - 1, firstLineLength);
 			return;
 		}
 
 		const line = this._tokens[lineIndex];
 		line.deleteEnding(position.column - 1);
-		line.insert(position.column - 1, insertLines[0].length);
+		line.insert(position.column - 1, firstLineLength);
 
-		let insert: ModelLineTokens[] = new Array<ModelLineTokens>(insertLines.length - 1);
-		for (let i = insertLines.length - 2; i >= 0; i--) {
+		let insert: ModelLineTokens[] = new Array<ModelLineTokens>(eolCount);
+		for (let i = eolCount - 1; i >= 0; i--) {
 			insert[i] = new ModelLineTokens(null);
 		}
 		this._tokens = arrays.arrayInsert(this._tokens, position.lineNumber, insert);
@@ -390,6 +378,21 @@ export class ModelLinesTokens {
 		const lineNumber = this._invalidLineStartIndex + 1;
 		this._updateTokensUntilLine(buffer, eventBuilder, lineNumber);
 		return lineNumber;
+	}
+
+	public _tokenizeText(buffer: ITextBuffer, text: string, state: IState): TokenizationResult2 {
+		let r: TokenizationResult2 = null;
+
+		try {
+			r = this.tokenizationSupport.tokenize2(text, state, 0);
+		} catch (e) {
+			onUnexpectedError(e);
+		}
+
+		if (!r) {
+			r = nullTokenize2(this.languageIdentifier.id, text, state, 0);
+		}
+		return r;
 	}
 
 	public _updateTokensUntilLine(buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number): void {

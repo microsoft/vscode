@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import fs = require('fs');
-import path = require('path');
+import * as fs from 'fs';
+import * as path from 'path';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
@@ -13,14 +13,14 @@ import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IRawAdapter, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/parts/debug/common/debug';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IConfig, IRawAdapter, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager } from 'vs/workbench/parts/debug/common/debug';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class Adapter {
 
-	constructor(private rawAdapter: IRawAdapter, public extensionDescription: IExtensionDescription,
+	constructor(private configurationManager: IConfigurationManager, private rawAdapter: IRawAdapter, public extensionDescription: IExtensionDescription,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {
@@ -33,23 +33,32 @@ export class Adapter {
 
 	public getAdapterExecutable(root: IWorkspaceFolder, verifyAgainstFS = true): TPromise<IAdapterExecutable> {
 
-		if (this.rawAdapter.adapterExecutableCommand && root) {
-			return this.commandService.executeCommand<IAdapterExecutable>(this.rawAdapter.adapterExecutableCommand, root.uri.toString()).then(ad => {
-				return this.verifyAdapterDetails(ad, verifyAgainstFS);
-			});
-		}
+		return this.configurationManager.debugAdapterExecutable(root ? root.uri : undefined, this.rawAdapter.type).then(adapterExecutable => {
 
-		const adapterExecutable = <IAdapterExecutable>{
-			command: this.getProgram(),
-			args: this.getAttributeBasedOnPlatform('args')
-		};
-		const runtime = this.getRuntime();
-		if (runtime) {
-			const runtimeArgs = this.getAttributeBasedOnPlatform('runtimeArgs');
-			adapterExecutable.args = (runtimeArgs || []).concat([adapterExecutable.command]).concat(adapterExecutable.args || []);
-			adapterExecutable.command = runtime;
-		}
-		return this.verifyAdapterDetails(adapterExecutable, verifyAgainstFS);
+			if (adapterExecutable) {
+				return this.verifyAdapterDetails(adapterExecutable, verifyAgainstFS);
+			}
+
+			// try deprecated command based extension API
+			if (this.rawAdapter.adapterExecutableCommand) {
+				return this.commandService.executeCommand<IAdapterExecutable>(this.rawAdapter.adapterExecutableCommand, root ? root.uri.toString() : undefined).then(ad => {
+					return this.verifyAdapterDetails(ad, verifyAgainstFS);
+				});
+			}
+
+			// fallback: executable contribution specified in package.json
+			adapterExecutable = <IAdapterExecutable>{
+				command: this.getProgram(),
+				args: this.getAttributeBasedOnPlatform('args')
+			};
+			const runtime = this.getRuntime();
+			if (runtime) {
+				const runtimeArgs = this.getAttributeBasedOnPlatform('runtimeArgs');
+				adapterExecutable.args = (runtimeArgs || []).concat([adapterExecutable.command]).concat(adapterExecutable.args || []);
+				adapterExecutable.command = runtime;
+			}
+			return this.verifyAdapterDetails(adapterExecutable, verifyAgainstFS);
+		});
 	}
 
 	private verifyAdapterDetails(details: IAdapterExecutable, verifyAgainstFS: boolean): TPromise<IAdapterExecutable> {
@@ -79,7 +88,7 @@ export class Adapter {
 		}
 
 		return TPromise.wrapError(new Error(nls.localize({ key: 'debugAdapterCannotDetermineExecutable', comment: ['Adapter executable file not found'] },
-			"Cannot determine executable for debug adapter '{0}'.", details.command)));
+			"Cannot determine executable for debug adapter '{0}'.", this.type)));
 	}
 
 	private getRuntime(): string {
@@ -205,6 +214,11 @@ export class Adapter {
 				type: ['string', 'null'],
 				default: null,
 				description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
+			};
+			properties['postDebugTask'] = {
+				type: ['string', 'null'],
+				default: null,
+				description: nls.localize('debugPostDebugTask', "Task to run after debug session ends.")
 			};
 			properties['internalConsoleOptions'] = INTERNAL_CONSOLE_OPTIONS_SCHEMA;
 

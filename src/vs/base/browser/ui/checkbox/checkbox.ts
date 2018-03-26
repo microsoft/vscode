@@ -7,7 +7,7 @@
 
 import 'vs/css!./checkbox';
 
-import DOM = require('vs/base/browser/dom');
+import * as DOM from 'vs/base/browser/dom';
 import * as objects from 'vs/base/common/objects';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -15,11 +15,11 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Color } from 'vs/base/common/color';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
-	actionClassName: string;
-	title: string;
-	isChecked: boolean;
-	onChange: (viaKeyboard: boolean) => void;
-	onKeyDown?: (e: IKeyboardEvent) => void;
+	readonly actionClassName: string;
+	readonly title: string;
+	readonly isChecked: boolean;
+	readonly onChange: (viaKeyboard: boolean) => void;
+	readonly onKeyDown?: (e: IKeyboardEvent) => void;
 }
 
 export interface ICheckboxStyles {
@@ -32,8 +32,8 @@ const defaultOpts = {
 
 export class Checkbox extends Widget {
 
-	private _opts: ICheckboxOpts;
-	public domNode: HTMLElement;
+	private readonly _opts: ICheckboxOpts;
+	public readonly domNode: HTMLElement;
 
 	private _checked: boolean;
 
@@ -45,7 +45,7 @@ export class Checkbox extends Widget {
 
 		this.domNode = document.createElement('div');
 		this.domNode.title = this._opts.title;
-		this.domNode.className = 'custom-checkbox ' + this._opts.actionClassName + ' ' + (this._checked ? 'checked' : 'unchecked');
+		this.domNode.className = 'monaco-custom-checkbox ' + this._opts.actionClassName + ' ' + (this._checked ? 'checked' : 'unchecked');
 		this.domNode.tabIndex = 0;
 		this.domNode.setAttribute('role', 'checkbox');
 		this.domNode.setAttribute('aria-checked', String(this._checked));

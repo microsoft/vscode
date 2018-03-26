@@ -7,34 +7,35 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { ISuggestSupport, SuggestRegistry, StandardTokenType, SuggestTriggerKind } from 'vs/editor/common/modes';
+import { ISuggestSupport, SuggestRegistry, StandardTokenType, SuggestTriggerKind, SuggestContext } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
 import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
 import { CompletionModel } from './completionModel';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export interface ICancelEvent {
-	retrigger: boolean;
+	readonly retrigger: boolean;
 }
 
 export interface ITriggerEvent {
-	auto: boolean;
+	readonly auto: boolean;
 }
 
 export interface ISuggestEvent {
-	completionModel: CompletionModel;
-	isFrozen: boolean;
-	auto: boolean;
+	readonly completionModel: CompletionModel;
+	readonly isFrozen: boolean;
+	readonly auto: boolean;
 }
 
 export interface SuggestTriggerContext {
-	auto: boolean;
-	triggerCharacter?: string;
+	readonly auto: boolean;
+	readonly triggerCharacter?: string;
 }
 
 export class LineContext {
@@ -46,6 +47,7 @@ export class LineContext {
 		}
 		const pos = editor.getPosition();
 		model.tokenizeIfCheap(pos.lineNumber);
+
 		const word = model.getWordAtPosition(pos);
 		if (!word) {
 			return false;
@@ -92,12 +94,12 @@ export class SuggestModel implements IDisposable {
 
 	private _requestPromise: TPromise<void>;
 	private _context: LineContext;
-	private _currentPosition: Position;
+	private _currentSelection: Selection;
 
 	private _completionModel: CompletionModel;
-	private _onDidCancel: Emitter<ICancelEvent> = new Emitter<ICancelEvent>();
-	private _onDidTrigger: Emitter<ITriggerEvent> = new Emitter<ITriggerEvent>();
-	private _onDidSuggest: Emitter<ISuggestEvent> = new Emitter<ISuggestEvent>();
+	private readonly _onDidCancel: Emitter<ICancelEvent> = new Emitter<ICancelEvent>();
+	private readonly _onDidTrigger: Emitter<ITriggerEvent> = new Emitter<ITriggerEvent>();
+	private readonly _onDidSuggest: Emitter<ISuggestEvent> = new Emitter<ISuggestEvent>();
 
 	readonly onDidCancel: Event<ICancelEvent> = this._onDidCancel.event;
 	readonly onDidTrigger: Event<ITriggerEvent> = this._onDidTrigger.event;
@@ -110,7 +112,7 @@ export class SuggestModel implements IDisposable {
 		this._requestPromise = null;
 		this._completionModel = null;
 		this._context = null;
-		this._currentPosition = this._editor.getPosition() || new Position(1, 1);
+		this._currentSelection = this._editor.getSelection() || new Selection(1, 1, 1, 1);
 
 		// wire up various listeners
 		this._toDispose.push(this._editor.onDidChangeModel(() => {
@@ -243,8 +245,8 @@ export class SuggestModel implements IDisposable {
 
 	private _onCursorChange(e: ICursorSelectionChangedEvent): void {
 
-		const prevPosition = this._currentPosition;
-		this._currentPosition = this._editor.getPosition();
+		const prevSelection = this._currentSelection;
+		this._currentSelection = this._editor.getSelection();
 
 		if (!e.selection.isEmpty()
 			|| e.reason !== CursorChangeReason.NotSet
@@ -272,9 +274,9 @@ export class SuggestModel implements IDisposable {
 			// trigger 24x7 IntelliSense when idle, enabled, when cursor
 			// moved RIGHT, and when at a good position
 			if (this._editor.getConfiguration().contribInfo.quickSuggestions !== false
-				&& prevPosition.isBefore(this._currentPosition)
+				&& (prevSelection.containsRange(this._currentSelection)
+					|| prevSelection.getEndPosition().isBeforeOrEqual(this._currentSelection.getPosition()))
 			) {
-
 				this.cancel();
 
 				this._triggerAutoSuggestPromise = TPromise.timeout(this._quickSuggestDelay);
@@ -347,13 +349,23 @@ export class SuggestModel implements IDisposable {
 		// Capture context when request was sent
 		this._context = ctx;
 
+		// Build context for request
+		let suggestCtx: SuggestContext;
+		if (context.triggerCharacter) {
+			suggestCtx = {
+				triggerKind: SuggestTriggerKind.TriggerCharacter,
+				triggerCharacter: context.triggerCharacter
+			};
+		} else if (onlyFrom && onlyFrom.length) {
+			suggestCtx = { triggerKind: SuggestTriggerKind.TriggerForIncompleteCompletions };
+		} else {
+			suggestCtx = { triggerKind: SuggestTriggerKind.Invoke };
+		}
+
 		this._requestPromise = provideSuggestionItems(model, this._editor.getPosition(),
 			this._editor.getConfiguration().contribInfo.snippetSuggestions,
 			onlyFrom,
-			{
-				triggerCharacter: context.triggerCharacter,
-				triggerKind: context.triggerCharacter ? SuggestTriggerKind.TriggerCharacter : SuggestTriggerKind.Invoke
-			}
+			suggestCtx
 		).then(items => {
 
 			this._requestPromise = null;
@@ -390,6 +402,12 @@ export class SuggestModel implements IDisposable {
 
 		if (ctx.lineNumber !== this._context.lineNumber) {
 			// e.g. happens when pressing Enter while IntelliSense is computed
+			this.cancel();
+			return;
+		}
+
+		if (ctx.leadingWord.startColumn < this._context.leadingWord.startColumn) {
+			// happens when the current word gets outdented
 			this.cancel();
 			return;
 		}

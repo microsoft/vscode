@@ -6,15 +6,15 @@
 
 import 'vs/css!./inputBox';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as Bal from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { RenderOptions, renderFormattedText, renderText } from 'vs/base/browser/htmlContentRenderer';
-import aria = require('vs/base/browser/ui/aria/aria');
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAction } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextViewProvider, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -104,10 +104,10 @@ export class InputBox extends Widget {
 	private inputValidationErrorBackground: Color;
 
 	private _onDidChange = this._register(new Emitter<string>());
-	public onDidChange: Event<string> = this._onDidChange.event;
+	public readonly onDidChange: Event<string> = this._onDidChange.event;
 
 	private _onDidHeightChange = this._register(new Emitter<number>());
-	public onDidHeightChange: Event<number> = this._onDidHeightChange.event;
+	public readonly onDidHeightChange: Event<number> = this._onDidHeightChange.event;
 
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider, options?: IInputOptions) {
 		super();
@@ -160,8 +160,7 @@ export class InputBox extends Widget {
 		}
 
 		if (this.placeholder) {
-			this.input.setAttribute('placeholder', this.placeholder);
-			this.input.title = this.placeholder;
+			this.setPlaceHolder(this.placeholder);
 		}
 
 		this.oninput(this.input, () => this.onValueChange());
@@ -204,6 +203,7 @@ export class InputBox extends Widget {
 	public setPlaceHolder(placeHolder: string): void {
 		if (this.input) {
 			this.input.setAttribute('placeholder', placeHolder);
+			this.input.title = placeHolder;
 		}
 	}
 
@@ -329,21 +329,22 @@ export class InputBox extends Widget {
 	}
 
 	public validate(): boolean {
-		let result: IMessage = null;
+		let errorMsg: IMessage = null;
 
 		if (this.validation) {
-			result = this.validation(this.value);
+			errorMsg = this.validation(this.value);
 
-			if (!result) {
+			if (errorMsg) {
+				this.inputElement.setAttribute('aria-invalid', 'true');
+				this.showMessage(errorMsg);
+			}
+			else if (this.inputElement.hasAttribute('aria-invalid')) {
 				this.inputElement.removeAttribute('aria-invalid');
 				this.hideMessage();
-			} else {
-				this.inputElement.setAttribute('aria-invalid', 'true');
-				this.showMessage(result);
 			}
 		}
 
-		return !result;
+		return !errorMsg;
 	}
 
 	private stylesForType(type: MessageType): { border: Color; background: Color } {

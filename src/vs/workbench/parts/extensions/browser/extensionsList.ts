@@ -10,18 +10,18 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Action } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
-import { InstallAction, UpdateAction, BuiltinStatusLabelAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground, extensionButtonProminentForeground } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground, extensionButtonProminentForeground, MaliciousStatusLabelAction, DisabledStatusLabelAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { Label, RatingsWidget, InstallWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { Label, RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export interface ITemplateData {
 	root: HTMLElement;
@@ -48,7 +48,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
@@ -90,20 +90,21 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				return null;
 			}
 		});
-		actionbar.onDidRun(({ error }) => error && this.messageService.show(Severity.Error, error));
+		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
 		const versionWidget = this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version);
-		const installCountWidget = this.instantiationService.createInstance(InstallWidget, installCount, { small: true });
+		const installCountWidget = this.instantiationService.createInstance(InstallCountWidget, installCount, { small: true });
 		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratings, { small: true });
 
-		const builtinStatusAction = this.instantiationService.createInstance(BuiltinStatusLabelAction);
+		const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, false);
+		const disabledStatusAction = this.instantiationService.createInstance(DisabledStatusLabelAction);
 		const installAction = this.instantiationService.createInstance(InstallAction);
 		const updateAction = this.instantiationService.createInstance(UpdateAction);
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 		const manageAction = this.instantiationService.createInstance(ManageExtensionAction);
 
-		actionbar.push([reloadAction, updateAction, installAction, builtinStatusAction, manageAction], actionOptions);
-		const disposables = [versionWidget, installCountWidget, ratingsWidget, builtinStatusAction, updateAction, reloadAction, manageAction, actionbar, bookmarkStyler];
+		actionbar.push([updateAction, reloadAction, installAction, disabledStatusAction, maliciousStatusAction, manageAction], actionOptions);
+		const disposables = [versionWidget, installCountWidget, ratingsWidget, maliciousStatusAction, disabledStatusAction, updateAction, reloadAction, manageAction, actionbar, bookmarkStyler];
 
 		return {
 			root, element, icon, name, installCount, ratings, author, description, disposables,
@@ -112,7 +113,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				versionWidget.extension = extension;
 				installCountWidget.extension = extension;
 				ratingsWidget.extension = extension;
-				builtinStatusAction.extension = extension;
+				maliciousStatusAction.extension = extension;
+				disabledStatusAction.extension = extension;
 				installAction.extension = extension;
 				updateAction.extension = extension;
 				reloadAction.extension = extension;
@@ -165,7 +167,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		if (extRecommendations[extension.id.toLowerCase()]) {
 			data.root.setAttribute('aria-label', extension.displayName + '. ' + extRecommendations[extension.id]);
 			addClass(data.root, 'recommended');
-			data.root.title = extRecommendations[extension.id.toLowerCase()];
+			data.root.title = extRecommendations[extension.id.toLowerCase()].reasonText;
 		}
 
 		data.name.textContent = extension.displayName;

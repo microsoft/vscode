@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento } from 'vscode';
+import { commands, Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType } from 'vscode';
 import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError, Submodule, DiffOptions } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent } from './util';
 import { memoize, throttle, debounce } from './decorators';
@@ -398,7 +398,7 @@ class ProgressManager {
 
 	private disposable: IDisposable = EmptyDisposable;
 
-	constructor(private repository: Repository) {
+	constructor(repository: Repository) {
 		const start = onceEvent(filterEvent(repository.onDidChangeOperations, () => repository.operations.shouldShowProgress()));
 		const end = onceEvent(filterEvent(debounceEvent(repository.onDidChangeOperations, 300), () => !repository.operations.shouldShowProgress()));
 
@@ -418,6 +418,8 @@ class ProgressManager {
 }
 
 export class Repository implements Disposable {
+
+	private static readonly InputValidationLength = 72;
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
 	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
@@ -511,7 +513,7 @@ export class Repository implements Disposable {
 
 		const onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
 		const onRepositoryChange = filterEvent(onWorkspaceChange, uri => isDescendant(repository.root, uri.fsPath));
-		const onRelevantRepositoryChange = filterEvent(onRepositoryChange, uri => !/\/\.git\/index\.lock$/.test(uri.path));
+		const onRelevantRepositoryChange = filterEvent(onRepositoryChange, uri => !/\/\.git(\/index\.lock)?$/.test(uri.path));
 		onRelevantRepositoryChange(this.onFSChange, this, this.disposables);
 
 		const onRelevantGitChange = filterEvent(onRelevantRepositoryChange, uri => /\/\.git\//.test(uri.path));
@@ -521,7 +523,7 @@ export class Repository implements Disposable {
 		this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message (press {0} to commit)");
 		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
-		this._sourceControl.inputBox.lineWarningLength = 72;
+		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
 		this.disposables.push(this._sourceControl);
 
 		this._mergeGroup = this._sourceControl.createResourceGroup('merge', localize('merge changes', "Merge Changes"));
@@ -547,6 +549,43 @@ export class Repository implements Disposable {
 
 		this.updateCommitTemplate();
 		this.status();
+	}
+
+	validateInput(text: string, position: number): SourceControlInputBoxValidation | undefined {
+		const config = workspace.getConfiguration('git');
+		const setting = config.get<'always' | 'warn' | 'off'>('inputValidation');
+
+		if (setting === 'off') {
+			return;
+		}
+
+		let start = 0, end;
+		let match: RegExpExecArray | null;
+		const regex = /\r?\n/g;
+
+		while ((match = regex.exec(text)) && position > match.index) {
+			start = match.index + match[0].length;
+		}
+
+		end = match ? match.index : text.length;
+
+		const line = text.substring(start, end);
+
+		if (line.length <= Repository.InputValidationLength) {
+			if (setting !== 'always') {
+				return;
+			}
+
+			return {
+				message: localize('commitMessageCountdown', "{0} characters left in current line", Repository.InputValidationLength - line.length),
+				type: SourceControlInputBoxValidationType.Information
+			};
+		} else {
+			return {
+				message: localize('commitMessageWarning', "{0} characters over {1} in current line", line.length - Repository.InputValidationLength, Repository.InputValidationLength),
+				type: SourceControlInputBoxValidationType.Warning
+			};
+		}
 	}
 
 	provideOriginalResource(uri: Uri): Uri | undefined {
@@ -689,22 +728,46 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async pullWithRebase(): Promise<void> {
-		await this.run(Operation.Pull, () => this.repository.pull(true));
+	async pullWithRebase(head: Branch | undefined): Promise<void> {
+		let remote: string | undefined;
+		let branch: string | undefined;
+
+		if (head && head.name && head.upstream) {
+			remote = head.upstream.remote;
+			branch = `${head.upstream.name}`;
+		}
+
+		await this.run(Operation.Pull, () => this.repository.pull(true, remote, branch));
 	}
 
 	@throttle
-	async pull(rebase?: boolean, remote?: string, name?: string): Promise<void> {
-		await this.run(Operation.Pull, () => this.repository.pull(rebase, remote, name));
-	}
+	async pull(head: Branch | undefined): Promise<void> {
+		let remote: string | undefined;
+		let branch: string | undefined;
 
-	@throttle
-	async push(): Promise<void> {
-		await this.run(Operation.Push, () => this.repository.push());
+		if (head && head.name && head.upstream) {
+			remote = head.upstream.remote;
+			branch = `${head.upstream.name}`;
+		}
+
+		await this.run(Operation.Pull, () => this.repository.pull(false, remote, branch));
 	}
 
 	async pullFrom(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
 		await this.run(Operation.Pull, () => this.repository.pull(rebase, remote, branch));
+	}
+
+	@throttle
+	async push(head: Branch): Promise<void> {
+		let remote: string | undefined;
+		let branch: string | undefined;
+
+		if (head && head.name && head.upstream) {
+			remote = head.upstream.remote;
+			branch = `${head.name}:${head.upstream.name}`;
+		}
+
+		await this.run(Operation.Push, () => this.repository.push(remote, branch));
 	}
 
 	async pushTo(remote?: string, name?: string, setUpstream: boolean = false): Promise<void> {
@@ -715,26 +778,36 @@ export class Repository implements Disposable {
 		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true));
 	}
 
-	private async _sync(rebase: boolean): Promise<void> {
+	@throttle
+	sync(head: Branch): Promise<void> {
+		return this._sync(head, false);
+	}
+
+	@throttle
+	async syncRebase(head: Branch): Promise<void> {
+		return this._sync(head, true);
+	}
+
+	private async _sync(head: Branch, rebase: boolean): Promise<void> {
+		let remote: string | undefined;
+		let pullBranch: string | undefined;
+		let pushBranch: string | undefined;
+
+		if (head.name && head.upstream) {
+			remote = head.upstream.remote;
+			pullBranch = `${head.upstream.name}`;
+			pushBranch = `${head.name}:${head.upstream.name}`;
+		}
+
 		await this.run(Operation.Sync, async () => {
-			await this.repository.pull(rebase);
+			await this.repository.pull(rebase, remote, pullBranch);
 
 			const shouldPush = this.HEAD && typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true;
 
 			if (shouldPush) {
-				await this.repository.push();
+				await this.repository.push(remote, pushBranch);
 			}
 		});
-	}
-
-	@throttle
-	sync(): Promise<void> {
-		return this._sync(false);
-	}
-
-	@throttle
-	async syncRebase(): Promise<void> {
-		return this._sync(true);
 	}
 
 	async show(ref: string, filePath: string): Promise<string> {
@@ -751,15 +824,15 @@ export class Repository implements Disposable {
 	async buffer(ref: string, filePath: string): Promise<Buffer> {
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
-			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
-			const encoding = configFiles.get<string>('encoding');
+			// const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
+			// const encoding = configFiles.get<string>('encoding');
 
 			// TODO@joao: REsource config api
 			return await this.repository.buffer(`${ref}:${relativePath}`);
 		});
 	}
 
-	lstree(ref: string, filePath: string): Promise<{ mode: number, object: string, size: number }> {
+	lstree(ref: string, filePath: string): Promise<{ mode: string, object: string, size: number }> {
 		return this.run(Operation.LSTree, () => this.repository.lstree(ref, filePath));
 	}
 
@@ -915,10 +988,9 @@ export class Repository implements Disposable {
 		this.isRepositoryHuge = didHitLimit;
 
 		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
-			const ok = { title: localize('ok', "OK"), isCloseAffordance: true };
-			const neverAgain = { title: localize('neveragain', "Never Show Again") };
+			const neverAgain = { title: localize('neveragain', "Don't Show Again") };
 
-			window.showWarningMessage(localize('huge', "The git repository at '{0}' has too many active changes, only a subset of Git features will be enabled.", this.repository.root), ok, neverAgain).then(result => {
+			window.showWarningMessage(localize('huge', "The git repository at '{0}' has too many active changes, only a subset of Git features will be enabled.", this.repository.root), neverAgain).then(result => {
 				if (result === neverAgain) {
 					config.update('ignoreLimitWarning', true, false);
 				}
@@ -970,10 +1042,8 @@ export class Repository implements Disposable {
 				case 'UU': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.BOTH_MODIFIED, useIcons));
 			}
 
-			let isModifiedInIndex = false;
-
 			switch (raw.x) {
-				case 'M': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons)); isModifiedInIndex = true; break;
+				case 'M': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons)); break;
 				case 'A': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_ADDED, useIcons)); break;
 				case 'D': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_DELETED, useIcons)); break;
 				case 'R': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_RENAMED, useIcons, renameUri)); break;
@@ -1002,13 +1072,9 @@ export class Repository implements Disposable {
 
 		this._sourceControl.count = count;
 
-		// set context key
-		let stateContextKey = '';
-
-		switch (this.state) {
-			case RepositoryState.Idle: stateContextKey = 'idle'; break;
-			case RepositoryState.Disposed: stateContextKey = 'norepo'; break;
-		}
+		// Disable `Discard All Changes` for "fresh" repositories
+		// https://github.com/Microsoft/vscode/issues/43066
+		commands.executeCommand('setContext', 'gitFreshRepository', !this._HEAD || !this._HEAD.commit);
 
 		this._onDidChangeStatus.fire();
 	}

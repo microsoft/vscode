@@ -7,16 +7,16 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { FeedbackDropdown, IFeedback, IFeedbackService, FEEDBACK_VISIBLE_CONFIG } from 'vs/workbench/parts/feedback/electron-browser/feedback';
+import { FeedbackDropdown, IFeedback, IFeedbackService, FEEDBACK_VISIBLE_CONFIG, IFeedbackDropdownOptions } from 'vs/workbench/parts/feedback/electron-browser/feedback';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import product from 'vs/platform/node/product';
-import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { clearNode, EventHelper } from 'vs/base/browser/dom';
+import { clearNode, EventHelper, addClass, removeClass } from 'vs/base/browser/dom';
 import { $ } from 'vs/base/browser/builder';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -130,8 +130,15 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 			if (!this.dropdown) {
 				this.dropdown = this.instantiationService.createInstance(FeedbackDropdown, this.container, {
 					contextViewProvider: this.contextViewService,
-					feedbackService: this.instantiationService.createInstance(TwitterFeedbackService)
-				});
+					feedbackService: this.instantiationService.createInstance(TwitterFeedbackService),
+					onFeedbackVisibilityChange: visible => {
+						if (visible) {
+							addClass(this.container, 'has-beak');
+						} else {
+							removeClass(this.container, 'has-beak');
+						}
+					}
+				} as IFeedbackDropdownOptions);
 				this.toUnbind.push(this.dropdown);
 
 				this.updateStyles();
@@ -163,3 +170,10 @@ class HideAction extends Action {
 		return this.configurationService.updateValue(FEEDBACK_VISIBLE_CONFIG, false);
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
+	if (statusBarItemHoverBackground) {
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item .monaco-dropdown.send-feedback:hover { background-color: ${statusBarItemHoverBackground}; }`);
+	}
+});

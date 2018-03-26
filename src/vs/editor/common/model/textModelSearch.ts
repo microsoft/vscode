@@ -116,7 +116,7 @@ export class SearchData {
 	}
 }
 
-function createFindMatch(range: Range, rawMatches: RegExpExecArray, captureMatches: boolean): FindMatch {
+export function createFindMatch(range: Range, rawMatches: RegExpExecArray, captureMatches: boolean): FindMatch {
 	if (!captureMatches) {
 		return new FindMatch(range, null);
 	}
@@ -136,6 +136,23 @@ export class TextModelSearch {
 		}
 
 		if (searchData.regex.multiline) {
+			if (searchData.regex.source === '\\n') {
+				// Fast path for searching for EOL
+				let result: FindMatch[] = [], resultLen = 0;
+				for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber < lineCount; lineNumber++) {
+					const range = new Range(lineNumber, model.getLineMaxColumn(lineNumber), lineNumber + 1, 1);
+					if (captureMatches) {
+						result[resultLen++] = new FindMatch(range, null);
+					} else {
+						result[resultLen++] = new FindMatch(range, ['\n']);
+					}
+
+					if (resultLen >= limitResultCount) {
+						break;
+					}
+				}
+				return result;
+			}
 			return this._doFindMatchesMultiline(model, searchRange, new Searcher(searchData.wordSeparators, searchData.regex), captureMatches, limitResultCount);
 		}
 		return this._doFindMatchesLineByLine(model, searchRange, searchData, captureMatches, limitResultCount);
@@ -417,6 +434,11 @@ function leftIsWordBounday(wordSeparators: WordCharacterClassifier, text: string
 		return true;
 	}
 
+	if (charBefore === CharCode.CarriageReturn || charBefore === CharCode.LineFeed) {
+		// The character before the match is line break or carriage return.
+		return true;
+	}
+
 	if (matchLength > 0) {
 		const firstCharInMatch = text.charCodeAt(matchStartIndex);
 		if (wordSeparators.get(firstCharInMatch) !== WordCharacterClass.Regular) {
@@ -440,6 +462,11 @@ function rightIsWordBounday(wordSeparators: WordCharacterClassifier, text: strin
 		return true;
 	}
 
+	if (charAfter === CharCode.CarriageReturn || charAfter === CharCode.LineFeed) {
+		// The character after the match is line break or carriage return.
+		return true;
+	}
+
 	if (matchLength > 0) {
 		const lastCharInMatch = text.charCodeAt(matchStartIndex + matchLength - 1);
 		if (wordSeparators.get(lastCharInMatch) !== WordCharacterClass.Regular) {
@@ -451,14 +478,14 @@ function rightIsWordBounday(wordSeparators: WordCharacterClassifier, text: strin
 	return false;
 }
 
-function isValidMatch(wordSeparators: WordCharacterClassifier, text: string, textLength: number, matchStartIndex: number, matchLength: number): boolean {
+export function isValidMatch(wordSeparators: WordCharacterClassifier, text: string, textLength: number, matchStartIndex: number, matchLength: number): boolean {
 	return (
 		leftIsWordBounday(wordSeparators, text, textLength, matchStartIndex, matchLength)
 		&& rightIsWordBounday(wordSeparators, text, textLength, matchStartIndex, matchLength)
 	);
 }
 
-class Searcher {
+export class Searcher {
 	private _wordSeparators: WordCharacterClassifier;
 	private _searchRegex: RegExp;
 	private _prevMatchStartIndex: number;

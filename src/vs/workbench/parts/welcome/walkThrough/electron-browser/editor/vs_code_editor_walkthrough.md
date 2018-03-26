@@ -88,7 +88,7 @@ function Book(title, author) {
 
 
 ### Refactoring via Extraction
-Sometimes you want refactor already written code into a separate function or constant to use it later again. Select the lines you want to refactor out and press kb(editor.action.quickFix) or click the little light bulb and choose one of the respective `Extract to...` options. Try it by selecting the code inside the `if`-clause on line 3 or any other common code you want to refactor out.
+Sometimes you want to refactor already written code into a separate function or constant to reuse it later. Select the lines you want to refactor out and press kb(editor.action.quickFix) or click the little light bulb and choose one of the respective `Extract to...` options. Try it by selecting the code inside the `if`-clause on line 3 or any other common code you want to refactor out.
 
 ```js
 function findFirstEvenNumber(arr) {
@@ -161,7 +161,7 @@ You can greatly accelerate your editing through the use of snippets.  Simply sta
 
 
 ### Emmet
-Emmet takes the snippets idea to a whole new level: you can type CSS-like expressions that can be dynamically parsed, and produce output depending on what you type in the abbreviation. To use Emmet simply run the command `Emmet: Expand Abbreviation` with the cursor at the end of a valid Emmet abbreviation or snippet and the expansion will occur.
+Emmet takes the snippets idea to a whole new level: you can type CSS-like expressions that can be dynamically parsed, and produce output depending on what you type in the abbreviation. Try it by selecting `Emmet: Expand Abbreviation` from the `Edit` menu with the cursor at the end of a valid Emmet abbreviation or snippet and the expansion will occur.
 
 ```html
 ul>li.item$*5

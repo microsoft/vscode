@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
@@ -16,7 +16,7 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 	private selectElement: HTMLSelectElement;
 	private options: string[];
 	private selected: number;
-	private _onDidSelect: Emitter<ISelectData>;
+	private readonly _onDidSelect: Emitter<ISelectData>;
 	private toDispose: IDisposable[];
 	private styles: ISelectBoxStyles;
 
@@ -25,7 +25,7 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		this.toDispose = [];
 
 		this.selectElement = document.createElement('select');
-		this.selectElement.className = 'select-box';
+		this.selectElement.className = 'monaco-select-box';
 
 		this._onDidSelect = new Emitter<ISelectData>();
 

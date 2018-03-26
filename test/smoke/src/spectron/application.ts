@@ -116,23 +116,23 @@ export class SpectronApplication {
 		}
 	}
 
-	async restart(codeArgs: string[] = []): Promise<any> {
+	async restart(options: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {
 		await this.stop();
 		await new Promise(c => setTimeout(c, 1000));
-		await this._start(codeArgs);
+		await this._start(options.workspaceOrFolder, options.extraArgs);
 	}
 
-	private async _start(codeArgs: string[] = []): Promise<any> {
+	private async _start(workspaceOrFolder = this.options.workspacePath, extraArgs: string[] = []): Promise<any> {
 		await this.retrieveKeybindings();
 		cp.execSync('git checkout .', { cwd: this.options.workspacePath });
-		await this.startApplication(codeArgs);
+		await this.startApplication(workspaceOrFolder, extraArgs);
 		await this.checkWindowReady();
 	}
 
 	async reload(): Promise<any> {
 		await this.workbench.quickopen.runCommand('Reload Window');
 		// TODO @sandy: Find a proper condition to wait for reload
-		await new Promise(c => setTimeout(c, 500));
+		await new Promise(c => setTimeout(c, 1500));
 		await this.checkWindowReady();
 	}
 
@@ -148,7 +148,7 @@ export class SpectronApplication {
 		}
 	}
 
-	private async startApplication(codeArgs: string[] = []): Promise<any> {
+	private async startApplication(workspaceOrFolder: string, extraArgs: string[] = []): Promise<any> {
 
 		let args: string[] = [];
 		let chromeDriverArgs: string[] = [];
@@ -157,7 +157,7 @@ export class SpectronApplication {
 			args.push(process.env.VSCODE_REPOSITORY as string);
 		}
 
-		args.push(this.options.workspacePath);
+		args.push(workspaceOrFolder);
 
 		// Prevent 'Getting Started' web page from opening on clean user-data-dir
 		args.push('--skip-getting-started');
@@ -182,7 +182,7 @@ export class SpectronApplication {
 		// Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
 		args.push(`--extensions-dir=${this.options.extensionsPath}`);
 
-		args.push(...codeArgs);
+		args.push(...extraArgs);
 
 		chromeDriverArgs.push(`--user-data-dir=${this.options.userDataDir}`);
 

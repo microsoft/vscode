@@ -20,6 +20,7 @@ import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/c
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
 const $ = dom.$;
 
@@ -42,6 +43,7 @@ export class StartDebugActionItem implements IActionItem {
 		@IThemeService private themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IContextViewService contextViewService: IContextViewService,
 	) {
 		this.toDispose = [];
@@ -153,12 +155,13 @@ export class StartDebugActionItem implements IActionItem {
 		this.options = [];
 		const manager = this.debugService.getConfigurationManager();
 		const launches = manager.getLaunches();
-		manager.getLaunches().forEach(launch =>
+		const inWorkspace = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
+		launches.forEach(launch =>
 			launch.getConfigurationNames().forEach(name => {
-				if (name === manager.selectedName && launch === manager.selectedLaunch) {
+				if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
 					this.selected = this.options.length;
 				}
-				const label = launches.length > 1 ? `${name} (${launch.workspace.name})` : name;
+				const label = inWorkspace ? `${name} (${launch.name})` : name;
 				this.options.push({ label, handler: () => { manager.selectConfiguration(launch, name); return true; } });
 			}));
 
@@ -168,11 +171,11 @@ export class StartDebugActionItem implements IActionItem {
 		this.options.push({ label: StartDebugActionItem.SEPARATOR, handler: undefined });
 
 		const disabledIdx = this.options.length - 1;
-		launches.forEach(l => {
-			const label = launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.workspace.name) : nls.localize('addConfiguration', "Add Configuration...");
+		launches.filter(l => !l.hidden).forEach(l => {
+			const label = inWorkspace ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
 			this.options.push({
 				label, handler: () => {
-					this.commandService.executeCommand('debug.addConfiguration', l.workspace.uri.toString()).done(undefined, errors.onUnexpectedError);
+					this.commandService.executeCommand('debug.addConfiguration', l.uri.toString()).done(undefined, errors.onUnexpectedError);
 					return false;
 				}
 			});

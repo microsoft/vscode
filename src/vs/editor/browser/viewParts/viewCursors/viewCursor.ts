@@ -34,7 +34,6 @@ class ViewCursorRenderData {
 
 export class ViewCursor {
 	private readonly _context: ViewContext;
-	private readonly _isSecondary: boolean;
 	private readonly _domNode: FastDomNode<HTMLElement>;
 
 	private _cursorStyle: TextEditorCursorStyle;
@@ -49,24 +48,19 @@ export class ViewCursor {
 	private _lastRenderedContent: string;
 	private _renderData: ViewCursorRenderData;
 
-	constructor(context: ViewContext, isSecondary: boolean) {
+	constructor(context: ViewContext) {
 		this._context = context;
-		this._isSecondary = isSecondary;
 
 		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
-		this._lineCursorWidth = Math.min(this._context.configuration.editor.viewInfo.lineCursorWidth, this._typicalHalfwidthCharacterWidth);
+		this._lineCursorWidth = Math.min(this._context.configuration.editor.viewInfo.cursorWidth, this._typicalHalfwidthCharacterWidth);
 
 		this._isVisible = true;
 
 		// Create the dom node
 		this._domNode = createFastDomNode(document.createElement('div'));
-		if (this._isSecondary) {
-			this._domNode.setClassName('cursor secondary');
-		} else {
-			this._domNode.setClassName('cursor');
-		}
+		this._domNode.setClassName('cursor');
 		this._domNode.setHeight(this._lineHeight);
 		this._domNode.setTop(0);
 		this._domNode.setLeft(0);
@@ -111,7 +105,7 @@ export class ViewCursor {
 		}
 		if (e.viewInfo) {
 			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
-			this._lineCursorWidth = Math.min(this._context.configuration.editor.viewInfo.lineCursorWidth, this._typicalHalfwidthCharacterWidth);
+			this._lineCursorWidth = Math.min(this._context.configuration.editor.viewInfo.cursorWidth, this._typicalHalfwidthCharacterWidth);
 		}
 
 		return true;
@@ -134,7 +128,7 @@ export class ViewCursor {
 			let width: number;
 			if (this._cursorStyle === TextEditorCursorStyle.Line) {
 				width = dom.computeScreenAwareSize(this._lineCursorWidth > 0 ? this._lineCursorWidth : 2);
-				if (this._lineCursorWidth > 2) {
+				if (width > 2) {
 					const lineContent = this._context.model.getLineContent(this._position.lineNumber);
 					textContent = lineContent.charAt(this._position.column - 1);
 				}

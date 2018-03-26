@@ -9,7 +9,7 @@ import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TernarySearchTree } from 'vs/base/common/map';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isRawUriWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { isLinux } from 'vs/base/common/platform';
@@ -198,15 +198,15 @@ export class Workspace implements IWorkspace {
 	}
 
 	public toJSON(): IWorkspace {
-		return { id: this.id, folders: this.folders, name: this.name };
+		return { id: this.id, folders: this.folders, name: this.name, configuration: this.configuration };
 	}
 }
 
 export class WorkspaceFolder implements IWorkspaceFolder {
 
 	readonly uri: URI;
-	readonly name: string;
-	readonly index: number;
+	name: string;
+	index: number;
 
 	constructor(data: IWorkspaceFolderData,
 		readonly raw?: IStoredWorkspaceFolder) {

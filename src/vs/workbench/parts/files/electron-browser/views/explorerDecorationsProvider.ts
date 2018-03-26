@@ -6,7 +6,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -31,12 +31,18 @@ export class ExplorerDecorationsProvider implements IDecorationsProvider {
 	}
 
 	provideDecorations(resource: URI): IDecorationData {
-		const fileStat = this.model.roots.filter(r => r.resource.toString() === resource.toString()).pop();
+		const fileStat = this.model.findClosest(resource);
 		if (fileStat && fileStat.nonexistentRoot) {
 			return {
 				tooltip: localize('canNotResolve', "Can not resolve workspace folder"),
 				letter: '!',
 				color: listInvalidItemForeground,
+			};
+		}
+		if (fileStat && fileStat.isSymbolicLink) {
+			return {
+				tooltip: localize('symbolicLlink', "Symbolic Link"),
+				letter: '\u2937'
 			};
 		}
 
