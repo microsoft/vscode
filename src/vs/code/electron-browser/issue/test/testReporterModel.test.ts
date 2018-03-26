@@ -18,8 +18,7 @@ suite('IssueReporter', () => {
 			includeProcessInfo: true,
 			includeExtensions: true,
 			includeSearchedExtensions: true,
-			includeSettingsSearchDetails: true,
-			reprosWithoutExtensions: false
+			includeSettingsSearchDetails: true
 		});
 	});
 

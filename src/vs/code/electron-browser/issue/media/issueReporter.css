@@ -18,16 +18,11 @@ th {
 	vertical-align: bottom;
 	border-bottom: 2px solid #e9ecef;
 	padding: .75rem;
-	border-top: 1px solid #e9ecef;
 	text-align: inherit;
-}
-tr:nth-of-type(even) {
-	background-color: rgba(0,0,0,.05);
 }
 td {
 	padding: .75rem;
 	vertical-align: top;
-	border-top: 1px solid #e9ecef;
 }
 
 .block-settingsSearchResults-details {
@@ -39,7 +34,7 @@ td {
 }
 
 .section {
-	margin-bottom: 1.5em;
+	margin-bottom: .5em;
 }
 
 /**
@@ -185,24 +180,8 @@ textarea {
 	margin-bottom: 1em;
 }
 
-.extensions-form {
-	display: flex;
-}
-
-.extensions-form > .form-buttons {
-	display: flex;
-	margin-left: 20px;
-}
-
-.extensions-form > .form-buttons > .choice {
-	display: flex;
-	align-items: center;
-	margin-right: 20px;
-}
-
-.extensions-form > .form-buttons > .choice > label, .extensions-form  > .form-buttons > .choice > input {
-	cursor: pointer;
-	margin-top: 0;
+#extension-selection {
+	margin-top: 1em;
 }
 
 .system-info {
@@ -323,17 +302,17 @@ button {
 }
 
 #similar-issues {
-	margin-left: 12%;
+	margin-left: 13%;
 	display: block;
 }
 
 @media (max-width: 950px) {
 	.section .inline-label {
-		width: 12%;
+		width: 13%;
 	}
 
 	.section .inline-form-control  {
-		width: calc(88% - 5px);
+		width: calc(87% - 5px);
 	}
 }
 
@@ -342,7 +321,7 @@ button {
 		display: none !important;
 	}
 
-	.inline-form-control {
+	.section .inline-form-control {
 		width: 100%;
 	}
 
