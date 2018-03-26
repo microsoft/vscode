@@ -15,7 +15,7 @@ import { IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IMatch } from 'vs/base/common/filters';
 import { matchesFuzzyOcticonAware, parseOcticons } from 'vs/base/common/octicon';
 import { compareAnything } from 'vs/base/common/comparers';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event, mapEvent } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -179,6 +179,10 @@ export class QuickInputCheckboxList {
 					break;
 			}
 		}));
+	}
+
+	get onFocusChange() {
+		return mapEvent(this.list.onFocusChange, e => e.elements.map(e => e.item));
 	}
 
 	getAllVisibleSelected() {

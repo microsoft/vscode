@@ -54,29 +54,29 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			};
 		});
 
-		return asWinJsPromise<number | number[]>(token => {
-			if (options.canSelectMany) {
-				return this._quickInputService.pick(this._contents, options, token)
-					.then(items => {
-						if (items) {
-							return items.map(item => item.handle);
-						}
-						return undefined;
-					});
-			} else {
-				return this._quickOpenService.pick(this._contents, options, token)
-					.then(item => {
-						if (item) {
-							return item.handle;
-						}
-						return undefined;
-					});
-			}
-		}).then(undefined, undefined, progress => {
-			if (progress) {
-				this._proxy.$onItemSelected((<MyQuickPickItems>progress).handle);
-			}
-		});
+		if (options.canSelectMany) {
+			return asWinJsPromise(token => this._quickInputService.pick(this._contents, options, token)).then(items => {
+				if (items) {
+					return items.map(item => item.handle);
+				}
+				return undefined;
+			}, undefined, progress => {
+				if (progress) {
+					this._proxy.$onItemSelected((<MyQuickPickItems>progress).handle);
+				}
+			});
+		} else {
+			return asWinJsPromise(token => this._quickOpenService.pick(this._contents, options, token)).then(item => {
+				if (item) {
+					return item.handle;
+				}
+				return undefined;
+			}, undefined, progress => {
+				if (progress) {
+					this._proxy.$onItemSelected((<MyQuickPickItems>progress).handle);
+				}
+			});
+		}
 	}
 
 	$setItems(items: MyQuickPickItems[]): TPromise<any> {

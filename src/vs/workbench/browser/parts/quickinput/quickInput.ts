@@ -50,6 +50,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private ignoreFocusLost = false;
 
 	private resolve: (value?: IPickOpenEntry[] | Thenable<IPickOpenEntry[]>) => void;
+	private progress: (value: IPickOpenEntry) => void;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -126,6 +127,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 				this.inputBox.setFocus();
 			}, 0);
 		}));
+		this.toUnbind.push(this.checkboxList.onFocusChange(e => {
+			if (this.progress && e.length) {
+				this.progress(e[0]);
+			}
+		}));
 
 		this.toUnbind.push(dom.addDisposableListener(this.container, 'focusout', (e: FocusEvent) => {
 			for (let element = <Element>e.relatedTarget; element; element = element.parentElement) {
@@ -187,7 +193,10 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.updateLayout();
 		this.inputBox.setFocus();
 
-		const result = new TPromise<T[]>(resolve => this.resolve = resolve);
+		const result = new TPromise<T[]>((resolve, reject, progress) => {
+			this.resolve = resolve;
+			this.progress = progress;
+		});
 		const d = token.onCancellationRequested(() => this.close());
 		result.then(() => d.dispose(), () => d.dispose());
 
