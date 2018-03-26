@@ -13,7 +13,7 @@ import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { toResource, SideBySideEditorInput, IEditorGroup, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent, indexOf } from 'vs/platform/files/common/files';
+import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -208,7 +208,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 						if (oldResource.toString() === resource.toString()) {
 							reopenFileResource = newResource; // file got moved
 						} else {
-							const index = indexOf(resource.path, oldResource.path, !isLinux /* ignorecase */);
+							const index = this.getIndexOfPath(resource.path, oldResource.path);
 							reopenFileResource = newResource.with({ path: paths.join(newResource.path, resource.path.substr(index + oldResource.path.length + 1)) }); // parent folder got moved
 						}
 
@@ -227,6 +227,23 @@ export class FileEditorTracker implements IWorkbenchContribution {
 				}
 			});
 		});
+	}
+
+	private getIndexOfPath(path: string, candidate: string): number {
+		if (candidate.length > path.length) {
+			return -1;
+		}
+
+		if (path === candidate) {
+			return 0;
+		}
+
+		if (!isLinux /* ignore case */) {
+			path = path.toLowerCase();
+			candidate = candidate.toLowerCase();
+		}
+
+		return path.indexOf(candidate);
 	}
 
 	private getViewStateFor(resource: URI, group: IEditorGroup): IEditorViewState | undefined {
