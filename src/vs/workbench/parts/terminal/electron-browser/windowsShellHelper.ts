@@ -115,7 +115,7 @@ export class WindowsShellHelper {
 			return this._currentRequest;
 		}
 		this._currentRequest = new TPromise<string>(resolve => {
-			windowsProcessTree(this._rootProcessId, (tree) => {
+			windowsProcessTree.getProcessTree(this._rootProcessId, (tree) => {
 				const name = this.traverseTree(tree);
 				this._currentRequest = null;
 				resolve(name);
