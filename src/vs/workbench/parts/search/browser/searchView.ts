@@ -69,6 +69,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private static readonly MAX_TEXT_RESULTS = 10000;
 	private static readonly SHOW_REPLACE_STORAGE_KEY = 'vs.search.show.replace';
 
+	private static readonly WIDE_CLASS_NAME = 'wide';
+	private static readonly WIDE_VIEW_SIZE = 600;
+
 	private isDisposed: boolean;
 
 	private queryBuilder: QueryBuilder;
@@ -746,6 +749,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private reLayout(): void {
 		if (this.isDisposed) {
 			return;
+		}
+
+		if (this.size.width >= SearchView.WIDE_VIEW_SIZE) {
+			this.getContainer().addClass(SearchView.WIDE_CLASS_NAME);
+		} else {
+			this.getContainer().removeClass(SearchView.WIDE_CLASS_NAME);
 		}
 
 		this.searchWidget.setWidth(this.size.width - 28 /* container margin */);
