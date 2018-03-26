@@ -145,7 +145,7 @@
 			"skipFiles": [
 				"**/winjs*.js"
 			],
-			"webRoot": "${workspaceFolder}"
+			"webRoot": "${workspaceRoot}"
 		},
 		{
 			"type": "node",

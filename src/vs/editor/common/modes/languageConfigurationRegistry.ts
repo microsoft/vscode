@@ -20,6 +20,9 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
 import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration, IndentationRule, FoldingRules, IAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
+import { workspace } from 'vscode';
+
+const blockCommentStarSetting = 'editor.blockCommentStarPrefix';
 
 /**
  * Interface used to support insertion of mode specific comments.
@@ -179,6 +182,10 @@ export class LanguageConfigurationRegistryImpl {
 
 	private _onDidChange: Emitter<LanguageConfigurationChangeEvent> = new Emitter<LanguageConfigurationChangeEvent>();
 	public onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
+
+	//private blockCommentStarSettingRegistration: Disposable | undefined = void 0;
+
+	private enable: any;
 
 	constructor() {
 		this._entries = [];
@@ -746,12 +753,16 @@ export class LanguageConfigurationRegistryImpl {
 				oneLineAboveText = oneLineAboveScopedLineTokens.getLineContent();
 			}
 		}
-
+		//if the commentBlock.showAsterisk configuration is set, change beforeEnterText from " * " to "  "
 		let enterResult: EnterAction = null;
-		try {
-			enterResult = onEnterSupport.onEnter(oneLineAboveText, beforeEnterText, afterEnterText);
-		} catch (e) {
-			onUnexpectedError(e);
+
+		this.initBlockCommentStarSetting();
+		if (this.enable){
+			try {
+				enterResult = onEnterSupport.onEnter(oneLineAboveText, beforeEnterText, afterEnterText);
+			} catch (e) {
+				onUnexpectedError(e);
+			}
 		}
 
 		if (!enterResult) {
@@ -799,6 +810,20 @@ export class LanguageConfigurationRegistryImpl {
 	}
 
 	// end onEnter
+
+	private initBlockCommentStarSetting() : void {
+		this.enable = workspace.getConfiguration().get(blockCommentStarSetting, false);
+		/* if (enable) {
+			if (!this.blockCommentStarSettingRegistration) {
+				this.blockCommentStarSettingRegistration = languages.registerFoldingProvider(this.documentSelector, new (await import('./features/folderingProvider')).default(this.client));
+			}
+		} else {
+			if (this.blockCommentStarSettingRegistration) {
+				this.blockCommentStarSettingRegistration.dispose();
+				this.blockCommentStarSettingRegistration = void 0;
+			}
+		} */
+	}
 
 	public getBracketsSupport(languageId: LanguageId): RichEditBrackets {
 		let value = this._getRichEditSupport(languageId);

@@ -554,6 +554,10 @@ export interface IEditorOptions {
 	 * The letter spacing
 	 */
 	letterSpacing?: number;
+	/**
+	 * Include/exclude star (*) prefix in block comments
+	 */
+	blockCommentStarPrefix?: boolean;
 }
 
 /**
@@ -843,6 +847,7 @@ export interface EditorContribOptions {
 	readonly find: InternalEditorFindOptions;
 	readonly colorDecorators: boolean;
 	readonly lightbulbEnabled: boolean;
+	readonly blockCommentStarPrefix: boolean;
 }
 
 /**
@@ -1193,6 +1198,7 @@ export class InternalEditorOptions {
 			&& this._equalFindOptions(a.find, b.find)
 			&& a.colorDecorators === b.colorDecorators
 			&& a.lightbulbEnabled === b.lightbulbEnabled
+			&& a.blockCommentStarPrefix === b.blockCommentStarPrefix
 		);
 	}
 
@@ -1723,7 +1729,8 @@ export class EditorOptionsValidator {
 			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
 			find: find,
 			colorDecorators: _boolean(opts.colorDecorators, defaults.colorDecorators),
-			lightbulbEnabled: _boolean(opts.lightbulb ? opts.lightbulb.enabled : false, defaults.lightbulbEnabled)
+			lightbulbEnabled: _boolean(opts.lightbulb ? opts.lightbulb.enabled : false, defaults.lightbulbEnabled),
+			blockCommentStarPrefix: _boolean(opts.blockCommentStarPrefix, defaults.blockCommentStarPrefix)
 		};
 	}
 }
@@ -1824,7 +1831,8 @@ export class InternalEditorOptionsFactory {
 				matchBrackets: (accessibilityIsOn ? false : opts.contribInfo.matchBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
 				find: opts.contribInfo.find,
 				colorDecorators: opts.contribInfo.colorDecorators,
-				lightbulbEnabled: opts.contribInfo.lightbulbEnabled
+				lightbulbEnabled: opts.contribInfo.lightbulbEnabled,
+				blockCommentStarPrefix: opts.contribInfo.blockCommentStarPrefix
 			}
 		};
 	}
@@ -2283,6 +2291,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			globalFindClipboard: false
 		},
 		colorDecorators: true,
-		lightbulbEnabled: true
+		lightbulbEnabled: true,
+		blockCommentStarPrefix: true
 	},
 };
