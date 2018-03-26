@@ -33,12 +33,23 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 			return false;
 		}
 
-		const haystackUpper = haystack.toUpperCase();
-		const needleUpper = needle.toUpperCase();
 		for (let i = 0; i < needleLength; i++) {
-			if (haystackUpper.charCodeAt(offset + i) !== needleUpper.charCodeAt(i)) {
-				return false;
+			const codeA = haystack.charCodeAt(offset + i);
+			const codeB = needle.charCodeAt(i);
+
+			if (codeA === codeB) {
+				continue;
 			}
+			if (codeA >= CharCode.A && codeA <= CharCode.Z && codeA + 32 === codeB) {
+				// codeA is upper-case variant of codeB
+				continue;
+			}
+			if (codeB >= CharCode.A && codeB <= CharCode.Z && codeB + 32 === codeA) {
+				// codeB is upper-case variant of codeA
+				continue;
+			}
+
+			return false;
 		}
 		return true;
 	}

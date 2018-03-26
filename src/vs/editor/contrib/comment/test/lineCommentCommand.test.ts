@@ -45,6 +45,25 @@ suite('Editor Contrib - Line Comment Command', () => {
 		);
 	});
 
+	test('case insensitive', function () {
+		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+			let mode = new CommentMode({ lineComment: 'rem' });
+			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
+			mode.dispose();
+		}
+
+		testLineCommentCommand(
+			[
+				'REM some text'
+			],
+			new Selection(1, 1, 1, 1),
+			[
+				'some text'
+			],
+			new Selection(1, 1, 1, 1)
+		);
+	});
+
 	function createSimpleModel(lines: string[]): ISimpleModel {
 		return {
 			getLineContent: (lineNumber: number) => {
