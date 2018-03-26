@@ -224,78 +224,11 @@ phases:
 
 - phase: Linux
   condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
-  queue:
-    name: linux-x64
-    parallel: 2
-    matrix:
-      x64:
-        VSCODE_ARCH: x64
-      # ia32:
-      #   VSCODE_ARCH: ia32
+  queue: linux-x64
+  variables:
+    VSCODE_ARCH: x64
 
   steps:
-  - script: |
-      # dependencies
-      dpkg --add-architecture i386
-      apt-get update
-
-      DEPS=" \
-        gcc-multilib g++-multilib \
-        pkg-config \
-        dbus \
-        xvfb \
-        fakeroot \
-        bc \
-        bsdmainutils \
-        rpm \
-      "
-
-      if [[ "$(VSCODE_ARCH)" == "x64" ]]; then
-        DEPS="$DEPS \
-          dpkg-dev \
-          libgconf-2-4 \
-          libnss3 \
-          libasound2 \
-          libxtst6 \
-          libx11-dev \
-          libxkbfile-dev \
-          libxss1 \
-          libx11-xcb-dev \
-          libsecret-1-dev \
-        "
-      else
-        DEPS="$DEPS \
-          dpkg-dev:i386 \
-          libgconf-2-4:i386 \
-          libnss3:i386 \
-          libasound2:i386 \
-          libxtst6:i386 \
-          libnotify4:i386 \
-          libx11-dev:i386 \
-          libxkbfile-dev:i386 \
-          libxss1:i386 \
-          libx11-xcb-dev:i386 \
-          libgl1-mesa-glx:i386 libgl1-mesa-dri:i386 \
-          libgirepository-1.0-1:i386 \
-          gir1.2-glib-2.0:i386 \
-          gir1.2-secret-1:i386 \
-          libsecret-1-dev:i386 \
-          libgtk2.0-0:i386 \
-        "
-      fi
-
-      apt-get install -y $DEPS
-
-      # setup xvfb
-      cp build/tfs/linux/$(VSCODE_ARCH)/xvfb.init /etc/init.d/xvfb
-      chmod +x /etc/init.d/xvfb
-      update-rc.d xvfb defaults
-      service xvfb start
-
-      # setup dbus
-      ln -sf /bin/dbus-daemon /usr/bin/dbus-daemon
-      service dbus start
-
   - task: NodeTool@0
     inputs:
       versionSpec: "8.9.1"
@@ -338,78 +271,11 @@ phases:
 
 - phase: Linux32
   condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
-  queue:
-    name: linux-ia32
-    parallel: 2
-    matrix:
-      # x64:
-      #   VSCODE_ARCH: x64
-      ia32:
-        VSCODE_ARCH: ia32
+  queue: linux-ia32
+  variables:
+    VSCODE_ARCH: ia32
 
   steps:
-  - script: |
-      # dependencies
-      dpkg --add-architecture i386
-      apt-get update
-
-      DEPS=" \
-        gcc-multilib g++-multilib \
-        pkg-config \
-        dbus \
-        xvfb \
-        fakeroot \
-        bc \
-        bsdmainutils \
-        rpm \
-      "
-
-      if [[ "$(VSCODE_ARCH)" == "x64" ]]; then
-        DEPS="$DEPS \
-          dpkg-dev \
-          libgconf-2-4 \
-          libnss3 \
-          libasound2 \
-          libxtst6 \
-          libx11-dev \
-          libxkbfile-dev \
-          libxss1 \
-          libx11-xcb-dev \
-          libsecret-1-dev \
-        "
-      else
-        DEPS="$DEPS \
-          dpkg-dev:i386 \
-          libgconf-2-4:i386 \
-          libnss3:i386 \
-          libasound2:i386 \
-          libxtst6:i386 \
-          libnotify4:i386 \
-          libx11-dev:i386 \
-          libxkbfile-dev:i386 \
-          libxss1:i386 \
-          libx11-xcb-dev:i386 \
-          libgl1-mesa-glx:i386 libgl1-mesa-dri:i386 \
-          libgirepository-1.0-1:i386 \
-          gir1.2-glib-2.0:i386 \
-          gir1.2-secret-1:i386 \
-          libsecret-1-dev:i386 \
-          libgtk2.0-0:i386 \
-        "
-      fi
-
-      apt-get install -y $DEPS
-
-      # setup xvfb
-      cp build/tfs/linux/$(VSCODE_ARCH)/xvfb.init /etc/init.d/xvfb
-      chmod +x /etc/init.d/xvfb
-      update-rc.d xvfb defaults
-      service xvfb start
-
-      # setup dbus
-      ln -sf /bin/dbus-daemon /usr/bin/dbus-daemon
-      service dbus start
-
   - task: NodeTool@0
     inputs:
       versionSpec: "8.9.1"
