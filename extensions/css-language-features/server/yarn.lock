@@ -18,9 +18,9 @@ jsonc-parser@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-1.0.0.tgz#ddcc864ae708e60a7a6dd36daea00172fa8d9272"
 
-vscode-css-languageservice@^3.0.9-next.1:
-  version "3.0.9-next.1"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.9-next.1.tgz#92319b641a7624e84950aef2c55e5b4db001ff9a"
+vscode-css-languageservice@^3.0.9-next.2:
+  version "3.0.9-next.2"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.9-next.2.tgz#04f28bd0dc83be8668375ce9640640287e26b05c"
   dependencies:
     vscode-languageserver-types "^3.6.1"
     vscode-nls "^3.2.1"
