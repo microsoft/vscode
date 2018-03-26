@@ -66,7 +66,7 @@ class RenameSkeleton {
 		return range;
 	}
 
-	async provideRenameEdits(newName: string, i: number = 0, rejects: string[] = []): TPromise<WorkspaceEdit> {
+	async provideRenameEdits(newName: string, i: number = 0, rejects: string[] = [], position: Position = this.position): TPromise<WorkspaceEdit> {
 
 		if (i >= this._provider.length) {
 			return {
@@ -165,7 +165,7 @@ class RenameController implements IEditorContribution {
 			const edit = new BulkEdit(this.editor, null, this._textModelResolverService, this._fileService);
 			const state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
 
-			const renameOperation = skeleton.provideRenameEdits(newNameOrFocusFlag).then(result => {
+			const renameOperation = skeleton.provideRenameEdits(newNameOrFocusFlag, 0, [], Range.lift(range).getStartPosition()).then(result => {
 				if (result.rejectReason) {
 					if (state.validate(this.editor)) {
 						MessageController.get(this.editor).showMessage(result.rejectReason, this.editor.getPosition());
