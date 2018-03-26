@@ -9,4 +9,6 @@
 */
 .monaco-editor .lines-content .cigr {
 	position: absolute;
+	--box-shadow-color: rgba(0, 0, 0, 0);
+	box-shadow: 1px 0 0 0 var(--box-shadow-color) inset;
 }
