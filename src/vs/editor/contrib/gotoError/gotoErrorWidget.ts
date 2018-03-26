@@ -9,7 +9,7 @@ import 'vs/css!./gotoErrorWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -22,7 +22,9 @@ import { editorErrorForeground, editorErrorBorder, editorWarningForeground, edit
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { basename } from 'vs/base/common/paths';
+import { getBaseLabel } from 'vs/base/common/labels';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { Event, Emitter } from 'vs/base/common/event';
 
 class MessageWidget {
 
@@ -30,19 +32,34 @@ class MessageWidget {
 	longestLineLength: number = 0;
 
 	private readonly _editor: ICodeEditor;
-	private readonly _domNode: HTMLElement;
+	private readonly _messageBlock: HTMLSpanElement;
+	private readonly _relatedBlock: HTMLSpanElement;
 	private readonly _scrollable: ScrollableElement;
+	private readonly _relatedDiagnostics = new WeakMap<HTMLElement, IRelatedInformation>();
 	private readonly _disposables: IDisposable[] = [];
 
-	constructor(parent: HTMLElement, editor: ICodeEditor) {
+	constructor(parent: HTMLElement, editor: ICodeEditor, onRelatedInformation: (related: IRelatedInformation) => void, ) {
 		this._editor = editor;
 
-		this._domNode = document.createElement('span');
-		this._domNode.className = 'descriptioncontainer';
-		this._domNode.setAttribute('aria-live', 'assertive');
-		this._domNode.setAttribute('role', 'alert');
+		const domNode = document.createElement('div');
+		domNode.className = 'descriptioncontainer';
+		domNode.setAttribute('aria-live', 'assertive');
+		domNode.setAttribute('role', 'alert');
 
-		this._scrollable = new ScrollableElement(this._domNode, {
+		this._messageBlock = document.createElement('span');
+		domNode.appendChild(this._messageBlock);
+
+		this._relatedBlock = document.createElement('div');
+		domNode.appendChild(this._relatedBlock);
+		this._disposables.push(dom.addStandardDisposableListener(this._relatedBlock, 'click', event => {
+			event.preventDefault();
+			const related = this._relatedDiagnostics.get(event.target);
+			if (related) {
+				onRelatedInformation(related);
+			}
+		}));
+
+		this._scrollable = new ScrollableElement(domNode, {
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: ScrollbarVisibility.Hidden,
 			useShadows: false,
@@ -50,7 +67,7 @@ class MessageWidget {
 		});
 		dom.addClass(this._scrollable.getDomNode(), 'block');
 		parent.appendChild(this._scrollable.getDomNode());
-		this._disposables.push(this._scrollable.onScroll(e => this._domNode.style.left = `-${e.scrollLeft}px`));
+		this._disposables.push(this._scrollable.onScroll(e => domNode.style.left = `-${e.scrollLeft}px`));
 		this._disposables.push(this._scrollable);
 	}
 
@@ -80,15 +97,35 @@ class MessageWidget {
 			this.longestLineLength = message.length;
 		}
 
-		if (Array.isArray(relatedInformation)) {
+		dom.clearNode(this._relatedBlock);
+
+		if (!isFalsyOrEmpty(relatedInformation)) {
+			this._relatedBlock.style.paddingTop = `${Math.floor(this._editor.getConfiguration().lineHeight * .66)}px`;
+			this.lines += 1;
+
 			for (const related of relatedInformation) {
+
+				let container = document.createElement('div');
+
+				let relatedResource = document.createElement('span');
+				dom.addClass(relatedResource, 'filename');
+				relatedResource.innerHTML = `${getBaseLabel(related.resource)}(${related.startLineNumber}, ${related.startColumn}): `;
+				this._relatedDiagnostics.set(relatedResource, related);
+
+				let relatedMessage = document.createElement('span');
+				relatedMessage.innerText = related.message;
+				this._editor.applyFontInfo(relatedMessage);
+
+				container.appendChild(relatedResource);
+				container.appendChild(relatedMessage);
+
 				this.lines += 1;
-				message += `\n${related.message} - ${basename(related.resource.path)}:${related.startLineNumber}`;
+				this._relatedBlock.appendChild(container);
 			}
 		}
 
-		this._domNode.innerText = message;
-		this._editor.applyFontInfo(this._domNode);
+		this._messageBlock.innerText = message;
+		this._editor.applyFontInfo(this._messageBlock);
 		const width = Math.floor(this._editor.getConfiguration().fontInfo.typicalFullwidthCharacterWidth * this.longestLineLength);
 		this._scrollable.setScrollDimensions({ scrollWidth: width });
 	}
@@ -107,6 +144,9 @@ export class MarkerNavigationWidget extends ZoneWidget {
 	private _callOnDispose: IDisposable[] = [];
 	private _severity: MarkerSeverity;
 	private _backgroundColor: Color;
+	private _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
+
+	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;
 
 	constructor(
 		editor: ICodeEditor,
@@ -166,7 +206,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 		this._title.className = 'block title';
 		this._container.appendChild(this._title);
 
-		this._message = new MessageWidget(this._container, this.editor);
+		this._message = new MessageWidget(this._container, this.editor, related => this._onDidSelectRelatedInformation.fire(related));
 		this._disposables.push(this._message);
 	}
 
@@ -210,6 +250,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
 		this._message.layout(heightInPixel, widthInPixel);
+		this._container.style.height = `${heightInPixel}px`;
 	}
 
 	protected _relayout(): void {

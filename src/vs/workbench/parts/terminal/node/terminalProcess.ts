@@ -107,6 +107,7 @@ function getArgs() {
 function cleanEnv() {
 	var keys = [
 		'AMD_ENTRYPOINT',
+		'ELECTRON_NO_ASAR',
 		'ELECTRON_RUN_AS_NODE',
 		'GOOGLE_API_KEY',
 		'PTYCWD',

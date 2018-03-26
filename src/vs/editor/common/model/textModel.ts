@@ -177,6 +177,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private static readonly MANY_MANY_LINES = 300 * 1000; // 300K lines
 
 	public static DEFAULT_CREATION_OPTIONS: model.ITextModelCreationOptions = {
+		isForSimpleWidget: false,
 		tabSize: EDITOR_MODEL_DEFAULTS.tabSize,
 		insertSpaces: EDITOR_MODEL_DEFAULTS.insertSpaces,
 		detectIndentation: false,
@@ -237,6 +238,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	//#endregion
 
 	public readonly id: string;
+	public readonly isForSimpleWidget: boolean;
 	private readonly _associatedResource: URI;
 	private _attachedEditorCount: number;
 	private _buffer: model.ITextBuffer;
@@ -284,6 +286,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		// Generate a new unique model id
 		MODEL_ID++;
 		this.id = '$model' + MODEL_ID;
+		this.isForSimpleWidget = creationOptions.isForSimpleWidget;
 		if (typeof associatedResource === 'undefined' || associatedResource === null) {
 			this._associatedResource = URI.parse('inmemory://model/' + MODEL_ID);
 		} else {
@@ -1015,6 +1018,28 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public findNextMatch(searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): model.FindMatch {
 		this._assertNotDisposed();
 		const searchStart = this.validatePosition(rawSearchStart);
+
+		if (!isRegex && searchString.indexOf('\n') < 0 && OPTIONS.TEXT_BUFFER_IMPLEMENTATION === TextBufferType.PieceTree) {
+			const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
+			const searchData = searchParams.parseSearchRequest();
+			const lineCount = this.getLineCount();
+			let searchRange = new Range(searchStart.lineNumber, searchStart.column, lineCount, this.getLineMaxColumn(lineCount));
+			let ret = this.findMatchesLineByLine(searchRange, searchData, captureMatches, 1);
+			TextModelSearch.findNextMatch(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchStart, captureMatches);
+			if (ret.length > 0) {
+				return ret[0];
+			}
+
+			searchRange = new Range(1, 1, searchStart.lineNumber, this.getLineMaxColumn(searchStart.lineNumber));
+			ret = this.findMatchesLineByLine(searchRange, searchData, captureMatches, 1);
+
+			if (ret.length > 0) {
+				return ret[0];
+			}
+
+			return null;
+		}
+
 		return TextModelSearch.findNextMatch(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchStart, captureMatches);
 	}
 
@@ -1600,6 +1625,81 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	//#region Tokenization
 
+	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
+		if (!this._tokens.tokenizationSupport) {
+			return;
+		}
+
+		// we tokenize `this._tokens.inValidLineStartIndex` lines in around 20ms so it's a good baseline.
+		const contextBefore = Math.floor(this._tokens.inValidLineStartIndex * 0.3);
+		startLineNumber = Math.max(1, startLineNumber - contextBefore);
+
+		if (startLineNumber <= this._tokens.inValidLineStartIndex) {
+			this.forceTokenization(endLineNumber);
+			return;
+		}
+
+		const eventBuilder = new ModelTokensChangedEventBuilder();
+		let nonWhitespaceColumn = this.getLineFirstNonWhitespaceColumn(startLineNumber);
+		let fakeLines = [];
+		let i = startLineNumber - 1;
+		let initialState = null;
+		if (nonWhitespaceColumn > 0) {
+			while (nonWhitespaceColumn > 0 && i >= 1) {
+				let newNonWhitespaceIndex = this.getLineFirstNonWhitespaceColumn(i);
+
+				if (newNonWhitespaceIndex === 0) {
+					i--;
+					continue;
+				}
+
+				if (newNonWhitespaceIndex < nonWhitespaceColumn) {
+					initialState = this._tokens._getState(i - 1);
+					if (initialState) {
+						break;
+					}
+					fakeLines.push(this.getLineContent(i));
+					nonWhitespaceColumn = newNonWhitespaceIndex;
+				}
+
+				i--;
+			}
+		}
+
+		if (!initialState) {
+			initialState = this._tokens.tokenizationSupport.getInitialState();
+		}
+
+		let state = initialState.clone();
+		for (let i = fakeLines.length - 1; i >= 0; i--) {
+			let r = this._tokens._tokenizeText(this._buffer, fakeLines[i], state);
+			if (r) {
+				state = r.endState.clone();
+			} else {
+				state = initialState.clone();
+			}
+		}
+
+		const contextAfter = Math.floor(this._tokens.inValidLineStartIndex * 0.4);
+		endLineNumber = Math.min(this.getLineCount(), endLineNumber + contextAfter);
+		for (let i = startLineNumber; i <= endLineNumber; i++) {
+			let text = this.getLineContent(i);
+			let r = this._tokens._tokenizeText(this._buffer, text, state);
+			if (r) {
+				state = r.endState.clone();
+				this._tokens._setTokens(this._tokens.languageIdentifier.id, i - 1, text.length, r.tokens);
+				eventBuilder.registerChangedTokens(i);
+			} else {
+				state = initialState.clone();
+			}
+		}
+
+		const e = eventBuilder.build();
+		if (e) {
+			this._onDidChangeTokens.fire(e);
+		}
+	}
+
 	public forceTokenization(lineNumber: number): void {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value for lineNumber');
@@ -1742,8 +1842,39 @@ export class TextModel extends Disposable implements model.ITextModel {
 		const position = this.validatePosition(_position);
 		const lineContent = this.getLineContent(position.lineNumber);
 		const lineTokens = this._getLineTokens(position.lineNumber);
-		const offset = position.column - 1;
-		const tokenIndex = lineTokens.findTokenIndexAtOffset(offset);
+		const tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
+
+		// (1). First try checking right biased word
+		const [rbStartOffset, rbEndOffset] = TextModel._findLanguageBoundaries(lineTokens, tokenIndex);
+		const rightBiasedWord = getWordAtText(
+			position.column,
+			LanguageConfigurationRegistry.getWordDefinition(lineTokens.getLanguageId(tokenIndex)),
+			lineContent.substring(rbStartOffset, rbEndOffset),
+			rbStartOffset
+		);
+		if (rightBiasedWord) {
+			return rightBiasedWord;
+		}
+
+		// (2). Else, if we were at a language boundary, check the left biased word
+		if (tokenIndex > 0 && rbStartOffset === position.column - 1) {
+			// edge case, where `position` sits between two tokens belonging to two different languages
+			const [lbStartOffset, lbEndOffset] = TextModel._findLanguageBoundaries(lineTokens, tokenIndex - 1);
+			const leftBiasedWord = getWordAtText(
+				position.column,
+				LanguageConfigurationRegistry.getWordDefinition(lineTokens.getLanguageId(tokenIndex - 1)),
+				lineContent.substring(lbStartOffset, lbEndOffset),
+				lbStartOffset
+			);
+			if (leftBiasedWord) {
+				return leftBiasedWord;
+			}
+		}
+
+		return null;
+	}
+
+	private static _findLanguageBoundaries(lineTokens: LineTokens, tokenIndex: number): [number, number] {
 		const languageId = lineTokens.getLanguageId(tokenIndex);
 
 		// go left until a different language is hit
@@ -1758,12 +1889,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			endOffset = lineTokens.getEndOffset(i);
 		}
 
-		return getWordAtText(
-			position.column,
-			LanguageConfigurationRegistry.getWordDefinition(languageId),
-			lineContent.substring(startOffset, endOffset),
-			startOffset
-		);
+		return [startOffset, endOffset];
 	}
 
 	public getWordUntilPosition(position: IPosition): model.IWordAtPosition {

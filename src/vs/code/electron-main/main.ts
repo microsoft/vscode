@@ -34,7 +34,7 @@ import { ConfigurationService } from 'vs/platform/configuration/node/configurati
 import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/electron-main/requestService';
 import { IURLService } from 'vs/platform/url/common/url';
-import { URLService } from 'vs/platform/url/electron-main/urlService';
+import { URLService } from 'vs/platform/url/common/urlService';
 import * as fs from 'original-fs';
 import { CodeApplication } from 'vs/code/electron-main/app';
 import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
@@ -71,7 +71,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	services.set(IStateService, new SyncDescriptor(StateService));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
-	services.set(IURLService, new SyncDescriptor(URLService, args['open-url'] ? args._urls : []));
+	services.set(IURLService, new SyncDescriptor(URLService));
 	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
 	services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
 

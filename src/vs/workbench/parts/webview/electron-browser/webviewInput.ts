@@ -28,7 +28,6 @@ export interface WebviewInputOptions extends vscode.WebviewOptions {
 export class WebviewInput extends EditorInput {
 	private static handlePool = 0;
 
-	private readonly _resource: URI;
 	private _name: string;
 	private _options: WebviewInputOptions;
 	private _html: string;
@@ -43,7 +42,6 @@ export class WebviewInput extends EditorInput {
 	public readonly extensionFolderPath: URI | undefined;
 
 	constructor(
-		resource: URI,
 		name: string,
 		options: WebviewInputOptions,
 		html: string,
@@ -52,7 +50,6 @@ export class WebviewInput extends EditorInput {
 		extensionFolderPath?: string
 	) {
 		super();
-		this._resource = resource;
 		this._name = name;
 		this._options = options;
 		this._html = html;
@@ -90,11 +87,19 @@ export class WebviewInput extends EditorInput {
 	}
 
 	public getResource(): URI {
-		return this._resource;
+		return null;
 	}
 
 	public getName(): string {
 		return this._name;
+	}
+
+	public getTitle() {
+		return this.getName();
+	}
+
+	public getDescription(): string {
+		return null;
 	}
 
 	public setName(value: string): void {
@@ -103,7 +108,7 @@ export class WebviewInput extends EditorInput {
 	}
 
 	matches(other: IEditorInput): boolean {
-		return other && other instanceof WebviewInput && other.getResource().fsPath === this.getResource().fsPath;
+		return other && other === this;
 	}
 
 	public get position(): Position | undefined {

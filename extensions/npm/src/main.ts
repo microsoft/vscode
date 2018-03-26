@@ -100,17 +100,22 @@ async function provideNpmScripts(): Promise<vscode.Task[]> {
 	let emptyTasks: vscode.Task[] = [];
 	let allTasks: vscode.Task[] = [];
 
-	let paths = await vscode.workspace.findFiles('**/package.json', '**/node_modules/**');
-	if (paths.length === 0) {
+	let folders = vscode.workspace.workspaceFolders;
+	if (!folders) {
 		return emptyTasks;
 	}
-
 	try {
-		for (let i = 0; i < paths.length; i++) {
-			let folder = vscode.workspace.getWorkspaceFolder(paths[i]);
-			if (folder && isEnabled(folder) && !isExcluded(folder, paths[i])) {
-				let tasks = await provideNpmScriptsForFolder(paths[i]);
-				allTasks.push(...tasks);
+		for (let i = 0; i < folders.length; i++) {
+			let folder = folders[i];
+			if (isEnabled(folder)) {
+				let relativePattern = new vscode.RelativePattern(folder, '**/package.json');
+				let paths = await vscode.workspace.findFiles(relativePattern, '**/node_modules/**');
+				for (let j = 0; j < paths.length; j++) {
+					if (!isExcluded(folder, paths[j])) {
+						let tasks = await provideNpmScriptsForFolder(paths[j]);
+						allTasks.push(...tasks);
+					}
+				}
 			}
 		}
 		return allTasks;

@@ -5920,16 +5920,16 @@ vscode-ripgrep@^0.8.1:
   version "0.8.1"
   resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-0.8.1.tgz#861d2ac97a3764e9f40f305620423efc50632ad1"
 
-vscode-textmate@^3.3.1:
-  version "3.3.1"
-  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-3.3.1.tgz#f5b80bca795795e333660c648edba3a715b1e405"
+vscode-textmate@^3.3.2:
+  version "3.3.2"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-3.3.2.tgz#43d7722d24ed168d195a1e3c582c6914917a37ab"
   dependencies:
     fast-plist "^0.1.2"
     oniguruma "^6.0.1"
 
-vscode-xterm@3.3.0-beta7:
-  version "3.3.0-beta7"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.3.0-beta7.tgz#34844cf7770be538ff24342c3b245221436b9f19"
+vscode-xterm@3.3.0-beta8:
+  version "3.3.0-beta8"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.3.0-beta8.tgz#092403d293250e09a38d89a53ce120135e92c778"
 
 vso-node-api@^6.1.2-preview:
   version "6.1.2-preview"

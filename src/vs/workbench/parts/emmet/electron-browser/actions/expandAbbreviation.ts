@@ -23,7 +23,7 @@ class ExpandAbbreviationAction extends EmmetEditorAction {
 			kbOpts: {
 				primary: KeyCode.Tab,
 				kbExpr: ContextKeyExpr.and(
-					EditorContextKeys.textFocus,
+					EditorContextKeys.editorTextFocus,
 					EditorContextKeys.tabDoesNotMoveFocus,
 					ContextKeyExpr.has('config.emmet.triggerExpansionOnTab')
 				)

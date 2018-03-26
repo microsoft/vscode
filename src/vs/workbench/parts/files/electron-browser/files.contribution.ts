@@ -282,6 +282,11 @@ configurationRegistry.registerConfiguration({
 		'files.defaultLanguage': {
 			'type': 'string',
 			'description': nls.localize('defaultLanguage', "The default language mode that is assigned to new files.")
+		},
+		'files.maxMemoryForLargeFilesMB': {
+			'type': 'number',
+			'default': 4096,
+			'description': nls.localize('maxMemoryForLargeFilesMB', "The new limit on memory in MB to be used by the application when relaunching to open large files. If you wish to start with a higher limit, you can launch the application from command line with --max-memory=NEWSIZE.")
 		}
 	}
 });

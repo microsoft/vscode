@@ -9,6 +9,27 @@
 	// @ts-ignore
 	const ipcRenderer = require('electron').ipcRenderer;
 
+
+	const registerVscodeResourceScheme = (function() {
+		let hasRegistered = false;
+		return () => {
+			if (hasRegistered) {
+				return;
+			}
+
+			hasRegistered = true;
+
+			// @ts-ignore
+			require('electron').webFrame.registerURLSchemeAsPrivileged('vscode-resource', {
+				secure: true,
+				bypassCSP: false,
+				allowServiceWorkers: false,
+				supportFetchAPI: true,
+				corsEnabled: true
+			});
+		};
+	}());
+
 	// state
 	var firstLoad = true;
 	var loadTimeout;
@@ -132,6 +153,10 @@
 		ipcRenderer.on('content', function (_event, data) {
 			const options = data.options;
 			enableWrappedPostMessage = options && options.enableWrappedPostMessage;
+
+			if (enableWrappedPostMessage) {
+				registerVscodeResourceScheme();
+			}
 
 			const text = data.contents;
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');

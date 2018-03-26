@@ -27,6 +27,8 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { overviewRulerWarning, overviewRulerError, overviewRulerInfo } from 'vs/editor/common/view/editorColorRegistry';
 import { ITextModel, IModelDeltaDecoration, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, DefaultEndOfLine, ITextModelCreationOptions, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBufferFactory, ITextBuffer, EndOfLinePreference } from 'vs/editor/common/model';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { basename } from 'vs/base/common/paths';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -120,7 +122,7 @@ class ModelMarkerHandler {
 
 		switch (marker.severity) {
 			case MarkerSeverity.Hint:
-				// do something
+				className = ClassName.EditorHintDecoration;
 				break;
 			case MarkerSeverity.Warning:
 				className = ClassName.EditorWarningDecoration;
@@ -141,7 +143,7 @@ class ModelMarkerHandler {
 		}
 
 		let hoverMessage: MarkdownString = null;
-		let { message, source } = marker;
+		let { message, source, relatedInformation } = marker;
 
 		if (typeof message === 'string') {
 			message = message.trim();
@@ -155,6 +157,16 @@ class ModelMarkerHandler {
 			}
 
 			hoverMessage = new MarkdownString().appendCodeblock('_', message);
+
+			if (!isFalsyOrEmpty(relatedInformation)) {
+				hoverMessage.appendMarkdown('\n');
+				for (const { message, resource, startLineNumber, startColumn } of relatedInformation) {
+					hoverMessage.appendMarkdown(
+						`* [${basename(resource.path)}(${startLineNumber}, ${startColumn})](${resource.toString(false)}#${startLineNumber},${startColumn}): \`${message}\` \n`
+					);
+				}
+				hoverMessage.appendMarkdown('\n');
+			}
 		}
 
 		return {
@@ -226,7 +238,7 @@ export class ModelServiceImpl implements IModelService {
 		this._updateModelOptions();
 	}
 
-	private static _readModelOptions(config: IRawConfig): ITextModelCreationOptions {
+	private static _readModelOptions(config: IRawConfig, isForSimpleWidget: boolean): ITextModelCreationOptions {
 		let tabSize = EDITOR_MODEL_DEFAULTS.tabSize;
 		if (config.editor && typeof config.editor.tabSize !== 'undefined') {
 			let parsedTabSize = parseInt(config.editor.tabSize, 10);
@@ -259,6 +271,7 @@ export class ModelServiceImpl implements IModelService {
 		}
 
 		return {
+			isForSimpleWidget: isForSimpleWidget,
 			tabSize: tabSize,
 			insertSpaces: insertSpaces,
 			detectIndentation: detectIndentation,
@@ -267,10 +280,10 @@ export class ModelServiceImpl implements IModelService {
 		};
 	}
 
-	public getCreationOptions(language: string, resource: URI): ITextModelCreationOptions {
+	public getCreationOptions(language: string, resource: URI, isForSimpleWidget: boolean): ITextModelCreationOptions {
 		let creationOptions = this._modelCreationOptionsByLanguageAndResource[language + resource];
 		if (!creationOptions) {
-			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getValue({ overrideIdentifier: language, resource }));
+			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getValue({ overrideIdentifier: language, resource }), isForSimpleWidget);
 			this._modelCreationOptionsByLanguageAndResource[language + resource] = creationOptions;
 		}
 		return creationOptions;
@@ -288,7 +301,7 @@ export class ModelServiceImpl implements IModelService {
 			const language = modelData.model.getLanguageIdentifier().language;
 			const uri = modelData.model.uri;
 			const oldOptions = oldOptionsByLanguageAndResource[language + uri];
-			const newOptions = this.getCreationOptions(language, uri);
+			const newOptions = this.getCreationOptions(language, uri, modelData.model.isForSimpleWidget);
 			ModelServiceImpl._setModelOptionsForModel(modelData.model, newOptions, oldOptions);
 		}
 	}
@@ -352,9 +365,9 @@ export class ModelServiceImpl implements IModelService {
 
 	// --- begin IModelService
 
-	private _createModelData(value: string | ITextBufferFactory, languageIdentifier: LanguageIdentifier, resource: URI): ModelData {
+	private _createModelData(value: string | ITextBufferFactory, languageIdentifier: LanguageIdentifier, resource: URI, isForSimpleWidget: boolean): ModelData {
 		// create & save the model
-		const options = this.getCreationOptions(languageIdentifier.language, resource);
+		const options = this.getCreationOptions(languageIdentifier.language, resource, isForSimpleWidget);
 		const model: TextModel = new TextModel(value, options, languageIdentifier, resource);
 		const modelId = MODEL_ID(model.uri);
 
@@ -374,7 +387,7 @@ export class ModelServiceImpl implements IModelService {
 	}
 
 	public updateModel(model: ITextModel, value: string | ITextBufferFactory): void {
-		const options = this.getCreationOptions(model.getLanguageIdentifier().language, model.uri);
+		const options = this.getCreationOptions(model.getLanguageIdentifier().language, model.uri, model.isForSimpleWidget);
 		const textBuffer = createTextBuffer(value, options.defaultEOL);
 
 		// Return early if the text is already set in that form
@@ -441,14 +454,14 @@ export class ModelServiceImpl implements IModelService {
 		return [EditOperation.replace(oldRange, textBuffer.getValueInRange(newRange, EndOfLinePreference.TextDefined))];
 	}
 
-	public createModel(value: string | ITextBufferFactory, modeOrPromise: TPromise<IMode> | IMode, resource: URI): ITextModel {
+	public createModel(value: string | ITextBufferFactory, modeOrPromise: TPromise<IMode> | IMode, resource: URI, isForSimpleWidget: boolean = false): ITextModel {
 		let modelData: ModelData;
 
 		if (!modeOrPromise || TPromise.is(modeOrPromise)) {
-			modelData = this._createModelData(value, PLAINTEXT_LANGUAGE_IDENTIFIER, resource);
+			modelData = this._createModelData(value, PLAINTEXT_LANGUAGE_IDENTIFIER, resource, isForSimpleWidget);
 			this.setMode(modelData.model, modeOrPromise);
 		} else {
-			modelData = this._createModelData(value, modeOrPromise.getLanguageIdentifier(), resource);
+			modelData = this._createModelData(value, modeOrPromise.getLanguageIdentifier(), resource, isForSimpleWidget);
 		}
 
 		// handle markers (marker service => model)
@@ -534,8 +547,8 @@ export class ModelServiceImpl implements IModelService {
 	private _onDidChangeLanguage(model: ITextModel, e: IModelLanguageChangedEvent): void {
 		const oldModeId = e.oldLanguage;
 		const newModeId = model.getLanguageIdentifier().language;
-		const oldOptions = this.getCreationOptions(oldModeId, model.uri);
-		const newOptions = this.getCreationOptions(newModeId, model.uri);
+		const oldOptions = this.getCreationOptions(oldModeId, model.uri, model.isForSimpleWidget);
+		const newOptions = this.getCreationOptions(newModeId, model.uri, model.isForSimpleWidget);
 		ModelServiceImpl._setModelOptionsForModel(model, newOptions, oldOptions);
 		this._onModelModeChanged.fire({ model, oldModeId });
 	}

@@ -28,7 +28,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		}
 
 		const helper = getEmmetHelper();
-		const extractAbbreviationResults = helper.extractAbbreviation(document, position);
+		const extractAbbreviationResults = helper.extractAbbreviation(document, position, !isStyleSheet(syntax));
 		if (!extractAbbreviationResults) {
 			return;
 		}

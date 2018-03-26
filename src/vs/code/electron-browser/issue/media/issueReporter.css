@@ -195,21 +195,14 @@ textarea {
 }
 
 .extensions-form > .form-buttons > .choice {
-	margin-right: 35px;
-	position: relative;
+	display: flex;
+	align-items: center;
+	margin-right: 20px;
 }
 
 .extensions-form > .form-buttons > .choice > label, .extensions-form  > .form-buttons > .choice > input {
 	cursor: pointer;
-	height: 100%;
-	margin-top: 1px;
-}
-
-.extensions-form > .form-buttons > .choice > label {
-	position: absolute;
-	top: 50%;
-	margin-top: -50%;
-	left: 20px;
+	margin-top: 0;
 }
 
 .system-info {

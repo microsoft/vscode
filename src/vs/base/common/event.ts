@@ -534,3 +534,15 @@ export function fromNodeEventEmitter<T>(emitter: NodeEventEmitter, eventName: st
 
 	return result.event;
 }
+
+export function latch<T>(event: Event<T>): Event<T> {
+	let firstCall = true;
+	let cache: T;
+
+	return filterEvent(event, value => {
+		let shouldEmit = firstCall || value !== cache;
+		firstCall = false;
+		cache = value;
+		return shouldEmit;
+	});
+}

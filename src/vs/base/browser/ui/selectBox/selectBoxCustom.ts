@@ -61,6 +61,9 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 		// pseudo-select disabled option
 		if (optionDisabled) {
 			dom.addClass((<HTMLElement>data.root), 'option-disabled');
+		} else {
+			// Make sure we do class removal from prior template rendering
+			dom.removeClass((<HTMLElement>data.root), 'option-disabled');
 		}
 	}
 

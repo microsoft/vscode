@@ -313,8 +313,6 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 
 export class ExtHostTextEditor implements vscode.TextEditor {
 
-	public readonly editorType = 'texteditor';
-
 	private readonly _proxy: MainThreadTextEditorsShape;
 	private readonly _id: string;
 	private readonly _documentData: ExtHostDocumentData;

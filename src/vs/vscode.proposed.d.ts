@@ -58,12 +58,12 @@ declare module 'vscode' {
 	export class FoldingRange {
 
 		/**
-		 * The start line number (0-based)
+		 * The start line number (zero-based) of the range to fold. The hidden area starts after the last character of that line.
 		 */
 		startLine: number;
 
 		/**
-		 * The end line number (0-based)
+		 * The end line number (0-based) of the range to fold. The hidden area ends at the last character of that line.
 		 */
 		endLine: number;
 
@@ -203,33 +203,12 @@ declare module 'vscode' {
 		type: FileType;
 	}
 
-	export interface TextSearchQuery {
-		pattern: string;
-		isRegex?: boolean;
-		isCaseSensitive?: boolean;
-		isWordMatch?: boolean;
-	}
-
-	export interface TextSearchOptions {
-		includes: GlobPattern[];
-		excludes: GlobPattern[];
-	}
-
-	export interface TextSearchResult {
-		uri: Uri;
-		range: Range;
-		preview: { leading: string, matching: string, trailing: string };
-	}
-
 	// todo@joh discover files etc
 	// todo@joh CancellationToken everywhere
 	// todo@joh add open/close calls?
 	export interface FileSystemProvider {
 
 		readonly onDidChange?: Event<FileChange[]>;
-
-		// todo@joh - remove this
-		readonly root?: Uri;
 
 		// more...
 		//
@@ -268,15 +247,41 @@ declare module 'vscode' {
 
 		// todo@remote
 		// create(resource: Uri): Thenable<FileStat>;
-
-		// find files by names
-		// todo@joh, move into its own provider
-		findFiles?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
-		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace workspace {
 		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
+	}
+
+	//#endregion
+
+	//#region Joh: remote, search provider
+
+	export interface TextSearchQuery {
+		pattern: string;
+		isRegExp?: boolean;
+		isCaseSensitive?: boolean;
+		isWordMatch?: boolean;
+	}
+
+	export interface TextSearchOptions {
+		includes: GlobPattern[];
+		excludes: GlobPattern[];
+	}
+
+	export interface TextSearchResult {
+		uri: Uri;
+		range: Range;
+		preview: { leading: string, matching: string, trailing: string };
+	}
+
+	export interface SearchProvider {
+		provideFileSearchResults?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
+	}
+
+	export namespace workspace {
+		export function registerSearchProvider(scheme: string, provider: SearchProvider): Disposable;
 	}
 
 	//#endregion
@@ -378,13 +383,6 @@ declare module 'vscode' {
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
 
-	export interface Breakpoint {
-		/**
-		 * An optional message that gets logged when this breakpoint is hit.
-		 */
-		readonly logMessage?: string;
-	}
-
 	//#endregion
 
 	//#region Rob, Matt: logging
@@ -406,9 +404,6 @@ declare module 'vscode' {
 	 * A logger for writing to an extension's log file, and accessing its dedicated log directory.
 	 */
 	export interface Logger {
-		readonly onDidChangeLogLevel: Event<LogLevel>;
-		readonly currentLevel: LogLevel;
-
 		trace(message: string, ...args: any[]): void;
 		debug(message: string, ...args: any[]): void;
 		info(message: string, ...args: any[]): void;
@@ -431,22 +426,32 @@ declare module 'vscode' {
 		readonly logDirectory: string;
 	}
 
+	export namespace env {
+		/**
+		 * Current logging level.
+		 *
+		 * @readonly
+		 */
+		export const logLevel: LogLevel;
+	}
+
 	//#endregion
 
 	//#region Joh: rename context
 
-	export class RenameContext {
-		range: Range;
-		newName?: string;
-		constructor(range: Range, newName?: string);
-	}
-
 	export interface RenameProvider2 extends RenameProvider {
 
 		/**
-		 * Optional function to resolve and validate a rename location.
+		 * Optional function for resolving and validating a position at which rename is
+		 * being carried out.
+		 *
+		 * @param document The document in which rename will be invoked.
+		 * @param position The position at which rename will be invoked.
+		 * @param token A cancellation token.
+		 * @return The range of the identifier that is to be renamed. The lack of a result can signaled by returning `undefined` or `null`.
 		 */
-		resolveRenameContext?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameContext>;
+		resolveRenameLocation?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range>;
+
 	}
 
 	//#endregion
@@ -522,6 +527,13 @@ declare module 'vscode' {
 		readonly enableCommandUris?: boolean;
 
 		/**
+		 * Should the find widget be enabled in the webview?
+		 *
+		 * Defaults to false.
+		 */
+		readonly enableFindWidget?: boolean;
+
+		/**
 		 * Should the webview's context be kept around even when the webview is no longer visible?
 		 *
 		 * Normally a webview's context is created when the webview becomes visible
@@ -546,19 +558,19 @@ declare module 'vscode' {
 		readonly localResourceRoots?: Uri[];
 	}
 
+	export interface WebViewOnDidChangeViewStateEvent {
+		readonly viewColumn: ViewColumn;
+		readonly active: boolean;
+	}
+
 	/**
-	 * A webview is an editor with html content, like an iframe.
+	 * A webview displays html content, like an iframe.
 	 */
 	export interface Webview {
 		/**
-		 * Type identifying the editor as a webview editor.
+		 * The type of the webview, such as `'markdownw.preview'`
 		 */
-		readonly editorType: 'webview';
-
-		/**
-		 * Unique identifer of the webview.
-		 */
-		readonly uri: Uri;
+		readonly viewType: string;
 
 		/**
 		 * Content settings for the webview.
@@ -593,9 +605,9 @@ declare module 'vscode' {
 		readonly onDidDispose: Event<void>;
 
 		/**
-		 * Fired when the webview's view column changes.
+		 * Fired when the webview's view state changes.
 		 */
-		readonly onDidChangeViewColumn: Event<ViewColumn>;
+		readonly onDidChangeViewState: Event<WebViewOnDidChangeViewStateEvent>;
 
 		/**
 		 * Post a message to the webview content.
@@ -609,10 +621,10 @@ declare module 'vscode' {
 		/**
 		 * Shows the webview in a given column.
 		 *
-		 * A webview may only show in a single column at a time. If it is already showing, this
+		 * A webview may only be in a single column at a time. If it is already showing, this
 		 * command moves it to a new column.
 		 */
-		show(viewColumn: ViewColumn): void;
+		reveal(viewColumn: ViewColumn): void;
 
 		/**
 		 * Dispose of the the webview.
@@ -624,98 +636,16 @@ declare module 'vscode' {
 		dispose(): any;
 	}
 
-	export interface TextEditor {
-		/**
-		 * Type identifying the editor as a text editor.
-		 */
-		readonly editorType: 'texteditor';
-	}
-
 	namespace window {
 		/**
 		 * Create and show a new webview.
 		 *
-		 * @param uri Unique identifier for the webview.
+		 * @param viewType Identifier the type of the webview.
 		 * @param title Title of the webview.
 		 * @param column Editor column to show the new webview in.
 		 * @param options Content settings for the webview.
 		 */
-		export function createWebview(uri: Uri, title: string, column: ViewColumn, options: WebviewOptions): Webview;
-
-		/**
-		 * Event fired when the active editor changes.
-		 */
-		export const onDidChangeActiveEditor: Event<TextEditor | Webview | undefined>;
-	}
-
-	//#endregion
-
-	//#region Sandeep: TreeView
-
-	export namespace window {
-
-		/**
-		 * Register a [TreeDataProvider](#TreeDataProvider) for the view contributed using the extension point `views`.
-		 * @param viewId Id of the view contributed using the extension point `views`.
-		 * @param treeDataProvider A [TreeDataProvider](#TreeDataProvider) that provides tree data for the view
-		 * @return handle to the [treeview](#TreeView) that can be disposable.
-		 */
-		export function registerTreeDataProvider<T>(viewId: string, treeDataProvider: TreeDataProvider<T>): TreeView<T>;
-
-	}
-
-	/**
-	 * Represents a Tree view
-	 */
-	export interface TreeView<T> extends Disposable {
-
-		/**
-		 * Reveal an element. By default revealed element is selected.
-		 *
-		 * In order to not to select, set the option `select` to `false`.
-		 *
-		 * **NOTE:** [TreeDataProvider](#TreeDataProvider) is required to implement [getParent](#TreeDataProvider.getParent) method to access this API.
-		 */
-		reveal(element: T, options?: { select?: boolean }): Thenable<void>;
-	}
-
-	/**
-	 * A data provider that provides tree data
-	 */
-	export interface TreeDataProvider<T> {
-		/**
-		 * An optional event to signal that an element or root has changed.
-		 * This will trigger the view to update the changed element/root and its children recursively (if shown).
-		 * To signal that root has changed, do not pass any argument or pass `undefined` or `null`.
-		 */
-		onDidChangeTreeData?: Event<T | undefined | null>;
-
-		/**
-		 * Get [TreeItem](#TreeItem) representation of the `element`
-		 *
-		 * @param element The element for which [TreeItem](#TreeItem) representation is asked for.
-		 * @return [TreeItem](#TreeItem) representation of the element
-		 */
-		getTreeItem(element: T): TreeItem | Thenable<TreeItem>;
-
-		/**
-		 * Get the children of `element` or root if no element is passed.
-		 *
-		 * @param element The element from which the provider gets children. Can be `undefined`.
-		 * @return Children of `element` or root if no element is passed.
-		 */
-		getChildren(element?: T): ProviderResult<T[]>;
-
-		/**
-		 * Optional method to return the parent of `element`.
-		 * Return `null` or `undefined` if `element` is a child of root.
-		 *
-		 * **NOTE:** This method should be implemented in order to access [reveal](#TreeView.reveal) API.
-		 *
-		 * @param element The element for which the parent has to be returned.
-		 * @return Parent of `element`.
-		 */
-		getParent?(element: T): ProviderResult<T>;
+		export function createWebview(viewType: string, title: string, column: ViewColumn, options: WebviewOptions): Webview;
 	}
 
 	//#endregion
@@ -756,32 +686,65 @@ declare module 'vscode' {
 	//#region Tasks
 
 	/**
-	 * A task item represents a task in the system. It can be used to
-	 * present task information in the user interface or to execute the
-	 * underlying task.
+	 * An object representing an executed Task. It can be used
+	 * to terminate a task.
 	 */
-	export interface TaskItem {
+	export interface TaskExecution {
+	}
+
+	/**
+	 * An event signaling the start of a task execution.
+	 */
+	interface TaskStartEvent {
+		/**
+		 * The task item representing the task that got started.
+		 */
+		execution: TaskExecution;
+	}
+
+	/**
+	 * An event signaling the end of an executed task.
+	 */
+	interface TaskEndEvent {
+		/**
+		 * The task item representing the task that finished.
+		 */
+		execution: TaskExecution;
+	}
+
+	export namespace workspace {
 
 		/**
-		 * A unique ID representing the underlying task.
+		 * Fetches all task available in the systems. This includes tasks
+		 * from `tasks.json` files as well as tasks from task providers
+		 * contributed through extensions.
 		 */
-		readonly id: string;
+		export function fetchTasks(): Thenable<Task[]>;
 
 		/**
-		 * A human readable label of the task.
+		 * Executes a task that is managed by VS Code. The returned
+		 * task execution can be used to terminate the task.
+		 *
+		 * @param task the task to execute
 		 */
-		readonly label: string;
+		export function executeTask(task: Task): Thenable<TaskExecution>;
 
 		/**
-		 * The task definition.
+		 * Fires when a task starts.
 		 */
-		readonly definition: TaskDefinition;
+		export const onDidStartTask: Event<TaskStartEvent>;
 
 		/**
-		 * The workspace folder the task belongs to. Is undefined
-		 * to tasks that aren't scoped to a workspace folder.
+		 * Terminates a task that was previously started using `executeTask`
+		 *
+		 * @param task the task to terminate
 		 */
-		readonly workspaceFolder: WorkspaceFolder | undefined;
+		export function terminateTask(task: TaskExecution): void;
+
+		/**
+		 * Fires when a task ends.
+		 */
+		export const onDidEndTask: Event<TaskEndEvent>;
 	}
 
 	//#endregion

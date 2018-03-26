@@ -46,7 +46,11 @@ export class ToggleTerminalAction extends TogglePanelAction {
 		if (this.terminalService.terminalInstances.length === 0) {
 			// If there is not yet an instance attempt to create it here so that we can suggest a
 			// new shell on Windows (and not do so when the panel is restored on reload).
-			this.terminalService.createInstance(undefined, true);
+			const newTerminalInstance = this.terminalService.createInstance(undefined, true);
+			const toDispose = newTerminalInstance.onProcessIdReady(() => {
+				newTerminalInstance.focus();
+				toDispose.dispose();
+			});
 		}
 		return super.run();
 	}
@@ -975,5 +979,85 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 			.then(() => TPromise.timeout(50))
 			.then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 		return TPromise.as(null);
+	}
+}
+
+export class ScrollToPreviousCommandAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.scrollToPreviousCommand';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.scrollToPreviousCommand', "Scroll To Previous Command");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const instance = this.terminalService.getActiveInstance();
+		if (instance) {
+			instance.commandTracker.scrollToPreviousCommand();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class ScrollToNextCommandAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.scrollToNextCommand';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.scrollToNextCommand', "Scroll To Next Command");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const instance = this.terminalService.getActiveInstance();
+		if (instance) {
+			instance.commandTracker.scrollToNextCommand();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class SelectToPreviousCommandAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.selectToPreviousCommand';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.selectToPreviousCommand', "Select To Previous Command");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const instance = this.terminalService.getActiveInstance();
+		if (instance) {
+			instance.commandTracker.selectToPreviousCommand();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class SelectToNextCommandAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.selectToNextCommand';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.selectToNextCommand', "Select To Next Command");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const instance = this.terminalService.getActiveInstance();
+		if (instance) {
+			instance.commandTracker.selectToNextCommand();
+		}
+		return TPromise.as(void 0);
 	}
 }

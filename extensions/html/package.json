@@ -55,6 +55,9 @@
           "source.js": "javascript",
           "source.python": "python",
           "source.smarty": "smarty"
+        },
+        "tokenTypes": {
+          "meta.tag string.quoted": "other"
         }
       }
     ],

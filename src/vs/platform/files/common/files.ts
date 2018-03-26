@@ -354,8 +354,6 @@ export function isParent(path: string, candidate: string, ignoreCase?: boolean):
 	return path.indexOf(candidate) === 0;
 }
 
-
-
 export function indexOf(path: string, candidate: string, ignoreCase?: boolean): number {
 	if (candidate.length > path.length) {
 		return -1;

@@ -46,8 +46,8 @@
     "vscode-debugprotocol": "1.27.0",
     "vscode-nsfw": "1.0.17",
     "vscode-ripgrep": "^0.8.1",
-    "vscode-textmate": "^3.3.1",
-    "vscode-xterm": "3.3.0-beta7",
+    "vscode-textmate": "^3.3.2",
+    "vscode-xterm": "3.3.0-beta8",
     "yauzl": "2.8.0"
   },
   "devDependencies": {
