@@ -10,7 +10,8 @@
   "dependencies": {
     "vscode-css-languageservice": "^3.0.9-next.1",
     "vscode-emmet-helper": "^1.2.0",
-    "vscode-languageserver": "^4.0.0"
+    "vscode-languageserver": "^4.0.0",
+    "vscode-languageserver-protocol-foldingprovider": "^1.0.1"
   },
   "devDependencies": {
     "@types/mocha": "2.2.33",
