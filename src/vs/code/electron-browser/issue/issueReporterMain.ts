@@ -69,6 +69,7 @@ export class IssueReporter extends Disposable {
 	private numberOfSearchResultsDisplayed = 0;
 	private receivedSystemInfo = false;
 	private receivedPerformanceInfo = false;
+	private shouldQueueSearch = false;
 
 	constructor(configuration: IssueReporterConfiguration) {
 		super();
@@ -324,15 +325,28 @@ export class IssueReporter extends Disposable {
 
 		this.addEventListener('issue-source', 'change', (event: Event) => {
 			const fileOnExtension = JSON.parse((<HTMLInputElement>event.target).value);
-			this.issueReporterModel.update({ fileOnExtension: fileOnExtension, includeExtensions: !fileOnExtension });
+			this.issueReporterModel.update({ fileOnExtension: fileOnExtension, includeExtensions: !fileOnExtension, selectedExtension: null });
 			this.render();
-			this.search();
+
+			const title = (<HTMLInputElement>document.getElementById('issue-title')).value;
+			if (fileOnExtension) {
+				this.searchExtensionIssues(title);
+			} else {
+				const description = this.issueReporterModel.getData().issueDescription;
+				this.searchVSCodeIssues(title, description);
+			}
 		});
 
 		this.addEventListener('description', 'input', (event: Event) => {
 			const issueDescription = (<HTMLInputElement>event.target).value;
 			this.issueReporterModel.update({ issueDescription });
-			this.search();
+
+			// Only search for extension issues on title change
+			const fileOnExtension = this.issueReporterModel.getData().fileOnExtension;
+			if (!fileOnExtension) {
+				const title = (<HTMLInputElement>document.getElementById('issue-title')).value;
+				this.searchVSCodeIssues(title, issueDescription);
+			}
 		});
 
 		this.addEventListener('issue-title', 'input', (e) => {
@@ -344,7 +358,13 @@ export class IssueReporter extends Disposable {
 				hide(lengthValidationMessage);
 			}
 
-			this.search();
+			const fileOnExtension = this.issueReporterModel.getData().fileOnExtension;
+			if (fileOnExtension) {
+				this.searchExtensionIssues(title);
+			} else {
+				const description = this.issueReporterModel.getData().issueDescription;
+				this.searchVSCodeIssues(title, description);
+			}
 		});
 
 		this.addEventListener('github-submit-btn', 'click', () => this.createIssue());
@@ -415,16 +435,12 @@ export class IssueReporter extends Disposable {
 		return false;
 	}
 
-	private search(): void {
-		// Only search issues in VSCode for now.
-		const fileOnExtension = this.issueReporterModel.getData().fileOnExtension;
-		if (fileOnExtension) {
-			this.clearSearchResults();
-			return;
-		}
+	private getExtensionRepositoryUrl(): string {
+		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
+		return selectedExtension && selectedExtension.manifest && selectedExtension.manifest.repository && selectedExtension.manifest.repository.url;
+	}
 
-		const title = (<HTMLInputElement>document.getElementById('issue-title')).value;
-		const issueDescription = (<HTMLInputElement>document.getElementById('description')).value;
+	private searchVSCodeIssues(title: string, issueDescription: string): void {
 		if (title || issueDescription) {
 			this.searchDuplicates(title, issueDescription);
 		} else {
@@ -432,10 +448,57 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
+	private searchExtensionIssues(title: string): void {
+		const url = this.getExtensionRepositoryUrl();
+		if (title) {
+			const matches = /^https?:\/\/github\.com\/(.*)(?:.git)/.exec(url);
+			if (matches && matches.length) {
+				const repo = matches[1];
+				return this.searchGitHub(repo, title);
+			}
+		}
+
+		this.clearSearchResults();
+	}
+
 	private clearSearchResults(): void {
 		const similarIssues = document.getElementById('similar-issues');
 		similarIssues.innerHTML = '';
 		this.numberOfSearchResultsDisplayed = 0;
+	}
+
+	@debounce(300)
+	private searchGitHub(repo: string, title: string): void {
+		const query = `is:issue+repo:${repo}+${title}`;
+		const similarIssues = document.getElementById('similar-issues');
+
+		window.fetch(`https://api.github.com/search/issues?q=${query}`).then((response) => {
+			response.json().then(result => {
+				similarIssues.innerHTML = '';
+				if (result && result.items) {
+					this.displaySearchResults(result.items);
+				} else {
+					// If the items property isn't present, the rate limit has been hit
+					const message = $('div.list-title');
+					message.textContent = localize('rateLimited', "GitHub query limit exceeded. Please wait.");
+					similarIssues.appendChild(message);
+
+					const resetTime = response.headers.get('X-RateLimit-Reset');
+					const timeToWait = parseInt(resetTime) - Math.floor(Date.now() / 1000);
+					if (this.shouldQueueSearch) {
+						this.shouldQueueSearch = false;
+						setTimeout(() => {
+							this.searchGitHub(repo, title);
+							this.shouldQueueSearch = true;
+						}, timeToWait * 1000);
+					}
+				}
+			}).catch(e => {
+				this.logSearchError(e);
+			});
+		}).catch(e => {
+			this.logSearchError(e);
+		});
 	}
 
 	@debounce(300)
@@ -679,8 +742,7 @@ export class IssueReporter extends Disposable {
 	private getIssueUrlWithTitle(issueTitle: string): string {
 		let repositoryUrl = product.reportIssueUrl;
 		if (this.issueReporterModel.getData().fileOnExtension) {
-			const selectedExtension = this.issueReporterModel.getData().selectedExtension;
-			const extensionUrl = selectedExtension && selectedExtension.manifest && selectedExtension.manifest.repository && selectedExtension.manifest.repository.url;
+			const extensionUrl = this.getExtensionRepositoryUrl();
 			if (extensionUrl) {
 				// Remove '.git' suffix
 				repositoryUrl = `${extensionUrl.indexOf('.git') !== -1 ? extensionUrl.substr(0, extensionUrl.length - 4) : extensionUrl}/issues/new/`;
@@ -715,6 +777,12 @@ export class IssueReporter extends Disposable {
 			const matches = extensions.filter(extension => extension.identifier.id === selectedExtensionId);
 			if (matches.length) {
 				this.issueReporterModel.update({ selectedExtension: matches[0] });
+
+				const title = (<HTMLInputElement>document.getElementById('issue-title')).value;
+				this.searchExtensionIssues(title);
+			} else {
+				this.issueReporterModel.update({ selectedExtension: null });
+				this.clearSearchResults();
 			}
 		});
 	}
