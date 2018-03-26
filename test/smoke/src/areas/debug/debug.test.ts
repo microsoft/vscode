@@ -17,6 +17,15 @@ export function setup() {
 			app.suiteName = 'Debug';
 		});
 
+		after(async function () {
+			const app = this.app as SpectronApplication;
+
+			await app.workbench.closeTab('index.js');
+			await app.workbench.closeTab('launch.json');
+
+			await app.execPromise('git reset --hard origin/master');
+		});
+
 		it('configure launch json', async function () {
 			const app = this.app as SpectronApplication;
 

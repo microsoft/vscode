@@ -12,16 +12,14 @@ export class QuickOpen {
 	static QUICK_OPEN_INPUT = `${QuickOpen.QUICK_OPEN} .quick-open-input input`;
 	static QUICK_OPEN_FOCUSED_ELEMENT = `${QuickOpen.QUICK_OPEN} .quick-open-tree .monaco-tree-row.focused .monaco-highlighted-label`;
 	static QUICK_OPEN_ENTRY_SELECTOR = 'div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties .monaco-tree-row .quick-open-entry';
+	QUICK_OPEN_ENTRY_CLICK_SELECTOR = (name: string) => `div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties .monaco-tree-row[aria-label*="${name}"]`;
 
 	constructor(readonly spectron: SpectronApplication) { }
 
 	async openQuickOpen(value: string): Promise<void> {
 		await this.spectron.runCommand('workbench.action.quickOpen');
 		await this.waitForQuickOpenOpened();
-
-		if (value) {
-			await this.spectron.client.setValue(QuickOpen.QUICK_OPEN_INPUT, value);
-		}
+		await this.spectron.client.setValue(QuickOpen.QUICK_OPEN_INPUT, value);
 	}
 
 	async closeQuickOpen(): Promise<void> {
@@ -33,9 +31,13 @@ export class QuickOpen {
 		await this.openQuickOpen(fileName);
 
 		await this.waitForQuickOpenElements(names => names.some(n => n === fileName));
-		await this.spectron.client.keys(['Enter', 'NULL']);
+		await this.spectron.client.waitAndClick(this.QUICK_OPEN_ENTRY_CLICK_SELECTOR(fileName));
 		await this.spectron.workbench.waitForActiveTab(fileName);
 		await this.spectron.workbench.waitForEditorFocus(fileName);
+	}
+
+	private async waitForQuickOpenClosed(): Promise<void> {
+		await this.spectron.client.waitForElement(QuickOpen.QUICK_OPEN_HIDDEN);
 	}
 
 	async runCommand(commandText: string): Promise<void> {
@@ -50,10 +52,6 @@ export class QuickOpen {
 
 	async waitForQuickOpenOpened(): Promise<void> {
 		await this.spectron.client.waitForActiveElement(QuickOpen.QUICK_OPEN_INPUT);
-	}
-
-	private async waitForQuickOpenClosed(): Promise<void> {
-		await this.spectron.client.waitForElement(QuickOpen.QUICK_OPEN_HIDDEN);
 	}
 
 	async submit(text: string): Promise<void> {

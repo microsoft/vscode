@@ -6,15 +6,16 @@
 import { SpectronApplication } from '../../spectron/application';
 
 export enum StatusBarElement {
-	BRANCH_STATUS = 0,
-	SYNC_STATUS = 1,
-	PROBLEMS_STATUS = 2,
-	SELECTION_STATUS = 3,
-	INDENTATION_STATUS = 4,
-	ENCODING_STATUS = 5,
-	EOL_STATUS = 6,
-	LANGUAGE_STATUS = 7,
-	FEEDBACK_ICON = 8
+	BRANCH_STATUS,
+	SYNC_STATUS,
+	ERROR_STATUS,
+	WARNING_STATUS,
+	SELECTION_STATUS,
+	INDENTATION_STATUS,
+	ENCODING_STATUS,
+	EOL_STATUS,
+	LANGUAGE_STATUS,
+	FEEDBACK_ICON
 }
 
 export class StatusBar {
@@ -48,8 +49,10 @@ export class StatusBar {
 				return `${this.mainSelector} ${this.leftSelector} .octicon.octicon-git-branch`;
 			case StatusBarElement.SYNC_STATUS:
 				return `${this.mainSelector} ${this.leftSelector} .octicon.octicon-sync`;
-			case StatusBarElement.PROBLEMS_STATUS:
-				return `${this.mainSelector} ${this.leftSelector} .task-statusbar-item[title="Problems"]`;
+			case StatusBarElement.ERROR_STATUS:
+				return `${this.mainSelector} ${this.leftSelector} .task-statusbar-item .task-statusbar-item-label-counter[title*="Error"]`;
+			case StatusBarElement.WARNING_STATUS:
+				return `${this.mainSelector} ${this.leftSelector} .task-statusbar-item .task-statusbar-item-label-counter[title*="Warning"]`;
 			case StatusBarElement.SELECTION_STATUS:
 				return `${this.mainSelector} ${this.rightSelector} .editor-status-selection`;
 			case StatusBarElement.INDENTATION_STATUS:

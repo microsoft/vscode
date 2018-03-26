@@ -14,6 +14,14 @@ export function setup() {
 			this.app.suiteName = 'Preferences';
 		});
 
+		after(async function () {
+			const app = this.app as SpectronApplication;
+
+			await app.workbench.closeTab('Keyboard Shortcuts');
+			await app.workbench.closeTab('app.js');
+			await app.workbench.closeTab('User Settings');
+		});
+
 		it('turns off editor line numbers and verifies the live change', async function () {
 			const app = this.app as SpectronApplication;
 
@@ -34,15 +42,15 @@ export function setup() {
 			const app = this.app as SpectronApplication;
 			assert.ok(await app.workbench.activitybar.getActivityBar(ActivityBarPosition.LEFT), 'Activity bar should be positioned on the left.');
 
+			await app.workbench.keybindingsEditor.openKeybinding();
 			await app.workbench.keybindingsEditor.updateKeybinding('workbench.action.toggleSidebarPosition', ['Control', 'u'], 'Control+U');
 
 			await app.client.keys(['Control', 'u', 'NULL']);
 			assert.ok(await app.workbench.activitybar.getActivityBar(ActivityBarPosition.RIGHT), 'Activity bar was not moved to right after toggling its position.');
-		});
 
-		after(async function () {
-			const app = this.app as SpectronApplication;
 			await app.workbench.settingsEditor.clearUserSettings();
+
+			assert.ok(await app.workbench.activitybar.getActivityBar(ActivityBarPosition.LEFT), 'Activity bar should be positioned back on the left.');
 		});
 	});
 }

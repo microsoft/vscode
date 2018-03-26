@@ -18,6 +18,9 @@ import { SettingsEditor } from '../preferences/settings';
 import { KeybindingsEditor } from '../preferences/keybindings';
 import { Terminal } from '../terminal/terminal';
 
+const PROGRESS_INACTIVE_BAR = `div[id="workbench.parts.sidebar"] .monaco-progress-container.done.monaco-builder-hidden`;
+const PROGRESS_ACTIVE_BAR = `div[id="workbench.parts.sidebar"] .monaco-progress-container.active`;
+
 export class Workbench {
 
 	readonly explorer: Explorer;
@@ -50,14 +53,48 @@ export class Workbench {
 		this.terminal = new Terminal(spectron);
 	}
 
-	public async saveOpenedFile(): Promise<any> {
-		await this.spectron.client.waitForElement('.tabs-container div.tab.active.dirty');
-		await this.spectron.workbench.quickopen.runCommand('File: Save');
+	public async saveOpenedFile(): Promise<void> {
+		await this.spectron.client.waitForExist('.tabs-container div.tab.active.dirty');
+		await this.spectron.runCommand('workbench.action.files.save');
+		await this.spectron.client.waitForNotExist('.tabs-container div.tab.active.dirty');
 	}
 
 	public async selectTab(tabName: string, untitled: boolean = false): Promise<void> {
 		await this.spectron.client.waitAndClick(`.tabs-container div.tab[aria-label="${tabName}, tab"]`);
-		await this.waitForEditorFocus(tabName, untitled);
+		if (tabName === 'Keyboard Shortcuts' || tabName === 'User Settings') {
+			await this.spectron.client.waitForElement('.settings-search-input input');
+		} else {
+			await this.waitForEditorFocus(tabName, untitled);
+		}
+	}
+
+	public async closeTab(tabName: string, saveFile?: boolean): Promise<any> {
+		if (saveFile) {
+			await this.selectTab(tabName);
+			await this.saveOpenedFile();
+		} else {
+			await this.spectron.client.waitAndClick(`.tabs-container div.tab[aria-label="${tabName}, tab"]`);
+			await this.spectron.client.waitForElement(`.tabs-container div.tab[aria-label="${tabName}, tab"][aria-selected=true]`);
+		}
+
+		await this.spectron.client.waitAndClick(`.tabs-container div.tab[aria-label="${tabName}, tab"][aria-selected=true] a.action-label.icon.close-editor-action`);
+		await this.spectron.client.waitForNotExist(`.tabs-container div.tab[aria-label="${tabName}, tab"]`);
+	}
+
+	public async waitForInactiveSideProgressBar(): Promise<void> {
+		await this.spectron.client.waitForExist(PROGRESS_INACTIVE_BAR);
+	}
+
+	public getInactiveSideProgressBarSelector(): string {
+		return PROGRESS_INACTIVE_BAR;
+	}
+
+	public async waitForActiveSideProgressBar(): Promise<void> {
+		await this.spectron.client.waitForExist(PROGRESS_ACTIVE_BAR);
+	}
+
+	public getActiveSideProgressBarSelector(): string {
+		return PROGRESS_ACTIVE_BAR;
 	}
 
 	public async waitForEditorFocus(fileName: string, untitled: boolean = false): Promise<void> {

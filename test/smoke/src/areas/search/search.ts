@@ -8,7 +8,7 @@ import { Viewlet } from '../workbench/viewlet';
 
 const VIEWLET = 'div[id="workbench.view.search"] .search-view';
 const INPUT = `${VIEWLET} .search-widget .search-container .monaco-inputbox input`;
-const INCLUDE_INPUT = `${VIEWLET} .query-details .monaco-inputbox input[aria-label="Search Include Patterns"]`;
+const INCLUDE_INPUT = `div.search-widgets-container div.query-details.more input[aria-label*="Search Include"]`;
 
 export class Search extends Viewlet {
 
@@ -22,6 +22,7 @@ export class Search extends Viewlet {
 	}
 
 	async searchFor(text: string): Promise<void> {
+		await this.spectron.client.waitForElement(INPUT);
 		await this.spectron.client.click(INPUT);
 		await this.spectron.client.waitForActiveElement(INPUT);
 		await this.spectron.client.setValue(INPUT, text);
@@ -29,34 +30,37 @@ export class Search extends Viewlet {
 	}
 
 	async submitSearch(): Promise<void> {
+		await this.spectron.client.waitForElement(INPUT);
 		await this.spectron.client.click(INPUT);
 		await this.spectron.client.waitForActiveElement(INPUT);
 
-		await this.spectron.client.keys(['Enter', 'NULL']);
+		await this.spectron.client.keys('Enter');
 		await this.spectron.client.element(`${VIEWLET} .messages[aria-hidden="false"]`);
+		this.spectron.client.keys('NULL');
+		await this.spectron.client.waitForElement(`${VIEWLET} .messages[aria-hidden="false"]`);
 	}
 
 	async setFilesToIncludeText(text: string): Promise<void> {
-		await this.spectron.client.click(INCLUDE_INPUT);
+		await this.spectron.client.waitForElement(INCLUDE_INPUT);
+		await this.spectron.client.waitAndClick(INCLUDE_INPUT);
 		await this.spectron.client.waitForActiveElement(INCLUDE_INPUT);
 		await this.spectron.client.setValue(INCLUDE_INPUT, text || '');
 	}
 
 	async showQueryDetails(): Promise<void> {
 		if (!await this.areDetailsVisible()) {
-			await this.spectron.client.waitAndClick(`${VIEWLET} .query-details .more`);
+			await this.spectron.client.waitAndClick(`div.search-widgets-container > div.query-details > div.more`);
 		}
 	}
 
 	async hideQueryDetails(): Promise<void> {
 		if (await this.areDetailsVisible()) {
-			await this.spectron.client.waitAndClick(`${VIEWLET} .query-details.more .more`);
+			await this.spectron.client.waitAndClick(`div.search-widgets-container > div.query-details.more > div.more`);
 		}
 	}
 
 	async areDetailsVisible(): Promise<boolean> {
-		const element = await this.spectron.client.element(`${VIEWLET} .query-details.more`);
-		return !!element;
+		return await this.spectron.client.isVisible(`div.search-widgets-container > div.query-details.more > div.more`);
 	}
 
 	async removeFileMatch(index: number): Promise<void> {
@@ -78,7 +82,7 @@ export class Search extends Viewlet {
 
 	async replaceFileMatch(index: number): Promise<void> {
 		await this.spectron.client.waitAndMoveToObject(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch`);
-		await this.spectron.client.click(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch .action-label.icon.action-replace-all`);
+		await this.spectron.client.waitAndClick(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch .action-label.icon.action-replace-all`);
 	}
 
 	async waitForResultText(text: string): Promise<void> {

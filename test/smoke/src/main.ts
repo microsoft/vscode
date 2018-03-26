@@ -22,6 +22,7 @@ import { setup as setupDataCSSTests } from './areas/css/css.test';
 import { setup as setupDataEditorTests } from './areas/editor/editor.test';
 import { setup as setupDataDebugTests } from './areas/debug/debug.test';
 import { setup as setupDataGitTests } from './areas/git/git.test';
+import { setup as setupDataGitListTests } from './areas/git/git.list.test';
 import { setup as setupDataStatusbarTests } from './areas/statusbar/statusbar.test';
 import { setup as setupDataExtensionTests } from './areas/extensions/extensions.test';
 import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
@@ -270,6 +271,7 @@ describe('Everything Else', () => {
 	setupDataEditorTests();
 	setupDataDebugTests();
 	setupDataGitTests();
+	setupDataGitListTests();
 	setupDataStatusbarTests();
 	setupDataExtensionTests();
 	setupDataMultirootTests();

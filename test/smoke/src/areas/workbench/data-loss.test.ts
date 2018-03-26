@@ -11,6 +11,20 @@ export function setup() {
 			this.app.suiteName = 'Dataloss';
 		});
 
+		after(async function () {
+			const app = this.app as SpectronApplication;
+			const untitled = 'Untitled-1';
+
+			await app.workbench.waitForTab(untitled, true);
+			await app.workbench.selectTab(untitled, true);
+			await app.runCommand('editor.action.selectAll');
+			await app.runCommand('deleteRight');
+			await app.workbench.waitForTab(untitled, false);
+			await app.workbench.closeTab(untitled);
+
+			await app.workbench.closeTab('readme.md', true);
+		});
+
 		it(`verifies that 'hot exit' works for dirty files`, async function () {
 			const app = this.app as SpectronApplication;
 			await app.workbench.newUntitledFile();

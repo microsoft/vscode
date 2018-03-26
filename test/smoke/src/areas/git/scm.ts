@@ -9,11 +9,14 @@ import { Viewlet } from '../workbench/viewlet';
 const VIEWLET = 'div[id="workbench.view.scm"]';
 const SCM_INPUT = `${VIEWLET} .scm-editor textarea`;
 const SCM_RESOURCE = `${VIEWLET} .monaco-list-row > .resource`;
+const SCM_SELECTED_RESOURCE = `${VIEWLET} .monaco-list-row.focused.selected > .resource`;
 const SCM_RESOURCE_GROUP = `${VIEWLET} .monaco-list-row > .resource-group`;
 const REFRESH_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Refresh"]`;
 const COMMIT_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Commit"]`;
+
 const SCM_RESOURCE_CLICK = (name: string) => `${SCM_RESOURCE} .monaco-icon-label[title*="${name}"] .label-name`;
-const SCM_RESOURCE_ACTION_CLICK = (name: string, actionName: string) => `${SCM_RESOURCE} .monaco-icon-label[title*="${name}"] .actions .action-label[title="${actionName}"]`;
+const SCM_SELECTED_RESOURCE_CLICK = (name: string) => `${SCM_SELECTED_RESOURCE} .monaco-icon-label[title*="${name}"] .label-name`;
+const SCM_RESOURCE_ACTION_CLICK = (name: string, actionName: string) => `${SCM_RESOURCE} .monaco-icon-label[title*="${name}"] .actions .action-label[title*="${actionName}"]`;
 const SCM_RESOURCE_GROUP_COMMAND_CLICK = (name: string) => `${SCM_RESOURCE_GROUP} .actions .action-label[title="${name}"]`;
 
 interface Change {
@@ -33,15 +36,42 @@ export class SCM extends Viewlet {
 		await this.spectron.client.waitForElement(SCM_INPUT);
 	}
 
-	waitForChange(name: string, type?: string): Promise<void> {
-		return this.spectron.client.waitFor(async () => {
-			const changes = await this.queryChanges(name, type);
-			return changes.length;
-		}, l => l > 0, 'Getting SCM changes') as Promise<any> as Promise<void>;
+	async waitForClickRefreshCompletion(): Promise<void> {
+		const progressActiveBar = this.spectron.workbench.getActiveSideProgressBarSelector();
+		await this.spectron.workbench.waitForInactiveSideProgressBar();
+
+		await this.spectron.client.waitFor(async () => {
+			await this.spectron.client.click(REFRESH_COMMAND);
+			const state = await this.spectron.client.element(progressActiveBar).then(result => {
+				return true;
+			});
+			return state;
+		}, state => !!state, 'Refreshing SCM for changes');
+
+		await this.spectron.workbench.waitForInactiveSideProgressBar();
 	}
 
-	async refreshSCMViewlet(): Promise<any> {
-		await this.spectron.client.click(REFRESH_COMMAND);
+	async waitForChange(name: string, type?: string, triggerFn?: (this: void) => Promise<void> | void): Promise<void> {
+		const progressInactiveBar = this.spectron.workbench.getInactiveSideProgressBarSelector();
+
+		if (triggerFn) { await this.spectron.workbench.waitForInactiveSideProgressBar(); }
+
+		await this.spectron.client.waitFor(async () => {
+			if (triggerFn) {
+				// since progress bar starts later then this waitFor cycles, give it a moment to run
+				await this.spectron.webclient.pause(500);
+				const isProgressBarInactive = await this.spectron.client.element(progressInactiveBar)
+					.then(result => !!result);
+
+				if (isProgressBarInactive) {
+					triggerFn();
+				}
+			}
+			const changes = await this.queryChanges(name, type);
+			return changes.length;
+		}, l => l > 0, 'Getting SCM changes');
+
+		if (triggerFn) { await this.spectron.workbench.waitForInactiveSideProgressBar(); }
 	}
 
 	private async queryChanges(name: string, type?: string): Promise<Change[]> {
@@ -82,6 +112,25 @@ export class SCM extends Viewlet {
 
 	async openChange(name: string): Promise<void> {
 		await this.spectron.client.waitAndClick(SCM_RESOURCE_CLICK(name));
+	}
+
+	async waitForFileToBeModifiedAndSaved(name: string, message: string): Promise<void> {
+		await this.spectron.workbench.quickopen.openFile(name);
+		await this.spectron.workbench.editor.waitForTypeInEditor(name, message);
+		await this.spectron.client.keys(['Enter', 'NULL']);
+		await this.waitForOpenFileToBeSaved(name);
+		await this.spectron.workbench.closeTab(name);
+	}
+
+	async waitForOpenFileToBeSaved(name: string) {
+		await this.spectron.workbench.saveOpenedFile();
+		await this.waitForClickRefreshCompletion();
+		await this.spectron.client.waitForExist(SCM_RESOURCE_CLICK(name));
+	}
+
+	async waitForListResourceToBeSelected(name: string): Promise<void> {
+		await this.spectron.client.click(SCM_RESOURCE_CLICK(name));
+		await this.spectron.client.waitForExist(SCM_SELECTED_RESOURCE_CLICK(name));
 	}
 
 	async stage(name: string): Promise<void> {
