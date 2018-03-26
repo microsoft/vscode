@@ -20,7 +20,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SimpleDebugEditor } from 'vs/workbench/parts/debug/electron-browser/simpleDebugEditor';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection';
 import { ServicesAccessor, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -31,9 +30,10 @@ import { ITextModel } from 'vs/editor/common/model';
 import { wireCancellationToken } from 'vs/base/common/async';
 import { provideSuggestionItems } from 'vs/editor/contrib/suggest/suggest';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDecorationOptions } from '../../../../editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 
 const $ = dom.$;
 const IPrivateBreakopintWidgetService = createDecorator<IPrivateBreakopintWidgetService>('privateBreakopintWidgetService');
@@ -213,7 +213,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 		this.input.getModel().onDidChangeContent(() => setDecorations());
 		this.themeService.onThemeChange(() => setDecorations());
 
-		SuggestRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
+		this.toDispose.push(SuggestRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
 			triggerCharacters: ['.'],
 			provideCompletionItems: (model: ITextModel, position: Position, _context: SuggestContext, token: CancellationToken): Thenable<ISuggestResult> => {
 				let suggestions: TPromise<ISuggestResult>;
@@ -227,7 +227,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 
 				return wireCancellationToken(token, suggestions);
 			}
-		});
+		}));
 	}
 
 	private createDecorations(): IDecorationOptions[] {
