@@ -10,7 +10,7 @@ import { getEmmetHelper, getNode, getMappingForIncludedLanguages, parseDocument,
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
-	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList | undefined> | undefined {
+	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken, context: vscode.CompletionContext): Thenable<vscode.CompletionList | undefined> | undefined {
 		const emmetConfig = vscode.workspace.getConfiguration('emmet');
 		const excludedLanguages = emmetConfig['excludeLanguages'] ? emmetConfig['excludeLanguages'] : [];
 		if (excludedLanguages.indexOf(document.languageId) > -1) {
@@ -33,18 +33,20 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			return;
 		}
 
-		let validateLocation = syntax === 'html';
+		let validateLocation = false;
 		let currentNode: Node | null = null;
 
-		// If document can be css parsed, get currentNode
-		if (isStyleSheet(document.languageId)) {
-			const rootNode = parseDocument(document, false);
-			if (!rootNode) {
-				return;
-			}
+		if (context.triggerKind !== vscode.CompletionTriggerKind.TriggerForIncompleteCompletions) {
+			validateLocation = syntax === 'html' || isStyleSheet(document.languageId);
+			// If document can be css parsed, get currentNode
+			if (isStyleSheet(document.languageId)) {
+				const rootNode = parseDocument(document, false);
+				if (!rootNode) {
+					return;
+				}
 
-			currentNode = getNode(rootNode, position, true);
-			validateLocation = true;
+				currentNode = getNode(rootNode, position, true);
+			}
 		}
 
 		if (validateLocation && !isValidLocationForEmmetAbbreviation(document, currentNode, syntax, position, extractAbbreviationResults.abbreviationRange)) {
