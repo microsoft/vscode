@@ -1067,6 +1067,12 @@ export interface ITextModel {
 	 * @internal
 	 */
 	isAttachedToEditor(): boolean;
+
+	/**
+	 * Returns the count of editors this model is attached to.
+	 * @internal
+	 */
+	getAttachedEditorCount(): number;
 }
 
 /**
