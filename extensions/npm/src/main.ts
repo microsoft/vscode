@@ -14,11 +14,22 @@ import * as minimatch from 'minimatch';
 const localize = nls.loadMessageBundle();
 
 import { addJSONProviders } from './features/jsonContributions';
+import { NpmScriptsTreeDataProvider } from './npmView';
+import { NpmTaskDefinition, ScriptValidator } from './tasks';
 
 type AutoDetect = 'on' | 'off';
 let taskProvider: vscode.Disposable | undefined;
 
+class Validator implements ScriptValidator {
+	async scriptIsValid(_task: vscode.Task): Promise<boolean> {
+		// let tasks = await provideNpmScriptsForFolder(packageUri); 
+		return true;
+	}
+}
+
 export function activate(context: vscode.ExtensionContext): void {
+	vscode.window.registerTreeDataProvider('npm', new NpmScriptsTreeDataProvider(context, new Validator()));
+
 	if (!vscode.workspace.workspaceFolders) {
 		return;
 	}
@@ -65,11 +76,6 @@ async function readFile(file: string): Promise<string> {
 			resolve(data.toString());
 		});
 	});
-}
-
-interface NpmTaskDefinition extends vscode.TaskDefinition {
-	script: string;
-	path?: string;
 }
 
 const buildNames: string[] = ['build', 'compile', 'watch'];

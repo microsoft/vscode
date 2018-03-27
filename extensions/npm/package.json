@@ -7,6 +7,7 @@
   "engines": {
     "vscode": "0.10.x"
   },
+  "enableProposedApi": true,
   "icon": "images/npm_icon.png",
   "categories": [
     "Other"
@@ -28,9 +29,53 @@
   "main": "./out/main",
   "activationEvents": [
     "onCommand:workbench.action.tasks.runTask",
-    "onLanguage:json"
+    "onLanguage:json",
+    "onView:npm"
   ],
   "contributes": {
+    "views": {
+      "explorer": [
+        {
+          "id": "npm",
+          "name": "npm scripts"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "npm.runScript",
+        "title": "Run Script"
+      },
+      {
+        "command": "npm.openScript",
+        "title": "Open Script"
+      },
+      {
+        "command": "npm.refresh",
+        "title": "Refresh",
+        "icon": {
+          "light": "resources/light/refresh.svg",
+          "dark": "resources/dark/refresh.svg"
+        }
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "npm.refresh",
+          "when": "view == npm",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "npm.openScript",
+          "when": "view == npm && viewItem == packageJSON",
+          "group": "1_navigation"
+        }
+      ]
+    },
+
     "configuration": {
       "id": "npm",
       "type": "object",
