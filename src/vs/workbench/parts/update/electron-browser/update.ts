@@ -30,6 +30,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { once } from 'vs/base/common/event';
+import { isWindows } from 'vs/base/common/platform';
 
 const NotNowAction = new Action(
 	'update.later',
@@ -395,6 +396,10 @@ export class UpdateContribution implements IGlobalActivity {
 	}
 
 	private shouldShowNotification(): boolean {
+		if (isWindows) {
+			return true;
+		}
+
 		const currentVersion = product.commit;
 		const currentMillis = new Date().getTime();
 		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.GLOBAL);
