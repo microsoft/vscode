@@ -34,22 +34,20 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		}
 
 		let validateLocation = false;
-		let currentNode: Node | null = null;
+		let rootNode: Stylesheet | undefined = undefined;
 
 		if (context.triggerKind !== vscode.CompletionTriggerKind.TriggerForIncompleteCompletions) {
 			validateLocation = syntax === 'html' || isStyleSheet(document.languageId);
 			// If document can be css parsed, get currentNode
 			if (isStyleSheet(document.languageId)) {
-				const rootNode = document.lineCount > 1000 ? parsePartialStylesheet(document, position) : <Stylesheet>parseDocument(document, false);
-				if (!rootNode || (rootNode.comments || []).some(x => position.isAfterOrEqual(x.start) && position.isBeforeOrEqual(x.end))) {
+				rootNode = document.lineCount > 1000 ? parsePartialStylesheet(document, position) : <Stylesheet>parseDocument(document, false);
+				if (!rootNode) {
 					return;
 				}
-
-				currentNode = getNode(rootNode, position, true);
 			}
 		}
 
-		if (validateLocation && !isValidLocationForEmmetAbbreviation(document, currentNode, syntax, position, extractAbbreviationResults.abbreviationRange)) {
+		if (validateLocation && !isValidLocationForEmmetAbbreviation(document, rootNode, syntax, position, extractAbbreviationResults.abbreviationRange)) {
 			return;
 		}
 
