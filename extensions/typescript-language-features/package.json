@@ -468,6 +468,11 @@
         "command": "typescript.organizeImports",
         "title": "%typescript.organizeImports%",
         "category": "TypeScript"
+      },
+      {
+        "command": "javascript.organizeImports",
+        "title": "%typescript.organizeImports%",
+        "category": "JavaScript"
       }
     ],
     "keybindings": [
@@ -525,7 +530,19 @@
         },
         {
           "command": "typescript.organizeImports",
-          "when": "typescript.isManagedFile && typescript.canOrganizeImports"
+          "when": "editorLangId == typescriptreact && typescript.isManagedFile && typescript.canOrganizeImports"
+        },
+        {
+          "command": "typescript.organizeImports",
+          "when": "editorLangId == typescript && typescript.isManagedFile && typescript.canOrganizeImports"
+        },
+        {
+          "command": "javascript.organizeImports",
+          "when": "editorLangId == javascriptreact && typescript.isManagedFile && typescript.canOrganizeImports"
+        },
+        {
+          "command": "javascript.organizeImports",
+          "when": "editorLangId == javascript && typescript.isManagedFile && typescript.canOrganizeImports"
         }
       ]
     },
