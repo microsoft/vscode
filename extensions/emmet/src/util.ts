@@ -223,7 +223,7 @@ function findClosingCommentAfterPosition(document: vscode.TextDocument, position
 	if (offset === -1) {
 		return;
 	}
-	offset += 2;
+	offset += 2 + document.offsetAt(position);
 	return document.positionAt(offset);
 }
 
