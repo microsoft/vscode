@@ -252,7 +252,7 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 		title: toggleSearchViewPositionLabel
 	},
 	when: Constants.SearchViewVisibleKey,
-	group: 'search',
+	group: 'search_2',
 	order: 3
 });
 
