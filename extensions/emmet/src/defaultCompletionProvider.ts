@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { Stylesheet } from 'EmmetNode';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
-import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, parseDocument } from './util';
+import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, parseDocument, } from './util';
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
@@ -29,7 +29,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 		const helper = getEmmetHelper();
 		const extractAbbreviationResults = helper.extractAbbreviation(document, position, !isStyleSheet(syntax));
-		if (!extractAbbreviationResults) {
+		if (!extractAbbreviationResults || !helper.isAbbreviationValid(syntax, extractAbbreviationResults.abbreviation)) {
 			return;
 		}
 
