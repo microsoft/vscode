@@ -175,14 +175,14 @@ export class TextFileEditor extends BaseTextEditor {
 
 					return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
 						actions: [
-							new Action('workbench.window.action.relaunchWithIncreasedMemoryLimit', nls.localize('relaunchWithIncreasedMemoryLimit', "Relaunch"), null, true, () => {
+							new Action('workbench.window.action.relaunchWithIncreasedMemoryLimit', nls.localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), null, true, () => {
 								return this.windowsService.relaunch({
 									addArgs: [
 										`--max-memory=${memoryLimit}`
 									]
 								});
 							}),
-							new Action('workbench.window.action.configureMemoryLimit', nls.localize('configureMemoryLimit', 'Configure'), null, true, () => {
+							new Action('workbench.window.action.configureMemoryLimit', nls.localize('configureMemoryLimit', 'Configure Memory Limit'), null, true, () => {
 								return this.preferencesService.openGlobalSettings().then(editor => {
 									if (editor instanceof PreferencesEditor) {
 										editor.focusSearch('files.maxMemoryForLargeFilesMB');
