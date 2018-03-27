@@ -122,8 +122,8 @@ export class Tree implements _.ITree {
 		return this.view.getHTMLElement();
 	}
 
-	public layout(height?: number): void {
-		this.view.layout(height);
+	public layout(height?: number, width?: number): void {
+		this.view.layout(height, width);
 	}
 
 	public domFocus(): void {

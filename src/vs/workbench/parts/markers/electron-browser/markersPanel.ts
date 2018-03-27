@@ -91,7 +91,7 @@ export class MarkersPanel extends Panel {
 	}
 
 	public layout(dimension: builder.Dimension): void {
-		this.tree.layout(dimension.height);
+		this.tree.layout(dimension.height, dimension.width);
 	}
 
 	public focus(): void {
