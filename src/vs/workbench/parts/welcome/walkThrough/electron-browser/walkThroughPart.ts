@@ -94,10 +94,10 @@ export class WalkThroughPart extends BaseEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IThemeService themeService: IThemeService,
+		@IModelService modelService: IModelService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService protected themeService: IThemeService,
 		@IOpenerService private openerService: IOpenerService,
-		@IModelService protected modelService: IModelService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IStorageService private storageService: IStorageService,
 		@IContextKeyService private contextKeyService: IContextKeyService,

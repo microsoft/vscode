@@ -9,7 +9,7 @@ import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, 
 import { TextDocument, Position, Range, CompletionItem } from 'vscode-languageserver-types';
 import { LanguageMode, Workspace } from './languageModes';
 
-import { FoldingRange } from '../protocol/foldingProvider.proposed';
+import { FoldingRange } from 'vscode-languageserver-protocol-foldingprovider';
 import { getHTMLFoldingRegions } from './htmlFolding';
 import { getPathCompletionParticipant } from './pathCompletion';
 

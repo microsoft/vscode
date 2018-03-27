@@ -12,7 +12,7 @@ import { HTMLDocumentRegions } from './embeddedSupport';
 
 import * as ts from 'typescript';
 import { join } from 'path';
-import { FoldingRange, FoldingRangeType } from '../protocol/foldingProvider.proposed';
+import { FoldingRange, FoldingRangeType } from 'vscode-languageserver-protocol-foldingprovider';
 
 const FILE_NAME = 'vscode://javascript/1';  // the same 'file' is used for all contents
 const JQUERY_D_TS = join(__dirname, '../../lib/jquery.d.ts');

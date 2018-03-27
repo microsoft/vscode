@@ -20,7 +20,7 @@ import uri from 'vscode-uri';
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
 import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath, getEmmetCompletionParticipants } from 'vscode-emmet-helper';
 
-import { FoldingRangesRequest, FoldingProviderServerCapabilities } from './protocol/foldingProvider.proposed';
+import { FoldingRangesRequest, FoldingProviderServerCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
 import { getFoldingRegions } from './modes/htmlFolding';
 
 namespace TagCloseRequest {

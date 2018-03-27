@@ -4986,15 +4986,9 @@ declare namespace monaco.languages {
 		rejectReason?: string;
 	}
 
-	export interface RenameContext {
-		range: IRange;
-		text: string;
-		message?: string;
-	}
-
 	export interface RenameProvider {
 		provideRenameEdits(model: editor.ITextModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
-		resolveRenameLocation?(model: editor.ITextModel, position: Position, token: CancellationToken): RenameContext | Thenable<RenameContext>;
+		resolveRenameLocation?(model: editor.ITextModel, position: Position, token: CancellationToken): IRange | Thenable<IRange>;
 	}
 
 	export interface Command {

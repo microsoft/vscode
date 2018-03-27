@@ -20,7 +20,7 @@ import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings,
 import { getLanguageModelCache } from './languageModelCache';
 import { getFoldingRegions } from './jsonFolding';
 
-import { FoldingRangesRequest, FoldingProviderServerCapabilities } from './protocol/foldingProvider.proposed';
+import { FoldingRangesRequest, FoldingProviderServerCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
 
 interface ISchemaAssociations {
 	[pattern: string]: string[];

@@ -45,6 +45,7 @@ import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
+import { getColors } from 'vs/editor/contrib/colorPicker/color';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -1163,6 +1164,28 @@ suite('ExtHostLanguageFeatures', function () {
 
 				assert.equal(first.url, 'foo:bar#3');
 				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 2 });
+			});
+		});
+	});
+
+	test('Document colors, data conversion', function () {
+
+		disposables.push(extHost.registerColorProvider(defaultSelector, <vscode.DocumentColorProvider>{
+			provideDocumentColors(): vscode.ColorInformation[] {
+				return [new types.ColorInformation(new types.Range(0, 0, 0, 20), new types.Color(0.1, 0.2, 0.3, 0.4))];
+			},
+			provideColorPresentations(color: vscode.Color, context: { range: vscode.Range, document: vscode.TextDocument }): vscode.ColorPresentation[] {
+				return [];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return getColors(model).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+
+				assert.deepEqual(first.colorInfo.color, { red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4 });
+				assert.deepEqual(first.colorInfo.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 21 });
 			});
 		});
 	});

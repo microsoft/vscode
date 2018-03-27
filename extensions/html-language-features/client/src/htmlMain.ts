@@ -14,7 +14,7 @@ import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-import { FoldingRangesRequest, FoldingRangeRequestParam } from './protocol/foldingProvider.proposed';
+import { FoldingRangesRequest, FoldingRangeRequestParam } from 'vscode-languageserver-protocol-foldingprovider';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');

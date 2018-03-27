@@ -522,4 +522,55 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			});
 		});
 	});
+
+
+	test('Color provider', function () {
+
+		disposables.push(extHost.registerColorProvider(defaultSelector, <vscode.DocumentColorProvider>{
+			provideDocumentColors(): vscode.ColorInformation[] {
+				return [new types.ColorInformation(new types.Range(0, 0, 0, 20), new types.Color(0.1, 0.2, 0.3, 0.4))];
+			},
+			provideColorPresentations(color: vscode.Color, context: { range: vscode.Range, document: vscode.TextDocument }): vscode.ColorPresentation[] {
+				const cp = new types.ColorPresentation('#ABC');
+				cp.textEdit = types.TextEdit.replace(new types.Range(1, 0, 1, 20), '#ABC');
+				cp.additionalTextEdits = [types.TextEdit.insert(new types.Position(2, 20), '*')];
+				return [cp];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.ColorInformation[]>('vscode.executeDocumentColorProvider', model.uri).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+
+				assert.equal(first.color.red, 0.1);
+				assert.equal(first.color.green, 0.2);
+				assert.equal(first.color.blue, 0.3);
+				assert.equal(first.color.alpha, 0.4);
+				assert.equal(first.range.start.line, 0);
+				assert.equal(first.range.start.character, 0);
+				assert.equal(first.range.end.line, 0);
+				assert.equal(first.range.end.character, 20);
+			});
+		}).then(() => {
+			const color = new types.Color(0.5, 0.6, 0.7, 0.8);
+			const range = new types.Range(0, 0, 0, 20);
+			return commands.executeCommand<vscode.ColorPresentation[]>('vscode.executeColorPresentationProvider', color, { uri: model.uri, range }).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+
+				assert.equal(first.label, '#ABC');
+				assert.equal(first.textEdit.newText, '#ABC');
+				assert.equal(first.textEdit.range.start.line, 1);
+				assert.equal(first.textEdit.range.start.character, 0);
+				assert.equal(first.textEdit.range.end.line, 1);
+				assert.equal(first.textEdit.range.end.character, 20);
+				assert.equal(first.additionalTextEdits.length, 1);
+				assert.equal(first.additionalTextEdits[0].range.start.line, 2);
+				assert.equal(first.additionalTextEdits[0].range.start.character, 20);
+				assert.equal(first.additionalTextEdits[0].range.end.line, 2);
+				assert.equal(first.additionalTextEdits[0].range.end.character, 20);
+			});
+		});
+	});
 });

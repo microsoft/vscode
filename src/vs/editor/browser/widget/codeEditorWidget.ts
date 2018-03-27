@@ -547,6 +547,13 @@ function getSquigglySVGData(color: Color) {
 	return squigglyStart + encodeURIComponent(color.toString()) + squigglyEnd;
 }
 
+const dotdotdotStart = encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" height="3" width="12"><g fill="`);
+const dotdotdotEnd = encodeURIComponent(`"><circle cx="1" cy="1" r="1"/><circle cx="5" cy="1" r="1"/><circle cx="9" cy="1" r="1"/></g></svg>`);
+
+function getDotDotDotSVGData(color: Color) {
+	return dotdotdotStart + encodeURIComponent(color.toString()) + dotdotdotEnd;
+}
+
 registerThemingParticipant((theme, collector) => {
 	let errorBorderColor = theme.getColor(editorErrorBorder);
 	if (errorBorderColor) {
@@ -577,10 +584,10 @@ registerThemingParticipant((theme, collector) => {
 
 	let hintBorderColor = theme.getColor(editorHintBorder);
 	if (hintBorderColor) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { border-bottom: 4px dotted no-repeat ${hintBorderColor}; }`);
+		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { border-bottom: 2px dotted ${hintBorderColor}; }`);
 	}
 	let hintForeground = theme.getColor(editorHintForeground);
 	if (hintForeground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(hintForeground)}") no-repeat bottom left; }`);
+		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { background: url("data:image/svg+xml;utf8,${getDotDotDotSVGData(hintForeground)}") no-repeat bottom left; }`);
 	}
 });

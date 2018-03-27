@@ -267,6 +267,11 @@ export default class BufferSyncSupport {
 		}, delay);
 	}
 
+	public hasPendingDiagnostics(resource: Uri): boolean {
+		const file = this.client.normalizePath(resource);
+		return !file || this.pendingDiagnostics.has(file);
+	}
+
 	private sendPendingDiagnostics(): void {
 		if (!this._validate) {
 			return;

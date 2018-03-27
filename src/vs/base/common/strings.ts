@@ -159,6 +159,10 @@ export function startsWith(haystack: string, needle: string): boolean {
 		return false;
 	}
 
+	if (haystack === needle) {
+		return true;
+	}
+
 	for (let i = 0; i < needle.length; i++) {
 		if (haystack[i] !== needle[i]) {
 			return false;
@@ -427,7 +431,7 @@ function doEqualsIgnoreCase(a: string, b: string, stopAt = a.length): boolean {
 	return true;
 }
 
-export function beginsWithIgnoreCase(str: string, candidate: string): boolean {
+export function startsWithIgnoreCase(str: string, candidate: string): boolean {
 	const candidateLength = candidate.length;
 	if (candidate.length > str.length) {
 		return false;
