@@ -279,10 +279,10 @@ connection.onRenameRequest(renameParameters => {
 
 connection.onRequest(FoldingRangesRequest.type, (params, token) => {
 	return runSafe(() => {
-		let document = documents.get(params[0].textDocument.uri);
+		let document = documents.get(params.textDocument.uri);
 		let stylesheet = stylesheets.get(document);
 		return getLanguageService(document).findFoldingRegions(document, stylesheet);
-	}, null, `Error while computing folding ranges for ${params[0].textDocument.uri}`);
+	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`);
 });
 
 // Listen on the connection
