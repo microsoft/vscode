@@ -1550,6 +1550,54 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #46440: (1) Pasting a multi-line selection pastes entire selection into every insertion point', () => {
+		usingCursor({
+			text: [
+				'line1',
+				'line2',
+				'line3'
+			],
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1), new Selection(3, 1, 3, 1)]);
+
+			cursorCommand(cursor, H.Paste, {
+				text: 'a\nb\nc',
+				pasteOnNewLine: false,
+				multicursorText: null
+			});
+
+			assert.equal(model.getValue(), [
+				'aline1',
+				'bline2',
+				'cline3'
+			].join('\n'));
+		});
+	});
+
+	test('issue #46440: (2) Pasting a multi-line selection pastes entire selection into every insertion point', () => {
+		usingCursor({
+			text: [
+				'line1',
+				'line2',
+				'line3'
+			],
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1), new Selection(3, 1, 3, 1)]);
+
+			cursorCommand(cursor, H.Paste, {
+				text: 'a\nb\nc\n',
+				pasteOnNewLine: false,
+				multicursorText: null
+			});
+
+			assert.equal(model.getValue(), [
+				'aline1',
+				'bline2',
+				'cline3'
+			].join('\n'));
+		});
+	});
+
 	test('issue #3071: Investigate why undo stack gets corrupted', () => {
 		let model = TextModel.createFromString(
 			[
