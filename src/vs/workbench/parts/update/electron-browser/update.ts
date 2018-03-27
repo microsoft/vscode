@@ -388,7 +388,7 @@ export class UpdateContribution implements IGlobalActivity {
 
 		const handle = this.notificationService.notify({
 			severity: severity.Info,
-			message: nls.localize('updateAvailableAfterRestart', "{0} will be updated after it restarts.", product.nameLong),
+			message: nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", product.nameLong),
 			actions: { primary: [applyUpdateAction, NotNowAction, releaseNotesAction] }
 		});
 		once(handle.onDidDispose)(() => applyUpdateAction, releaseNotesAction);
