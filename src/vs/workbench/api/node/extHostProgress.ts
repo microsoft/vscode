@@ -72,8 +72,8 @@ function mergeProgress(result: IProgressStep, currentValue: IProgressStep): IPro
 	result.message = currentValue.message;
 	if (typeof currentValue.percentage === 'number' && typeof result.message === 'number') {
 		result.percentage += currentValue.percentage;
-	} else {
-		result.percentage = currentValue.percentage || result.percentage;
+	} else if (typeof currentValue.percentage === 'number') {
+		result.percentage = currentValue.percentage;
 	}
 	return result;
 }

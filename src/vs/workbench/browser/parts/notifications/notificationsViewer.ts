@@ -469,7 +469,7 @@ export class NotificationTemplateRenderer {
 
 		// Total / Worked
 		else if (typeof state.total === 'number' || typeof state.worked === 'number') {
-			if (typeof state.total === 'number') {
+			if (typeof state.total === 'number' && !this.template.progress.hasTotal()) {
 				this.template.progress.total(state.total);
 			}
 
