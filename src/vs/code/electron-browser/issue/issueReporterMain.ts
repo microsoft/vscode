@@ -692,7 +692,7 @@ export class IssueReporter extends Disposable {
 	private validateInputs(): boolean {
 		let isValid = true;
 		['issue-title', 'description', 'issue-source'].forEach(elementId => {
-			isValid = this.validateInput(elementId);
+			isValid = this.validateInput(elementId) && isValid;
 		});
 
 		if (this.issueReporterModel.getData().fileOnExtension) {
