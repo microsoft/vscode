@@ -771,7 +771,7 @@ export class IssueReporter extends Disposable {
 	}
 
 	private updateExtensionSelector(extensions: ILocalExtension[]): void {
-		const makeOption = (extension: ILocalExtension) => `<option value="${extension.identifier.id}">${escape(extension.manifest.displayName)}</option>`;
+		const makeOption = (extension: ILocalExtension) => `<option value="${extension.identifier.id}">${escape(extension.manifest.displayName || extension.manifest.name || '')}</option>`;
 		const extensionsSelector = document.getElementById('extension-selector');
 		extensionsSelector.innerHTML = '<option></option>' + extensions.map(makeOption).join('\n');
 
