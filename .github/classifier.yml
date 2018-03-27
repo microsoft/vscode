@@ -10,7 +10,7 @@
         color-picker: [],
         css-less-sass: [ aeschli ],
         debug: {
-            assignees: [ isidorn ],
+            assignees: [ weinand ],
             assignLabel: false
         },
         diff-editor: [],
