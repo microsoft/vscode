@@ -14,7 +14,6 @@ import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { domEvent } from 'vs/base/browser/event';
 import { Emitter } from 'vs/base/common/event';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { memoize } from 'vs/base/common/decorators';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { createCSSRule } from 'vs/base/browser/dom';
 import URI from 'vs/base/common/uri';
@@ -26,6 +25,7 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 
 	private _subscriptions: IDisposable[] = [];
 	private _isPressed: boolean;
+	private static instance: AlternativeKeyEmitter;
 
 	private constructor(contextMenuService: IContextMenuService) {
 		super();
@@ -49,9 +49,12 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 		this.fire(this._isPressed);
 	}
 
-	@memoize
 	static getInstance(contextMenuService: IContextMenuService) {
-		return new AlternativeKeyEmitter(contextMenuService);
+		if (!AlternativeKeyEmitter.instance) {
+			AlternativeKeyEmitter.instance = new AlternativeKeyEmitter(contextMenuService);
+		}
+
+		return AlternativeKeyEmitter.instance;
 	}
 
 	dispose() {
