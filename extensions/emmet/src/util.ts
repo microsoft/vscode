@@ -166,9 +166,11 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	stream.pos = position;
 	let openBracesRemaining = 1;
 	let currentLine = position.line;
+	let limitCharacter = document.offsetAt(position) - 5000;
+	let limitPosition = limitCharacter > 0 ? document.positionAt(limitCharacter) : startPosition;
 
 	while (openBracesRemaining > 0 && !stream.sof()) {
-		if (position.line - stream.pos.line > 1000) {
+		if (position.line - stream.pos.line > 100 || stream.pos.isBeforeOrEqual(limitPosition)) {
 			return parseStylesheet(new DocumentStreamReader(document, startPosition, new vscode.Range(startPosition, endPosition)));
 		} else if (!isCSS && stream.pos.line !== currentLine) {
 			// In not CSS stylesheets, we need to skip singleLine comments.
