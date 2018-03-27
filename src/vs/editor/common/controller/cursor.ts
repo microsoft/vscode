@@ -361,7 +361,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	private _interpretCommandResult(cursorState: Selection[]): void {
 		if (!cursorState || cursorState.length === 0) {
-			return;
+			cursorState = this._cursors.readSelectionFromMarkers();
 		}
 
 		this._columnSelectData = null;
