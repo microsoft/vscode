@@ -1675,6 +1675,11 @@ export class TreeView extends HeightMap {
 		}
 		this.domNode = null;
 
+		if (this.items) {
+			Object.keys(this.items).forEach(key => this.items[key].removeFromDOM());
+			this.items = null;
+		}
+
 		if (this.context.cache) {
 			this.context.cache.dispose();
 			this.context.cache = null;
