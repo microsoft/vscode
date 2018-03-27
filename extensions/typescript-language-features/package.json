@@ -411,8 +411,20 @@
         },
         "typescript.experimental.syntaxFolding": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "%typescript.experimental.syntaxFolding%"
+        },
+        "javascript.suggestionActions.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%javascript.suggestionActions.enabled%",
+          "scope": "window"
+        },
+        "typescript.suggestionActions.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.suggestionActions.enabled%",
+          "scope": "window"
         }
       }
     },
@@ -580,10 +592,10 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": {
-            "regexp": "^\\s*(?:message TS6032:|\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM)? -) File change detected\\. Starting incremental compilation\\.\\.\\."
+            "regexp": "^\\s*(?:message TS6032:|\\[?\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM| a\\.m\\.| p\\.m\\.)?(?:\\]| -)) File change detected\\. Starting incremental compilation\\.\\.\\."
           },
           "endsPattern": {
-            "regexp": "^\\s*(?:message TS6042:|\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM)? -) Compilation complete\\. Watching for file changes\\."
+            "regexp": "^\\s*(?:message TS6042:|\\[?\\d{1,2}:\\d{1,2}:\\d{1,2}(?: AM| PM| a\\.m\\.| p\\.m\\.)?(?:\\]| -)) Compilation complete\\. Watching for file changes\\."
           }
         }
       }

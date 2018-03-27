@@ -83,7 +83,6 @@ export function fromPosition(position: types.Position): IPosition {
 	return { lineNumber: position.line + 1, column: position.character + 1 };
 }
 
-
 export function fromDiagnostic(value: vscode.Diagnostic): IMarkerData {
 	return {
 		...fromRange(value.range),
@@ -245,7 +244,7 @@ export const TextEdit = {
 			range: fromRange(edit.range)
 		};
 	},
-	to(edit: modes.TextEdit): vscode.TextEdit {
+	to(edit: modes.TextEdit): types.TextEdit {
 		let result = new types.TextEdit(toRange(edit.range), edit.text);
 		result.newEol = EndOfLine.to(edit.eol);
 		return result;
@@ -547,12 +546,15 @@ export namespace DocumentLink {
 }
 
 export namespace ColorPresentation {
-	export function to(colorPresentation: modes.IColorPresentation): vscode.ColorPresentation {
-		return {
-			label: colorPresentation.label,
-			textEdit: colorPresentation.textEdit ? TextEdit.to(colorPresentation.textEdit) : undefined,
-			additionalTextEdits: colorPresentation.additionalTextEdits ? colorPresentation.additionalTextEdits.map(value => TextEdit.to(value)) : undefined
-		};
+	export function to(colorPresentation: modes.IColorPresentation): types.ColorPresentation {
+		let cp = new types.ColorPresentation(colorPresentation.label);
+		if (colorPresentation.textEdit) {
+			cp.textEdit = TextEdit.to(colorPresentation.textEdit);
+		}
+		if (colorPresentation.additionalTextEdits) {
+			cp.additionalTextEdits = colorPresentation.additionalTextEdits.map(value => TextEdit.to(value));
+		}
+		return cp;
 	}
 
 	export function from(colorPresentation: vscode.ColorPresentation): modes.IColorPresentation {
@@ -561,6 +563,15 @@ export namespace ColorPresentation {
 			textEdit: colorPresentation.textEdit ? TextEdit.from(colorPresentation.textEdit) : undefined,
 			additionalTextEdits: colorPresentation.additionalTextEdits ? colorPresentation.additionalTextEdits.map(value => TextEdit.from(value)) : undefined
 		};
+	}
+}
+
+export namespace Color {
+	export function to(c: [number, number, number, number]): types.Color {
+		return new types.Color(c[0], c[1], c[2], c[3]);
+	}
+	export function from(color: types.Color): [number, number, number, number] {
+		return [color.red, color.green, color.blue, color.alpha];
 	}
 }
 

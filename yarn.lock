@@ -5969,9 +5969,9 @@ windows-mutex@^0.2.0:
     bindings "^1.2.1"
     nan "^2.1.0"
 
-windows-process-tree@0.1.6:
-  version "0.1.6"
-  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.1.6.tgz#c2d942a944152ea749a4c1c0bdb769b2f570639f"
+windows-process-tree@0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.2.0.tgz#04dc0507df292a7984daf0d35861bd1ebaff7ae8"
   dependencies:
     nan "^2.6.2"
 

@@ -107,6 +107,13 @@ export class BreakpointsView extends ViewsViewletPanel {
 		this.list.splice(0, this.list.length, this.elements);
 	}
 
+	public focus(): void {
+		if (this.list) {
+			this.list.domFocus();
+		}
+		super.focus();
+	}
+
 	protected layoutBody(size: number): void {
 		if (this.list) {
 			this.list.layout(size);

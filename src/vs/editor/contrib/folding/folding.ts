@@ -80,7 +80,7 @@ export class FoldingController implements IEditorContribution {
 		this.foldingDecorationProvider.autoHideFoldingControls = this._autoHideFoldingControls;
 
 		this.globalToDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
-		this.globalToDispose.push(FoldingProviderRegistry.onDidChange(() => this.onModelChanged()));
+		this.globalToDispose.push(FoldingProviderRegistry.onDidChange(() => this.onFoldingProviderRegistryChanged()));
 
 		this.globalToDispose.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.contribInfo) {
@@ -187,6 +187,11 @@ export class FoldingController implements IEditorContribution {
 
 			}
 		});
+		this.onModelContentChanged();
+	}
+
+	private onFoldingProviderRegistryChanged() {
+		this.rangeProvider = null;
 		this.onModelContentChanged();
 	}
 

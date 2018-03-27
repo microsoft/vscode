@@ -50,7 +50,7 @@ function _matchesPrefix(ignoreCase: boolean, word: string, wordToMatchAgainst: s
 
 	let matches: boolean;
 	if (ignoreCase) {
-		matches = strings.beginsWithIgnoreCase(wordToMatchAgainst, word);
+		matches = strings.startsWithIgnoreCase(wordToMatchAgainst, word);
 	} else {
 		matches = wordToMatchAgainst.indexOf(word) === 0;
 	}

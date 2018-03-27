@@ -22,6 +22,7 @@ import { memoize } from './utils/memoize';
 import { disposeAll } from './utils/dipose';
 
 const validateSetting = 'validate.enable';
+const suggestionSetting = 'suggestionActions.enabled';
 const foldingSetting = 'typescript.experimental.syntaxFolding';
 
 export default class LanguageProvider {
@@ -32,6 +33,7 @@ export default class LanguageProvider {
 	private readonly toUpdateOnConfigurationChanged: ({ updateConfiguration: () => void })[] = [];
 
 	private _validate: boolean = true;
+	private _enableSuggestionDiagnostics: boolean = true;
 
 	private readonly disposables: Disposable[] = [];
 	private readonly versionDependentDisposables: Disposable[] = [];
@@ -150,7 +152,7 @@ export default class LanguageProvider {
 
 	private async initFoldingProvider(): Promise<void> {
 		let enable = workspace.getConfiguration().get(foldingSetting, false);
-		if (enable) {
+		if (enable && this.client.apiVersion.has280Features()) {
 			if (!this.foldingProviderRegistration) {
 				this.foldingProviderRegistration = languages.registerFoldingProvider(this.documentSelector, new (await import('./features/folderingProvider')).default(this.client));
 			}
@@ -165,6 +167,7 @@ export default class LanguageProvider {
 	private configurationChanged(): void {
 		const config = workspace.getConfiguration(this.id);
 		this.updateValidate(config.get(validateSetting, true));
+		this.updateSuggestionDiagnostics(config.get(suggestionSetting, true));
 
 		for (const toUpdate of this.toUpdateOnConfigurationChanged) {
 			toUpdate.updateConfiguration();
@@ -199,6 +202,18 @@ export default class LanguageProvider {
 		this._validate = value;
 		this.bufferSyncSupport.validate = value;
 		this.diagnosticsManager.validate = value;
+		if (value) {
+			this.triggerAllDiagnostics();
+		}
+	}
+
+	private updateSuggestionDiagnostics(value: boolean) {
+		if (this._enableSuggestionDiagnostics === value) {
+			return;
+		}
+
+		this._enableSuggestionDiagnostics = value;
+		this.diagnosticsManager.enableSuggestions = value;
 		if (value) {
 			this.triggerAllDiagnostics();
 		}

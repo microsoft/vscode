@@ -538,6 +538,20 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents an event describing the change in a [text editor's visible ranges](#TextEditor.visibleRanges).
+	 */
+	export interface TextEditorVisibleRangesChangeEvent {
+		/**
+		 * The [text editor](#TextEditor) for which the visible ranges have changed.
+		 */
+		textEditor: TextEditor;
+		/**
+		 * The new value for the [text editor's visible ranges](#TextEditor.visibleRanges).
+		 */
+		visibleRanges: Range[];
+	}
+
+	/**
 	 * Represents an event describing the change in a [text editor's options](#TextEditor.options).
 	 */
 	export interface TextEditorOptionsChangeEvent {
@@ -1063,6 +1077,12 @@ declare module 'vscode' {
 		selections: Selection[];
 
 		/**
+		 * The current visible ranges in the editor (vertically).
+		 * This accounts only for vertical scrolling, and not for horizontal scrolling.
+		 */
+		readonly visibleRanges: Range[];
+
+		/**
 		 * Text editor options.
 		 */
 		options: TextEditorOptions;
@@ -1508,6 +1528,14 @@ declare module 'vscode' {
 		 * A human readable string which is rendered less prominent.
 		 */
 		detail?: string;
+
+		/**
+		 * Optional flag indicating if this item is selected initially.
+		 * (Only honored when the picker allows multiple selections.)
+		 *
+		 * @see [QuickPickOptions.canSelectMany](#QuickPickOptions.canSelectMany)
+		 */
+		selected?: boolean;
 	}
 
 	/**
@@ -1533,6 +1561,11 @@ declare module 'vscode' {
 		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
 		 */
 		ignoreFocusOut?: boolean;
+
+		/**
+		 * An optional flag to make the picker accept multiple selections, if true the result is an array of picks.
+		 */
+		canSelectMany?: boolean;
 
 		/**
 		 * An optional function that is invoked whenever an item is selected.
@@ -4831,6 +4864,11 @@ declare module 'vscode' {
 		export const onDidChangeTextEditorSelection: Event<TextEditorSelectionChangeEvent>;
 
 		/**
+		 * An [event](#Event) which fires when the selection in an editor has changed.
+		 */
+		export const onDidChangeTextEditorVisibleRanges: Event<TextEditorVisibleRangesChangeEvent>;
+
+		/**
 		 * An [event](#Event) which fires when the options of an editor have changed.
 		 */
 		export const onDidChangeTextEditorOptions: Event<TextEditorOptionsChangeEvent>;
@@ -5037,6 +5075,16 @@ declare module 'vscode' {
 		export function showErrorMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
 
 		/**
+		 * Shows a selection list allowing multiple selections.
+		 *
+		 * @param items An array of strings, or a promise that resolves to an array of strings.
+		 * @param options Configures the behavior of the selection list.
+		 * @param token A token that can be used to signal cancellation.
+		 * @return A promise that resolves to the selected items or `undefined`.
+		 */
+		export function showQuickPick(items: string[] | Thenable<string[]>, options: QuickPickOptions & { canSelectMany: true; }, token?: CancellationToken): Thenable<string[] | undefined>;
+
+		/**
 		 * Shows a selection list.
 		 *
 		 * @param items An array of strings, or a promise that resolves to an array of strings.
@@ -5045,6 +5093,16 @@ declare module 'vscode' {
 		 * @return A promise that resolves to the selection or `undefined`.
 		 */
 		export function showQuickPick(items: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
+
+		/**
+		 * Shows a selection list allowing multiple selections.
+		 *
+		 * @param items An array of items, or a promise that resolves to an array of items.
+		 * @param options Configures the behavior of the selection list.
+		 * @param token A token that can be used to signal cancellation.
+		 * @return A promise that resolves to the selected items or `undefined`.
+		 */
+		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options: QuickPickOptions & { canSelectMany: true; }, token?: CancellationToken): Thenable<T[] | undefined>;
 
 		/**
 		 * Shows a selection list.

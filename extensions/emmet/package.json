@@ -439,7 +439,7 @@
         "@emmetio/html-matcher": "^0.3.3",
         "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
         "@emmetio/math-expression": "^0.1.1",
-        "vscode-emmet-helper": "^1.2.2",
+        "vscode-emmet-helper": "^1.2.3",
         "vscode-languageserver-types": "^3.5.0",
         "image-size": "^0.5.2",
         "vscode-nls": "3.2.1"

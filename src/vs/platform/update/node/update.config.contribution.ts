@@ -6,7 +6,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import product from 'vs/platform/node/product';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
@@ -25,7 +24,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'update.enableWindowsBackgroundUpdates': {
 			'type': 'boolean',
-			'default': product.quality === 'insider',
+			'default': true,
 			'description': nls.localize('enableWindowsBackgroundUpdates', "Enables Windows background updates.")
 		}
 	}

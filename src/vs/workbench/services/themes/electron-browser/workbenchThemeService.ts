@@ -362,7 +362,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 						"id" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"publisherDisplayName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+						"galleryPublisherDisplayName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"themeId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
 					}
 				*/
@@ -370,7 +370,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 					id: themeData.extensionId,
 					name: themeData.extensionName,
 					isBuiltin: themeData.extensionIsBuiltin,
-					publisherDisplayName: themeData.extensionPublisher,
+					galleryPublisherDisplayName: themeData.extensionPublisher,
 					themeId: themeId
 				});
 				this.themeExtensionsActivated.set(key, true);

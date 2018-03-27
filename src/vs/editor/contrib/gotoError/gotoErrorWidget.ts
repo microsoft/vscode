@@ -23,9 +23,8 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { getBaseLabel } from 'vs/base/common/labels';
-import { IEditorService } from 'vs/platform/editor/common/editor';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { Event, Emitter } from 'vs/base/common/event';
 
 class MessageWidget {
 
@@ -39,7 +38,7 @@ class MessageWidget {
 	private readonly _relatedDiagnostics = new WeakMap<HTMLElement, IRelatedInformation>();
 	private readonly _disposables: IDisposable[] = [];
 
-	constructor(parent: HTMLElement, editor: ICodeEditor, editorService: IEditorService) {
+	constructor(parent: HTMLElement, editor: ICodeEditor, onRelatedInformation: (related: IRelatedInformation) => void, ) {
 		this._editor = editor;
 
 		const domNode = document.createElement('div');
@@ -56,10 +55,7 @@ class MessageWidget {
 			event.preventDefault();
 			const related = this._relatedDiagnostics.get(event.target);
 			if (related) {
-				editorService.openEditor({
-					resource: related.resource,
-					options: { pinned: true, revealIfOpened: true, selection: Range.lift(related).collapseToStart() }
-				}).then(undefined, onUnexpectedError);
+				onRelatedInformation(related);
 			}
 		}));
 
@@ -148,11 +144,13 @@ export class MarkerNavigationWidget extends ZoneWidget {
 	private _callOnDispose: IDisposable[] = [];
 	private _severity: MarkerSeverity;
 	private _backgroundColor: Color;
+	private _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
+
+	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;
 
 	constructor(
 		editor: ICodeEditor,
-		private _themeService: IThemeService,
-		private _editorService: IEditorService
+		private _themeService: IThemeService
 	) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
 		this._severity = MarkerSeverity.Warning;
@@ -208,7 +206,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 		this._title.className = 'block title';
 		this._container.appendChild(this._title);
 
-		this._message = new MessageWidget(this._container, this.editor, this._editorService);
+		this._message = new MessageWidget(this._container, this.editor, related => this._onDidSelectRelatedInformation.fire(related));
 		this._disposables.push(this._message);
 	}
 

@@ -342,9 +342,9 @@ export function createApiFactory(
 			onDidChangeTextEditorOptions(listener: (e: vscode.TextEditorOptionsChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) {
 				return extHostEditors.onDidChangeTextEditorOptions(listener, thisArgs, disposables);
 			},
-			onDidChangeTextEditorVisibleRanges: proposedApiFunction(extension, (listener: (e: vscode.TextEditorVisibleRangesChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
+			onDidChangeTextEditorVisibleRanges(listener: (e: vscode.TextEditorVisibleRangesChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) {
 				return extHostEditors.onDidChangeTextEditorVisibleRanges(listener, thisArgs, disposables);
-			}),
+			},
 			onDidChangeTextEditorViewColumn(listener, thisArg?, disposables?) {
 				return extHostEditors.onDidChangeTextEditorViewColumn(listener, thisArg, disposables);
 			},
@@ -366,7 +366,7 @@ export function createApiFactory(
 			showErrorMessage(message, first, ...rest) {
 				return extHostMessageService.showMessage(extension, Severity.Error, message, first, rest);
 			},
-			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) {
+			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken): any {
 				return extHostQuickOpen.showQuickPick(items, options, token);
 			},
 			showWorkspaceFolderPick(options: vscode.WorkspaceFolderPickOptions) {
@@ -517,18 +517,21 @@ export function createApiFactory(
 			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
 			},
-			fetchTasks: proposedApiFunction(extension, (): Thenable<vscode.Task[]> => {
+			// fetchTasks: proposedApiFunction(extension, (): Thenable<vscode.Task[]> => {
+			// 	return extHostTask.executeTaskProvider();
+			// }),
+			// executeTask: proposedApiFunction(extension, (task: vscode.Task): Thenable<vscode.TaskExecution> => {
+			// 	return extHostTask.executeTask(extension, task);
+			// }),
+			fetchTasks: (): Thenable<vscode.Task[]> => {
 				return extHostTask.executeTaskProvider();
-			}),
-			executeTask: proposedApiFunction(extension, (task: vscode.Task): Thenable<vscode.TaskExecution> => {
+			},
+			executeTask: (task: vscode.Task): Thenable<vscode.TaskExecution> => {
 				return extHostTask.executeTask(extension, task);
-			}),
+			},
 			onDidStartTask: (listeners, thisArgs?, disposables?) => {
 				return extHostTask.onDidStartTask(listeners, thisArgs, disposables);
 			},
-			terminateTask: proposedApiFunction(extension, (task: vscode.TaskExecution): void => {
-				extHostTask.terminateTask(task);
-			}),
 			onDidEndTask: (listeners, thisArgs?, disposables?) => {
 				return extHostTask.onDidEndTask(listeners, thisArgs, disposables);
 			},
