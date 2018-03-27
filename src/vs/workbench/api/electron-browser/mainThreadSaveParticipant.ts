@@ -225,7 +225,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 	}
 
 	private _editsWithEditor(editor: ICodeEditor, edits: ISingleEditOperation[]): void {
-		EditOperationsCommand.execute(editor, edits, false);
+		EditOperationsCommand.execute(editor, edits);
 	}
 
 	private _editWithModel(model: ITextModel, edits: ISingleEditOperation[]): void {
