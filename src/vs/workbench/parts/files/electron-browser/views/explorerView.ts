@@ -227,7 +227,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = activeFile.toString();
 
 			// Select file if input is inside workspace
-			if (this.isVisible() && this.contextService.isInsideWorkspace(activeFile)) {
+			if (this.isVisible() && !this.isDisposed && this.contextService.isInsideWorkspace(activeFile)) {
 				const selection = this.hasSingleSelection(activeFile);
 				if (!selection) {
 					this.select(activeFile).done(null, errors.onUnexpectedError);
@@ -701,7 +701,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	}
 
 	private refreshFromEvent(newRoots: IWorkspaceFolder[] = []): void {
-		if (this.isVisible()) {
+		if (this.isVisible() && !this.isDisposed) {
 			this.explorerRefreshDelayer.trigger(() => {
 				if (!this.explorerViewer.getHighlight()) {
 					return this.doRefresh(newRoots.map(r => r.uri)).then(() => {
