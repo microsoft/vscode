@@ -28,20 +28,22 @@ class Validator implements ScriptValidator {
 }
 
 export function activate(context: vscode.ExtensionContext): void {
-	vscode.window.registerTreeDataProvider('npm', new NpmScriptsTreeDataProvider(context, new Validator()));
-
-	if (!vscode.workspace.workspaceFolders) {
-		return;
-	}
-
-	taskProvider = vscode.workspace.registerTaskProvider('npm', {
+	let provider: vscode.TaskProvider = {
 		provideTasks: () => {
 			return provideNpmScripts();
 		},
 		resolveTask(_task: vscode.Task): vscode.Task | undefined {
 			return undefined;
 		}
-	});
+	};
+	taskProvider = vscode.workspace.registerTaskProvider('npm', provider);
+
+	vscode.window.registerTreeDataProvider('npm', new NpmScriptsTreeDataProvider(context, provider, new Validator()));
+
+	if (!vscode.workspace.workspaceFolders) {
+		return;
+	}
+
 	configureHttpRequest();
 	vscode.workspace.onDidChangeConfiguration(() => configureHttpRequest());
 

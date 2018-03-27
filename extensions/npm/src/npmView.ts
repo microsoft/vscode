@@ -6,7 +6,7 @@
 import {
 	ExtensionContext, Task, TreeDataProvider, TreeItem, TreeItemCollapsibleState,
 	WorkspaceFolder, workspace, commands, window, EventEmitter, Event,
-	ThemeIcon, Uri, TextDocument
+	ThemeIcon, Uri, TextDocument, TaskProvider
 } from 'vscode';
 import { NpmTaskDefinition, ScriptValidator } from './tasks';
 import * as path from 'path';
@@ -74,13 +74,15 @@ class NpmScript extends TreeItem {
 export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	private taskTree: Folder[] | PackageJSON[] | null = null;
 	private validator: ScriptValidator;
+	private taskProvider: TaskProvider;
 	private _onDidChangeTreeData: EventEmitter<TreeItem | null> = new EventEmitter<TreeItem | null>();
 	readonly onDidChangeTreeData: Event<TreeItem | null> = this._onDidChangeTreeData.event;
 
 
-	constructor(context: ExtensionContext, validator: ScriptValidator) {
+	constructor(context: ExtensionContext, taskProvider: TaskProvider, validator: ScriptValidator) {
 		const subscriptions = context.subscriptions;
 		this.validator = validator;
+		this.taskProvider = taskProvider;
 		subscriptions.push(commands.registerCommand('npm.runScript', this.runScript, this));
 		subscriptions.push(commands.registerCommand('npm.openScript', this.openScript, this));
 		subscriptions.push(commands.registerCommand('npm.refresh', this.refresh, this));
@@ -123,9 +125,10 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 
 	async getChildren(element?: TreeItem): Promise<TreeItem[]> {
 		if (!this.taskTree) {
-			let tasks = await workspace.fetchTasks();
-			let npmTasks = tasks.filter(each => each.definition.type === 'npm');
-			this.taskTree = this.buildTaskTree(npmTasks);
+			let tasks = await this.taskProvider.provideTasks();
+			if (tasks) {
+				this.taskTree = this.buildTaskTree(tasks);
+			}
 		}
 		if (element instanceof Folder) {
 			return element.packages;
@@ -136,7 +139,12 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		if (element instanceof NpmScript) {
 			return [];
 		}
-		return this.taskTree;
+		if (!element) {
+			if (this.taskTree) {
+				return this.taskTree;
+			}
+		}
+		return [];
 	}
 
 	private isWorkspaceFolder(value: any): value is WorkspaceFolder {
