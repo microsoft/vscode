@@ -45,6 +45,29 @@ export function registerCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: 'debug.disableBreakpoint',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_D,
+		when: EditorContextKeys.editorTextFocus,
+		handler: (accessor) => {
+			const debugService = accessor.get(IDebugService);
+			const editorService = accessor.get(IWorkbenchEditorService);
+			const editor = editorService.getActiveEditor();
+			const control = <ICodeEditor>editor.getControl();
+
+			if (control) {
+				const position = control.getPosition();
+				const modelUri = control.getModel().uri;
+				const bp = debugService.getModel().getBreakpoints()
+					.filter(bp => bp.lineNumber === position.lineNumber, bp => bp.column === position.column && bp.uri.toString() === modelUri.toString()).pop();
+				if (bp && bp.enabled) {
+					debugService.enableOrDisableBreakpoints(!bp.enabled, bp).done(null, errors.onUnexpectedError);
+				}
+			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'debug.renameWatchExpression',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(5),
 		when: CONTEXT_WATCH_EXPRESSIONS_FOCUSED,

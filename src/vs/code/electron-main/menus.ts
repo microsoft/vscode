@@ -850,6 +850,7 @@ export class CodeMenu {
 		const continueAction = this.createMenuItem(nls.localize({ key: 'miContinue', comment: ['&& denotes a mnemonic'] }, "&&Continue"), 'workbench.action.debug.continue');
 
 		const toggleBreakpoint = this.createMenuItem(nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breakpoint"), 'editor.debug.action.toggleBreakpoint');
+		const disableBreakpoint = this.createMenuItem(nls.localize({ key: 'miDisableBreakpoint', comment: ['&& denotes a mnemonic'] }, "Disable &&Breakpoint"), 'debug.disableBreakpoint');
 		const breakpointsMenu = new Menu();
 		breakpointsMenu.append(this.createMenuItem(nls.localize({ key: 'miConditionalBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Conditional Breakpoint..."), 'editor.debug.action.conditionalBreakpoint'));
 		breakpointsMenu.append(this.createMenuItem(nls.localize({ key: 'miColumnBreakpoint', comment: ['&& denotes a mnemonic'] }, "C&&olumn Breakpoint"), 'editor.debug.action.toggleColumnBreakpoint'));
@@ -875,6 +876,7 @@ export class CodeMenu {
 			continueAction,
 			__separator__(),
 			toggleBreakpoint,
+			disableBreakpoint,
 			newBreakpoints,
 			enableAllBreakpoints,
 			disableAllBreakpoints,
