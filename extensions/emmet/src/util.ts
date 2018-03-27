@@ -151,13 +151,7 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 				// Single line Comment, we continue searching from next line.
 				stream.pos = new vscode.Position(stream.pos.line + 1, 0);
 			} else if (stream.eat(star)) {
-				// Start of block comment, we need to find the closing '*/'
-				let endCommentFound = false;
-				while (!endCommentFound) {
-					stream.eatWhile(char => { return char !== star; });
-					stream.eat(star);
-					endCommentFound = stream.eat(slash) || stream.eof();
-				}
+				stream.pos = findClosingCommentAfterPosition(document, stream.pos) || endPosition;
 			}
 		} else {
 			stream.next();
@@ -196,22 +190,15 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 		} else if (ch === slash) {
 			stream.backUp(1);
 			if (stream.peek() === star) {
-				stream.pos = findOpeningComment(document, stream.pos);
+				stream.pos = findOpeningCommentBeforePosition(document, stream.pos) || startPosition;
 			} else {
 				stream.next();
 			}
 		}
 	}
 	// We are at an opening brace. We need to include its selector, but with one nonspace character is enough.
-	while (!stream.sof()) {
-		let ch = stream.backUp(1);
-		if (ch === closeBrace || ch === openBrace) {
-			stream.next();
-			break;
-		} else if (!String.fromCharCode(ch).match(/\s/)) {
-			break;
-		}
-	}
+	while (!stream.sof() && String.fromCharCode(stream.backUp(1)).match(/\s/)) { }
+
 	startPosition = stream.pos;
 	try {
 		return parseStylesheet(new DocumentStreamReader(document, startPosition, new vscode.Range(startPosition, endPosition)));
@@ -219,9 +206,22 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	}
 }
 
-function findOpeningComment(document: vscode.TextDocument, position: vscode.Position): vscode.Position {
+function findOpeningCommentBeforePosition(document: vscode.TextDocument, position: vscode.Position): vscode.Position | undefined {
 	let text = document.getText(new vscode.Range(0, 0, position.line, position.character));
 	let offset = text.lastIndexOf('/*');
+	if (offset === -1) {
+		return;
+	}
+	return document.positionAt(offset);
+}
+
+function findClosingCommentAfterPosition(document: vscode.TextDocument, position: vscode.Position): vscode.Position | undefined {
+	let text = document.getText(new vscode.Range(position.line, position.character, document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length));
+	let offset = text.indexOf('*/');
+	if (offset === -1) {
+		return;
+	}
+	offset += 2;
 	return document.positionAt(offset);
 }
 
