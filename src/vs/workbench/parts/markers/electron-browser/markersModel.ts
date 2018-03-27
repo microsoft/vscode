@@ -96,14 +96,11 @@ export class Marker extends NodeWithId {
 	}
 
 	public toString(): string {
-		return [
-			`file: '${this.raw.resource}'`,
-			`severity: '${MarkerSeverity.toString(this.raw.severity)}'`,
-			`message: '${this.raw.message}'`,
-			`at: '${this.raw.startLineNumber},${this.raw.startColumn}'`,
-			`source: '${this.raw.source ? this.raw.source : ''}'`,
-			`code: '${this.raw.code ? this.raw.code : ''}'`
-		].join('\n');
+		return JSON.stringify({
+			...this.raw,
+			resource: this.raw.resource.path,
+			relatedInformation: this.resourceRelatedInformation.length ? this.resourceRelatedInformation.map(r => ({ ...r.raw, resource: r.raw.resource.path })) : void 0
+		}, null, '\t');
 	}
 
 	static compare(a: Marker, b: Marker): number {

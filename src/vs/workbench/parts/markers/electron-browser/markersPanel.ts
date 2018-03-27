@@ -205,9 +205,16 @@ export class MarkersPanel extends Panel {
 			});
 
 		const markerFocusContextKey = Constants.MarkerFocusContextKey.bindTo(this.tree.contextKeyService);
-		this._register(this.tree.onDidChangeFocus((e: { focus: any }) => markerFocusContextKey.set(e.focus instanceof Marker)));
+		const relatedInformationFocusContextKey = Constants.RelatedInformationFocusContextKey.bindTo(this.tree.contextKeyService);
+		this._register(this.tree.onDidChangeFocus((e: { focus: any }) => {
+			markerFocusContextKey.set(e.focus instanceof Marker);
+			relatedInformationFocusContextKey.set(e.focus instanceof RelatedInformation);
+		}));
 		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
-		this._register(focusTracker.onDidBlur(() => markerFocusContextKey.set(false)));
+		this._register(focusTracker.onDidBlur(() => {
+			markerFocusContextKey.set(false);
+			relatedInformationFocusContextKey.set(false);
+		}));
 
 		const markersNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
 		this._register(debounceEvent(markersNavigator.openResource, (last, event) => event, 75, true)(options => {
