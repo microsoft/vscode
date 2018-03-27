@@ -691,9 +691,13 @@ export class IssueReporter extends Disposable {
 
 	private validateInputs(): boolean {
 		let isValid = true;
-		['issue-title', 'description', 'issue-source', 'extension-selector'].forEach(elementId => {
-			isValid = this.validateInput(elementId) && isValid;
+		['issue-title', 'description', 'issue-source'].forEach(elementId => {
+			isValid = this.validateInput(elementId);
 		});
+
+		if (this.issueReporterModel.getData().fileOnExtension) {
+			isValid = this.validateInput('extension-selector') && isValid;
+		}
 
 		return isValid;
 	}
