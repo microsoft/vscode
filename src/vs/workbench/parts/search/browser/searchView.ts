@@ -1108,8 +1108,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 
 			if (!hasResults) {
-				let hasExcludes = !!query.excludePattern;
-				let hasIncludes = !!query.includePattern;
+				const hasExcludes = !!excludePatternText;
+				const hasIncludes = !!includePatternText;
 				let message: string;
 
 				if (!completed) {
