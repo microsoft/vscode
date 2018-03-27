@@ -1113,6 +1113,7 @@
     "byline": "^5.0.0",
     "file-type": "^7.2.0",
     "iconv-lite": "0.4.19",
+    "jschardet": "^1.6.0",
     "vscode-extension-telemetry": "0.0.15",
     "vscode-nls": "^3.2.1",
     "which": "^1.3.0"
