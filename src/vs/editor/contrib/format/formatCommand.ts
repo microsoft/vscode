@@ -46,7 +46,7 @@ export class EditOperationsCommand implements editorCommon.ICommand {
 	static execute(editor: ICodeEditor, _edits: TextEdit[]) {
 		let edits = this._handleEolEdits(editor, _edits);
 		editor.pushUndoStop();
-		editor.executeEdits('formatEditsCommand', edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+		editor.executeEdits('formatEditsCommand', edits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text)));
 		editor.pushUndoStop();
 	}
 
