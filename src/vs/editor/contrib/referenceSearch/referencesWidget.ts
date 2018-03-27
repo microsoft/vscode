@@ -791,7 +791,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		const promise = this._textModelResolverService.createModelReference(reference.uri);
 
-		return TPromise.join([promise, this._tree.reveal(reference)]).then(values => {
+		return TPromise.join([promise, this._tree.reveal(reference, 1)]).then(values => {
 			const ref = values[0];
 
 			if (!this._model) {
