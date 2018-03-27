@@ -164,7 +164,9 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 		}
 	}
 
-	endPosition = stream.pos;
+	if (!stream.eof()) {
+		endPosition = stream.pos;
+	}
 
 	// Go back until we found an opening brace. If we find a closing one, we first find its opening brace and then we continue.
 	stream.pos = position;
