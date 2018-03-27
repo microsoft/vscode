@@ -83,7 +83,7 @@ class ProgressCallback extends Progress<IProgressStep> {
 		super(p => this.throttledReport(p));
 	}
 
-	@debounce(100, (result: IProgressStep, currentValue: IProgressStep) => mergeProgress(result, currentValue), Object.create(null))
+	@debounce(100, (result: IProgressStep, currentValue: IProgressStep) => mergeProgress(result, currentValue), () => Object.create(null))
 	throttledReport(p: IProgressStep): void {
 		this._proxy.$progressReport(this._handle, p);
 	}
