@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
-import { Node, HtmlNode, CssToken, Property, Rule } from 'EmmetNode';
+import { Node, HtmlNode, CssToken, Property, Rule, Stylesheet } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
 
 let _emmetHelper: any;
@@ -128,7 +128,7 @@ export function parseDocument(document: vscode.TextDocument, showError: boolean 
 	return undefined;
 }
 
-export function parsePartialStylesheet(document: vscode.TextDocument, position: vscode.Position): Node | undefined {
+export function parsePartialStylesheet(document: vscode.TextDocument, position: vscode.Position): Stylesheet | undefined {
 
 	let startPosition = new vscode.Position(0, 0);
 	let endPosition = new vscode.Position(document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length);
