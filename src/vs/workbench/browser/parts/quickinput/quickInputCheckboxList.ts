@@ -21,6 +21,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { memoize } from 'vs/base/common/decorators';
 
 const $ = dom.$;
 
@@ -181,6 +182,7 @@ export class QuickInputCheckboxList {
 		}));
 	}
 
+	@memoize
 	get onFocusChange() {
 		return mapEvent(this.list.onFocusChange, e => e.elements.map(e => e.item));
 	}

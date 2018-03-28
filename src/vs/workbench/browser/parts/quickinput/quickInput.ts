@@ -29,6 +29,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { attachBadgeStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { chain } from 'vs/base/common/event';
 
 const $ = dom.$;
 
@@ -127,11 +128,13 @@ export class QuickInputService extends Component implements IQuickInputService {
 				this.inputBox.setFocus();
 			}, 0);
 		}));
-		this.toUnbind.push(this.checkboxList.onFocusChange(e => {
-			if (this.progress && e.length) {
-				this.progress(e[0]);
-			}
-		}));
+		this.toUnbind.push(
+			chain(this.checkboxList.onFocusChange)
+				.map(e => e[0])
+				.filter(e => !!e)
+				.latch()
+				.on(e => this.progress && this.progress(e))
+		);
 
 		this.toUnbind.push(dom.addDisposableListener(this.container, 'focusout', (e: FocusEvent) => {
 			for (let element = <Element>e.relatedTarget; element; element = element.parentElement) {
