@@ -14,7 +14,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, CONTEXT_IN_BREAKPOINT_WIDGET } from 'vs/workbench/parts/debug/common/debug';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SimpleDebugEditor } from 'vs/workbench/parts/debug/electron-browser/simpleDebugEditor';
@@ -203,6 +203,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 
 		const options = SimpleDebugEditor.getEditorOptions();
 		this.input = scopedInstatiationService.createInstance(SimpleDebugEditor, container, options);
+		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(scopedContextKeyService).set(true);
 		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:breakpointinput`), true);
 		this.input.setModel(model);
 		this.toDispose.push(model);
@@ -284,9 +285,9 @@ class AcceptBreakpointWidgetInputAction extends EditorCommand {
 	constructor() {
 		super({
 			id: 'breakpointWidget.action.acceptInput',
-			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE, // TODO@Isidor need a more specific context key if breakpoint widget is focused
+			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
+				kbExpr: CONTEXT_IN_BREAKPOINT_WIDGET,
 				primary: KeyCode.Enter
 			}
 		});
