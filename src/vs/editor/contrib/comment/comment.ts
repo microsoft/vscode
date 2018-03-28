@@ -51,7 +51,7 @@ class ToggleCommentLineAction extends CommentLineAction {
 			alias: 'Toggle Line Comment',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_SLASH
 			}
 		});
@@ -66,7 +66,7 @@ class AddLineCommentAction extends CommentLineAction {
 			alias: 'Add Line Comment',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)
 			}
 		});
@@ -81,7 +81,7 @@ class RemoveLineCommentAction extends CommentLineAction {
 			alias: 'Remove Line Comment',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)
 			}
 		});
@@ -97,7 +97,7 @@ class BlockCommentAction extends EditorAction {
 			alias: 'Toggle Block Comment',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A }
 			}

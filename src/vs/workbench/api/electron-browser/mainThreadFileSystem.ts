@@ -13,8 +13,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { ISearchResultProvider, ISearchQuery, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchService, ILineMatch } from 'vs/platform/search/common/search';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { values } from 'vs/base/common/map';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
@@ -22,47 +20,50 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	private readonly _proxy: ExtHostFileSystemShape;
-	private readonly _provider = new Map<number, RemoteFileSystemProvider>();
+	private readonly _fileProvider = new Map<number, RemoteFileSystemProvider>();
+	private readonly _searchProvider = new Map<number, RemoteSearchProvider>();
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IFileService private readonly _fileService: IFileService,
-		@ISearchService private readonly _searchService: ISearchService,
-		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService
+		@ISearchService private readonly _searchService: ISearchService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 	}
 
 	dispose(): void {
-		this._provider.forEach(value => dispose());
-		this._provider.clear();
+		this._fileProvider.forEach(value => dispose());
+		this._fileProvider.clear();
 	}
 
 	$registerFileSystemProvider(handle: number, scheme: string): void {
-		this._provider.set(handle, new RemoteFileSystemProvider(this._fileService, this._searchService, scheme, handle, this._proxy));
+		this._fileProvider.set(handle, new RemoteFileSystemProvider(this._fileService, scheme, handle, this._proxy));
 	}
 
-	$unregisterFileSystemProvider(handle: number): void {
-		dispose(this._provider.get(handle));
-		this._provider.delete(handle);
+	$registerSearchProvider(handle: number, scheme: string): void {
+		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, scheme, handle, this._proxy));
 	}
 
-	$onDidAddFileSystemRoot(data: UriComponents): void {
-		this._workspaceEditingService.addFolders([{ uri: URI.revive(data) }], true).done(null, onUnexpectedError);
+	$unregisterProvider(handle: number): void {
+		dispose(this._fileProvider.get(handle));
+		this._fileProvider.delete(handle);
+
+		dispose(this._searchProvider.get(handle));
+		this._searchProvider.delete(handle);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {
-		this._provider.get(handle).$onFileSystemChange(changes);
+		this._fileProvider.get(handle).$onFileSystemChange(changes);
 	}
 
 	$reportFileChunk(handle: number, session: number, chunk: number[]): void {
-		this._provider.get(handle).reportFileChunk(session, chunk);
+		this._fileProvider.get(handle).reportFileChunk(session, chunk);
 	}
 
 	// --- search
 
 	$handleFindMatch(handle: number, session, data: UriComponents | [UriComponents, ILineMatch]): void {
-		this._provider.get(handle).handleFindMatch(session, data);
+		this._searchProvider.get(handle).handleFindMatch(session, data);
 	}
 }
 
@@ -78,40 +79,22 @@ class FileReadOperation {
 	}
 }
 
-class SearchOperation {
-
-	private static _idPool = 0;
-
-	constructor(
-		readonly progress: (match: IFileMatch) => any,
-		readonly id: number = ++SearchOperation._idPool,
-		readonly matches = new Map<string, IFileMatch>()
-	) {
-		//
-	}
-}
-
-class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProvider {
+class RemoteFileSystemProvider implements IFileSystemProvider {
 
 	private readonly _onDidChange = new Emitter<IFileChange[]>();
 	private readonly _registrations: IDisposable[];
 	private readonly _reads = new Map<number, FileReadOperation>();
-	private readonly _searches = new Map<number, SearchOperation>();
 
 	readonly onDidChange: Event<IFileChange[]> = this._onDidChange.event;
 
 
 	constructor(
 		fileService: IFileService,
-		searchService: ISearchService,
-		private readonly _scheme: string,
+		scheme: string,
 		private readonly _handle: number,
 		private readonly _proxy: ExtHostFileSystemShape
 	) {
-		this._registrations = [
-			fileService.registerProvider(_scheme, this),
-			searchService.registerSearchResultProvider(this),
-		];
+		this._registrations = [fileService.registerProvider(scheme, this)];
 	}
 
 	dispose(): void {
@@ -166,8 +149,49 @@ class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProv
 	rmdir(resource: URI): TPromise<void, any> {
 		return this._proxy.$rmdir(this._handle, resource);
 	}
+}
 
-	// --- search
+class SearchOperation {
+
+	private static _idPool = 0;
+
+	constructor(
+		readonly progress: (match: IFileMatch) => any,
+		readonly id: number = ++SearchOperation._idPool,
+		readonly matches = new Map<string, IFileMatch>()
+	) {
+		//
+	}
+
+	addMatch(resource: URI, match: ILineMatch): void {
+		if (!this.matches.has(resource.toString())) {
+			this.matches.set(resource.toString(), { resource, lineMatches: [] });
+		}
+		if (match) {
+			this.matches.get(resource.toString()).lineMatches.push(match);
+		}
+		this.progress(this.matches.get(resource.toString()));
+	}
+}
+
+class RemoteSearchProvider implements ISearchResultProvider {
+
+	private readonly _registrations: IDisposable[];
+	private readonly _searches = new Map<number, SearchOperation>();
+
+
+	constructor(
+		searchService: ISearchService,
+		private readonly _scheme: string,
+		private readonly _handle: number,
+		private readonly _proxy: ExtHostFileSystemShape
+	) {
+		this._registrations = [searchService.registerSearchResultProvider(this)];
+	}
+
+	dispose(): void {
+		dispose(this._registrations);
+	}
 
 	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
 
@@ -185,26 +209,36 @@ class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProv
 			}
 		}
 
+		let outer: TPromise;
+
 		return new PPromise((resolve, reject, report) => {
 
 			const search = new SearchOperation(report);
 			this._searches.set(search.id, search);
 
-			const promise = query.type === QueryType.File
-				? this._proxy.$findFiles(this._handle, search.id, query.filePattern)
+			outer = query.type === QueryType.File
+				? this._proxy.$provideFileSearchResults(this._handle, search.id, query.filePattern)
 				: this._proxy.$provideTextSearchResults(this._handle, search.id, query.contentPattern, { excludes: Object.keys(excludes), includes: Object.keys(includes) });
 
-			promise.then(() => {
+			outer.then(() => {
 				this._searches.delete(search.id);
 				resolve(({ results: values(search.matches), stats: undefined }));
 			}, err => {
 				this._searches.delete(search.id);
 				reject(err);
 			});
+		}, () => {
+			if (outer) {
+				outer.cancel();
+			}
 		});
 	}
 
 	handleFindMatch(session: number, dataOrUri: UriComponents | [UriComponents, ILineMatch]): void {
+		if (!this._searches.has(session)) {
+			// ignore...
+			return;
+		}
 		let resource: URI;
 		let match: ILineMatch;
 
@@ -215,12 +249,6 @@ class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProv
 			resource = URI.revive(dataOrUri);
 		}
 
-		const { matches } = this._searches.get(session);
-		if (!matches.has(resource.toString())) {
-			matches.set(resource.toString(), { resource, lineMatches: [] });
-		}
-		if (match) {
-			matches.get(resource.toString()).lineMatches.push(match);
-		}
+		this._searches.get(session).addMatch(resource, match);
 	}
 }

@@ -7,7 +7,7 @@
 
 import { WORKSPACE_EXTENSION, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { extname, basename } from 'vs/base/common/paths';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import URI from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -348,7 +348,7 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 	}
 }
 
-export function fillResourceDataTransfers(accessor: ServicesAccessor, resources: (URI | IFileStat)[], event: DragMouseEvent | DragEvent): void {
+export function fillResourceDataTransfers(accessor: ServicesAccessor, resources: (URI | { resource: URI, isDirectory: boolean })[], event: DragMouseEvent | DragEvent): void {
 	if (resources.length === 0) {
 		return;
 	}

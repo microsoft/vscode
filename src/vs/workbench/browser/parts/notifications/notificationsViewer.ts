@@ -434,7 +434,9 @@ export class NotificationTemplateRenderer {
 				const action = notification.actions.primary[index];
 				button.label = action.label;
 
-				this.inputDisposeables.push(button.onDidClick(() => {
+				this.inputDisposeables.push(button.onDidClick(e => {
+					e.preventDefault();
+					e.stopPropagation();
 
 					// Run action
 					this.actionRunner.run(action, notification);
@@ -466,12 +468,12 @@ export class NotificationTemplateRenderer {
 		}
 
 		// Total / Worked
-		else if (state.total || state.worked) {
-			if (state.total) {
+		else if (typeof state.total === 'number' || typeof state.worked === 'number') {
+			if (typeof state.total === 'number' && !this.template.progress.hasTotal()) {
 				this.template.progress.total(state.total);
 			}
 
-			if (state.worked) {
+			if (typeof state.worked === 'number') {
 				this.template.progress.worked(state.worked).getContainer().show();
 			}
 		}

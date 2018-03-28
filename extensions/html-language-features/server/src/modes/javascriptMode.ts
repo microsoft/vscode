@@ -6,20 +6,20 @@
 
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
 import { SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation, Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString, DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions } from 'vscode-languageserver-types';
-import { LanguageMode, Settings } from './languageModes';
+import { LanguageMode, Settings, Workspace } from './languageModes';
 import { getWordAtText, startsWith, isWhitespaceOnly, repeat } from '../utils/strings';
 import { HTMLDocumentRegions } from './embeddedSupport';
 
 import * as ts from 'typescript';
 import { join } from 'path';
-import { FoldingRange, FoldingRangeType } from '../protocol/foldingProvider.proposed';
+import { FoldingRange, FoldingRangeType } from 'vscode-languageserver-protocol-foldingprovider';
 
 const FILE_NAME = 'vscode://javascript/1';  // the same 'file' is used for all contents
 const JQUERY_D_TS = join(__dirname, '../../lib/jquery.d.ts');
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
-export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>): LanguageMode {
+export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, workspace: Workspace): LanguageMode {
 	let jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument('javascript'));
 
 	let compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es6.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic };
@@ -66,9 +66,6 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 	return {
 		getId() {
 			return 'javascript';
-		},
-		configure(options: any) {
-			globalSettings = options;
 		},
 		doValidation(document: TextDocument): Diagnostic[] {
 			updateCurrentTextDocument(document);
@@ -292,9 +289,9 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				let endLine = curr.end.line;
 				if (startLine < endLine && startLine >= rangeStartLine && endLine < rangeEndLine) {
 					let foldingRange: FoldingRange = { startLine, endLine };
-					let match = document.getText(curr).match(/^\s*\/(\/\s*#(?:end)?region\b)|([\*\/])/);
+					let match = document.getText(curr).match(/^\s*\/(?:(\/\s*#(?:end)?region\b)|(\*|\/))/);
 					if (match) {
-						foldingRange.type = match[1].length ? FoldingRangeType.Region : FoldingRangeType.Comment;
+						foldingRange.type = match[1] ? FoldingRangeType.Region : FoldingRangeType.Comment;
 					}
 					ranges.push(foldingRange);
 				}

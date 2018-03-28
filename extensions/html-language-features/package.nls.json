@@ -22,6 +22,5 @@
 	"html.trace.server.desc": "Traces the communication between VS Code and the HTML language server.",
 	"html.validate.scripts": "Configures if the built-in HTML language support validates embedded scripts.",
 	"html.validate.styles": "Configures if the built-in HTML language support validates embedded styles.",
-	"html.experimental.syntaxFolding": "Enables/disables syntax aware folding markers.",
 	"html.autoClosingTags": "Enable/disable autoclosing of HTML tags."
 }

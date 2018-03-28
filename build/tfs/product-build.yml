@@ -55,11 +55,11 @@ phases:
             "parameters": [
               {
                 "parameterName": "OpusName",
-                "parameterValue": "Microsoft"
+                "parameterValue": "VS Code"
               },
               {
                 "parameterName": "OpusInfo",
-                "parameterValue": "http://www.microsoft.com"
+                "parameterValue": "https://code.visualstudio.com/"
               },
               {
                 "parameterName": "PageHash",
@@ -79,11 +79,11 @@ phases:
             "parameters": [
               {
                 "parameterName": "OpusName",
-                "parameterValue": "Microsoft"
+                "parameterValue": "VS Code"
               },
               {
                 "parameterName": "OpusInfo",
-                "parameterValue": "http://www.microsoft.com"
+                "parameterValue": "https://code.visualstudio.com/"
               },
               {
                 "parameterName": "Append",
@@ -137,11 +137,11 @@ phases:
             "parameters": [
               {
                 "parameterName": "OpusName",
-                "parameterValue": "Microsoft"
+                "parameterValue": "VS Code"
               },
               {
                 "parameterName": "OpusInfo",
-                "parameterValue": "http://www.microsoft.com"
+                "parameterValue": "https://code.visualstudio.com/"
               },
               {
                 "parameterName": "PageHash",
@@ -161,11 +161,11 @@ phases:
             "parameters": [
               {
                 "parameterName": "OpusName",
-                "parameterValue": "Microsoft"
+                "parameterValue": "VS Code"
               },
               {
                 "parameterName": "OpusInfo",
-                "parameterValue": "http://www.microsoft.com"
+                "parameterValue": "https://code.visualstudio.com/"
               },
               {
                 "parameterName": "Append",
@@ -224,78 +224,58 @@ phases:
 
 - phase: Linux
   condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
-  queue:
-    name: Hosted Linux Preview
-    parallel: 2
-    matrix:
-      x64:
-        VSCODE_ARCH: x64
-      ia32:
-        VSCODE_ARCH: ia32
+  queue: linux-x64
+  variables:
+    VSCODE_ARCH: x64
 
   steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "8.9.1"
+
+  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+    inputs:
+      versionSpec: "1.3.2"
+
   - script: |
-      # dependencies
-      dpkg --add-architecture i386
-      apt-get update
-
-      DEPS=" \
-        gcc-multilib g++-multilib \
-        pkg-config \
-        dbus \
-        xvfb \
-        fakeroot \
-        bc \
-        bsdmainutils \
-        rpm \
-      "
-
-      if [[ "$(VSCODE_ARCH)" == "x64" ]]; then
-        DEPS="$DEPS \
-          dpkg-dev \
-          libgconf-2-4 \
-          libnss3 \
-          libasound2 \
-          libxtst6 \
-          libx11-dev \
-          libxkbfile-dev \
-          libxss1 \
-          libx11-xcb-dev \
-          libsecret-1-dev \
-        "
-      else
-        DEPS="$DEPS \
-          dpkg-dev:i386 \
-          libgconf-2-4:i386 \
-          libnss3:i386 \
-          libasound2:i386 \
-          libxtst6:i386 \
-          libnotify4:i386 \
-          libx11-dev:i386 \
-          libxkbfile-dev:i386 \
-          libxss1:i386 \
-          libx11-xcb-dev:i386 \
-          libgl1-mesa-glx:i386 libgl1-mesa-dri:i386 \
-          libgirepository-1.0-1:i386 \
-          gir1.2-glib-2.0:i386 \
-          gir1.2-secret-1:i386 \
-          libsecret-1-dev:i386 \
-          libgtk2.0-0:i386 \
-        "
+      export npm_config_arch="$(VSCODE_ARCH)"
+      if [[ "$(VSCODE_ARCH)" == "ia32" ]]; then
+        export PKG_CONFIG_PATH="/usr/lib/i386-linux-gnu/pkgconfig"
       fi
 
-      apt-get install -y $DEPS
+      echo "machine monacotools.visualstudio.com password $(VSO_PAT)" > ~/.netrc
+      yarn
+      npm run gulp -- hygiene
+      npm run monaco-compile-check
+      VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
+      node build/tfs/common/installDistro.js
 
-      # setup xvfb
-      cp build/tfs/linux/$(VSCODE_ARCH)/xvfb.init /etc/init.d/xvfb
-      chmod +x /etc/init.d/xvfb
-      update-rc.d xvfb defaults
-      service xvfb start
+  - script: |
+      VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- vscode-linux-$(VSCODE_ARCH)-min
+    name: build
 
-      # setup dbus
-      ln -sf /bin/dbus-daemon /usr/bin/dbus-daemon
-      service dbus start
+  - script: |
+      npm run gulp -- "electron-$(VSCODE_ARCH)"
+      DISPLAY=:10 ./scripts/test.sh --build --tfs
+    name: test
 
+  - script: |
+      npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-deb"
+      npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-rpm"
+      #npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-snap"
+
+      AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+      AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+      MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
+      ./build/tfs/linux/release2.sh "$(VSCODE_ARCH)" "$(LINUX_REPO_PASSWORD)"
+
+- phase: Linux32
+  condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
+  queue: linux-ia32
+  variables:
+    VSCODE_ARCH: ia32
+
+  steps:
   - task: NodeTool@0
     inputs:
       versionSpec: "8.9.1"

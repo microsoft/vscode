@@ -12,7 +12,7 @@ import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfig
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification, CancellationToken } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-import { FoldingRangesRequest, FoldingRangeRequestParam } from './protocol/foldingProvider.proposed';
+import { FoldingRangesRequest, FoldingRangeRequestParam } from 'vscode-languageserver-protocol-foldingprovider';
 
 import { hash } from './utils/hash';
 
@@ -56,9 +56,6 @@ interface JSONSchemaSettings {
 }
 
 let telemetryReporter: TelemetryReporter | undefined;
-
-let foldingProviderRegistration: Disposable | undefined = void 0;
-const foldingSetting = 'json.experimental.syntaxFolding';
 
 export function activate(context: ExtensionContext) {
 
@@ -130,13 +127,7 @@ export function activate(context: ExtensionContext) {
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 
-		initFoldingProvider();
-		toDispose.push(workspace.onDidChangeConfiguration(c => {
-			if (c.affectsConfiguration(foldingSetting)) {
-				initFoldingProvider();
-			}
-		}));
-		toDispose.push({ dispose: () => foldingProviderRegistration && foldingProviderRegistration.dispose() });
+		toDispose.push(initFoldingProvider());
 	});
 
 	let languageConfiguration: LanguageConfiguration = {
@@ -149,34 +140,24 @@ export function activate(context: ExtensionContext) {
 	languages.setLanguageConfiguration('json', languageConfiguration);
 	languages.setLanguageConfiguration('jsonc', languageConfiguration);
 
-	function initFoldingProvider() {
-		let enable = workspace.getConfiguration().get(foldingSetting);
-		if (enable) {
-			if (!foldingProviderRegistration) {
-				foldingProviderRegistration = languages.registerFoldingProvider(documentSelector, {
-					provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken) {
-						const param: FoldingRangeRequestParam = {
-							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
-							maxRanges: context.maxRanges
-						};
-						return client.sendRequest(FoldingRangesRequest.type, param, token).then(res => {
-							if (res && Array.isArray(res.ranges)) {
-								return new FoldingRangeList(res.ranges.map(r => new FoldingRange(r.startLine, r.endLine, r.type)));
-							}
-							return null;
-						}, error => {
-							client.logFailedRequest(FoldingRangesRequest.type, error);
-							return null;
-						});
+	function initFoldingProvider(): Disposable {
+		return languages.registerFoldingProvider(documentSelector, {
+			provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken) {
+				const param: FoldingRangeRequestParam = {
+					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+					maxRanges: context.maxRanges
+				};
+				return client.sendRequest(FoldingRangesRequest.type, param, token).then(res => {
+					if (res && Array.isArray(res.ranges)) {
+						return new FoldingRangeList(res.ranges.map(r => new FoldingRange(r.startLine, r.endLine, r.type)));
 					}
+					return null;
+				}, error => {
+					client.logFailedRequest(FoldingRangesRequest.type, error);
+					return null;
 				});
 			}
-		} else {
-			if (foldingProviderRegistration) {
-				foldingProviderRegistration.dispose();
-				foldingProviderRegistration = void 0;
-			}
-		}
+		});
 	}
 }
 

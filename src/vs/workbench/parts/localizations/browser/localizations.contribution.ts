@@ -15,23 +15,68 @@ import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/exte
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { language } from 'vs/base/common/platform';
+import { IExtensionManagementService, DidInstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import Severity from 'vs/base/common/severity';
+import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import URI from 'vs/base/common/uri';
+import { join } from 'vs/base/common/paths';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IStorageService, } from 'vs/platform/storage/common/storage';
 
 // Register action to configure locale and related settings
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLocaleAction, ConfigureLocaleAction.ID, ConfigureLocaleAction.LABEL), 'Configure Language');
 
-export class LocalesSchemaUpdater extends Disposable implements IWorkbenchContribution {
+export class LocalizationWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@ILocalizationsService private localizationService: ILocalizationsService
+		@ILocalizationsService private localizationService: ILocalizationsService,
+		@INotificationService private notificationService: INotificationService,
+		@IJSONEditingService private jsonEditingService: IJSONEditingService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IWindowsService private windowsService: IWindowsService,
+		@IStorageService private storageService: IStorageService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
 	) {
 		super();
-		this.update();
-		this._register(this.localizationService.onDidLanguagesChange(() => this.update()));
+		this.updateLocaleDefintionSchema();
+		this._register(this.localizationService.onDidLanguagesChange(() => this.updateLocaleDefintionSchema()));
+		this._register(this.extensionManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
 	}
 
-	private update(): void {
+	private updateLocaleDefintionSchema(): void {
 		this.localizationService.getLanguageIds()
-			.then(languageIds => registerLocaleDefinitionSchema(languageIds));
+			.then(languageIds => {
+				let lowercaseLanguageIds: string[] = [];
+				languageIds.forEach((languageId) => {
+					let lowercaseLanguageId = languageId.toLowerCase();
+					if (lowercaseLanguageId !== languageId) {
+						lowercaseLanguageIds.push(lowercaseLanguageId);
+					}
+				});
+				registerLocaleDefinitionSchema([...languageIds, ...lowercaseLanguageIds]);
+			});
+	}
+
+	private onDidInstallExtension(e: DidInstallExtensionEvent): void {
+		const donotAskUpdateKey = 'langugage.update.donotask';
+		if (!this.storageService.getBoolean(donotAskUpdateKey) && e.local && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
+			const locale = e.local.manifest.contributes.localizations[0].languageId;
+			if (language !== locale) {
+				const updateLocaleMessage = localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId);
+				this.notificationService.prompt(Severity.Info, updateLocaleMessage, [localize('yes', "Yes"), localize('no', "No"), localize('doNotAskAgain', "Do not ask me again")])
+					.then(option => {
+						if (option === 0) {
+							const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
+							this.jsonEditingService.write(file, { key: 'locale', value: locale }, true)
+								.then(() => this.windowsService.relaunch({}), e => this.notificationService.error(e));
+						} else if (option === 2) {
+							this.storageService.store(donotAskUpdateKey, true);
+						}
+					});
+			}
+		}
 	}
 }
 
@@ -60,7 +105,7 @@ function registerLocaleDefinitionSchema(languages: string[]): void {
 
 registerLocaleDefinitionSchema([language]);
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(LocalesSchemaUpdater, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(LocalizationWorkbenchContribution, LifecyclePhase.Eventually);
 
 ExtensionsRegistry.registerExtensionPoint('localizations', [], {
 	description: localize('vscode.extension.contributes.localizations', "Contributes localizations to the editor"),

@@ -282,6 +282,11 @@ configurationRegistry.registerConfiguration({
 		'files.defaultLanguage': {
 			'type': 'string',
 			'description': nls.localize('defaultLanguage', "The default language mode that is assigned to new files.")
+		},
+		'files.maxMemoryForLargeFilesMB': {
+			'type': 'number',
+			'default': 4096,
+			'description': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same affect as specifying --max-memory=NEWSIZE on the command line.")
 		}
 	}
 });

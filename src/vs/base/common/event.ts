@@ -365,6 +365,7 @@ export interface IChainableEvent<T> {
 	map<O>(fn: (i: T) => O): IChainableEvent<O>;
 	forEach(fn: (i: T) => void): IChainableEvent<T>;
 	filter(fn: (e: T) => boolean): IChainableEvent<T>;
+	latch(): IChainableEvent<T>;
 	on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
 }
 
@@ -396,6 +397,10 @@ class ChainableEvent<T> implements IChainableEvent<T> {
 
 	filter(fn: (e: T) => boolean): IChainableEvent<T> {
 		return new ChainableEvent(filterEvent(this._event, fn));
+	}
+
+	latch(): IChainableEvent<T> {
+		return new ChainableEvent(latch(this._event));
 	}
 
 	on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
@@ -533,4 +538,16 @@ export function fromNodeEventEmitter<T>(emitter: NodeEventEmitter, eventName: st
 	const result = new Emitter<T>({ onFirstListenerAdd, onLastListenerRemove });
 
 	return result.event;
+}
+
+export function latch<T>(event: Event<T>): Event<T> {
+	let firstCall = true;
+	let cache: T;
+
+	return filterEvent(event, value => {
+		let shouldEmit = firstCall || value !== cache;
+		firstCall = false;
+		cache = value;
+		return shouldEmit;
+	});
 }

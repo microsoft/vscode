@@ -474,8 +474,10 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 
 export class RemoveAction extends AbstractSearchAndReplaceAction {
 
+	public static LABEL = nls.localize('RemoveAction.label', "Dismiss");
+
 	constructor(private viewer: ITree, private element: RenderableMatch) {
-		super('remove', nls.localize('RemoveAction.label', "Dismiss"), 'action-remove');
+		super('remove', RemoveAction.LABEL, 'action-remove');
 	}
 
 	public run(): TPromise<any> {
@@ -508,9 +510,11 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 
 export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
+	public static readonly LABEL = nls.localize('file.replaceAll.label', "Replace All");
+
 	constructor(private viewer: ITree, private fileMatch: FileMatch, private viewlet: SearchView,
 		@IKeybindingService keyBindingService: IKeybindingService) {
-		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(nls.localize('file.replaceAll.label', "Replace All"), keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), 'action-replace-all');
+		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(ReplaceAllAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), 'action-replace-all');
 	}
 
 	public run(): TPromise<any> {
@@ -527,10 +531,12 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 
+	public static readonly LABEL = nls.localize('file.replaceAll.label', "Replace All");
+
 	constructor(private viewer: ITree, private folderMatch: FolderMatch,
 		@IKeybindingService keyBindingService: IKeybindingService
 	) {
-		super(Constants.ReplaceAllInFolderActionId, nls.localize('file.replaceAll.label', "Replace All"), 'action-replace-all');
+		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), 'action-replace-all');
 	}
 
 	public async run(): TPromise<any> {
@@ -546,11 +552,13 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 
 export class ReplaceAction extends AbstractSearchAndReplaceAction {
 
+	public static readonly LABEL = nls.localize('match.replace.label', "Replace");
+
 	constructor(private viewer: ITree, private element: Match, private viewlet: SearchView,
 		@IReplaceService private replaceService: IReplaceService,
 		@IKeybindingService keyBindingService: IKeybindingService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super(Constants.ReplaceActionId, appendKeyBindingLabel(nls.localize('match.replace.label', "Replace"), keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), 'action-replace');
+		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), 'action-replace');
 	}
 
 	public run(): TPromise<any> {

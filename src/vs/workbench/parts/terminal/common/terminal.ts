@@ -268,6 +268,12 @@ export interface ITerminalInstance {
 	disableLayout: boolean;
 
 	/**
+	 * An object that tracks when commands are run and enables navigating and selecting between
+	 * them.
+	 */
+	readonly commandTracker: ITerminalCommandTracker;
+
+	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 */
 	dispose(): void;
@@ -439,4 +445,11 @@ export interface ITerminalInstance {
 	setTitle(title: string, eventFromProcess: boolean): void;
 
 	addDisposable(disposable: IDisposable): void;
+}
+
+export interface ITerminalCommandTracker {
+	scrollToPreviousCommand(): void;
+	scrollToNextCommand(): void;
+	selectToPreviousCommand(): void;
+	selectToNextCommand(): void;
 }

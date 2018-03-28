@@ -47,7 +47,7 @@ export class Problems {
 	}
 
 	public static getSelectorInEditor(problemType: ProblemSeverity): string {
-		let selector = problemType === ProblemSeverity.WARNING ? 'squiggly-b-warning' : 'squiggly-c-error';
+		let selector = problemType === ProblemSeverity.WARNING ? 'squiggly-c-warning' : 'squiggly-d-error';
 		return `.view-overlays .cdr.${selector}`;
 	}
 }

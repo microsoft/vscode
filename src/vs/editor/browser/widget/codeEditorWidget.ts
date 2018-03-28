@@ -25,14 +25,15 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground } from 'vs/editor/common/view/editorColorRegistry';
+import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground, editorHintForeground, editorHintBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ITextModel, IModelDecorationOptions } from 'vs/editor/common/model';
+import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -86,13 +87,14 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	constructor(
 		domElement: HTMLElement,
 		options: IEditorOptions,
+		isSimpleWidget: boolean,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService
 	) {
-		super(domElement, options, instantiationService, contextKeyService);
+		super(domElement, options, isSimpleWidget, instantiationService, contextKeyService);
 		this._codeEditorService = codeEditorService;
 		this._commandService = commandService;
 		this._themeService = themeService;
@@ -358,8 +360,62 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	}
 
 	protected _createView(): void {
+		let commandDelegate: ICommandDelegate;
+		if (this.isSimpleWidget) {
+			commandDelegate = {
+				paste: (source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[]) => {
+					this.cursor.trigger(source, editorCommon.Handler.Paste, { text, pasteOnNewLine, multicursorText });
+				},
+				type: (source: string, text: string) => {
+					this.cursor.trigger(source, editorCommon.Handler.Type, { text });
+				},
+				replacePreviousChar: (source: string, text: string, replaceCharCnt: number) => {
+					this.cursor.trigger(source, editorCommon.Handler.ReplacePreviousChar, { text, replaceCharCnt });
+				},
+				compositionStart: (source: string) => {
+					this.cursor.trigger(source, editorCommon.Handler.CompositionStart, undefined);
+				},
+				compositionEnd: (source: string) => {
+					this.cursor.trigger(source, editorCommon.Handler.CompositionEnd, undefined);
+				},
+				cut: (source: string) => {
+					this.cursor.trigger(source, editorCommon.Handler.Cut, undefined);
+				}
+			};
+		} else {
+			commandDelegate = {
+				paste: (source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[]) => {
+					this._commandService.executeCommand(editorCommon.Handler.Paste, {
+						text: text,
+						pasteOnNewLine: pasteOnNewLine,
+						multicursorText: multicursorText
+					});
+				},
+				type: (source: string, text: string) => {
+					this._commandService.executeCommand(editorCommon.Handler.Type, {
+						text: text
+					});
+				},
+				replacePreviousChar: (source: string, text: string, replaceCharCnt: number) => {
+					this._commandService.executeCommand(editorCommon.Handler.ReplacePreviousChar, {
+						text: text,
+						replaceCharCnt: replaceCharCnt
+					});
+				},
+				compositionStart: (source: string) => {
+					this._commandService.executeCommand(editorCommon.Handler.CompositionStart, {});
+				},
+				compositionEnd: (source: string) => {
+					this._commandService.executeCommand(editorCommon.Handler.CompositionEnd, {});
+				},
+				cut: (source: string) => {
+					this._commandService.executeCommand(editorCommon.Handler.Cut, {});
+				}
+			};
+		}
+
 		this._view = new View(
-			this._commandService,
+			commandDelegate,
 			this._configuration,
 			this._themeService,
 			this.viewModel,
@@ -399,7 +455,12 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			return;
 		}
 		if (s && s.cursorState && s.viewState) {
-			this._view.restoreState(this.viewModel.viewLayout.reduceRestoreState(s.viewState));
+			const reducedState = this.viewModel.viewLayout.reduceRestoreState(s.viewState);
+			const linesViewportData = this.viewModel.viewLayout.getLinesViewportDataAtScrollTop(reducedState.scrollTop);
+			const startViewPosition = this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.startLineNumber, 1));
+			const endViewPosition = this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.endLineNumber, 1));
+			this.model.tokenizeViewport(startViewPosition.lineNumber, endViewPosition.lineNumber);
+			this._view.restoreState(reducedState);
 		}
 	}
 
@@ -486,6 +547,13 @@ function getSquigglySVGData(color: Color) {
 	return squigglyStart + encodeURIComponent(color.toString()) + squigglyEnd;
 }
 
+const dotdotdotStart = encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" height="3" width="12"><g fill="`);
+const dotdotdotEnd = encodeURIComponent(`"><circle cx="1" cy="1" r="1"/><circle cx="5" cy="1" r="1"/><circle cx="9" cy="1" r="1"/></g></svg>`);
+
+function getDotDotDotSVGData(color: Color) {
+	return dotdotdotStart + encodeURIComponent(color.toString()) + dotdotdotEnd;
+}
+
 registerThemingParticipant((theme, collector) => {
 	let errorBorderColor = theme.getColor(editorErrorBorder);
 	if (errorBorderColor) {
@@ -512,5 +580,14 @@ registerThemingParticipant((theme, collector) => {
 	let infoForeground = theme.getColor(editorInfoForeground);
 	if (infoForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
+	}
+
+	let hintBorderColor = theme.getColor(editorHintBorder);
+	if (hintBorderColor) {
+		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { border-bottom: 2px dotted ${hintBorderColor}; }`);
+	}
+	let hintForeground = theme.getColor(editorHintForeground);
+	if (hintForeground) {
+		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { background: url("data:image/svg+xml;utf8,${getDotDotDotSVGData(hintForeground)}") no-repeat bottom left; }`);
 	}
 });

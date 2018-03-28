@@ -20,7 +20,6 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import URI from 'vs/base/common/uri';
 
@@ -140,8 +139,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		extHostContext: IExtHostContext,
 		extHostWorkspace: ExtHostWorkspace,
 		extHostConfiguration: ExtHostConfiguration,
-		extHostLogService: ExtHostLogService,
-		environmentService: IEnvironmentService
+		extHostLogService: ExtHostLogService
 	) {
 		this._barrier = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
@@ -426,6 +424,7 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 			"id": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 			"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 			"publisherDisplayName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+			"galleryPublisherDisplayName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 			"activationEvents": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		}
@@ -434,6 +433,7 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 		id: extensionDescription.id,
 		name: extensionDescription.name,
 		publisherDisplayName: extensionDescription.publisher,
+		galleryPublisherDisplayName: extensionDescription.publisher,
 		activationEvents: extensionDescription.activationEvents ? extensionDescription.activationEvents.join(',') : null,
 		isBuiltin: extensionDescription.isBuiltin
 	};

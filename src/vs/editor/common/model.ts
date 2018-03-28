@@ -390,6 +390,7 @@ export interface ITextModelCreationOptions {
 	detectIndentation: boolean;
 	trimAutoWhitespace: boolean;
 	defaultEOL: DefaultEndOfLine;
+	isForSimpleWidget: boolean;
 }
 
 export interface ITextModelUpdateOptions {
@@ -448,6 +449,12 @@ export interface ITextModel {
 	 * A unique identifier associated with this model.
 	 */
 	readonly id: string;
+
+	/**
+	 * This model is constructed for a simple widget code editor.
+	 * @internal
+	 */
+	readonly isForSimpleWidget: boolean;
 
 	/**
 	 * If true, the text model might contain RTL.
@@ -642,6 +649,11 @@ export interface ITextModel {
 	 * Returns if the model was disposed or not.
 	 */
 	isDisposed(): boolean;
+
+	/**
+	 * @internal
+	 */
+	tokenizeViewport(startLineNumber: number, endLineNumber: number): void;
 
 	/**
 	 * Only basic mode supports allowed on this model because it is simply too large.
@@ -996,6 +1008,13 @@ export interface ITextModel {
 	 * @internal
 	 * @event
 	 */
+	onDidChangeRawContentFast(listener: (e: ModelRawContentChangedEvent) => void): IDisposable;
+	/**
+	 * @deprecated Please use `onDidChangeContent` instead.
+	 * An event emitted when the contents of the model have changed.
+	 * @internal
+	 * @event
+	 */
 	onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the contents of the model have changed.
@@ -1055,6 +1074,12 @@ export interface ITextModel {
 	 * @internal
 	 */
 	isAttachedToEditor(): boolean;
+
+	/**
+	 * Returns the count of editors this model is attached to.
+	 * @internal
+	 */
+	getAttachedEditorCount(): number;
 }
 
 /**

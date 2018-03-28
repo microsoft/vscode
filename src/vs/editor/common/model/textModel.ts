@@ -33,28 +33,10 @@ import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { TextModelSearch, SearchParams, SearchData } from 'vs/editor/common/model/textModelSearch';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IStringStream, ITextSnapshot } from 'vs/platform/files/common/files';
-import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { ChunksTextBufferBuilder } from 'vs/editor/common/model/chunksTextBuffer/chunksTextBufferBuilder';
-
-export enum TextBufferType {
-	LinesArray,
-	PieceTree,
-	Chunks
-}
-// Here is the master switch for the text buffer implementation:
-export const OPTIONS = {
-	TEXT_BUFFER_IMPLEMENTATION: TextBufferType.PieceTree
-};
 
 function createTextBufferBuilder() {
-	if (OPTIONS.TEXT_BUFFER_IMPLEMENTATION === TextBufferType.PieceTree) {
-		return new PieceTreeTextBufferBuilder();
-	}
-	if (OPTIONS.TEXT_BUFFER_IMPLEMENTATION === TextBufferType.Chunks) {
-		return new ChunksTextBufferBuilder();
-	}
-	return new LinesTextBufferBuilder();
+	return new PieceTreeTextBufferBuilder();
 }
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
@@ -177,6 +159,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private static readonly MANY_MANY_LINES = 300 * 1000; // 300K lines
 
 	public static DEFAULT_CREATION_OPTIONS: model.ITextModelCreationOptions = {
+		isForSimpleWidget: false,
 		tabSize: EDITOR_MODEL_DEFAULTS.tabSize,
 		insertSpaces: EDITOR_MODEL_DEFAULTS.insertSpaces,
 		detectIndentation: false,
@@ -228,15 +211,19 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public readonly onDidChangeOptions: Event<IModelOptionsChangedEvent> = this._onDidChangeOptions.event;
 
 	private readonly _eventEmitter: DidChangeContentEmitter = this._register(new DidChangeContentEmitter());
+	public onDidChangeRawContentFast(listener: (e: ModelRawContentChangedEvent) => void): IDisposable {
+		return this._eventEmitter.fastEvent((e: InternalModelContentChangeEvent) => listener(e.rawContentChangedEvent));
+	}
 	public onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.event((e: InternalModelContentChangeEvent) => listener(e.rawContentChangedEvent));
+		return this._eventEmitter.slowEvent((e: InternalModelContentChangeEvent) => listener(e.rawContentChangedEvent));
 	}
 	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.event((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
+		return this._eventEmitter.slowEvent((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
 	}
 	//#endregion
 
 	public readonly id: string;
+	public readonly isForSimpleWidget: boolean;
 	private readonly _associatedResource: URI;
 	private _attachedEditorCount: number;
 	private _buffer: model.ITextBuffer;
@@ -284,6 +271,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		// Generate a new unique model id
 		MODEL_ID++;
 		this.id = '$model' + MODEL_ID;
+		this.isForSimpleWidget = creationOptions.isForSimpleWidget;
 		if (typeof associatedResource === 'undefined' || associatedResource === null) {
 			this._associatedResource = URI.parse('inmemory://model/' + MODEL_ID);
 		} else {
@@ -546,6 +534,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public isAttachedToEditor(): boolean {
 		return this._attachedEditorCount > 0;
+	}
+
+	public getAttachedEditorCount(): number {
+		return this._attachedEditorCount;
 	}
 
 	public isTooLargeForHavingARichMode(): boolean {
@@ -892,6 +884,41 @@ export class TextModel extends Disposable implements model.ITextModel {
 	/**
 	 * @param strict Do NOT allow a position inside a high-low surrogate pair
 	 */
+	private _isValidPosition(lineNumber: number, column: number, strict: boolean): boolean {
+
+		if (lineNumber < 1) {
+			return false;
+		}
+
+		const lineCount = this._buffer.getLineCount();
+		if (lineNumber > lineCount) {
+			return false;
+		}
+
+		if (column < 1) {
+			return false;
+		}
+
+		const maxColumn = this.getLineMaxColumn(lineNumber);
+		if (column > maxColumn) {
+			return false;
+		}
+
+		if (strict) {
+			if (column > 1) {
+				const charCodeBefore = this._buffer.getLineCharCode(lineNumber, column - 2);
+				if (strings.isHighSurrogate(charCodeBefore)) {
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * @param strict Do NOT allow a position inside a high-low surrogate pair
+	 */
 	private _validatePosition(_lineNumber: number, _column: number, strict: boolean): Position {
 		const lineNumber = Math.floor(typeof _lineNumber === 'number' ? _lineNumber : 1);
 		const column = Math.floor(typeof _column === 'number' ? _column : 1);
@@ -929,11 +956,60 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public validatePosition(position: IPosition): Position {
 		this._assertNotDisposed();
+
+		// Avoid object allocation and cover most likely case
+		if (position instanceof Position) {
+			if (this._isValidPosition(position.lineNumber, position.column, true)) {
+				return position;
+			}
+		}
+
 		return this._validatePosition(position.lineNumber, position.column, true);
+	}
+
+	/**
+	 * @param strict Do NOT allow a range to have its boundaries inside a high-low surrogate pair
+	 */
+	private _isValidRange(range: Range, strict: boolean): boolean {
+		const startLineNumber = range.startLineNumber;
+		const startColumn = range.startColumn;
+		const endLineNumber = range.endLineNumber;
+		const endColumn = range.endColumn;
+
+		if (!this._isValidPosition(startLineNumber, startColumn, false)) {
+			return false;
+		}
+		if (!this._isValidPosition(endLineNumber, endColumn, false)) {
+			return false;
+		}
+
+		if (strict) {
+			const charCodeBeforeStart = (startColumn > 1 ? this._buffer.getLineCharCode(startLineNumber, startColumn - 2) : 0);
+			const charCodeBeforeEnd = (endColumn > 1 && endColumn <= this._buffer.getLineLength(endLineNumber) ? this._buffer.getLineCharCode(endLineNumber, endColumn - 2) : 0);
+
+			const startInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeStart);
+			const endInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeEnd);
+
+			if (!startInsideSurrogatePair && !endInsideSurrogatePair) {
+				return true;
+			}
+
+			return false;
+		}
+
+		return true;
 	}
 
 	public validateRange(_range: IRange): Range {
 		this._assertNotDisposed();
+
+		// Avoid object allocation and cover most likely case
+		if ((_range instanceof Range) && !(_range instanceof Selection)) {
+			if (this._isValidRange(_range, true)) {
+				return _range;
+			}
+		}
+
 		const start = this._validatePosition(_range.startLineNumber, _range.startColumn, false);
 		const end = this._validatePosition(_range.endLineNumber, _range.endColumn, false);
 
@@ -997,7 +1073,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			searchRange = this.getFullModelRange();
 		}
 
-		if (!isRegex && searchString.indexOf('\n') < 0 && OPTIONS.TEXT_BUFFER_IMPLEMENTATION === TextBufferType.PieceTree) {
+		if (!isRegex && searchString.indexOf('\n') < 0) {
 			// not regex, not multi line
 			const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
 			const searchData = searchParams.parseSearchRequest();
@@ -1015,6 +1091,28 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public findNextMatch(searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): model.FindMatch {
 		this._assertNotDisposed();
 		const searchStart = this.validatePosition(rawSearchStart);
+
+		if (!isRegex && searchString.indexOf('\n') < 0) {
+			const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
+			const searchData = searchParams.parseSearchRequest();
+			const lineCount = this.getLineCount();
+			let searchRange = new Range(searchStart.lineNumber, searchStart.column, lineCount, this.getLineMaxColumn(lineCount));
+			let ret = this.findMatchesLineByLine(searchRange, searchData, captureMatches, 1);
+			TextModelSearch.findNextMatch(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchStart, captureMatches);
+			if (ret.length > 0) {
+				return ret[0];
+			}
+
+			searchRange = new Range(1, 1, searchStart.lineNumber, this.getLineMaxColumn(searchStart.lineNumber));
+			ret = this.findMatchesLineByLine(searchRange, searchData, captureMatches, 1);
+
+			if (ret.length > 0) {
+				return ret[0];
+			}
+
+			return null;
+		}
+
 		return TextModelSearch.findNextMatch(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchStart, captureMatches);
 	}
 
@@ -1600,6 +1698,88 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	//#region Tokenization
 
+	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
+		if (!this._tokens.tokenizationSupport) {
+			return;
+		}
+
+		// we tokenize `this._tokens.inValidLineStartIndex` lines in around 20ms so it's a good baseline.
+		const contextBefore = Math.floor(this._tokens.inValidLineStartIndex * 0.3);
+		startLineNumber = Math.max(1, startLineNumber - contextBefore);
+
+		if (startLineNumber <= this._tokens.inValidLineStartIndex) {
+			this.forceTokenization(endLineNumber);
+			return;
+		}
+
+		const eventBuilder = new ModelTokensChangedEventBuilder();
+		let nonWhitespaceColumn = this.getLineFirstNonWhitespaceColumn(startLineNumber);
+		let fakeLines = [];
+		let i = startLineNumber - 1;
+		let initialState = null;
+		if (nonWhitespaceColumn > 0) {
+			while (nonWhitespaceColumn > 0 && i >= 1) {
+				let newNonWhitespaceIndex = this.getLineFirstNonWhitespaceColumn(i);
+
+				if (newNonWhitespaceIndex === 0) {
+					i--;
+					continue;
+				}
+
+				if (newNonWhitespaceIndex < nonWhitespaceColumn) {
+					initialState = this._tokens._getState(i - 1);
+					if (initialState) {
+						break;
+					}
+					fakeLines.push(this.getLineContent(i));
+					nonWhitespaceColumn = newNonWhitespaceIndex;
+				}
+
+				i--;
+			}
+		}
+
+		if (!initialState) {
+			initialState = this._tokens.tokenizationSupport.getInitialState();
+		}
+
+		let state = initialState.clone();
+		for (let i = fakeLines.length - 1; i >= 0; i--) {
+			let r = this._tokens._tokenizeText(this._buffer, fakeLines[i], state);
+			if (r) {
+				state = r.endState.clone();
+			} else {
+				state = initialState.clone();
+			}
+		}
+
+		const contextAfter = Math.floor(this._tokens.inValidLineStartIndex * 0.4);
+		endLineNumber = Math.min(this.getLineCount(), endLineNumber + contextAfter);
+		for (let i = startLineNumber; i <= endLineNumber; i++) {
+			let text = this.getLineContent(i);
+			let r = this._tokens._tokenizeText(this._buffer, text, state);
+			if (r) {
+				this._tokens._setTokens(this._tokens.languageIdentifier.id, i - 1, text.length, r.tokens);
+				/*
+				 * we think it's valid and give it a state but we don't update `_invalidLineStartIndex` then the top-to-bottom tokenization
+				 * goes through the viewport, it can skip them if they already have correct tokens and state, and the lines after the viewport
+				 * can still be tokenized.
+				 */
+				this._tokens._setIsInvalid(i - 1, false);
+				this._tokens._setState(i - 1, state);
+				state = r.endState.clone();
+				eventBuilder.registerChangedTokens(i);
+			} else {
+				state = initialState.clone();
+			}
+		}
+
+		const e = eventBuilder.build();
+		if (e) {
+			this._onDidChangeTokens.fire(e);
+		}
+	}
+
 	public forceTokenization(lineNumber: number): void {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value for lineNumber');
@@ -1742,8 +1922,39 @@ export class TextModel extends Disposable implements model.ITextModel {
 		const position = this.validatePosition(_position);
 		const lineContent = this.getLineContent(position.lineNumber);
 		const lineTokens = this._getLineTokens(position.lineNumber);
-		const offset = position.column - 1;
-		const tokenIndex = lineTokens.findTokenIndexAtOffset(offset);
+		const tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
+
+		// (1). First try checking right biased word
+		const [rbStartOffset, rbEndOffset] = TextModel._findLanguageBoundaries(lineTokens, tokenIndex);
+		const rightBiasedWord = getWordAtText(
+			position.column,
+			LanguageConfigurationRegistry.getWordDefinition(lineTokens.getLanguageId(tokenIndex)),
+			lineContent.substring(rbStartOffset, rbEndOffset),
+			rbStartOffset
+		);
+		if (rightBiasedWord) {
+			return rightBiasedWord;
+		}
+
+		// (2). Else, if we were at a language boundary, check the left biased word
+		if (tokenIndex > 0 && rbStartOffset === position.column - 1) {
+			// edge case, where `position` sits between two tokens belonging to two different languages
+			const [lbStartOffset, lbEndOffset] = TextModel._findLanguageBoundaries(lineTokens, tokenIndex - 1);
+			const leftBiasedWord = getWordAtText(
+				position.column,
+				LanguageConfigurationRegistry.getWordDefinition(lineTokens.getLanguageId(tokenIndex - 1)),
+				lineContent.substring(lbStartOffset, lbEndOffset),
+				lbStartOffset
+			);
+			if (leftBiasedWord) {
+				return leftBiasedWord;
+			}
+		}
+
+		return null;
+	}
+
+	private static _findLanguageBoundaries(lineTokens: LineTokens, tokenIndex: number): [number, number] {
 		const languageId = lineTokens.getLanguageId(tokenIndex);
 
 		// go left until a different language is hit
@@ -1758,12 +1969,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			endOffset = lineTokens.getEndOffset(i);
 		}
 
-		return getWordAtText(
-			position.column,
-			LanguageConfigurationRegistry.getWordDefinition(languageId),
-			lineContent.substring(startOffset, endOffset),
-			startOffset
-		);
+		return [startOffset, endOffset];
 	}
 
 	public getWordUntilPosition(position: IPosition): model.IWordAtPosition {
@@ -2481,8 +2687,13 @@ export class DidChangeDecorationsEmitter extends Disposable {
 
 export class DidChangeContentEmitter extends Disposable {
 
-	private readonly _actual: Emitter<InternalModelContentChangeEvent> = this._register(new Emitter<InternalModelContentChangeEvent>());
-	public readonly event: Event<InternalModelContentChangeEvent> = this._actual.event;
+	/**
+	 * Both `fastEvent` and `slowEvent` work the same way and contain the same events, but first we invoke `fastEvent` and then `slowEvent`.
+	 */
+	private readonly _fastEmitter: Emitter<InternalModelContentChangeEvent> = this._register(new Emitter<InternalModelContentChangeEvent>());
+	public readonly fastEvent: Event<InternalModelContentChangeEvent> = this._fastEmitter.event;
+	private readonly _slowEmitter: Emitter<InternalModelContentChangeEvent> = this._register(new Emitter<InternalModelContentChangeEvent>());
+	public readonly slowEvent: Event<InternalModelContentChangeEvent> = this._slowEmitter.event;
 
 	private _deferredCnt: number;
 	private _deferredEvent: InternalModelContentChangeEvent;
@@ -2503,7 +2714,8 @@ export class DidChangeContentEmitter extends Disposable {
 			if (this._deferredEvent !== null) {
 				const e = this._deferredEvent;
 				this._deferredEvent = null;
-				this._actual.fire(e);
+				this._fastEmitter.fire(e);
+				this._slowEmitter.fire(e);
 			}
 		}
 	}
@@ -2517,6 +2729,7 @@ export class DidChangeContentEmitter extends Disposable {
 			}
 			return;
 		}
-		this._actual.fire(e);
+		this._fastEmitter.fire(e);
+		this._slowEmitter.fire(e);
 	}
 }

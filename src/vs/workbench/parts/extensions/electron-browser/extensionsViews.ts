@@ -145,25 +145,56 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
 		}
 
-		if (!value || ExtensionsListView.isBuiltInExtensionsQuery(value)) {
-			// Show installed extensions
-			value = value ? value.replace(/@builtin/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
+		if (/@builtin/i.test(value)) {
+			const showThemesOnly = /@builtin:themes/i.test(value);
+			if (showThemesOnly) {
+				value = value.replace(/@builtin:themes/g, '');
+			}
+			const showBasicsOnly = /@builtin:basics/i.test(value);
+			if (showBasicsOnly) {
+				value = value.replace(/@builtin:basics/g, '');
+			}
+			const showFeaturesOnly = /@builtin:features/i.test(value);
+			if (showFeaturesOnly) {
+				value = value.replace(/@builtin:features/g, '');
+			}
 
+			value = value.replace(/@builtin/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 			let result = await this.extensionsWorkbenchService.queryLocal();
 
 			result = result
 				.filter(e => e.type === LocalExtensionType.System && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
 
-			const themesExtensions = result.filter(e => {
-				return e.local.manifest
-					&& e.local.manifest.contributes
-					&& Array.isArray(e.local.manifest.contributes.themes)
-					&& e.local.manifest.contributes.themes.length;
-			});
-			const themesExtensionsIds = themesExtensions.map(e => e.id);
-			const others = result.filter(e => themesExtensionsIds.indexOf(e.id) === -1);
+			if (showThemesOnly) {
+				const themesExtensions = result.filter(e => {
+					return e.local.manifest
+						&& e.local.manifest.contributes
+						&& Array.isArray(e.local.manifest.contributes.themes)
+						&& e.local.manifest.contributes.themes.length;
+				});
+				return new PagedModel(this.sortExtensions(themesExtensions, options));
+			}
+			if (showBasicsOnly) {
+				const basics = result.filter(e => {
+					return e.local.manifest
+						&& e.local.manifest.contributes
+						&& Array.isArray(e.local.manifest.contributes.languages)
+						&& e.local.manifest.contributes.languages.length
+						&& e.local.identifier.id !== 'git';
+				});
+				return new PagedModel(this.sortExtensions(basics, options));
+			}
+			if (showFeaturesOnly) {
+				const others = result.filter(e => {
+					return e.local.manifest
+						&& e.local.manifest.contributes
+						&& (!Array.isArray(e.local.manifest.contributes.languages) || e.local.identifier.id === 'git')
+						&& !Array.isArray(e.local.manifest.contributes.themes);
+				});
+				return new PagedModel(this.sortExtensions(others, options));
+			}
 
-			return new PagedModel([...this.sortExtensions(others, options), ...this.sortExtensions(themesExtensions, options)]);
+			return new PagedModel(this.sortExtensions(result, options));
 		}
 
 		if (!value || ExtensionsListView.isInstalledExtensionsQuery(value)) {
@@ -490,7 +521,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 	}
 
 	static isBuiltInExtensionsQuery(query: string): boolean {
-		return /@builtin/i.test(query);
+		return /^\s*@builtin\s*$/i.test(query);
 	}
 
 	static isInstalledExtensionsQuery(query: string): boolean {
@@ -548,12 +579,22 @@ export class InstalledExtensionsView extends ExtensionsListView {
 export class BuiltInExtensionsView extends ExtensionsListView {
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
-		if (!ExtensionsListView.isBuiltInExtensionsQuery(query)) {
-			return super.show(query);
-		}
-		let searchBuiltInQuery = '@builtin';
-		searchBuiltInQuery = query ? searchBuiltInQuery + ' ' + query : searchBuiltInQuery;
-		return super.show(searchBuiltInQuery);
+		return super.show(query.replace('@builtin', '@builtin:features'));
+	}
+
+}
+
+export class BuiltInThemesExtensionsView extends ExtensionsListView {
+
+	async show(query: string): TPromise<IPagedModel<IExtension>> {
+		return super.show(query.replace('@builtin', '@builtin:themes'));
+	}
+}
+
+export class BuiltInBasicsExtensionsView extends ExtensionsListView {
+
+	async show(query: string): TPromise<IPagedModel<IExtension>> {
+		return super.show(query.replace('@builtin', '@builtin:basics'));
 	}
 }
 

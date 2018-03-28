@@ -24,10 +24,13 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
+import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 /**
  * An implementation of editor for file system resources.
@@ -48,6 +51,8 @@ export class TextFileEditor extends BaseTextEditor {
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService,
+		@IWindowsService private windowsService: IWindowsService,
+		@IPreferencesService private preferencesService: IPreferencesService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
 
@@ -160,6 +165,29 @@ export class TextFileEditor extends BaseTextEditor {
 										pinned: true // new file gets pinned by default
 									}
 								}));
+							})
+						]
+					}));
+				}
+
+				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEED_MEMORY_LIMIT) {
+					let memoryLimit = Math.max(2048, +this.configurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB') || 4096);
+
+					return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
+						actions: [
+							new Action('workbench.window.action.relaunchWithIncreasedMemoryLimit', nls.localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), null, true, () => {
+								return this.windowsService.relaunch({
+									addArgs: [
+										`--max-memory=${memoryLimit}`
+									]
+								});
+							}),
+							new Action('workbench.window.action.configureMemoryLimit', nls.localize('configureMemoryLimit', 'Configure Memory Limit'), null, true, () => {
+								return this.preferencesService.openGlobalSettings().then(editor => {
+									if (editor instanceof PreferencesEditor) {
+										editor.focusSearch('files.maxMemoryForLargeFilesMB');
+									}
+								});
 							})
 						]
 					}));

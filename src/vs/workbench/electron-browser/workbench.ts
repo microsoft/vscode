@@ -35,6 +35,8 @@ import { WorkbenchLayout } from 'vs/workbench/browser/layout';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { QuickInputService } from 'vs/workbench/browser/parts/quickinput/quickInput';
 import { getServices } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IPartService, ILayoutOptions, Dimension } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -199,6 +201,7 @@ export class Workbench implements IPartService {
 	private editorPart: EditorPart;
 	private statusbarPart: StatusbarPart;
 	private quickOpen: QuickOpenController;
+	private quickInput: QuickInputService;
 	private notificationsCenter: NotificationsCenter;
 	private notificationsToasts: NotificationsToasts;
 	private workbenchLayout: WorkbenchLayout;
@@ -621,6 +624,11 @@ export class Workbench implements IPartService {
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
 		this.toUnbind.push({ dispose: () => this.quickOpen.shutdown() });
 		serviceCollection.set(IQuickOpenService, this.quickOpen);
+
+		// Quick input service
+		this.quickInput = this.instantiationService.createInstance(QuickInputService);
+		this.toUnbind.push({ dispose: () => this.quickInput.shutdown() });
+		serviceCollection.set(IQuickInputService, this.quickInput);
 
 		// Contributed services
 		const contributedServices = getServices();
@@ -1154,6 +1162,7 @@ export class Workbench implements IPartService {
 				statusbar: this.statusbarPart,			// Statusbar
 			},
 			this.quickOpen,								// Quickopen
+			this.quickInput,							// QuickInput
 			this.notificationsCenter,					// Notifications Center
 			this.notificationsToasts					// Notifications Toasts
 		);

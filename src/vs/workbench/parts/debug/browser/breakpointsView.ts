@@ -107,6 +107,13 @@ export class BreakpointsView extends ViewsViewletPanel {
 		this.list.splice(0, this.list.length, this.elements);
 	}
 
+	public focus(): void {
+		if (this.list) {
+			this.list.domFocus();
+		}
+		super.focus();
+	}
+
 	protected layoutBody(size: number): void {
 		if (this.list) {
 			this.list.layout(size);
@@ -136,7 +143,6 @@ export class BreakpointsView extends ViewsViewletPanel {
 		}
 
 		actions.push(new RemoveBreakpointAction(RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL, this.debugService, this.keybindingService));
-
 
 		if (this.debugService.getModel().getBreakpoints().length + this.debugService.getModel().getFunctionBreakpoints().length > 1) {
 			actions.push(new RemoveAllBreakpointsAction(RemoveAllBreakpointsAction.ID, RemoveAllBreakpointsAction.LABEL, this.debugService, this.keybindingService));

@@ -16,6 +16,9 @@ import { StatusbarAlignment, IStatusbarRegistry, StatusbarItemDescriptor, Extens
 import { TPromise } from 'vs/base/common/winjs.base';
 import { always } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
+import { INotificationService, Severity, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
+import { Action } from 'vs/base/common/actions';
+import { once } from 'vs/base/common/event';
 
 class WindowProgressItem implements IStatusbarItem {
 
@@ -30,9 +33,25 @@ class WindowProgressItem implements IStatusbarItem {
 
 	render(element: HTMLElement): IDisposable {
 		this._element = element;
-		this._label = new OcticonLabel(this._element);
 		this._element.classList.add('progress');
+
+		const container = document.createElement('span');
+		this._element.appendChild(container);
+
+		const spinnerContainer = document.createElement('span');
+		spinnerContainer.classList.add('spinner-container');
+		container.appendChild(spinnerContainer);
+
+		const spinner = new OcticonLabel(spinnerContainer);
+		spinner.text = '$(sync~spin)';
+
+		const labelContainer = document.createElement('span');
+		container.appendChild(labelContainer);
+
+		this._label = new OcticonLabel(labelContainer);
+
 		this.hide();
+
 		return null;
 	}
 
@@ -62,15 +81,18 @@ export class ProgressService2 implements IProgressService2 {
 
 	constructor(
 		@IActivityService private readonly _activityBar: IActivityService,
-		@IViewletService private readonly _viewletService: IViewletService
+		@IViewletService private readonly _viewletService: IViewletService,
+		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		//
 	}
 
-	withProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P): P {
+	withProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: () => void): P {
 
 		const { location } = options;
 		switch (location) {
+			case ProgressLocation.Notification:
+				return this._withNotificationProgress(options, task, onDidCancel);
 			case ProgressLocation.Window:
 				return this._withWindowProgress(options, task);
 			case ProgressLocation.Explorer:
@@ -85,7 +107,7 @@ export class ProgressService2 implements IProgressService2 {
 		}
 	}
 
-	private _withWindowProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, percentage?: number }>) => P): P {
+	private _withWindowProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string }>) => P): P {
 
 		const task: [IProgressOptions, Progress<IProgressStep>] = [options, new Progress<IProgressStep>(() => this._updateWindowProgress())];
 
@@ -134,8 +156,8 @@ export class ProgressService2 implements IProgressService2 {
 			if (options.title && options.title !== title) {
 				title = localize('progress.subtitle', "{0} - {1}", options.title, title);
 			}
-			if (options.tooltip) {
-				title = localize('progress.title', "{0}: {1}", options.tooltip, title);
+			if (options.source) {
+				title = localize('progress.title', "{0}: {1}", options.source, title);
 			}
 
 			WindowProgressItem.Instance.text = text;
@@ -144,7 +166,95 @@ export class ProgressService2 implements IProgressService2 {
 		}
 	}
 
-	private _withViewletProgress<P extends Thenable<R>, R=any>(viewletId: string, task: (progress: IProgress<{ message?: string, percentage?: number }>) => P): P {
+	private _withNotificationProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
+		const toDispose: IDisposable[] = [];
+
+		const createNotification = (message: string, increment?: number): INotificationHandle => {
+			if (!message) {
+				return undefined; // we need a message at least
+			}
+
+			const actions: INotificationActions = { primary: [] };
+			if (options.cancellable) {
+				const cancelAction = new class extends Action {
+					constructor() {
+						super('progress.cancel', localize('cancel', "Cancel"), null, true);
+					}
+
+					run(): TPromise<any> {
+						if (typeof onDidCancel === 'function') {
+							onDidCancel();
+						}
+
+						return TPromise.as(undefined);
+					}
+				};
+				toDispose.push(cancelAction);
+
+				actions.primary.push(cancelAction);
+			}
+
+			const handle = this._notificationService.notify({
+				severity: Severity.Info,
+				message: options.title,
+				source: options.source,
+				actions
+			});
+
+			updateProgress(handle, increment);
+
+			once(handle.onDidDispose)(() => {
+				dispose(toDispose);
+			});
+
+			return handle;
+		};
+
+		const updateProgress = (notification: INotificationHandle, increment?: number): void => {
+			if (typeof increment === 'number' && increment >= 0) {
+				notification.progress.total(100); // always percentage based
+				notification.progress.worked(increment);
+			} else {
+				notification.progress.infinite();
+			}
+		};
+
+		let handle: INotificationHandle;
+		const updateNotification = (message?: string, increment?: number): void => {
+			if (!handle) {
+				handle = createNotification(message, increment);
+			} else {
+				if (typeof message === 'string') {
+					handle.updateMessage(message);
+				}
+
+				if (typeof increment === 'number') {
+					updateProgress(handle, increment);
+				}
+			}
+		};
+
+		// Show initially
+		updateNotification(options.title);
+
+		// Update based on progress
+		const p = callback({
+			report: progress => {
+				updateNotification(progress.message, progress.increment);
+			}
+		});
+
+		// Show progress for at least 800ms and then hide once done or canceled
+		always(TPromise.join([TPromise.timeout(800), p]), () => {
+			if (handle) {
+				handle.dispose();
+			}
+		});
+
+		return p;
+	}
+
+	private _withViewletProgress<P extends Thenable<R>, R=any>(viewletId: string, task: (progress: IProgress<{ message?: string }>) => P): P {
 
 		const promise = task(emptyProgress);
 

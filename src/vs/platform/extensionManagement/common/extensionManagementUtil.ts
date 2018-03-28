@@ -69,9 +69,6 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 		id: getGalleryExtensionIdFromLocal(extension),
 		name: extension.manifest.name,
 		galleryId: null,
-		publisherId: extension.metadata ? extension.metadata.publisherId : null,
-		publisherName: extension.manifest.publisher,
-		publisherDisplayName: extension.metadata ? extension.metadata.publisherDisplayName : null,
 		dependencies: extension.manifest.extensionDependencies && extension.manifest.extensionDependencies.length > 0
 	};
 }
@@ -82,9 +79,12 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 		"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"name": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"galleryId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"publisherId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-		"publisherName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+		"publisherId": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+		"publisherName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
 		"publisherDisplayName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+		"galleryPublisherId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+		"galleryPublisherName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+		"galleryPublisherDisplayName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 		"dependencies": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 		"${include}": [
 			"${GalleryExtensionTelemetryData2}"
@@ -99,6 +99,9 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 		publisherId: extension.publisherId,
 		publisherName: extension.publisher,
 		publisherDisplayName: extension.publisherDisplayName,
+		galleryPublisherId: extension.publisherId,
+		galleryPublisherName: extension.publisher,
+		galleryPublisherDisplayName: extension.publisherDisplayName,
 		dependencies: extension.properties.dependencies.length > 0,
 		...extension.telemetryData
 	};

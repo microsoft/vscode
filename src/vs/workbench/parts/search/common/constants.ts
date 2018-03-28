@@ -20,6 +20,8 @@ export const ToggleCaseSensitiveCommandId = 'toggleSearchCaseSensitive';
 export const ToggleWholeWordCommandId = 'toggleSearchWholeWord';
 export const ToggleRegexCommandId = 'toggleSearchRegex';
 
+export const ToggleSearchViewPositionCommandId = 'search.action.toggleSearchViewPosition';
+
 export const SearchViewVisibleKey = new RawContextKey<boolean>('searchViewletVisible', true);
 export const InputBoxFocusedKey = new RawContextKey<boolean>('inputBoxFocus', false);
 export const SearchInputBoxFocusedKey = new RawContextKey<boolean>('searchInputBoxFocus', false);

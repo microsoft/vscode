@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
-import { Node, HtmlNode, CssToken, Property, Rule } from 'EmmetNode';
+import { Node, HtmlNode, CssToken, Property, Rule, Stylesheet } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
 
 let _emmetHelper: any;
@@ -126,6 +126,155 @@ export function parseDocument(document: vscode.TextDocument, showError: boolean 
 		}
 	}
 	return undefined;
+}
+
+export function parsePartialStylesheet(document: vscode.TextDocument, position: vscode.Position): Stylesheet | undefined {
+
+	let startPosition = new vscode.Position(0, 0);
+	let endPosition = new vscode.Position(document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length);
+	const closeBrace = 125;
+	const openBrace = 123;
+	let slash = 47;
+	let star = 42;
+	let isCSS = document.languageId === 'css';
+
+	let singleLineCommentIndex = document.lineAt(position.line).text.indexOf('//');
+	if (!isCSS && singleLineCommentIndex > -1 && singleLineCommentIndex < position.character) {
+		return;
+	}
+
+	// Go forward until we found a closing brace.
+	let stream = new DocumentStreamReader(document, position);
+	while (!stream.eof() && !stream.eat(closeBrace)) {
+		if (stream.eat(slash)) {
+			if (stream.eat(slash) && !isCSS) {
+				// Single line Comment, we continue searching from next line.
+				stream.pos = new vscode.Position(stream.pos.line + 1, 0);
+			} else if (stream.eat(star)) {
+				stream.pos = findClosingCommentAfterPosition(document, stream.pos) || endPosition;
+			}
+		} else {
+			stream.next();
+		}
+	}
+
+	if (!stream.eof()) {
+		endPosition = stream.pos;
+	}
+
+	// Go back until we found an opening brace. If we find a closing one, we first find its opening brace and then we continue.
+	stream.pos = position;
+	let openBracesRemaining = 1;
+	let currentLine = position.line;
+	let limitCharacter = document.offsetAt(position) - 5000;
+	let limitPosition = limitCharacter > 0 ? document.positionAt(limitCharacter) : startPosition;
+
+	while (openBracesRemaining > 0 && !stream.sof()) {
+		if (position.line - stream.pos.line > 100 || stream.pos.isBeforeOrEqual(limitPosition)) {
+			return parseStylesheet(new DocumentStreamReader(document, startPosition, new vscode.Range(startPosition, endPosition)));
+		} else if (!isCSS && stream.pos.line !== currentLine) {
+			// In not CSS stylesheets, we need to skip singleLine comments.
+			currentLine = stream.pos.line;
+			let startLineComment = document.lineAt(currentLine).text.indexOf('//');
+			if (startLineComment > -1) {
+				stream.pos = new vscode.Position(currentLine, startLineComment);
+			}
+		}
+		let ch = stream.backUp(1);
+		if (ch === openBrace) {
+			openBracesRemaining--;
+		} else if (ch === closeBrace) {
+			if (isCSS) {
+				stream.next();
+				return parseStylesheet(new DocumentStreamReader(document, stream.pos, new vscode.Range(stream.pos, endPosition)));
+			}
+			openBracesRemaining++;
+		} else if (ch === slash) {
+			stream.backUp(1);
+			if (stream.peek() === star) {
+				stream.pos = findOpeningCommentBeforePosition(document, stream.pos) || startPosition;
+			} else {
+				stream.next();
+			}
+		} else if (ch === star) {
+			stream.backUp(1);
+			if (stream.peek() === slash) {
+				return;
+			} else {
+				stream.next();
+			}
+		}
+	}
+
+	// We are at an opening brace. We need to include its selector.
+	// We need one non whitespace character, that's not commented and is not a block { }
+	currentLine = stream.pos.line;
+	openBracesRemaining = 0;
+	while (!stream.sof()) {
+		// Find a nonspace character
+		while (!stream.sof() && String.fromCharCode(stream.backUp(1)).match(/\s/)) { }
+		if (stream.sof()) {
+			break;
+		}
+		let characterFound = stream.peek();
+		// Check if such character is end of comment.
+		if (characterFound === slash) {
+			let ch = stream.backUp(1);
+			if (ch === star) {
+				stream.pos = findOpeningCommentBeforePosition(document, stream.pos) || startPosition;
+			} else {
+				stream.next();
+			}
+			continue;
+		}
+		// In not CSS stylesheets, we need to skip singleLine comments.
+		if (!isCSS && stream.pos.line !== currentLine) {
+			currentLine = stream.pos.line;
+			let startLineComment = document.lineAt(currentLine).text.indexOf('//');
+			if (startLineComment > -1 && startLineComment < stream.pos.character) {
+				stream.pos = new vscode.Position(currentLine, startLineComment);
+				continue;
+			}
+		}
+		// Here, we know we are not in a comment
+		if (characterFound === closeBrace) {
+			openBracesRemaining++;
+		} else if (!openBracesRemaining) {
+			if (characterFound === openBrace) {
+				return;
+			} else {
+				break;
+			}
+		} else if (characterFound === openBrace) {
+			openBracesRemaining--;
+		}
+	}
+	if (!stream.sof()) {
+		startPosition = stream.pos;
+	}
+	try {
+		return parseStylesheet(new DocumentStreamReader(document, startPosition, new vscode.Range(startPosition, endPosition)));
+	} catch (e) {
+	}
+}
+
+function findOpeningCommentBeforePosition(document: vscode.TextDocument, position: vscode.Position): vscode.Position | undefined {
+	let text = document.getText(new vscode.Range(0, 0, position.line, position.character));
+	let offset = text.lastIndexOf('/*');
+	if (offset === -1) {
+		return;
+	}
+	return document.positionAt(offset);
+}
+
+function findClosingCommentAfterPosition(document: vscode.TextDocument, position: vscode.Position): vscode.Position | undefined {
+	let text = document.getText(new vscode.Range(position.line, position.character, document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length));
+	let offset = text.indexOf('*/');
+	if (offset === -1) {
+		return;
+	}
+	offset += 2 + document.offsetAt(position);
+	return document.positionAt(offset);
 }
 
 /**

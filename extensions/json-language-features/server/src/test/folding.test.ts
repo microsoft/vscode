@@ -32,7 +32,7 @@ function r(startLine: number, endLine: number, type?: string): ExpectedIndentRan
 	return { startLine, endLine, type };
 }
 
-suite('Object Folding', () => {
+suite('JSON Folding', () => {
 	test('Fold one level', () => {
 		let input = [
 			/*0*/'{',

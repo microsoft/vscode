@@ -175,13 +175,15 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	}
 
 	public async goToNextOrPreviousReference(fwd: boolean) {
-		let source = this._model.nearestReference(this._editor.getModel().uri, this._widget.position);
-		let target = this._model.nextOrPreviousReference(source, fwd);
-		let editorFocus = this._editor.isFocused();
-		await this._widget.setSelection(target);
-		await this._gotoReference(target);
-		if (editorFocus) {
-			this._editor.focus();
+		if (this._model) { // can be called while still resolving...
+			let source = this._model.nearestReference(this._editor.getModel().uri, this._widget.position);
+			let target = this._model.nextOrPreviousReference(source, fwd);
+			let editorFocus = this._editor.isFocused();
+			await this._widget.setSelection(target);
+			await this._gotoReference(target);
+			if (editorFocus) {
+				this._editor.focus();
+			}
 		}
 	}
 
@@ -204,10 +206,10 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._widget.hide();
 
 		this._ignoreModelChangeEvent = true;
-		const { uri, range } = ref;
+		const range = Range.lift(ref.range).collapseToStart();
 
 		return this._editorService.openEditor({
-			resource: uri,
+			resource: ref.uri,
 			options: { selection: range }
 		}).then(openedEditor => {
 			this._ignoreModelChangeEvent = false;

@@ -7,13 +7,13 @@
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/node/product';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import URI from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 
 export class TelemetryOptOut implements IWorkbenchContribution {
 
@@ -21,20 +21,31 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 
 	constructor(
 		@IStorageService storageService: IStorageService,
-		@IEnvironmentService environmentService: IEnvironmentService,
 		@IOpenerService openerService: IOpenerService,
 		@INotificationService notificationService: INotificationService,
+		@IWindowService windowService: IWindowService,
+		@IWindowsService windowsService: IWindowsService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		if (!product.telemetryOptOutUrl || storageService.get(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN)) {
 			return;
 		}
-		storageService.store(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true);
+		Promise.all([
+			windowService.isFocused(),
+			windowsService.getWindowCount()
+		]).then(([focused, count]) => {
+			if (!focused && count > 1) {
+				return null;
+			}
+			storageService.store(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true);
 
-		const optOutUrl = product.telemetryOptOutUrl;
-		const privacyUrl = product.privacyStatementUrl || product.telemetryOptOutUrl;
-		notificationService.prompt(Severity.Info, localize('telemetryOptOut.notice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt out]({1}).", privacyUrl, optOutUrl), [localize('telemetryOptOut.readMore', "Read More")])
-			.then(() => openerService.open(URI.parse(optOutUrl)))
+			const optOutUrl = product.telemetryOptOutUrl;
+			const privacyUrl = product.privacyStatementUrl || product.telemetryOptOutUrl;
+			const optOutNotice = localize('telemetryOptOut.optOutNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt out]({1}).", privacyUrl, optOutUrl);
+			const optInNotice = localize('telemetryOptOut.optInNotice', "Help improve VS Code by allowing Microsoft to collect usage data. Read our [privacy statement]({0}) and learn how to [opt in]({1}).", privacyUrl, optOutUrl);
+			return notificationService.prompt(Severity.Info, telemetryService.isOptedIn ? optOutNotice : optInNotice, [localize('telemetryOptOut.readMore', "Read More")])
+				.then(() => openerService.open(URI.parse(optOutUrl)));
+		})
 			.then(null, onUnexpectedError);
 	}
 }

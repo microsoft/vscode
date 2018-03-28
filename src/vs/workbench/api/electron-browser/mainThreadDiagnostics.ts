@@ -29,6 +29,15 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
 		for (let entry of entries) {
 			let [uri, markers] = entry;
+			if (markers) {
+				for (const marker of markers) {
+					if (marker.relatedInformation) {
+						for (const relatedInformation of marker.relatedInformation) {
+							relatedInformation.resource = URI.revive(relatedInformation.resource);
+						}
+					}
+				}
+			}
 			this._markerService.changeOne(owner, URI.revive(uri), markers);
 		}
 		this._activeOwners.add(owner);

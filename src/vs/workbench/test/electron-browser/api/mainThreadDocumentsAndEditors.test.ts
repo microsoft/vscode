@@ -100,6 +100,21 @@ suite('MainThreadDocumentsAndEditors', () => {
 		assert.equal(delta.removedEditors, undefined);
 	});
 
+	test('ignore simple widget model', function () {
+		this.timeout(1000 * 60); // increase timeout for this one test
+
+		const model = modelService.createModel('test', null, null, true);
+		assert.ok(model.isForSimpleWidget);
+
+		assert.equal(deltas.length, 1);
+		const [delta] = deltas;
+		assert.equal(delta.newActiveEditor, null);
+		assert.equal(delta.addedDocuments, undefined);
+		assert.equal(delta.removedDocuments, undefined);
+		assert.equal(delta.addedEditors, undefined);
+		assert.equal(delta.removedEditors, undefined);
+	});
+
 	test('ignore huge model from editor', function () {
 		this.timeout(1000 * 60); // increase timeout for this one test
 

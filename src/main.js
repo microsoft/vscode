@@ -20,10 +20,10 @@ Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https:
 	const NODE_MODULES_ASAR_PATH = NODE_MODULES_PATH + '.asar';
 
 	const originalResolveLookupPaths = Module._resolveLookupPaths;
-	Module._resolveLookupPaths = function (request, parent) {
-		const result = originalResolveLookupPaths(request, parent);
+	Module._resolveLookupPaths = function (request, parent, newReturn) {
+		const result = originalResolveLookupPaths(request, parent, newReturn);
 
-		const paths = result[1];
+		const paths = newReturn ? result : result[1];
 		for (let i = 0, len = paths.length; i < len; i++) {
 			if (paths[i] === NODE_MODULES_PATH) {
 				paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
@@ -280,14 +280,14 @@ function getNLSConfiguration(locale) {
 		return undefined;
 	}
 
-	let isCoreLangaguage = true;
+	let isCoreLanguage = true;
 	if (locale) {
-		isCoreLangaguage = ['de', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-cn', 'zh-tw'].some((language) => {
+		isCoreLanguage = ['de', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-cn', 'zh-tw'].some((language) => {
 			return locale === language || locale.startsWith(language + '-');
 		});
 	}
 
-	if (isCoreLangaguage) {
+	if (isCoreLanguage) {
 		return Promise.resolve(resolveLocale(locale));
 	} else {
 		perf.mark('nlsGeneration:start');

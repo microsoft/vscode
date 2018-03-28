@@ -173,7 +173,7 @@ function _createTestCodeEditor(options: TestCodeEditorCreationOptions): TestCode
 	services.set(IContextKeyService, contextKeyService);
 	let instantiationService = new InstantiationService(services);
 
-	let editor = new TestCodeEditor(new MockScopeLocation(), options, instantiationService, contextKeyService);
+	let editor = new TestCodeEditor(new MockScopeLocation(), options, false, instantiationService, contextKeyService);
 	editor.setModel(options.model);
 	return editor;
 }

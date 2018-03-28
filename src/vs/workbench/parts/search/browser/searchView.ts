@@ -41,7 +41,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { PatternInputWidget, ExcludePatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
-import { SearchRenderer, SearchDataSource, SearchSorter, SearchAccessibilityProvider, SearchFilter } from 'vs/workbench/parts/search/browser/searchResultsView';
+import { SearchRenderer, SearchDataSource, SearchSorter, SearchAccessibilityProvider, SearchFilter, SearchTreeController } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { SearchWidget, ISearchWidgetOptions } from 'vs/workbench/parts/search/browser/searchWidget';
 import { RefreshAction, CollapseDeepestExpandedLevelAction, ClearSearchResultsAction, CancelSearchAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
@@ -69,6 +69,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private static readonly MAX_TEXT_RESULTS = 10000;
 	private static readonly SHOW_REPLACE_STORAGE_KEY = 'vs.search.show.replace';
 
+	private static readonly WIDE_CLASS_NAME = 'wide';
+	private static readonly WIDE_VIEW_SIZE = 600;
+
 	private isDisposed: boolean;
 
 	private queryBuilder: QueryBuilder;
@@ -83,6 +86,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private folderMatchFocused: IContextKey<boolean>;
 	private matchFocused: IContextKey<boolean>;
 	private hasSearchResultsKey: IContextKey<boolean>;
+
 	private searchSubmitted: boolean;
 	private searching: boolean;
 
@@ -493,6 +497,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				renderer: renderer,
 				sorter: new SearchSorter(),
 				filter: new SearchFilter(),
+				controller: this.instantiationService.createInstance(SearchTreeController),
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider),
 				dnd
 			}, {
@@ -526,7 +531,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				if (treeHasFocus) {
 					const focus = e.focus;
 					this.firstMatchFocused.set(this.tree.getNavigator().first() === focus);
-					this.fileMatchOrMatchFocused.set(true);
+					this.fileMatchOrMatchFocused.set(!!focus);
 					this.fileMatchFocused.set(focus instanceof FileMatch);
 					this.folderMatchFocused.set(focus instanceof FolderMatch);
 					this.matchFocused.set(focus instanceof Match);
@@ -744,6 +749,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private reLayout(): void {
 		if (this.isDisposed) {
 			return;
+		}
+
+		if (this.size.width >= SearchView.WIDE_VIEW_SIZE) {
+			this.getContainer().addClass(SearchView.WIDE_CLASS_NAME);
+		} else {
+			this.getContainer().removeClass(SearchView.WIDE_CLASS_NAME);
 		}
 
 		this.searchWidget.setWidth(this.size.width - 28 /* container margin */);
@@ -1097,8 +1108,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 
 			if (!hasResults) {
-				let hasExcludes = !!query.excludePattern;
-				let hasIncludes = !!query.includePattern;
+				const hasExcludes = !!excludePatternText;
+				const hasIncludes = !!includePatternText;
 				let message: string;
 
 				if (!completed) {

@@ -179,8 +179,15 @@
 	padding: 0;
 }
 
-.search-view .foldermatch .monaco-icon-label,
-.search-view .filematch .monaco-icon-label {
+.search-view:not(.wide) .foldermatch .monaco-icon-label,
+.search-view:not(.wide) .filematch .monaco-icon-label {
+	flex: 1;
+}
+
+.search-view .monaco-tree .monaco-tree-row:hover:not(.highlighted) .foldermatch .monaco-icon-label,
+.search-view .monaco-tree .monaco-tree-row.focused .foldermatch .monaco-icon-label,
+.search-view .monaco-tree .monaco-tree-row:hover:not(.highlighted) .filematch .monaco-icon-label,
+.search-view .monaco-tree .monaco-tree-row.focused .filematch .monaco-icon-label {
 	flex: 1;
 }
 
@@ -189,6 +196,11 @@
 	opacity: 0.7;
 	font-size: 0.9em;
 	margin-left: 0.8em;
+}
+
+.search-view.wide .foldermatch .badge,
+.search-view.wide .filematch .badge {
+	margin-left: 10px;
 }
 
 .search-view .linematch {
@@ -273,9 +285,9 @@
 .search-view > .results > .monaco-tree .monaco-tree-row:hover .content .filematch .monaco-count-badge,
 .search-view > .results > .monaco-tree .monaco-tree-row:hover .content .foldermatch .monaco-count-badge,
 .search-view > .results > .monaco-tree .monaco-tree-row:hover .content .linematch .monaco-count-badge,
-.search-view > .results > .monaco-tree.focused .monaco-tree-row.focused .content .filematch .monaco-count-badge,
-.search-view > .results > .monaco-tree.focused .monaco-tree-row.focused .content .foldermatch .monaco-count-badge,
-.search-view > .results > .monaco-tree.focused .monaco-tree-row.focused .content .linematch .monaco-count-badge {
+.search-view > .results > .monaco-tree .monaco-tree-row.focused .content .filematch .monaco-count-badge,
+.search-view > .results > .monaco-tree .monaco-tree-row.focused .content .foldermatch .monaco-count-badge,
+.search-view > .results > .monaco-tree .monaco-tree-row.focused .content .linematch .monaco-count-badge {
 	display: none;
 }
 
@@ -359,11 +371,11 @@
 
 /* Theming */
 
-.vs .viewlet .search-view .search-widget .toggle-replace-button:hover {
+.vs .search-view .search-widget .toggle-replace-button:hover {
 	background-color: rgba(0, 0, 0, 0.1) !important;
 }
 
-.vs-dark .viewlet .search-view .search-widget .toggle-replace-button:hover {
+.vs-dark .search-view .search-widget .toggle-replace-button:hover {
 	background-color: rgba(255, 255, 255, 0.1) !important;
 }
 

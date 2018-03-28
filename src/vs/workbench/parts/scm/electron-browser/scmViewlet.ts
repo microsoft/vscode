@@ -1193,7 +1193,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 				new Separator()
 			];
 		} else {
-			result = this.menus.getTitleSecondaryActions();
+			result = [...this.menus.getTitleSecondaryActions()];
 
 			if (result.length > 0) {
 				result.push(new Separator());
