@@ -156,6 +156,18 @@ export class QuickInputService extends Component implements IQuickInputService {
 					dom.EventHelper.stop(e, true);
 					this.close();
 					break;
+				case KeyCode.Tab:
+					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
+						const inputs = this.container.querySelectorAll('input');
+						if (event.shiftKey && event.target === inputs[0]) {
+							dom.EventHelper.stop(e, true);
+							inputs[inputs.length - 1].focus();
+						} else if (!event.shiftKey && event.target === inputs[inputs.length - 1]) {
+							dom.EventHelper.stop(e, true);
+							inputs[0].focus();
+						}
+					}
+					break;
 			}
 		}));
 
