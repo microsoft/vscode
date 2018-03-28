@@ -44,6 +44,8 @@ function promiseErrorHandler(e: IPromiseError): void {
 					onUnexpectedError(error.exception);
 				} else if (error.error) {
 					onUnexpectedError(error.error);
+				} else {
+					return;
 				}
 				console.log('WARNING: Promise with no error callback:' + error.id);
 				console.log(error);
@@ -131,7 +133,7 @@ export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) =>
 
 export function onUnexpectedError(e: any): undefined {
 	// ignore errors from cancelled promises
-	if (!isPromiseCanceledError(e)) {
+	if (e && !isPromiseCanceledError(e)) {
 		errorHandler.onUnexpectedError(e);
 	}
 	return undefined;
@@ -139,7 +141,7 @@ export function onUnexpectedError(e: any): undefined {
 
 export function onUnexpectedExternalError(e: any): undefined {
 	// ignore errors from cancelled promises
-	if (!isPromiseCanceledError(e)) {
+	if (e && !isPromiseCanceledError(e)) {
 		errorHandler.onUnexpectedExternalError(e);
 	}
 	return undefined;
