@@ -46,7 +46,7 @@
 .quick-input-action {
 	margin-left: 6px;
 	border: 0;
-	padding: 0px 4px 1px 4px;
+	padding: 6px;
 }
 
 .quick-input-action:focus {
