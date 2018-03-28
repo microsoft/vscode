@@ -173,7 +173,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	private _registerModelEvents(): void {
 
-		this._register(this.model.onDidChangeRawContent((e) => {
+		this._register(this.model.onDidChangeRawContentFast((e) => {
 			try {
 				const eventsCollector = this._beginEmit();
 

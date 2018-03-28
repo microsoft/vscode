@@ -211,11 +211,14 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public readonly onDidChangeOptions: Event<IModelOptionsChangedEvent> = this._onDidChangeOptions.event;
 
 	private readonly _eventEmitter: DidChangeContentEmitter = this._register(new DidChangeContentEmitter());
+	public onDidChangeRawContentFast(listener: (e: ModelRawContentChangedEvent) => void): IDisposable {
+		return this._eventEmitter.fastEvent((e: InternalModelContentChangeEvent) => listener(e.rawContentChangedEvent));
+	}
 	public onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.event((e: InternalModelContentChangeEvent) => listener(e.rawContentChangedEvent));
+		return this._eventEmitter.slowEvent((e: InternalModelContentChangeEvent) => listener(e.rawContentChangedEvent));
 	}
 	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.event((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
+		return this._eventEmitter.slowEvent((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
 	}
 	//#endregion
 
@@ -2600,8 +2603,13 @@ export class DidChangeDecorationsEmitter extends Disposable {
 
 export class DidChangeContentEmitter extends Disposable {
 
-	private readonly _actual: Emitter<InternalModelContentChangeEvent> = this._register(new Emitter<InternalModelContentChangeEvent>());
-	public readonly event: Event<InternalModelContentChangeEvent> = this._actual.event;
+	/**
+	 * Both `fastEvent` and `slowEvent` work the same way and contain the same events, but first we invoke `fastEvent` and then `slowEvent`.
+	 */
+	private readonly _fastEmitter: Emitter<InternalModelContentChangeEvent> = this._register(new Emitter<InternalModelContentChangeEvent>());
+	public readonly fastEvent: Event<InternalModelContentChangeEvent> = this._fastEmitter.event;
+	private readonly _slowEmitter: Emitter<InternalModelContentChangeEvent> = this._register(new Emitter<InternalModelContentChangeEvent>());
+	public readonly slowEvent: Event<InternalModelContentChangeEvent> = this._slowEmitter.event;
 
 	private _deferredCnt: number;
 	private _deferredEvent: InternalModelContentChangeEvent;
@@ -2622,7 +2630,8 @@ export class DidChangeContentEmitter extends Disposable {
 			if (this._deferredEvent !== null) {
 				const e = this._deferredEvent;
 				this._deferredEvent = null;
-				this._actual.fire(e);
+				this._fastEmitter.fire(e);
+				this._slowEmitter.fire(e);
 			}
 		}
 	}
@@ -2636,6 +2645,7 @@ export class DidChangeContentEmitter extends Disposable {
 			}
 			return;
 		}
-		this._actual.fire(e);
+		this._fastEmitter.fire(e);
+		this._slowEmitter.fire(e);
 	}
 }

@@ -17,11 +17,14 @@ import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageCo
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { LanguageIdentifier, ITokenizationSupport, IState, TokenizationRegistry } from 'vs/editor/common/modes';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { CoreNavigationCommands, CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
+
 let H = Handler;
 
 // --------- utils
@@ -2046,6 +2049,35 @@ suite('Editor Controller - Regression tests', () => {
 			assert.equal(model.getValue(EndOfLinePreference.LF), 'Hello world!');
 		});
 
+		model.dispose();
+	});
+
+	test('issue #46314: ViewModel is out of sync with Model!', () => {
+
+		const tokenizationSupport: ITokenizationSupport = {
+			getInitialState: () => NULL_STATE,
+			tokenize: undefined,
+			tokenize2: (line: string, state: IState): TokenizationResult2 => {
+				return new TokenizationResult2(null, state);
+			}
+		};
+
+		const LANGUAGE_ID = 'modelModeTest1';
+		const languageRegistration = TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
+		let model = TextModel.createFromString('Just text', undefined, new LanguageIdentifier(LANGUAGE_ID, 0));
+
+		withTestCodeEditor(null, { model: model }, (editor1, cursor1) => {
+			withTestCodeEditor(null, { model: model }, (editor2, cursor2) => {
+
+				editor1.onDidChangeCursorPosition(() => {
+					model.tokenizeIfCheap(1);
+				});
+
+				model.applyEdits([{ range: new Range(1, 1, 1, 1), text: '-' }]);
+			});
+		});
+
+		languageRegistration.dispose();
 		model.dispose();
 	});
 });
