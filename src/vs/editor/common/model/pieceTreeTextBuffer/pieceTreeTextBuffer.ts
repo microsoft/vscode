@@ -23,6 +23,10 @@ export interface IValidatedEditOperation {
 	isAutoWhitespaceEdit: boolean;
 }
 
+export interface IReverseSingleEditOperation extends IIdentifiedSingleEditOperation {
+	sortIndex: number;
+}
+
 export class PieceTreeTextBuffer implements ITextBuffer {
 	private _pieceTree: PieceTreeBase;
 	private _BOM: string;
@@ -239,18 +243,20 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			}
 		}
 
-		let reverseOperations: IIdentifiedSingleEditOperation[] = [];
+		let reverseOperations: IReverseSingleEditOperation[] = [];
 		for (let i = 0; i < operations.length; i++) {
 			let op = operations[i];
 			let reverseRange = reverseRanges[i];
 
 			reverseOperations[i] = {
+				sortIndex: op.sortIndex,
 				identifier: op.identifier,
 				range: reverseRange,
 				text: this.getValueInRange(op.range),
 				forceMoveMarkers: op.forceMoveMarkers
 			};
 		}
+		reverseOperations.sort((a, b) => a.sortIndex - b.sortIndex);
 
 		this._mightContainRTL = mightContainRTL;
 		this._mightContainNonBasicASCII = mightContainNonBasicASCII;
