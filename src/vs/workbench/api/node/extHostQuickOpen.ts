@@ -45,7 +45,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 			matchOnDescription: options && options.matchOnDescription,
 			matchOnDetail: options && options.matchOnDetail,
 			ignoreFocusLost: options && options.ignoreFocusOut,
-			canSelectMany: options && options.canSelectMany
+			canSelectMany: options && options.canPickMany
 		});
 
 		const promise = TPromise.any(<TPromise<number | Item[]>[]>[quickPickWidget, itemsPromise]).then(values => {
@@ -62,7 +62,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 					let label: string;
 					let description: string;
 					let detail: string;
-					let selected: boolean;
+					let picked: boolean;
 
 					if (typeof item === 'string') {
 						label = item;
@@ -70,14 +70,14 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 						label = item.label;
 						description = item.description;
 						detail = item.detail;
-						selected = item.selected;
+						picked = item.picked;
 					}
 					pickItems.push({
 						label,
 						description,
 						handle,
 						detail,
-						selected
+						picked
 					});
 				}
 
