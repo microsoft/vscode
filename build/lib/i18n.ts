@@ -1171,7 +1171,10 @@ function createI18nFile(originalFilePath: string, messages: any): File {
 		result[key] = messages[key];
 	}
 
-	let content = JSON.stringify(result, null, '\t').replace(/\r\n/g, '\n');
+	let content = JSON.stringify(result, null, '\t');
+	if (process.platform === 'win32') {
+		content = content.replace(/\n/g, '/r/n');
+	}
 	return new File({
 		path: path.join(originalFilePath + '.i18n.json'),
 		contents: Buffer.from(content, 'utf8')
