@@ -15,15 +15,37 @@ const localize = nls.loadMessageBundle();
 
 import { addJSONProviders } from './features/jsonContributions';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { NpmTaskDefinition, ScriptValidator } from './tasks';
+import { NpmTaskDefinition, ScriptValidator, isWorkspaceFolder } from './tasks';
 
 type AutoDetect = 'on' | 'off';
 let taskProvider: vscode.Disposable | undefined;
 
 class Validator implements ScriptValidator {
-	async scriptIsValid(_task: vscode.Task): Promise<boolean> {
-		// let tasks = await provideNpmScriptsForFolder(packageUri); 
-		return true;
+	async scriptIsValid(task: vscode.Task): Promise<boolean> {
+		let uri: vscode.Uri | null = this.getPackageJsonUri(task);
+		if (uri) {
+			let tasks = await provideNpmScriptsForFolder(uri);
+			for (let i = 0; i < tasks.length; i++) {
+				const t = tasks[i];
+				if (isWorkspaceFolder(task.scope) && isWorkspaceFolder(task.scope)) {
+					if (t.name === task.name && t.scope === task.scope && (<vscode.ShellExecution>(t.execution)).commandLine === (<vscode.ShellExecution>(task.execution)).commandLine) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
+	}
+
+	getPackageJsonUri(task: vscode.Task): vscode.Uri | null {
+		if (isWorkspaceFolder(task.scope)) {
+			if (task.definition.path) {
+				return vscode.Uri.file(path.join(task.scope.uri.fsPath, task.definition.path, 'package.json'));
+			} else {
+				return vscode.Uri.file(path.join(task.scope.uri.fsPath, 'package.json'));
+			}
+		}
+		return null;
 	}
 }
 

@@ -8,7 +8,7 @@ import {
 	WorkspaceFolder, workspace, commands, window, EventEmitter, Event,
 	ThemeIcon, Uri, TextDocument, TaskProvider
 } from 'vscode';
-import { NpmTaskDefinition, ScriptValidator } from './tasks';
+import { NpmTaskDefinition, ScriptValidator, isWorkspaceFolder } from './tasks';
 import * as path from 'path';
 
 class Folder extends TreeItem {
@@ -45,7 +45,11 @@ class PackageJSON extends TreeItem {
 		this.folder = folder;
 		this.path = relativePath;
 		this.contextValue = 'packageJSON';
-		this.resourceUri = Uri.file(path.join(folder!.resourceUri!.fsPath, relativePath, packageName));
+		if (relativePath) {
+			this.resourceUri = Uri.file(path.join(folder!.resourceUri!.fsPath, relativePath, packageName));
+		} else {
+			this.resourceUri = Uri.file(path.join(folder!.resourceUri!.fsPath, packageName));
+		}
 		this.iconPath = ThemeIcon.File;
 	}
 
@@ -83,14 +87,15 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		const subscriptions = context.subscriptions;
 		this.validator = validator;
 		this.taskProvider = taskProvider;
+
 		subscriptions.push(commands.registerCommand('npm.runScript', this.runScript, this));
 		subscriptions.push(commands.registerCommand('npm.openScript', this.openScript, this));
 		subscriptions.push(commands.registerCommand('npm.refresh', this.refresh, this));
 	}
 
-	private runScript(task: Task) {
-		if (!this.validator.scriptIsValid(task)) {
-			window.showErrorMessage(`Could not find script ${task.name}`);
+	private async runScript(task: Task) {
+		if (!await this.validator.scriptIsValid(task)) {
+			window.showErrorMessage(`Could not find script '${task.name}' or the script has changed. Try to refresh the view.`);
 			return;
 		}
 		workspace.executeTask(task);
@@ -147,10 +152,6 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		return [];
 	}
 
-	private isWorkspaceFolder(value: any): value is WorkspaceFolder {
-		return value && typeof value !== 'number';
-	}
-
 	private buildTaskTree(tasks: Task[]): Folder[] | PackageJSON[] {
 		let folders: Map<String, Folder> = new Map();
 		let packages: Map<String, PackageJSON> = new Map();
@@ -159,7 +160,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		let packageJson = null;
 
 		tasks.forEach(each => {
-			if (this.isWorkspaceFolder(each.scope)) {
+			if (isWorkspaceFolder(each.scope)) {
 				folder = folders.get(each.scope.name);
 				if (!folder) {
 					folder = new Folder(each.scope);
