@@ -13,6 +13,13 @@ export function setup() {
 			this.app.suiteName = 'CSS';
 		});
 
+		after(async function () {
+			const app = this.app as SpectronApplication;
+
+			await app.workbench.closeTab('style.css', true);
+			await app.workbench.closeTab('User Settings');
+		});
+
 		it('verifies quick outline', async function () {
 			const app = this.app as SpectronApplication;
 			await app.workbench.quickopen.openFile('style.css');

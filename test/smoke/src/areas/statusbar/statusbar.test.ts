@@ -22,7 +22,7 @@ export function setup() {
 				await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.FEEDBACK_ICON);
 			}
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SYNC_STATUS);
-			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.PROBLEMS_STATUS);
+			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.ERROR_STATUS);
 
 			await app.workbench.quickopen.openFile('app.js');
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.ENCODING_STATUS);
@@ -54,10 +54,10 @@ export function setup() {
 			await app.workbench.quickopen.closeQuickOpen();
 		});
 
-		it(`verifies that 'Problems View' appears when clicking on 'Problems' status element`, async function () {
+		it(`verifies that 'Problems View' appears when clicking on 'Error' status element`, async function () {
 			const app = this.app as SpectronApplication;
 
-			await app.workbench.statusbar.clickOn(StatusBarElement.PROBLEMS_STATUS);
+			await app.workbench.statusbar.clickOn(StatusBarElement.ERROR_STATUS);
 			await app.workbench.problems.waitForProblemsView();
 		});
 

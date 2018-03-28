@@ -12,17 +12,13 @@ export class QuickOutline extends QuickOpen {
 		super(spectron);
 	}
 
-	public async open(): Promise<void> {
-		await this.spectron.client.waitFor(async () => {
-			await this.spectron.runCommand('workbench.action.gotoSymbol');
-			const entry = await this.spectron.client.element('div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties div.monaco-tree-row .quick-open-entry');
-			if (entry) {
-				const text = await this.spectron.client.getText('div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties div.monaco-tree-row .quick-open-entry .monaco-icon-label .label-name .monaco-highlighted-label span');
-				if (text !== 'No symbol information for the file') {
-					return entry;
-				}
-			}
-			await this.closeQuickOpen();
-		}, undefined, 'Opening Outline');
+	async waitForQuickOutlineList(): Promise<void> {
+		await this.spectron.client.waitForExist(`div.monaco-quick-open-widget.show-file-icons.monaco-builder-hidden`);
+		await this.spectron.workbench.quickopen.runCommand('Go to Symbol in File...');
+
+		await this.spectron.client.waitForExist(`div.monaco-quick-open-widget.show-file-icons.monaco-builder-hidden`);
+		await this.spectron.client.waitForExist(`div.monaco-quick-open-widget.show-file-icons.content-changing`);
+
+		await this.spectron.client.waitForNotExist(`div.monaco-quick-open-widget.show-file-icons.content-changing`);
 	}
 }

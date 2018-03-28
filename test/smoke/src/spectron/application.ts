@@ -311,6 +311,19 @@ export class SpectronApplication {
 		});
 	}
 
+	execPromise(command: string, cwd: string = this.workspacePath): Promise<void> {
+		return new Promise((resolve, reject) => {
+			cp.exec(command, { cwd: cwd }, (error, stdout, stderr) => {
+				if (error) {
+					reject(error);
+					return;
+				}
+
+				resolve();
+			});
+		});
+	}
+
 	/**
 	 * Retrieves the command from keybindings file and executes it with WebdriverIO client API
 	 * @param command command (e.g. 'workbench.action.files.newUntitledFile')

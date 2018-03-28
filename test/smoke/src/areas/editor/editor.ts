@@ -22,7 +22,7 @@ export class Editor {
 
 	async openOutline(): Promise<QuickOutline> {
 		const outline = new QuickOutline(this.spectron);
-		await outline.open();
+		await outline.waitForQuickOutlineList();
 		return outline;
 	}
 
@@ -69,7 +69,8 @@ export class Editor {
 	async getSelector(term: string, line: number): Promise<string> {
 		const lineIndex = await this.getViewLineIndex(line);
 		const classNames = await this.spectron.client.waitFor(() => this.getClassSelectors(term, lineIndex), classNames => classNames && !!classNames.length, 'Getting class names for editor lines');
-		return `${Editor.VIEW_LINES}>:nth-child(${lineIndex}) span span.${classNames[0]}`;
+		const sanitizeLink = classNames.toString().replace('goto-definition-link', '');
+		return `${Editor.VIEW_LINES}>:nth-child(${lineIndex}) span span.${sanitizeLink}`;
 	}
 
 	async foldAtLine(line: number): Promise<any> {

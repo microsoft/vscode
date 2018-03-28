@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
 import { SpectronApplication } from '../../spectron/application';
 
 const DIFF_EDITOR_LINE_INSERT = '.monaco-diff-editor .editor.modified .line-insert';
@@ -14,6 +13,16 @@ export function setup() {
 		before(async function () {
 			const app = this.app as SpectronApplication;
 			app.suiteName = 'Git';
+		});
+
+		after(async function () {
+			const app = this.app as SpectronApplication;
+
+			await app.workbench.closeTab('app.js');
+			await app.workbench.closeTab('index.jade');
+			await app.workbench.closeTab('index.jade (Working Tree)');
+
+			await app.execPromise('git reset --hard origin/master');
 		});
 
 		it('reflects working tree changes', async function () {
@@ -29,7 +38,7 @@ export function setup() {
 			await app.workbench.editor.waitForTypeInEditor('index.jade', 'hello world');
 			await app.workbench.saveOpenedFile();
 
-			await app.workbench.scm.refreshSCMViewlet();
+			await app.workbench.scm.waitForClickRefreshCompletion();
 			await app.workbench.scm.waitForChange('app.js', 'Modified');
 			await app.workbench.scm.waitForChange('index.jade', 'Modified');
 			await app.screenCapturer.capture('changes');
@@ -74,8 +83,6 @@ export function setup() {
 
 			await app.workbench.scm.commit('second commit');
 			await app.client.waitForText(SYNC_STATUSBAR, ' 0↓ 2↑');
-
-			cp.execSync('git reset --hard origin/master', { cwd: app.workspacePath });
 		});
 	});
 }

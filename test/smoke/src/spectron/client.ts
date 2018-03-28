@@ -25,7 +25,7 @@ export class SpectronClient {
 		this.retryCount = (waitTime * 1000) / this.retryDuration;
 	}
 
-	keys(keys: string[]): Promise<void> {
+	keys(keys: string | string[]): Promise<void> {
 		this.spectron.client.keys(keys);
 		return Promise.resolve();
 	}
@@ -52,6 +52,14 @@ export class SpectronClient {
 
 	async waitAndClick(selector: string): Promise<any> {
 		return this.waitFor(() => this.spectron.client.click(selector), void 0, `click with selector ${selector}`);
+	}
+
+	async waitForExist(selector: string) {
+		return this.waitFor(() => this.spectron.client.waitForExist(selector), void 0, `waiting element to exist: ${selector}`);
+	}
+
+	async waitForNotExist(selector: string) {
+		return this.waitFor(() => this.spectron.client.waitForExist(selector, 500, true), void 0, `waiting element to not exist: ${selector}`);
 	}
 
 	async click(selector: string): Promise<any> {

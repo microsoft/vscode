@@ -11,6 +11,12 @@ export function setup() {
 			this.app.suiteName = 'Editor';
 		});
 
+		after(async function () {
+			const app = this.app as SpectronApplication;
+
+			await app.workbench.closeTab('app.js');
+		});
+
 		it('shows correct quick outline', async function () {
 			const app = this.app as SpectronApplication;
 			await app.workbench.quickopen.openFile('www');
@@ -33,26 +39,31 @@ export function setup() {
 		it(`renames local 'app' variable`, async function () {
 			const app = this.app as SpectronApplication;
 			await app.workbench.quickopen.openFile('www');
+
+			await app.workbench.editor.openOutline();
+			await app.workbench.quickopen.selectQuickOpenElement(1);
 			await app.workbench.editor.rename('www', 7, 'app', 'newApp');
 			await app.workbench.editor.waitForEditorContents('www', contents => contents.indexOf('newApp') > -1);
 			await app.screenCapturer.capture('Rename result');
 		});
 
-		// it('folds/unfolds the code correctly', async function () {
-		// 	await app.workbench.quickopen.openFile('www');
+		it('folds/unfolds the code correctly', async function () {
+			const app = this.app as SpectronApplication;
 
-		// 	// Fold
-		// 	await app.workbench.editor.foldAtLine(3);
-		// 	await app.workbench.editor.waitUntilShown(3);
-		// 	await app.workbench.editor.waitUntilHidden(4);
-		// 	await app.workbench.editor.waitUntilHidden(5);
+			await app.workbench.quickopen.openFile('www');
 
-		// 	// Unfold
-		// 	await app.workbench.editor.unfoldAtLine(3);
-		// 	await app.workbench.editor.waitUntilShown(3);
-		// 	await app.workbench.editor.waitUntilShown(4);
-		// 	await app.workbench.editor.waitUntilShown(5);
-		// });
+			// Fold
+			await app.workbench.editor.foldAtLine(3);
+			await app.workbench.editor.waitUntilShown(3);
+			await app.workbench.editor.waitUntilHidden(4);
+			await app.workbench.editor.waitUntilHidden(5);
+
+			// Unfold
+			await app.workbench.editor.unfoldAtLine(3);
+			await app.workbench.editor.waitUntilShown(3);
+			await app.workbench.editor.waitUntilShown(4);
+			await app.workbench.editor.waitUntilShown(5);
+		});
 
 		it(`verifies that 'Go To Definition' works`, async function () {
 			const app = this.app as SpectronApplication;
