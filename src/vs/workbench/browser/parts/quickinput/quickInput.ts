@@ -71,6 +71,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		const workbench = document.getElementById(this.partService.getWorkbenchElementId());
 		this.container = dom.append(workbench, $('.quick-input-widget'));
+		this.container.tabIndex = -1;
 		this.container.style.display = 'none';
 
 		const headerContainer = dom.append(this.container, $('.quick-input-header'));
@@ -137,6 +138,10 @@ export class QuickInputService extends Component implements IQuickInputService {
 		);
 
 		this.toUnbind.push(dom.addDisposableListener(this.container, 'focusout', (e: FocusEvent) => {
+			if (e.relatedTarget === this.container) {
+				(<HTMLElement>e.target).focus();
+				return;
+			}
 			for (let element = <Element>e.relatedTarget; element; element = element.parentElement) {
 				if (element === this.container) {
 					return;
