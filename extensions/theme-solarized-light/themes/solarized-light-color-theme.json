@@ -354,7 +354,7 @@
 		"editor.selectionBackground": "#EEE8D5",
 		// "editorIndentGuide.background": "",
 		"editorHoverWidget.background": "#CCC4B0",
-		"editorActiveLineNumber.foreground": "#567983",
+		"editorLineNumber.activeForeground": "#567983",
 		// "editorHoverWidget.border": "",
 		// "editorLineNumber.foreground": "",
 		// "editorMarkerNavigation.background": "",
