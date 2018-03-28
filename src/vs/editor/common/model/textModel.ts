@@ -884,6 +884,41 @@ export class TextModel extends Disposable implements model.ITextModel {
 	/**
 	 * @param strict Do NOT allow a position inside a high-low surrogate pair
 	 */
+	private _isValidPosition(lineNumber: number, column: number, strict: boolean): boolean {
+
+		if (lineNumber < 1) {
+			return false;
+		}
+
+		const lineCount = this._buffer.getLineCount();
+		if (lineNumber > lineCount) {
+			return false;
+		}
+
+		if (column < 1) {
+			return false;
+		}
+
+		const maxColumn = this.getLineMaxColumn(lineNumber);
+		if (column > maxColumn) {
+			return false;
+		}
+
+		if (strict) {
+			if (column > 1) {
+				const charCodeBefore = this._buffer.getLineCharCode(lineNumber, column - 2);
+				if (strings.isHighSurrogate(charCodeBefore)) {
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * @param strict Do NOT allow a position inside a high-low surrogate pair
+	 */
 	private _validatePosition(_lineNumber: number, _column: number, strict: boolean): Position {
 		const lineNumber = Math.floor(typeof _lineNumber === 'number' ? _lineNumber : 1);
 		const column = Math.floor(typeof _column === 'number' ? _column : 1);
@@ -921,11 +956,60 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public validatePosition(position: IPosition): Position {
 		this._assertNotDisposed();
+
+		// Avoid object allocation and cover most likely case
+		if (position instanceof Position) {
+			if (this._isValidPosition(position.lineNumber, position.column, true)) {
+				return position;
+			}
+		}
+
 		return this._validatePosition(position.lineNumber, position.column, true);
+	}
+
+	/**
+	 * @param strict Do NOT allow a range to have its boundaries inside a high-low surrogate pair
+	 */
+	private _isValidRange(range: Range, strict: boolean): boolean {
+		const startLineNumber = range.startLineNumber;
+		const startColumn = range.startColumn;
+		const endLineNumber = range.endLineNumber;
+		const endColumn = range.endColumn;
+
+		if (!this._isValidPosition(startLineNumber, startColumn, false)) {
+			return false;
+		}
+		if (!this._isValidPosition(endLineNumber, endColumn, false)) {
+			return false;
+		}
+
+		if (strict) {
+			const charCodeBeforeStart = (startColumn > 1 ? this._buffer.getLineCharCode(startLineNumber, startColumn - 2) : 0);
+			const charCodeBeforeEnd = (endColumn > 1 && endColumn <= this._buffer.getLineLength(endLineNumber) ? this._buffer.getLineCharCode(endLineNumber, endColumn - 2) : 0);
+
+			const startInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeStart);
+			const endInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeEnd);
+
+			if (!startInsideSurrogatePair && !endInsideSurrogatePair) {
+				return true;
+			}
+
+			return false;
+		}
+
+		return true;
 	}
 
 	public validateRange(_range: IRange): Range {
 		this._assertNotDisposed();
+
+		// Avoid object allocation and cover most likely case
+		if ((_range instanceof Range) && !(_range instanceof Selection)) {
+			if (this._isValidRange(_range, true)) {
+				return _range;
+			}
+		}
+
 		const start = this._validatePosition(_range.startLineNumber, _range.startColumn, false);
 		const end = this._validatePosition(_range.endLineNumber, _range.endColumn, false);
 
