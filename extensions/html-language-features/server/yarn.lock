@@ -25,9 +25,9 @@ vscode-css-languageservice@^3.0.8:
     vscode-languageserver-types "^3.6.1"
     vscode-nls "^3.2.1"
 
-vscode-emmet-helper@1.2.3:
-  version "1.2.3"
-  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-1.2.3.tgz#395504d4d9b8fb0bf967af83aeef649631d1595e"
+vscode-emmet-helper@1.2.4:
+  version "1.2.4"
+  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-1.2.4.tgz#48056974d13036722af019235b9f750a495de728"
   dependencies:
     "@emmetio/extract-abbreviation" "0.1.6"
     jsonc-parser "^1.0.0"
