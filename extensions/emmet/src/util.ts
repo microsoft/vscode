@@ -146,12 +146,12 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	const limitPosition = limitCharacter > 0 ? document.positionAt(limitCharacter) : startPosition;
 	const stream = new DocumentStreamReader(document, position);
 
-	function consumeLineCommentBackwards(line: number) {
-		if (!isCSS && line !== stream.pos.line) {
-			line = stream.pos.line;
-			let startLineComment = document.lineAt(line).text.indexOf('//');
+	function consumeLineCommentBackwards() {
+		if (!isCSS && currentLine !== stream.pos.line) {
+			currentLine = stream.pos.line;
+			let startLineComment = document.lineAt(currentLine).text.indexOf('//');
 			if (startLineComment > -1) {
-				stream.pos = new vscode.Position(line, startLineComment);
+				stream.pos = new vscode.Position(currentLine, startLineComment);
 			}
 		}
 	}
@@ -192,14 +192,11 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	stream.pos = position;
 	let openBracesToFind = 1;
 	let currentLine = position.line;
+	let exit = false;
 
 	// Go back until we found an opening brace. If we find a closing one, consume its pair and continue.
-	while (openBracesToFind > 0 && !stream.sof()) {
-		if (position.line - stream.pos.line > 100 || stream.pos.isBeforeOrEqual(limitPosition)) {
-			return parseStylesheet(new DocumentStreamReader(document, startPosition, new vscode.Range(startPosition, endPosition)));
-		}
-
-		consumeLineCommentBackwards(currentLine);
+	while (!exit && openBracesToFind > 0 && !stream.sof()) {
+		consumeLineCommentBackwards();
 
 		switch (stream.backUp(1)) {
 			case openBrace:
@@ -208,9 +205,11 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 			case closeBrace:
 				if (isCSS) {
 					stream.next();
-					return parseStylesheet(new DocumentStreamReader(document, stream.pos, new vscode.Range(stream.pos, endPosition)));
+					startPosition = stream.pos;
+					exit = true;
+				} else {
+					openBracesToFind++;
 				}
-				openBracesToFind++;
 				break;
 			case slash:
 				consumeBlockCommentBackwards();
@@ -224,15 +223,19 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 			default:
 				break;
 		}
+
+		if (position.line - stream.pos.line > 100 || stream.pos.isBeforeOrEqual(limitPosition)) {
+			exit = true;
+		}
 	}
 
 	// We are at an opening brace. We need to include its selector.
 	currentLine = stream.pos.line;
 	openBracesToFind = 0;
 	let foundSelector = false;
-	while (!stream.sof() && !foundSelector && openBracesToFind >= 0) {
+	while (!exit && !stream.sof() && !foundSelector && openBracesToFind >= 0) {
 
-		consumeLineCommentBackwards(currentLine);
+		consumeLineCommentBackwards();
 
 		const ch = stream.backUp(1);
 		if (/\s/.test(String.fromCharCode(ch))) {
@@ -255,13 +258,17 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 				}
 				break;
 		}
+
+		if (!stream.sof() && foundSelector) {
+			startPosition = stream.pos;
+		}
 	}
 
-	if (!stream.sof() && foundSelector) {
-		startPosition = stream.pos;
-	}
+	try {
+		return parseStylesheet(new DocumentStreamReader(document, startPosition, new vscode.Range(startPosition, endPosition)));
+	} catch (e) {
 
-	return parseStylesheet(new DocumentStreamReader(document, startPosition, new vscode.Range(startPosition, endPosition)));
+	}
 }
 
 function findOpeningCommentBeforePosition(document: vscode.TextDocument, position: vscode.Position): vscode.Position | undefined {
