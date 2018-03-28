@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { INewScrollPosition, IViewState } from 'vs/editor/common/editorCommon';
+import { INewScrollPosition } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IModelDecorationOptions } from 'vs/editor/common/model';
 import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position, IPosition } from 'vs/editor/common/core/position';
@@ -62,9 +62,6 @@ export interface IViewLayout {
 	getLinesViewportData(): IPartialViewLinesViewportData;
 	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
 	getWhitespaces(): IEditorWhitespace[];
-
-	saveState(): IViewState;
-	reduceRestoreState(state: IViewState): { scrollLeft: number; scrollTop: number; };
 
 	isAfterLines(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
