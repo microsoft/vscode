@@ -419,12 +419,6 @@ export class TextAreaInput extends Disposable {
 		}
 		this._hasFocus = newHasFocus;
 
-		if (this._isDoingComposition) {
-			// textarea gets focus, so the state should be clean
-			// https://github.com/Microsoft/monaco-editor/issues/552
-			this._isDoingComposition = false;
-		}
-
 		if (this._hasFocus) {
 			if (browser.isEdge) {
 				// Edge has a bug where setting the selection range while the focus event
