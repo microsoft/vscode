@@ -171,7 +171,7 @@ export class TextFileEditor extends BaseTextEditor {
 				}
 
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEED_MEMORY_LIMIT) {
-					let memoryLimit = this.configurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB') | 4096;
+					let memoryLimit = Math.max(2048, +this.configurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB') || 4096);
 
 					return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
 						actions: [
