@@ -196,12 +196,62 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 			} else {
 				stream.next();
 			}
+		} else if (ch === star) {
+			stream.backUp(1);
+			if (stream.peek() === slash) {
+				return;
+			} else {
+				stream.next();
+			}
 		}
 	}
-	// We are at an opening brace. We need to include its selector, but with one nonspace character is enough.
-	while (!stream.sof() && String.fromCharCode(stream.backUp(1)).match(/\s/)) { }
 
-	startPosition = stream.pos;
+	// We are at an opening brace. We need to include its selector.
+	// We need one non whitespace character, that's not commented and is not a block { }
+	currentLine = stream.pos.line;
+	openBracesRemaining = 0;
+	while (!stream.sof()) {
+		// Find a nonspace character
+		while (!stream.sof() && String.fromCharCode(stream.backUp(1)).match(/\s/)) { }
+		if (stream.sof()) {
+			break;
+		}
+		let characterFound = stream.peek();
+		// Check if such character is end of comment.
+		if (characterFound === slash) {
+			let ch = stream.backUp(1);
+			if (ch === star) {
+				stream.pos = findOpeningCommentBeforePosition(document, stream.pos) || startPosition;
+			} else {
+				stream.next();
+			}
+			continue;
+		}
+		// In not CSS stylesheets, we need to skip singleLine comments.
+		if (!isCSS && stream.pos.line !== currentLine) {
+			currentLine = stream.pos.line;
+			let startLineComment = document.lineAt(currentLine).text.indexOf('//');
+			if (startLineComment > -1 && startLineComment < stream.pos.character) {
+				stream.pos = new vscode.Position(currentLine, startLineComment);
+				continue;
+			}
+		}
+		// Here, we know we are not in a comment
+		if (characterFound === closeBrace) {
+			openBracesRemaining++;
+		} else if (!openBracesRemaining) {
+			if (characterFound === openBrace) {
+				return;
+			} else {
+				break;
+			}
+		} else if (characterFound === openBrace) {
+			openBracesRemaining--;
+		}
+	}
+	if (!stream.sof()) {
+		startPosition = stream.pos;
+	}
 	try {
 		return parseStylesheet(new DocumentStreamReader(document, startPosition, new vscode.Range(startPosition, endPosition)));
 	} catch (e) {
