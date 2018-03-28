@@ -624,6 +624,7 @@ export class IssueReporter extends Disposable {
 		const settingsSearchResultsBlock = document.querySelector('.block-settingsSearchResults');
 
 		const problemSource = document.getElementById('problem-source');
+		const problemSourceHelpText = document.getElementById('problem-source-help-text');
 		const descriptionTitle = document.getElementById('issue-description-label');
 		const descriptionSubtitle = document.getElementById('issue-description-subtitle');
 		const extensionSelector = document.getElementById('extension-selection');
@@ -637,6 +638,8 @@ export class IssueReporter extends Disposable {
 		hide(searchedExtensionsBlock);
 		hide(settingsSearchResultsBlock);
 		hide(problemSource);
+		hide(problemSourceHelpText);
+		hide(extensionSelector);
 
 		if (issueType === IssueType.Bug) {
 			show(blockContainer);
@@ -644,11 +647,10 @@ export class IssueReporter extends Disposable {
 			show(problemSource);
 
 			if (fileOnExtension) {
-				hide(extensionsBlock);
 				show(extensionSelector);
 			} else {
 				show(extensionsBlock);
-				hide(extensionSelector);
+				show(problemSourceHelpText);
 			}
 
 			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
@@ -662,11 +664,10 @@ export class IssueReporter extends Disposable {
 			show(problemSource);
 
 			if (fileOnExtension) {
-				hide(extensionsBlock);
 				show(extensionSelector);
 			} else {
 				show(extensionsBlock);
-				hide(extensionSelector);
+				show(problemSourceHelpText);
 			}
 
 			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
