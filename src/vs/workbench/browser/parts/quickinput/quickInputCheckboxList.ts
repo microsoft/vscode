@@ -173,8 +173,14 @@ export class QuickInputCheckboxList {
 					this.toggleCheckbox();
 					break;
 				case KeyCode.UpArrow:
-					const focus = this.list.getFocus();
-					if (focus.length === 1 && focus[0] === 0) {
+					const focus1 = this.list.getFocus();
+					if (focus1.length === 1 && focus1[0] === 0) {
+						this._onLeave.fire();
+					}
+					break;
+				case KeyCode.DownArrow:
+					const focus2 = this.list.getFocus();
+					if (focus2.length === 1 && focus2[0] === this.list.length - 1) {
 						this._onLeave.fire();
 					}
 					break;
@@ -224,7 +230,7 @@ export class QuickInputCheckboxList {
 			.map(e => e.item);
 	}
 
-	focus(what: 'Next' | 'Previous' | 'NextPage' | 'PreviousPage'): void {
+	focus(what: 'First' | 'Last' | 'Next' | 'Previous' | 'NextPage' | 'PreviousPage'): void {
 		this.list['focus' + what]();
 	}
 

@@ -94,6 +94,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.toUnbind.push(this.inputBox.onKeyDown(event => {
 			switch (event.keyCode) {
 				case KeyCode.DownArrow:
+					this.checkboxList.focus('First');
+					this.checkboxList.domFocus();
+					break;
+				case KeyCode.UpArrow:
+					this.checkboxList.focus('Last');
 					this.checkboxList.domFocus();
 					break;
 			}
