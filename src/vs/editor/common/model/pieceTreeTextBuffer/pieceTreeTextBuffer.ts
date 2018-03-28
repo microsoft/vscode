@@ -7,11 +7,21 @@
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import * as strings from 'vs/base/common/strings';
-import { IValidatedEditOperation } from 'vs/editor/common/model/linesTextBuffer/linesTextBuffer';
 import { PieceTreeBase, StringBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
-import { IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange, FindMatch } from 'vs/editor/common/model';
+import { IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange, FindMatch, ISingleEditOperationIdentifier } from 'vs/editor/common/model';
 import { ITextSnapshot } from 'vs/platform/files/common/files';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
+
+export interface IValidatedEditOperation {
+	sortIndex: number;
+	identifier: ISingleEditOperationIdentifier;
+	range: Range;
+	rangeOffset: number;
+	rangeLength: number;
+	lines: string[];
+	forceMoveMarkers: boolean;
+	isAutoWhitespaceEdit: boolean;
+}
 
 export class PieceTreeTextBuffer implements ITextBuffer {
 	private _pieceTree: PieceTreeBase;
@@ -279,9 +289,9 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 	}
 
 	/**
- * Transform operations such that they represent the same logic edit,
- * but that they also do not cause OOM crashes.
- */
+	 * Transform operations such that they represent the same logic edit,
+	 * but that they also do not cause OOM crashes.
+	 */
 	private _reduceOperations(operations: IValidatedEditOperation[]): IValidatedEditOperation[] {
 		if (operations.length < 1000) {
 			// We know from empirical testing that a thousand edits work fine regardless of their shape.

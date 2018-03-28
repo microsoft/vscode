@@ -33,23 +33,10 @@ import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { TextModelSearch, SearchParams, SearchData } from 'vs/editor/common/model/textModelSearch';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IStringStream, ITextSnapshot } from 'vs/platform/files/common/files';
-import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 
-export enum TextBufferType {
-	LinesArray,
-	PieceTree
-}
-// Here is the master switch for the text buffer implementation:
-export const OPTIONS = {
-	TEXT_BUFFER_IMPLEMENTATION: TextBufferType.PieceTree
-};
-
 function createTextBufferBuilder() {
-	if (OPTIONS.TEXT_BUFFER_IMPLEMENTATION === TextBufferType.PieceTree) {
-		return new PieceTreeTextBufferBuilder();
-	}
-	return new LinesTextBufferBuilder();
+	return new PieceTreeTextBufferBuilder();
 }
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
@@ -999,7 +986,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			searchRange = this.getFullModelRange();
 		}
 
-		if (!isRegex && searchString.indexOf('\n') < 0 && OPTIONS.TEXT_BUFFER_IMPLEMENTATION === TextBufferType.PieceTree) {
+		if (!isRegex && searchString.indexOf('\n') < 0) {
 			// not regex, not multi line
 			const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
 			const searchData = searchParams.parseSearchRequest();
@@ -1018,7 +1005,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._assertNotDisposed();
 		const searchStart = this.validatePosition(rawSearchStart);
 
-		if (!isRegex && searchString.indexOf('\n') < 0 && OPTIONS.TEXT_BUFFER_IMPLEMENTATION === TextBufferType.PieceTree) {
+		if (!isRegex && searchString.indexOf('\n') < 0) {
 			const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
 			const searchData = searchParams.parseSearchRequest();
 			const lineCount = this.getLineCount();
