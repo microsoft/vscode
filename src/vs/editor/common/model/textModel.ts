@@ -35,12 +35,10 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IStringStream, ITextSnapshot } from 'vs/platform/files/common/files';
 import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { ChunksTextBufferBuilder } from 'vs/editor/common/model/chunksTextBuffer/chunksTextBufferBuilder';
 
 export enum TextBufferType {
 	LinesArray,
-	PieceTree,
-	Chunks
+	PieceTree
 }
 // Here is the master switch for the text buffer implementation:
 export const OPTIONS = {
@@ -50,9 +48,6 @@ export const OPTIONS = {
 function createTextBufferBuilder() {
 	if (OPTIONS.TEXT_BUFFER_IMPLEMENTATION === TextBufferType.PieceTree) {
 		return new PieceTreeTextBufferBuilder();
-	}
-	if (OPTIONS.TEXT_BUFFER_IMPLEMENTATION === TextBufferType.Chunks) {
-		return new ChunksTextBufferBuilder();
 	}
 	return new LinesTextBufferBuilder();
 }
