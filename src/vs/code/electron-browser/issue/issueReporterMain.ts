@@ -210,7 +210,7 @@ export class IssueReporter extends Disposable {
 		});
 
 		const numberOfThemeExtesions = themes && themes.length;
-		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes });
+		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes, allExtensions: extensions });
 		this.updateExtensionTable(nonThemes, numberOfThemeExtesions);
 
 		if (this.environmentService.disableExtensions || extensions.length === 0) {
@@ -786,7 +786,7 @@ export class IssueReporter extends Disposable {
 
 		this.addEventListener('extension-selector', 'change', (e: Event) => {
 			const selectedExtensionId = (<HTMLInputElement>e.target).value;
-			const extensions = this.issueReporterModel.getData().enabledNonThemeExtesions;
+			const extensions = this.issueReporterModel.getData().allExtensions;
 			const matches = extensions.filter(extension => extension.identifier.id === selectedExtensionId);
 			if (matches.length) {
 				this.issueReporterModel.update({ selectedExtension: matches[0] });
