@@ -704,10 +704,10 @@ export class TerminalInstance implements ITerminalInstance {
 		// Continue env initialization, merging in the env from the launch
 		// config and adding keys that are needed to create the process
 		const env = TerminalInstance.createTerminalEnv(parentEnv, this._shellLaunchConfig, this._initialCwd, locale, this._cols, this._rows);
-		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], {
-			env,
-			cwd: Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath
-		});
+		const cwd = Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath;
+		const options = { env, cwd };
+		this._logService.debug(`Terminal process launching (id: ${this.id})`, options);
+		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
 		this._processState = ProcessState.LAUNCHING;
 
 		if (this._shellLaunchConfig.name) {
@@ -756,6 +756,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _sendPtyDataToXterm(message: { type: string, content: string }): void {
+		this._logService.debug(`Terminal process message (id: ${this.id})`, message);
 		if (message.type === 'data') {
 			if (this._widgetManager) {
 				this._widgetManager.closeMessage();
@@ -767,6 +768,8 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _onPtyProcessExit(exitCode: number): void {
+		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
+
 		// Prevent dispose functions being triggered multiple times
 		if (this._isExiting) {
 			return;
@@ -792,6 +795,9 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._processState === ProcessState.RUNNING) {
 			this._processState = ProcessState.KILLED_BY_PROCESS;
 		}
+
+
+		this._logService.debug(`Terminal process exit (id: ${this.id}) state ${this._processState}`);
 
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
