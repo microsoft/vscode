@@ -22,6 +22,8 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { memoize } from 'vs/base/common/decorators';
+import { range } from 'vs/base/common/arrays';
+import * as platform from 'vs/base/common/platform';
 
 const $ = dom.$;
 
@@ -173,6 +175,11 @@ export class QuickInputCheckboxList {
 				case KeyCode.Space:
 					this.toggleCheckbox();
 					break;
+				case KeyCode.KEY_A:
+					if (platform.isMacintosh ? e.metaKey : e.ctrlKey) {
+						this.list.setFocus(range(this.list.length));
+					}
+					break;
 				case KeyCode.UpArrow:
 					const focus1 = this.list.getFocus();
 					if (focus1.length === 1 && focus1[0] === 0) {
@@ -195,7 +202,10 @@ export class QuickInputCheckboxList {
 	}
 
 	getAllVisibleChecked() {
-		const elements = this.elements;
+		return this.allVisibleChecked(this.elements);
+	}
+
+	private allVisibleChecked(elements: CheckableElement[]) {
 		for (let i = 0, n = elements.length; i < n; i++) {
 			const element = elements[i];
 			if (!element.hidden && !element.checked) {
@@ -312,9 +322,16 @@ export class QuickInputCheckboxList {
 	}
 
 	toggleCheckbox() {
-		const elements = this.list.getFocusedElements();
-		for (const element of elements) {
-			element.checked = !element.checked;
+		try {
+			this._fireCheckedEvents = false;
+			const elements = this.list.getFocusedElements();
+			const allChecked = this.allVisibleChecked(elements);
+			for (const element of elements) {
+				element.checked = !allChecked;
+			}
+		} finally {
+			this._fireCheckedEvents = true;
+			this.fireCheckedEvents();
 		}
 	}
 
