@@ -660,9 +660,13 @@ export class Repository {
 		return result.stdout;
 	}
 
-	async bufferString(object: string, encoding: string = 'utf8'): Promise<string> {
+	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false): Promise<string> {
 		const stdout = await this.buffer(object);
-		encoding = detectEncoding(stdout) || encoding;
+
+		if (autoGuessEncoding) {
+			encoding = detectEncoding(stdout) || encoding;
+		}
+
 		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
 
 		return iconv.decode(stdout, encoding);

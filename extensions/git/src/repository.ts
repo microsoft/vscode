@@ -815,7 +815,9 @@ export class Repository implements Disposable {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
 			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
 			const defaultEncoding = configFiles.get<string>('encoding');
-			return this.repository.bufferString(`${ref}:${relativePath}`, defaultEncoding);
+			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding');
+
+			return this.repository.bufferString(`${ref}:${relativePath}`, defaultEncoding, autoGuessEncoding);
 		});
 	}
 
