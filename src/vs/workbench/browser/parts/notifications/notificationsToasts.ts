@@ -437,6 +437,8 @@ export class NotificationsToasts extends Themable {
 			availableHeight -= (2 * 12); // adjust for paddings top and bottom
 		}
 
+		availableHeight = Math.round(availableHeight * 0.618); // try to not cover the full height for stacked toasts
+
 		return new Dimension(Math.min(maxWidth, availableWidth), availableHeight);
 	}
 
