@@ -183,6 +183,7 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 		listFocusAndSelectionForeground: (style && style.listFocusAndSelectionForeground) || listActiveSelectionForeground,
 		listInactiveSelectionBackground: (style && style.listInactiveSelectionBackground) || listInactiveSelectionBackground,
 		listInactiveSelectionForeground: (style && style.listInactiveSelectionForeground) || listInactiveSelectionForeground,
+		listInactiveFocusBackground: (style && style.listInactiveFocusBackground),
 		listHoverBackground: (style && style.listHoverBackground) || listHoverBackground,
 		listHoverForeground: (style && style.listHoverForeground) || listHoverForeground,
 		listDropBackground: (style && style.listDropBackground) || listDropBackground,
@@ -201,6 +202,7 @@ export interface IListStyleOverrides extends IStyleOverrides {
 	listFocusAndSelectionForeground?: ColorIdentifier;
 	listInactiveSelectionBackground?: ColorIdentifier;
 	listInactiveSelectionForeground?: ColorIdentifier;
+	listInactiveFocusBackground?: ColorIdentifier;
 	listHoverBackground?: ColorIdentifier;
 	listHoverForeground?: ColorIdentifier;
 	listDropBackground?: ColorIdentifier;
