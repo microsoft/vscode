@@ -389,6 +389,15 @@ export class LifecycleService implements ILifecycleService {
 		app.once('quit', () => {
 			if (!vetoed) {
 				this.stateService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
+
+				try {
+					if (process.platform === 'win32') {
+						process.chdir(process.env['VSCODE_CWD']); // reset cwd to launch directory
+					}
+				} catch (err) {
+					console.error(err);
+				}
+
 				app.relaunch({ args });
 			}
 		});
