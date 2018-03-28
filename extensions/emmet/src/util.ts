@@ -208,12 +208,14 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 
 	// We are at an opening brace. We need to include its selector.
 	// We need one non whitespace character, that's not commented and is not a block { }
-	let selectorFound = false;
 	currentLine = stream.pos.line;
 	openBracesRemaining = 0;
-	while (!selectorFound && !stream.sof()) {
+	while (!stream.sof()) {
 		// Find a nonspace character
 		while (!stream.sof() && String.fromCharCode(stream.backUp(1)).match(/\s/)) { }
+		if (stream.sof()) {
+			break;
+		}
 		let characterFound = stream.peek();
 		// Check if such character is end of comment.
 		if (characterFound === slash) {
@@ -238,12 +240,18 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 		if (characterFound === closeBrace) {
 			openBracesRemaining++;
 		} else if (!openBracesRemaining) {
-			break;
+			if (characterFound === openBrace) {
+				return;
+			} else {
+				break;
+			}
 		} else if (characterFound === openBrace) {
 			openBracesRemaining--;
 		}
 	}
-	startPosition = stream.pos;
+	if (!stream.sof()) {
+		startPosition = stream.pos;
+	}
 	try {
 		return parseStylesheet(new DocumentStreamReader(document, startPosition, new vscode.Range(startPosition, endPosition)));
 	} catch (e) {
