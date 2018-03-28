@@ -355,7 +355,7 @@ export class UpdateContribution implements IGlobalActivity {
 
 		const handle = this.notificationService.notify({
 			severity: severity.Info,
-			message: nls.localize('updateAvailable', "There's an available update: {0} {1}", product.nameLong, update.productVersion),
+			message: nls.localize('updateAvailable', "There's an update available: {0} {1}", product.nameLong, update.productVersion),
 			actions: { primary: [installUpdateAction, NotNowAction, releaseNotesAction] }
 		});
 		once(handle.onDidDispose)(() => dispose(installUpdateAction, releaseNotesAction));
@@ -379,7 +379,7 @@ export class UpdateContribution implements IGlobalActivity {
 
 	// windows and mac
 	private onUpdateReady(update: IUpdate): void {
-		if (!this.shouldShowNotification()) {
+		if (!isWindows && !this.shouldShowNotification()) {
 			return;
 		}
 
@@ -396,10 +396,6 @@ export class UpdateContribution implements IGlobalActivity {
 	}
 
 	private shouldShowNotification(): boolean {
-		if (isWindows) {
-			return true;
-		}
-
 		const currentVersion = product.commit;
 		const currentMillis = new Date().getTime();
 		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.GLOBAL);
