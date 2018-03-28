@@ -401,10 +401,14 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private extractAndInstall({ zipPath, id, metadata }: InstallableExtension): TPromise<ILocalExtension> {
-		const extractPath = path.join(this.extensionsPath, `.${id}`); // Extract to temp path
-		return this.extract(id, zipPath, extractPath, { sourcePath: 'extension', overwrite: true })
-			.then(() => this.completeInstall(id, extractPath))
-			.then(() => this.scanExtension(id, this.extensionsPath, LocalExtensionType.User))
+		const tempPath = path.join(this.extensionsPath, `.${id}`);
+		const extensionPath = path.join(this.extensionsPath, id);
+		return this.extractAndRename(id, zipPath, tempPath, extensionPath)
+			.then(null, e => this.extract(id, zipPath, path.join(this.extensionsPath, id)))
+			.then(() => {
+				this.logService.info('Installation completed.', id);
+				return this.scanExtension(id, this.extensionsPath, LocalExtensionType.User);
+			})
 			.then(local => {
 				if (metadata) {
 					local.metadata = metadata;
@@ -414,11 +418,22 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			});
 	}
 
-	private extract(id: string, zipPath: string, extractPath: string, options: any): TPromise<void> {
+	private extractAndRename(id: string, zipPath: string, extractPath: string, renamePath: string): TPromise<void> {
+		return this.extract(id, zipPath, extractPath)
+			.then(() => this.rename(id, extractPath, renamePath, Date.now() + (5 * 1000) /* Retry for 5 seconds */)
+				.then(
+					() => this.logService.info('Renamed to', renamePath),
+					e => {
+						this.logService.info('Rename failed. Deleting from extracted location', extractPath);
+						return always(pfs.rimraf(extractPath), () => null).then(() => TPromise.wrapError(e));
+					}));
+	}
+
+	private extract(id: string, zipPath: string, extractPath: string): TPromise<void> {
 		this.logService.trace(`Started extracting the extension from ${zipPath} to ${extractPath}`);
 		return pfs.rimraf(extractPath)
 			.then(
-				() => extract(zipPath, extractPath, options)
+				() => extract(zipPath, extractPath, { sourcePath: 'extension', overwrite: true })
 					.then(
 						() => this.logService.info(`Extracted extension to ${extractPath}:`, id),
 						e => always(pfs.rimraf(extractPath), () => null)
@@ -426,23 +441,13 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING)));
 	}
 
-	private completeInstall(id: string, extractPath: string): TPromise<void> {
-		return this.rename(id, extractPath, Date.now() + (5 * 1000) /* Retry for 5 seconds */)
-			.then(
-				() => this.logService.info('Installation compelted.', id),
-				e => {
-					this.logService.info('Deleting the extracted extension', id);
-					return always(pfs.rimraf(extractPath), () => null)
-						.then(() => TPromise.wrapError(e));
-				});
-	}
-
-	private rename(id: string, extractPath: string, retryUntil: number): TPromise<void> {
-		return pfs.rename(extractPath, path.join(this.extensionsPath, id))
+	private rename(id: string, extractPath: string, renamePath: string, retryUntil: number): TPromise<void> {
+		return pfs.rename(extractPath, renamePath)
 			.then(null, error =>
 				isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil
-					? this.rename(id, extractPath, retryUntil)
-					: TPromise.wrapError(error));
+					? this.rename(id, extractPath, renamePath, retryUntil)
+					: TPromise.wrapError(error)
+			);
 	}
 
 	private rollback(extensions: IGalleryExtension[]): TPromise<void> {
