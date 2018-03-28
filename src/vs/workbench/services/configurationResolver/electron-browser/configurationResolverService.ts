@@ -168,7 +168,7 @@ class VariableResolver {
 							return this.environmentService.execPath;
 
 						default:
-							return match;
+							throw new Error(localize('canNotResolveUnkownVariable', "{0} can not be resolved, unknown variable.", match));
 					}
 				}
 			}
