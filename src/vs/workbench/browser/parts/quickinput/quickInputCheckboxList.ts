@@ -152,6 +152,7 @@ export class QuickInputCheckboxList {
 	onCheckedCountChanged: Event<number> = this._onCheckedCountChanged.event;
 	private _onLeave = new Emitter<void>();
 	onLeave: Event<void> = this._onLeave.event;
+	private _fireCheckedEvents = true;
 	private elementDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
 
@@ -194,19 +195,39 @@ export class QuickInputCheckboxList {
 	}
 
 	getAllVisibleChecked() {
-		return !this.elements.some(element => !element.hidden && !element.checked);
+		const elements = this.elements;
+		for (let i = 0, n = elements.length; i < n; i++) {
+			const element = elements[i];
+			if (!element.hidden && !element.checked) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	getCheckedCount() {
-		return this.getCheckedElements().length;
+		let count = 0;
+		const elements = this.elements;
+		for (let i = 0, n = elements.length; i < n; i++) {
+			if (elements[i].checked) {
+				count++;
+			}
+		}
+		return count;
 	}
 
 	setAllVisibleChecked(checked: boolean) {
-		this.elements.forEach(element => {
-			if (!element.hidden) {
-				element.checked = checked;
-			}
-		});
+		try {
+			this._fireCheckedEvents = false;
+			this.elements.forEach(element => {
+				if (!element.hidden) {
+					element.checked = checked;
+				}
+			});
+		} finally {
+			this._fireCheckedEvents = true;
+			this.fireCheckedEvents();
+		}
 	}
 
 	setElements(elements: IPickOpenEntry[]): void {
@@ -216,10 +237,7 @@ export class QuickInputCheckboxList {
 			item,
 			checked: !!item.picked
 		}));
-		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => {
-			this._onAllVisibleCheckedChanged.fire(this.getAllVisibleChecked());
-			this._onCheckedCountChanged.fire(this.getCheckedCount());
-		})));
+		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
 		this.list.splice(0, this.list.length, this.elements);
 		this.list.setSelection([]);
 		this.list.focusFirst();
@@ -303,6 +321,13 @@ export class QuickInputCheckboxList {
 	dispose() {
 		this.elementDisposables = dispose(this.elementDisposables);
 		this.disposables = dispose(this.disposables);
+	}
+
+	private fireCheckedEvents() {
+		if (this._fireCheckedEvents) {
+			this._onAllVisibleCheckedChanged.fire(this.getAllVisibleChecked());
+			this._onCheckedCountChanged.fire(this.getCheckedCount());
+		}
 	}
 }
 
