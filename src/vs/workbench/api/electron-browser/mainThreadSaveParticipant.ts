@@ -166,7 +166,7 @@ export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant
 			currentLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(currentLine) === -1;
 		}
 
-		const deletionRange = new Range(currentLineNumber + 1, 1, lineCount, 1);
+		const deletionRange = model.validateRange(new Range(currentLineNumber + 1, 1, lineCount + 1, 1));
 		if (!deletionRange.isEmpty()) {
 			model.pushEditOperations(prevSelection, [EditOperation.delete(deletionRange)], edits => prevSelection);
 		}
