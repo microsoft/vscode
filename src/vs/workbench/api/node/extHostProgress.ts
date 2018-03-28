@@ -70,10 +70,10 @@ export class ExtHostProgress implements ExtHostProgressShape {
 
 function mergeProgress(result: IProgressStep, currentValue: IProgressStep): IProgressStep {
 	result.message = currentValue.message;
-	if (typeof currentValue.percentage === 'number' && typeof result.message === 'number') {
-		result.percentage += currentValue.percentage;
-	} else if (typeof currentValue.percentage === 'number') {
-		result.percentage = currentValue.percentage;
+	if (typeof currentValue.increment === 'number' && typeof result.message === 'number') {
+		result.increment += currentValue.increment;
+	} else if (typeof currentValue.increment === 'number') {
+		result.increment = currentValue.increment;
 	}
 	return result;
 }

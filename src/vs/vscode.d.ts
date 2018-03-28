@@ -4038,7 +4038,8 @@ declare module 'vscode' {
 
 		/**
 		 * Report a progress update.
-		 * @param value A progress item, like a message or an updated percentage value
+		 * @param value A progress item, like a message and/or an
+		 * report on how much work finished
 		 */
 		report(value: T): void;
 	}
@@ -5213,9 +5214,10 @@ declare module 'vscode' {
 		 * @param task A callback returning a promise. Progress state can be reported with
 		 * the provided [progress](#Progress)-object.
 		 *
-		 * To report discrete progress, use `percentage` to indicate how much work has been completed. Each call with
-		 * a `percentage` value will be summed up and reflected as overall progress until 100% is reached. Note that
-		 * currently only `ProgressLocation.Notification` is capable of showing discrete progress.
+		 * To report discrete progress, use `increment` to indicate how much work has been completed. Each call with
+		 * a `increment` value will be summed up and reflected as overall progress until 100% is reached (a value of
+		 * e.g. `10` accounts for `10%` of work done).
+		 * Note that currently only `ProgressLocation.Notification` is capable of showing discrete progress.
 		 *
 		 * To monitor if the operation has been cancelled by the user, use the provided [`CancellationToken`](#CancellationToken).
 		 * Note that currently only `ProgressLocation.Notification` is supporting to show a cancel button to cancel the
@@ -5223,7 +5225,7 @@ declare module 'vscode' {
 		 *
 		 * @return The thenable the task-callback returned.
 		 */
-		export function withProgress<R>(options: ProgressOptions, task: (progress: Progress<{ message?: string; percentage?: number }>, token: CancellationToken) => Thenable<R>): Thenable<R>;
+		export function withProgress<R>(options: ProgressOptions, task: (progress: Progress<{ message?: string; increment?: number }>, token: CancellationToken) => Thenable<R>): Thenable<R>;
 
 		/**
 		 * Creates a status bar [item](#StatusBarItem).
