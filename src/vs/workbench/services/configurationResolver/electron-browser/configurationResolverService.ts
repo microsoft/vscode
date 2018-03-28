@@ -93,10 +93,10 @@ class VariableResolver {
 								return normalizeDriveLetter(context.uri.fsPath);
 							}
 							if (this.workspaceContextService.getWorkspace().folders.length > 1) {
-								throw new Error(localize('canNotResolveWorkspaceFolderMultiRoot', "${workspaceFolder} can not be resolved in a multi folder workspace. Scope this variables using : and a folder name."));
+								throw new Error(localize('canNotResolveWorkspaceFolderMultiRoot', "'${workspaceFolder}' can not be resolved in a multi folder workspace. Scope this variables using : and a folder name."));
 							}
 
-							throw new Error(localize('canNotResolveWorkspaceFolder', "${workspaceFolder} can not be resolved. Please open a folder."));
+							throw new Error(localize('canNotResolveWorkspaceFolder', "'${workspaceFolder}' can not be resolved. Please open a folder."));
 						} case 'cwd':
 							return context ? normalizeDriveLetter(context.uri.fsPath) : process.cwd();
 						case 'workspaceRootFolderName':
@@ -105,30 +105,30 @@ class VariableResolver {
 								return paths.basename(context.uri.fsPath);
 							}
 							if (this.workspaceContextService.getWorkspace().folders.length > 1) {
-								throw new Error(localize('canNotResolveFolderBasenameMultiRoot', "${workspaceFolderBasename} can not be resolved in a multi folder workspace. Scope this variables using : and a folder name."));
+								throw new Error(localize('canNotResolveFolderBasenameMultiRoot', "'${workspaceFolderBasename}' can not be resolved in a multi folder workspace. Scope this variables using : and a folder name."));
 							}
 
-							throw new Error(localize('canNotResolveFolderBasename', "${workspaceFolderBasename} can not be resolved. Please open a folder."));
+							throw new Error(localize('canNotResolveFolderBasename', "'${workspaceFolderBasename}' can not be resolved. Please open a folder."));
 						} case 'lineNumber': {
 							const lineNumber = this.getLineNumber();
 							if (lineNumber) {
 								return lineNumber;
 							}
 
-							throw new Error(localize('canNotResolveLineNumber', "${lineNumber} can not be resolved, please open an editor."));
+							throw new Error(localize('canNotResolveLineNumber', "'${lineNumber}' can not be resolved, please open an editor."));
 						} case 'selectedText': {
 							const selectedText = this.getSelectedText();
 							if (selectedText) {
 								return selectedText;
 							}
 
-							throw new Error(localize('canNotResolveSelectedText', "${selectedText} can not be resolved, please open an editor."));
+							throw new Error(localize('canNotResolveSelectedText', "'${selectedText}' can not be resolved, please open an editor."));
 						} case 'file': {
 							if (filePath) {
 								return filePath;
 							}
 
-							throw new Error(localize('canNotResolveFile', "${file} can not be resolved, please open an editor."));
+							throw new Error(localize('canNotResolveFile', "'${file}' can not be resolved, please open an editor."));
 						} case 'relativeFile': {
 							if (context && filePath) {
 								return paths.normalize(relative(context.uri.fsPath, filePath));
@@ -137,38 +137,38 @@ class VariableResolver {
 								return filePath;
 							}
 
-							throw new Error(localize('canNotResolveRelativeFile', "${relativeFile} can not be resolved, please open an editor."));
+							throw new Error(localize('canNotResolveRelativeFile', "'${relativeFile}' can not be resolved, please open an editor."));
 						} case 'fileDirname': {
 							if (filePath) {
 								return paths.dirname(filePath);
 							}
 
-							throw new Error(localize('canNotResolveFileDirname', "${fileDirname} can not be resolved, please open an editor."));
+							throw new Error(localize('canNotResolveFileDirname', "'${fileDirname}' can not be resolved, please open an editor."));
 						} case 'fileExtname': {
 							if (filePath) {
 								return paths.extname(filePath);
 							}
 
-							throw new Error(localize('canNotResolveFileExtname', "${fileExtname} can not be resolved, please open an editor."));
+							throw new Error(localize('canNotResolveFileExtname', "'${fileExtname}' can not be resolved, please open an editor."));
 						} case 'fileBasename': {
 							if (filePath) {
 								return paths.basename(filePath);
 							}
 
-							throw new Error(localize('canNotResolveFileBasename', "${fileBasename} can not be resolved, please open an editor."));
+							throw new Error(localize('canNotResolveFileBasename', "'${fileBasename}' can not be resolved, please open an editor."));
 						} case 'fileBasenameNoExtension': {
 							if (filePath) {
 								const basename = paths.basename(filePath);
 								return basename.slice(0, basename.length - paths.extname(basename).length);
 							}
 
-							throw new Error(localize('canNotResolveFileBasenameNoExtension', "${fileBasenameNoExtension} can not be resolved, please open an editor."));
+							throw new Error(localize('canNotResolveFileBasenameNoExtension', "'${fileBasenameNoExtension}' can not be resolved, please open an editor."));
 						}
 						case 'execPath':
 							return this.environmentService.execPath;
 
 						default:
-							throw new Error(localize('canNotResolveUnkownVariable', "{0} can not be resolved, unknown variable.", match));
+							throw new Error(localize('canNotResolveUnkownVariable', "'{0}' can not be resolved, unknown variable.", match));
 					}
 				}
 			}
