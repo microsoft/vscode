@@ -56,6 +56,7 @@ export class SimpleDebugEditor extends CodeEditorWidget {
 			lineNumbers: 'off',
 			folding: false,
 			selectOnLineNumbers: false,
+			hideCursorInOverviewRuler: true,
 			selectionHighlight: false,
 			scrollbar: {
 				horizontal: 'hidden'
