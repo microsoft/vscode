@@ -218,7 +218,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 			provideCompletionItems: (model: ITextModel, position: Position, _context: SuggestContext, token: CancellationToken): Thenable<ISuggestResult> => {
 				let suggestionsPromise: TPromise<ISuggestResult>;
 				if (this.context === Context.CONDITION || this.context === Context.LOG_MESSAGE && this.isCurlyBracketOpen()) {
-					suggestionsPromise = provideSuggestionItems(this.editor.getModel(), new Position(1, 1), 'none', undefined, _context).then(suggestions => {
+					suggestionsPromise = provideSuggestionItems(this.editor.getModel(), new Position(this.lineNumber, this.column), 'none', undefined, _context).then(suggestions => {
 						return {
 							suggestions: suggestions.map(s => {
 								if (this.context === Context.CONDITION) {
