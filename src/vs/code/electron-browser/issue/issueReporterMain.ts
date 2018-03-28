@@ -40,6 +40,7 @@ import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { normalizeGitHubIssuesUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
 
 const MAX_URL_LENGTH = platform.isWindows ? 2081 : 5400;
 
@@ -440,6 +441,11 @@ export class IssueReporter extends Disposable {
 		return selectedExtension && selectedExtension.manifest && selectedExtension.manifest.repository && selectedExtension.manifest.repository.url;
 	}
 
+	private getExtensionBugsUrl(): string {
+		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
+		return selectedExtension && selectedExtension.manifest && selectedExtension.manifest.bugs && selectedExtension.manifest.bugs.url;
+	}
+
 	private searchVSCodeIssues(title: string, issueDescription: string): void {
 		if (title || issueDescription) {
 			this.searchDuplicates(title, issueDescription);
@@ -746,10 +752,13 @@ export class IssueReporter extends Disposable {
 	private getIssueUrlWithTitle(issueTitle: string): string {
 		let repositoryUrl = product.reportIssueUrl;
 		if (this.issueReporterModel.getData().fileOnExtension) {
+			const bugsUrl = this.getExtensionBugsUrl();
 			const extensionUrl = this.getExtensionRepositoryUrl();
-			if (extensionUrl) {
-				// Remove '.git' suffix
-				repositoryUrl = `${extensionUrl.indexOf('.git') !== -1 ? extensionUrl.substr(0, extensionUrl.length - 4) : extensionUrl}/issues/new/`;
+			// If given, try to match the extension's bug url
+			if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
+				repositoryUrl = normalizeGitHubIssuesUrl(bugsUrl);
+			} else if (extensionUrl && extensionUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
+				repositoryUrl = normalizeGitHubIssuesUrl(extensionUrl);
 			}
 		}
 
