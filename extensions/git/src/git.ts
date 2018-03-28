@@ -15,6 +15,7 @@ import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
 import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
 import { CancellationToken } from 'vscode';
+import { detectEncoding } from './encoding';
 
 const readfile = denodeify<string, string | null, string>(fs.readFile);
 
@@ -661,7 +662,10 @@ export class Repository {
 
 	async bufferString(object: string, encoding: string = 'utf8'): Promise<string> {
 		const stdout = await this.buffer(object);
-		return iconv.decode(stdout, iconv.encodingExists(encoding) ? encoding : 'utf8');
+		encoding = detectEncoding(stdout) || encoding;
+		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
+
+		return iconv.decode(stdout, encoding);
 	}
 
 	async buffer(object: string): Promise<Buffer> {

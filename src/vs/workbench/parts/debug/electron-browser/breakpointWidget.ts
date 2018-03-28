@@ -24,7 +24,7 @@ import { ServicesAccessor, EditorCommand, registerEditorCommand } from 'vs/edito
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import uri from 'vs/base/common/uri';
-import { SuggestRegistry, ISuggestResult, SuggestContext, SuggestTriggerKind } from 'vs/editor/common/modes';
+import { SuggestRegistry, ISuggestResult, SuggestContext } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModel } from 'vs/editor/common/model';
 import { wireCancellationToken } from 'vs/base/common/async';
@@ -143,7 +143,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 
 		this.input.getModel().setValue(this.getInputValue(this.breakpoint));
 		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
-		setTimeout(() => this.input.focus(), 70);
+		setTimeout(() => this.input.focus(), 100);
 	}
 
 	public close(success: boolean): void {
@@ -214,18 +214,26 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 		this.themeService.onThemeChange(() => setDecorations());
 
 		this.toDispose.push(SuggestRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
-			triggerCharacters: ['.'],
 			provideCompletionItems: (model: ITextModel, position: Position, _context: SuggestContext, token: CancellationToken): Thenable<ISuggestResult> => {
-				let suggestions: TPromise<ISuggestResult>;
+				let suggestionsPromise: TPromise<ISuggestResult>;
 				if (this.context === Context.CONDITION || this.context === Context.LOG_MESSAGE && this.isCurlyBracketOpen()) {
-					suggestions = provideSuggestionItems(this.editor.getModel(), this.editor.getPosition(), 'none', undefined, { triggerKind: SuggestTriggerKind.Invoke }).then(suggestions => {
-						return { suggestions: suggestions.map(s => s.suggestion) };
+					suggestionsPromise = provideSuggestionItems(this.editor.getModel(), new Position(1, 1), 'none', undefined, _context).then(suggestions => {
+						return {
+							suggestions: suggestions.map(s => {
+								if (this.context === Context.CONDITION) {
+									s.suggestion.overwriteBefore = position.column - 1;
+									s.suggestion.overwriteAfter = 0;
+								}
+
+								return s.suggestion;
+							})
+						};
 					});
 				} else {
-					suggestions = TPromise.as({ suggestions: [] });
+					suggestionsPromise = TPromise.as({ suggestions: [] });
 				}
 
-				return wireCancellationToken(token, suggestions);
+				return wireCancellationToken(token, suggestionsPromise);
 			}
 		}));
 	}

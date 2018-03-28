@@ -30,6 +30,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { once } from 'vs/base/common/event';
+import { isWindows } from 'vs/base/common/platform';
 
 const NotNowAction = new Action(
 	'update.later',
@@ -388,13 +389,17 @@ export class UpdateContribution implements IGlobalActivity {
 
 		const handle = this.notificationService.notify({
 			severity: severity.Info,
-			message: nls.localize('updateAvailableAfterRestart', "{0} will be updated after it restarts.", product.nameLong),
+			message: nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", product.nameLong),
 			actions: { primary: [applyUpdateAction, NotNowAction, releaseNotesAction] }
 		});
 		once(handle.onDidDispose)(() => applyUpdateAction, releaseNotesAction);
 	}
 
 	private shouldShowNotification(): boolean {
+		if (isWindows) {
+			return true;
+		}
+
 		const currentVersion = product.commit;
 		const currentMillis = new Date().getTime();
 		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.GLOBAL);

@@ -519,15 +519,27 @@ registerThemingParticipant((theme, collector) => {
 	}
 	let selectionHighlightBorder = theme.getColor(editorSelectionHighlightBorder);
 	if (selectionHighlightBorder) {
-		collector.addRule(`.monaco-editor .selectionHighlight { border: 1px dotted ${selectionHighlightBorder}; box-sizing: border-box; }`);
+		if (theme.type === 'hc') {
+			collector.addRule(`.monaco-editor .selectionHighlight { border: 1px dotted ${selectionHighlightBorder}; box-sizing: border-box; }`);
+		} else {
+			collector.addRule(`.monaco-editor .selectionHighlight { border: 1px solid ${selectionHighlightBorder}; box-sizing: border-box; }`);
+		}
 	}
 	let wordHighlightBorder = theme.getColor(editorWordHighlightBorder);
 	if (wordHighlightBorder) {
-		collector.addRule(`.monaco-editor .wordHighlight { border: 1px dashed ${wordHighlightBorder}; box-sizing: border-box; }`);
+		if (theme.type === 'hc') {
+			collector.addRule(`.monaco-editor .wordHighlight { border: 1px dashed ${wordHighlightBorder}; box-sizing: border-box; }`);
+		} else {
+			collector.addRule(`.monaco-editor .wordHighlight { border: 1px solid ${wordHighlightBorder}; box-sizing: border-box; }`);
+		}
 	}
 	let wordHighlightStrongBorder = theme.getColor(editorWordHighlightStrongBorder);
 	if (wordHighlightStrongBorder) {
-		collector.addRule(`.monaco-editor .wordHighlightStrong { border: 1px dashed ${wordHighlightStrongBorder}; box-sizing: border-box; }`);
+		if (theme.type === 'hc') {
+			collector.addRule(`.monaco-editor .wordHighlightStrong { border: 1px dashed ${wordHighlightStrongBorder}; box-sizing: border-box; }`);
+		} else {
+			collector.addRule(`.monaco-editor .wordHighlightStrong { border: 1px solid ${wordHighlightStrongBorder}; box-sizing: border-box; }`);
+		}
 	}
 
 });

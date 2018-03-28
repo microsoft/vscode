@@ -811,24 +811,18 @@ export class Repository implements Disposable {
 	}
 
 	async show(ref: string, filePath: string): Promise<string> {
-		return await this.run(Operation.Show, async () => {
+		return this.run(Operation.Show, () => {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
 			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
-			const encoding = configFiles.get<string>('encoding');
-
-			// TODO@joao: Resource config api
-			return await this.repository.bufferString(`${ref}:${relativePath}`, encoding);
+			const defaultEncoding = configFiles.get<string>('encoding');
+			return this.repository.bufferString(`${ref}:${relativePath}`, defaultEncoding);
 		});
 	}
 
 	async buffer(ref: string, filePath: string): Promise<Buffer> {
-		return await this.run(Operation.Show, async () => {
+		return this.run(Operation.Show, () => {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
-			// const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
-			// const encoding = configFiles.get<string>('encoding');
-
-			// TODO@joao: REsource config api
-			return await this.repository.buffer(`${ref}:${relativePath}`);
+			return this.repository.buffer(`${ref}:${relativePath}`);
 		});
 	}
 

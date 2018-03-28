@@ -386,8 +386,7 @@ export class SearchTreeController extends WorkbenchTreeController {
 				const actions: IAction[] = [];
 				fillInActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
 				return TPromise.as(actions);
-			},
-			// getActionsContext: () => element instanceof OpenEditor ? { groupId: element.group.id, editorIndex: element.editorIndex } : { groupId: element.id }
+			}
 		});
 
 		return true;

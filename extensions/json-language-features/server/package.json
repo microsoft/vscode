@@ -13,7 +13,7 @@
   "dependencies": {
     "jsonc-parser": "^2.0.0-next.1",
     "request-light": "^0.2.2",
-    "vscode-json-languageservice": "^3.0.12",
+    "vscode-json-languageservice": "^3.0.13",
     "vscode-languageserver": "^4.0.0",
     "vscode-languageserver-protocol-foldingprovider": "^1.0.1",
     "vscode-nls": "^3.2.2",

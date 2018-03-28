@@ -26,6 +26,7 @@ export interface IssueReporterData {
 	includeSettingsSearchDetails?: boolean;
 
 	numberOfThemeExtesions?: number;
+	allExtensions?: ILocalExtension[];
 	enabledNonThemeExtesions?: ILocalExtension[];
 	extensionsDisabled?: boolean;
 	fileOnExtension?: boolean;

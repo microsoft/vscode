@@ -120,6 +120,9 @@ export interface IExtensionManifest {
 	repository?: {
 		url: string;
 	};
+	bugs?: {
+		url: string;
+	};
 }
 
 export interface IGalleryExtensionProperties {

@@ -11,6 +11,7 @@ import { ISingleEditOperation } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { EditOperationsCommand } from 'vs/editor/contrib/format/formatCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): ISingleEditOperation {
 	return {
@@ -308,6 +309,29 @@ suite('FormatCommand', () => {
 			],
 			new Selection(1, 1, 1, 1)
 		);
+	});
+
+	test('issue #44870', () => {
+		const initialText = [
+			'[',
+			'    {},{',
+			'    }',
+			']',
+		];
+		withTestCodeEditor(initialText, {}, (editor) => {
+			editor.setSelection(new Selection(2, 8, 2, 8));
+			EditOperationsCommand.execute(editor, [
+				editOp(2, 8, 2, 8, ['', '    ']),
+				editOp(2, 9, 3, 5, ['']),
+			]);
+			assert.equal(editor.getValue(), [
+				'[',
+				'    {},',
+				'    {}',
+				']',
+			].join('\n'));
+			assert.deepEqual(editor.getSelection(), new Selection(3, 5, 3, 5));
+		});
 	});
 
 });

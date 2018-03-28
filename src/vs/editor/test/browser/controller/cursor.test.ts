@@ -1219,6 +1219,64 @@ suite('Editor Controller - Regression tests', () => {
 		model.dispose();
 	});
 
+	test('issue #46208: Allow empty selections in the undo/redo stack', () => {
+		let model = TextModel.createFromString('');
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursorCommand(cursor, H.Type, { text: 'Hello' }, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: ' ' }, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: 'world' }, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: ' ' }, 'keyboard');
+			assert.equal(model.getLineContent(1), 'Hello world ');
+			assertCursor(cursor, new Position(1, 13));
+
+			moveLeft(cursor);
+			moveRight(cursor);
+
+			model.pushEditOperations([], [EditOperation.replaceMove(new Range(1, 12, 1, 13), '')], () => []);
+			assert.equal(model.getLineContent(1), 'Hello world');
+			assertCursor(cursor, new Position(1, 12));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(1), 'Hello world ');
+			assertCursor(cursor, new Position(1, 13));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(1), 'Hello world');
+			assertCursor(cursor, new Position(1, 12));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(1), 'Hello');
+			assertCursor(cursor, new Position(1, 6));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(1), '');
+			assertCursor(cursor, new Position(1, 1));
+
+			cursorCommand(cursor, H.Redo, {});
+			assert.equal(model.getLineContent(1), 'Hello');
+			assertCursor(cursor, new Position(1, 6));
+
+			cursorCommand(cursor, H.Redo, {});
+			assert.equal(model.getLineContent(1), 'Hello world');
+			assertCursor(cursor, new Position(1, 12));
+
+			cursorCommand(cursor, H.Redo, {});
+			assert.equal(model.getLineContent(1), 'Hello world ');
+			assertCursor(cursor, new Position(1, 13));
+
+			cursorCommand(cursor, H.Redo, {});
+			assert.equal(model.getLineContent(1), 'Hello world');
+			assertCursor(cursor, new Position(1, 12));
+
+			cursorCommand(cursor, H.Redo, {});
+			assert.equal(model.getLineContent(1), 'Hello world');
+			assertCursor(cursor, new Position(1, 12));
+		});
+
+		model.dispose();
+	});
+
 	test('bug #16815:Shift+Tab doesn\'t go back to tabstop', () => {
 		let mode = new OnEnterMode(IndentAction.IndentOutdent);
 		let model = TextModel.createFromString(
@@ -1488,6 +1546,54 @@ suite('Editor Controller - Regression tests', () => {
 				'bbb',
 				'ccc',
 				'',
+			].join('\n'));
+		});
+	});
+
+	test('issue #46440: (1) Pasting a multi-line selection pastes entire selection into every insertion point', () => {
+		usingCursor({
+			text: [
+				'line1',
+				'line2',
+				'line3'
+			],
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1), new Selection(3, 1, 3, 1)]);
+
+			cursorCommand(cursor, H.Paste, {
+				text: 'a\nb\nc',
+				pasteOnNewLine: false,
+				multicursorText: null
+			});
+
+			assert.equal(model.getValue(), [
+				'aline1',
+				'bline2',
+				'cline3'
+			].join('\n'));
+		});
+	});
+
+	test('issue #46440: (2) Pasting a multi-line selection pastes entire selection into every insertion point', () => {
+		usingCursor({
+			text: [
+				'line1',
+				'line2',
+				'line3'
+			],
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1), new Selection(3, 1, 3, 1)]);
+
+			cursorCommand(cursor, H.Paste, {
+				text: 'a\nb\nc\n',
+				pasteOnNewLine: false,
+				multicursorText: null
+			});
+
+			assert.equal(model.getValue(), [
+				'aline1',
+				'bline2',
+				'cline3'
 			].join('\n'));
 		});
 	});

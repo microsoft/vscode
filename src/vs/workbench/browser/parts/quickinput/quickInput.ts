@@ -245,7 +245,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	protected updateStyles() {
-		this.inputBox.style(this.themeService.getTheme());
+		if (this.inputBox) {
+			this.inputBox.style(this.themeService.getTheme());
+		}
 	}
 }
 

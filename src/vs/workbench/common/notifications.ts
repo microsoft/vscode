@@ -563,6 +563,10 @@ export class NotificationViewItem implements INotificationViewItem {
 	}
 
 	public equals(other: INotificationViewItem): boolean {
+		if (this.hasProgress() || other.hasProgress()) {
+			return false;
+		}
+
 		if (this._source !== other.source) {
 			return false;
 		}

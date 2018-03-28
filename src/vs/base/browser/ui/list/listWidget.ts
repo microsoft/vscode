@@ -388,7 +388,7 @@ const DefaultMultipleSelectionContoller = {
 	isSelectionRangeChangeEvent
 };
 
-const DefaultOpenController = {
+const DefaultOpenController: IOpenController = {
 	shouldOpen: (event: UIEvent) => {
 		if (event instanceof MouseEvent) {
 			return !isMouseRightClick(event);
@@ -396,7 +396,7 @@ const DefaultOpenController = {
 
 		return true;
 	}
-} as IOpenController;
+};
 
 class MouseController<T> implements IDisposable {
 

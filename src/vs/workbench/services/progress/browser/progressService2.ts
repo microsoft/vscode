@@ -211,7 +211,7 @@ export class ProgressService2 implements IProgressService2 {
 		};
 
 		const updateProgress = (notification: INotificationHandle, percentage?: number): void => {
-			if (typeof percentage === 'number' && percentage > 0) {
+			if (typeof percentage === 'number' && percentage >= 0) {
 				notification.progress.total(100); // always percentage based
 				notification.progress.worked(percentage);
 			} else {

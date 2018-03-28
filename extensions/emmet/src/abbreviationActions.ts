@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetNode';
-import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode } from './util';
+import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet } from './util';
 
 const trimRegex = /[\u00a0]*[\d|#|\-|\*|\u2022]+\.?/;
 const hexColorRegex = /^#\d+$/;
@@ -227,8 +227,12 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	}
 
 	const editor = vscode.window.activeTextEditor;
-
-	let rootNode = parseDocument(editor.document, false);
+	let rootNode: Node | undefined;
+	if (editor.selections.length === 1 && isStyleSheet(editor.document.languageId) && editor.document.lineCount > 1000) {
+		rootNode = parsePartialStylesheet(editor.document, editor.selection.isReversed ? editor.selection.anchor : editor.selection.active);
+	} else {
+		rootNode = parseDocument(editor.document, false);
+	}
 
 	// When tabbed on a non empty selection, do not treat it as an emmet abbreviation, and fallback to tab instead
 	if (vscode.workspace.getConfiguration('emmet')['triggerExpansionOnTab'] === true && editor.selections.find(x => !x.isEmpty)) {
