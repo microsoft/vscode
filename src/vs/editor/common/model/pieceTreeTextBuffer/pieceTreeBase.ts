@@ -538,7 +538,7 @@ export class PieceTreeBase {
 		let nodePos = this.nodeAt2(lineNumber, index + 1);
 		let buffer = this._buffers[nodePos.node.piece.bufferIndex];
 		let startOffset = this.offsetInBuffer(nodePos.node.piece.bufferIndex, nodePos.node.piece.start);
-		let targetOffset = startOffset + index;
+		let targetOffset = startOffset + nodePos.remainder;
 
 		return buffer.buffer.charCodeAt(targetOffset);
 	}

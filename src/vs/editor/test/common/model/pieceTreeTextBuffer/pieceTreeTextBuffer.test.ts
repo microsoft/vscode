@@ -1571,6 +1571,15 @@ suite('buffer api', () => {
 
 		assert(!a.equal(b));
 	});
+
+	test('getLineCharCode - issue #45735', () => {
+		let pieceTable = createTextBuffer(['LINE1\nline2']);
+		assert.equal(pieceTable.getLineCharCode(2, 0), 'l'.charCodeAt(0), 'l');
+		assert.equal(pieceTable.getLineCharCode(2, 1), 'i'.charCodeAt(0), 'i');
+		assert.equal(pieceTable.getLineCharCode(2, 2), 'n'.charCodeAt(0), 'n');
+		assert.equal(pieceTable.getLineCharCode(2, 3), 'e'.charCodeAt(0), 'e');
+		assert.equal(pieceTable.getLineCharCode(2, 4), '2'.charCodeAt(0), '2');
+	});
 });
 
 suite('search offset cache', () => {
