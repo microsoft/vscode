@@ -142,6 +142,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 		this.createBreakpointInput(dom.append(container, $('.inputContainer')));
 
 		this.input.getModel().setValue(this.getInputValue(this.breakpoint));
+		this.input.setPosition({ lineNumber: 1, column: this.input.getModel().getLineMaxColumn(1) });
 		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
 		setTimeout(() => this.input.focus(), 100);
 	}
