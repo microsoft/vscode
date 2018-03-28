@@ -13,7 +13,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import URI from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 
 export class TelemetryOptOut implements IWorkbenchContribution {
 
@@ -24,13 +24,17 @@ export class TelemetryOptOut implements IWorkbenchContribution {
 		@IOpenerService openerService: IOpenerService,
 		@INotificationService notificationService: INotificationService,
 		@IWindowService windowService: IWindowService,
+		@IWindowsService windowsService: IWindowsService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		if (!product.telemetryOptOutUrl || storageService.get(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN)) {
 			return;
 		}
-		windowService.isFocused().then(focused => {
-			if (!focused) {
+		Promise.all([
+			windowService.isFocused(),
+			windowsService.getWindowCount()
+		]).then(([focused, count]) => {
+			if (!focused && count > 1) {
 				return null;
 			}
 			storageService.store(TelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true);
