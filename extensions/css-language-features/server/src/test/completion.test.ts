@@ -77,5 +77,19 @@ suite('Completions', () => {
 				{ label: 'src/', resultText: `html { background-image: url('../src/')` }
 			]
 		}, testUri);
+
+		assertCompletions(`html { background-image: url('../src/a|')`, {
+			items: [
+				{ label: 'feature.js', resultText: `html { background-image: url('../src/feature.js')` },
+				{ label: 'data/', resultText: `html { background-image: url('../src/data/')` },
+				{ label: 'test.js', resultText: `html { background-image: url('../src/test.js')` }
+			]
+		}, testUri);
+
+		assertCompletions(`html { background-image: url('../src/data/f|.asar')`, {
+			items: [
+				{ label: 'foo.asar', resultText: `html { background-image: url('../src/data/foo.asar')` }
+			]
+		}, testUri);
 	});
 });
