@@ -55,11 +55,11 @@ phases:
             "parameters": [
               {
                 "parameterName": "OpusName",
-                "parameterValue": "Microsoft"
+                "parameterValue": "VS Code"
               },
               {
                 "parameterName": "OpusInfo",
-                "parameterValue": "http://www.microsoft.com"
+                "parameterValue": "https://code.visualstudio.com/"
               },
               {
                 "parameterName": "PageHash",
@@ -79,11 +79,11 @@ phases:
             "parameters": [
               {
                 "parameterName": "OpusName",
-                "parameterValue": "Microsoft"
+                "parameterValue": "VS Code"
               },
               {
                 "parameterName": "OpusInfo",
-                "parameterValue": "http://www.microsoft.com"
+                "parameterValue": "https://code.visualstudio.com/"
               },
               {
                 "parameterName": "Append",
@@ -137,11 +137,11 @@ phases:
             "parameters": [
               {
                 "parameterName": "OpusName",
-                "parameterValue": "Microsoft"
+                "parameterValue": "VS Code"
               },
               {
                 "parameterName": "OpusInfo",
-                "parameterValue": "http://www.microsoft.com"
+                "parameterValue": "https://code.visualstudio.com/"
               },
               {
                 "parameterName": "PageHash",
@@ -161,11 +161,11 @@ phases:
             "parameters": [
               {
                 "parameterName": "OpusName",
-                "parameterValue": "Microsoft"
+                "parameterValue": "VS Code"
               },
               {
                 "parameterName": "OpusInfo",
-                "parameterValue": "http://www.microsoft.com"
+                "parameterValue": "https://code.visualstudio.com/"
               },
               {
                 "parameterName": "Append",
