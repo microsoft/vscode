@@ -11,6 +11,7 @@
 	"invalid.path.0": "`contributes.{0}.path` に文字列が必要です。提供された値: {1}",
 	"invalid.injectTo": "`contributes.{0}.injectTo` の値が無効です。言語の範囲名の配列である必要があります。指定された値: {1}",
 	"invalid.embeddedLanguages": "`contributes.{0}.embeddedLanguages` の値が無効です。スコープ名から言語へのオブジェクト マップである必要があります。指定された値: {1}",
+	"invalid.tokenTypes": "`contributes.{0}.tokenTypes` の値が無効です。オブジェクトはスコープ名からトークン タイプへ割り当てられている必要があります。指定された値: {1}",
 	"invalid.path.1": "拡張機能のフォルダー ({2}) の中に `contributes.{0}.path` ({1}) が含まれている必要があります。これにより拡張を移植できなくなる可能性があります。",
 	"no-tm-grammar": "この言語に対して TM 文法は登録されていません。"
 }

@@ -28,7 +28,9 @@
 	"warningBorder": "Düzenleyicideki uyarı karalamalarının kenarlık rengi.",
 	"infoForeground": "Düzenleyicideki bilgilendirme karalamalarının ön plan rengi.",
 	"infoBorder": "Düzenleyicideki bilgilendirme karalamalarının kenarlık rengi.",
-	"overviewRulerRangeHighlight": "Aralık vurguları için genel bakış cetvelinin işaretleyici rengi.",
+	"hintForeground": "Düzenleyicideki ipucu karalamalarının ön plan rengi.",
+	"hintBorder": "Düzenleyicideki ipucu karalamalarının kenarlık rengi.",
+	"overviewRulerRangeHighlight": "Aralık vurguları için genel bakış cetvelinin işaretleyici rengi. Altta yer alan süslemeleri gizlememek için renk opak olmamalıdır.",
 	"overviewRuleError": "Hatalar için genel bakış cetvelinin işaretleyici rengi.",
 	"overviewRuleWarning": "Uyarılar için genel bakış cetvelinin işaretleyici rengi.",
 	"overviewRuleInfo": "Bilgilendirmeler için genel bakış cetvelinin işaretleyici rengi."

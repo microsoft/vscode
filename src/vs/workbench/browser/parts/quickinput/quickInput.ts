@@ -29,6 +29,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { attachBadgeStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { chain } from 'vs/base/common/event';
 
 const $ = dom.$;
 
@@ -41,7 +42,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	private layoutDimensions: Dimension;
 	private container: HTMLElement;
-	private selectAll: HTMLInputElement;
+	private checkAll: HTMLInputElement;
 	private inputBox: QuickInputBox;
 	private count: CountBadge;
 	private ready = false;
@@ -70,15 +71,16 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		const workbench = document.getElementById(this.partService.getWorkbenchElementId());
 		this.container = dom.append(workbench, $('.quick-input-widget'));
+		this.container.tabIndex = -1;
 		this.container.style.display = 'none';
 
 		const headerContainer = dom.append(this.container, $('.quick-input-header'));
 
-		this.selectAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-select-all'));
-		this.selectAll.type = 'checkbox';
-		this.toUnbind.push(dom.addStandardDisposableListener(this.selectAll, dom.EventType.CHANGE, e => {
-			const checked = this.selectAll.checked;
-			this.checkboxList.setAllVisibleSelected(checked);
+		this.checkAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-check-all'));
+		this.checkAll.type = 'checkbox';
+		this.toUnbind.push(dom.addStandardDisposableListener(this.checkAll, dom.EventType.CHANGE, e => {
+			const checked = this.checkAll.checked;
+			this.checkboxList.setAllVisibleChecked(checked);
 		}));
 
 		const filterContainer = dom.append(headerContainer, $('.quick-input-filter'));
@@ -92,6 +94,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.toUnbind.push(this.inputBox.onKeyDown(event => {
 			switch (event.keyCode) {
 				case KeyCode.DownArrow:
+					this.checkboxList.focus('First');
+					this.checkboxList.domFocus();
+					break;
+				case KeyCode.UpArrow:
+					this.checkboxList.focus('Last');
 					this.checkboxList.domFocus();
 					break;
 			}
@@ -105,7 +112,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		ok.textContent = localize('ok', "OK");
 		this.toUnbind.push(dom.addDisposableListener(ok, dom.EventType.CLICK, e => {
 			if (this.ready) {
-				this.close(this.checkboxList.getSelectedElements());
+				this.close(this.checkboxList.getCheckedElements());
 			}
 		}));
 
@@ -115,10 +122,10 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		this.checkboxList = this.instantiationService.createInstance(QuickInputCheckboxList, this.container);
 		this.toUnbind.push(this.checkboxList);
-		this.toUnbind.push(this.checkboxList.onAllVisibleSelectedChanged(allSelected => {
-			this.selectAll.checked = allSelected;
+		this.toUnbind.push(this.checkboxList.onAllVisibleCheckedChanged(checked => {
+			this.checkAll.checked = checked;
 		}));
-		this.toUnbind.push(this.checkboxList.onSelectedCountChanged(count => {
+		this.toUnbind.push(this.checkboxList.onCheckedCountChanged(count => {
 			this.count.setCount(count);
 		}));
 		this.toUnbind.push(this.checkboxList.onLeave(() => {
@@ -127,13 +134,19 @@ export class QuickInputService extends Component implements IQuickInputService {
 				this.inputBox.setFocus();
 			}, 0);
 		}));
-		this.toUnbind.push(this.checkboxList.onFocusChange(e => {
-			if (this.progress && e.length) {
-				this.progress(e[0]);
-			}
-		}));
+		this.toUnbind.push(
+			chain(this.checkboxList.onFocusChange)
+				.map(e => e[0])
+				.filter(e => !!e)
+				.latch()
+				.on(e => this.progress && this.progress(e))
+		);
 
 		this.toUnbind.push(dom.addDisposableListener(this.container, 'focusout', (e: FocusEvent) => {
+			if (e.relatedTarget === this.container) {
+				(<HTMLElement>e.target).focus();
+				return;
+			}
 			for (let element = <Element>e.relatedTarget; element; element = element.parentElement) {
 				if (element === this.container) {
 					return;
@@ -149,12 +162,24 @@ export class QuickInputService extends Component implements IQuickInputService {
 				case KeyCode.Enter:
 					if (this.ready) {
 						dom.EventHelper.stop(e, true);
-						this.close(this.checkboxList.getSelectedElements());
+						this.close(this.checkboxList.getCheckedElements());
 					}
 					break;
 				case KeyCode.Escape:
 					dom.EventHelper.stop(e, true);
 					this.close();
+					break;
+				case KeyCode.Tab:
+					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
+						const inputs = this.container.querySelectorAll('input');
+						if (event.shiftKey && event.target === inputs[0]) {
+							dom.EventHelper.stop(e, true);
+							inputs[inputs.length - 1].focus();
+						} else if (!event.shiftKey && event.target === inputs[inputs.length - 1]) {
+							dom.EventHelper.stop(e, true);
+							inputs[0].focus();
+						}
+					}
 					break;
 			}
 		}));
@@ -186,8 +211,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.ready = false;
 
 		this.checkboxList.setElements([]);
-		this.selectAll.checked = this.checkboxList.getAllVisibleSelected();
-		this.count.setCount(this.checkboxList.getSelectedCount());
+		this.checkAll.checked = this.checkboxList.getAllVisibleChecked();
+		this.count.setCount(this.checkboxList.getCheckedCount());
 
 		this.container.style.display = null;
 		this.updateLayout();
@@ -215,8 +240,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 			this.checkboxList.setElements(elements);
 			this.checkboxList.filter(this.inputBox.value);
-			this.selectAll.checked = this.checkboxList.getAllVisibleSelected();
-			this.count.setCount(this.checkboxList.getSelectedCount());
+			this.checkAll.checked = this.checkboxList.getAllVisibleChecked();
+			this.count.setCount(this.checkboxList.getCheckedCount());
 
 			this.updateLayout();
 		}).then(null, reason => this.close(TPromise.wrapError(reason)));

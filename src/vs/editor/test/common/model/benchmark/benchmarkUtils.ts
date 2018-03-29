@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITextBufferBuilder, ITextBufferFactory, ITextBuffer, DefaultEndOfLine } from 'vs/editor/common/model';
-import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { ChunksTextBufferBuilder } from 'vs/editor/common/model/chunksTextBuffer/chunksTextBufferBuilder';
 
 export function doBenchmark<T>(id: string, ts: T[], fn: (t: T) => void) {
 	let columns: string[] = [id];
@@ -57,7 +55,7 @@ export class BenchmarkSuite {
 		for (let i = 0; i < this.benchmarks.length; i++) {
 			let benchmark = this.benchmarks[i];
 			let columns: string[] = [benchmark.name];
-			[new LinesTextBufferBuilder(), new PieceTreeTextBufferBuilder(), new ChunksTextBufferBuilder()].forEach((builder: ITextBufferBuilder) => {
+			[new PieceTreeTextBufferBuilder()].forEach((builder: ITextBufferBuilder) => {
 				let timeDiffTotal = 0.0;
 				for (let j = 0; j < this.iterations; j++) {
 					let factory = benchmark.buildBuffer(builder);

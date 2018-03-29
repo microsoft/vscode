@@ -1522,7 +1522,7 @@ declare module 'vscode' {
 		/**
 		 * A human readable string which is rendered less prominent.
 		 */
-		description: string;
+		description?: string;
 
 		/**
 		 * A human readable string which is rendered less prominent.
@@ -1530,12 +1530,12 @@ declare module 'vscode' {
 		detail?: string;
 
 		/**
-		 * Optional flag indicating if this item is selected initially.
+		 * Optional flag indicating if this item is picked initially.
 		 * (Only honored when the picker allows multiple selections.)
 		 *
-		 * @see [QuickPickOptions.canSelectMany](#QuickPickOptions.canSelectMany)
+		 * @see [QuickPickOptions.canPickMany](#QuickPickOptions.canPickMany)
 		 */
-		selected?: boolean;
+		picked?: boolean;
 	}
 
 	/**
@@ -1565,7 +1565,7 @@ declare module 'vscode' {
 		/**
 		 * An optional flag to make the picker accept multiple selections, if true the result is an array of picks.
 		 */
-		canSelectMany?: boolean;
+		canPickMany?: boolean;
 
 		/**
 		 * An optional function that is invoked whenever an item is selected.
@@ -4038,7 +4038,8 @@ declare module 'vscode' {
 
 		/**
 		 * Report a progress update.
-		 * @param value A progress item, like a message or an updated percentage value
+		 * @param value A progress item, like a message and/or an
+		 * report on how much work finished
 		 */
 		report(value: T): void;
 	}
@@ -5082,7 +5083,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to the selected items or `undefined`.
 		 */
-		export function showQuickPick(items: string[] | Thenable<string[]>, options: QuickPickOptions & { canSelectMany: true; }, token?: CancellationToken): Thenable<string[] | undefined>;
+		export function showQuickPick(items: string[] | Thenable<string[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<string[] | undefined>;
 
 		/**
 		 * Shows a selection list.
@@ -5102,7 +5103,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to the selected items or `undefined`.
 		 */
-		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options: QuickPickOptions & { canSelectMany: true; }, token?: CancellationToken): Thenable<T[] | undefined>;
+		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<T[] | undefined>;
 
 		/**
 		 * Shows a selection list.
@@ -5213,9 +5214,10 @@ declare module 'vscode' {
 		 * @param task A callback returning a promise. Progress state can be reported with
 		 * the provided [progress](#Progress)-object.
 		 *
-		 * To report discrete progress, use `percentage` to indicate how much work has been completed. Each call with
-		 * a `percentage` value will be summed up and reflected as overall progress until 100% is reached. Note that
-		 * currently only `ProgressLocation.Notification` is capable of showing discrete progress.
+		 * To report discrete progress, use `increment` to indicate how much work has been completed. Each call with
+		 * a `increment` value will be summed up and reflected as overall progress until 100% is reached (a value of
+		 * e.g. `10` accounts for `10%` of work done).
+		 * Note that currently only `ProgressLocation.Notification` is capable of showing discrete progress.
 		 *
 		 * To monitor if the operation has been cancelled by the user, use the provided [`CancellationToken`](#CancellationToken).
 		 * Note that currently only `ProgressLocation.Notification` is supporting to show a cancel button to cancel the
@@ -5223,7 +5225,7 @@ declare module 'vscode' {
 		 *
 		 * @return The thenable the task-callback returned.
 		 */
-		export function withProgress<R>(options: ProgressOptions, task: (progress: Progress<{ message?: string; percentage?: number }>, token: CancellationToken) => Thenable<R>): Thenable<R>;
+		export function withProgress<R>(options: ProgressOptions, task: (progress: Progress<{ message?: string; increment?: number }>, token: CancellationToken) => Thenable<R>): Thenable<R>;
 
 		/**
 		 * Creates a status bar [item](#StatusBarItem).

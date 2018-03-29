@@ -265,7 +265,7 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 			return result.then(() => this.tree.reveal(item))
 				.then(() => {
 					if (select) {
-						this.tree.setSelection([item]);
+						this.tree.setSelection([item], { source: 'api' });
 					}
 				});
 		}
@@ -287,6 +287,9 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 	}
 
 	private onSelection({ payload }: any): void {
+		if (payload && payload.source === 'api') {
+			return;
+		}
 		const selection: ITreeItem = this.tree.getSelection()[0];
 		if (selection) {
 			if (selection.command) {

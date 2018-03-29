@@ -9,7 +9,6 @@
 	"fileInvalidPath": "Ungültige Dateiressource ({0})",
 	"fileIsDirectoryError": "Die Datei ist ein Verzeichnis",
 	"fileNotModifiedError": "Datei nicht geändert seit",
-	"fileTooLargeForHeapError": "Die Dateigröße überschreitet die maximale Speichergröße für Fenster. Führen Sie folgenden Code aus: --max-memory=NEWSIZE",
 	"fileTooLargeError": "Die Datei ist zu groß, um sie zu öffnen.",
 	"fileNotFoundError": "Die Datei wurde nicht gefunden ({0}).",
 	"fileBinaryError": "Die Datei scheint eine Binärdatei zu sein und kann nicht als Text geöffnet werden.",

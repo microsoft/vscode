@@ -173,7 +173,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	private _registerModelEvents(): void {
 
-		this._register(this.model.onDidChangeRawContent((e) => {
+		this._register(this.model.onDidChangeRawContentFast((e) => {
 			try {
 				const eventsCollector = this._beginEmit();
 
@@ -407,6 +407,43 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			startViewLineNumber, this.getLineMinColumn(startViewLineNumber),
 			endViewLineNumber, this.getLineMaxColumn(endViewLineNumber)
 		);
+	}
+
+	public saveState(): editorCommon.IViewState {
+		const compatViewState = this.viewLayout.saveState();
+
+		const scrollTop = compatViewState.scrollTop;
+		const firstViewLineNumber = this.viewLayout.getLineNumberAtVerticalOffset(scrollTop);
+		const firstPosition = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(firstViewLineNumber, this.getLineMinColumn(firstViewLineNumber)));
+		const firstPositionDeltaTop = this.viewLayout.getVerticalOffsetForLineNumber(firstViewLineNumber) - scrollTop;
+
+		return {
+			scrollLeft: compatViewState.scrollLeft,
+			firstPosition: firstPosition,
+			firstPositionDeltaTop: firstPositionDeltaTop
+		};
+	}
+
+	public reduceRestoreState(state: editorCommon.IViewState): { scrollLeft: number; scrollTop: number; } {
+		if (typeof state.firstPosition === 'undefined') {
+			// This is a view state serialized by an older version
+			return this._reduceRestoreStateCompatibility(state);
+		}
+
+		const modelPosition = this.model.validatePosition(state.firstPosition);
+		const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
+		const scrollTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber) - state.firstPositionDeltaTop;
+		return {
+			scrollLeft: state.scrollLeft,
+			scrollTop: scrollTop
+		};
+	}
+
+	private _reduceRestoreStateCompatibility(state: editorCommon.IViewState): { scrollLeft: number; scrollTop: number; } {
+		return {
+			scrollLeft: state.scrollLeft,
+			scrollTop: state.scrollTopWithoutViewZones
+		};
 	}
 
 	public getTabSize(): number {

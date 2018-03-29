@@ -10,6 +10,7 @@
 	"ProblemPatternParser.problemPattern.kindProperty.notFirst": "문제 패턴이 잘못되었습니다. Kind 속성은 첫 번째 요소에만 지정해야 합니다.",
 	"ProblemPatternParser.problemPattern.missingRegExp": "문제 패턴에 정규식이 없습니다.",
 	"ProblemPatternParser.problemPattern.missingProperty": "문제 패턴이 잘못되었습니다. 하나 이상의 파일 및 메시지를 포함해야 합니다.",
+	"ProblemPatternParser.problemPattern.missingLocation": "문제 패턴이 잘못되었습니다. \"파일\" 종류, 줄 또는 위치 일치 그룹을 포함해야 합니다.",
 	"ProblemPatternParser.invalidRegexp": "오류: {0} 문자열은 유효한 정규식이 아닙니다.\n",
 	"ProblemPatternSchema.regexp": "출력에서 오류, 경고 또는 정보를 찾는 정규식입니다.",
 	"ProblemPatternSchema.kind": "패턴이 위치(파일 및 줄)와 일치하는지 또는 파일하고만 일치하는지 여부입니다.",

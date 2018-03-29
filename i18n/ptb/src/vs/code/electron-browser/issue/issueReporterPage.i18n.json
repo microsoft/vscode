@@ -18,9 +18,13 @@
 	"extensions": "Minhas extensões",
 	"searchedExtensions": "Extensões Pesquisadas",
 	"settingsSearchDetails": "Detalhes da Pesquisa de Configurações",
+	"tryDisablingExtensions": "O problema é reproduzível quando as extensões são desabilitadas?",
 	"yes": "Sim",
 	"no": "Não",
+	"disableExtensionsLabelText": "Tente reproduzir o problema depois de {0}.",
 	"disableExtensions": "desabilitando todas as extensões e recarregando a janela",
+	"showRunningExtensionsLabelText": "Se você suspeita que isso seja um problema de extensão, {0} para reportar o problema com a extensão.",
+	"showRunningExtensions": "ver todas as extensões em execução",
 	"details": "Por favor informe detalhes.",
 	"loadingData": "Carregando dados..."
 }

@@ -8,8 +8,6 @@
 	],
 	"nextSearchIncludePattern": "次の検索包含パターンを表示",
 	"previousSearchIncludePattern": "前の検索包含パターンを表示",
-	"nextSearchExcludePattern": "次の検索除外パターンを表示",
-	"previousSearchExcludePattern": "前の検索除外パターンを表示",
 	"nextSearchTerm": "次の検索語句を表示",
 	"previousSearchTerm": "前の検索語句を表示",
 	"showSearchViewlet": "検索の表示",

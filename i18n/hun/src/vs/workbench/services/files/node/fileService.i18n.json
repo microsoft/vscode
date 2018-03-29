@@ -9,7 +9,7 @@
 	"fileInvalidPath": "Érvénytelen fájlerőforrás ({0})",
 	"fileIsDirectoryError": "A fájl egy könyvtár",
 	"fileNotModifiedError": "A fájl azóta nem módosult",
-	"fileTooLargeForHeapError": "A fájlméret nagyobb, mint az ablak memóriakorlátja. Próbálja meg a következő parancsot futtatni: code --max-memory=<ÚJ MÉRET>",
+	"fileTooLargeForHeapError": "A fájlméret túllépi az alapértelmezett memóriakorlátot.  A jelenlegi beállítás szerint az alkalmazás újraindul {0}MB-os korláttal.",
 	"fileTooLargeError": "A fájl túl nagy a megnyitáshoz",
 	"fileNotFoundError": "Fájl nem található ({0})",
 	"fileBinaryError": "A fájl binárisnak tűnik és nem nyitható meg szövegként",

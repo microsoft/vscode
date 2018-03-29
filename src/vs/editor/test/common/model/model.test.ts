@@ -328,6 +328,16 @@ suite('Editor Model - Model', () => {
 			false
 		));
 	});
+
+	test('issue #46342: Maintain edit operation order in applyEdits', () => {
+		let res = thisModel.applyEdits([
+			{ range: new Range(2, 1, 2, 1), text: 'a' },
+			{ range: new Range(1, 1, 1, 1), text: 'b' },
+		]);
+
+		assert.deepEqual(res[0].range, new Range(2, 1, 2, 2));
+		assert.deepEqual(res[1].range, new Range(1, 1, 1, 2));
+	});
 });
 
 

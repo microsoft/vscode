@@ -22,7 +22,7 @@ import { editorErrorForeground, editorErrorBorder, editorWarningForeground, edit
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { getBaseLabel } from 'vs/base/common/labels';
+import { getBaseLabel, getPathLabel } from 'vs/base/common/labels';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
 
@@ -110,6 +110,7 @@ class MessageWidget {
 				let relatedResource = document.createElement('span');
 				dom.addClass(relatedResource, 'filename');
 				relatedResource.innerHTML = `${getBaseLabel(related.resource)}(${related.startLineNumber}, ${related.startColumn}): `;
+				relatedResource.title = getPathLabel(related.resource);
 				this._relatedDiagnostics.set(relatedResource, related);
 
 				let relatedMessage = document.createElement('span');

@@ -345,7 +345,7 @@ button {
 .issues-container {
 	margin-left: 1.5em;
 	margin-top: .5em;
-	height: 92px;
+	max-height: 92px;
 	overflow-y: auto;
 }
 

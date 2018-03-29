@@ -10,7 +10,7 @@ import URI from 'vscode-uri';
 
 import { TextDocument, CompletionList, CompletionItemKind, CompletionItem, TextEdit, Range, Position } from 'vscode-languageserver-types';
 import { WorkspaceFolder } from 'vscode-languageserver';
-import { ICompletionParticipant } from 'vscode-css-languageservice';
+import { ICompletionParticipant, URILiteralCompletionContext } from 'vscode-css-languageservice';
 
 import { startsWith } from './utils/strings';
 
@@ -20,7 +20,7 @@ export function getPathCompletionParticipant(
 	result: CompletionList
 ): ICompletionParticipant {
 	return {
-		onURILiteralValue: (context: { uriValue: string, position: Position, range: Range; }) => {
+		onURILiteralValue: (context: URILiteralCompletionContext) => {
 			if (!workspaceFolders || workspaceFolders.length === 0) {
 				return;
 			}
@@ -91,7 +91,11 @@ export function providePathSuggestions(value: string, range: Range, activeDocFsP
 }
 
 const isDir = (p: string) => {
-	return fs.statSync(p).isDirectory();
+	try {
+		return fs.statSync(p).isDirectory();
+	} catch (e) {
+		return false;
+	}
 };
 
 function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: WorkspaceFolder[]): string | undefined {

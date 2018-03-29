@@ -8,6 +8,7 @@
 	],
 	"toggleBreakpointAction": "Hibakeresés: Töréspont be- és kikapcsolása",
 	"conditionalBreakpointEditorAction": "Hibakeresés: Feltételes töréspont...",
+	"logPointEditorAction": "Hibakeresés: Naplózási pont hozzáadása...",
 	"runToCursor": "Futtatás a kurzorig",
 	"debugEvaluate": "Hibakeresés: Kiértékelés",
 	"debugAddToWatch": "Hibakeresés: Hozzáadás a figyelőlistához",

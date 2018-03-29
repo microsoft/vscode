@@ -21,60 +21,63 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { memoize } from 'vs/base/common/decorators';
+import { range } from 'vs/base/common/arrays';
+import * as platform from 'vs/base/common/platform';
 
 const $ = dom.$;
 
-interface ISelectableElement {
+interface ICheckableElement {
 	index: number;
 	item: IPickOpenEntry;
-	selected: boolean;
+	checked: boolean;
 }
 
-class SelectableElement implements ISelectableElement {
+class CheckableElement implements ICheckableElement {
 	index: number;
 	item: IPickOpenEntry;
 	shouldAlwaysShow = false;
 	hidden = false;
-	private _onSelected = new Emitter<boolean>();
-	onSelected = this._onSelected.event;
-	_selected: boolean;
-	get selected() {
-		return this._selected;
+	private _onChecked = new Emitter<boolean>();
+	onChecked = this._onChecked.event;
+	_checked: boolean;
+	get checked() {
+		return this._checked;
 	}
-	set selected(value: boolean) {
-		if (value !== this._selected) {
-			this._selected = value;
-			this._onSelected.fire(value);
+	set checked(value: boolean) {
+		if (value !== this._checked) {
+			this._checked = value;
+			this._onChecked.fire(value);
 		}
 	}
 	labelHighlights?: IMatch[];
 	descriptionHighlights?: IMatch[];
 	detailHighlights?: IMatch[];
 
-	constructor(init: ISelectableElement) {
+	constructor(init: ICheckableElement) {
 		assign(this, init);
 	}
 }
 
-interface ISelectedElementTemplateData {
+interface ICheckableElementTemplateData {
 	checkbox: HTMLInputElement;
 	label: IconLabel;
 	detail: HighlightedLabel;
-	element: SelectableElement;
+	element: CheckableElement;
 	toDisposeElement: IDisposable[];
 	toDisposeTemplate: IDisposable[];
 }
 
-class SelectedElementRenderer implements IRenderer<SelectableElement, ISelectedElementTemplateData> {
+class CheckableElementRenderer implements IRenderer<CheckableElement, ICheckableElementTemplateData> {
 
-	static readonly ID = 'selectedelement';
+	static readonly ID = 'checkableelement';
 
 	get templateId() {
-		return SelectedElementRenderer.ID;
+		return CheckableElementRenderer.ID;
 	}
 
-	renderTemplate(container: HTMLElement): ISelectedElementTemplateData {
-		const data: ISelectedElementTemplateData = Object.create(null);
+	renderTemplate(container: HTMLElement): ICheckableElementTemplateData {
+		const data: ICheckableElementTemplateData = Object.create(null);
 
 		const entry = dom.append(container, $('.quick-input-checkbox-list-entry'));
 		const label = dom.append(entry, $('label.quick-input-checkbox-list-label'));
@@ -85,7 +88,7 @@ class SelectedElementRenderer implements IRenderer<SelectableElement, ISelectedE
 		data.toDisposeElement = [];
 		data.toDisposeTemplate = [];
 		data.toDisposeTemplate.push(dom.addStandardDisposableListener(data.checkbox, dom.EventType.CHANGE, e => {
-			data.element.selected = data.checkbox.checked;
+			data.element.checked = data.checkbox.checked;
 		}));
 
 		const rows = dom.append(label, $('.quick-input-checkbox-list-rows'));
@@ -102,11 +105,11 @@ class SelectedElementRenderer implements IRenderer<SelectableElement, ISelectedE
 		return data;
 	}
 
-	renderElement(element: SelectableElement, index: number, data: ISelectedElementTemplateData): void {
+	renderElement(element: CheckableElement, index: number, data: ICheckableElementTemplateData): void {
 		data.toDisposeElement = dispose(data.toDisposeElement);
 		data.element = element;
-		data.checkbox.checked = element.selected;
-		data.toDisposeElement.push(element.onSelected(selected => data.checkbox.checked = selected));
+		data.checkbox.checked = element.checked;
+		data.toDisposeElement.push(element.onChecked(checked => data.checkbox.checked = checked));
 
 		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
 
@@ -121,36 +124,37 @@ class SelectedElementRenderer implements IRenderer<SelectableElement, ISelectedE
 		data.detail.set(element.item.detail, detailHighlights);
 	}
 
-	disposeTemplate(data: ISelectedElementTemplateData): void {
+	disposeTemplate(data: ICheckableElementTemplateData): void {
 		data.toDisposeElement = dispose(data.toDisposeElement);
 		data.toDisposeTemplate = dispose(data.toDisposeTemplate);
 	}
 }
 
-class SelectedElementDelegate implements IDelegate<SelectableElement> {
+class CheckableElementDelegate implements IDelegate<CheckableElement> {
 
-	getHeight(element: SelectableElement): number {
+	getHeight(element: CheckableElement): number {
 		return element.item.detail ? 44 : 22;
 	}
 
-	getTemplateId(element: SelectableElement): string {
-		return SelectedElementRenderer.ID;
+	getTemplateId(element: CheckableElement): string {
+		return CheckableElementRenderer.ID;
 	}
 }
 
 export class QuickInputCheckboxList {
 
 	private container: HTMLElement;
-	private list: WorkbenchList<SelectableElement>;
-	private elements: SelectableElement[] = [];
+	private list: WorkbenchList<CheckableElement>;
+	private elements: CheckableElement[] = [];
 	matchOnDescription = false;
 	matchOnDetail = false;
-	private _onAllVisibleSelectedChanged = new Emitter<boolean>(); // TODO: Debounce
-	onAllVisibleSelectedChanged: Event<boolean> = this._onAllVisibleSelectedChanged.event;
-	private _onSelectedCountChanged = new Emitter<number>(); // TODO: Debounce
-	onSelectedCountChanged: Event<number> = this._onSelectedCountChanged.event;
+	private _onAllVisibleCheckedChanged = new Emitter<boolean>(); // TODO: Debounce
+	onAllVisibleCheckedChanged: Event<boolean> = this._onAllVisibleCheckedChanged.event;
+	private _onCheckedCountChanged = new Emitter<number>(); // TODO: Debounce
+	onCheckedCountChanged: Event<number> = this._onCheckedCountChanged.event;
 	private _onLeave = new Emitter<void>();
 	onLeave: Event<void> = this._onLeave.event;
+	private _fireCheckedEvents = true;
 	private elementDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
 
@@ -159,11 +163,11 @@ export class QuickInputCheckboxList {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.container = dom.append(this.parent, $('.quick-input-checkbox-list'));
-		const delegate = new SelectedElementDelegate();
-		this.list = this.instantiationService.createInstance(WorkbenchList, this.container, delegate, [new SelectedElementRenderer()], {
+		const delegate = new CheckableElementDelegate();
+		this.list = this.instantiationService.createInstance(WorkbenchList, this.container, delegate, [new CheckableElementRenderer()], {
 			identityProvider: element => element.label,
 			multipleSelectionSupport: false
-		}) as WorkbenchList<SelectableElement>;
+		}) as WorkbenchList<CheckableElement>;
 		this.disposables.push(this.list);
 		this.disposables.push(this.list.onKeyDown(e => {
 			const event = new StandardKeyboardEvent(e);
@@ -171,9 +175,20 @@ export class QuickInputCheckboxList {
 				case KeyCode.Space:
 					this.toggleCheckbox();
 					break;
+				case KeyCode.KEY_A:
+					if (platform.isMacintosh ? e.metaKey : e.ctrlKey) {
+						this.list.setFocus(range(this.list.length));
+					}
+					break;
 				case KeyCode.UpArrow:
-					const focus = this.list.getFocus();
-					if (focus.length === 1 && focus[0] === 0) {
+					const focus1 = this.list.getFocus();
+					if (focus1.length === 1 && focus1[0] === 0) {
+						this._onLeave.fire();
+					}
+					break;
+				case KeyCode.DownArrow:
+					const focus2 = this.list.getFocus();
+					if (focus2.length === 1 && focus2[0] === this.list.length - 1) {
 						this._onLeave.fire();
 					}
 					break;
@@ -181,48 +196,69 @@ export class QuickInputCheckboxList {
 		}));
 	}
 
+	@memoize
 	get onFocusChange() {
 		return mapEvent(this.list.onFocusChange, e => e.elements.map(e => e.item));
 	}
 
-	getAllVisibleSelected() {
-		return !this.elements.some(element => !element.hidden && !element.selected);
+	getAllVisibleChecked() {
+		return this.allVisibleChecked(this.elements);
 	}
 
-	getSelectedCount() {
-		return this.getSelectedElements().length;
-	}
-
-	setAllVisibleSelected(select: boolean) {
-		this.elements.forEach(element => {
-			if (!element.hidden) {
-				element.selected = select;
+	private allVisibleChecked(elements: CheckableElement[]) {
+		for (let i = 0, n = elements.length; i < n; i++) {
+			const element = elements[i];
+			if (!element.hidden && !element.checked) {
+				return false;
 			}
-		});
+		}
+		return true;
+	}
+
+	getCheckedCount() {
+		let count = 0;
+		const elements = this.elements;
+		for (let i = 0, n = elements.length; i < n; i++) {
+			if (elements[i].checked) {
+				count++;
+			}
+		}
+		return count;
+	}
+
+	setAllVisibleChecked(checked: boolean) {
+		try {
+			this._fireCheckedEvents = false;
+			this.elements.forEach(element => {
+				if (!element.hidden) {
+					element.checked = checked;
+				}
+			});
+		} finally {
+			this._fireCheckedEvents = true;
+			this.fireCheckedEvents();
+		}
 	}
 
 	setElements(elements: IPickOpenEntry[]): void {
 		this.elementDisposables = dispose(this.elementDisposables);
-		this.elements = elements.map((item, index) => new SelectableElement({
+		this.elements = elements.map((item, index) => new CheckableElement({
 			index,
 			item,
-			selected: !!item.selected
+			checked: !!item.picked
 		}));
-		this.elementDisposables.push(...this.elements.map(element => element.onSelected(() => {
-			this._onAllVisibleSelectedChanged.fire(this.getAllVisibleSelected());
-			this._onSelectedCountChanged.fire(this.getSelectedCount());
-		})));
+		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
 		this.list.splice(0, this.list.length, this.elements);
 		this.list.setSelection([]);
 		this.list.focusFirst();
 	}
 
-	getSelectedElements() {
-		return this.elements.filter(e => e.selected)
+	getCheckedElements() {
+		return this.elements.filter(e => e.checked)
 			.map(e => e.item);
 	}
 
-	focus(what: 'Next' | 'Previous' | 'NextPage' | 'PreviousPage'): void {
+	focus(what: 'First' | 'Last' | 'Next' | 'Previous' | 'NextPage' | 'PreviousPage'): void {
 		this.list['focus' + what]();
 	}
 
@@ -282,13 +318,20 @@ export class QuickInputCheckboxList {
 		this.list.focusFirst();
 		this.list.layout();
 
-		this._onAllVisibleSelectedChanged.fire(this.getAllVisibleSelected());
+		this._onAllVisibleCheckedChanged.fire(this.getAllVisibleChecked());
 	}
 
 	toggleCheckbox() {
-		const elements = this.list.getFocusedElements();
-		for (const element of elements) {
-			element.selected = !element.selected;
+		try {
+			this._fireCheckedEvents = false;
+			const elements = this.list.getFocusedElements();
+			const allChecked = this.allVisibleChecked(elements);
+			for (const element of elements) {
+				element.checked = !allChecked;
+			}
+		} finally {
+			this._fireCheckedEvents = true;
+			this.fireCheckedEvents();
 		}
 	}
 
@@ -296,9 +339,16 @@ export class QuickInputCheckboxList {
 		this.elementDisposables = dispose(this.elementDisposables);
 		this.disposables = dispose(this.disposables);
 	}
+
+	private fireCheckedEvents() {
+		if (this._fireCheckedEvents) {
+			this._onAllVisibleCheckedChanged.fire(this.getAllVisibleChecked());
+			this._onCheckedCountChanged.fire(this.getCheckedCount());
+		}
+	}
 }
 
-function compareEntries(elementA: SelectableElement, elementB: SelectableElement, lookFor: string): number {
+function compareEntries(elementA: CheckableElement, elementB: CheckableElement, lookFor: string): number {
 
 	const labelHighlightsA = elementA.labelHighlights || [];
 	const labelHighlightsB = elementB.labelHighlights || [];

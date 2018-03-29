@@ -10,7 +10,6 @@
 	"neverShowAgain": "Ne plus afficher",
 	"netVersionError": "Microsoft .NET Framework 4.5 est obligatoire. Suivez le lien pour l'installer.",
 	"learnMore": "Instructions",
-	"enospcError": "{0} est à court de mémoire pour les fichiers. Veuillez suivre le lien avec les instructions pour résoudre ce problème.",
 	"binFailed": "Échec du déplacement de '{0}' vers la corbeille",
 	"trashFailed": "Échec du déplacement de '{0}' vers la corbeille"
 }

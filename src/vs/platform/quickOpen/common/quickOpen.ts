@@ -33,7 +33,7 @@ export interface IPickOpenEntry {
 	run?: (context: IEntryRunContext) => void;
 	action?: IAction;
 	payload?: any;
-	selected?: boolean;
+	picked?: boolean;
 }
 
 export interface IPickOpenItem {

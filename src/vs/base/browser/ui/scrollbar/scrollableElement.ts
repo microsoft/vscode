@@ -336,16 +336,6 @@ export abstract class AbstractScrollableElement extends Widget {
 				deltaY = 0;
 			}
 
-			if (Platform.isMacintosh) {
-				// Give preference to vertical scrolling
-				if (deltaY && Math.abs(deltaX) < 0.2) {
-					deltaX = 0;
-				}
-				if (Math.abs(deltaY) > Math.abs(deltaX) * 0.5) {
-					deltaX = 0;
-				}
-			}
-
 			const futureScrollPosition = this._scrollable.getFutureScrollPosition();
 
 			let desiredScrollPosition: INewScrollPosition = {};

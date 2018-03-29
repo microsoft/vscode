@@ -62,18 +62,24 @@ export class TerminalTaskSystem implements ITaskSystem {
 		'powershell': {
 			escape: {
 				escapeChar: '`',
-				charsToEscape: ` ()`
+				charsToEscape: ' "\'()'
 			},
 			strong: '\'',
 			weak: '"'
 		},
 		'bash': {
-			escape: '\\',
+			escape: {
+				escapeChar: '\\',
+				charsToEscape: ' "\''
+			},
 			strong: '\'',
 			weak: '"'
 		},
 		'zsh': {
-			escape: '\\',
+			escape: {
+				escapeChar: '\\',
+				charsToEscape: ' "\''
+			},
 			strong: '\'',
 			weak: '"'
 		}

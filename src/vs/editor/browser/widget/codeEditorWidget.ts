@@ -455,11 +455,11 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			return;
 		}
 		if (s && s.cursorState && s.viewState) {
-			const reducedState = this.viewModel.viewLayout.reduceRestoreState(s.viewState);
+			const reducedState = this.viewModel.reduceRestoreState(s.viewState);
 			const linesViewportData = this.viewModel.viewLayout.getLinesViewportDataAtScrollTop(reducedState.scrollTop);
-			const startViewPosition = this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.startLineNumber, 1));
-			const endViewPosition = this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.endLineNumber, 1));
-			this.model.tokenizeViewport(startViewPosition.lineNumber, endViewPosition.lineNumber);
+			const startPosition = this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.startLineNumber, 1));
+			const endPosition = this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.endLineNumber, 1));
+			this.model.tokenizeViewport(startPosition.lineNumber, endPosition.lineNumber);
 			this._view.restoreState(reducedState);
 		}
 	}

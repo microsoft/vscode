@@ -879,16 +879,12 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 	public render(result: IFilterResult, allSettingsGroups: ISettingsGroup[]): void {
 		const model = this.editor.getModel();
 		this.hiddenAreas = [];
-		this.editor.changeDecorations(changeAccessor => {
-			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
-		});
 		if (result) {
 			this.hiddenAreas = this.computeHiddenRanges(result.filteredGroups, result.allGroups, model);
-			this.editor.changeDecorations(changeAccessor => {
-				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, result.matches.map(match => this.createDecoration(match, model)));
-			});
+			this.decorationIds = this.editor.deltaDecorations(this.decorationIds, result.matches.map(match => this.createDecoration(match, model)));
 		} else {
 			this.hiddenAreas = this.computeHiddenRanges(null, allSettingsGroups, model);
+			this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
 		}
 	}
 
@@ -920,11 +916,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 	}
 
 	public dispose() {
-		if (this.decorationIds) {
-			this.decorationIds = this.editor.changeDecorations(changeAccessor => {
-				return changeAccessor.deltaDecorations(this.decorationIds, []);
-			});
-		}
+		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
 		super.dispose();
 	}
 }
@@ -940,14 +932,7 @@ export class HighlightMatchesRenderer extends Disposable {
 
 	public render(matches: IRange[]): void {
 		const model = this.editor.getModel();
-		this.editor.changeDecorations(changeAccessor => {
-			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []) || [];
-		});
-		if (matches.length) {
-			this.editor.changeDecorations(changeAccessor => {
-				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, matches.map(match => this.createDecoration(match, model))) || [];
-			});
-		}
+		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, matches.map(match => this.createDecoration(match, model)));
 	}
 
 	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
@@ -963,11 +948,7 @@ export class HighlightMatchesRenderer extends Disposable {
 	}
 
 	public dispose() {
-		if (this.decorationIds) {
-			this.decorationIds = this.editor.changeDecorations(changeAccessor => {
-				return changeAccessor.deltaDecorations(this.decorationIds, []);
-			}) || [];
-		}
+		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
 		super.dispose();
 	}
 }
@@ -1383,7 +1364,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 		} else {
 			this.markerService.remove('preferencesEditor', [this.settingsEditorModel.uri]);
 		}
-		this.editor.changeDecorations(changeAccessor => this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, ranges.map(range => this.createDecoration(range, this.editor.getModel()))));
+		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, ranges.map(range => this.createDecoration(range, this.editor.getModel())));
 	}
 
 	private createDecoration(range: IRange, model: ITextModel): IModelDeltaDecoration {
@@ -1404,11 +1385,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 
 	public dispose(): void {
 		this.markerService.remove('preferencesEditor', [this.settingsEditorModel.uri]);
-		if (this.decorationIds) {
-			this.decorationIds = this.editor.changeDecorations(changeAccessor => {
-				return changeAccessor.deltaDecorations(this.decorationIds, []);
-			});
-		}
+		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
 		super.dispose();
 	}
 
@@ -1444,8 +1421,6 @@ class WorkspaceConfigurationRenderer extends Disposable {
 		this.associatedSettingsEditorModel = associatedSettingsEditorModel;
 		// Dim other configurations in workspace configuration file only in the context of Settings Editor
 		if (this.associatedSettingsEditorModel && this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.workspaceSettingsEditorModel instanceof WorkspaceConfigurationEditorModel) {
-			this.editor.changeDecorations(changeAccessor => this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []));
-
 			const ranges: IRange[] = [];
 			for (const settingsGroup of this.workspaceSettingsEditorModel.configurationGroups) {
 				for (const section of settingsGroup.sections) {
@@ -1461,7 +1436,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 					}
 				}
 			}
-			this.editor.changeDecorations(changeAccessor => this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, ranges.map(range => this.createDecoration(range, this.editor.getModel()))));
+			this.decorationIds = this.editor.deltaDecorations(this.decorationIds, ranges.map(range => this.createDecoration(range, this.editor.getModel())));
 		}
 	}
 
@@ -1478,11 +1453,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 	}
 
 	public dispose(): void {
-		if (this.decorationIds) {
-			this.decorationIds = this.editor.changeDecorations(changeAccessor => {
-				return changeAccessor.deltaDecorations(this.decorationIds, []);
-			});
-		}
+		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
 		super.dispose();
 	}
 }

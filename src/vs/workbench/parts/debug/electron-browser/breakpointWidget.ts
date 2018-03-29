@@ -14,7 +14,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, CONTEXT_IN_BREAKPOINT_WIDGET } from 'vs/workbench/parts/debug/common/debug';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SimpleDebugEditor } from 'vs/workbench/parts/debug/electron-browser/simpleDebugEditor';
@@ -142,6 +142,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 		this.createBreakpointInput(dom.append(container, $('.inputContainer')));
 
 		this.input.getModel().setValue(this.getInputValue(this.breakpoint));
+		this.input.setPosition({ lineNumber: 1, column: this.input.getModel().getLineMaxColumn(1) });
 		// Due to an electron bug we have to do the timeout, otherwise we do not get focus
 		setTimeout(() => this.input.focus(), 100);
 	}
@@ -202,6 +203,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 
 		const options = SimpleDebugEditor.getEditorOptions();
 		this.input = scopedInstatiationService.createInstance(SimpleDebugEditor, container, options);
+		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(scopedContextKeyService).set(true);
 		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:breakpointinput`), true);
 		this.input.setModel(model);
 		this.toDispose.push(model);
@@ -217,7 +219,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 			provideCompletionItems: (model: ITextModel, position: Position, _context: SuggestContext, token: CancellationToken): Thenable<ISuggestResult> => {
 				let suggestionsPromise: TPromise<ISuggestResult>;
 				if (this.context === Context.CONDITION || this.context === Context.LOG_MESSAGE && this.isCurlyBracketOpen()) {
-					suggestionsPromise = provideSuggestionItems(this.editor.getModel(), new Position(1, 1), 'none', undefined, _context).then(suggestions => {
+					suggestionsPromise = provideSuggestionItems(this.editor.getModel(), new Position(this.lineNumber, this.column), 'none', undefined, _context).then(suggestions => {
 						return {
 							suggestions: suggestions.map(s => {
 								if (this.context === Context.CONDITION) {
@@ -283,9 +285,9 @@ class AcceptBreakpointWidgetInputAction extends EditorCommand {
 	constructor() {
 		super({
 			id: 'breakpointWidget.action.acceptInput',
-			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE, // TODO@Isidor need a more specific context key if breakpoint widget is focused
+			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
+				kbExpr: CONTEXT_IN_BREAKPOINT_WIDGET,
 				primary: KeyCode.Enter
 			}
 		});

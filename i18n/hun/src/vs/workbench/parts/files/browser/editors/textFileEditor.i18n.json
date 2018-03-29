@@ -8,6 +8,8 @@
 	],
 	"textFileEditor": "Szövegfájlszerkesztő",
 	"createFile": "Fájl létrehozása",
+	"relaunchWithIncreasedMemoryLimit": "Újraindítás",
+	"configureMemoryLimit": "Beállítás",
 	"fileEditorWithInputAriaLabel": "{0}. Szövegfájlszerkesztő.",
 	"fileEditorAriaLabel": "Szövegfájlszerkesztő"
 }

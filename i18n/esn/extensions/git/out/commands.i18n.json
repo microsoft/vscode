@@ -75,7 +75,6 @@
 	"ok": "Aceptar",
 	"push with tags success": "Insertado con etiquetas correctamente.",
 	"pick remote": "Seleccionar un elemento remoto para publicar la rama '{0}':",
-	"sync is unpredictable": "Esta acción insertará y extraerá confirmaciones en '{0}'.",
 	"never again": "No volver a mostrar ",
 	"no remotes to publish": "El repositorio no tiene remotos configurados en los que publicar.",
 	"no changes stash": "No existen cambios para el guardado provisional.",
