@@ -37,7 +37,8 @@ export class TelemetryService implements ITelemetryService {
 	private _userOptIn: boolean;
 
 	private _disposables: IDisposable[] = [];
-	private _cleanupPatterns: [RegExp, string][] = [];
+	private _cleanupPatterns: RegExp[] = [];
+	private readonly fileRegex = process.platform === 'win32' ? /[a-z,A-Z]:(\\?[\\\/]\w+)+/g : /(\/\w+)+/g;
 
 	constructor(
 		config: ITelemetryServiceConfig,
@@ -48,18 +49,11 @@ export class TelemetryService implements ITelemetryService {
 		this._piiPaths = config.piiPaths || [];
 		this._userOptIn = typeof config.userOptIn === 'undefined' ? true : config.userOptIn;
 
-		// static cleanup patterns for:
-		// #1 `file:///DANGEROUS/PATH/resources/app/Useful/Information`
-		// #2 // Any other file path that doesn't match the approved form above should be cleaned.
-		// #3 "Error: ENOENT; no such file or directory" is often followed with PII, clean it
-		this._cleanupPatterns.push(
-			[/file:\/\/\/.*?\/resources\/app\//gi, ''],
-			[/file:\/\/\/.*/gi, ''],
-			[/ENOENT: no such file or directory.*?\'([^\']+)\'/gi, 'ENOENT: no such file or directory']
-		);
+		// static cleanup pattern for: `file:///DANGEROUS/PATH/resources/app/Useful/Information`
+		this._cleanupPatterns = [/file:\/\/\/.*?\/resources\/app\//gi];
 
 		for (let piiPath of this._piiPaths) {
-			this._cleanupPatterns.push([new RegExp(escapeRegExpCharacters(piiPath), 'gi'), '']);
+			this._cleanupPatterns.push(new RegExp(escapeRegExpCharacters(piiPath), 'gi'));
 		}
 
 		if (this._configurationService) {
@@ -127,10 +121,21 @@ export class TelemetryService implements ITelemetryService {
 
 	private _cleanupInfo(stack: string): string {
 
+		const m = stack.match(this.fileRegex);
+		if (!m) {
+			return stack;
+		}
+
+		// remove file paths that do not match the cleanup patterns
+		m.forEach(x => {
+			if (this._cleanupPatterns.every(pattern => !pattern.test(x))) {
+				stack = stack.replace(x, '');
+			}
+		});
+
 		// sanitize with configured cleanup patterns
-		for (let tuple of this._cleanupPatterns) {
-			let [regexp, replaceValue] = tuple;
-			stack = stack.replace(regexp, replaceValue);
+		for (let regexp of this._cleanupPatterns) {
+			stack = stack.replace(regexp, '');
 		}
 
 		return stack;
