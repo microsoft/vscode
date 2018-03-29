@@ -27,6 +27,7 @@ import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/line
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
+import { getMapForWordSeparators, WordCharacterClass } from 'vs/editor/common/controller/wordCharacterClassifier';
 
 export interface ITextAreaHandlerHelper {
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalRange;
@@ -203,16 +204,19 @@ export class TextAreaHandler extends ViewPart {
 				if (this._accessibilitySupport === platform.AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
 					// On OSX, we write the character before the cursor to allow for "long-press" composition
+					// Also on OSX, we write the word before the cursor to allow for the Accessibility Keyboard to give good hints
 					if (platform.isMacintosh) {
 						const selection = this._selections[0];
 						if (selection.isEmpty()) {
 							const position = selection.getStartPosition();
-							if (position.column > 1) {
-								const lineContent = this._context.model.getLineContent(position.lineNumber);
-								const charBefore = lineContent.charAt(position.column - 2);
-								if (!strings.isHighSurrogate(charBefore.charCodeAt(0))) {
-									return new TextAreaState(charBefore, 1, 1, position, position);
-								}
+
+							let textBefore = this._getWordBeforePosition(position);
+							if (textBefore.length === 0) {
+								textBefore = this._getCharacterBeforePosition(position);
+							}
+
+							if (textBefore.length > 0) {
+								return new TextAreaState(textBefore, textBefore.length, textBefore.length, position, position);
 							}
 						}
 					}
@@ -326,6 +330,35 @@ export class TextAreaHandler extends ViewPart {
 
 	public dispose(): void {
 		super.dispose();
+	}
+
+	private _getWordBeforePosition(position: Position): string {
+		const lineContent = this._context.model.getLineContent(position.lineNumber);
+		const wordSeparators = getMapForWordSeparators(this._context.configuration.editor.wordSeparators);
+
+		let column = position.column;
+		let distance = 0;
+		while (column > 1) {
+			const charCode = lineContent.charCodeAt(column - 2);
+			const charClass = wordSeparators.get(charCode);
+			if (charClass !== WordCharacterClass.Regular || distance > 50) {
+				return lineContent.substring(column - 1, position.column - 1);
+			}
+			distance++;
+			column--;
+		}
+		return lineContent.substring(0, position.column - 1);
+	}
+
+	private _getCharacterBeforePosition(position: Position): string {
+		if (position.column > 1) {
+			const lineContent = this._context.model.getLineContent(position.lineNumber);
+			const charBefore = lineContent.charAt(position.column - 2);
+			if (!strings.isHighSurrogate(charBefore.charCodeAt(0))) {
+				return charBefore;
+			}
+		}
+		return '';
 	}
 
 	// --- begin event handlers
