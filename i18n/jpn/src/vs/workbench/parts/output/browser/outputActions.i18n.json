@@ -9,5 +9,6 @@
 	"toggleOutput": "出力の切り替え",
 	"clearOutput": "出力のクリア",
 	"toggleOutputScrollLock": "出力スクロール ロックの切り替え",
-	"switchToOutput.label": "出力に切り替え"
+	"switchToOutput.label": "出力に切り替え",
+	"openInLogViewer": "ログ ファイルを開く"
 }

@@ -75,7 +75,7 @@
 	"ok": "确定",
 	"push with tags success": "已成功带标签进行推送。",
 	"pick remote": "选取要将分支“{0}”发布到的远程:",
-	"sync is unpredictable": "此操作将推送提交至“{0}”，并从中拉取提交。",
+	"sync is unpredictable": "此操作将推送提交至“{0}/{1}”，并从中拉取提交。",
 	"never again": "确定，且不再显示",
 	"no remotes to publish": "存储库未配置任何要发布到的远程存储库。",
 	"no changes stash": "没有要储藏的更改。",

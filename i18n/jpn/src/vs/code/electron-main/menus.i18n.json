@@ -57,7 +57,7 @@
 	"miPaste": "貼り付け(&&P)",
 	"miFind": "検索(&&F)",
 	"miReplace": "置換(&&R)",
-	"miFindInFiles": "ファイル内を検索(&&I)",
+	"miFindInFiles": "複数ファイルから検索(&&I)",
 	"miReplaceInFiles": "複数のファイルで置換(&&I)",
 	"miEmmetExpandAbbreviation": "Emmet: 略語の展開(&&X)",
 	"miShowEmmetCommands": "Emmet(&&M)...",

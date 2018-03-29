@@ -58,6 +58,7 @@
 	"configureWorkspaceFolderRecommendedExtensions": "設定建議的延伸模組 (工作區資料夾) ",
 	"malicious tooltip": "這個延伸模組曾經被回報是有問題的。",
 	"malicious": "惡意",
+	"disabled workspace": "在此工作區停用",
 	"disableAll": "停用所有已安裝的延伸模組",
 	"disableAllWorkspace": "停用此工作區的所有已安裝延伸模組",
 	"enableAll": "啟用所有擴充功能",

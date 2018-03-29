@@ -93,6 +93,7 @@
 	"miOpenView": "&&Abrir Visualização...",
 	"miToggleFullScreen": "Alternar &&Tela Inteira",
 	"miToggleZenMode": "Alternar modo Zen",
+	"miToggleCenteredLayout": "Alternar para Layout Centralizado",
 	"miToggleMenuBar": "Alternar &&Barra de Menus",
 	"miSplitEditor": "Dividir &&editor",
 	"miToggleEditorLayout": "Alternar &&Layout do Grupo de Editor",

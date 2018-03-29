@@ -28,7 +28,6 @@
 	"warningBorder": "Cor da borda das linhas onduladas de aviso no editor.",
 	"infoForeground": "Cor do primeiro plano das linhas de informação no editor.",
 	"infoBorder": "Cor da borda das linhas de informação no editor.",
-	"overviewRulerRangeHighlight": "Visão geral da cor do marcador da régua para intervalos de destaques.",
 	"overviewRuleError": "Visão geral da cor do marcador da régua para erros.",
 	"overviewRuleWarning": "Visão geral da cor do marcador da régua para avisos.",
 	"overviewRuleInfo": "Visão geral da cor do marcador da régua para informações."

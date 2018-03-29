@@ -75,7 +75,6 @@
 	"ok": "OK",
 	"push with tags success": "Envoyé (push) avec des balises.",
 	"pick remote": "Choisissez un dépôt distant où publier la branche '{0}' :",
-	"sync is unpredictable": "Cette action effectue un transfert (Push) et un tirage (Pull) des validations à destination et en provenance de '{0}'.",
 	"never again": "OK, Ne plus afficher",
 	"no remotes to publish": "Votre dépôt n'a aucun dépôt distant configuré pour une publication.",
 	"no changes stash": "Aucune modification à remiser (stash).",

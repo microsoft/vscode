@@ -18,6 +18,7 @@
 	"debugRequest": "Yapılandırmanın istek türü. \"launch\" veya \"attach\" olabilir.",
 	"debugServer": "Sadece eklenti geliştirme hata ayıklaması için: eğer port belirtildiyse; Vs Code, bir hata ayıklama bağdaştırıcısına sunucu modunda bağlanmayı dener",
 	"debugPrelaunchTask": "Hata ayıklama oturumu başlamadan önce çalıştırılacak görev.",
+	"debugPostDebugTask": "Hata ayıklama oturumu sona erdikten sonra çalıştırılacak görev.",
 	"debugWindowsConfiguration": "Windows'a özel başlangıç yapılandırması öznitelikleri.",
 	"debugOSXConfiguration": "OS X'e özel başlangıç yapılandırması öznitelikleri.",
 	"debugLinuxConfiguration": "Linux'a özel başlangıç yapılandırması öznitelikleri.",

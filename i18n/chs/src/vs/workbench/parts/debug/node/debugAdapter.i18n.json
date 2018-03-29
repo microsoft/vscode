@@ -18,6 +18,7 @@
 	"debugRequest": "请求配置类型。可以是“启动”或“附加”。",
 	"debugServer": "仅用于调试扩展开发: 如果已指定端口，VS 代码会尝试连接到在服务器模式中运行的调试适配器",
 	"debugPrelaunchTask": "调试会话开始前要运行的任务。",
+	"debugPostDebugTask": "调试会话结束后运行的任务。",
 	"debugWindowsConfiguration": "特定于 Windows 的启动配置属性。",
 	"debugOSXConfiguration": "特定于 OS X 的启动配置属性。",
 	"debugLinuxConfiguration": "特定于 Linux 的启动配置属性。",

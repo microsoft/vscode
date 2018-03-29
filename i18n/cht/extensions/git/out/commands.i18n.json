@@ -75,7 +75,7 @@
 	"ok": "確定",
 	"push with tags success": "已成功使用標籤推送。",
 	"pick remote": "挑選要發行分支 '{0}' 的目標遠端:",
-	"sync is unpredictable": "此動作會將認可發送至 '{0}' 及從中提取認可。",
+	"sync is unpredictable": "此動作會推送認可至`{0}/{1}`並從中提取認可。",
 	"never again": "確定，不要再顯示",
 	"no remotes to publish": "您的儲存庫未設定要發行的遠端目標。",
 	"no changes stash": "沒有變更可供隱藏。",

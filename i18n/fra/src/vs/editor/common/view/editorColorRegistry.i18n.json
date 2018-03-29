@@ -28,7 +28,7 @@
 	"warningBorder": "Couleur de bordure de la ligne ondulée marquant les avertissements dans l'éditeur.",
 	"infoForeground": "Couleur de premier plan de la ligne ondulée marquant les informations dans l'éditeur.",
 	"infoBorder": "Couleur de bordure de la ligne ondulée marquant les informations dans l'éditeur.",
-	"overviewRulerRangeHighlight": "Couleur du marqueur de la règle d'aperçu pour la mise en évidence de plage.",
+	"overviewRulerRangeHighlight": "Couleur du marqueur de la règle d'aperçu pour des plages mises en surbrillance. La couleur doit ne pas être opaque pour ne pas masquer les décorations du dessous.",
 	"overviewRuleError": "Couleur du marqueur de la règle d'aperçu pour les erreurs.",
 	"overviewRuleWarning": "Couleur du marqueur de la règle d'aperçu pour les avertissements.",
 	"overviewRuleInfo": "Couleur du marqueur de la règle d'aperçu pour les informations."

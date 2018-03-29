@@ -29,6 +29,6 @@
 	"showErrors": "顯示錯誤",
 	"noFolderWorkspaceDebugError": "無法對使用中的檔案偵錯。請確認檔案已儲存在磁碟上，而且您已經為該檔案類型安裝偵錯延伸模組。",
 	"cancel": "取消",
-	"DebugTaskNotFound": "找不到 preLaunchTask '{0}'。",
-	"taskNotTracked": "無法追蹤 preLaunchTask '{0}'。"
+	"DebugTaskNotFound": "找不到工作 \"{0}\"。",
+	"taskNotTracked": "無法追蹤工作 '{0}'。"
 }

@@ -8,7 +8,7 @@
 	],
 	"neverShowAgain": "Ne jelenítse meg újra",
 	"searchMarketplace": "Keresés a piactéren",
-	"showLanguagePackExtensions": "A piactéren található olyan kiegészítő, ami lefordítja a(z) '.{0}' VS Code-ot '{0}' nyelvre",
+	"showLanguagePackExtensions": "A piactéren található olyan kiegészítő, ami lefordítja a VS Code-ot '{0}' nyelvre",
 	"dynamicWorkspaceRecommendation": "Ez a kiegészítő lehet, hogy érdekelni fogja, mert népszerű a(z) {0} forráskódtár felhasználói körében.",
 	"exeBasedRecommendation": "Ez a kiegészítő azért ajánlott, mert a következő telepítve van: {0}.",
 	"fileBasedRecommendation": "Ez a kiegészítő a közelmúltban megnyitott fájlok alapján ajánlott.",

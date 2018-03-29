@@ -8,8 +8,6 @@
 	],
 	"nextSearchIncludePattern": "Afficher le prochain Include Pattern de recherche",
 	"previousSearchIncludePattern": "Afficher le précédent Include Pattern de recherche",
-	"nextSearchExcludePattern": "Afficher le prochain Exclude Pattern de recherche",
-	"previousSearchExcludePattern": "Afficher le précédent Exclude Pattern de recherche",
 	"nextSearchTerm": "Afficher le terme de recherche suivant",
 	"previousSearchTerm": "Afficher le terme de recherche précédent",
 	"showSearchViewlet": "Afficher la zone de recherche",

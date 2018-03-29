@@ -28,7 +28,9 @@
 	"warningBorder": "A figyelmeztetéseket jelző hullámvonal keretszíne a szerkesztőablakban.",
 	"infoForeground": "Az információkat jelző hullámvonal előtérszíne a szerkesztőablakban.",
 	"infoBorder": "Az információkat jelző hullámvonal keretszíne a szerkesztőablakban. ",
-	"overviewRulerRangeHighlight": "A kiemelt tartományokat jelölő jelzések színe az áttekintősávon.",
+	"hintForeground": "Az utalásokat jelző hullámvonal előtérszíne a szerkesztőablakban.",
+	"hintBorder": "Az utalásokat jelző hullámvonal keretszíne a szerkesztőablakban.",
+	"overviewRulerRangeHighlight": "A kiemelt területeket jelölő jelzések színe az áttekintősávon. A színnek áttetszőnek kell lennie, hogy ne fedje el az alatta lévő dekorátorokat.",
 	"overviewRuleError": "A hibákat jelölő jelzések színe az áttekintősávon.",
 	"overviewRuleWarning": "A figyelmeztetéseket jelölő jelzések színe az áttekintősávon.",
 	"overviewRuleInfo": "Az információkat jelölő jelzések színe az áttekintősávon."
