@@ -1489,16 +1489,16 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	const diffInsertedOutlineColor = theme.getColor(diffInsertedOutline);
 	if (diffInsertedOutlineColor) {
-		collector.addRule(`.monaco-workbench .search-view .replaceMatch:not(:empty) { border: 1px dashed ${diffInsertedOutlineColor}; }`);
+		collector.addRule(`.monaco-workbench .search-view .replaceMatch:not(:empty) { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${diffInsertedOutlineColor}; }`);
 	}
 
 	const diffRemovedOutlineColor = theme.getColor(diffRemovedOutline);
 	if (diffRemovedOutlineColor) {
-		collector.addRule(`.monaco-workbench .search-view .replace.findInFileMatch { border: 1px dashed ${diffRemovedOutlineColor}; }`);
+		collector.addRule(`.monaco-workbench .search-view .replace.findInFileMatch { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${diffRemovedOutlineColor}; }`);
 	}
 
 	const findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);
 	if (findMatchHighlightBorder) {
-		collector.addRule(`.monaco-workbench .search-view .findInFileMatch { border: 1px dashed ${findMatchHighlightBorder}; }`);
+		collector.addRule(`.monaco-workbench .search-view .findInFileMatch { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${findMatchHighlightBorder}; }`);
 	}
 });
