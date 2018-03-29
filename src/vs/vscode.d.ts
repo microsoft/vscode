@@ -3750,28 +3750,28 @@ declare module 'vscode' {
 		message: string;
 
 		/**
-		 * A human-readable string describing the source of this
-		 * diagnostic, e.g. 'typescript' or 'super lint'.
-		 */
-		source: string;
-
-		/**
 		 * The severity, default is [error](#DiagnosticSeverity.Error).
 		 */
 		severity: DiagnosticSeverity;
+
+		/**
+		 * A human-readable string describing the source of this
+		 * diagnostic, e.g. 'typescript' or 'super lint'.
+		 */
+		source?: string;
 
 		/**
 		 * A code or identifier for this diagnostics. Will not be surfaced
 		 * to the user, but should be used for later processing, e.g. when
 		 * providing [code actions](#CodeActionContext).
 		 */
-		code: string | number;
+		code?: string | number;
 
 		/**
 		 * An array of related diagnostic information, e.g. when symbol-names within
 		 * a scope collide all definitions can be marked via this property.
 		 */
-		relatedInformation: DiagnosticRelatedInformation[];
+		relatedInformation?: DiagnosticRelatedInformation[];
 
 		/**
 		 * Creates a new diagnostic object.
