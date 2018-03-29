@@ -202,17 +202,21 @@ export class QuickInputCheckboxList {
 	}
 
 	getAllVisibleChecked() {
-		return this.allVisibleChecked(this.elements);
+		return this.allVisibleChecked(this.elements, false);
 	}
 
-	private allVisibleChecked(elements: CheckableElement[]) {
+	private allVisibleChecked(elements: CheckableElement[], whenNoneVisible = true) {
 		for (let i = 0, n = elements.length; i < n; i++) {
 			const element = elements[i];
-			if (!element.hidden && !element.checked) {
-				return false;
+			if (!element.hidden) {
+				if (!element.checked) {
+					return false;
+				} else {
+					whenNoneVisible = true;
+				}
 			}
 		}
-		return true;
+		return whenNoneVisible;
 	}
 
 	getCheckedCount() {
