@@ -135,19 +135,32 @@ const star = 42;
 
 export function parsePartialStylesheet(document: vscode.TextDocument, position: vscode.Position): Stylesheet | undefined {
 	const isCSS = document.languageId === 'css';
+	const singleLineCommentIndex = document.lineAt(position.line).text.indexOf('//');
+	if (!isCSS && singleLineCommentIndex > -1 && singleLineCommentIndex < position.character) {
+		return;
+	}
+
 	let startPosition = new vscode.Position(0, 0);
 	let endPosition = new vscode.Position(document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length);
 	const limitCharacter = document.offsetAt(position) - 5000;
 	const limitPosition = limitCharacter > 0 ? document.positionAt(limitCharacter) : startPosition;
 	const stream = new DocumentStreamReader(document, position);
 
+	function consumeLineCommentBackwards() {
+		if (!isCSS && currentLine !== stream.pos.line) {
+			currentLine = stream.pos.line;
+			let startLineComment = document.lineAt(currentLine).text.indexOf('//');
+			if (startLineComment > -1) {
+				stream.pos = new vscode.Position(currentLine, startLineComment);
+			}
+		}
+	}
 
-	function consumeCommentBackwards() {
+	function consumeBlockCommentBackwards() {
 		if (stream.peek() === slash) {
-			let character = stream.backUp(1);
-			if (character === star) {
+			if (stream.backUp(1) === star) {
 				stream.pos = findOpeningCommentBeforePosition(document, stream.pos) || startPosition;
-			} else if (character !== slash) {
+			} else {
 				stream.next();
 			}
 		}
@@ -178,10 +191,13 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 
 	stream.pos = position;
 	let openBracesToFind = 1;
+	let currentLine = position.line;
 	let exit = false;
 
 	// Go back until we found an opening brace. If we find a closing one, consume its pair and continue.
 	while (!exit && openBracesToFind > 0 && !stream.sof()) {
+		consumeLineCommentBackwards();
+
 		switch (stream.backUp(1)) {
 			case openBrace:
 				openBracesToFind--;
@@ -196,7 +212,7 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 				}
 				break;
 			case slash:
-				consumeCommentBackwards();
+				consumeBlockCommentBackwards();
 				break;
 			case star:
 				if (stream.backUp(1) === slash) {
@@ -214,9 +230,12 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 	}
 
 	// We are at an opening brace. We need to include its selector.
+	currentLine = stream.pos.line;
 	openBracesToFind = 0;
 	let foundSelector = false;
 	while (!exit && !stream.sof() && !foundSelector && openBracesToFind >= 0) {
+
+		consumeLineCommentBackwards();
 
 		const ch = stream.backUp(1);
 		if (/\s/.test(String.fromCharCode(ch))) {
@@ -225,7 +244,7 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 
 		switch (ch) {
 			case slash:
-				consumeCommentBackwards();
+				consumeBlockCommentBackwards();
 				break;
 			case closeBrace:
 				openBracesToFind++;
@@ -476,7 +495,7 @@ export function getEmmetConfiguration(syntax: string) {
 }
 
 /**
- * Itereates by each child, as well as nested child's children, in their order
+ * Itereates by each child, as well as nested child’ children, in their order
  * and invokes `fn` for each. If `fn` function returns `false`, iteration stops
  */
 export function iterateCSSToken(token: CssToken, fn: (x: any) => any) {
