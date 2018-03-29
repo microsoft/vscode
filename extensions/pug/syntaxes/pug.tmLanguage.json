@@ -894,7 +894,7 @@
 				}
 			},
 			"match": "\\.([^\\w-])?[\\w-]*",
-			"name": "entity.other.attribute-name.class.jade"
+			"name": "entity.other.attribute-name.class.css.jade"
 		},
 		"tag_id": {
 			"match": "#[\\w-]+",
