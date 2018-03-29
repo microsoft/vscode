@@ -13,7 +13,7 @@ import { Dimension } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { buttonBackground, buttonForeground, contrastBorder, buttonHoverBackground, widgetShadow, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { buttonBackground, buttonForeground, contrastBorder, buttonHoverBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -305,23 +305,5 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (buttonHoverBackgroundColor) {
 		collector.addRule(`.quick-input-action:hover { background-color: ${buttonHoverBackgroundColor}; }`);
 		collector.addRule(`.quick-input-action:focus { background-color: ${buttonHoverBackgroundColor}; }`);
-	}
-
-	// Overwrite inactive focus and selection colors with active ones.
-	const listInactiveFocusBackgroundColor = theme.getColor(listFocusBackground);
-	if (listInactiveFocusBackgroundColor) {
-		collector.addRule(`.quick-input-widget .monaco-list .monaco-list-row.focused { background-color:  ${listInactiveFocusBackgroundColor}; }`);
-		collector.addRule(`.quick-input-widget .monaco-list .monaco-list-row.focused:hover { background-color:  ${listInactiveFocusBackgroundColor}; }`); // overwrite :hover style in this case!
-	}
-
-	const listInactiveSelectionBackgroundColor = theme.getColor(listActiveSelectionBackground);
-	if (listInactiveSelectionBackgroundColor) {
-		collector.addRule(`.quick-input-widget .monaco-list .monaco-list-row.selected { background-color:  ${listInactiveSelectionBackgroundColor}; }`);
-		collector.addRule(`.quick-input-widget .monaco-list .monaco-list-row.selected:hover { background-color:  ${listInactiveSelectionBackgroundColor}; }`); // overwrite :hover style in this case!
-	}
-
-	const listInactiveSelectionForegroundColor = theme.getColor(listActiveSelectionForeground);
-	if (listInactiveSelectionForegroundColor) {
-		collector.addRule(`.quick-input-widget .monaco-list .monaco-list-row.selected { color: ${listInactiveSelectionForegroundColor}; }`);
 	}
 });
