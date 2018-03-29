@@ -184,10 +184,10 @@
 	flex: 1;
 }
 
-.search-view .monaco-tree .monaco-tree-row:hover:not(.highlighted) .foldermatch .monaco-icon-label,
-.search-view .monaco-tree .monaco-tree-row.focused .foldermatch .monaco-icon-label,
-.search-view .monaco-tree .monaco-tree-row:hover:not(.highlighted) .filematch .monaco-icon-label,
-.search-view .monaco-tree .monaco-tree-row.focused .filematch .monaco-icon-label {
+.search-view:not(.wide) .monaco-tree .monaco-tree-row:hover:not(.highlighted) .foldermatch .monaco-icon-label,
+.search-view:not(.wide) .monaco-tree .monaco-tree-row.focused .foldermatch .monaco-icon-label,
+.search-view:not(.wide) .monaco-tree .monaco-tree-row:hover:not(.highlighted) .filematch .monaco-icon-label,
+.search-view:not(.wide) .monaco-tree .monaco-tree-row.focused .filematch .monaco-icon-label {
 	flex: 1;
 }
 
@@ -282,13 +282,22 @@
 	margin-right: 12px;
 }
 
-.search-view > .results > .monaco-tree .monaco-tree-row:hover .content .filematch .monaco-count-badge,
-.search-view > .results > .monaco-tree .monaco-tree-row:hover .content .foldermatch .monaco-count-badge,
-.search-view > .results > .monaco-tree .monaco-tree-row:hover .content .linematch .monaco-count-badge,
-.search-view > .results > .monaco-tree .monaco-tree-row.focused .content .filematch .monaco-count-badge,
-.search-view > .results > .monaco-tree .monaco-tree-row.focused .content .foldermatch .monaco-count-badge,
-.search-view > .results > .monaco-tree .monaco-tree-row.focused .content .linematch .monaco-count-badge {
+.search-view:not(.wide) > .results > .monaco-tree .monaco-tree-row:hover .content .filematch .monaco-count-badge,
+.search-view:not(.wide) > .results > .monaco-tree .monaco-tree-row:hover .content .foldermatch .monaco-count-badge,
+.search-view:not(.wide) > .results > .monaco-tree .monaco-tree-row:hover .content .linematch .monaco-count-badge,
+.search-view:not(.wide) > .results > .monaco-tree .monaco-tree-row.focused .content .filematch .monaco-count-badge,
+.search-view:not(.wide) > .results > .monaco-tree .monaco-tree-row.focused .content .foldermatch .monaco-count-badge,
+.search-view:not(.wide) > .results > .monaco-tree .monaco-tree-row.focused .content .linematch .monaco-count-badge {
 	display: none;
+}
+
+.search-view.wide > .results > .monaco-tree .monaco-tree-row:hover .content .filematch .badge,
+.search-view.wide > .results > .monaco-tree .monaco-tree-row:hover .content .foldermatch .badge,
+.search-view.wide > .results > .monaco-tree .monaco-tree-row:hover .content .linematch .badge,
+.search-view.wide > .results > .monaco-tree .monaco-tree-row.focused .content .filematch .badge,
+.search-view.wide > .results > .monaco-tree .monaco-tree-row.focused .content .foldermatch .badge,
+.search-view.wide > .results > .monaco-tree .monaco-tree-row.focused .content .linematch .badge {
+	flex: 1;
 }
 
 .search-view .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove,
