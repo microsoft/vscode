@@ -47,6 +47,7 @@
 	margin-left: 6px;
 	border: 0;
 	padding: 6px;
+	cursor: pointer;
 }
 
 .quick-input-action:focus {
