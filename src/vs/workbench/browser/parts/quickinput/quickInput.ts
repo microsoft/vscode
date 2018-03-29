@@ -82,6 +82,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 			const checked = this.checkAll.checked;
 			this.checkboxList.setAllVisibleChecked(checked);
 		}));
+		this.toUnbind.push(dom.addDisposableListener(this.checkAll, dom.EventType.CLICK, e => {
+			if (e.x || e.y) { // Avoid 'click' triggered by 'space'...
+				this.inputBox.setFocus();
+			}
+		}));
 
 		const filterContainer = dom.append(headerContainer, $('.quick-input-filter'));
 
