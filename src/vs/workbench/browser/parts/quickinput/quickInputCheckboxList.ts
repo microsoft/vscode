@@ -194,6 +194,11 @@ export class QuickInputCheckboxList {
 					break;
 			}
 		}));
+		this.disposables.push(dom.addDisposableListener(this.container, dom.EventType.CLICK, e => {
+			if (e.x || e.y) { // Avoid 'click' triggered by 'space' on checkbox.
+				this._onLeave.fire();
+			}
+		}));
 	}
 
 	@memoize
