@@ -135,11 +135,6 @@ const star = 42;
 
 export function parsePartialStylesheet(document: vscode.TextDocument, position: vscode.Position): Stylesheet | undefined {
 	const isCSS = document.languageId === 'css';
-	const singleLineCommentIndex = document.lineAt(position.line).text.indexOf('//');
-	if (!isCSS && singleLineCommentIndex > -1 && singleLineCommentIndex < position.character) {
-		return;
-	}
-
 	let startPosition = new vscode.Position(0, 0);
 	let endPosition = new vscode.Position(document.lineCount - 1, document.lineAt(document.lineCount - 1).text.length);
 	const limitCharacter = document.offsetAt(position) - 5000;
@@ -213,12 +208,6 @@ export function parsePartialStylesheet(document: vscode.TextDocument, position: 
 				break;
 			case slash:
 				consumeBlockCommentBackwards();
-				break;
-			case star:
-				if (stream.backUp(1) === slash) {
-					return;
-				}
-				stream.next();
 				break;
 			default:
 				break;
@@ -495,7 +484,7 @@ export function getEmmetConfiguration(syntax: string) {
 }
 
 /**
- * Itereates by each child, as well as nested child’ children, in their order
+ * Itereates by each child, as well as nested child's children, in their order
  * and invokes `fn` for each. If `fn` function returns `false`, iteration stops
  */
 export function iterateCSSToken(token: CssToken, fn: (x: any) => any) {
