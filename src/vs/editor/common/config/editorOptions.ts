@@ -501,6 +501,11 @@ export interface IEditorOptions {
 	 */
 	folding?: boolean;
 	/**
+	 * Selects the folding strategy. 'auto' uses the strategies contributed for the current document, 'indentation' uses the indentation based folding strategy.
+	 * Defaults to 'auto'.
+	 */
+	foldingStrategy?: 'auto' | 'indentation';
+	/**
 	 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 	 * Defaults to 'mouseover'.
 	 */
@@ -838,6 +843,7 @@ export interface EditorContribOptions {
 	readonly occurrencesHighlight: boolean;
 	readonly codeLens: boolean;
 	readonly folding: boolean;
+	readonly foldingStrategy: 'auto' | 'indentation';
 	readonly showFoldingControls: 'always' | 'mouseover';
 	readonly matchBrackets: boolean;
 	readonly find: InternalEditorFindOptions;
@@ -1188,6 +1194,7 @@ export class InternalEditorOptions {
 			&& a.occurrencesHighlight === b.occurrencesHighlight
 			&& a.codeLens === b.codeLens
 			&& a.folding === b.folding
+			&& a.foldingStrategy === b.foldingStrategy
 			&& a.showFoldingControls === b.showFoldingControls
 			&& a.matchBrackets === b.matchBrackets
 			&& this._equalFindOptions(a.find, b.find)
@@ -1727,6 +1734,7 @@ export class EditorOptionsValidator {
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
 			codeLens: _boolean(opts.codeLens, defaults.codeLens) && _boolean(opts.referenceInfos, true),
 			folding: _boolean(opts.folding, defaults.folding),
+			foldingStrategy: _stringSet<'auto' | 'indentation'>(opts.foldingStrategy, defaults.foldingStrategy, ['auto', 'indentation']),
 			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
 			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
 			find: find,
@@ -1828,6 +1836,7 @@ export class InternalEditorOptionsFactory {
 				occurrencesHighlight: (accessibilityIsOn ? false : opts.contribInfo.occurrencesHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
 				codeLens: (accessibilityIsOn ? false : opts.contribInfo.codeLens), // DISABLED WHEN SCREEN READER IS ATTACHED
 				folding: (accessibilityIsOn ? false : opts.contribInfo.folding), // DISABLED WHEN SCREEN READER IS ATTACHED
+				foldingStrategy: opts.contribInfo.foldingStrategy,
 				showFoldingControls: opts.contribInfo.showFoldingControls,
 				matchBrackets: (accessibilityIsOn ? false : opts.contribInfo.matchBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
 				find: opts.contribInfo.find,
@@ -2283,6 +2292,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		occurrencesHighlight: true,
 		codeLens: true,
 		folding: true,
+		foldingStrategy: 'auto',
 		showFoldingControls: 'mouseover',
 		matchBrackets: true,
 		find: {
