@@ -56,8 +56,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		this._fileProvider.get(handle).$onFileSystemChange(changes);
 	}
 
-	$reportFileChunk(handle: number, session: number, chunk: number[]): void {
-		this._fileProvider.get(handle).reportFileChunk(session, chunk);
+	$reportFileChunk(handle: number, session: number, base64Chunk: string): void {
+		this._fileProvider.get(handle).reportFileChunk(session, base64Chunk);
 	}
 
 	// --- search
@@ -126,11 +126,14 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 			return value;
 		});
 	}
-	reportFileChunk(session: number, chunk: number[]): void {
-		this._reads.get(session).progress.report(Buffer.from(chunk));
+	reportFileChunk(session: number, encodedChunk: string): void {
+		this._reads.get(session).progress.report(Buffer.from(encodedChunk, 'base64'));
 	}
 	write(resource: URI, content: Uint8Array): TPromise<void, any> {
-		return this._proxy.$write(this._handle, resource, [].slice.call(content));
+		let encoded = Buffer.isBuffer(content)
+			? content.toString('base64')
+			: Buffer.from(content.buffer).toString('base64');
+		return this._proxy.$write(this._handle, resource, encoded);
 	}
 	unlink(resource: URI): TPromise<void, any> {
 		return this._proxy.$unlink(this._handle, resource);
