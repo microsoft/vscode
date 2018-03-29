@@ -41,7 +41,7 @@ suite('Completions', () => {
 		const position = document.positionAt(offset);
 
 		if (!workspaceFolders) {
-			workspaceFolders = [{ name: 'x', uri: path.dirname(testUri) }];
+			workspaceFolders = [{ name: 'x', uri: testUri.substr(0, testUri.lastIndexOf('/')) }];
 		}
 
 		let participantResult = CompletionList.create([]);
@@ -62,13 +62,14 @@ suite('Completions', () => {
 	}
 
 	test('CSS Path completion', function () {
-		let testUri = Uri.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).fsPath;
+		let testUri = Uri.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
+		let folders = [{ name: 'x', uri: Uri.file(path.resolve(__dirname, '../../test')).toString() }];
 
 		assertCompletions('html { background-image: url("./|")', {
 			items: [
 				{ label: 'about.html', resultText: 'html { background-image: url("./about.html")' }
 			]
-		}, testUri);
+		}, testUri, folders);
 
 		assertCompletions(`html { background-image: url('../|')`, {
 			items: [
@@ -76,7 +77,7 @@ suite('Completions', () => {
 				{ label: 'index.html', resultText: `html { background-image: url('../index.html')` },
 				{ label: 'src/', resultText: `html { background-image: url('../src/')` }
 			]
-		}, testUri);
+		}, testUri, folders);
 
 		assertCompletions(`html { background-image: url('../src/a|')`, {
 			items: [
@@ -84,12 +85,39 @@ suite('Completions', () => {
 				{ label: 'data/', resultText: `html { background-image: url('../src/data/')` },
 				{ label: 'test.js', resultText: `html { background-image: url('../src/test.js')` }
 			]
-		}, testUri);
+		}, testUri, folders);
 
 		assertCompletions(`html { background-image: url('../src/data/f|.asar')`, {
 			items: [
 				{ label: 'foo.asar', resultText: `html { background-image: url('../src/data/foo.asar')` }
 			]
-		}, testUri);
+		}, testUri, folders);
+
+		assertCompletions(`html { background-image: url('|')`, {
+			items: [
+				{ label: 'about.css', resultText: `html { background-image: url('about.css')` },
+				{ label: 'about.html', resultText: `html { background-image: url('about.html')` },
+			]
+		}, testUri, folders);
+
+		assertCompletions(`html { background-image: url('/|')`, {
+			items: [
+				{ label: 'pathCompletionFixtures/', resultText: `html { background-image: url('/pathCompletionFixtures/')` }
+			]
+		}, testUri, folders);
+
+		assertCompletions(`html { background-image: url('/pathCompletionFixtures/|')`, {
+			items: [
+				{ label: 'about/', resultText: `html { background-image: url('/pathCompletionFixtures/about/')` },
+				{ label: 'index.html', resultText: `html { background-image: url('/pathCompletionFixtures/index.html')` },
+				{ label: 'src/', resultText: `html { background-image: url('/pathCompletionFixtures/src/')` }
+			]
+		}, testUri, folders);
+
+		assertCompletions(`html { background-image: url("/|")`, {
+			items: [
+				{ label: 'pathCompletionFixtures/', resultText: `html { background-image: url("/pathCompletionFixtures/")` }
+			]
+		}, testUri, folders);
 	});
 });

@@ -54,16 +54,11 @@ export function providePathSuggestions(value: string, range: Range, activeDocFsP
 		replaceRange = getReplaceRange(range, valueAfterLastSlash);
 	}
 
-	let parentDir: string;
-	if (lastIndexOfSlash === -1) {
-		parentDir = path.resolve(root);
-	} else {
-		const valueBeforeLastSlash = value.slice(0, lastIndexOfSlash + 1);
+	const valueBeforeLastSlash = value.slice(0, lastIndexOfSlash + 1);
 
-		parentDir = startsWith(value, '/')
-			? path.resolve(root, '.' + valueBeforeLastSlash)
-			: path.resolve(activeDocFsPath, '..', valueBeforeLastSlash);
-	}
+	const parentDir = startsWith(value, '/')
+		? path.resolve(root, '.' + valueBeforeLastSlash)
+		: path.resolve(activeDocFsPath, '..', valueBeforeLastSlash);
 
 	try {
 		return fs.readdirSync(parentDir).map(f => {
