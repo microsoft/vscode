@@ -166,6 +166,7 @@ suite('HTML Path Completion', () => {
 	});
 
 	test('Empty Path Value', () => {
+		// document: index.html
 		testCompletionFor('<script src="|">', {
 			items: [
 				{ label: 'about/', resultText: '<script src="about/">' },
@@ -173,8 +174,15 @@ suite('HTML Path Completion', () => {
 				{ label: 'src/', resultText: '<script src="src/">' },
 			]
 		}, indexHtmlUri);
+		// document: about.html
+		testCompletionFor('<script src="|">', {
+			items: [
+				{ label: 'about.css', resultText: '<script src="about.css">' },
+				{ label: 'about.html', resultText: '<script src="about.html">' },
+				{ label: 'media/', resultText: '<script src="media/">' },
+			]
+		}, aboutHtmlUri);
 	});
-
 	test('Incomplete Path', () => {
 		testCompletionFor('<script src="/src/f|">', {
 			items: [
@@ -192,6 +200,7 @@ suite('HTML Path Completion', () => {
 	});
 
 	test('No leading dot or slash', () => {
+		// document: index.html
 		testCompletionFor('<script src="s|">', {
 			items: [
 				{ label: 'about/', resultText: '<script src="about/">' },
@@ -213,9 +222,31 @@ suite('HTML Path Completion', () => {
 				{ label: 'test.js', resultText: '<script src="src/test.js">' },
 			]
 		}, indexHtmlUri, [fixtureWorkspace]);
+
+		// document: about.html
+		testCompletionFor('<script src="s|">', {
+			items: [
+				{ label: 'about.css', resultText: '<script src="about.css">' },
+				{ label: 'about.html', resultText: '<script src="about.html">' },
+				{ label: 'media/', resultText: '<script src="media/">' },
+			]
+		}, aboutHtmlUri, [fixtureWorkspace]);
+
+		testCompletionFor('<script src="media/|">', {
+			items: [
+				{ label: 'icon.pic', resultText: '<script src="media/icon.pic">' }
+			]
+		}, aboutHtmlUri, [fixtureWorkspace]);
+
+		testCompletionFor('<script src="media/f|">', {
+			items: [
+				{ label: 'icon.pic', resultText: '<script src="media/icon.pic">' }
+			]
+		}, aboutHtmlUri, [fixtureWorkspace]);
 	});
 
 	test('Trigger completion in middle of path', () => {
+		// document: index.html
 		testCompletionFor('<script src="src/f|eature.js">', {
 			items: [
 				{ label: 'feature.js', resultText: '<script src="src/feature.js">' },
@@ -230,7 +261,23 @@ suite('HTML Path Completion', () => {
 				{ label: 'src/', resultText: '<script src="src/">' },
 			]
 		}, indexHtmlUri, [fixtureWorkspace]);
+
+		// document: about.html
+		testCompletionFor('<script src="media/f|eature.js">', {
+			items: [
+				{ label: 'icon.pic', resultText: '<script src="media/icon.pic">' }
+			]
+		}, aboutHtmlUri, [fixtureWorkspace]);
+
+		testCompletionFor('<script src="m|edia/feature.js">', {
+			items: [
+				{ label: 'about.css', resultText: '<script src="about.css">' },
+				{ label: 'about.html', resultText: '<script src="about.html">' },
+				{ label: 'media/', resultText: '<script src="media/">' },
+			]
+		}, aboutHtmlUri, [fixtureWorkspace]);
 	});
+
 
 	test('Trigger completion in middle of path and with whitespaces', () => {
 		testCompletionFor('<script src="./| about/about.html>', {
