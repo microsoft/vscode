@@ -14,31 +14,31 @@ This project incorporates components from the projects listed below. The origina
 7.	atom/language-sass version 0.52.0 (https://github.com/atom/language-sass)
 8.	atom/language-shellscript (https://github.com/atom/language-shellscript)
 9.	atom/language-xml (https://github.com/atom/language-xml)
-10.	Benvie/JavaScriptNext.tmLanguage (https://github.com/Microsoft/vscode-JSON.tmLanguage)
-11.	chjj-marked version 0.3.12 (https://github.com/npmcomponent/chjj-marked)
-12.	chriskempson/tomorrow-theme (https://github.com/chriskempson/tomorrow-theme)
-13.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
-14.	daaain/Handlebars (https://github.com/daaain/Handlebars)
-15.	davidrios/jade-tmbundle (https://github.com/davidrios/jade-tmbundle)
-16.	definitelytyped (https://github.com/DefinitelyTyped/DefinitelyTyped)
-17.	demyte/language-cshtml (https://github.com/demyte/language-cshtml)
-18.	dotnet/csharp-tmLanguage version 0.1.0 (https://github.com/dotnet/csharp-tmLanguage)
-19.	expand-abbreviation version 0.5.8 (https://github.com/emmetio/expand-abbreviation)
-20.	fadeevab/make.tmbundle (https://github.com/fadeevab/make.tmbundle)
-21.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
-22.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
-23.	Ikuyadeu/vscode-R (https://github.com/Ikuyadeu/vscode-R)
-24.	Ionic documentation version 1.2.4 (https://github.com/ionic-team/ionic-site)
-25.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
-26.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
-27.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
-28.	language-docker (https://github.com/moby/moby)
-29.	language-go version 0.39.0 (https://github.com/atom/language-go)
-30.	language-less (https://github.com/atom/language-less)
-31.	language-php (https://github.com/atom/language-php)
-32.	language-rust version 0.4.9 (https://github.com/zargony/atom-language-rust)
-33.	MagicStack/MagicPython (https://github.com/MagicStack/MagicPython)
-34.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
+10.	chjj-marked version 0.3.18 (https://github.com/npmcomponent/chjj-marked)
+11.	chriskempson/tomorrow-theme (https://github.com/chriskempson/tomorrow-theme)
+12.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
+13.	daaain/Handlebars (https://github.com/daaain/Handlebars)
+14.	davidrios/jade-tmbundle (https://github.com/davidrios/jade-tmbundle)
+15.	definitelytyped (https://github.com/DefinitelyTyped/DefinitelyTyped)
+16.	demyte/language-cshtml (https://github.com/demyte/language-cshtml)
+17.	dotnet/csharp-tmLanguage version 0.1.0 (https://github.com/dotnet/csharp-tmLanguage)
+18.	expand-abbreviation version 0.5.8 (https://github.com/emmetio/expand-abbreviation)
+19.	fadeevab/make.tmbundle (https://github.com/fadeevab/make.tmbundle)
+20.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
+21.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
+22.	Ikuyadeu/vscode-R (https://github.com/Ikuyadeu/vscode-R)
+23.	Ionic documentation version 1.2.4 (https://github.com/ionic-team/ionic-site)
+24.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
+25.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
+26.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
+27.	language-docker (https://github.com/moby/moby)
+28.	language-go version 0.39.0 (https://github.com/atom/language-go)
+29.	language-less (https://github.com/atom/language-less)
+30.	language-php (https://github.com/atom/language-php)
+31.	language-rust version 0.4.9 (https://github.com/zargony/atom-language-rust)
+32.	MagicStack/MagicPython (https://github.com/MagicStack/MagicPython)
+33.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
+34.	Microsoft/vscode-JSON.tmLanguage (https://github.com/Microsoft/vscode-JSON.tmLanguage)
 35.	Microsoft/vscode-mssql (https://github.com/Microsoft/vscode-mssql)
 36.	mmims/language-batchfile (https://github.com/mmims/language-batchfile)
 37.	octicons-code version 3.1.0 (https://octicons.github.com)
@@ -445,30 +445,6 @@ express or implied warranty, and with no claim as to its
 suitability for any purpose.
 =========================================
 END OF atom/language-xml NOTICES AND INFORMATION
-
-%% Benvie/JavaScriptNext.tmLanguage NOTICES AND INFORMATION BEGIN HERE
-=========================================
-vscode-JSON.tmLanguage
-
-Copyright (c) Microsoft Corporation
-
-All rights reserved.
-
-MIT License
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-documentation files (the ""Software""), to deal in the Software without restriction, including without limitation
-the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
-and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
-CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-=========================================
-END OF Benvie/JavaScriptNext.tmLanguage NOTICES AND INFORMATION
 
 %% chjj-marked NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -1325,6 +1301,30 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 =========================================
 END OF Microsoft/TypeScript-TmLanguage NOTICES AND INFORMATION
+
+%% Microsoft/vscode-JSON.tmLanguage NOTICES AND INFORMATION BEGIN HERE
+=========================================
+vscode-JSON.tmLanguage
+
+Copyright (c) Microsoft Corporation
+
+All rights reserved.
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+documentation files (the ""Software""), to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
+and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+=========================================
+END OF Microsoft/vscode-JSON.tmLanguage NOTICES AND INFORMATION
 
 %% Microsoft/vscode-mssql NOTICES AND INFORMATION BEGIN HERE
 =========================================
