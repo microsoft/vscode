@@ -151,8 +151,16 @@ export class CodeWindow implements ICodeWindow {
 
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 
+		if (isMacintosh) {
+			options.acceptFirstMouse = true; // enabled by default
+
+			if (windowConfig && windowConfig.clickThroughInactive === false) {
+				options.acceptFirstMouse = false;
+			}
+		}
+
 		let useNativeTabs = false;
-		if (windowConfig && windowConfig.nativeTabs) {
+		if (isMacintosh && windowConfig && windowConfig.nativeTabs === true) {
 			options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
 			useNativeTabs = true;
 		}

@@ -226,6 +226,7 @@ export interface IWindowSettings {
 	enableMenuBarMnemonics: boolean;
 	closeWhenEmpty: boolean;
 	smoothScrollingWorkaround: boolean;
+	clickThroughInactive: boolean;
 }
 
 export enum OpenContext {

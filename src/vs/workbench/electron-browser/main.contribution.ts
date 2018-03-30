@@ -412,6 +412,12 @@ configurationRegistry.registerConfiguration({
 			'default': false,
 			'description': nls.localize('window.smoothScrollingWorkaround', "Enable this workaround if scrolling is no longer smooth after restoring a minimized VS Code window. This is a workaround for an issue (https://github.com/Microsoft/vscode/issues/13612) where scrolling starts to lag on devices with precision trackpads like the Surface devices from Microsoft. Enabling this workaround can result in a little bit of layout flickering after restoring the window from minimized state but is otherwise harmless."),
 			'included': isWindows
+		},
+		'window.clickThroughInactive': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and execute the element under the mouse. If disabled, clicking anywhere on an inactive window will activate it only, without executing the element under the mouse."),
+			'included': isMacintosh
 		}
 	}
 });
