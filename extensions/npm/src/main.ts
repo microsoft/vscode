@@ -5,7 +5,6 @@
 'use strict';
 
 import * as path from 'path';
-import * as fs from 'fs';
 import * as httpRequest from 'request-light';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
@@ -15,39 +14,10 @@ const localize = nls.loadMessageBundle();
 
 import { addJSONProviders } from './features/jsonContributions';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { NpmTaskDefinition, ScriptValidator, isWorkspaceFolder } from './tasks';
+import { NpmTaskDefinition, getScripts } from './tasks';
 
 type AutoDetect = 'on' | 'off';
 let taskProvider: vscode.Disposable | undefined;
-
-class Validator implements ScriptValidator {
-	async scriptIsValid(task: vscode.Task): Promise<boolean> {
-		let uri: vscode.Uri | null = this.getPackageJsonUri(task);
-		if (uri) {
-			let tasks = await provideNpmScriptsForFolder(uri);
-			for (let i = 0; i < tasks.length; i++) {
-				const t = tasks[i];
-				if (isWorkspaceFolder(task.scope) && isWorkspaceFolder(task.scope)) {
-					if (t.name === task.name && t.scope === task.scope && (<vscode.ShellExecution>(t.execution)).commandLine === (<vscode.ShellExecution>(task.execution)).commandLine) {
-						return true;
-					}
-				}
-			}
-		}
-		return false;
-	}
-
-	getPackageJsonUri(task: vscode.Task): vscode.Uri | null {
-		if (isWorkspaceFolder(task.scope)) {
-			if (task.definition.path) {
-				return vscode.Uri.file(path.join(task.scope.uri.fsPath, task.definition.path, 'package.json'));
-			} else {
-				return vscode.Uri.file(path.join(task.scope.uri.fsPath, 'package.json'));
-			}
-		}
-		return null;
-	}
-}
 
 export function activate(context: vscode.ExtensionContext): void {
 	let provider: vscode.TaskProvider = {
@@ -60,7 +30,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	};
 	taskProvider = vscode.workspace.registerTaskProvider('npm', provider);
 
-	vscode.window.registerTreeDataProvider('npm', new NpmScriptsTreeDataProvider(context, provider, new Validator()));
+	vscode.window.registerTreeDataProvider('npm', new NpmScriptsTreeDataProvider(context, provider, localize));
 
 	if (!vscode.workspace.workspaceFolders) {
 		return;
@@ -81,25 +51,6 @@ export function deactivate(): void {
 	if (taskProvider) {
 		taskProvider.dispose();
 	}
-}
-
-async function exists(file: string): Promise<boolean> {
-	return new Promise<boolean>((resolve, _reject) => {
-		fs.exists(file, (value) => {
-			resolve(value);
-		});
-	});
-}
-
-async function readFile(file: string): Promise<string> {
-	return new Promise<string>((resolve, reject) => {
-		fs.readFile(file, (err, data) => {
-			if (err) {
-				reject(err);
-			}
-			resolve(data.toString());
-		});
-	});
 }
 
 const buildNames: string[] = ['build', 'compile', 'watch'];
@@ -182,46 +133,29 @@ function isExcluded(folder: vscode.WorkspaceFolder, packageJsonUri: vscode.Uri) 
 async function provideNpmScriptsForFolder(packageJsonUri: vscode.Uri): Promise<vscode.Task[]> {
 	let emptyTasks: vscode.Task[] = [];
 
-	if (packageJsonUri.scheme !== 'file') {
-		return emptyTasks;
-	}
-
-	let packageJson = packageJsonUri.fsPath;
-
-	if (!await exists(packageJson)) {
-		return emptyTasks;
-	}
-
 	let folder = vscode.workspace.getWorkspaceFolder(packageJsonUri);
 	if (!folder) {
 		return emptyTasks;
 	}
-
-	try {
-		var contents = await readFile(packageJson);
-		var json = JSON.parse(contents);
-		if (!json.scripts) {
-			return emptyTasks;
-		}
-
-		const result: vscode.Task[] = [];
-		Object.keys(json.scripts).filter(isNotPreOrPostScript).forEach(each => {
-			const task = createTask(each, `run ${each}`, folder!, packageJsonUri);
-			const lowerCaseTaskName = each.toLowerCase();
-			if (isBuildTask(lowerCaseTaskName)) {
-				task.group = vscode.TaskGroup.Build;
-			} else if (isTestTask(lowerCaseTaskName)) {
-				task.group = vscode.TaskGroup.Test;
-			}
-			result.push(task);
-		});
-		// always add npm install (without a problem matcher)
-		// result.push(createTask('install', 'install', rootPath, folder, []));
-		return result;
-	} catch (e) {
-		let localizedParseError = localize('npm.parseError', 'Npm task detection: failed to parse the file {0}', packageJsonUri);
-		throw new Error(localizedParseError);
+	let scripts = await getScripts(packageJsonUri, localize);
+	if (!scripts) {
+		return emptyTasks;
 	}
+
+	const result: vscode.Task[] = [];
+	Object.keys(scripts).filter(isNotPreOrPostScript).forEach(each => {
+		const task = createTask(each, `run ${each}`, folder!, packageJsonUri);
+		const lowerCaseTaskName = each.toLowerCase();
+		if (isBuildTask(lowerCaseTaskName)) {
+			task.group = vscode.TaskGroup.Build;
+		} else if (isTestTask(lowerCaseTaskName)) {
+			task.group = vscode.TaskGroup.Test;
+		}
+		result.push(task);
+	});
+	// always add npm install (without a problem matcher)
+	// result.push(createTask('install', 'install', rootPath, folder, []));
+	return result;
 }
 
 function createTask(script: string, cmd: string, folder: vscode.WorkspaceFolder, packageJsonUri: vscode.Uri, matcher?: any): vscode.Task {

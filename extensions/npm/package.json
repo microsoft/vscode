@@ -44,11 +44,15 @@
     "commands": [
       {
         "command": "npm.runScript",
-        "title": "Run Script"
+        "title": "Run"
+      },
+      {
+        "command": "npm.debugScript",
+        "title": "Debug"
       },
       {
         "command": "npm.openScript",
-        "title": "Open Script"
+        "title": "Open"
       },
       {
         "command": "npm.refresh",
@@ -71,6 +75,16 @@
         {
           "command": "npm.openScript",
           "when": "view == npm && viewItem == packageJSON",
+          "group": "1_navigation"
+        },
+        {
+          "command": "npm.runScript",
+          "when": "view == npm && viewItem == script",
+          "group": "1_navigation"
+        },
+        {
+          "command": "npm.debugScript",
+          "when": "view == npm && viewItem == script",
           "group": "1_navigation"
         }
       ]

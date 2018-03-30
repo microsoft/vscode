@@ -2,14 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+'use strict';
 
-import {
-	ExtensionContext, Task, TreeDataProvider, TreeItem, TreeItemCollapsibleState,
-	WorkspaceFolder, workspace, commands, window, EventEmitter, Event,
-	ThemeIcon, Uri, TextDocument, TaskProvider
-} from 'vscode';
-import { NpmTaskDefinition, ScriptValidator, isWorkspaceFolder } from './tasks';
 import * as path from 'path';
+import {
+	DebugConfiguration, Event, EventEmitter, ExtensionContext, Task, TaskProvider,
+	TextDocument, ThemeIcon, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri,
+	WorkspaceFolder, commands, debug, window, workspace
+} from 'vscode';
+import { NpmTaskDefinition, getPackageJsonUriFromTask, getScripts, isWorkspaceFolder } from './tasks';
 
 class Folder extends TreeItem {
 	packages: PackageJSON[] = [];
@@ -70,35 +71,95 @@ class NpmScript extends TreeItem {
 		this.command = {
 			title: 'Run Script',
 			command: 'npm.runScript',
-			arguments: [task]
+			arguments: [this]
 		};
 	}
 }
 
 export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	private taskTree: Folder[] | PackageJSON[] | null = null;
-	private validator: ScriptValidator;
 	private taskProvider: TaskProvider;
+	private localize: any;
 	private _onDidChangeTreeData: EventEmitter<TreeItem | null> = new EventEmitter<TreeItem | null>();
 	readonly onDidChangeTreeData: Event<TreeItem | null> = this._onDidChangeTreeData.event;
 
 
-	constructor(context: ExtensionContext, taskProvider: TaskProvider, validator: ScriptValidator) {
+	constructor(context: ExtensionContext, taskProvider: TaskProvider, localize: any) {
 		const subscriptions = context.subscriptions;
-		this.validator = validator;
 		this.taskProvider = taskProvider;
+		this.localize = localize;
 
 		subscriptions.push(commands.registerCommand('npm.runScript', this.runScript, this));
+		subscriptions.push(commands.registerCommand('npm.debugScript', this.debugScript, this));
 		subscriptions.push(commands.registerCommand('npm.openScript', this.openScript, this));
 		subscriptions.push(commands.registerCommand('npm.refresh', this.refresh, this));
 	}
 
-	private async runScript(task: Task) {
-		if (!await this.validator.scriptIsValid(task)) {
-			window.showErrorMessage(`Could not find script '${task.name}' or the script has changed. Try to refresh the view.`);
+	private async scriptIsValid(scripts: any, task: Task): Promise<boolean> {
+		if (scripts[task.name]) {
+			return true;
+		}
+		return false;
+	}
+
+	private async runScript(script: NpmScript) {
+		let task = script.task;
+		let uri = getPackageJsonUriFromTask(task);
+		let scripts = await getScripts(uri!, this.localize);
+
+		if (!await this.scriptIsValid(scripts, task)) {
+			window.showErrorMessage(`Could not find script '${task.name}'. Try to refresh the view.`);
 			return;
 		}
-		workspace.executeTask(task);
+		workspace.executeTask(script.task);
+	}
+
+	private async extractPort(scripts: any, task: Task): Promise<number | null> {
+		let script: string = scripts[task.name];
+		let match = script.match(/--inspect-brk=(\d*)/);
+		if (match && match.length === 2) {
+			return parseInt(match[1]);
+		}
+		return null;
+	}
+
+	private async debugScript(script: NpmScript) {
+		let task = script.task;
+		let uri = getPackageJsonUriFromTask(task);
+		let scripts = await getScripts(uri!, this.localize);
+
+		if (!await this.scriptIsValid(scripts, task)) {
+			window.showErrorMessage(`Could not find script '${task.name}'. Try to refresh the view.`);
+			return;
+		}
+
+		let port = await this.extractPort(scripts, task);
+		// let debugArgs = null;
+		// if (!port) {
+		// 	port = 9229;
+		// 	debugArgs = ['--', '--nolazy', `--inspect-brk=${port}`];
+		// }
+		if (!port) {
+			window.showErrorMessage(`Could not launch for debugging, the script does not define --inspect-brk=port.`);
+			return;
+		}
+		const config: DebugConfiguration = {
+			type: 'node',
+			request: 'launch',
+			name: `Debug ${task.name}`,
+			runtimeExecutable: 'npm',
+			runtimeArgs: [
+				'run-script',
+				task.name,
+			],
+			port: port
+		};
+		// if (debugArgs) {
+		// 	config.runtimeArgs.push(...debugArgs);
+		// }
+		if (isWorkspaceFolder(task.scope)) {
+			debug.startDebugging(task.scope, config);
+		}
 	}
 
 	private async openScript(packageJSON: PackageJSON) {
