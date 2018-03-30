@@ -162,8 +162,17 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		}
 	}
 
-	private async openScript(packageJSON: PackageJSON) {
-		let document: TextDocument = await workspace.openTextDocument(packageJSON.resourceUri!);
+	private async openScript(selection: PackageJSON | NpmScript) {
+		let uri: Uri | undefined = undefined;
+		if (selection instanceof PackageJSON) {
+			uri = selection.resourceUri!;
+		} else if (selection instanceof NpmScript) {
+			uri = selection.package.resourceUri;
+		}
+		if (!uri) {
+			return;
+		}
+		let document: TextDocument = await workspace.openTextDocument(uri);
 		window.showTextDocument(document);
 	}
 
