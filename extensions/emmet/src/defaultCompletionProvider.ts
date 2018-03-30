@@ -40,7 +40,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			validateLocation = syntax === 'html' || isStyleSheet(document.languageId);
 			// If document can be css parsed, get currentNode
 			if (isStyleSheet(document.languageId)) {
-				let usePartialParsing = vscode.workspace.getConfiguration('emmet')['optimizeStylesheetParsing'];
+				let usePartialParsing = vscode.workspace.getConfiguration('emmet')['optimizeStylesheetParsing'] === true;
 				rootNode = usePartialParsing && document.lineCount > 1000 ? parsePartialStylesheet(document, position) : <Stylesheet>parseDocument(document, false);
 				if (!rootNode) {
 					return;
