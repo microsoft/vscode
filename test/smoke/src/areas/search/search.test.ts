@@ -48,14 +48,12 @@ export function setup() {
 			await app.workbench.search.expandReplace();
 			await app.workbench.search.setReplaceText('ydob');
 			await app.workbench.search.replaceFileMatch(1);
-			await app.workbench.saveOpenedFile();
 
 			await app.workbench.search.waitForResultText('10 results in 4 files');
 
 			await app.workbench.search.searchFor('ydob');
 			await app.workbench.search.setReplaceText('body');
 			await app.workbench.search.replaceFileMatch(1);
-			await app.workbench.saveOpenedFile();
 		});
 	});
 }
