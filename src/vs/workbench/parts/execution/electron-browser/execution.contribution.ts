@@ -118,9 +118,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (root) {
 			terminalService.openTerminal(root.fsPath);
 		} else {
-			//Opens current file's folder, if no folder is open in editor
-			const path = historyService.getLastActiveFile().fsPath;
-			terminalService.openTerminal(paths.dirname(path));
+			// Opens current file's folder, if no folder is open in editor
+			const activeFile = historyService.getLastActiveFile();
+			if (activeFile) {
+				terminalService.openTerminal(paths.dirname(activeFile.fsPath));
+			}
 		}
 	}
 });
