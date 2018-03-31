@@ -17,20 +17,19 @@ import { provideNpmScripts } from './tasks';
 let taskProvider: vscode.Disposable | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
-	let provider: vscode.TaskProvider = {
-		provideTasks: () => {
-			return provideNpmScripts(localize);
-		},
-		resolveTask(_task: vscode.Task): vscode.Task | undefined {
-			return undefined;
-		}
-	};
-	taskProvider = vscode.workspace.registerTaskProvider('npm', provider);
 
-	vscode.window.registerTreeDataProvider('npm', new NpmScriptsTreeDataProvider(context, provider, localize));
-
-	if (!vscode.workspace.workspaceFolders) {
-		return;
+	if (vscode.workspace.workspaceFolders) {
+		let provider: vscode.TaskProvider = {
+			provideTasks: () => {
+				return provideNpmScripts(localize);
+			},
+			resolveTask(_task: vscode.Task): vscode.Task | undefined {
+				return undefined;
+			}
+		};
+		taskProvider = vscode.workspace.registerTaskProvider('npm', provider);
+		let treeDataProvider = vscode.window.registerTreeDataProvider('npm', new NpmScriptsTreeDataProvider(context, provider, localize));
+		context.subscriptions.push(treeDataProvider);
 	}
 
 	configureHttpRequest();

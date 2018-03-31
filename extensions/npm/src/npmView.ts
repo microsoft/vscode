@@ -119,7 +119,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		let scripts = await getScripts(uri!, this.localize);
 
 		if (!await this.scriptIsValid(scripts, task)) {
-			window.showErrorMessage(`Could not find script '${task.name}'. Try to refresh the view.`);
+			this.scriptNotValid(task);
 			return;
 		}
 		workspace.executeTask(script.task);
@@ -140,13 +140,14 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		let scripts = await getScripts(uri!, this.localize);
 
 		if (!await this.scriptIsValid(scripts, task)) {
-			window.showErrorMessage(`Could not find script '${task.name}'. Try to refresh the view.`);
+			this.scriptNotValid(task);
 			return;
 		}
 
 		let port = await this.extractPort(scripts, task);
 		if (!port) {
-			window.showErrorMessage(`Could not launch '${task.name}' for debugging, the script needs to include the node debug options: '--nolazy --inspect-brk=port', [learn more](https://code.visualstudio.com/docs/nodejs/nodejs-debugging#_launch-configuration-support-for-npm-and-other-tools).`);
+			let message = this.localize('npm.noDebugOptions', 'Could not launch "{0}" for debugging, the script needs to include the node debug options: "--nolazy --inspect-brk=port", [learn more](https://code.visualstudio.com/docs/nodejs/nodejs-debugging#_launch-configuration-support-for-npm-and-other-tools).', task.name);
+			window.showErrorMessage(message);
 			return;
 		}
 
@@ -166,6 +167,11 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		if (isWorkspaceFolder(task.scope)) {
 			debug.startDebugging(task.scope, config);
 		}
+	}
+
+	private scriptNotValid(task: Task) {
+		let message = this.localize('npm.scriptInvalid', 'Could not find the script "{0}". Try to refresh the view.', task.name);
+		window.showErrorMessage(message);
 	}
 
 	private async openScript(selection: PackageJSON | NpmScript) {

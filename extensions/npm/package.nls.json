@@ -5,7 +5,15 @@
 	"config.npm.runSilent": "Run npm commands with the `--silent` option.",
 	"config.npm.packageManager": "The package manager used to run scripts.",
 	"config.npm.exclude": "Configure glob patterns for folders that should be excluded from automatic script detection.",
+	"config.npm.explorerVisible": "Show the npm scripts explorer.",
 	"npm.parseError": "Npm task detection: failed to parse the file {0}",
 	"taskdef.script": "The npm script to customize.",
-	"taskdef.path": "The path to the folder of the package.json file that provides the script. Can be ommitted."
+	"taskdef.path": "The path to the folder of the package.json file that provides the script. Can be ommitted.",
+	"view.name": "npm scripts",
+	"command.refresh": "Refresh",
+	"command.run": "Run",
+	"command.debug": "Debug",
+	"command.openScript": "Open",
+	"npm.scriptInvalid": "Could not find the script '{0}'. Try to refresh the view.",
+	"npm.noDebugOptions": "Could not launch '{0}' for debugging, the script needs to include the node debug options: '--nolazy --inspect-brk=port', [learn more](https://code.visualstudio.com/docs/nodejs/nodejs-debugging#_launch-configuration-support-for-npm-and-other-tools).`"
 }

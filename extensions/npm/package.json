@@ -37,7 +37,7 @@
       "explorer": [
         {
           "id": "npm",
-          "name": "npm scripts",
+          "name": "%view.name%",
           "when": "config.npm.explorerVisible"
         }
       ]
@@ -45,19 +45,19 @@
     "commands": [
       {
         "command": "npm.runScript",
-        "title": "Run"
+        "title": "%command.run%"
       },
       {
         "command": "npm.debugScript",
-        "title": "Debug"
+        "title": "%command.debug%"
       },
       {
         "command": "npm.openScript",
-        "title": "Open"
+        "title": "%command.openScript%"
       },
       {
         "command": "npm.refresh",
-        "title": "Refresh",
+        "title": "%command.refresh%",
         "icon": {
           "light": "resources/light/refresh.svg",
           "dark": "resources/dark/refresh.svg"
@@ -142,7 +142,7 @@
           "type": "boolean",
           "default": true,
           "scope": "resource",
-          "description": "Show the npm scripts explorer"
+          "description": "%config.npm.explorerVisible%"
         }
       }
     },
