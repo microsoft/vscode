@@ -79,7 +79,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		this.$el.append(actionBarContainter);
 
 		this.activeActions = [];
-		this.actionBar = new ActionBar(actionBarContainter, {
+		this.actionBar = new ActionBar(actionBarContainter.getHTMLElement(), {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action: IAction) => {
 				if (action.id === FocusProcessAction.ID) {
@@ -228,7 +228,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		}
 		if (!this.isBuilt) {
 			this.isBuilt = true;
-			this.$el.build(builder.withElementById(this.partService.getWorkbenchElementId()).getHTMLElement());
+			this.$el.build(document.getElementById(this.partService.getWorkbenchElementId()));
 		}
 
 		this.isVisible = true;

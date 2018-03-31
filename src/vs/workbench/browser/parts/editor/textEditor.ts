@@ -8,7 +8,7 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { Dimension, Builder } from 'vs/base/browser/builder';
+import { Builder } from 'vs/base/browser/builder';
 import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
 import * as errors from 'vs/base/common/errors';
@@ -219,7 +219,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		this.editorControl.focus();
 	}
 
-	public layout(dimension: Dimension): void {
+	public layout(dimension: DOM.Dimension): void {
 
 		// Pass on to Editor
 		this.editorControl.layout(dimension);

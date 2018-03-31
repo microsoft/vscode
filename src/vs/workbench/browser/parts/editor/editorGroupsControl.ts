@@ -10,7 +10,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as types from 'vs/base/common/types';
-import { Dimension, Builder, $ } from 'vs/base/browser/builder';
+import { Builder, $ } from 'vs/base/browser/builder';
 import { Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -74,7 +74,7 @@ export interface IEditorGroupsControl {
 	updateProgress(position: Position, state: ProgressState): void;
 	updateTitleAreas(refreshActive?: boolean): void;
 
-	layout(dimension: Dimension): void;
+	layout(dimension: DOM.Dimension): void;
 	layout(position: Position): void;
 
 	arrangeGroups(arrangement: GroupArrangement): void;
@@ -119,7 +119,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	private stacks: IEditorStacksModel;
 
 	private parent: Builder;
-	private dimension: Dimension;
+	private dimension: DOM.Dimension;
 	private dragging: boolean;
 
 	private layoutVertically: boolean;
@@ -185,7 +185,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		this.stacks = editorGroupService.getStacksModel();
 
 		this.parent = parent;
-		this.dimension = new Dimension(0, 0);
+		this.dimension = new DOM.Dimension(0, 0);
 
 		this.silos = [];
 		this.silosSize = [];
@@ -1031,9 +1031,9 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		this.createTitleControl(this.stacks.groupAt(position), silo, titleContainer, instantiationService);
 
 		// Progress Bar
-		const progressBar = new ProgressBar($(container));
+		const progressBar = new ProgressBar(container.getHTMLElement());
 		this.toUnbind.push(attachProgressBarStyler(progressBar, this.themeService));
-		progressBar.getContainer().hide();
+		progressBar.hide();
 		container.setProperty(EditorGroupsControl.PROGRESS_BAR_CONTROL_KEY, progressBar); // associate with container
 
 		// Sash for first position to support centered editor layout
@@ -2011,17 +2011,17 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		return this.dragging;
 	}
 
-	public layout(dimension: Dimension): void;
+	public layout(dimension: DOM.Dimension): void;
 	public layout(position: Position): void;
 	public layout(arg: any): void {
-		if (arg instanceof Dimension) {
-			this.layoutControl(<Dimension>arg);
+		if (arg instanceof DOM.Dimension) {
+			this.layoutControl(<DOM.Dimension>arg);
 		} else {
 			this.layoutEditor(<Position>arg);
 		}
 	}
 
-	private layoutControl(dimension: Dimension): void {
+	private layoutControl(dimension: DOM.Dimension): void {
 		let oldDimension = this.dimension;
 		this.dimension = dimension;
 
@@ -2176,7 +2176,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	private layoutTitleControl(position: Position): void {
 		const siloWidth = this.layoutVertically ? this.silosSize[position] : this.dimension.width;
 
-		this.getTitleAreaControl(position).layout(new Dimension(siloWidth, EditorGroupsControl.EDITOR_TITLE_HEIGHT));
+		this.getTitleAreaControl(position).layout(new DOM.Dimension(siloWidth, EditorGroupsControl.EDITOR_TITLE_HEIGHT));
 	}
 
 	private layoutEditor(position: Position): void {
@@ -2204,7 +2204,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			editorContainer.style('margin-left', this.centeredEditorActive ? `${editorPosition}px` : null);
 			editorContainer.style('width', this.centeredEditorActive ? `${editorWidth}px` : null);
 			editorContainer.style('border-color', this.centeredEditorActive ? this.getColor(EDITOR_GROUP_BORDER) || this.getColor(contrastBorder) : null);
-			editor.layout(new Dimension(editorWidth, editorHeight));
+			editor.layout(new DOM.Dimension(editorWidth, editorHeight));
 		}
 	}
 
@@ -2269,13 +2269,13 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		switch (state) {
 			case ProgressState.INFINITE:
-				progressbar.infinite().getContainer().show();
+				progressbar.infinite().show();
 				break;
 			case ProgressState.DONE:
-				progressbar.done().getContainer().hide();
+				progressbar.done().hide();
 				break;
 			case ProgressState.STOP:
-				progressbar.stop().getContainer().hide();
+				progressbar.stop().hide();
 				break;
 		}
 	}

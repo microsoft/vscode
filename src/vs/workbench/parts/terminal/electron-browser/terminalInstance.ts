@@ -14,7 +14,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import Uri from 'vs/base/common/uri';
 import { WindowsShellHelper } from 'vs/workbench/parts/terminal/electron-browser/windowsShellHelper';
 import { Terminal as XTermTerminal } from 'vscode-xterm';
-import { Dimension } from 'vs/base/browser/builder';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -69,7 +68,7 @@ enum ProcessState {
 export class TerminalInstance implements ITerminalInstance {
 	private static readonly EOL_REGEX = /\r?\n/g;
 
-	private static _lastKnownDimensions: Dimension = null;
+	private static _lastKnownDimensions: dom.Dimension = null;
 	private static _idCounter = 1;
 
 	private _id: number;
@@ -246,7 +245,7 @@ export class TerminalInstance implements ITerminalInstance {
 		return dimension.width;
 	}
 
-	private _getDimension(width: number, height: number): Dimension {
+	private _getDimension(width: number, height: number): dom.Dimension {
 		// The font needs to have been initialized
 		const font = this._configHelper.getFont(this._xterm);
 		if (!font || !font.charWidth || !font.charHeight) {
@@ -278,7 +277,7 @@ export class TerminalInstance implements ITerminalInstance {
 		const innerWidth = width - marginLeft - marginRight;
 		const innerHeight = height - bottom;
 
-		TerminalInstance._lastKnownDimensions = new Dimension(innerWidth, innerHeight);
+		TerminalInstance._lastKnownDimensions = new dom.Dimension(innerWidth, innerHeight);
 		return TerminalInstance._lastKnownDimensions;
 	}
 
@@ -466,7 +465,7 @@ export class TerminalInstance implements ITerminalInstance {
 			const computedStyle = window.getComputedStyle(this._container);
 			const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
 			const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
-			this.layout(new Dimension(width, height));
+			this.layout(new dom.Dimension(width, height));
 			this.setVisible(this._isVisible);
 			this.updateConfig();
 
@@ -613,7 +612,7 @@ export class TerminalInstance implements ITerminalInstance {
 				const computedStyle = window.getComputedStyle(this._container);
 				const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
 				const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
-				this.layout(new Dimension(width, height));
+				this.layout(new dom.Dimension(width, height));
 			}
 		}
 	}
@@ -1109,7 +1108,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	public layout(dimension: Dimension): void {
+	public layout(dimension: dom.Dimension): void {
 		if (this.disableLayout) {
 			return;
 		}

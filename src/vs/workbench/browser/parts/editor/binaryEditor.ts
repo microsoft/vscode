@@ -8,7 +8,7 @@
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Dimension, Builder, $ } from 'vs/base/browser/builder';
+import { Builder, $ } from 'vs/base/browser/builder';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -18,6 +18,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ResourceViewerContext, ResourceViewer } from 'vs/workbench/browser/parts/editor/resourceViewer';
 import URI from 'vs/base/common/uri';
+import { Dimension } from 'vs/base/browser/dom';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: EditorOptions) => void;

@@ -96,8 +96,8 @@ export class FeedbackDropdown extends Dropdown {
 			}
 		});
 
-		this.element.addClass('send-feedback');
-		this.element.title(nls.localize('sendFeedback', "Tweet Feedback"));
+		dom.addClass(this.element, 'send-feedback');
+		this.element.title = nls.localize('sendFeedback', "Tweet Feedback");
 
 		this.feedbackService = options.feedbackService;
 
@@ -118,7 +118,7 @@ export class FeedbackDropdown extends Dropdown {
 	}
 
 	protected getAnchor(): HTMLElement | IAnchor {
-		const res = dom.getDomNodePagePosition(this.element.getHTMLElement());
+		const res = dom.getDomNodePagePosition(this.element);
 
 		return {
 			x: res.left,
@@ -249,7 +249,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		$('label').attr('for', 'hide-button').text(nls.localize('showFeedback', "Show Feedback Smiley in Status Bar")).appendTo($hideButtonContainer);
 
-		this.sendButton = new Button($buttons);
+		this.sendButton = new Button($buttons.getHTMLElement());
 		this.sendButton.enabled = false;
 		this.sendButton.label = nls.localize('tweet', "Tweet");
 		this.$sendButton = new Builder(this.sendButton.element);

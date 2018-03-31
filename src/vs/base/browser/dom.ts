@@ -35,7 +35,9 @@ export function isInDOM(node: Node): boolean {
 interface IDomClassList {
 	hasClass(node: HTMLElement, className: string): boolean;
 	addClass(node: HTMLElement, className: string): void;
+	addClasses(node: HTMLElement, ...classNames: string[]): void;
 	removeClass(node: HTMLElement, className: string): void;
+	removeClasses(node: HTMLElement, ...classNames: string[]): void;
 	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void;
 }
 
@@ -110,6 +112,10 @@ const _manualClassList = new class implements IDomClassList {
 		return this._lastStart !== -1;
 	}
 
+	addClasses(node: HTMLElement, ...classNames: string[]): void {
+		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.addClass(node, name)));
+	}
+
 	addClass(node: HTMLElement, className: string): void {
 		if (!node.className) { // doesn't have it for sure
 			node.className = className;
@@ -130,6 +136,10 @@ const _manualClassList = new class implements IDomClassList {
 		}
 	}
 
+	removeClasses(node: HTMLElement, ...classNames: string[]): void {
+		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.removeClass(node, name)));
+	}
+
 	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
 		this._findClassName(node, className);
 		if (this._lastStart !== -1 && (shouldHaveIt === void 0 || !shouldHaveIt)) {
@@ -146,6 +156,10 @@ const _nativeClassList = new class implements IDomClassList {
 		return className && node.classList && node.classList.contains(className);
 	}
 
+	addClasses(node: HTMLElement, ...classNames: string[]): void {
+		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.addClass(node, name)));
+	}
+
 	addClass(node: HTMLElement, className: string): void {
 		if (className && node.classList) {
 			node.classList.add(className);
@@ -156,6 +170,10 @@ const _nativeClassList = new class implements IDomClassList {
 		if (className && node.classList) {
 			node.classList.remove(className);
 		}
+	}
+
+	removeClasses(node: HTMLElement, ...classNames: string[]): void {
+		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.removeClass(node, name)));
 	}
 
 	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
@@ -170,7 +188,9 @@ const _nativeClassList = new class implements IDomClassList {
 const _classList: IDomClassList = browser.isIE ? _manualClassList : _nativeClassList;
 export const hasClass: (node: HTMLElement, className: string) => boolean = _classList.hasClass.bind(_classList);
 export const addClass: (node: HTMLElement, className: string) => void = _classList.addClass.bind(_classList);
+export const addClasses: (node: HTMLElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
 export const removeClass: (node: HTMLElement, className: string) => void = _classList.removeClass.bind(_classList);
+export const removeClasses: (node: HTMLElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
 export const toggleClass: (node: HTMLElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
 
 class DomListener implements IDisposable {
@@ -454,6 +474,31 @@ function getDimension(element: HTMLElement, cssPropertyName: string, jsPropertyN
 	return convertToPixels(element, value);
 }
 
+export function getClientArea(element: HTMLElement): Dimension {
+
+	// Try with DOM clientWidth / clientHeight
+	if (element !== document.body) {
+		return new Dimension(element.clientWidth, element.clientHeight);
+	}
+
+	// Try innerWidth / innerHeight
+	if (window.innerWidth && window.innerHeight) {
+		return new Dimension(window.innerWidth, window.innerHeight);
+	}
+
+	// Try with document.body.clientWidth / document.body.clientHeigh
+	if (document.body && document.body.clientWidth && document.body.clientWidth) {
+		return new Dimension(document.body.clientWidth, document.body.clientHeight);
+	}
+
+	// Try with document.documentElement.clientWidth / document.documentElement.clientHeight
+	if (document.documentElement && document.documentElement.clientWidth && document.documentElement.clientHeight) {
+		return new Dimension(document.documentElement.clientWidth, document.documentElement.clientHeight);
+	}
+
+	throw new Error('Unable to figure out browser width and height');
+}
+
 const sizeUtils = {
 
 	getBorderLeftWidth: function (element: HTMLElement): number {
@@ -499,6 +544,16 @@ const sizeUtils = {
 
 // ----------------------------------------------------------------------------------------
 // Position & Dimension
+
+export class Dimension {
+	public width: number;
+	public height: number;
+
+	constructor(width: number, height: number) {
+		this.width = width;
+		this.height = height;
+	}
+}
 
 export function getTopLeftOffset(element: HTMLElement): { left: number; top: number; } {
 	// Adapted from WinJS.Utilities.getPosition

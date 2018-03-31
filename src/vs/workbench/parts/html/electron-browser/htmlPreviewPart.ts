@@ -8,7 +8,7 @@
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
-import { Dimension, Builder } from 'vs/base/browser/builder';
+import { Builder } from 'vs/base/browser/builder';
 import { empty as EmptyDisposable, IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
 import { Position } from 'vs/platform/editor/common/editor';
@@ -21,13 +21,13 @@ import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/r
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-
 import { Webview, WebviewOptions } from './webview';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { BaseWebviewEditor } from './baseWebviewEditor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import URI from 'vs/base/common/uri';
 import { Scope } from 'vs/workbench/common/memento';
+import { Dimension } from 'vs/base/browser/dom';
 
 export interface HtmlPreviewEditorViewState {
 	scrollYPercentage: number;

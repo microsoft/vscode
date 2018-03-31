@@ -10,7 +10,7 @@ import * as nls from 'vs/nls';
 import * as mimes from 'vs/base/common/mime';
 import URI from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
-import { Builder, $, Dimension } from 'vs/base/browser/builder';
+import { Builder, $ } from 'vs/base/browser/builder';
 import * as DOM from 'vs/base/browser/dom';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { LRUCache } from 'vs/base/common/map';
@@ -119,7 +119,7 @@ class BinarySize {
 }
 
 export interface ResourceViewerContext {
-	layout(dimension: Dimension): void;
+	layout(dimension: DOM.Dimension): void;
 }
 
 /**
@@ -440,7 +440,7 @@ class InlineImageView {
 		metadataClb: (meta: string) => void
 	) {
 		const context = {
-			layout(dimension: Dimension) { }
+			layout(dimension: DOM.Dimension) { }
 		};
 
 		const cacheKey = descriptor.resource.toString();

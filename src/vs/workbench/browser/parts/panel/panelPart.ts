@@ -7,7 +7,7 @@ import 'vs/css!./media/panelpart';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
-import { Builder, Dimension } from 'vs/base/browser/builder';
+import { Builder } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -30,6 +30,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Dimension } from 'vs/base/browser/dom';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -258,7 +259,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			return 0;
 		}
 		if (!this.toolbarWidth.has(activePanel.getId())) {
-			this.toolbarWidth.set(activePanel.getId(), this.toolBar.getContainer().getHTMLElement().offsetWidth);
+			this.toolbarWidth.set(activePanel.getId(), this.toolBar.getContainer().offsetWidth);
 		}
 
 		return this.toolbarWidth.get(activePanel.getId());

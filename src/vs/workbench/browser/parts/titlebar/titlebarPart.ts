@@ -7,8 +7,7 @@
 
 import 'vs/css!./media/titlebarpart';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Builder, $, Dimension } from 'vs/base/browser/builder';
-import * as DOM from 'vs/base/browser/dom';
+import { Builder, $ } from 'vs/base/browser/builder';
 import * as paths from 'vs/base/common/paths';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
@@ -34,6 +33,7 @@ import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { trim } from 'vs/base/common/strings';
+import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/base/browser/dom';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -86,8 +86,8 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onBlur()));
-		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.FOCUS, () => this.onFocus()));
+		this.toUnbind.push(addDisposableListener(window, EventType.BLUR, () => this.onBlur()));
+		this.toUnbind.push(addDisposableListener(window, EventType.FOCUS, () => this.onFocus()));
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));
@@ -236,16 +236,16 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		// Maximize/Restore on doubleclick
-		this.titleContainer.on(DOM.EventType.DBLCLICK, (e) => {
-			DOM.EventHelper.stop(e);
+		this.titleContainer.on(EventType.DBLCLICK, (e) => {
+			EventHelper.stop(e);
 
 			this.onTitleDoubleclick();
 		});
 
 		// Context menu on title
-		this.title.on([DOM.EventType.CONTEXT_MENU, DOM.EventType.MOUSE_DOWN], (e: MouseEvent) => {
-			if (e.type === DOM.EventType.CONTEXT_MENU || e.metaKey) {
-				DOM.EventHelper.stop(e);
+		this.title.on([EventType.CONTEXT_MENU, EventType.MOUSE_DOWN], (e: MouseEvent) => {
+			if (e.type === EventType.CONTEXT_MENU || e.metaKey) {
+				EventHelper.stop(e);
 
 				this.onContextMenu(e);
 			}
@@ -253,7 +253,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Since the title area is used to drag the window, we do not want to steal focus from the
 		// currently active element. So we restore focus after a timeout back to where it was.
-		this.titleContainer.on([DOM.EventType.MOUSE_DOWN], () => {
+		this.titleContainer.on([EventType.MOUSE_DOWN], () => {
 			const active = document.activeElement;
 			setTimeout(() => {
 				if (active instanceof HTMLElement) {

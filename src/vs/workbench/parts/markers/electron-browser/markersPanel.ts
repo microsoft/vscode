@@ -90,7 +90,7 @@ export class MarkersPanel extends Panel {
 		return Messages.MARKERS_PANEL_TITLE_PROBLEMS;
 	}
 
-	public layout(dimension: builder.Dimension): void {
+	public layout(dimension: dom.Dimension): void {
 		this.tree.layout(dimension.height, dimension.width);
 	}
 

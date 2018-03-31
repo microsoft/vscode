@@ -6,9 +6,10 @@
 'use strict';
 
 import 'vs/css!./media/part';
-import { Dimension, Builder } from 'vs/base/browser/builder';
+import { Builder } from 'vs/base/browser/builder';
 import { Component } from 'vs/workbench/common/component';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { Dimension } from 'vs/base/browser/dom';
 
 export interface IPartOptions {
 	hasTitle?: boolean;
@@ -104,8 +105,7 @@ const TITLE_HEIGHT = 35;
 
 export class PartLayout {
 
-	constructor(container: Builder, private options: IPartOptions, titleArea: Builder, private contentArea: Builder) {
-	}
+	constructor(container: Builder, private options: IPartOptions, titleArea: Builder, private contentArea: Builder) { }
 
 	public layout(dimension: Dimension): Dimension[] {
 		const { width, height } = dimension;

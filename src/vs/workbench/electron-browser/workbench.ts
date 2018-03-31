@@ -38,7 +38,7 @@ import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickO
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputService } from 'vs/workbench/browser/parts/quickinput/quickInput';
 import { getServices } from 'vs/platform/instantiation/common/extensions';
-import { Position, Parts, IPartService, ILayoutOptions, Dimension } from 'vs/workbench/services/part/common/partService';
+import { Position, Parts, IPartService, ILayoutOptions, IDimension } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
@@ -267,7 +267,7 @@ export class Workbench implements IPartService {
 		return this._onTitleBarVisibilityChange.event;
 	}
 
-	public get onEditorLayout(): Event<Dimension> {
+	public get onEditorLayout(): Event<IDimension> {
 		return this.editorPart.onLayout;
 	}
 
@@ -1152,8 +1152,8 @@ export class Workbench implements IPartService {
 	private createWorkbenchLayout(): void {
 		this.workbenchLayout = this.instantiationService.createInstance(
 			WorkbenchLayout,
-			$(this.container),							// Parent
-			this.workbench,								// Workbench Container
+			this.container,								// Parent
+			this.workbench.getHTMLElement(),			// Workbench Container
 			{
 				titlebar: this.titlebarPart,			// Title Bar
 				activitybar: this.activitybarPart,		// Activity Bar

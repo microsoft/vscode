@@ -19,7 +19,7 @@ import * as paths from 'vs/base/common/paths';
 import * as dom from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Dimension, Builder, $ } from 'vs/base/browser/builder';
+import { Builder, $ } from 'vs/base/browser/builder';
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { ITree, IFocusEvent } from 'vs/base/parts/tree/browser/tree';
 import { Scope } from 'vs/workbench/common/memento';
@@ -96,7 +96,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private messages: Builder;
 	private searchWidgetsContainer: Builder;
 	private searchWidget: SearchWidget;
-	private size: Dimension;
+	private size: dom.Dimension;
 	private queryDetails: HTMLElement;
 	private inputPatternIncludes: ExcludePatternInputWidget;
 	private results: Builder;
@@ -771,7 +771,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.tree.layout(searchResultContainerSize);
 	}
 
-	public layout(dimension: Dimension): void {
+	public layout(dimension: dom.Dimension): void {
 		this.size = dimension;
 		this.reLayout();
 	}

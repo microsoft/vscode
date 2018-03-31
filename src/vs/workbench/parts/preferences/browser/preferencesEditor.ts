@@ -11,7 +11,7 @@ import { onUnexpectedError, isPromiseCanceledError, getErrorMessage } from 'vs/b
 import * as DOM from 'vs/base/browser/dom';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
-import { Dimension, Builder } from 'vs/base/browser/builder';
+import { Builder } from 'vs/base/browser/builder';
 import { ArrayNavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -192,11 +192,11 @@ export class PreferencesEditor extends BaseEditor {
 		return super.setInput(newInput, options).then(() => this.updateInput(oldInput, newInput, options));
 	}
 
-	public layout(dimension: Dimension): void {
+	public layout(dimension: DOM.Dimension): void {
 		DOM.toggleClass(this.headerContainer, 'vertical-layout', dimension.width < 700);
 		this.searchWidget.layout(dimension);
 		const headerHeight = DOM.getTotalHeight(this.headerContainer);
-		this.sideBySidePreferencesWidget.layout(new Dimension(dimension.width, dimension.height - headerHeight));
+		this.sideBySidePreferencesWidget.layout(new DOM.Dimension(dimension.width, dimension.height - headerHeight));
 	}
 
 	public getControl(): IEditorControl {
@@ -772,7 +772,7 @@ class PreferencesRenderersController extends Disposable {
 
 class SideBySidePreferencesWidget extends Widget {
 
-	private dimension: Dimension;
+	private dimension: DOM.Dimension;
 
 	private defaultPreferencesHeader: HTMLElement;
 	private defaultPreferencesEditor: DefaultPreferencesEditor;
@@ -859,7 +859,7 @@ class SideBySidePreferencesWidget extends Widget {
 		this.settingsTargetsWidget.setResultCount(settingsTarget, count);
 	}
 
-	public layout(dimension: Dimension): void {
+	public layout(dimension: DOM.Dimension): void {
 		this.dimension = dimension;
 		this.sash.setDimenesion(this.dimension);
 	}
@@ -935,8 +935,8 @@ class SideBySidePreferencesWidget extends Widget {
 		this.editablePreferencesEditorContainer.style.height = `${this.dimension.height}px`;
 		this.editablePreferencesEditorContainer.style.left = `${splitPoint}px`;
 
-		this.defaultPreferencesEditor.layout(new Dimension(detailsEditorWidth, this.dimension.height - 34 /* height of header container */));
-		this.editablePreferencesEditor.layout(new Dimension(masterEditorWidth, this.dimension.height - 34 /* height of header container */));
+		this.defaultPreferencesEditor.layout(new DOM.Dimension(detailsEditorWidth, this.dimension.height - 34 /* height of header container */));
+		this.editablePreferencesEditor.layout(new DOM.Dimension(masterEditorWidth, this.dimension.height - 34 /* height of header container */));
 	}
 
 	private getSettingsTarget(resource: URI): SettingsTarget {
@@ -1042,7 +1042,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		super.clearInput();
 	}
 
-	public layout(dimension: Dimension) {
+	public layout(dimension: DOM.Dimension) {
 		this.getControl().layout(dimension);
 	}
 

@@ -456,7 +456,7 @@ export class NotificationTemplateRenderer {
 
 		// Return early if the item has no progress
 		if (!notification.hasProgress()) {
-			this.template.progress.stop().getContainer().hide();
+			this.template.progress.stop().hide();
 
 			return;
 		}
@@ -464,7 +464,7 @@ export class NotificationTemplateRenderer {
 		// Infinite
 		const state = notification.progress.state;
 		if (state.infinite) {
-			this.template.progress.infinite().getContainer().show();
+			this.template.progress.infinite().show();
 		}
 
 		// Total / Worked
@@ -474,13 +474,13 @@ export class NotificationTemplateRenderer {
 			}
 
 			if (typeof state.worked === 'number') {
-				this.template.progress.worked(state.worked).getContainer().show();
+				this.template.progress.worked(state.worked).show();
 			}
 		}
 
 		// Done
 		else {
-			this.template.progress.done().getContainer().hide();
+			this.template.progress.done().hide();
 		}
 	}
 

@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import { Dimension, $ } from 'vs/base/browser/builder';
+import { $ } from 'vs/base/browser/builder';
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -649,7 +649,7 @@ export class SearchWidget extends Widget {
 		this.countElement.style.color = color ? color.toString() : null;
 	}
 
-	public layout(dimension: Dimension) {
+	public layout(dimension: DOM.Dimension) {
 		if (dimension.width < 400) {
 			if (this.countElement) {
 				DOM.addClass(this.countElement, 'hide');

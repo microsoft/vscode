@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Build, Builder } from 'vs/base/browser/builder';
+import { Builder } from 'vs/base/browser/builder';
 import { Part } from 'vs/workbench/browser/part';
 import * as Types from 'vs/base/common/types';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -97,7 +97,7 @@ suite('Workbench Part', () => {
 	});
 
 	test('Creation', function () {
-		let b = Build.withElementById(fixtureId);
+		let b = new Builder(document.getElementById(fixtureId));
 		b.div().hide();
 
 		let part = new MyPart(b);
@@ -134,24 +134,24 @@ suite('Workbench Part', () => {
 	});
 
 	test('Part Layout with Title and Content', function () {
-		let b = Build.withElementById(fixtureId);
+		let b = new Builder(document.getElementById(fixtureId));
 		b.div().hide();
 
 		let part = new MyPart2();
 		part.create(b);
 
-		assert(Build.withElementById('myPart.title'));
-		assert(Build.withElementById('myPart.content'));
+		assert(document.getElementById('myPart.title'));
+		assert(document.getElementById('myPart.content'));
 	});
 
 	test('Part Layout with Content only', function () {
-		let b = Build.withElementById(fixtureId);
+		let b = new Builder(document.getElementById(fixtureId));
 		b.div().hide();
 
 		let part = new MyPart3();
 		part.create(b);
 
-		assert(!Build.withElementById('myPart.title'));
-		assert(Build.withElementById('myPart.content'));
+		assert(!document.getElementById('myPart.title'));
+		assert(document.getElementById('myPart.content'));
 	});
 });

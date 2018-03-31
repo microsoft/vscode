@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { Action, IAction } from 'vs/base/common/actions';
-import { Builder, Dimension } from 'vs/base/browser/builder';
+import { Builder } from 'vs/base/browser/builder';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -84,11 +84,11 @@ export class TerminalPanel extends Panel {
 		this._updateTheme();
 
 		// Force another layout (first is setContainers) since config has changed
-		this.layout(new Dimension(this._terminalContainer.offsetWidth, this._terminalContainer.offsetHeight));
+		this.layout(new dom.Dimension(this._terminalContainer.offsetWidth, this._terminalContainer.offsetHeight));
 		return TPromise.as(void 0);
 	}
 
-	public layout(dimension?: Dimension): void {
+	public layout(dimension?: dom.Dimension): void {
 		if (!dimension) {
 			return;
 		}
@@ -338,7 +338,7 @@ export class TerminalPanel extends Panel {
 		}
 		// TODO: Can we support ligatures?
 		// dom.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
-		this.layout(new Dimension(this._parentDomElement.offsetWidth, this._parentDomElement.offsetHeight));
+		this.layout(new dom.Dimension(this._parentDomElement.offsetWidth, this._parentDomElement.offsetHeight));
 	}
 
 	/**

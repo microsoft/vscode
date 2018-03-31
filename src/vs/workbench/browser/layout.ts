@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Dimension, Builder } from 'vs/base/browser/builder';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import { Part } from 'vs/workbench/browser/part';
@@ -23,6 +22,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { memoize } from 'vs/base/common/decorators';
 import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
+import { Dimension, getClientArea } from 'vs/base/browser/dom';
 
 const MIN_SIDEBAR_PART_WIDTH = 170;
 const DEFAULT_SIDEBAR_PART_WIDTH = 300;
@@ -59,8 +59,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private static readonly sashYHeightSettingsKey = 'workbench.panel.height';
 	private static readonly panelSizeBeforeMaximizedKey = 'workbench.panel.sizeBeforeMaximized';
 
-	private parent: Builder;
-	private workbenchContainer: Builder;
+	private parent: HTMLElement;
+	private workbenchContainer: HTMLElement;
 	private titlebar: Part;
 	private activitybar: Part;
 	private editor: Part;
@@ -88,8 +88,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 	// Take parts as an object bag since instatation service does not have typings for constructors with 9+ arguments
 	constructor(
-		parent: Builder,
-		workbenchContainer: Builder,
+		parent: HTMLElement,
+		workbenchContainer: HTMLElement,
 		parts: {
 			titlebar: Part,
 			activitybar: Part,
@@ -126,15 +126,15 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.panelSizeBeforeMaximized = this.storageService.getInteger(WorkbenchLayout.panelSizeBeforeMaximizedKey, StorageScope.GLOBAL, 0);
 		this.panelMaximized = false;
 
-		this.sashXOne = new Sash(this.workbenchContainer.getHTMLElement(), this, {
+		this.sashXOne = new Sash(this.workbenchContainer, this, {
 			baseSize: 5
 		});
 
-		this.sashXTwo = new Sash(this.workbenchContainer.getHTMLElement(), this, {
+		this.sashXTwo = new Sash(this.workbenchContainer, this, {
 			baseSize: 5
 		});
 
-		this.sashY = new Sash(this.workbenchContainer.getHTMLElement(), this, {
+		this.sashY = new Sash(this.workbenchContainer, this, {
 			baseSize: 4,
 			orientation: Orientation.HORIZONTAL
 		});
@@ -447,7 +447,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	public layout(options?: ILayoutOptions): void {
-		this.workbenchSize = this.parent.getClientArea();
+		this.workbenchSize = getClientArea(this.parent);
 
 		const isActivityBarHidden = !this.partService.isVisible(Parts.ACTIVITYBAR_PART);
 		const isTitlebarHidden = !this.partService.isVisible(Parts.TITLEBAR_PART);
@@ -578,12 +578,17 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		}
 
 		// Workbench
-		this.workbenchContainer
-			.position(0, 0, 0, 0, 'relative')
-			.size(this.workbenchSize.width, this.workbenchSize.height);
+		this.workbenchContainer.style.top = '0px';
+		this.workbenchContainer.style.right = '0px';
+		this.workbenchContainer.style.bottom = '0px';
+		this.workbenchContainer.style.left = '0px';
+		this.workbenchContainer.style.position = 'relative';
+
+		this.workbenchContainer.style.width = `${this.workbenchSize.width}px`;
+		this.workbenchContainer.style.height = `${this.workbenchSize.height}px`;
 
 		// Bug on Chrome: Sometimes Chrome wants to scroll the workbench container on layout changes. The fix is to reset scrolling in this case.
-		const workbenchContainer = this.workbenchContainer.getHTMLElement();
+		const workbenchContainer = this.workbenchContainer;
 		if (workbenchContainer.scrollTop > 0) {
 			workbenchContainer.scrollTop = 0;
 		}

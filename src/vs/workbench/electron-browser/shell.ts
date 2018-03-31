@@ -9,8 +9,6 @@ import 'vs/css!./media/shell';
 
 import * as platform from 'vs/base/common/platform';
 import * as perf from 'vs/base/common/performance';
-import { Dimension, Builder, $ } from 'vs/base/browser/builder';
-import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as errors from 'vs/base/common/errors';
@@ -96,6 +94,7 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/common/dialogIpc';
+import { EventType, addDisposableListener, addClass, getClientArea } from 'vs/base/browser/dom';
 
 /**
  * Services that we require for the Shell
@@ -135,7 +134,7 @@ export class WorkbenchShell {
 	private previousErrorValue: string;
 	private previousErrorTime: number;
 	private content: HTMLElement;
-	private contentsContainer: Builder;
+	private contentsContainer: HTMLElement;
 
 	private configuration: IWindowConfiguration;
 	private workbench: Workbench;
@@ -158,19 +157,20 @@ export class WorkbenchShell {
 		this.previousErrorTime = 0;
 	}
 
-	private createContents(parent: Builder): Builder {
+	private createContents(parent: HTMLElement): HTMLElement {
 
 		// ARIA
 		aria.setARIAContainer(document.body);
 
 		// Workbench Container
-		const workbenchContainer = $(parent).div();
+		const workbenchContainer = document.createElement('div');
+		parent.appendChild(workbenchContainer);
 
 		// Instantiation service with services
-		const [instantiationService, serviceCollection] = this.initServiceCollection(parent.getHTMLElement());
+		const [instantiationService, serviceCollection] = this.initServiceCollection(parent);
 
 		// Workbench
-		this.workbench = this.createWorkbench(instantiationService, serviceCollection, parent.getHTMLElement(), workbenchContainer.getHTMLElement());
+		this.workbench = this.createWorkbench(instantiationService, serviceCollection, parent, workbenchContainer);
 
 		// Window
 		this.workbench.getInstantiationService().createInstance(ElectronWindow, this.container);
@@ -475,13 +475,15 @@ export class WorkbenchShell {
 		});
 
 		// Shell Class for CSS Scoping
-		$(this.container).addClass('monaco-shell');
+		addClass(this.container, 'monaco-shell');
 
 		// Controls
-		this.content = $('.monaco-shell-content').appendTo(this.container).getHTMLElement();
+		this.content = document.createElement('div');
+		addClass(this.content, 'monaco-shell-content');
+		this.container.appendChild(this.content);
 
 		// Create Contents
-		this.contentsContainer = this.createContents($(this.content));
+		this.contentsContainer = this.createContents(this.content);
 
 		// Layout
 		this.layout();
@@ -493,7 +495,7 @@ export class WorkbenchShell {
 	private registerListeners(): void {
 
 		// Resize
-		$(window).on(dom.EventType.RESIZE, () => this.layout(), this.toUnbind);
+		this.toUnbind.push(addDisposableListener(window, EventType.RESIZE, () => this.layout()));
 	}
 
 	public onUnexpectedError(error: any): void {
@@ -520,10 +522,10 @@ export class WorkbenchShell {
 	}
 
 	private layout(): void {
-		const clArea = $(this.container).getClientArea();
+		const clientArea = getClientArea(this.container);
 
-		const contentsSize = new Dimension(clArea.width, clArea.height);
-		this.contentsContainer.size(contentsSize.width, contentsSize.height);
+		this.contentsContainer.style.width = `${clientArea.width}px`;
+		this.contentsContainer.style.height = `${clientArea.height}px`;
 
 		this.contextViewService.layout();
 		this.workbench.layout();

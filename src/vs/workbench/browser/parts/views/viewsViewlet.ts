@@ -6,7 +6,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
-import { $, Dimension, Builder } from 'vs/base/browser/builder';
+import { $, Builder } from 'vs/base/browser/builder';
 import { Scope } from 'vs/workbench/common/memento';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
@@ -190,7 +190,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 	private readonly viewsContextKeys: Set<string> = new Set<string>();
 	private viewsViewletPanels: ViewsViewletPanel[] = [];
 	private didLayout = false;
-	private dimension: Dimension;
+	private dimension: DOM.Dimension;
 	protected viewsStates: Map<string, IViewState> = new Map<string, IViewState>();
 	private areExtensionsReady: boolean = false;
 
@@ -276,7 +276,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		}
 	}
 
-	layout(dimension: Dimension): void {
+	layout(dimension: DOM.Dimension): void {
 		super.layout(dimension);
 		this.dimension = dimension;
 		if (this.didLayout) {

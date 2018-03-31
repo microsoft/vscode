@@ -9,8 +9,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 import { Webview } from './webview';
-import { Dimension } from 'vs/workbench/services/part/common/partService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { Dimension } from 'vs/base/browser/dom';
 
 /**  A context key that is set when a webview editor has focus. */
 export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS = new RawContextKey<boolean>('webviewEditorFocus', false);

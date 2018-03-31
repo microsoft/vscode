@@ -20,10 +20,7 @@ import { ColorThemeData } from './colorThemeData';
 import { ITheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
-
-import { $ } from 'vs/base/browser/builder';
 import { Event, Emitter } from 'vs/base/common/event';
-
 import * as colorThemeSchema from 'vs/workbench/services/themes/common/colorThemeSchema';
 import * as fileIconThemeSchema from 'vs/workbench/services/themes/common/fileIconThemeSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -32,6 +29,7 @@ import { ColorThemeStore } from 'vs/workbench/services/themes/electron-browser/c
 import { FileIconThemeStore } from 'vs/workbench/services/themes/electron-browser/fileIconThemeStore';
 import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { removeClasses, addClasses } from 'vs/base/browser/dom';
 
 // implementation
 
@@ -315,11 +313,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget, silent = false): TPromise<IColorTheme> {
 		if (this.container) {
 			if (this.currentColorTheme) {
-				$(this.container).removeClass(this.currentColorTheme.id);
+				removeClasses(this.container, this.currentColorTheme.id);
 			} else {
-				$(this.container).removeClass(VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME);
+				removeClasses(this.container, VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME);
 			}
-			$(this.container).addClass(newTheme.id);
+			addClasses(this.container, newTheme.id);
 		}
 		this.currentColorTheme = newTheme;
 		if (!this.themingParticipantChangeListener) {
@@ -415,9 +413,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		if (this.container) {
 			if (iconThemeData.id) {
-				$(this.container).addClass(fileIconsEnabledClass);
+				addClasses(this.container, fileIconsEnabledClass);
 			} else {
-				$(this.container).removeClass(fileIconsEnabledClass);
+				removeClasses(this.container, fileIconsEnabledClass);
 			}
 		}
 		if (iconThemeData.id) {

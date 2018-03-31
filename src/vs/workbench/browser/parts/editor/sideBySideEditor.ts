@@ -5,14 +5,12 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
-import { Dimension, Builder } from 'vs/base/browser/builder';
-
+import { Builder } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorInput, EditorOptions, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorControl, Position, IEditor } from 'vs/platform/editor/common/editor';
 import { VSash } from 'vs/base/browser/ui/sash/sash';
-
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -23,7 +21,7 @@ export class SideBySideEditor extends BaseEditor {
 
 	public static readonly ID: string = 'workbench.editor.sidebysideEditor';
 
-	private dimension: Dimension;
+	private dimension: DOM.Dimension;
 
 	protected masterEditor: BaseEditor;
 	private masterEditorContainer: HTMLElement;
@@ -90,7 +88,7 @@ export class SideBySideEditor extends BaseEditor {
 		}
 	}
 
-	public layout(dimension: Dimension): void {
+	public layout(dimension: DOM.Dimension): void {
 		this.dimension = dimension;
 		this.sash.setDimenesion(this.dimension);
 	}
@@ -188,8 +186,8 @@ export class SideBySideEditor extends BaseEditor {
 		this.masterEditorContainer.style.height = `${this.dimension.height}px`;
 		this.masterEditorContainer.style.left = `${splitPoint}px`;
 
-		this.detailsEditor.layout(new Dimension(detailsEditorWidth, this.dimension.height));
-		this.masterEditor.layout(new Dimension(masterEditorWidth, this.dimension.height));
+		this.detailsEditor.layout(new DOM.Dimension(detailsEditorWidth, this.dimension.height));
+		this.masterEditor.layout(new DOM.Dimension(masterEditorWidth, this.dimension.height));
 	}
 
 	private disposeEditors(): void {

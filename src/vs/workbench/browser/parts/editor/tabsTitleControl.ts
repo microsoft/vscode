@@ -38,7 +38,6 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_BACKGROUND, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { Dimension } from 'vs/base/browser/builder';
 import { ResourcesDropHandler, fillResourceDataTransfers, LocalSelectionTransfer, DraggedEditorIdentifier } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -60,7 +59,7 @@ export class TabsTitleControl extends TitleControl {
 	private scrollbar: ScrollableElement;
 	private tabDisposeables: IDisposable[];
 	private blockRevealActiveTab: boolean;
-	private dimension: Dimension;
+	private dimension: DOM.Dimension;
 	private layoutScheduled: IDisposable;
 	private transfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 
@@ -555,7 +554,7 @@ export class TabsTitleControl extends TitleControl {
 		return tabContainer;
 	}
 
-	public layout(dimension: Dimension): void {
+	public layout(dimension: DOM.Dimension): void {
 		if (!this.activeTab || !dimension) {
 			return;
 		}
@@ -573,7 +572,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private doLayout(dimension: Dimension): void {
+	private doLayout(dimension: DOM.Dimension): void {
 		const visibleContainerWidth = this.tabsContainer.offsetWidth;
 		const totalContainerWidth = this.tabsContainer.scrollWidth;
 

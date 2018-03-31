@@ -11,7 +11,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { OS } from 'vs/base/common/platform';
 import { dispose } from 'vs/base/common/lifecycle';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
-import { Builder, Dimension } from 'vs/base/browser/builder';
+import { Builder } from 'vs/base/browser/builder';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IAction } from 'vs/base/common/actions';
@@ -90,7 +90,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private listEntries: IListEntry[];
 	private keybindingsList: List<IListEntry>;
 
-	private dimension: Dimension;
+	private dimension: DOM.Dimension;
 	private delayedFiltering: Delayer<void>;
 	private latestEmptyFilters: string[] = [];
 	private delayedFilterLogging: Delayer<void>;
@@ -152,7 +152,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.keybindingFocusContextKey.reset();
 	}
 
-	layout(dimension: Dimension): void {
+	layout(dimension: DOM.Dimension): void {
 		this.dimension = dimension;
 		this.searchWidget.layout(dimension);
 
