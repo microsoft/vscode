@@ -14,7 +14,7 @@ const localize = nls.loadMessageBundle();
 
 import { addJSONProviders } from './features/jsonContributions';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { NpmTaskDefinition, getScripts } from './tasks';
+import { NpmTaskDefinition, getScripts, getPackageManager } from './tasks';
 
 type AutoDetect = 'on' | 'off';
 let taskProvider: vscode.Disposable | undefined;
@@ -168,7 +168,7 @@ function createTask(script: string, cmd: string, folder: vscode.WorkspaceFolder,
 	}
 
 	function getCommandLine(folder: vscode.WorkspaceFolder, cmd: string): string {
-		let packageManager = vscode.workspace.getConfiguration('npm', folder.uri).get<string>('packageManager', 'npm');
+		let packageManager = getPackageManager(folder);
 		if (vscode.workspace.getConfiguration('npm', folder.uri).get<boolean>('runSilent')) {
 			return `${packageManager} --silent ${cmd}`;
 		}

@@ -10,15 +10,17 @@ import {
 	TextDocument, ThemeIcon, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri,
 	WorkspaceFolder, commands, debug, window, workspace
 } from 'vscode';
-import { NpmTaskDefinition, getPackageJsonUriFromTask, getScripts, isWorkspaceFolder } from './tasks';
+import { NpmTaskDefinition, getPackageJsonUriFromTask, getScripts, isWorkspaceFolder, getPackageManager } from './tasks';
 
 class Folder extends TreeItem {
 	packages: PackageJSON[] = [];
+	workspaceFolder: WorkspaceFolder;
 
 	constructor(folder: WorkspaceFolder) {
-		super(folder.name, TreeItemCollapsibleState.Collapsed);
+		super(folder.name, TreeItemCollapsibleState.Expanded);
 		this.contextValue = 'folder';
 		this.resourceUri = folder.uri;
+		this.workspaceFolder = folder;
 		this.iconPath = ThemeIcon.Folder;
 	}
 
@@ -42,7 +44,7 @@ class PackageJSON extends TreeItem {
 	}
 
 	constructor(folder: Folder, relativePath: string) {
-		super(PackageJSON.getLabel(folder.label!, relativePath), TreeItemCollapsibleState.Collapsed);
+		super(PackageJSON.getLabel(folder.label!, relativePath), TreeItemCollapsibleState.Expanded);
 		this.folder = folder;
 		this.path = relativePath;
 		this.contextValue = 'packageJSON';
@@ -73,6 +75,10 @@ class NpmScript extends TreeItem {
 			command: 'npm.runScript',
 			arguments: [this]
 		};
+	}
+
+	getFolder(): WorkspaceFolder {
+		return this.package.folder.workspaceFolder;
 	}
 }
 
@@ -140,14 +146,16 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		// 	debugArgs = ['--', '--nolazy', `--inspect-brk=${port}`];
 		// }
 		if (!port) {
-			window.showErrorMessage(`Could not launch for debugging, the script does not define --inspect-brk=port.`);
+			window.showErrorMessage(`Could not launch for debugging, the script needs to include the node debug options: --inspect-brk=port.`);
 			return;
 		}
+
+		let packageManager = getPackageManager(script.getFolder());
 		const config: DebugConfiguration = {
 			type: 'node',
 			request: 'launch',
 			name: `Debug ${task.name}`,
-			runtimeExecutable: 'npm',
+			runtimeExecutable: packageManager,
 			runtimeArgs: [
 				'run-script',
 				task.name,

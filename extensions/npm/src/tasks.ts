@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TaskDefinition, Task, WorkspaceFolder, Uri } from 'vscode';
+import { TaskDefinition, Task, WorkspaceFolder, Uri, workspace } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -15,6 +15,10 @@ export interface NpmTaskDefinition extends TaskDefinition {
 
 export function isWorkspaceFolder(value: any): value is WorkspaceFolder {
 	return value && typeof value !== 'number';
+}
+
+export function getPackageManager(folder: WorkspaceFolder): string {
+	return workspace.getConfiguration('npm', folder.uri).get<string>('packageManager', 'npm');
 }
 
 export function getPackageJsonUriFromTask(task: Task): Uri | null {
