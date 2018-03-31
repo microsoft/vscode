@@ -677,6 +677,13 @@ export class Process implements IProcess {
 			return result;
 		}, err => []);
 	}
+
+	setNotAvailable(modelUri: uri) {
+		const source = this.sources.get(modelUri.toString());
+		if (source) {
+			source.available = false;
+		}
+	}
 }
 
 export class Breakpoint implements IBreakpoint {
@@ -1101,11 +1108,7 @@ export class Model implements IModel {
 	}
 
 	public sourceIsNotAvailable(uri: uri): void {
-		this.processes.forEach(p => {
-			if (p.sources.has(uri.toString())) {
-				p.sources.get(uri.toString()).available = false;
-			}
-		});
+		this.processes.forEach(p => p.setNotAvailable(uri));
 		this._onDidChangeCallStack.fire();
 	}
 
