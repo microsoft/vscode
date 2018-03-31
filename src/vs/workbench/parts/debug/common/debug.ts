@@ -256,6 +256,7 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	column: number;
 	endColumn?: number;
 	message: string;
+	adapterData: any;
 }
 
 export interface IFunctionBreakpoint extends IBaseBreakpoint {
