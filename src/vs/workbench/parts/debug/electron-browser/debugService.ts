@@ -1205,7 +1205,7 @@ export class DebugService implements debug.IDebugService {
 				return TPromise.as(null);
 			}
 
-			const breakpointsToSend = this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.uri.toString() === modelUri.toString());
+			const breakpointsToSend = this.model.getActivatedBreakpointsForResource(modelUri).filter(bp => bp.enabled);
 
 			const source = process.getSourceForUri(modelUri);
 			let rawSource: DebugProtocol.Source;
