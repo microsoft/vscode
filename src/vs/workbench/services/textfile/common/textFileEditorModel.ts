@@ -128,37 +128,50 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private onFileChanges(e: FileChangesEvent): void {
+		let fileEventImpactsModel = false;
+		let newInOrphanModeGuess: boolean;
 
-		// Track ADD and DELETES for updates of this model to orphan-mode
-		const modelFileDeleted = e.contains(this.resource, FileChangeType.DELETED);
-		const modelFileAdded = e.contains(this.resource, FileChangeType.ADDED);
-
-		if (modelFileDeleted || modelFileAdded) {
-			const newInOrphanModeGuess = modelFileDeleted && !modelFileAdded;
-			if (this.inOrphanMode !== newInOrphanModeGuess) {
-				let checkOrphanedPromise: TPromise<boolean>;
-				if (newInOrphanModeGuess) {
-					// We have received reports of users seeing delete events even though the file still
-					// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
-					// Since we do not want to mark the model as orphaned, we have to check if the
-					// file is really gone and not just a faulty file event.
-					checkOrphanedPromise = TPromise.timeout(100).then(() => {
-						if (this.disposed) {
-							return true;
-						}
-
-						return this.fileService.existsFile(this.resource).then(exists => !exists);
-					});
-				} else {
-					checkOrphanedPromise = TPromise.as(false);
-				}
-
-				checkOrphanedPromise.done(newInOrphanModeValidated => {
-					if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
-						this.setOrphaned(newInOrphanModeValidated);
-					}
-				});
+		// If we are currently orphaned, we check if the model file was added back
+		if (this.inOrphanMode) {
+			const modelFileAdded = e.contains(this.resource, FileChangeType.ADDED);
+			if (modelFileAdded) {
+				newInOrphanModeGuess = false;
+				fileEventImpactsModel = true;
 			}
+		}
+
+		// Otherwise we check if the model file was deleted
+		else {
+			const modelFileDeleted = e.contains(this.resource, FileChangeType.DELETED);
+			if (modelFileDeleted) {
+				newInOrphanModeGuess = true;
+				fileEventImpactsModel = true;
+			}
+		}
+
+		if (fileEventImpactsModel && this.inOrphanMode !== newInOrphanModeGuess) {
+			let checkOrphanedPromise: TPromise<boolean>;
+			if (newInOrphanModeGuess) {
+				// We have received reports of users seeing delete events even though the file still
+				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
+				// Since we do not want to mark the model as orphaned, we have to check if the
+				// file is really gone and not just a faulty file event.
+				checkOrphanedPromise = TPromise.timeout(100).then(() => {
+					if (this.disposed) {
+						return true;
+					}
+
+					return this.fileService.existsFile(this.resource).then(exists => !exists);
+				});
+			} else {
+				checkOrphanedPromise = TPromise.as(false);
+			}
+
+			checkOrphanedPromise.done(newInOrphanModeValidated => {
+				if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
+					this.setOrphaned(newInOrphanModeValidated);
+				}
+			});
 		}
 	}
 
