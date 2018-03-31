@@ -532,8 +532,9 @@ export class Thread implements IThread {
 
 export class Process implements IProcess {
 
-	public sources: Map<string, Source>;
+	private sources: Map<string, Source>;
 	private threads: Map<number, Thread>;
+
 	public inactive = true;
 
 	constructor(public configuration: IConfig, private _session: ISession & ITreeElement) {
@@ -556,6 +557,10 @@ export class Process implements IProcess {
 		}
 
 		return this.configuration.type === 'attach' ? ProcessState.ATTACH : ProcessState.LAUNCH;
+	}
+
+	public getSourceForUri(modelUri: uri): Source {
+		return this.sources.get(modelUri.toString());
 	}
 
 	public getSource(raw: DebugProtocol.Source): Source {
