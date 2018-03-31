@@ -65,7 +65,7 @@ class NpmScript extends TreeItem {
 	task: Task;
 	package: PackageJSON;
 
-	constructor(packageJson: PackageJSON, task: Task) {
+	constructor(context: ExtensionContext, packageJson: PackageJSON, task: Task) {
 		super(task.name, TreeItemCollapsibleState.None);
 		this.contextValue = 'script';
 		this.package = packageJson;
@@ -74,6 +74,10 @@ class NpmScript extends TreeItem {
 			title: 'Run Script',
 			command: 'npm.runScript',
 			arguments: [this]
+		};
+		this.iconPath = {
+			light: context.asAbsolutePath(path.join('resources', 'light', 'script.svg')),
+			dark: context.asAbsolutePath(path.join('resources', 'dark', 'script.svg'))
 		};
 	}
 
@@ -86,6 +90,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	private taskTree: Folder[] | PackageJSON[] | null = null;
 	private taskProvider: TaskProvider;
 	private localize: any;
+	private extensionContext: ExtensionContext;
 	private _onDidChangeTreeData: EventEmitter<TreeItem | null> = new EventEmitter<TreeItem | null>();
 	readonly onDidChangeTreeData: Event<TreeItem | null> = this._onDidChangeTreeData.event;
 
@@ -94,7 +99,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		const subscriptions = context.subscriptions;
 		this.taskProvider = taskProvider;
 		this.localize = localize;
-
+		this.extensionContext = context;
 		subscriptions.push(commands.registerCommand('npm.runScript', this.runScript, this));
 		subscriptions.push(commands.registerCommand('npm.debugScript', this.debugScript, this));
 		subscriptions.push(commands.registerCommand('npm.openScript', this.openScript, this));
@@ -245,7 +250,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 					folder.addPackage(packageJson);
 					packages.set(path, packageJson);
 				}
-				let script = new NpmScript(packageJson, each);
+				let script = new NpmScript(this.extensionContext, packageJson, each);
 				packageJson.addScript(script);
 			}
 		});

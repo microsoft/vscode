@@ -37,7 +37,8 @@
       "explorer": [
         {
           "id": "npm",
-          "name": "npm scripts"
+          "name": "npm scripts",
+          "when": "config.npm.explorerVisible"
         }
       ]
     },
@@ -136,6 +137,12 @@
           },
           "description": "%config.npm.exclude%",
           "scope": "resource"
+        },
+        "npm.explorerVisible": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Show the npm scripts explorer"
         }
       }
     },
