@@ -1303,8 +1303,8 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		fileChangesEvent.getUpdated().forEach(event => {
-			if (this.breakpointsToSendOnResourceSaved.has(event.resource.toString())) {
-				this.breakpointsToSendOnResourceSaved.delete(event.resource.toString());
+
+			if (this.breakpointsToSendOnResourceSaved.delete(event.resource.toString())) {
 				this.sendBreakpoints(event.resource, true).done(null, errors.onUnexpectedError);
 			}
 			if (event.resource.toString().indexOf('.vscode/launch.json') >= 0) {
