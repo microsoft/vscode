@@ -140,13 +140,8 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		}
 
 		let port = await this.extractPort(scripts, task);
-		// let debugArgs = null;
-		// if (!port) {
-		// 	port = 9229;
-		// 	debugArgs = ['--', '--nolazy', `--inspect-brk=${port}`];
-		// }
 		if (!port) {
-			window.showErrorMessage(`Could not launch for debugging, the script needs to include the node debug options: --inspect-brk=port.`);
+			window.showErrorMessage(`Could not launch '${task.name}' for debugging, the script needs to include the node debug options: '--nolazy --inspect-brk=port', [learn more](https://code.visualstudio.com/docs/nodejs/nodejs-debugging#_launch-configuration-support-for-npm-and-other-tools).`);
 			return;
 		}
 
@@ -162,9 +157,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 			],
 			port: port
 		};
-		// if (debugArgs) {
-		// 	config.runtimeArgs.push(...debugArgs);
-		// }
+
 		if (isWorkspaceFolder(task.scope)) {
 			debug.startDebugging(task.scope, config);
 		}
