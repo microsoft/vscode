@@ -74,10 +74,19 @@ export interface DetectMimesOption {
 	autoGuessEncoding?: boolean;
 }
 
-export function detectMimeAndEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: false): IMimeAndEncoding;
-export function detectMimeAndEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: boolean): TPromise<IMimeAndEncoding>;
-export function detectMimeAndEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResult, autoGuessEncoding?: boolean): TPromise<IMimeAndEncoding> | IMimeAndEncoding {
+export function detectMimeAndEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: false, allowedEncodings?: Array<string>): IMimeAndEncoding;
+export function detectMimeAndEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: boolean, allowedEncodings?: Array<string>): TPromise<IMimeAndEncoding>;
+export function detectMimeAndEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResult, autoGuessEncoding?: boolean, allowedEncodings?: Array<string>): TPromise<IMimeAndEncoding> | IMimeAndEncoding {
 	let enc = encoding.detectEncodingByBOMFromBuffer(buffer, bytesRead);
+
+	const getEncoding = (allowedEncodings: Array<string>, enc: string) => {
+		if (enc === null) { // utf8
+			return enc;
+		}
+		return (allowedEncodings && allowedEncodings.length && allowedEncodings.indexOf(enc) === -1)
+			? allowedEncodings[allowedEncodings.length - 1]
+			: enc;
+	};
 
 	// Detect 0 bytes to see if file is binary (ignore for UTF 16 though)
 	let isText = true;
@@ -94,13 +103,13 @@ export function detectMimeAndEncodingFromBuffer({ buffer, bytesRead }: stream.Re
 		return encoding.guessEncodingByBuffer(buffer.slice(0, bytesRead)).then(enc => {
 			return {
 				mimes: isText ? [mime.MIME_TEXT] : [mime.MIME_BINARY],
-				encoding: enc
+				encoding: getEncoding(allowedEncodings, enc)
 			};
 		});
 	}
 
 	return {
 		mimes: isText ? [mime.MIME_TEXT] : [mime.MIME_BINARY],
-		encoding: enc
+		encoding: getEncoding(allowedEncodings, enc)
 	};
 }

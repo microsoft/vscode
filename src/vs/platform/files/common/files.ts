@@ -512,6 +512,11 @@ export interface IResolveContentOptions {
 	autoGuessEncoding?: boolean;
 
 	/**
+	 * The optional allowedEncodings parameter allows to check whether the detected encoding is in the list
+	 */
+	allowedEncodings?: Array<string>;
+
+	/**
 	 * Is an integer specifying where to begin reading from in the file. If position is null,
 	 * data will be read from the current file position.
 	 */
