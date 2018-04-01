@@ -274,6 +274,7 @@ export class QuickInputCheckboxList {
 
 	focus(what: 'First' | 'Last' | 'Next' | 'Previous' | 'NextPage' | 'PreviousPage'): void {
 		this.list['focus' + what]();
+		this.list.reveal(this.list.getFocus()[0]);
 	}
 
 	domFocus() {
