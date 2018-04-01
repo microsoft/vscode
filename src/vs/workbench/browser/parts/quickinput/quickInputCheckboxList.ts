@@ -263,8 +263,7 @@ export class QuickInputCheckboxList {
 		}));
 		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
 		this.list.splice(0, this.list.length, this.elements);
-		this.list.setSelection([]);
-		this.list.focusFirst();
+		this.list.setFocus([]);
 	}
 
 	getCheckedElements() {
@@ -275,6 +274,10 @@ export class QuickInputCheckboxList {
 	focus(what: 'First' | 'Last' | 'Next' | 'Previous' | 'NextPage' | 'PreviousPage'): void {
 		this.list['focus' + what]();
 		this.list.reveal(this.list.getFocus()[0]);
+	}
+
+	clearFocus() {
+		this.list.setFocus([]);
 	}
 
 	domFocus() {
@@ -329,8 +332,7 @@ export class QuickInputCheckboxList {
 		});
 
 		this.list.splice(0, this.list.length, this.elements.filter(element => !element.hidden));
-		this.list.setSelection([]);
-		this.list.focusFirst();
+		this.list.setFocus([]);
 		this.list.layout();
 
 		this._onAllVisibleCheckedChanged.fire(this.getAllVisibleChecked());

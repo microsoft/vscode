@@ -137,6 +137,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			// Defer to avoid the input field reacting to the triggering key.
 			setTimeout(() => {
 				this.inputBox.setFocus();
+				this.checkboxList.clearFocus();
 			}, 0);
 		}));
 		this.toUnbind.push(
