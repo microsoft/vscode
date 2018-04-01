@@ -10,7 +10,7 @@ import {
 	TextDocument, ThemeIcon, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri,
 	WorkspaceFolder, commands, debug, window, workspace
 } from 'vscode';
-import { NpmTaskDefinition, getPackageJsonUriFromTask, getScripts, isWorkspaceFolder, getPackageManager } from './tasks';
+import { NpmTaskDefinition, getPackageJsonUriFromTask, getScripts, isWorkspaceFolder, getPackageManager, getTaskName } from './tasks';
 
 class Folder extends TreeItem {
 	packages: PackageJSON[] = [];
@@ -94,7 +94,6 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	private _onDidChangeTreeData: EventEmitter<TreeItem | null> = new EventEmitter<TreeItem | null>();
 	readonly onDidChangeTreeData: Event<TreeItem | null> = this._onDidChangeTreeData.event;
 
-
 	constructor(context: ExtensionContext, taskProvider: TaskProvider, localize: any) {
 		const subscriptions = context.subscriptions;
 		this.taskProvider = taskProvider;
@@ -106,9 +105,12 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		subscriptions.push(commands.registerCommand('npm.refresh', this.refresh, this));
 	}
 
-	private async scriptIsValid(scripts: any, task: Task): Promise<boolean> {
-		if (scripts[task.name]) {
-			return true;
+	private scriptIsValid(scripts: any, task: Task): boolean {
+		for (const script in scripts) {
+			let label = getTaskName(script, task.definition.path);
+			if (task.name === label) {
+				return true;
+			}
 		}
 		return false;
 	}
@@ -118,7 +120,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		let uri = getPackageJsonUriFromTask(task);
 		let scripts = await getScripts(uri!, this.localize);
 
-		if (!await this.scriptIsValid(scripts, task)) {
+		if (!this.scriptIsValid(scripts, task)) {
 			this.scriptNotValid(task);
 			return;
 		}
@@ -139,7 +141,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		let uri = getPackageJsonUriFromTask(task);
 		let scripts = await getScripts(uri!, this.localize);
 
-		if (!await this.scriptIsValid(scripts, task)) {
+		if (!this.scriptIsValid(scripts, task)) {
 			this.scriptNotValid(task);
 			return;
 		}
@@ -249,12 +251,13 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 					folders.set(each.scope.name, folder);
 				}
 				let definition: NpmTaskDefinition = <NpmTaskDefinition>each.definition;
-				let path = definition.path ? definition.path : '';
-				packageJson = packages.get(path);
+				let relativePath = definition.path ? definition.path : '';
+				let fullPath = path.join(each.scope.name, relativePath);
+				packageJson = packages.get(fullPath);
 				if (!packageJson) {
-					packageJson = new PackageJSON(folder, path);
+					packageJson = new PackageJSON(folder, relativePath);
 					folder.addPackage(packageJson);
-					packages.set(path, packageJson);
+					packages.set(fullPath, packageJson);
 				}
 				let script = new NpmScript(this.extensionContext, packageJson, each);
 				packageJson.addScript(script);

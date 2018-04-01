@@ -129,14 +129,14 @@ async function provideNpmScriptsForFolder(localize: any, packageJsonUri: Uri): P
 	return result;
 }
 
-function createTask(script: string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, matcher?: any): Task {
-
-	function getTaskName(script: string, file: string) {
-		if (file.length) {
-			return `${script} - ${file.substring(0, file.length - 1)}`;
-		}
-		return script;
+export function getTaskName(script: string, relativePath: string | undefined) {
+	if (relativePath && relativePath.length) {
+		return `${script} - ${relativePath.substring(0, relativePath.length - 1)}`;
 	}
+	return script;
+}
+
+function createTask(script: string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, matcher?: any): Task {
 
 	function getCommandLine(folder: WorkspaceFolder, cmd: string): string {
 		let packageManager = getPackageManager(folder);
@@ -177,7 +177,7 @@ export function getPackageJsonUriFromTask(task: Task): Uri | null {
 	return null;
 }
 
-export async function exists(file: string): Promise<boolean> {
+async function exists(file: string): Promise<boolean> {
 	return new Promise<boolean>((resolve, _reject) => {
 		fs.exists(file, (value) => {
 			resolve(value);
@@ -185,7 +185,7 @@ export async function exists(file: string): Promise<boolean> {
 	});
 }
 
-export async function readFile(file: string): Promise<string> {
+async function readFile(file: string): Promise<string> {
 	return new Promise<string>((resolve, reject) => {
 		fs.readFile(file, (err, data) => {
 			if (err) {
