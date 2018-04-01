@@ -199,6 +199,11 @@ export class QuickInputCheckboxList {
 				this._onLeave.fire();
 			}
 		}));
+		this.disposables.push(this.list.onSelectionChange(e => {
+			if (e.elements.length) {
+				this.list.setSelection([]);
+			}
+		}));
 	}
 
 	@memoize
