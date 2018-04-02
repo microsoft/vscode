@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/07f55fa7c0dcdbfeb21b8970255e96dd9c00b6bb",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/6e1063a71d4d017f976ccbe3d68138f4662c9a66",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -1933,7 +1933,7 @@
 					"name": "meta.other.valid-ampersand.markdown"
 				},
 				"bold": {
-					"begin": "(?x)\n (\\*\\*|__)(?=\\S)                # Open\n (?=\n   (\n     <[^>]*+>              # HTML tags\n     | (?<raw>`+)([^`]|(?!(?<!`)\\k<raw>(?!`))`)*+\\k<raw>\n                       # Raw\n     | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+      # Escapes\n     | \\[\n     (\n         (?<square>          # Named group\n           [^\\[\\]\\\\]        # Match most chars\n           | \\\\.            # Escaped chars\n           | \\[ \\g<square>*+ \\]    # Nested brackets\n         )*+\n       \\]\n       (\n         (              # Reference Link\n           [ ]?          # Optional space\n           \\[[^\\]]*+\\]        # Ref name\n         )\n         | (              # Inline Link\n           \\(            # Opening paren\n             [ \\t]*+        # Optional whitespace\n             <?(.*?)>?      # URL\n             [ \\t]*+        # Optional whitespace\n             (          # Optional Title\n               (?<title>['\"])\n               (.*?)\n               \\k<title>\n             )?\n           \\)\n         )\n       )\n     )\n     | (?!(?<=\\S)\\1).            # Everything besides\n                       # style closer\n   )++\n   (?<=\\S)\\1                # Close\n )\n",
+					"begin": "(?x)\n ((?<!\\w)\\*\\*\\b|\\b__)(?=\\S)                # Open\n (?=\n   (\n     <[^>]*+>              # HTML tags\n     | (?<raw>`+)([^`]|(?!(?<!`)\\k<raw>(?!`))`)*+\\k<raw>\n                       # Raw\n     | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+      # Escapes\n     | \\[\n     (\n         (?<square>          # Named group\n           [^\\[\\]\\\\]        # Match most chars\n           | \\\\.            # Escaped chars\n           | \\[ \\g<square>*+ \\]    # Nested brackets\n         )*+\n       \\]\n       (\n         (              # Reference Link\n           [ ]?          # Optional space\n           \\[[^\\]]*+\\]        # Ref name\n         )\n         | (              # Inline Link\n           \\(            # Opening paren\n             [ \\t]*+        # Optional whitespace\n             <?(.*?)>?      # URL\n             [ \\t]*+        # Optional whitespace\n             (          # Optional Title\n               (?<title>['\"])\n               (.*?)\n               \\k<title>\n             )?\n           \\)\n         )\n       )\n     )\n     | (?!(?<=\\S)\\1).            # Everything besides\n                       # style closer\n   )++\n   (?<=\\S)\\1                # Close\n )\n",
 					"captures": {
 						"1": {
 							"name": "punctuation.definition.bold.markdown"
