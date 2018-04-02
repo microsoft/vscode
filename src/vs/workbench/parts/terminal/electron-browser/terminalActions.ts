@@ -787,6 +787,27 @@ export class ClearTerminalAction extends Action {
 	}
 }
 
+export class ClearSelectionTerminalAction extends Action {
+
+	public static readonly ID = 'workbench.action.terminal.clearSelection';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.clearSelection', "Clear Selection");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance && terminalInstance.hasSelection()) {
+			terminalInstance.clearSelection();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
 export class AllowWorkspaceShellTerminalCommand extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.allowWorkspaceShell';
