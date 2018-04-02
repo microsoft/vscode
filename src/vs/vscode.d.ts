@@ -5259,7 +5259,7 @@ declare module 'vscode' {
 		/**
 		 * Register a [TreeDataProvider](#TreeDataProvider) for the view contributed using the extension point `views`.
 		 * This will allow you to contribute data to the [TreeView](#TreeView) and update if the data changes.
-		 * 
+		 *
 		 * **Note:** To get access to the [TreeView](#TreeView) and perform operations on it, use [createTreeView](#window.createTreeView).
 		 *
 		 * @param viewId Id of the view contributed using the extension point `views`.
