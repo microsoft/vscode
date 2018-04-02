@@ -787,7 +787,7 @@ export class ClearTerminalAction extends Action {
 	}
 }
 
-export class ClearTerminalSelection extends Action {
+export class ClearSelectionTerminalAction extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.clearSelection';
 	public static readonly LABEL = nls.localize('workbench.action.terminal.clearSelection', "Clear Selection");

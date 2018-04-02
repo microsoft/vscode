@@ -13,12 +13,12 @@ import * as panel from 'vs/workbench/browser/panel';
 import * as platform from 'vs/base/common/platform';
 import * as terminalCommands from 'vs/workbench/parts/terminal/electron-browser/terminalCommands';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TerminalCursorStyle } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TerminalCursorStyle, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE } from 'vs/workbench/parts/terminal/common/terminal';
 import { getTerminalDefaultShellUnixLike, getTerminalDefaultShellWindows } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KillTerminalAction, ClearTerminalSelection, CopyTerminalSelectionAction, CreateNewTerminalAction, CreateNewInActiveWorkspaceTerminalAction, FocusActiveTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, SelectDefaultShellWindowsTerminalAction, RunSelectedTextInTerminalAction, RunActiveFileInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction, AllowWorkspaceShellTerminalCommand, DisallowWorkspaceShellTerminalCommand, RenameTerminalAction, SelectAllTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, ShowNextFindTermTerminalFindWidgetAction, ShowPreviousFindTermTerminalFindWidgetAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, QuickOpenActionTermContributor, QuickOpenTermAction, TERMINAL_PICKER_PREFIX, MoveToLineStartTerminalAction, MoveToLineEndTerminalAction, SplitTerminalAction, FocusPreviousPaneTerminalAction, FocusNextPaneTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, ResizePaneDownTerminalAction, ScrollToPreviousCommandAction, ScrollToNextCommandAction, SelectToPreviousCommandAction, SelectToNextCommandAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { KillTerminalAction, ClearSelectionTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, CreateNewInActiveWorkspaceTerminalAction, FocusActiveTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, SelectDefaultShellWindowsTerminalAction, RunSelectedTextInTerminalAction, RunActiveFileInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction, AllowWorkspaceShellTerminalCommand, DisallowWorkspaceShellTerminalCommand, RenameTerminalAction, SelectAllTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, ShowNextFindTermTerminalFindWidgetAction, ShowPreviousFindTermTerminalFindWidgetAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, QuickOpenActionTermContributor, QuickOpenTermAction, TERMINAL_PICKER_PREFIX, MoveToLineStartTerminalAction, MoveToLineEndTerminalAction, SplitTerminalAction, FocusPreviousPaneTerminalAction, FocusNextPaneTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, ResizePaneDownTerminalAction, ScrollToPreviousCommandAction, ScrollToNextCommandAction, SelectToPreviousCommandAction, SelectToNextCommandAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -244,7 +244,7 @@ configurationRegistry.registerConfiguration({
 				ScrollUpPageTerminalAction.ID,
 				ScrollToTopTerminalAction.ID,
 				ClearTerminalAction.ID,
-				ClearTerminalSelection.ID,
+				ClearSelectionTerminalAction.ID,
 				debugActions.StartAction.ID,
 				debugActions.StopAction.ID,
 				debugActions.RunAction.ID,
@@ -347,10 +347,10 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewTermina
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK }
 }), 'Terminal: Create New Integrated Terminal', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearTerminalSelection, ClearTerminalSelection.ID, ClearTerminalSelection.LABEL, {
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearSelectionTerminalAction, ClearSelectionTerminalAction.ID, ClearSelectionTerminalAction.LABEL, {
 	primary: KeyCode.Escape,
 	linux: { primary: KeyCode.Escape }
-}, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED), 'Terminal: Escape selection', category);
+}, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE)), 'Terminal: Escape selection', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CreateNewInActiveWorkspaceTerminalAction, CreateNewInActiveWorkspaceTerminalAction.ID, CreateNewInActiveWorkspaceTerminalAction.LABEL), 'Terminal: Create New Integrated Terminal (In Active Workspace)', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusActiveTerminalAction, FocusActiveTerminalAction.ID, FocusActiveTerminalAction.LABEL), 'Terminal: Focus Terminal', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextTerminalAction, FocusNextTerminalAction.ID, FocusNextTerminalAction.LABEL), 'Terminal: Focus Next Terminal', category);
