@@ -110,7 +110,7 @@ class SupportedCodeActionProvider {
 
 	public async getFixableDiagnosticsForContext(context: vscode.CodeActionContext): Promise<vscode.Diagnostic[]> {
 		const supportedActions = await this.supportedCodeActions;
-		const fixableDiagnostics = DiagnosticsSet.from(context.diagnostics.filter(diagnostic => supportedActions.has(+!diagnostic.code)));
+		const fixableDiagnostics = DiagnosticsSet.from(context.diagnostics.filter(diagnostic => supportedActions.has(+(diagnostic.code!))));
 		return Array.from(fixableDiagnostics.values);
 	}
 
@@ -184,7 +184,7 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 	): Promise<Iterable<vscode.CodeAction>> {
 		const args: Proto.CodeFixRequestArgs = {
 			...typeConverters.Range.toFileRangeRequestArgs(file, diagnostic.range),
-			errorCodes: [+!diagnostic.code]
+			errorCodes: [+(diagnostic.code!)]
 		};
 		const codeFixesResponse = await this.client.execute('getCodeFixes', args, token);
 		if (codeFixesResponse.body) {
