@@ -166,10 +166,10 @@ export class ProgressService2 implements IProgressService2 {
 		}
 	}
 
-	private _withNotificationProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, percentage?: number }>) => P, onDidCancel?: () => void): P {
+	private _withNotificationProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, increment?: number }>) => P, onDidCancel?: () => void): P {
 		const toDispose: IDisposable[] = [];
 
-		const createNotification = (message: string, percentage?: number): INotificationHandle => {
+		const createNotification = (message: string, increment?: number): INotificationHandle => {
 			if (!message) {
 				return undefined; // we need a message at least
 			}
@@ -201,7 +201,7 @@ export class ProgressService2 implements IProgressService2 {
 				actions
 			});
 
-			updateProgress(handle, percentage);
+			updateProgress(handle, increment);
 
 			once(handle.onDidDispose)(() => {
 				dispose(toDispose);
@@ -210,26 +210,26 @@ export class ProgressService2 implements IProgressService2 {
 			return handle;
 		};
 
-		const updateProgress = (notification: INotificationHandle, percentage?: number): void => {
-			if (typeof percentage === 'number' && percentage > 0) {
+		const updateProgress = (notification: INotificationHandle, increment?: number): void => {
+			if (typeof increment === 'number' && increment >= 0) {
 				notification.progress.total(100); // always percentage based
-				notification.progress.worked(percentage);
+				notification.progress.worked(increment);
 			} else {
 				notification.progress.infinite();
 			}
 		};
 
 		let handle: INotificationHandle;
-		const updateNotification = (message?: string, percentage?: number): void => {
+		const updateNotification = (message?: string, increment?: number): void => {
 			if (!handle) {
-				handle = createNotification(message, percentage);
+				handle = createNotification(message, increment);
 			} else {
 				if (typeof message === 'string') {
 					handle.updateMessage(message);
 				}
 
-				if (typeof percentage === 'number') {
-					updateProgress(handle, percentage);
+				if (typeof increment === 'number') {
+					updateProgress(handle, increment);
 				}
 			}
 		};
@@ -240,7 +240,7 @@ export class ProgressService2 implements IProgressService2 {
 		// Update based on progress
 		const p = callback({
 			report: progress => {
-				updateNotification(progress.message, progress.percentage);
+				updateNotification(progress.message, progress.increment);
 			}
 		});
 

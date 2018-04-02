@@ -30,6 +30,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { once } from 'vs/base/common/event';
+import { isWindows } from 'vs/base/common/platform';
 
 const NotNowAction = new Action(
 	'update.later',
@@ -354,7 +355,7 @@ export class UpdateContribution implements IGlobalActivity {
 
 		const handle = this.notificationService.notify({
 			severity: severity.Info,
-			message: nls.localize('updateAvailable', "There's an available update: {0} {1}", product.nameLong, update.productVersion),
+			message: nls.localize('updateAvailable', "There's an update available: {0} {1}", product.nameLong, update.productVersion),
 			actions: { primary: [installUpdateAction, NotNowAction, releaseNotesAction] }
 		});
 		once(handle.onDidDispose)(() => dispose(installUpdateAction, releaseNotesAction));
@@ -378,7 +379,7 @@ export class UpdateContribution implements IGlobalActivity {
 
 	// windows and mac
 	private onUpdateReady(update: IUpdate): void {
-		if (!this.shouldShowNotification()) {
+		if (!isWindows && !this.shouldShowNotification()) {
 			return;
 		}
 
@@ -393,7 +394,7 @@ export class UpdateContribution implements IGlobalActivity {
 
 		const handle = this.notificationService.notify({
 			severity: severity.Info,
-			message: nls.localize('updateAvailableAfterRestart', "{0} will be updated after it restarts.", product.nameLong),
+			message: nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", product.nameLong),
 			actions: {
 				primary: releaseNotesAction ? [applyUpdateAction, NotNowAction, releaseNotesAction] : [applyUpdateAction, NotNowAction]
 			}

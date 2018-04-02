@@ -28,7 +28,5 @@
 	"preLaunchTaskExitCode": "preLaunchTask '{0}'이(가) {1} 종료 코드와 함께 종료되었습니다.",
 	"showErrors": "오류 표시",
 	"noFolderWorkspaceDebugError": "활성 파일은 디버그할 수 없습니다. 이 파일이 디스크에 저장되어 있고 해당 파일 형식에 대한 디버그 확장이 설치되어 있는지 확인하세요.",
-	"cancel": "취소",
-	"DebugTaskNotFound": "preLaunchTask '{0}'을(를) 찾을 수 없습니다.",
-	"taskNotTracked": "PreLaunchTask '{0}'을(를) 추적할 수 없습니다."
+	"cancel": "취소"
 }

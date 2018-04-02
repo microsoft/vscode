@@ -8,8 +8,6 @@
 	],
 	"nextSearchIncludePattern": "다음 검색 포함 패턴 표시",
 	"previousSearchIncludePattern": "이전 검색 포함 패턴 표시",
-	"nextSearchExcludePattern": "다음 검색 제외 패턴 표시",
-	"previousSearchExcludePattern": "이전 검색 제외 패턴 표시",
 	"nextSearchTerm": "다음 검색어 표시",
 	"previousSearchTerm": "이전 검색어 표시",
 	"showSearchViewlet": "검색 표시",

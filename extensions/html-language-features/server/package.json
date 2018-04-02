@@ -9,8 +9,8 @@
   },
   "dependencies": {
     "vscode-css-languageservice": "^3.0.8",
-    "vscode-emmet-helper": "1.2.1",
-    "vscode-html-languageservice": "^2.1.1",
+    "vscode-emmet-helper": "1.2.4",
+    "vscode-html-languageservice": "^2.1.2",
     "vscode-languageserver": "^4.0.0",
     "vscode-languageserver-protocol-foldingprovider": "^1.0.1",
     "vscode-languageserver-types": "^3.6.1",

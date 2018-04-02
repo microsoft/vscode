@@ -29,6 +29,6 @@
 	"showErrors": "显示错误",
 	"noFolderWorkspaceDebugError": "无法调试活动文件。请确保它保存在磁盘上，并确保已为该文件类型安装了调试扩展。",
 	"cancel": "取消",
-	"DebugTaskNotFound": "找不到 preLaunchTask“{0}”。",
-	"taskNotTracked": "无法跟踪 preLaunchTask “{0}”。"
+	"DebugTaskNotFound": "找不到任务“{0}”。",
+	"taskNotTracked": "无法跟踪任务“{0}”。"
 }

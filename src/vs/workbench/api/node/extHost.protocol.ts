@@ -327,7 +327,7 @@ export interface MyQuickPickItems extends IPickOpenEntry {
 	handle: number;
 }
 export interface MainThreadQuickOpenShape extends IDisposable {
-	$show(options: IPickOptions): TPromise<number>;
+	$show(options: IPickOptions): TPromise<number | number[]>;
 	$setItems(items: MyQuickPickItems[]): TPromise<any>;
 	$setError(error: Error): TPromise<any>;
 	$input(options: vscode.InputBoxOptions, validateInput: boolean): TPromise<string>;
@@ -391,7 +391,7 @@ export interface MainThreadTaskShape extends IDisposable {
 	$registerTaskProvider(handle: number): TPromise<void>;
 	$executeTaskProvider(): TPromise<TaskDTO[]>;
 	$executeTask(task: TaskHandleDTO | TaskDTO): TPromise<TaskExecutionDTO>;
-	$terminateTask(task: TaskExecutionDTO): TPromise<void>;
+	$terminateTask(id: string): TPromise<void>;
 	$unregisterTaskProvider(handle: number): TPromise<void>;
 }
 

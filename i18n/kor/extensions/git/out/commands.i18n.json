@@ -75,7 +75,6 @@
 	"ok": "확인",
 	"push with tags success": "태그와 함께 푸시되었습니다.",
 	"pick remote": "'{0}' 분기를 다음에 게시하려면 원격을 선택하세요.",
-	"sync is unpredictable": "이 작업은 '{0}' 간에 커밋을 푸시하고 풀합니다.",
 	"never again": "다시 표시 안 함",
 	"no remotes to publish": "리포지토리에 게시하도록 구성된 원격이 없습니다.",
 	"no changes stash": "스태시할 변경 내용이 없습니다.",

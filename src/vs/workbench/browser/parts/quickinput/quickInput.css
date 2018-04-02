@@ -1,0 +1,114 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.quick-input-widget {
+	position: absolute;
+	width: 600px;
+	z-index: 2000;
+	padding-bottom: 6px;
+	left: 50%;
+	margin-left: -300px;
+}
+
+.quick-input-header {
+	display: flex;
+	padding: 6px 6px 4px 6px;
+}
+
+.quick-input-check-all {
+	align-self: center;
+	margin: 0;
+}
+
+.quick-input-filter {
+	flex-grow: 1;
+	display: flex;
+	position: relative;
+}
+
+.quick-input-box {
+	flex-grow: 1;
+	margin-left: 5px;
+}
+
+.quick-input-count {
+	align-self: center;
+	position: absolute;
+	right: 4px;
+}
+
+.quick-input-count .monaco-count-badge {
+	vertical-align: middle;
+}
+
+.quick-input-action {
+	margin-left: 6px;
+	border: 0;
+	padding: 6px;
+	cursor: pointer;
+}
+
+.quick-input-action:focus {
+	outline:0;
+}
+
+.quick-input-progress.monaco-progress-container,
+.quick-input-progress.monaco-progress-container .progress-bit {
+	height: 2px;
+}
+
+.quick-input-checkbox-list {
+	line-height: 22px;
+}
+
+.quick-input-checkbox-list .monaco-list {
+	overflow: hidden;
+	max-height: calc(20 * 22px);
+}
+
+.quick-input-checkbox-list .quick-input-checkbox-list-entry {
+	overflow: hidden;
+	display: flex;
+	height: 100%;
+	padding: 0 6px;
+}
+
+.quick-input-checkbox-list .quick-input-checkbox-list-label {
+	overflow: hidden;
+	display: flex;
+	height: 100%;
+	flex: 1;
+}
+
+.quick-input-checkbox-list .quick-input-checkbox-list-checkbox {
+	align-self: center;
+	margin: 0;
+	/* TODO */
+	/* margin-top: 5px; */
+}
+
+.quick-input-checkbox-list .quick-input-checkbox-list-rows {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	flex: 1;
+	margin-left: 10px;
+}
+
+.quick-input-checkbox-list .quick-input-checkbox-list-rows > .quick-input-checkbox-list-row {
+	display: flex;
+	align-items: center;
+}
+
+.quick-input-checkbox-list .quick-input-checkbox-list-rows .monaco-highlighted-label span {
+	opacity: 1;
+}
+
+.quick-input-checkbox-list .quick-input-checkbox-list-label-meta {
+	opacity: 0.7;
+	line-height: normal;
+}

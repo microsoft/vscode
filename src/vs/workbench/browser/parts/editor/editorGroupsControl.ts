@@ -288,6 +288,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 					titleControl.dispose();
 					titleContainer.empty();
 					this.createTitleControl(this.stacks.groupAt(position), this.silos[position], titleContainer, this.getInstantiationService(position));
+					this.layoutTitleControl(position);
 				}
 
 				// Refresh title when layout options change
@@ -2166,14 +2167,16 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		});
 
 		// Layout title controls
-		POSITIONS.forEach(position => {
-			const siloWidth = this.layoutVertically ? this.silosSize[position] : this.dimension.width;
-
-			this.getTitleAreaControl(position).layout(new Dimension(siloWidth, EditorGroupsControl.EDITOR_TITLE_HEIGHT));
-		});
+		POSITIONS.forEach(position => this.layoutTitleControl(position));
 
 		// Update minimized state
 		this.updateMinimizedState();
+	}
+
+	private layoutTitleControl(position: Position): void {
+		const siloWidth = this.layoutVertically ? this.silosSize[position] : this.dimension.width;
+
+		this.getTitleAreaControl(position).layout(new Dimension(siloWidth, EditorGroupsControl.EDITOR_TITLE_HEIGHT));
 	}
 
 	private layoutEditor(position: Position): void {

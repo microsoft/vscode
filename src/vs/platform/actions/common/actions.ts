@@ -59,6 +59,7 @@ export class MenuId {
 	static readonly ViewTitle = new MenuId();
 	static readonly ViewItemContext = new MenuId();
 	static readonly TouchBarContext = new MenuId();
+	static readonly SearchContext = new MenuId();
 
 	readonly id: string = String(MenuId.ID++);
 }

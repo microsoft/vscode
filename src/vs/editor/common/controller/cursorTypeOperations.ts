@@ -18,6 +18,7 @@ import { IndentAction, EnterAction } from 'vs/editor/common/modes/languageConfig
 import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
 import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
 import { getMapForWordSeparators, WordCharacterClass } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { CharCode } from 'vs/base/common/charCode';
 
 export class TypeOperations {
 
@@ -121,6 +122,15 @@ export class TypeOperations {
 
 		if (multicursorText && multicursorText.length === selections.length) {
 			return multicursorText;
+		}
+
+		// Remove trailing \n if present
+		if (text.charCodeAt(text.length - 1) === CharCode.LineFeed) {
+			text = text.substr(0, text.length - 1);
+		}
+		let lines = text.split(/\r\n|\r|\n/);
+		if (lines.length === selections.length) {
+			return lines;
 		}
 
 		return null;

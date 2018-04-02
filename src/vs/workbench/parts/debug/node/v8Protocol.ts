@@ -149,7 +149,7 @@ export abstract class V8Protocol {
 					break;
 			}
 		} catch (e) {
-			this.onServerError(new Error(e.message || e));
+			this.onServerError(new Error((e.message || e) + '\n' + body));
 		}
 	}
 }

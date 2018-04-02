@@ -2052,9 +2052,9 @@ vinyl@~2.0.1:
     remove-trailing-separator "^1.0.1"
     replace-ext "^1.0.0"
 
-vscode-emmet-helper@^1.2.2:
-  version "1.2.2"
-  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-1.2.2.tgz#3df10164b3ee040d90a5216d007fcabbf3e303c7"
+vscode-emmet-helper@^1.2.4:
+  version "1.2.4"
+  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-1.2.4.tgz#48056974d13036722af019235b9f750a495de728"
   dependencies:
     "@emmetio/extract-abbreviation" "0.1.6"
     jsonc-parser "^1.0.0"

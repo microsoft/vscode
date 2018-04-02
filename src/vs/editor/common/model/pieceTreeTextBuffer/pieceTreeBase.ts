@@ -13,6 +13,7 @@ import { SearchData, isValidMatch, Searcher, createFindMatch } from 'vs/editor/c
 import { FindMatch } from 'vs/editor/common/model';
 
 // const lfRegex = new RegExp(/\r\n|\r|\n/g);
+export const AverageBufferSize = 65535;
 
 export function createUintArray(arr: number[]): Uint32Array | Uint16Array {
 	let r;
@@ -311,7 +312,7 @@ export class PieceTreeBase {
 	}
 
 	normalizeEOL(eol: '\r\n' | '\n') {
-		let averageBufferSize = 65536;
+		let averageBufferSize = AverageBufferSize;
 		let min = averageBufferSize - Math.floor(averageBufferSize / 3);
 		let max = min * 2;
 
@@ -538,7 +539,7 @@ export class PieceTreeBase {
 		let nodePos = this.nodeAt2(lineNumber, index + 1);
 		let buffer = this._buffers[nodePos.node.piece.bufferIndex];
 		let startOffset = this.offsetInBuffer(nodePos.node.piece.bufferIndex, nodePos.node.piece.start);
-		let targetOffset = startOffset + index;
+		let targetOffset = startOffset + nodePos.remainder;
 
 		return buffer.buffer.charCodeAt(targetOffset);
 	}
@@ -712,7 +713,8 @@ export class PieceTreeBase {
 			if (node.piece.bufferIndex === 0 &&
 				piece.end.line === this._lastChangeBufferPos.line &&
 				piece.end.column === this._lastChangeBufferPos.column &&
-				(nodeStartOffset + piece.length === offset)
+				(nodeStartOffset + piece.length === offset) &&
+				value.length < AverageBufferSize
 			) {
 				// changed buffer
 				this.appendToNode(node, value);
@@ -769,19 +771,27 @@ export class PieceTreeBase {
 					this.deleteNodeTail(node, insertPosInBuffer);
 				}
 
-				let newPiece = this.createNewPiece(value);
+				let newPieces = this.createNewPieces(value);
 				if (newRightPiece.length > 0) {
 					this.rbInsertRight(node, newRightPiece);
 				}
-				this.rbInsertRight(node, newPiece);
+
+				let tmpNode = node;
+				for (let k = 0; k < newPieces.length; k++) {
+					tmpNode = this.rbInsertRight(tmpNode, newPieces[k]);
+				}
 				this.deleteNodes(nodesToDel);
 			} else {
 				this.insertContentToNodeRight(value, node);
 			}
 		} else {
 			// insert new node
-			let piece = this.createNewPiece(value);
-			this.rbInsertLeft(null, piece);
+			let pieces = this.createNewPieces(value);
+			let node = this.rbInsertLeft(null, pieces[0]);
+
+			for (let k = 1; k < pieces.length; k++) {
+				node = this.rbInsertRight(node, pieces[k]);
+			}
 		}
 
 		// todo, this is too brutal. Total line feed count should be updated the same way as lf_left.
@@ -887,8 +897,11 @@ export class PieceTreeBase {
 			}
 		}
 
-		let newPiece = this.createNewPiece(value);
-		let newNode = this.rbInsertLeft(node, newPiece);
+		let newPieces = this.createNewPieces(value);
+		let newNode = this.rbInsertLeft(node, newPieces[newPieces.length - 1]);
+		for (let k = newPieces.length - 2; k >= 0; k--) {
+			newNode = this.rbInsertLeft(newNode, newPieces[k]);
+		}
 		this.validateCRLFWithPrevNode(newNode);
 		this.deleteNodes(nodesToDel);
 	}
@@ -900,8 +913,14 @@ export class PieceTreeBase {
 			value += '\n';
 		}
 
-		let newPiece = this.createNewPiece(value);
-		let newNode = this.rbInsertRight(node, newPiece);
+		let newPieces = this.createNewPieces(value);
+		let newNode = this.rbInsertRight(node, newPieces[0]);
+		let tmpNode = newNode;
+
+		for (let k = 1; k < newPieces.length; k++) {
+			tmpNode = this.rbInsertRight(tmpNode, newPieces[k]);
+		}
+
 		this.validateCRLFWithPrevNode(newNode);
 	}
 
@@ -994,7 +1013,47 @@ export class PieceTreeBase {
 		}
 	}
 
-	createNewPiece(text: string): Piece {
+	createNewPieces(text: string): Piece[] {
+		if (text.length > AverageBufferSize) {
+			// the content is large, operations like substring, charCode becomes slow
+			// so here we split it into smaller chunks, just like what we did for CR/LF normalization
+			let newPieces = [];
+			while (text.length > AverageBufferSize) {
+				const lastChar = text.charCodeAt(AverageBufferSize - 1);
+				let splitText;
+				if (lastChar === CharCode.CarriageReturn || (lastChar >= 0xd800 && lastChar <= 0xdbff)) {
+					// last character is \r or a high surrogate => keep it back
+					splitText = text.substring(0, AverageBufferSize - 1);
+					text = text.substring(AverageBufferSize - 1);
+				} else {
+					splitText = text.substring(0, AverageBufferSize);
+					text = text.substring(AverageBufferSize);
+				}
+
+				let lineStarts = createLineStartsFast(splitText);
+				newPieces.push(new Piece(
+					this._buffers.length, /* buffer index */
+					{ line: 0, column: 0 },
+					{ line: lineStarts.length - 1, column: splitText.length - lineStarts[lineStarts.length - 1] },
+					lineStarts.length - 1,
+					splitText.length
+				));
+				this._buffers.push(new StringBuffer(splitText, lineStarts));
+			}
+
+			let lineStarts = createLineStartsFast(text);
+			newPieces.push(new Piece(
+				this._buffers.length, /* buffer index */
+				{ line: 0, column: 0 },
+				{ line: lineStarts.length - 1, column: text.length - lineStarts[lineStarts.length - 1] },
+				lineStarts.length - 1,
+				text.length
+			));
+			this._buffers.push(new StringBuffer(text, lineStarts));
+
+			return newPieces;
+		}
+
 		let startOffset = this._buffers[0].buffer.length;
 		const lineStarts = createLineStartsFast(text, false);
 
@@ -1029,14 +1088,14 @@ export class PieceTreeBase {
 		let endColumn = endOffset - this._buffers[0].lineStarts[endIndex];
 		let endPos = { line: endIndex, column: endColumn };
 		let newPiece = new Piece(
-			0,
+			0, /** todo */
 			start,
 			endPos,
 			this.getLineFeedCnt(0, start, endPos),
 			endOffset - startOffset
 		);
 		this._lastChangeBufferPos = endPos;
-		return newPiece;
+		return [newPiece];
 	}
 
 	getLinesRawContent(): string {
@@ -1519,8 +1578,8 @@ export class PieceTreeBase {
 		}
 
 		// create new piece which contains \r\n
-		let piece = this.createNewPiece('\r\n');
-		this.rbInsertRight(prev, piece);
+		let pieces = this.createNewPieces('\r\n');
+		this.rbInsertRight(prev, pieces[0]);
 		// delete empty nodes
 
 		for (let i = 0; i < nodesToDel.length; i++) {

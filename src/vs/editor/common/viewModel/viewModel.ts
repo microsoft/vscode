@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { INewScrollPosition, IViewState } from 'vs/editor/common/editorCommon';
+import { INewScrollPosition } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IModelDecorationOptions } from 'vs/editor/common/model';
 import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position, IPosition } from 'vs/editor/common/core/position';
@@ -63,9 +63,6 @@ export interface IViewLayout {
 	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
 	getWhitespaces(): IEditorWhitespace[];
 
-	saveState(): IViewState;
-	reduceRestoreState(state: IViewState): { scrollLeft: number; scrollTop: number; };
-
 	isAfterLines(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
@@ -122,6 +119,7 @@ export interface IViewModel {
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
 	 */
 	setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void;
+	setHasFocus(hasFocus: boolean): void;
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;

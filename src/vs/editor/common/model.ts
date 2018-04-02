@@ -1008,6 +1008,13 @@ export interface ITextModel {
 	 * @internal
 	 * @event
 	 */
+	onDidChangeRawContentFast(listener: (e: ModelRawContentChangedEvent) => void): IDisposable;
+	/**
+	 * @deprecated Please use `onDidChangeContent` instead.
+	 * An event emitted when the contents of the model have changed.
+	 * @internal
+	 * @event
+	 */
 	onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the contents of the model have changed.
@@ -1067,6 +1074,12 @@ export interface ITextModel {
 	 * @internal
 	 */
 	isAttachedToEditor(): boolean;
+
+	/**
+	 * Returns the count of editors this model is attached to.
+	 * @internal
+	 */
+	getAttachedEditorCount(): number;
 }
 
 /**

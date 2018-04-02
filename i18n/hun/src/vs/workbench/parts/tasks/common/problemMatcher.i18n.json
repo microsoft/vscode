@@ -45,6 +45,7 @@
 	"PatternTypeSchema.description": "Egy problémaminta vagy egy szolgáltatott vagy elődefiniált problémaminta neve. Elhagyható, ha az alapként használandó minta meg van adva.",
 	"ProblemMatcherSchema.base": "A alapként használni kívánt problémaillesztő neve.",
 	"ProblemMatcherSchema.owner": "A probléma tulajdonosa a Code-on belül. Elhagyható, ha az alapként használt minta meg van adva. Alapértelmezett értéke 'external', ha nem létezik és az alapként használt minta nincs meghatározva.",
+	"ProblemMatcherSchema.source": "A diagnosztika forrásának emberek által is értelmezhető leírása, pl. 'typescript' vagy 'super lint'.",
 	"ProblemMatcherSchema.severity": "Az elkapott problémák alapértelmezett súlyossága. Ez az érték van használva, ha a minta nem definiál illesztési csoportot a súlyossághoz.",
 	"ProblemMatcherSchema.applyTo": "Meghatározza, hogy a szöveges dokumentumhoz jelentett probléma megnyitott, bezárt vagy minden dokumentumra legyen alkalmazva.",
 	"ProblemMatcherSchema.fileLocation": "Meghatározza, hogy a problémamintában talált fájlnevek hogyan legyenek értelmezve.",

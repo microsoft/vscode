@@ -7,9 +7,11 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { LinesTextBuffer, IValidatedEditOperation } from 'vs/editor/common/model/linesTextBuffer/linesTextBuffer';
+import { PieceTreeTextBuffer, IValidatedEditOperation } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
+import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { DefaultEndOfLine } from 'vs/editor/common/model';
 
-suite('LinesTextBuffer._getInverseEdits', () => {
+suite('PieceTreeTextBuffer._getInverseEdits', () => {
 
 	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IValidatedEditOperation {
 		return {
@@ -29,7 +31,7 @@ suite('LinesTextBuffer._getInverseEdits', () => {
 	}
 
 	function assertInverseEdits(ops: IValidatedEditOperation[], expected: Range[]): void {
-		var actual = LinesTextBuffer._getInverseEditRanges(ops);
+		var actual = PieceTreeTextBuffer._getInverseEditRanges(ops);
 		assert.deepEqual(actual, expected);
 	}
 
@@ -260,7 +262,7 @@ suite('LinesTextBuffer._getInverseEdits', () => {
 	});
 });
 
-suite('LinesTextBuffer._toSingleEditOperation', () => {
+suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 
 	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeOffset: number, rangeLength: number, text: string[]): IValidatedEditOperation {
 		return {
@@ -276,13 +278,7 @@ suite('LinesTextBuffer._toSingleEditOperation', () => {
 	}
 
 	function testToSingleEditOperation(original: string[], edits: IValidatedEditOperation[], expected: IValidatedEditOperation): void {
-		const textBuffer = new LinesTextBuffer({
-			BOM: '',
-			EOL: '\n',
-			containsRTL: false,
-			isBasicASCII: true,
-			lines: original
-		});
+		const textBuffer = <PieceTreeTextBuffer>createTextBufferFactory(original.join('\n')).create(DefaultEndOfLine.LF);
 
 		const actual = textBuffer._toSingleEditOperation(edits);
 		assert.deepEqual(actual, expected);

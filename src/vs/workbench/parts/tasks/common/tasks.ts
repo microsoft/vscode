@@ -34,6 +34,9 @@ export enum ShellQuoting {
 
 export namespace ShellQuoting {
 	export function from(this: void, value: string): ShellQuoting {
+		if (!value) {
+			return ShellQuoting.Strong;
+		}
 		switch (value.toLowerCase()) {
 			case 'escape':
 				return ShellQuoting.Escape;
@@ -642,7 +645,8 @@ export namespace Task {
 
 	export function getTaskExecution(task: Task): TaskExecution {
 		let result: TaskExecution = {
-			id: task._id
+			id: task._id,
+			task: task
 		};
 		return result;
 	}
@@ -657,6 +661,7 @@ export interface TaskItem {
 
 export interface TaskExecution {
 	id: string;
+	task: Task;
 }
 
 export enum ExecutionEngine {

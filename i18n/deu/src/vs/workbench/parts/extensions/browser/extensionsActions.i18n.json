@@ -58,6 +58,8 @@
 	"configureWorkspaceFolderRecommendedExtensions": "Empfohlene Erweiterungen konfigurieren (Arbeitsbereichsordner)",
 	"malicious tooltip": "Die Erweiterung wurde als problematisch gemeldet.",
 	"malicious": "Böswillig",
+	"disabled": "Deaktiviert",
+	"disabled globally": "Deaktiviert",
 	"disableAll": "Alle installierten Erweiterungen löschen",
 	"disableAllWorkspace": "Alle installierten Erweiterungen für diesen Arbeitsbereich deaktivieren",
 	"enableAll": "Alle Erweiterungen aktivieren",

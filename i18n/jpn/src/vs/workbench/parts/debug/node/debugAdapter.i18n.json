@@ -18,6 +18,7 @@
 	"debugRequest": "構成の要求の種類。\"launch\" または \"attach\" です。",
 	"debugServer": "デバッグ拡張機能の開発のみ。ポートが指定の VS Code の場合、サーバー モードで実行中のデバッグ アダプターへの接続が試行されます。",
 	"debugPrelaunchTask": "デバッグ セッションの開始前に実行するタスク。",
+	"debugPostDebugTask": "デバッグ セッションの終了後に実行するタスク。",
 	"debugWindowsConfiguration": "Windows 固有の起動構成の属性。",
 	"debugOSXConfiguration": "OS X 固有の起動構成の属性。",
 	"debugLinuxConfiguration": "Linux 固有の起動構成の属性。",

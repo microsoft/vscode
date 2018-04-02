@@ -5880,9 +5880,9 @@ vscode-chokidar@1.6.2:
   optionalDependencies:
     vscode-fsevents "0.3.8"
 
-vscode-debugprotocol@1.27.0:
-  version "1.27.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.27.0.tgz#735a43a3cc1235fe587c0ef93fe4e328def7b17c"
+vscode-debugprotocol@1.28.0:
+  version "1.28.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.28.0.tgz#b9fb97c3fb2dadbec78e5c1619ff12bf741ce406"
 
 vscode-fsevents@0.3.8:
   version "0.3.8"
@@ -5969,9 +5969,9 @@ windows-mutex@^0.2.0:
     bindings "^1.2.1"
     nan "^2.1.0"
 
-windows-process-tree@0.1.6:
-  version "0.1.6"
-  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.1.6.tgz#c2d942a944152ea749a4c1c0bdb769b2f570639f"
+windows-process-tree@0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.2.0.tgz#04dc0507df292a7984daf0d35861bd1ebaff7ae8"
   dependencies:
     nan "^2.6.2"
 

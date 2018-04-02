@@ -1445,11 +1445,44 @@ suite('centralized lineStarts with CRLF', () => {
 });
 
 suite('random is unsupervised', () => {
+	test('splitting large change buffer', function () {
+		let pieceTable = createTextBuffer([''], false);
+		let str = '';
+
+		pieceTable.insert(0, 'WUZ\nXVZY\n');
+		str = str.substring(0, 0) + 'WUZ\nXVZY\n' + str.substring(0);
+		pieceTable.insert(8, '\r\r\nZXUWVW');
+		str = str.substring(0, 8) + '\r\r\nZXUWVW' + str.substring(8);
+		pieceTable.delete(10, 7);
+		str = str.substring(0, 10) + str.substring(10 + 7);
+		pieceTable.delete(10, 1);
+		str = str.substring(0, 10) + str.substring(10 + 1);
+		pieceTable.insert(4, 'VX\r\r\nWZVZ');
+		str = str.substring(0, 4) + 'VX\r\r\nWZVZ' + str.substring(4);
+		pieceTable.delete(11, 3);
+		str = str.substring(0, 11) + str.substring(11 + 3);
+		pieceTable.delete(12, 4);
+		str = str.substring(0, 12) + str.substring(12 + 4);
+		pieceTable.delete(8, 0);
+		str = str.substring(0, 8) + str.substring(8 + 0);
+		pieceTable.delete(10, 2);
+		str = str.substring(0, 10) + str.substring(10 + 2);
+		pieceTable.insert(0, 'VZXXZYZX\r');
+		str = str.substring(0, 0) + 'VZXXZYZX\r' + str.substring(0);
+
+		assert.equal(pieceTable.getLinesRawContent(), str);
+
+		testLineStarts(str, pieceTable);
+		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
+	});
+
 	test('random insert delete', function () {
 		this.timeout(500000);
 		let str = '';
 		let pieceTable = createTextBuffer([str], false);
 
+		// let output = '';
 		for (let i = 0; i < 1000; i++) {
 			if (Math.random() < 0.6) {
 				// insert
@@ -1457,6 +1490,8 @@ suite('random is unsupervised', () => {
 				let pos = randomInt(str.length + 1);
 				pieceTable.insert(pos, text);
 				str = str.substring(0, pos) + text + str.substring(pos);
+				// output += `pieceTable.insert(${pos}, '${text.replace(/\n/g, '\\n').replace(/\r/g, '\\r')}');\n`;
+				// output += `str = str.substring(0, ${pos}) + '${text.replace(/\n/g, '\\n').replace(/\r/g, '\\r')}' + str.substring(${pos});\n`;
 			} else {
 				// delete
 				let pos = randomInt(str.length);
@@ -1466,8 +1501,12 @@ suite('random is unsupervised', () => {
 				);
 				pieceTable.delete(pos, length);
 				str = str.substring(0, pos) + str.substring(pos + length);
+				// output += `pieceTable.delete(${pos}, ${length});\n`;
+				// output += `str = str.substring(0, ${pos}) + str.substring(${pos} + ${length});\n`
+
 			}
 		}
+		// console.log(output);
 
 		assert.equal(pieceTable.getLinesRawContent(), str);
 
@@ -1570,6 +1609,15 @@ suite('buffer api', () => {
 		let b = createTextBuffer(['']);
 
 		assert(!a.equal(b));
+	});
+
+	test('getLineCharCode - issue #45735', () => {
+		let pieceTable = createTextBuffer(['LINE1\nline2']);
+		assert.equal(pieceTable.getLineCharCode(2, 0), 'l'.charCodeAt(0), 'l');
+		assert.equal(pieceTable.getLineCharCode(2, 1), 'i'.charCodeAt(0), 'i');
+		assert.equal(pieceTable.getLineCharCode(2, 2), 'n'.charCodeAt(0), 'n');
+		assert.equal(pieceTable.getLineCharCode(2, 3), 'e'.charCodeAt(0), 'e');
+		assert.equal(pieceTable.getLineCharCode(2, 4), '2'.charCodeAt(0), '2');
 	});
 });
 

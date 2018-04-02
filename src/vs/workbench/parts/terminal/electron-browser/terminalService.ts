@@ -24,6 +24,8 @@ import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/term
 import { TerminalTab } from 'vs/workbench/parts/terminal/electron-browser/terminalTab';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, PromptOption } from 'vs/platform/notification/common/notification';
+import { ipcRenderer as ipc } from 'electron';
+import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
@@ -50,6 +52,19 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 		this._terminalTabs = [];
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
+
+		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => {
+			// if the request to open files is coming in from the integrated terminal (identified though
+			// the termProgram variable) and we are instructed to wait for editors close, wait for the
+			// marker file to get deleted and then focus back to the integrated terminal.
+			if (request.termProgram === 'vscode' && request.filesToWait) {
+				pfs.whenDeleted(request.filesToWait.waitMarkerFilePath).then(() => {
+					if (this.terminalInstances.length > 0) {
+						this.getActiveInstance().focus();
+					}
+				});
+			}
+		});
 	}
 
 	public createInstance(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {

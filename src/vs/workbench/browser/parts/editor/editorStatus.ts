@@ -64,20 +64,44 @@ import { Themable } from 'vs/workbench/common/theme';
 // tslint:disable-next-line:import-patterns
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 
-function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
-	if (input instanceof SideBySideEditorInput) {
-		input = input.master;
+class SideBySideEditorEncodingSupport implements IEncodingSupport {
+	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
+
+	public getEncoding(): string {
+		return this.master.getEncoding(); // always report from modified (right hand) side
 	}
 
+	public setEncoding(encoding: string, mode: EncodingMode): void {
+		[this.master, this.details].forEach(s => s.setEncoding(encoding, mode));
+	}
+}
+
+function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
+
+	// Untitled Editor
 	if (input instanceof UntitledEditorInput) {
 		return input;
 	}
 
+	// Side by Side (diff) Editor
+	if (input instanceof SideBySideEditorInput) {
+		const masterEncodingSupport = toEditorWithEncodingSupport(input.master);
+		const detailsEncodingSupport = toEditorWithEncodingSupport(input.details);
+
+		if (masterEncodingSupport && detailsEncodingSupport) {
+			return new SideBySideEditorEncodingSupport(masterEncodingSupport, detailsEncodingSupport);
+		}
+
+		return masterEncodingSupport;
+	}
+
+	// File or Resource Editor
 	let encodingSupport = input as IFileEditorInput;
 	if (types.areFunctions(encodingSupport.setEncoding, encodingSupport.getEncoding)) {
 		return encodingSupport;
 	}
 
+	// Unsupported for any other editor
 	return null;
 }
 

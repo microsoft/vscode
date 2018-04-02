@@ -650,50 +650,30 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Alex: TextEditor.visibleRange and related event
-
-	export interface TextEditor {
-		/**
-		 * The current visible ranges in the editor (vertically).
-		 * This accounts only for vertical scrolling, and not for horizontal scrolling.
-		 */
-		readonly visibleRanges: Range[];
-	}
-
-	/**
-	 * Represents an event describing the change in a [text editor's visible ranges](#TextEditor.visibleRanges).
-	 */
-	export interface TextEditorVisibleRangesChangeEvent {
-		/**
-		 * The [text editor](#TextEditor) for which the visible ranges have changed.
-		 */
-		textEditor: TextEditor;
-		/**
-		 * The new value for the [text editor's visible ranges](#TextEditor.visibleRanges).
-		 */
-		visibleRanges: Range[];
-	}
-
-	export namespace window {
-		/**
-		 * An [event](#Event) which fires when the selection in an editor has changed.
-		 */
-		export const onDidChangeTextEditorVisibleRanges: Event<TextEditorVisibleRangesChangeEvent>;
-	}
-
-	//#endregion
-
 	//#region Tasks
 
 	/**
 	 * An object representing an executed Task. It can be used
 	 * to terminate a task.
+	 *
+	 * This interface is not intended to be implemented.
 	 */
 	export interface TaskExecution {
+		/**
+		 * The task that got started.
+		 */
+		task: Task;
+
+		/**
+		 * Terminates the task execution.
+		 */
+		terminate(): void;
 	}
 
 	/**
 	 * An event signaling the start of a task execution.
+	 *
+	 * This interface is not intended to be implemented.
 	 */
 	interface TaskStartEvent {
 		/**
@@ -704,6 +684,8 @@ declare module 'vscode' {
 
 	/**
 	 * An event signaling the end of an executed task.
+	 *
+	 * This interface is not intended to be implemented.
 	 */
 	interface TaskEndEvent {
 		/**
@@ -733,13 +715,6 @@ declare module 'vscode' {
 		 * Fires when a task starts.
 		 */
 		export const onDidStartTask: Event<TaskStartEvent>;
-
-		/**
-		 * Terminates a task that was previously started using `executeTask`
-		 *
-		 * @param task the task to terminate
-		 */
-		export function terminateTask(task: TaskExecution): void;
 
 		/**
 		 * Fires when a task ends.

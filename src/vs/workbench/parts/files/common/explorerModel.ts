@@ -17,7 +17,7 @@ import { IEditorGroup, toResource, IEditorIdentifier } from 'vs/workbench/common
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
-import { startsWith, beginsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
+import { startsWith, startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
 
 export class Model {
 
@@ -177,6 +177,7 @@ export class ExplorerItem {
 		local.isDirectory = disk.isDirectory;
 		local.mtime = disk.mtime;
 		local.isDirectoryResolved = disk.isDirectoryResolved;
+		local._isSymbolicLink = disk.isSymbolicLink;
 
 		// Merge Children if resolved
 		if (mergingDirectories && disk.isDirectoryResolved) {
@@ -316,7 +317,7 @@ export class ExplorerItem {
 	public find(resource: URI): ExplorerItem {
 		// Return if path found
 		if (resource && this.resource.scheme === resource.scheme && this.resource.authority === resource.authority &&
-			(isLinux ? startsWith(resource.path, this.resource.path) : beginsWithIgnoreCase(resource.path, this.resource.path))
+			(isLinux ? startsWith(resource.path, this.resource.path) : startsWithIgnoreCase(resource.path, this.resource.path))
 		) {
 			return this.findByPath(resource.path, this.resource.path.length);
 		}

@@ -8,7 +8,7 @@ import { Viewlet } from '../workbench/viewlet';
 
 const VIEWLET = 'div[id="workbench.view.search"] .search-view';
 const INPUT = `${VIEWLET} .search-widget .search-container .monaco-inputbox input`;
-const INCLUDE_INPUT = `${VIEWLET} .query-details .monaco-inputbox input[aria-label="Search Include Patterns"]`;
+const INCLUDE_INPUT = `${VIEWLET} .query-details .monaco-inputbox input[aria-label="Search Include/Exclude Patterns"]`;
 
 export class Search extends Viewlet {
 

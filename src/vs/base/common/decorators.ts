@@ -62,13 +62,27 @@ export function memoize(target: any, key: string, descriptor: any) {
 	};
 }
 
-export function debounce(delay: number): Function {
+export interface IDebouceReducer<T> {
+	(previousValue: T, ...args: any[]): T;
+}
+
+export function debounce<T>(delay: number, reducer?: IDebouceReducer<T>, initialValueProvider?: () => T): Function {
 	return createDecorator((fn, key) => {
 		const timerKey = `$debounce$${key}`;
+		let result = initialValueProvider ? initialValueProvider() : void 0;
 
 		return function (this: any, ...args: any[]) {
 			clearTimeout(this[timerKey]);
-			this[timerKey] = setTimeout(() => fn.apply(this, args), delay);
+
+			if (reducer) {
+				result = reducer(result, ...args);
+				args = [result];
+			}
+
+			this[timerKey] = setTimeout(() => {
+				fn.apply(this, args);
+				result = initialValueProvider ? initialValueProvider() : void 0;
+			}, delay);
 		};
 	});
 }

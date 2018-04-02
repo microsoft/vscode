@@ -641,7 +641,7 @@ export abstract class CommonCodeEditor extends Disposable {
 		}
 
 		const cursorState = this.cursor.saveState();
-		const viewState = this.viewModel.viewLayout.saveState();
+		const viewState = this.viewModel.saveState();
 		return {
 			cursorState: cursorState,
 			viewState: viewState,

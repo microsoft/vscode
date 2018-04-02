@@ -361,7 +361,7 @@ export const TITLE_BAR_INACTIVE_BACKGROUND = registerColor('titleBar.inactiveBac
 export const TITLE_BAR_BORDER = registerColor('titleBar.border', {
 	dark: null,
 	light: null,
-	hc: null
+	hc: contrastBorder
 }, nls.localize('titleBarBorder', "Title bar border color. Note that this color is currently only supported on macOS."));
 
 // < --- Notifications --- >

@@ -5,8 +5,8 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { nativeSep, normalize, isEqualOrParent, basename as pathsBasename, join } from 'vs/base/common/paths';
-import { endsWith, ltrim, equalsIgnoreCase } from 'vs/base/common/strings';
+import { nativeSep, normalize, basename as pathsBasename, join, sep } from 'vs/base/common/paths';
+import { endsWith, ltrim, equalsIgnoreCase, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
 
@@ -100,13 +100,22 @@ export function normalizeDriveLetter(path: string): string {
 	return path;
 }
 
+let normalizedUserHomeCached: { original: string; normalized: string } = Object.create(null);
 export function tildify(path: string, userHome: string): string {
-	if (isWindows || !path) {
-		return path; // unsupported on Windows
+	if (isWindows || !path || !userHome) {
+		return path; // unsupported
 	}
 
-	if (isEqualOrParent(path, userHome, !isLinux /* ignorecase */)) {
-		path = `~${path.substr(userHome.length)}`;
+	// Keep a normalized user home path as cache to prevent accumulated string creation
+	let normalizedUserHome = normalizedUserHomeCached.original === userHome ? normalizedUserHomeCached.normalized : void 0;
+	if (!normalizedUserHome) {
+		normalizedUserHome = `${rtrim(userHome, sep)}${sep}`;
+		normalizedUserHomeCached = { original: userHome, normalized: normalizedUserHome };
+	}
+
+	// Linux: case sensitive, macOS: case insensitive
+	if (isLinux ? startsWith(path, normalizedUserHome) : startsWithIgnoreCase(path, normalizedUserHome)) {
+		path = `~/${path.substr(normalizedUserHome.length)}`;
 	}
 
 	return path;

@@ -54,10 +54,11 @@ import { Schemas } from 'vs/base/common/network';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { openSearchView, getSearchView, ReplaceAllInFolderAction, ReplaceAllAction, CloseReplaceAction, FocusNextInputAction, FocusPreviousInputAction, FocusNextSearchResultAction, FocusPreviousSearchResultAction, ReplaceInFilesAction, FindInFilesAction, FocusActiveEditorCommand, toggleCaseSensitiveCommand, ShowNextSearchTermAction, ShowPreviousSearchTermAction, toggleRegexCommand, ShowPreviousSearchIncludeAction, ShowNextSearchIncludeAction, CollapseDeepestExpandedLevelAction, toggleWholeWordCommand, RemoveAction, ReplaceAction, ClearSearchResultsAction } from 'vs/workbench/parts/search/browser/searchActions';
-import { VIEW_ID } from 'vs/platform/search/common/search';
+import { VIEW_ID, ISearchConfigurationProperties } from 'vs/platform/search/common/search';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { SearchViewLocationUpdater } from 'vs/workbench/parts/search/browser/searchViewLocationUpdater';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -130,8 +131,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.ReplaceActionId,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.MatchFocusKey),
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
-	secondary: [KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1],
+	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1,
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
 		const tree: ITree = searchView.getControl();
@@ -143,7 +143,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.ReplaceAllInFileActionId,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.FileFocusKey),
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
+	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1,
+	secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter],
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
 		const tree: ITree = searchView.getControl();
@@ -155,7 +156,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.ReplaceAllInFolderActionId,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.FolderFocusKey),
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
+	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1,
+	secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter],
 	handler: (accessor, args: any) => {
 		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
 		const tree: ITree = searchView.getControl();
@@ -191,6 +193,68 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		accessor.get(IInstantiationService).createInstance(FocusPreviousInputAction, FocusPreviousInputAction.ID, '').run();
 	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.SearchContext, {
+	command: {
+		id: Constants.ReplaceActionId,
+		title: ReplaceAction.LABEL
+	},
+	when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.MatchFocusKey),
+	group: 'search',
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.SearchContext, {
+	command: {
+		id: Constants.ReplaceAllInFolderActionId,
+		title: ReplaceAllInFolderAction.LABEL
+	},
+	when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FolderFocusKey),
+	group: 'search',
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.SearchContext, {
+	command: {
+		id: Constants.ReplaceAllInFileActionId,
+		title: ReplaceAllAction.LABEL
+	},
+	when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FileFocusKey),
+	group: 'search',
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.SearchContext, {
+	command: {
+		id: Constants.RemoveActionId,
+		title: RemoveAction.LABEL
+	},
+	when: Constants.FileMatchOrMatchFocusKey,
+	group: 'search',
+	order: 2
+});
+
+CommandsRegistry.registerCommand({
+	id: Constants.ToggleSearchViewPositionCommandId,
+	handler: (accessor) => {
+		const configurationService = accessor.get(IConfigurationService);
+		const currentValue = configurationService.getValue<ISearchConfigurationProperties>('search').location;
+		const toggleValue = currentValue === 'sidebar' ? 'panel' : 'sidebar';
+
+		configurationService.updateValue('search.location', toggleValue);
+	}
+});
+
+const toggleSearchViewPositionLabel = nls.localize('toggleSearchViewPositionLabel', "Toggle Search View Position");
+MenuRegistry.appendMenuItem(MenuId.SearchContext, {
+	command: {
+		id: Constants.ToggleSearchViewPositionCommandId,
+		title: toggleSearchViewPositionLabel
+	},
+	when: Constants.SearchViewVisibleKey,
+	group: 'search_2',
+	order: 3
 });
 
 const FIND_IN_FOLDER_ID = 'filesExplorer.findInFolder';

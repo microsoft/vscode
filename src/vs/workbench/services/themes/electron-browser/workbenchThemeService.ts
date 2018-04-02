@@ -362,7 +362,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 						"id" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"publisherDisplayName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+						"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"themeId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
 					}
 				*/

@@ -226,6 +226,7 @@ export class FileRenderer implements IRenderer {
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: IFileTemplateData): void {
+		templateData.elementDisposable.dispose();
 		templateData.label.dispose();
 	}
 

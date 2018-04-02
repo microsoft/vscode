@@ -28,7 +28,5 @@
 	"preLaunchTaskExitCode": "L'attività di preavvio '{0}' è stata terminata ed è stato restituito il codice di uscita {1}.",
 	"showErrors": "Mostra errori",
 	"noFolderWorkspaceDebugError": "Non è possibile eseguire il debug del file attivo. Assicurarsi che sia salvato su disco e che sia installata un'estensione di debug per tale tipo di file.",
-	"cancel": "Annulla",
-	"DebugTaskNotFound": "L'attività di preavvio '{0}' non è stata trovata.",
-	"taskNotTracked": "Non è possibile tenere traccia del preLaunchTask '{0}'."
+	"cancel": "Annulla"
 }

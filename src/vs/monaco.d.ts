@@ -1927,9 +1927,13 @@ declare namespace monaco.editor {
 	 * A (serializable) state of the view.
 	 */
 	export interface IViewState {
-		scrollTop: number;
-		scrollTopWithoutViewZones: number;
+		/** written by previous versions */
+		scrollTop?: number;
+		/** written by previous versions */
+		scrollTopWithoutViewZones?: number;
 		scrollLeft: number;
+		firstPosition: IPosition;
+		firstPositionDeltaTop: number;
 	}
 
 	/**
@@ -2803,6 +2807,11 @@ declare namespace monaco.editor {
 		 */
 		folding?: boolean;
 		/**
+		 * Selects the folding strategy. 'auto' uses the strategies contributed for the current document, 'indentation' uses the indentation based folding strategy.
+		 * Defaults to 'auto'.
+		 */
+		foldingStrategy?: 'auto' | 'indentation';
+		/**
 		 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 		 * Defaults to 'mouseover'.
 		 */
@@ -3081,6 +3090,7 @@ declare namespace monaco.editor {
 		readonly occurrencesHighlight: boolean;
 		readonly codeLens: boolean;
 		readonly folding: boolean;
+		readonly foldingStrategy: 'auto' | 'indentation';
 		readonly showFoldingControls: 'always' | 'mouseover';
 		readonly matchBrackets: boolean;
 		readonly find: InternalEditorFindOptions;

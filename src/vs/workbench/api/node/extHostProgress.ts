@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Progress, ProgressOptions } from 'vscode';
+import { ProgressOptions } from 'vscode';
 import { MainThreadProgressShape, ExtHostProgressShape } from './extHost.protocol';
 import { ProgressLocation } from './extHostTypeConverters';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { IProgressStep } from 'vs/platform/progress/common/progress';
+import { IProgressStep, Progress } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
+import { debounce } from 'vs/base/common/decorators';
 
 export class ExtHostProgress implements ExtHostProgressShape {
 
@@ -37,12 +38,6 @@ export class ExtHostProgress implements ExtHostProgressShape {
 			this._mapHandleToCancellationSource.set(handle, source);
 		}
 
-		const progress = {
-			report: (p: IProgressStep) => {
-				this._proxy.$progressReport(handle, p);
-			}
-		};
-
 		const progressEnd = (handle: number): void => {
 			this._proxy.$progressEnd(handle);
 			this._mapHandleToCancellationSource.delete(handle);
@@ -54,7 +49,7 @@ export class ExtHostProgress implements ExtHostProgressShape {
 		let p: Thenable<R>;
 
 		try {
-			p = task(progress, cancellable ? source.token : CancellationToken.None);
+			p = task(new ProgressCallback(this._proxy, handle), cancellable ? source.token : CancellationToken.None);
 		} catch (err) {
 			progressEnd(handle);
 			throw err;
@@ -73,3 +68,23 @@ export class ExtHostProgress implements ExtHostProgressShape {
 	}
 }
 
+function mergeProgress(result: IProgressStep, currentValue: IProgressStep): IProgressStep {
+	result.message = currentValue.message;
+	if (typeof currentValue.increment === 'number' && typeof result.message === 'number') {
+		result.increment += currentValue.increment;
+	} else if (typeof currentValue.increment === 'number') {
+		result.increment = currentValue.increment;
+	}
+	return result;
+}
+
+class ProgressCallback extends Progress<IProgressStep> {
+	constructor(private _proxy: MainThreadProgressShape, private _handle: number) {
+		super(p => this.throttledReport(p));
+	}
+
+	@debounce(100, (result: IProgressStep, currentValue: IProgressStep) => mergeProgress(result, currentValue), () => Object.create(null))
+	throttledReport(p: IProgressStep): void {
+		this._proxy.$progressReport(this._handle, p);
+	}
+}

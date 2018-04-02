@@ -15,8 +15,9 @@ import { Lazy } from '../utils/lazy';
 import TypeScriptServiceClientHost from '../typeScriptServiceClientHost';
 
 export class OrganizeImportsCommand implements Command {
-	public static readonly ID = 'typescript.organizeImports';
-	public readonly id = OrganizeImportsCommand.ID;
+	public static readonly Ids = ['javascript.organizeImports', 'typescript.organizeImports'];
+
+	public readonly id = OrganizeImportsCommand.Ids;
 
 	constructor(
 		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>

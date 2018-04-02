@@ -161,7 +161,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 				return;
 			}
 
-			EditOperationsCommand.execute(this.editor, edits, true);
+			EditOperationsCommand.executeAsCommand(this.editor, edits);
 			alertFormattingEdits(edits);
 
 		}, (err) => {
@@ -244,7 +244,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 			if (!state.validate(this.editor) || isFalsyOrEmpty(edits)) {
 				return;
 			}
-			EditOperationsCommand.execute(this.editor, edits, false);
+			EditOperationsCommand.execute(this.editor, edits);
 			alertFormattingEdits(edits);
 		});
 	}
@@ -280,7 +280,7 @@ export abstract class AbstractFormatAction extends EditorAction {
 				return;
 			}
 
-			EditOperationsCommand.execute(editor, edits, false);
+			EditOperationsCommand.execute(editor, edits);
 			alertFormattingEdits(edits);
 			editor.focus();
 		}, err => {

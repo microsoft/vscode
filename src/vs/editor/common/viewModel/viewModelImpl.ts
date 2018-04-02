@@ -23,7 +23,7 @@ import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
-import { ITextModel, EndOfLinePreference } from 'vs/editor/common/model';
+import { ITextModel, EndOfLinePreference, TrackedRangeStickiness } from 'vs/editor/common/model';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -32,6 +32,9 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private readonly editorId: number;
 	private readonly configuration: editorCommon.IConfiguration;
 	private readonly model: ITextModel;
+	private hasFocus: boolean;
+	private viewportStartLineTrackedRange: string;
+	private viewportStartLineTop: number;
 	private readonly lines: IViewModelLinesCollection;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly viewLayout: ViewLayout;
@@ -46,6 +49,9 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.editorId = editorId;
 		this.configuration = configuration;
 		this.model = model;
+		this.hasFocus = false;
+		this.viewportStartLineTrackedRange = null;
+		this.viewportStartLineTop = 0;
 
 		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
 
@@ -114,6 +120,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		super.dispose();
 		this.decorations.dispose();
 		this.lines.dispose();
+		this.viewportStartLineTrackedRange = this.model._setTrackedRange(this.viewportStartLineTrackedRange, null, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
+	}
+
+	public setHasFocus(hasFocus: boolean): void {
+		this.hasFocus = hasFocus;
 	}
 
 	private _onConfigurationChanged(eventsCollector: viewEvents.ViewEventsCollector, e: IConfigurationChangedEvent): void {
@@ -162,7 +173,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	private _registerModelEvents(): void {
 
-		this._register(this.model.onDidChangeRawContent((e) => {
+		this._register(this.model.onDidChangeRawContentFast((e) => {
 			try {
 				const eventsCollector = this._beginEmit();
 
@@ -238,6 +249,16 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			// Update the configuration and reset the centered view line
 			this._centeredViewLine = -1;
 			this.configuration.setMaxLineNumber(this.model.getLineCount());
+
+			// Recover viewport
+			if (!this.hasFocus && this.model.getAttachedEditorCount() >= 2 && this.viewportStartLineTrackedRange) {
+				const modelRange = this.model._getTrackedRange(this.viewportStartLineTrackedRange);
+				if (modelRange) {
+					const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(modelRange.getStartPosition());
+					const viewPositionTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
+					this.viewLayout.deltaScrollNow(0, viewPositionTop - this.viewportStartLineTop);
+				}
+			}
 		}));
 
 		this._register(this.model.onDidChangeTokens((e) => {
@@ -388,6 +409,43 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		);
 	}
 
+	public saveState(): editorCommon.IViewState {
+		const compatViewState = this.viewLayout.saveState();
+
+		const scrollTop = compatViewState.scrollTop;
+		const firstViewLineNumber = this.viewLayout.getLineNumberAtVerticalOffset(scrollTop);
+		const firstPosition = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(firstViewLineNumber, this.getLineMinColumn(firstViewLineNumber)));
+		const firstPositionDeltaTop = this.viewLayout.getVerticalOffsetForLineNumber(firstViewLineNumber) - scrollTop;
+
+		return {
+			scrollLeft: compatViewState.scrollLeft,
+			firstPosition: firstPosition,
+			firstPositionDeltaTop: firstPositionDeltaTop
+		};
+	}
+
+	public reduceRestoreState(state: editorCommon.IViewState): { scrollLeft: number; scrollTop: number; } {
+		if (typeof state.firstPosition === 'undefined') {
+			// This is a view state serialized by an older version
+			return this._reduceRestoreStateCompatibility(state);
+		}
+
+		const modelPosition = this.model.validatePosition(state.firstPosition);
+		const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
+		const scrollTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber) - state.firstPositionDeltaTop;
+		return {
+			scrollLeft: state.scrollLeft,
+			scrollTop: scrollTop
+		};
+	}
+
+	private _reduceRestoreStateCompatibility(state: editorCommon.IViewState): { scrollLeft: number; scrollTop: number; } {
+		return {
+			scrollLeft: state.scrollLeft,
+			scrollTop: state.scrollTopWithoutViewZones
+		};
+	}
+
 	public getTabSize(): number {
 		return this.model.getOptions().tabSize;
 	}
@@ -402,6 +460,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	public setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void {
 		this._centeredViewLine = centeredLineNumber;
 		this.lines.warmUpLookupCache(startLineNumber, endLineNumber);
+
+		let position = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(startLineNumber, this.getLineMinColumn(startLineNumber)));
+		this.viewportStartLineTrackedRange = this.model._setTrackedRange(this.viewportStartLineTrackedRange, new Range(position.lineNumber, position.column, position.lineNumber, position.column), TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
+		this.viewportStartLineTop = this.viewLayout.getVerticalOffsetForLineNumber(startLineNumber);
 	}
 
 	public getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[] {
