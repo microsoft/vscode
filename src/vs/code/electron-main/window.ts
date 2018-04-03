@@ -606,7 +606,7 @@ export class CodeWindow implements ICodeWindow {
 
 		// Perf Counters
 		windowConfiguration.perfEntries = exportEntries();
-		windowConfiguration.perfStartTime = global.perfStartTime;
+		windowConfiguration.perfStartTime = (<any>global).perfStartTime;
 		windowConfiguration.perfWindowLoadTime = Date.now();
 
 		// Config (combination of process.argv and window configuration)

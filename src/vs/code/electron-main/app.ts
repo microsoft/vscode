@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { app, ipcMain as ipc, BrowserWindow } from 'electron';
+import { app, ipcMain as ipc } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
@@ -127,7 +127,7 @@ export class CodeApplication {
 			return srcUri.startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
 		};
 
-		app.on('web-contents-created', (_event: any, contents) => {
+		app.on('web-contents-created', (event: any, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
 				delete webPreferences.preload;
 				webPreferences.nodeIntegration = false;
@@ -182,15 +182,15 @@ export class CodeApplication {
 			this.windowsMainService.openNewWindow(OpenContext.DESKTOP); //macOS native tab "+" button
 		});
 
-		ipc.on('vscode:exit', (_event: any, code: number) => {
+		ipc.on('vscode:exit', (event: any, code: number) => {
 			this.logService.trace('IPC#vscode:exit', code);
 
 			this.dispose();
 			this.lifecycleService.kill(code);
 		});
 
-		ipc.on('vscode:fetchShellEnv', (_event: any, windowId: number) => {
-			const { webContents } = BrowserWindow.fromId(windowId);
+		ipc.on('vscode:fetchShellEnv', event => {
+			const webContents = event.sender.webContents;
 			getShellEnvironment().then(shellEnv => {
 				if (!webContents.isDestroyed()) {
 					webContents.send('vscode:acceptShellEnv', shellEnv);
@@ -204,7 +204,7 @@ export class CodeApplication {
 			});
 		});
 
-		ipc.on('vscode:broadcast', (_event: any, windowId: number, broadcast: { channel: string; payload: any; }) => {
+		ipc.on('vscode:broadcast', (event: any, windowId: number, broadcast: { channel: string; payload: any; }) => {
 			if (this.windowsMainService && broadcast.channel && !isUndefinedOrNull(broadcast.payload)) {
 				this.logService.trace('IPC#vscode:broadcast', broadcast.channel, broadcast.payload);
 
@@ -402,11 +402,12 @@ export class CodeApplication {
 		this.windowsMainService.ready(this.userEnv);
 
 		// Open our first window
+		const macOpenFiles = (<any>global).macOpenFiles as string[];
 		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 		if (args['new-window'] && args._.length === 0) {
 			this.windowsMainService.open({ context, cli: args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
-		} else if (global.macOpenFiles && global.macOpenFiles.length && (!args._ || !args._.length)) {
-			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, pathsToOpen: global.macOpenFiles, initialStartup: true }); // mac: open-file event received on startup
+		} else if (macOpenFiles && macOpenFiles.length && (!args._ || !args._.length)) {
+			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, pathsToOpen: macOpenFiles, initialStartup: true }); // mac: open-file event received on startup
 		} else {
 			this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!args._.length && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
 		}

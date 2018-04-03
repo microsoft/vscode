@@ -448,7 +448,6 @@ global.getOpenUrls = function () {
 	return openUrls;
 };
 
-
 // use '<UserData>/CachedData'-directory to store
 // node/v8 cached data.
 let nodeCachedDataDir = getNodeCachedDataDir().then(function (value) {
