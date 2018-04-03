@@ -58,7 +58,7 @@ export class LRUMemory extends Memory {
 		this._cache.set(key, {
 			touch: this._seq++,
 			type: item.suggestion.type,
-			insertText: undefined
+			insertText: item.suggestion.insertText
 		});
 	}
 
@@ -74,7 +74,7 @@ export class LRUMemory extends Memory {
 				const { suggestion } = items[i];
 				const key = `${model.getLanguageIdentifier().language}/${suggestion.label}`;
 				const item = this._cache.get(key);
-				if (item && item.touch > seq && item.type === suggestion.type) {
+				if (item && item.touch > seq && item.type === suggestion.type && item.insertText === suggestion.insertText) {
 					seq = item.touch;
 					res = i;
 				}
