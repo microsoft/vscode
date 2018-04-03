@@ -36,7 +36,7 @@ export class NodeCachedDataManager implements IWorkbenchContribution {
 				/* __GDPR__
 					"cachedDataError" : {
 						"errorCode" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-						"path": { "classification": "CustomerContent", "purpose": "PerformanceAndHealth" }
+						"path": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 					}
 				*/
 				this._telemetryService.publicLog('cachedDataError', {

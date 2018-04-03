@@ -211,6 +211,11 @@
                     "type": "boolean",
                     "default": false,
                     "description": "%emmetShowSuggestionsAsSnippets%"
+                },
+                "emmet.optimizeStylesheetParsing": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "%emmetOptimizeStylesheetParsing%"
                 }
             }
         },

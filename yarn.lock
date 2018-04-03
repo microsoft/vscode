@@ -5920,9 +5920,9 @@ vscode-ripgrep@^0.8.1:
   version "0.8.1"
   resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-0.8.1.tgz#861d2ac97a3764e9f40f305620423efc50632ad1"
 
-vscode-textmate@^3.3.2:
-  version "3.3.2"
-  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-3.3.2.tgz#43d7722d24ed168d195a1e3c582c6914917a37ab"
+vscode-textmate@^3.3.3:
+  version "3.3.3"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-3.3.3.tgz#8d737f2965046503a4088d47c2793aebe246d355"
   dependencies:
     fast-plist "^0.1.2"
     oniguruma "^6.0.1"

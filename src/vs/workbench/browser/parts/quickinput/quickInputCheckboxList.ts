@@ -194,6 +194,16 @@ export class QuickInputCheckboxList {
 					break;
 			}
 		}));
+		this.disposables.push(dom.addDisposableListener(this.container, dom.EventType.CLICK, e => {
+			if (e.x || e.y) { // Avoid 'click' triggered by 'space' on checkbox.
+				this._onLeave.fire();
+			}
+		}));
+		this.disposables.push(this.list.onSelectionChange(e => {
+			if (e.elements.length) {
+				this.list.setSelection([]);
+			}
+		}));
 	}
 
 	@memoize
@@ -202,17 +212,21 @@ export class QuickInputCheckboxList {
 	}
 
 	getAllVisibleChecked() {
-		return this.allVisibleChecked(this.elements);
+		return this.allVisibleChecked(this.elements, false);
 	}
 
-	private allVisibleChecked(elements: CheckableElement[]) {
+	private allVisibleChecked(elements: CheckableElement[], whenNoneVisible = true) {
 		for (let i = 0, n = elements.length; i < n; i++) {
 			const element = elements[i];
-			if (!element.hidden && !element.checked) {
-				return false;
+			if (!element.hidden) {
+				if (!element.checked) {
+					return false;
+				} else {
+					whenNoneVisible = true;
+				}
 			}
 		}
-		return true;
+		return whenNoneVisible;
 	}
 
 	getCheckedCount() {
@@ -249,8 +263,7 @@ export class QuickInputCheckboxList {
 		}));
 		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
 		this.list.splice(0, this.list.length, this.elements);
-		this.list.setSelection([]);
-		this.list.focusFirst();
+		this.list.setFocus([]);
 	}
 
 	getCheckedElements() {
@@ -260,6 +273,11 @@ export class QuickInputCheckboxList {
 
 	focus(what: 'First' | 'Last' | 'Next' | 'Previous' | 'NextPage' | 'PreviousPage'): void {
 		this.list['focus' + what]();
+		this.list.reveal(this.list.getFocus()[0]);
+	}
+
+	clearFocus() {
+		this.list.setFocus([]);
 	}
 
 	domFocus() {
@@ -314,8 +332,7 @@ export class QuickInputCheckboxList {
 		});
 
 		this.list.splice(0, this.list.length, this.elements.filter(element => !element.hidden));
-		this.list.setSelection([]);
-		this.list.focusFirst();
+		this.list.setFocus([]);
 		this.list.layout();
 
 		this._onAllVisibleCheckedChanged.fire(this.getAllVisibleChecked());

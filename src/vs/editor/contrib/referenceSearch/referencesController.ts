@@ -155,16 +155,17 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 			// show widget
 			return this._widget.setModel(this._model).then(() => {
+				if (this._widget) { // might have been closed
+					// set title
+					this._widget.setMetaTitle(options.getMetaTitle(this._model));
 
-				// set title
-				this._widget.setMetaTitle(options.getMetaTitle(this._model));
-
-				// set 'best' selection
-				let uri = this._editor.getModel().uri;
-				let pos = new Position(range.startLineNumber, range.startColumn);
-				let selection = this._model.nearestReference(uri, pos);
-				if (selection) {
-					return this._widget.setSelection(selection);
+					// set 'best' selection
+					let uri = this._editor.getModel().uri;
+					let pos = new Position(range.startLineNumber, range.startColumn);
+					let selection = this._model.nearestReference(uri, pos);
+					if (selection) {
+						return this._widget.setSelection(selection);
+					}
 				}
 				return undefined;
 			});

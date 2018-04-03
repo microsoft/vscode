@@ -3750,28 +3750,28 @@ declare module 'vscode' {
 		message: string;
 
 		/**
-		 * A human-readable string describing the source of this
-		 * diagnostic, e.g. 'typescript' or 'super lint'.
-		 */
-		source: string;
-
-		/**
 		 * The severity, default is [error](#DiagnosticSeverity.Error).
 		 */
 		severity: DiagnosticSeverity;
+
+		/**
+		 * A human-readable string describing the source of this
+		 * diagnostic, e.g. 'typescript' or 'super lint'.
+		 */
+		source?: string;
 
 		/**
 		 * A code or identifier for this diagnostics. Will not be surfaced
 		 * to the user, but should be used for later processing, e.g. when
 		 * providing [code actions](#CodeActionContext).
 		 */
-		code: string | number;
+		code?: string | number;
 
 		/**
 		 * An array of related diagnostic information, e.g. when symbol-names within
 		 * a scope collide all definitions can be marked via this property.
 		 */
-		relatedInformation: DiagnosticRelatedInformation[];
+		relatedInformation?: DiagnosticRelatedInformation[];
 
 		/**
 		 * Creates a new diagnostic object.
@@ -5259,7 +5259,8 @@ declare module 'vscode' {
 		/**
 		 * Register a [TreeDataProvider](#TreeDataProvider) for the view contributed using the extension point `views`.
 		 * This will allow you to contribute data to the [TreeView](#TreeView) and update if the data changes.
-		 * To get access to the [TreeView](#TreeView) and perform operations on it, use [createTreeView](#window.createTreeView).
+		 *
+		 * **Note:** To get access to the [TreeView](#TreeView) and perform operations on it, use [createTreeView](#window.createTreeView).
 		 *
 		 * @param viewId Id of the view contributed using the extension point `views`.
 		 * @param treeDataProvider A [TreeDataProvider](#TreeDataProvider) that provides tree data for the view

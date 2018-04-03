@@ -1205,7 +1205,7 @@ export class CommandCenter {
 
 			const message = localize('confirm force delete branch', "The branch '{0}' is not fully merged. Delete anyway?", name);
 			const yes = localize('delete branch', "Delete Branch");
-			const pick = await window.showWarningMessage(message, yes);
+			const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 			if (pick === yes) {
 				await run(true);

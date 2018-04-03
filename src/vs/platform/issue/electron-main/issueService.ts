@@ -14,7 +14,7 @@ import { BrowserWindow, ipcMain, screen } from 'electron';
 import { ILaunchService } from 'vs/code/electron-main/launch';
 import { getPerformanceInfo, PerformanceInfo, getSystemInfo, SystemInfo } from 'vs/code/electron-main/diagnostics';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
@@ -26,9 +26,10 @@ export class IssueService implements IIssueService {
 
 	constructor(
 		private machineId: string,
+		private userEnv: IProcessEnvironment,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILaunchService private launchService: ILaunchService,
-		@ILogService private logService: ILogService
+		@ILogService private logService: ILogService,
 	) { }
 
 	openReporter(data: IssueReporterData): TPromise<void> {
@@ -171,6 +172,7 @@ export class IssueService implements IIssueService {
 			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
 			windowId: this._issueWindow.id,
 			machineId: this.machineId,
+			userEnv: this.userEnv,
 			data,
 			features
 		};
