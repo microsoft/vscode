@@ -13,7 +13,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { isFalsyOrEmpty, distinct } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
 import { Progress } from 'vs/platform/progress/common/progress';
-import { decodeStream, encode, UTF8, UTF8_with_bom } from 'vs/base/node/encoding';
+import { decodeStream, encode, UTF8, UTF8_with_bom, detectEncodingFromBuffer, maxEncodingDetectionBufferLen } from 'vs/base/node/encoding';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -22,8 +22,6 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { maxBufferLen, detectMimeAndEncodingFromBuffer } from 'vs/base/node/mime';
-import { MIME_BINARY } from 'vs/base/common/mime';
 import { localize } from 'vs/nls';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
@@ -250,7 +248,7 @@ export class RemoteFileService extends FileService {
 				}
 
 				const guessEncoding = options.autoGuessEncoding;
-				const count = maxBufferLen(options);
+				const count = maxEncodingDetectionBufferLen(options);
 				const chunks: Buffer[] = [];
 
 				return provider.read(
@@ -258,11 +256,10 @@ export class RemoteFileService extends FileService {
 					0, count,
 					new Progress<Buffer>(chunk => chunks.push(chunk))
 				).then(bytesRead => {
-					// send to bla
-					return detectMimeAndEncodingFromBuffer({ bytesRead, buffer: Buffer.concat(chunks) }, guessEncoding);
+					return detectEncodingFromBuffer({ bytesRead, buffer: Buffer.concat(chunks) }, guessEncoding);
 
 				}).then(detected => {
-					if (options.acceptTextOnly && detected.mimes.indexOf(MIME_BINARY) >= 0) {
+					if (options.acceptTextOnly && detected.seemsBinary) {
 						return TPromise.wrapError<IStreamContent>(new FileOperationError(
 							localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
 							FileOperationResult.FILE_IS_BINARY,

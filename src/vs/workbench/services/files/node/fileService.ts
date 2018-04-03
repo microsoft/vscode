@@ -15,7 +15,6 @@ import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
 import * as arrays from 'vs/base/common/arrays';
-import * as baseMime from 'vs/base/common/mime';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import * as extfs from 'vs/base/node/extfs';
@@ -27,7 +26,6 @@ import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import * as pfs from 'vs/base/node/pfs';
 import * as encoding from 'vs/base/node/encoding';
-import { detectMimeAndEncodingFromBuffer, IMimeAndEncoding } from 'vs/base/node/mime';
 import * as flow from 'vs/base/node/flow';
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
@@ -492,12 +490,12 @@ export class FileService implements IFileService {
 						} else {
 							// when receiving the first chunk of data we need to create the
 							// decoding stream which is then used to drive the string stream.
-							TPromise.as(detectMimeAndEncodingFromBuffer(
+							TPromise.as(encoding.detectEncodingFromBuffer(
 								{ buffer: chunkBuffer, bytesRead },
 								options && options.autoGuessEncoding || this.configuredAutoGuessEncoding(resource)
-							)).then(value => {
+							)).then(detected => {
 
-								if (options && options.acceptTextOnly && value.mimes.indexOf(baseMime.MIME_BINARY) >= 0) {
+								if (options && options.acceptTextOnly && detected.seemsBinary) {
 									// Return error early if client only accepts text and this is not text
 									finish(new FileOperationError(
 										nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
@@ -506,7 +504,7 @@ export class FileService implements IFileService {
 									));
 
 								} else {
-									result.encoding = this.getEncoding(resource, this.getPeferredEncoding(resource, options, value));
+									result.encoding = this.getEncoding(resource, this.getPeferredEncoding(resource, options, detected));
 									result.stream = decoder = encoding.decodeStream(result.encoding);
 									resolve(result);
 									handleChunk(bytesRead);
@@ -924,7 +922,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	private getPeferredEncoding(resource: uri, options: IResolveContentOptions, detected: IMimeAndEncoding): string {
+	private getPeferredEncoding(resource: uri, options: IResolveContentOptions, detected: encoding.IDetectedEncodingResult): string {
 		let preferredEncoding: string;
 		if (options && options.encoding) {
 			if (detected.encoding === encoding.UTF8 && options.encoding === encoding.UTF8) {
