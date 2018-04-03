@@ -2,24 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
-import { MainThreadWebviewsShape, MainContext, IExtHostContext, ExtHostContext, ExtHostWebviewsShape, WebviewHandle } from 'vs/workbench/api/node/extHost.protocol';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { extHostNamedCustomer } from './extHostCustomers';
-import { Position } from 'vs/platform/editor/common/editor';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import * as vscode from 'vscode';
-import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewInput';
-import { WebviewEditor } from 'vs/workbench/parts/webview/electron-browser/webviewEditor';
-import { IWebviewService, WebviewReviver } from 'vs/workbench/parts/webview/electron-browser/webviewService';
-import { IEditorGroupService } from '../../services/group/common/groupService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import URI from 'vs/base/common/uri';
-import { IExtensionService } from '../../services/extensions/common/extensions';
-import { ILifecycleService } from '../../../platform/lifecycle/common/lifecycle';
-import { TPromise } from '../../../base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Position } from 'vs/platform/editor/common/editor';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewHandle } from 'vs/workbench/api/node/extHost.protocol';
+import { WebviewEditor } from 'vs/workbench/parts/webview/electron-browser/webviewEditor';
+import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewInput';
+import { IWebviewService, WebviewInputOptions, WebviewReviver } from 'vs/workbench/parts/webview/electron-browser/webviewService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { extHostNamedCustomer } from './extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
@@ -67,7 +65,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		viewType: string,
 		title: string,
 		column: Position,
-		options: vscode.WebviewOptions,
+		options: WebviewInputOptions,
 		extensionFolderPath: string
 	): void {
 		const webview = this._webviewService.createWebview(MainThreadWebviews.viewType, title, column, options, extensionFolderPath, {

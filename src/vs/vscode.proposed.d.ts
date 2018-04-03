@@ -637,27 +637,26 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Restores webviews that have been persisted when vscode shuts down.
+	 * Save and restore webviews that have been persisted when vscode shuts down.
 	 */
 	interface WebviewSerializer {
 		/**
 		 * Save a webview's `state`.
 		 *
-		 * Called when a webview is about to be hidden
+		 * Called before shutdown. Webview may or may not be visible.
 		 *
-		 * @param webview Webview to revive.
+		 * @param webview Webview to serialize.
 		 *
-		 * @returns state JSON serializable blob.
+		 * @returns JSON serializable state blob.
 		 */
 		serializeWebview(webview: Webview): any;
 
-
 		/**
-		 * Restore a webview's `html` from its `state`.
+		 * Restore a webview from its `state`.
 		 *
 		 * Called when a serialized webview first becomes active.
 		 *
-		 * @param webview Webview to revive.
+		 * @param webview Webview to restore. The serializer should take ownership of this webview.
 		 * @param state Persisted state.
 		 */
 		deserializeWebview(webview: Webview, state: any): void;
@@ -680,10 +679,10 @@ declare module 'vscode' {
 		 * Extensions that support reviving should have an `"onView:viewType"` activation method and
 		 * make sure that `registerWebviewSerializer` is called during activation.
 		 *
-		 * Only a single reviver may be registered at a time for a given `viewType`.
+		 * Only a single serializer may be registered at a time for a given `viewType`.
 		 *
-		 * @param viewType Type of the webview that can be revived.
-		 * @param reviver Webview revivier.
+		 * @param viewType Type of the webview that can be serialized.
+		 * @param reviver Webview serializer.
 		 */
 		export function registerWebviewSerializer(viewType: string, reviver: WebviewSerializer): Disposable;
 	}

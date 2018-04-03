@@ -167,13 +167,13 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 
 	registerWebviewSerializer(
 		viewType: string,
-		reviver: vscode.WebviewSerializer
+		serializer: vscode.WebviewSerializer
 	): vscode.Disposable {
 		if (this._serializers.has(viewType)) {
 			throw new Error(`Serializer for '${viewType}' already registered`);
 		}
 
-		this._serializers.set(viewType, reviver);
+		this._serializers.set(viewType, serializer);
 		this._proxy.$registerSerializer(viewType);
 
 		return new Disposable(() => {
@@ -238,14 +238,14 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		position: Position,
 		options: vscode.WebviewOptions
 	): void {
-		const reviver = this._serializers.get(viewType);
-		if (!reviver) {
+		const serializer = this._serializers.get(viewType);
+		if (!serializer) {
 			return;
 		}
 
 		const revivedWebview = new ExtHostWebview(webviewHandle, this._proxy, viewType, typeConverters.toViewColumn(position), options);
 		this._webviews.set(webviewHandle, revivedWebview);
-		reviver.deserializeWebview(revivedWebview, state);
+		serializer.deserializeWebview(revivedWebview, state);
 	}
 
 	$serializeWebview(
@@ -253,12 +253,12 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	): any {
 		const webview = this.getWebview(webviewHandle);
 
-		const reviver = this._serializers.get(webview.viewType);
-		if (!reviver) {
+		const serialzer = this._serializers.get(webview.viewType);
+		if (!serialzer) {
 			return {};
 		}
 
-		return reviver.serializeWebview(webview);
+		return serialzer.serializeWebview(webview);
 	}
 
 	private getWebview(handle: WebviewHandle) {
