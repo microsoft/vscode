@@ -447,7 +447,7 @@ export class IssueReporter extends Disposable {
 	}
 
 	private searchVSCodeIssues(title: string, issueDescription: string): void {
-		if (title || issueDescription) {
+		if (title) {
 			this.searchDuplicates(title, issueDescription);
 		} else {
 			this.clearSearchResults();
@@ -578,7 +578,7 @@ export class IssueReporter extends Disposable {
 			similarIssues.appendChild(issues);
 		} else {
 			const message = $('div.list-title');
-			message.textContent = localize('noResults', "No results found");
+			message.textContent = localize('noSimilarIssues', "No similar issues found");
 			similarIssues.appendChild(message);
 		}
 	}
