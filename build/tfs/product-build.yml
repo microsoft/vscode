@@ -9,6 +9,8 @@ phases:
         VSCODE_ARCH: x64
       ia32:
         VSCODE_ARCH: ia32
+  resources:
+    - clean: true
 
   steps:
   - task: NodeTool@0
@@ -225,6 +227,8 @@ phases:
 - phase: Linux
   condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
   queue: linux-x64
+  resources:
+    - clean: true
   variables:
     VSCODE_ARCH: x64
 
@@ -272,6 +276,8 @@ phases:
 - phase: Linux32
   condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
   queue: linux-ia32
+  resources:
+    - clean: true
   variables:
     VSCODE_ARCH: ia32
 
@@ -319,6 +325,8 @@ phases:
 - phase: macOS
   condition: eq(variables['VSCODE_BUILD_MACOS'], 'true')
   queue: Hosted macOS Preview
+  resources:
+    - clean: true
   steps:
   - task: NodeTool@0
     inputs:
