@@ -355,11 +355,10 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$reveal(handle: WebviewHandle, column: EditorPosition): void;
 	$setTitle(handle: WebviewHandle, value: string): void;
 	$setHtml(handle: WebviewHandle, value: string): void;
-	$setState(handle: WebviewHandle, value: any): void;
 	$sendMessage(handle: WebviewHandle, value: any): Thenable<boolean>;
 
-	$registerReviver(viewType: string): void;
-	$unregisterReviver(viewType: string): void;
+	$registerSerializer(viewType: string): void;
+	$unregisterSerializer(viewType: string): void;
 }
 
 export interface ExtHostWebviewsShape {
@@ -367,7 +366,8 @@ export interface ExtHostWebviewsShape {
 	$onDidChangeActiveWeview(handle: WebviewHandle | undefined): void;
 	$onDidDisposeWeview(handle: WebviewHandle): Thenable<void>;
 	$onDidChangePosition(handle: WebviewHandle, newPosition: EditorPosition): void;
-	$reviveWebview(newWebviewHandle: WebviewHandle, viewType: string, state: any, position: EditorPosition, options: vscode.WebviewOptions): void;
+	$deserializeWebview(newWebviewHandle: WebviewHandle, viewType: string, state: any, position: EditorPosition, options: vscode.WebviewOptions): void;
+	$serializeWebview(webviewHandle: WebviewHandle): Thenable<any>;
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {

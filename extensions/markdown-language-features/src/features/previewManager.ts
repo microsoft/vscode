@@ -14,7 +14,7 @@ import { isMarkdownFile } from '../util/file';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContributions } from '../markdownExtensions';
 
-export class MarkdownPreviewManager implements vscode.WebviewReviver {
+export class MarkdownPreviewManager implements vscode.WebviewSerializer {
 	private static readonly markdownPreviewActiveContextKey = 'markdownPreviewFocus';
 
 	private readonly topmostLineMonitor = new MarkdownFileTopmostLineMonitor();
@@ -36,7 +36,7 @@ export class MarkdownPreviewManager implements vscode.WebviewReviver {
 			}
 		}, null, this.disposables);
 
-		this.disposables.push(vscode.window.registerWebviewReviver(MarkdownPreview.viewType, this));
+		this.disposables.push(vscode.window.registerWebviewSerializer(MarkdownPreview.viewType, this));
 	}
 
 	public dispose(): void {
@@ -88,13 +88,15 @@ export class MarkdownPreviewManager implements vscode.WebviewReviver {
 		}
 	}
 
-	public reviveWebview(
-		webview: vscode.Webview
+	public deserializeWebview(
+		webview: vscode.Webview,
+		state: any
 	): void {
 		console.log('It\'s close to midnight...');
 
 		const preview = MarkdownPreview.revive(
 			webview,
+			state,
 			this.contentProvider,
 			this.previewConfigurations,
 			this.logger,
@@ -102,6 +104,13 @@ export class MarkdownPreviewManager implements vscode.WebviewReviver {
 
 		this.registerPreview(preview);
 		preview.refresh();
+	}
+
+	public serializeWebview(
+		webview: vscode.Webview,
+	): any {
+		const preview = this.previews.find(preview => preview.isWebviewOf(webview));
+		return preview ? preview.state : {};
 	}
 
 	private getExistingPreview(

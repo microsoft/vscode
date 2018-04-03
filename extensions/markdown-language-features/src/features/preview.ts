@@ -31,14 +31,15 @@ export class MarkdownPreview {
 
 	public static revive(
 		webview: vscode.Webview,
+		state: any,
 		contentProvider: MarkdownContentProvider,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
 		logger: Logger,
 		topmostLineMonitor: MarkdownFileTopmostLineMonitor
 	): MarkdownPreview {
-		const resource = vscode.Uri.parse(webview.state.resource);
-		const locked = webview.state.locked;
-		const line = webview.state.line;
+		const resource = vscode.Uri.parse(state.resource);
+		const locked = state.locked;
+		const line = state.line;
 
 		const preview = new MarkdownPreview(
 			webview,
@@ -146,8 +147,6 @@ export class MarkdownPreview {
 				});
 			}
 		}, null, this.disposables);
-
-		this.updateState();
 	}
 
 	private readonly _onDisposeEmitter = new vscode.EventEmitter<void>();
@@ -158,6 +157,14 @@ export class MarkdownPreview {
 
 	public get resource(): vscode.Uri {
 		return this._resource;
+	}
+
+	public get state() {
+		return {
+			resource: this.resource.toString(),
+			locked: this.locked,
+			line: this.line
+		};
 	}
 
 	public dispose() {
@@ -216,6 +223,10 @@ export class MarkdownPreview {
 		return this._resource.fsPath === resource.fsPath;
 	}
 
+	public isWebviewOf(webview: vscode.Webview): boolean {
+		return this.webview === webview;
+	}
+
 	public matchesResource(
 		otherResource: vscode.Uri,
 		otherViewColumn: vscode.ViewColumn | undefined,
@@ -243,7 +254,6 @@ export class MarkdownPreview {
 	public toggleLock() {
 		this.locked = !this.locked;
 		this.webview.title = MarkdownPreview.getPreviewTitle(this._resource, this.locked);
-		this.updateState();
 	}
 
 	private static getPreviewTitle(resource: vscode.Uri, locked: boolean): string {
@@ -294,7 +304,6 @@ export class MarkdownPreview {
 				if (this._resource === resource) {
 					this.webview.title = MarkdownPreview.getPreviewTitle(this._resource, this.locked);
 					this.webview.html = content;
-					this.updateState();
 				}
 			});
 	}
@@ -333,7 +342,6 @@ export class MarkdownPreview {
 				new vscode.Range(sourceLine, start, sourceLine + 1, 0),
 				vscode.TextEditorRevealType.AtTop);
 		}
-		this.updateState();
 	}
 
 	private async onDidClickPreview(line: number): Promise<void> {
@@ -345,14 +353,6 @@ export class MarkdownPreview {
 				return;
 			}
 		}
-	}
-
-	private updateState() {
-		this.webview.state = {
-			resource: this.resource.toString(),
-			locked: this.locked,
-			line: this.line
-		};
 	}
 }
 

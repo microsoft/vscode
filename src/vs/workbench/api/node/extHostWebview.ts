@@ -92,12 +92,6 @@ export class ExtHostWebview implements vscode.Webview {
 		return this._state;
 	}
 
-	set state(value: any) {
-		this.assertNotDisposed();
-		this._state = value;
-		this._proxy.$setState(this._handle, value);
-	}
-
 	get options(): vscode.WebviewOptions {
 		this.assertNotDisposed();
 		return this._options;
@@ -146,7 +140,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	private readonly _proxy: MainThreadWebviewsShape;
 
 	private readonly _webviews = new Map<WebviewHandle, ExtHostWebview>();
-	private readonly _revivers = new Map<string, vscode.WebviewReviver>();
+	private readonly _serializers = new Map<string, vscode.WebviewSerializer>();
 
 	private _activeWebview: ExtHostWebview | undefined;
 
@@ -171,20 +165,20 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		return webview;
 	}
 
-	registerWebviewReviver(
+	registerWebviewSerializer(
 		viewType: string,
-		reviver: vscode.WebviewReviver
+		reviver: vscode.WebviewSerializer
 	): vscode.Disposable {
-		if (this._revivers.has(viewType)) {
-			throw new Error(`Reviver for '${viewType}' already registered`);
+		if (this._serializers.has(viewType)) {
+			throw new Error(`Serializer for '${viewType}' already registered`);
 		}
 
-		this._revivers.set(viewType, reviver);
-		this._proxy.$registerReviver(viewType);
+		this._serializers.set(viewType, reviver);
+		this._proxy.$registerSerializer(viewType);
 
 		return new Disposable(() => {
-			this._revivers.delete(viewType);
-			this._proxy.$unregisterReviver(viewType);
+			this._serializers.delete(viewType);
+			this._proxy.$unregisterSerializer(viewType);
 		});
 	}
 
@@ -237,23 +231,34 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 	}
 
-	$reviveWebview(
+	$deserializeWebview(
 		webviewHandle: WebviewHandle,
 		viewType: string,
 		state: any,
 		position: Position,
 		options: vscode.WebviewOptions
 	): void {
-		const reviver = this._revivers.get(viewType);
+		const reviver = this._serializers.get(viewType);
 		if (!reviver) {
 			return;
 		}
 
-		const webview = new ExtHostWebview(webviewHandle, this._proxy, viewType, typeConverters.toViewColumn(position), options);
-		webview.state = state;
+		const revivedWebview = new ExtHostWebview(webviewHandle, this._proxy, viewType, typeConverters.toViewColumn(position), options);
+		this._webviews.set(webviewHandle, revivedWebview);
+		reviver.deserializeWebview(revivedWebview, state);
+	}
 
-		this._webviews.set(webviewHandle, webview);
-		reviver.reviveWebview(webview);
+	$serializeWebview(
+		webviewHandle: WebviewHandle
+	): any {
+		const webview = this.getWebview(webviewHandle);
+
+		const reviver = this._serializers.get(webview.viewType);
+		if (!reviver) {
+			return {};
+		}
+
+		return reviver.serializeWebview(webview);
 	}
 
 	private getWebview(handle: WebviewHandle) {

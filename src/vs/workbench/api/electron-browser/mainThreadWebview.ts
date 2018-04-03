@@ -5,7 +5,7 @@
 
 import * as map from 'vs/base/common/map';
 import { MainThreadWebviewsShape, MainContext, IExtHostContext, ExtHostContext, ExtHostWebviewsShape, WebviewHandle } from 'vs/workbench/api/node/extHost.protocol';
-import { dispose, Disposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { extHostNamedCustomer } from './extHostCustomers';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -18,6 +18,8 @@ import { IEditorGroupService } from '../../services/group/common/groupService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import URI from 'vs/base/common/uri';
 import { IExtensionService } from '../../services/extensions/common/extensions';
+import { ILifecycleService } from '../../../platform/lifecycle/common/lifecycle';
+import { TPromise } from '../../../base/common/winjs.base';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
@@ -28,7 +30,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 	private static revivalPool = 0;
 
-	private _toDispose: Disposable[] = [];
+	private _toDispose: IDisposable[] = [];
 
 	private readonly _proxy: ExtHostWebviewsShape;
 	private readonly _webviews = new Map<WebviewHandle, WebviewEditorInput>();
@@ -38,17 +40,22 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 	constructor(
 		context: IExtHostContext,
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IEditorGroupService _editorGroupService: IEditorGroupService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IExtensionService private readonly _extensionService: IExtensionService
+		@IExtensionService private readonly _extensionService: IExtensionService,
+
 	) {
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
-		_editorGroupService.onEditorsChanged(this.onEditorsChanged, this, this._toDispose);
+		editorGroupService.onEditorsChanged(this.onEditorsChanged, this, this._toDispose);
 
 		_webviewService.registerReviver(MainThreadWebviews.viewType, this);
+		this._toDispose.push(lifecycleService.onWillShutdown(e => {
+			e.veto(this._onWillShutdown());
+		}));
 	}
 
 	dispose(): void {
@@ -97,11 +104,6 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		webview.html = value;
 	}
 
-	$setState(handle: WebviewHandle, value: string): void {
-		const webview = this.getWebview(handle);
-		webview.state.state = value;
-	}
-
 	$reveal(handle: WebviewHandle, column: Position): void {
 		const webview = this.getWebview(handle);
 		this._webviewService.revealWebview(webview, column);
@@ -121,11 +123,11 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		return (editors.length > 0);
 	}
 
-	$registerReviver(viewType: string): void {
+	$registerSerializer(viewType: string): void {
 		this._revivers.add(viewType);
 	}
 
-	$unregisterReviver(viewType: string): void {
+	$unregisterSerializer(viewType: string): void {
 		this._revivers.delete(viewType);
 	}
 
@@ -145,12 +147,34 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 				}
 			};
 
-			this._proxy.$reviveWebview(handle, webview.state.viewType, webview.state.state, webview.position, webview.options);
+			this._proxy.$deserializeWebview(handle, webview.state.viewType, webview.state.state, webview.position, webview.options);
 		});
 	}
 
 	canRevive(webview: WebviewEditorInput): boolean {
 		return this._revivers.has(webview.viewType) || webview.reviver !== null;
+	}
+
+	private _onWillShutdown(): TPromise<boolean> {
+		const toRevive: WebviewHandle[] = [];
+		this._webviews.forEach((view, key) => {
+			if (this.canRevive(view)) {
+				toRevive.push(key);
+			}
+		});
+
+		const reviveResponses = toRevive.map(handle =>
+			this._proxy.$serializeWebview(handle).then(state => ({ handle, state })));
+
+		return TPromise.join(reviveResponses).then(results => {
+			for (const result of results) {
+				const view = this._webviews.get(result.handle);
+				if (view) {
+					view.state.state = result.state;
+				}
+			}
+			return false; // Don't veto shutdown
+		});
 	}
 
 	private getWebview(handle: WebviewHandle): WebviewEditorInput {

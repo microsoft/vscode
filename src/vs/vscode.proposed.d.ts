@@ -590,11 +590,6 @@ declare module 'vscode' {
 		html: string;
 
 		/**
-		 * JSON serializable blob of data saved on webviews for revival.
-		 */
-		state: any;
-
-		/**
 		 * The column in which the webview is showing.
 		 */
 		readonly viewColumn?: ViewColumn;
@@ -644,15 +639,28 @@ declare module 'vscode' {
 	/**
 	 * Restores webviews that have been persisted when vscode shuts down.
 	 */
-	interface WebviewReviver {
+	interface WebviewSerializer {
+		/**
+		 * Save a webview's `state`.
+		 *
+		 * Called when a webview is about to be hidden
+		 *
+		 * @param webview Webview to revive.
+		 *
+		 * @returns state JSON serializable blob.
+		 */
+		serializeWebview(webview: Webview): any;
+
+
 		/**
 		 * Restore a webview's `html` from its `state`.
 		 *
 		 * Called when a serialized webview first becomes active.
 		 *
 		 * @param webview Webview to revive.
+		 * @param state Persisted state.
 		 */
-		reviveWebview(webview: Webview): void;
+		deserializeWebview(webview: Webview, state: any): void;
 	}
 
 	namespace window {
@@ -667,17 +675,17 @@ declare module 'vscode' {
 		export function createWebview(viewType: string, title: string, column: ViewColumn, options: WebviewOptions): Webview;
 
 		/**
-		 * Registers a webview reviver.
+		 * Registers a webview serializer.
 		 *
 		 * Extensions that support reviving should have an `"onView:viewType"` activation method and
-		 * make sure that `registerWebviewReviver` is called during activation.
+		 * make sure that `registerWebviewSerializer` is called during activation.
 		 *
 		 * Only a single reviver may be registered at a time for a given `viewType`.
 		 *
 		 * @param viewType Type of the webview that can be revived.
 		 * @param reviver Webview revivier.
 		 */
-		export function registerWebviewReviver(viewType: string, reviver: WebviewReviver): Disposable;
+		export function registerWebviewSerializer(viewType: string, reviver: WebviewSerializer): Disposable;
 	}
 
 	//#endregion
