@@ -53,12 +53,12 @@ import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/file
 import { Schemas } from 'vs/base/common/network';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { openSearchView, getSearchView, ReplaceAllInFolderAction, ReplaceAllAction, CloseReplaceAction, FocusNextInputAction, FocusPreviousInputAction, FocusNextSearchResultAction, FocusPreviousSearchResultAction, ReplaceInFilesAction, FindInFilesAction, FocusActiveEditorCommand, toggleCaseSensitiveCommand, ShowNextSearchTermAction, ShowPreviousSearchTermAction, toggleRegexCommand, ShowPreviousSearchIncludeAction, ShowNextSearchIncludeAction, CollapseDeepestExpandedLevelAction, toggleWholeWordCommand, RemoveAction, ReplaceAction, ClearSearchResultsAction } from 'vs/workbench/parts/search/browser/searchActions';
+import { openSearchView, getSearchView, ReplaceAllInFolderAction, ReplaceAllAction, CloseReplaceAction, FocusNextInputAction, FocusPreviousInputAction, FocusNextSearchResultAction, FocusPreviousSearchResultAction, ReplaceInFilesAction, FindInFilesAction, FocusActiveEditorCommand, toggleCaseSensitiveCommand, ShowNextSearchTermAction, ShowPreviousSearchTermAction, toggleRegexCommand, ShowPreviousSearchIncludeAction, ShowNextSearchIncludeAction, CollapseDeepestExpandedLevelAction, toggleWholeWordCommand, RemoveAction, ReplaceAction, ClearSearchResultsAction, copyPathCommand } from 'vs/workbench/parts/search/browser/searchActions';
 import { VIEW_ID, ISearchConfigurationProperties } from 'vs/platform/search/common/search';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { SearchViewLocationUpdater } from 'vs/workbench/parts/search/browser/searchViewLocationUpdater';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -235,6 +235,27 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 	order: 2
 });
 
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: Constants.CopyPathCommandId,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: Constants.FileFocusKey,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C,
+	win: {
+		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
+	},
+	handler: copyPathCommand
+});
+
+MenuRegistry.appendMenuItem(MenuId.SearchContext, {
+	command: {
+		id: Constants.CopyPathCommandId,
+		title: nls.localize('copyPathLabel', "Copy Path")
+	},
+	when: Constants.FileFocusKey,
+	group: 'search',
+	order: 3
+});
+
 CommandsRegistry.registerCommand({
 	id: Constants.ToggleSearchViewPositionCommandId,
 	handler: (accessor) => {
@@ -254,7 +275,7 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 	},
 	when: Constants.SearchViewVisibleKey,
 	group: 'search_2',
-	order: 3
+	order: 1
 });
 
 const FIND_IN_FOLDER_ID = 'filesExplorer.findInFolder';

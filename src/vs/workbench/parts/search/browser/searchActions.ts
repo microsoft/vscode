@@ -22,6 +22,10 @@ import { OS } from 'vs/base/common/platform';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { VIEW_ID } from 'vs/platform/search/common/search';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ICommandHandler } from 'vs/platform/commands/common/commands';
+import { Schemas } from 'vs/base/common/network';
+import { getPathLabel } from 'vs/base/common/labels';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	let searchView = getSearchView(viewletService, panelService);
@@ -630,3 +634,11 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		return false;
 	}
 }
+
+export const copyPathCommand: ICommandHandler = (accessor, fileMatch: FileMatch) => {
+	const clipboardService = accessor.get(IClipboardService);
+
+	const resource = fileMatch.resource();
+	const text = resource.scheme === Schemas.file ? getPathLabel(resource) : resource.toString();
+	clipboardService.writeText(text);
+};
