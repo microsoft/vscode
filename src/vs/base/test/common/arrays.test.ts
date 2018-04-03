@@ -75,7 +75,7 @@ suite('Arrays', () => {
 			for (let i = 1; i < array.length; i++) {
 				let n = array[i];
 				if (last > n) {
-					assert.fail(array.slice(i - 10, i + 10));
+					assert.fail(JSON.stringify(array.slice(i - 10, i + 10)));
 				}
 			}
 		}

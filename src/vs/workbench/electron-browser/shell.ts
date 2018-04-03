@@ -294,17 +294,17 @@ export class WorkbenchShell {
 		}
 
 		perf.mark('willReadLocalStorage');
-		const readyToSend = this.storageService.getBoolean('localStorageMetricsReadyToSend2');
+		const readyToSend = this.storageService.getBoolean('localStorageMetricsReadyToSend3');
 		perf.mark('didReadLocalStorage');
 
 		if (!readyToSend) {
-			this.storageService.store('localStorageMetricsReadyToSend2', true);
+			this.storageService.store('localStorageMetricsReadyToSend3', true);
 			return; // avoid logging localStorage metrics directly after the update, we prefer cold startup numbers
 		}
 
-		if (!this.storageService.getBoolean('localStorageMetricsSent2')) {
+		if (!this.storageService.getBoolean('localStorageMetricsSent3')) {
 			perf.mark('willWriteLocalStorage');
-			this.storageService.store('localStorageMetricsSent2', true);
+			this.storageService.store('localStorageMetricsSent3', true);
 			perf.mark('didWriteLocalStorage');
 
 			perf.mark('willStatLocalStorage');

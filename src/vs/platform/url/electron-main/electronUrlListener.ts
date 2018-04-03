@@ -32,7 +32,7 @@ export class ElectronURLListener {
 		@IURLService private urlService: IURLService,
 		@IWindowsMainService private windowsService: IWindowsMainService
 	) {
-		const globalBuffer = (global.getOpenUrls() || []) as string[];
+		const globalBuffer = ((<any>global).getOpenUrls() || []) as string[];
 		const rawBuffer = [
 			...(typeof initial === 'string' ? [initial] : initial),
 			...globalBuffer
