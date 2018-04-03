@@ -12,7 +12,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { Dimension } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
@@ -93,7 +93,6 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		this.inputBox = new QuickInputBox(filterContainer);
 		this.toUnbind.push(this.inputBox);
-		this.inputBox.style(this.themeService.getTheme());
 		this.inputBox.onDidChange(value => {
 			this.checkboxList.filter(value);
 		});
@@ -194,6 +193,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 		}));
 
 		this.toUnbind.push(this.quickOpenService.onShow(() => this.close()));
+
+		this.updateStyles();
 	}
 
 	private close(value?: IPickOpenEntry[] | Thenable<IPickOpenEntry[]>) {
@@ -279,21 +280,19 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	protected updateStyles() {
+		const theme = this.themeService.getTheme();
 		if (this.inputBox) {
-			this.inputBox.style(this.themeService.getTheme());
+			this.inputBox.style(theme);
+		}
+		if (this.container) {
+			const sideBarBackground = theme.getColor(SIDE_BAR_BACKGROUND);
+			this.container.style.backgroundColor = sideBarBackground ? sideBarBackground.toString() : undefined;
+			const sideBarForeground = theme.getColor(SIDE_BAR_FOREGROUND);
+			this.container.style.color = sideBarForeground ? sideBarForeground.toString() : undefined;
+			const contrastBorderColor = theme.getColor(contrastBorder);
+			this.container.style.border = contrastBorderColor ? `1px solid ${contrastBorderColor}` : undefined;
+			const widgetShadowColor = theme.getColor(widgetShadow);
+			this.container.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : undefined;
 		}
 	}
 }
-
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	const sideBarBackground = theme.getColor(SIDE_BAR_BACKGROUND);
-	const sideBarForeground = theme.getColor(SIDE_BAR_FOREGROUND);
-	const contrastBorderColor = theme.getColor(contrastBorder);
-	const widgetShadowColor = theme.getColor(widgetShadow);
-	collector.addRule(`.quick-input-widget {
-		${sideBarBackground ? `background-color: ${sideBarBackground};` : ''}
-		${sideBarForeground ? `color: ${sideBarForeground};` : ''}
-		${contrastBorderColor ? `border: 1px solid ${contrastBorderColor};` : ''}
-		${widgetShadowColor ? `box-shadow: 0 5px 8px ${widgetShadowColor};` : ''}
-	}`);
-});
