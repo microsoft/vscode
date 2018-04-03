@@ -1,0 +1,17 @@
+{
+	"name": "driver",
+	"version": "1.0.0",
+	"description": "",
+	"main": "index.js",
+	"scripts": {
+		"build": "tsc",
+		"watch": "tsc --watch",
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"author": "",
+	"license": "ISC",
+	"devDependencies": {
+		"@types/node": "^9.6.1",
+		"typescript": "^2.8.1"
+	}
+}

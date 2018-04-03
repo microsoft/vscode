@@ -1,0 +1,15 @@
+{
+	"compilerOptions": {
+		"module": "commonjs",
+		"moduleResolution": "classic",
+		"target": "es6",
+		"rootDirs": [
+			".",
+			"../../src"
+		],
+		"outDir": "out"
+	},
+	"exclude": [
+		"node_modules"
+	]
+}
