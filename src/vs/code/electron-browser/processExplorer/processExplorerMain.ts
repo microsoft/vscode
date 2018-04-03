@@ -137,7 +137,7 @@ export function startup(data: ProcessExplorerData): void {
 	applyStyles(data.styles);
 	applyZoom(data.zoomLevel);
 
-	listProcesses(remote.process.pid).then(processes => {
+	setInterval(() => listProcesses(remote.process.pid).then(processes => {
 		processList = getProcessList(processes);
 		updateProcessInfo(processList);
 
@@ -155,5 +155,5 @@ export function startup(data: ProcessExplorerData): void {
 				tableRow.classList.add('selected');
 			});
 		}
-	});
+	}), 1200);
 }
