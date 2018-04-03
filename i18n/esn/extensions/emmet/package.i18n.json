@@ -59,5 +59,6 @@
 	"emmetPreferencesCssWebkitProperties": "Propiedades CSS separadas por comas que obtienen el prefijo de proveedor 'webkit' cuando se utilizan en la abreviatura Emmet que comienza con '-'. Establecer en la cadena vacía para evitar siempre el prefijo 'webkit'.",
 	"emmetPreferencesCssMozProperties": "Propiedades CSS separadas por comas que obtienen el prefijo de proveedor 'moz' cuando se utilizan en la abreviatura Emmet que comienza con '-'. Establecer en la cadena vacía para evitar siempre el prefijo 'moz'.",
 	"emmetPreferencesCssOProperties": "Propiedades CSS separadas por comas que obtienen el prefijo de proveedor 'o' cuando se utilizan en la abreviatura Emmet que comienza con '-'. Establecer en la cadena vacía para evitar siempre el prefijo 'o'.",
-	"emmetPreferencesCssMsProperties": "Propiedades CSS separadas por comas que obtienen el prefijo de proveedor 'ms' cuando se utilizan en la abreviatura Emmet que comienza con '-'. Establecer en la cadena vacía para evitar siempre el prefijo 'ms'."
+	"emmetPreferencesCssMsProperties": "Propiedades CSS separadas por comas que obtienen el prefijo de proveedor 'ms' cuando se utilizan en la abreviatura Emmet que comienza con '-'. Establecer en la cadena vacía para evitar siempre el prefijo 'ms'.",
+	"emmetPreferencesCssFuzzySearchMinScore": "La mínima puntuación (de 0 a 1) que se debe alcanzar en la comparación difusa de abreviación. Los valores más bajos pueden producir muchos resultados falsos positivos, los valores más altos pueden reducir posibles coincidencias."
 }

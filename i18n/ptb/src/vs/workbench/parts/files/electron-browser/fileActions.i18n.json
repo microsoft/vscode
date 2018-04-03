@@ -32,6 +32,8 @@
 	"confirmDeleteMessageFolder": "Tem certeza de que deseja excluir permanentemente '{0}' e seu conteúdo?",
 	"confirmDeleteMessageFile": "Tem certeza de que deseja excluir permanentemente '{0}'?",
 	"irreversible": "Esta ação é irreversível!",
+	"deletePermanentlyButtonLabel": "&&Excluir Permanentemente",
+	"retryButtonLabel": "&&Tentar Novamente",
 	"importFiles": "Importar Arquivos",
 	"confirmOverwrite": "Um arquivo ou pasta com o mesmo nome já existe na pasta de destino. Você quer substituí-lo?",
 	"replaceButtonLabel": "&&Substituir",

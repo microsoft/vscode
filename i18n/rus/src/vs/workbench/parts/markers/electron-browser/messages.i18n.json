@@ -30,5 +30,15 @@
 	"markers.panel.multiple.unknowns.label": "Неизвестные: {0}",
 	"markers.panel.at.ln.col.number": "({0}, {1})",
 	"problems.tree.aria.label.resource": "{0} с проблемами ({1})",
+	"problems.tree.aria.label.marker.relatedInformation": "У этой проблемы есть ссылки на несколько расположений ({0}).",
+	"problems.tree.aria.label.error.marker": "Ошибка выдана {0}: {1}, строка {2}, символ {3}.{4}",
+	"problems.tree.aria.label.error.marker.nosource": "Ошибка: {0}, строка {1}, символ {2}.{3}",
+	"problems.tree.aria.label.warning.marker": "Предупреждение выдано {0}: {1}, строка {2}, символ {3}.{4}",
+	"problems.tree.aria.label.warning.marker.nosource": "Предупреждение: {0}, строка {1}, символ {2}.{3} ",
+	"problems.tree.aria.label.info.marker": "Информационное сообщение выдано {0}: {1}, строка {2}, символ {3}.{4}",
+	"problems.tree.aria.label.info.marker.nosource": "Информационное сообщение: {0}, строка {1}, символ {2}.{3} ",
+	"problems.tree.aria.label.marker": "Проблема выдана {0}: {1}, строка {2}, символ {3}.{4}",
+	"problems.tree.aria.label.marker.nosource": "Проблема: {0}, строка {1}, символ {2}.{3} ",
+	"problems.tree.aria.label.relatedinfo.message": "{0}, строка {1}, символ {2} в {3}",
 	"errors.warnings.show.label": "Показать ошибки и предупреждения"
 }

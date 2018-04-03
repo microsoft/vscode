@@ -8,6 +8,8 @@
 	],
 	"textFileEditor": "Редактор текстовых файлов",
 	"createFile": "Создать файл",
+	"relaunchWithIncreasedMemoryLimit": "Запустить повторно",
+	"configureMemoryLimit": "Настройка",
 	"fileEditorWithInputAriaLabel": "{0}. Редактор текстовых файлов.",
 	"fileEditorAriaLabel": "Редактор текстовых файлов."
 }

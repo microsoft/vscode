@@ -75,6 +75,7 @@
 	"ok": "Tamam",
 	"push with tags success": "Başarılı bir şekilde etiketlerle gönderildi.",
 	"pick remote": "'{0}' dalının yayınlanacağı bir uzak uçbirim seçin:",
+	"sync is unpredictable": "Bu eylem, '{0}/{1}' deposuna commitleri gönderecek ve alacaktır.",
 	"never again": "Tamam, Tekrar Gösterme",
 	"no remotes to publish": "Deponuzda yayınlamanın yapılacağı hiçbir uzak uçbirim yapılandırılmamış.",
 	"no changes stash": "Geçici olarak saklanacak bir değişiklik yok.",

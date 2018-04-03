@@ -30,5 +30,15 @@
 	"markers.panel.multiple.unknowns.label": "{0} Unbekannte",
 	"markers.panel.at.ln.col.number": "({0}, {1})",
 	"problems.tree.aria.label.resource": "{0} mit {1} Problemen",
+	"problems.tree.aria.label.marker.relatedInformation": "Dieses Problem verweist auf {0} Speicherorte.",
+	"problems.tree.aria.label.error.marker": "Von {0} generierter Fehler: {1} in Zeile {2} bei Zeichen {3}.{4}",
+	"problems.tree.aria.label.error.marker.nosource": "Fehler: {0} in Zeile {1} bei Zeichen {2}.{3}",
+	"problems.tree.aria.label.warning.marker": "Von {0} generierte Warnung: {1} in Zeile {2} bei Zeichen {3}.{4}",
+	"problems.tree.aria.label.warning.marker.nosource": "Warnung: {0} in Zeile {1} bei Zeichen {2}.{3}",
+	"problems.tree.aria.label.info.marker": "Von {0} generierte Informationen: {1} in Zeile {2} bei Zeichen {3}.{4}",
+	"problems.tree.aria.label.info.marker.nosource": "Informationen: {0} in Zeile {1} bei Zeichen {2}.{3}",
+	"problems.tree.aria.label.marker": "Von {0} generiertes Problem: {1} in Zeile {2} bei Zeichen {3}.{4}",
+	"problems.tree.aria.label.marker.nosource": "Problem: {0} in Zeile {1} bei Zeichen {2}.{3}",
+	"problems.tree.aria.label.relatedinfo.message": "{0} in Zeile {1} bei Zeichen {2} in {3}",
 	"errors.warnings.show.label": "Fehler und Warnungen anzeigen"
 }

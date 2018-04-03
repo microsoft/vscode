@@ -12,6 +12,7 @@
 	"totalWarnings": "{0} avertissements",
 	"totalInfos": "{0} infos",
 	"building": "Génération...",
+	"manyProblems": "10K+",
 	"runningTasks": "Afficher les tâches en cours d'exécution",
 	"tasks": "Tâches",
 	"TaskSystem.noHotSwap": "Changer le moteur d’exécution de tâches avec une tâche active en cours d’exécution nécessite de recharger la fenêtre",

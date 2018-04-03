@@ -18,6 +18,7 @@
 	"debugRequest": "구성 형식을 요청합니다. \"시작\" 또는 \"연결\"일 수 있습니다.",
 	"debugServer": "디버그 확장 배포 전용입니다. 포트가 지정된 경우 VS Code에서는 서버 모드로 실행하는 디버그 어댑터에 연결을 시도합니다.",
 	"debugPrelaunchTask": "디버그 세션이 시작되기 이전에 실행할 작업입니다.",
+	"debugPostDebugTask": "디버그 세션 종료 후 실행할 작업입니다.",
 	"debugWindowsConfiguration": "Windows 특정 시작 구성 특성입니다.",
 	"debugOSXConfiguration": "OS X 특정 시작 구성 특성입니다.",
 	"debugLinuxConfiguration": "Linux 특정 시작 구성 특성입니다.",

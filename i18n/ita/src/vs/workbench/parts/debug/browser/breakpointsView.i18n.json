@@ -14,6 +14,7 @@
 	"breakpointUnverifieddHover": "Punto di interruzione non verificato",
 	"functionBreakpointUnsupported": "Punti di interruzione di funzione non supportati da questo tipo di debug",
 	"breakpointDirtydHover": "Punto di interruzione non verificato. Il file è stato modificato. Riavviare la sessione di debug.",
+	"logBreakpointUnsupported": "Punti di registrazione non supportati da questo tipo di debug",
 	"conditionalBreakpointUnsupported": "Punti di interruzione condizionali non supportati da questo tipo di debug",
 	"hitBreakpointUnsupported": "Sono stati raggiunti punti di interruzione condizionali non supportati da questo tipo di debug"
 }

@@ -29,5 +29,6 @@
 	"showErrors": "Mostrar errores",
 	"noFolderWorkspaceDebugError": "El archivo activo no se puede depurar. Compruebe que se ha guardado en el disco y que tiene una extensión de depuración instalada para ese tipo de archivo.",
 	"cancel": "Cancelar",
-	"DebugTaskNotFound": "No se pudo encontrar la tarea '{0}'."
+	"DebugTaskNotFound": "No se pudo encontrar la tarea '{0}'.",
+	"taskNotTracked": "La tarea '{0}' no puede rastrearse."
 }

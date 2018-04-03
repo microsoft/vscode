@@ -30,5 +30,15 @@
 	"markers.panel.multiple.unknowns.label": "{0} Bilinmeyen",
 	"markers.panel.at.ln.col.number": "({0}, {1})",
 	"problems.tree.aria.label.resource": "{0} {1} sorun içeriyor",
+	"problems.tree.aria.label.marker.relatedInformation": "Bu sorun {0} konumla ilişkilidir.",
+	"problems.tree.aria.label.error.marker": "{0} tarafından oluşturulan hata: {2}. satırın {3}. karakterinde {1}.{4}",
+	"problems.tree.aria.label.error.marker.nosource": "Hata: {1}. satırın {2}. karakterinde {0}.{3}",
+	"problems.tree.aria.label.warning.marker": "{0} tarafından oluşturulan uyarı: {2}. satırın {3}. karakterinde {1}.{4}",
+	"problems.tree.aria.label.warning.marker.nosource": "Uyarı: {1}. satırın {2}. karakterinde {0}.{3}",
+	"problems.tree.aria.label.info.marker": "{0} tarafından oluşturulan bilgilendirme: {2}. satırın {3}. karakterinde {1}.{4}",
+	"problems.tree.aria.label.info.marker.nosource": "Bilgilendirme: {1}. satırın {2}. karakterinde {0}.{3}",
+	"problems.tree.aria.label.marker": "{0} tarafından oluşturulan sorun: {2}. satırın {3}. karakterinde {1}.{4}",
+	"problems.tree.aria.label.marker.nosource": "Sorun: {1}. satırın {2}. karakterinde {0}.{3}",
+	"problems.tree.aria.label.relatedinfo.message": "{3} dosyasının {1}. satırın {2}. karakterinde {0}",
 	"errors.warnings.show.label": "Hataları ve Uyarıları Göster"
 }

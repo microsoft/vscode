@@ -9,6 +9,7 @@
 	"fileInvalidPath": "Ressource de fichier non valide ({0})",
 	"fileIsDirectoryError": "Le fichier est un répertoire",
 	"fileNotModifiedError": "Fichier non modifié depuis",
+	"fileTooLargeForHeapError": "La taille du fichier dépasse la limite de mémoire par défaut. Relancer avec une limite plus élevée. Le paramètre actuel est configuré pour relancer avec {0} Mo",
 	"fileTooLargeError": "Fichier trop volumineux pour être ouvert",
 	"fileNotFoundError": "Fichier introuvable ({0})",
 	"fileBinaryError": "Il semble que le fichier soit binaire. Impossible de l'ouvrir en tant que texte",

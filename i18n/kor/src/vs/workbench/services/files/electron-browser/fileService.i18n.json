@@ -10,6 +10,7 @@
 	"neverShowAgain": "다시 표시 안 함",
 	"netVersionError": "Microsoft .NET Framework 4.5가 필요합니다. 설치하려면 링크를 클릭하세요.",
 	"learnMore": "지침",
+	"enospcError": "{0}은(는) 이 큰 작업 영역에서 파일 변경 내용을 감시할 수 없습니다. 지침 링크에 따라 이 문제를 해결하세요.",
 	"binFailed": "'{0}'을(를) 휴지통으로 이동하지 못함",
 	"trashFailed": "'{0}'을(를) 휴지통으로 이동하지 못함"
 }

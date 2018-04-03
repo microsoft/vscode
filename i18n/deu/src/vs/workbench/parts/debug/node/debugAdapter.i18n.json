@@ -18,6 +18,7 @@
 	"debugRequest": "Der Anforderungstyp der Konfiguration. Der Wert kann \"launch\" oder \"attach\" sein.",
 	"debugServer": "Nur für die Entwicklung von Debugerweiterungen: Wenn ein Port angegeben ist, versucht der VS-Code, eine Verbindung mit einem Debugadapter herzustellen, der im Servermodus ausgeführt wird.",
 	"debugPrelaunchTask": "Ein Task, der ausgeführt werden soll, bevor die Debugsitzung beginnt.",
+	"debugPostDebugTask": "Ein Task, der ausgeführt werden soll, nachdem die Debugsitzung endet.",
 	"debugWindowsConfiguration": "Windows-spezifische Startkonfigurationsattribute.",
 	"debugOSXConfiguration": "OS X-spezifische Startkonfigurationsattribute.",
 	"debugLinuxConfiguration": "Linux-spezifische Startkonfigurationsattribute.",

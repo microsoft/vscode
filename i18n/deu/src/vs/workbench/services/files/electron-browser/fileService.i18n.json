@@ -10,6 +10,7 @@
 	"neverShowAgain": "Nicht mehr anzeigen",
 	"netVersionError": "Microsoft .NET Framework 4.5 ist erforderlich. Klicken Sie auf den Link, um die Anwendung zu installieren.",
 	"learnMore": "Anweisungen",
+	"enospcError": "{0} kann keine Dateiänderungen in diesem großen Workspace überwachen. Folgen Sie dem Anwendungslink, um das Problem zu beheben.",
 	"binFailed": "Fehler beim Verschieben von \"{0}\" in den Papierkorb.",
 	"trashFailed": "Fehler beim Verschieben von \"{0}\" in den Papierkorb."
 }

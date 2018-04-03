@@ -51,5 +51,9 @@
 	"workbench.action.terminal.hideFindWidget": "Ocultar Encontrar Widget",
 	"nextTerminalFindTerm": "Mostrar siguiente término de búsqueda",
 	"previousTerminalFindTerm": "Mostrar término de búsqueda anterior",
-	"quickOpenTerm": "Cambiar terminal activo"
+	"quickOpenTerm": "Cambiar terminal activo",
+	"workbench.action.terminal.focusPreviousCommand": "Aplicar el foco al comando anterior",
+	"workbench.action.terminal.focusNextCommand": "Aplicar el foco al comando siguiente",
+	"workbench.action.terminal.selectToPreviousCommand": "Seleccionar hasta el comando anterior",
+	"workbench.action.terminal.selectToNextCommand": "Seleccionar hasta el comando siguiente"
 }

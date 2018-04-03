@@ -22,5 +22,6 @@
 	"enableBreakpointOnLine": "Zeilenhaltepunkt aktivieren",
 	"addBreakpoint": "Haltepunkt hinzufügen",
 	"conditionalBreakpoint": "Bedingten Haltepunkt hinzufügen...",
+	"addLogPoint": "Protokollpunkt hinzufügen …",
 	"addConfiguration": "Konfiguration hinzufügen..."
 }

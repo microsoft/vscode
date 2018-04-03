@@ -92,5 +92,7 @@
 	"mergeBorder": "Rahmenfarbe für Kopfzeilen und die Aufteilung in Inline-Mergingkonflikten.",
 	"overviewRulerCurrentContentForeground": "Aktueller Übersichtslineal-Vordergrund für Inline-Mergingkonflikte.",
 	"overviewRulerIncomingContentForeground": "Eingehender Übersichtslineal-Vordergrund für Inline-Mergingkonflikte. ",
-	"overviewRulerCommonContentForeground": "Hintergrund des Übersichtslineals des gemeinsamen übergeordneten Elements bei Inlinezusammenführungskonflikten."
+	"overviewRulerCommonContentForeground": "Hintergrund des Übersichtslineals des gemeinsamen übergeordneten Elements bei Inlinezusammenführungskonflikten.",
+	"overviewRulerFindMatchForeground": "Übersichtslineal-Markierungsfarbe für Suchübereinstimmungen. Die Farbe muss durchsichtig sein, um dahinterliegende Dekorationen nicht zu verbergen.",
+	"overviewRulerSelectionHighlightForeground": "Übersichtslineal-Markierungsfarbe für Auswahlhervorhebungen. Die Farbe muss durchsichtig sein, um dahinterliegende Dekorationen nicht zu verbergen."
 }

@@ -22,6 +22,7 @@
 	"workbench.action.terminal.newInActiveWorkspace": "Criar Novo Terminal Integrado (No Espaço de Trabalho Ativo)",
 	"workbench.action.terminal.split": "Dividir Terminal",
 	"workbench.action.terminal.focusPreviousPane": "Focar Painel Anterior",
+	"workbench.action.terminal.focusNextPane": "Foco próximo painel",
 	"workbench.action.terminal.resizePaneLeft": "Redimensionar Painel à Esquerda",
 	"workbench.action.terminal.resizePaneRight": "Redimensionar Painel à Direita",
 	"workbench.action.terminal.resizePaneUp": "Redimensionar Painel Superior",
@@ -50,5 +51,6 @@
 	"workbench.action.terminal.hideFindWidget": "Ocultar Ferramenta de Pesquisa",
 	"nextTerminalFindTerm": "Mostrar Próximo Termo de Busca",
 	"previousTerminalFindTerm": "Mostrar Termo de Busca Anterior",
-	"quickOpenTerm": "Alternar o Terminal Ativo"
+	"quickOpenTerm": "Alternar o Terminal Ativo",
+	"workbench.action.terminal.focusPreviousCommand": "Foco no Comando Anterior"
 }

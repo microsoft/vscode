@@ -8,6 +8,8 @@
 	],
 	"textFileEditor": "文字檔編輯器",
 	"createFile": "建立檔案",
+	"relaunchWithIncreasedMemoryLimit": "重新啟動",
+	"configureMemoryLimit": "設置",
 	"fileEditorWithInputAriaLabel": "{0}。文字檔編輯器。",
 	"fileEditorAriaLabel": "文字檔編輯器。"
 }

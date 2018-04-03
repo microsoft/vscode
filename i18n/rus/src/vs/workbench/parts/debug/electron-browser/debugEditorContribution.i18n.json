@@ -22,5 +22,6 @@
 	"enableBreakpointOnLine": "Включить точку останова в строке",
 	"addBreakpoint": "Добавить точку останова",
 	"conditionalBreakpoint": "Добавить условную точку останова…",
+	"addLogPoint": "Добавить точку журнала...",
 	"addConfiguration": "Добавить конфигурацию..."
 }

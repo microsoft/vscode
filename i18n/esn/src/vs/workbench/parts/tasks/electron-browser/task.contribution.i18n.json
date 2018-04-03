@@ -12,6 +12,7 @@
 	"totalWarnings": "{0} advertencias",
 	"totalInfos": "{0} informaciones",
 	"building": "Compilando...",
+	"manyProblems": "+10Mil",
 	"runningTasks": "Mostrar tareas en ejecución",
 	"tasks": "Tareas",
 	"TaskSystem.noHotSwap": "Cambiar el motor de ejecución de tareas con una tarea activa ejecutandose, requiere recargar la ventana",

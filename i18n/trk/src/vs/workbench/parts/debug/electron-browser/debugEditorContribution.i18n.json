@@ -22,5 +22,6 @@
 	"enableBreakpointOnLine": "Satır Kesme Noktasını Etkinleştir",
 	"addBreakpoint": "Kesme Noktası Ekle",
 	"conditionalBreakpoint": "Koşullu Kesme Noktası Ekle...",
+	"addLogPoint": "Günlük Noktası Ekle...",
 	"addConfiguration": "Yapılandırma Ekle..."
 }

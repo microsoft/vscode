@@ -59,5 +59,6 @@
 	"emmetPreferencesCssWebkitProperties": "`-`로 시작하는 Emmet 약어에서 사용될 때 'webkit' 공급업체 접두사를 가져오는 쉼표로 구분된 CSS 속성입니다. 항상 'webkit' 접두사를 사용하지 않으려면 빈 문자열로 설정합니다.",
 	"emmetPreferencesCssMozProperties": "`-`로 시작하는 Emmet 약어에서 사용될 때 'moz' 공급업체 접두사를 가져오는 쉼표로 구분된 CSS 속성입니다. 항상 'moz' 접두사를 사용하지 않으려면 빈 문자열로 설정합니다.",
 	"emmetPreferencesCssOProperties": "`-`로 시작하는 emmet 약어에서 사용할 때 'o' 공급업체 접두사를 가져오는 쉼표로 구분된 CSS 속성입니다. 항상 'o' 접두사를 사용하지 않으려면 빈 문자열로 설정합니다.",
-	"emmetPreferencesCssMsProperties": "`-`로 시작하는 emmet 약어에서 사용할 때 'ms' 공급업체 접두사를 가져오는 쉼표로 구분된 CSS 속성입니다. 항상 'ms' 접두사를 사용하지 않으려면 빈 문자열로 설정합니다."
+	"emmetPreferencesCssMsProperties": "`-`로 시작하는 emmet 약어에서 사용할 때 'ms' 공급업체 접두사를 가져오는 쉼표로 구분된 CSS 속성입니다. 항상 'ms' 접두사를 사용하지 않으려면 빈 문자열로 설정합니다.",
+	"emmetPreferencesCssFuzzySearchMinScore": "유사 일치 약어가 획득해야 하는 최소 점수(0에서 1 사이)입니다. 값이 낮을수록 가양성 일치 항목이 늘 수 있고, 값이 높을수록 가능한 일치 항목이 줄 수 있습니다."
 }

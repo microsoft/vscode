@@ -22,5 +22,6 @@
 	"enableBreakpointOnLine": "Habilitar punto de interrupción de línea",
 	"addBreakpoint": "Agregar punto de interrupción",
 	"conditionalBreakpoint": "Agregar punto de interrupción condicional...",
+	"addLogPoint": "Agregar punto de registro...",
 	"addConfiguration": "Agregar configuración..."
 }

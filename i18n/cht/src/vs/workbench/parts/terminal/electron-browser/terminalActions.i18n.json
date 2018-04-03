@@ -51,5 +51,9 @@
 	"workbench.action.terminal.hideFindWidget": "隱藏尋找小工具",
 	"nextTerminalFindTerm": "顯示下一個尋找字詞",
 	"previousTerminalFindTerm": "顯示上一個尋找字詞",
-	"quickOpenTerm": "切換使用中的終端機 "
+	"quickOpenTerm": "切換使用中的終端機 ",
+	"workbench.action.terminal.focusPreviousCommand": "聚焦上一個命令",
+	"workbench.action.terminal.focusNextCommand": "聚焦下一個命令",
+	"workbench.action.terminal.selectToPreviousCommand": "選取上一個命令",
+	"workbench.action.terminal.selectToNextCommand": "選取下一個命令"
 }

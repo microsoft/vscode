@@ -18,6 +18,7 @@
 	"debugRequest": "Requer o tipo de configuração. Pode ser \"launch\" ou \"attach\".",
 	"debugServer": "Somente para o desenvolvimento de extensão de depuração: se uma porta é especificada, o VS Code tenta se conectar a um adaptador de depuração executando em modo de servidor",
 	"debugPrelaunchTask": "Tarefa para ser executada antes de começar a sessão de depuração.",
+	"debugPostDebugTask": "Tarefa para ser executada após término da sessão de debug.",
 	"debugWindowsConfiguration": "Atributos de configuração de lançamento específicos do Windows.",
 	"debugOSXConfiguration": "Atributos de configuração de lançamento específicos do OS X.",
 	"debugLinuxConfiguration": "Atributos de configuração de lançamento específicos do Linux.",

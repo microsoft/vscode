@@ -59,5 +59,6 @@
 	"emmetPreferencesCssWebkitProperties": "Propriedades CSS separadas por vírgula que recebem o prefixo vendor 'webkit' quando utilizado em abreviações do Emmet que iniciam com `-`. Defina como string vazia para sempre evitar o prefixo 'webkit'.",
 	"emmetPreferencesCssMozProperties": "Propriedades CSS separadas por vírgula que recebem o prefixo vendor 'moz' quando utilizado em abreviações do Emmet que iniciam com `-`. Defina como string vazia para sempre evitar o prefixo 'moz'.",
 	"emmetPreferencesCssOProperties": "Propriedades CSS separadas por vírgula que recebem o prefixo vendor 'o' quando utilizado em abreviações do Emmet que iniciam com `-`. Defina como string vazia para sempre evitar o prefixo 'o'.",
-	"emmetPreferencesCssMsProperties": "Propriedades CSS separadas por vírgula que recebem o prefixo vendor 'ms' quando utilizado em abreviações do Emmet que iniciam com `-`. Defina como string vazia para sempre evitar o prefixo 'ms'."
+	"emmetPreferencesCssMsProperties": "Propriedades CSS separadas por vírgula que recebem o prefixo vendor 'ms' quando utilizado em abreviações do Emmet que iniciam com `-`. Defina como string vazia para sempre evitar o prefixo 'ms'.",
+	"emmetPreferencesCssFuzzySearchMinScore": "A pontuação mínima (de 0 a 1) que a abreviação difusa deve alcançar. Os valores mais baixos podem produzir muitas correspondências falso-positivas, valores mais elevados podem reduzir possíveis correspondências.\n"
 }

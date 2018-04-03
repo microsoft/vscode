@@ -22,5 +22,6 @@
 	"enableBreakpointOnLine": "줄 중단점 사용",
 	"addBreakpoint": "중단점 추가",
 	"conditionalBreakpoint": "조건부 중단점 추가...",
+	"addLogPoint": "로그 지점 추가...",
 	"addConfiguration": "구성 추가..."
 }

@@ -12,6 +12,7 @@
 	"totalWarnings": "경고 {0}개",
 	"totalInfos": "정보 {0}개",
 	"building": "빌드하고 있습니다...",
+	"manyProblems": "10K+",
 	"runningTasks": "실행 중인 작업 표시",
 	"tasks": "작업",
 	"TaskSystem.noHotSwap": "실행 중인 활성 작업이 있는 작업 실행 엔진을 변경하면 Window를 다시 로드해야 합니다.",

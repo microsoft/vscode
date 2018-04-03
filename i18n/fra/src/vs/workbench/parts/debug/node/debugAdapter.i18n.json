@@ -18,6 +18,7 @@
 	"debugRequest": "Type de requête de configuration. Il peut s'agir de \"launch\" ou \"attach\".",
 	"debugServer": "Pour le développement d'une extension de débogage uniquement : si un port est spécifié, VS Code tente de se connecter à un adaptateur de débogage s'exécutant en mode serveur",
 	"debugPrelaunchTask": "Tâche à exécuter avant le démarrage de la session de débogage.",
+	"debugPostDebugTask": "Tâche à exécuter après que le débogage se termine.",
 	"debugWindowsConfiguration": "Attributs de configuration de lancement spécifiques à Windows.",
 	"debugOSXConfiguration": "Attributs de configuration de lancement spécifiques à OS X.",
 	"debugLinuxConfiguration": "Attributs de configuration de lancement spécifiques à Linux.",

@@ -22,5 +22,6 @@
 	"enableBreakpointOnLine": "Activer le point d'arrêt de la ligne",
 	"addBreakpoint": "Ajouter un point d'arrêt",
 	"conditionalBreakpoint": "Ajouter un point d'arrêt conditionnel...",
+	"addLogPoint": "Ajouter un Log Point",
 	"addConfiguration": "Ajouter une configuration..."
 }

@@ -10,6 +10,7 @@
 	"neverShowAgain": "Ne plus afficher",
 	"netVersionError": "Microsoft .NET Framework 4.5 est obligatoire. Suivez le lien pour l'installer.",
 	"learnMore": "Instructions",
+	"enospcError": "{0} n’est pas en mesure de surveiller les modifications de fichiers dans ce grand espace de travail. Veuillez suivre le lien d'instructions pour résoudre ce problème.",
 	"binFailed": "Échec du déplacement de '{0}' vers la corbeille",
 	"trashFailed": "Échec du déplacement de '{0}' vers la corbeille"
 }

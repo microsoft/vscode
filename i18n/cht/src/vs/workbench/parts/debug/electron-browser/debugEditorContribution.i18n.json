@@ -22,5 +22,6 @@
 	"enableBreakpointOnLine": "啟用行中斷點",
 	"addBreakpoint": "加入中斷點",
 	"conditionalBreakpoint": "新增條件中斷點...",
+	"addLogPoint": "新增紀錄點...",
 	"addConfiguration": "新增組態..."
 }

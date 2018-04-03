@@ -92,5 +92,7 @@
 	"mergeBorder": "內嵌合併衝突中標頭及分隔器的邊界色彩。",
 	"overviewRulerCurrentContentForeground": "目前內嵌合併衝突的概觀尺規前景。",
 	"overviewRulerIncomingContentForeground": "傳入內嵌合併衝突的概觀尺規前景。",
-	"overviewRulerCommonContentForeground": "內嵌合併衝突中的共同上階概觀尺規前景。"
+	"overviewRulerCommonContentForeground": "內嵌合併衝突中的共同上階概觀尺規前景。",
+	"overviewRulerFindMatchForeground": "概述符合尋找條件的尺規標記顏色。不能使用非透明的顏色來隱藏底層的樣式。",
+	"overviewRulerSelectionHighlightForeground": "概述反白選擇的尺規標記顏色。不能使用非透明的顏色來隱藏底層的樣式。"
 }

@@ -9,6 +9,7 @@
 	"fileInvalidPath": "Recurso de archivo no válido ({0})",
 	"fileIsDirectoryError": "Archivo es el directorio",
 	"fileNotModifiedError": "Archivo no modificado desde",
+	"fileTooLargeForHeapError": "El tamaño del archivo supera el límite de memoria predeterminado. Reinicie con un límite superior. La configuración actual es reiniciar con {0} MB.",
 	"fileTooLargeError": "Archivo demasiado grande para abrirlo",
 	"fileNotFoundError": "Archivo no encontrado ({0})",
 	"fileBinaryError": "El archivo parece ser binario y no se puede abrir como texto",
