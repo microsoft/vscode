@@ -42,7 +42,8 @@ import { Readable } from 'stream';
 import { Schemas } from 'vs/base/common/network';
 
 export interface IEncodingOverride {
-	resource: uri;
+	parent?: uri;
+	extension?: string;
 	encoding: string;
 }
 
@@ -974,9 +975,13 @@ export class FileService implements IFileService {
 			for (let i = 0; i < this.options.encodingOverride.length; i++) {
 				const override = this.options.encodingOverride[i];
 
-				// check if the resource is a child of the resource with override and use
-				// the provided encoding in that case
-				if (isParent(resource.fsPath, override.resource.fsPath, !isLinux /* ignorecase */)) {
+				// check if the resource is child of encoding override path
+				if (override.parent && isParent(resource.fsPath, override.parent.fsPath, !isLinux /* ignorecase */)) {
+					return override.encoding;
+				}
+
+				// check if the resource extension is equal to encoding override
+				if (override.extension && paths.extname(resource.fsPath) === `.${override.extension}`) {
 					return override.encoding;
 				}
 			}

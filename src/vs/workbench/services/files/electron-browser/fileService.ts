@@ -25,6 +25,7 @@ import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
 import { Schemas } from 'vs/base/common/network';
 import { Severity, INotificationService, PromptOption } from 'vs/platform/notification/common/notification';
+import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 
 export class FileService implements IFileService {
 
@@ -159,9 +160,16 @@ export class FileService implements IFileService {
 
 	private getEncodingOverrides(): IEncodingOverride[] {
 		const encodingOverride: IEncodingOverride[] = [];
-		encodingOverride.push({ resource: uri.file(this.environmentService.appSettingsHome), encoding: encoding.UTF8 });
+
+		// Global settings
+		encodingOverride.push({ parent: uri.file(this.environmentService.appSettingsHome), encoding: encoding.UTF8 });
+
+		// Workspace files
+		encodingOverride.push({ extension: WORKSPACE_EXTENSION, encoding: encoding.UTF8 });
+
+		// Folder Settings
 		this.contextService.getWorkspace().folders.forEach(folder => {
-			encodingOverride.push({ resource: uri.file(paths.join(folder.uri.fsPath, '.vscode')), encoding: encoding.UTF8 });
+			encodingOverride.push({ parent: uri.file(paths.join(folder.uri.fsPath, '.vscode')), encoding: encoding.UTF8 });
 		});
 
 		return encodingOverride;

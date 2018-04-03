@@ -912,7 +912,7 @@ suite('FileService', () => {
 		}, 100);
 	});
 
-	test('options - encoding', function () {
+	test('options - encoding override (parent)', function () {
 
 		// setup
 		const _id = uuid.generateUuid();
@@ -922,7 +922,44 @@ suite('FileService', () => {
 		return pfs.copy(_sourceDir, _testDir).then(() => {
 			const encodingOverride: IEncodingOverride[] = [];
 			encodingOverride.push({
-				resource: uri.file(path.join(testDir, 'deep')),
+				parent: uri.file(path.join(testDir, 'deep')),
+				encoding: 'utf16le'
+			});
+
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration('files', { encoding: 'windows1252' });
+
+			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
+
+			const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))), TestEnvironmentService, textResourceConfigurationService, configurationService, new TestLifecycleService(), {
+				encodingOverride,
+				disableWatcher: true
+			});
+
+			return _service.resolveContent(uri.file(path.join(testDir, 'index.html'))).then(c => {
+				assert.equal(c.encoding, 'windows1252');
+
+				return _service.resolveContent(uri.file(path.join(testDir, 'deep', 'conway.js'))).then(c => {
+					assert.equal(c.encoding, 'utf16le');
+
+					// teardown
+					_service.dispose();
+				});
+			});
+		});
+	});
+
+	test('options - encoding override (extension)', function () {
+
+		// setup
+		const _id = uuid.generateUuid();
+		const _testDir = path.join(parentDir, _id);
+		const _sourceDir = require.toUrl('./fixtures/service');
+
+		return pfs.copy(_sourceDir, _testDir).then(() => {
+			const encodingOverride: IEncodingOverride[] = [];
+			encodingOverride.push({
+				extension: 'js',
 				encoding: 'utf16le'
 			});
 
