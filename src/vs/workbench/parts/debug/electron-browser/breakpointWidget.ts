@@ -10,7 +10,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
-import { Position } from 'vs/editor/common/core/position';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -24,12 +23,6 @@ import { ServicesAccessor, EditorCommand, registerEditorCommand } from 'vs/edito
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import uri from 'vs/base/common/uri';
-import { SuggestRegistry, ISuggestResult, SuggestContext } from 'vs/editor/common/modes';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ITextModel } from 'vs/editor/common/model';
-import { wireCancellationToken } from 'vs/base/common/async';
-import { provideSuggestionItems } from 'vs/editor/contrib/suggest/suggest';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -214,30 +207,6 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 		};
 		this.input.getModel().onDidChangeContent(() => setDecorations());
 		this.themeService.onThemeChange(() => setDecorations());
-
-		this.toDispose.push(SuggestRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
-			provideCompletionItems: (model: ITextModel, position: Position, _context: SuggestContext, token: CancellationToken): Thenable<ISuggestResult> => {
-				let suggestionsPromise: TPromise<ISuggestResult>;
-				if (this.context === Context.CONDITION || this.context === Context.LOG_MESSAGE && this.isCurlyBracketOpen()) {
-					suggestionsPromise = provideSuggestionItems(this.editor.getModel(), new Position(this.lineNumber, this.column), 'none', undefined, _context).then(suggestions => {
-						return {
-							suggestions: suggestions.map(s => {
-								if (this.context === Context.CONDITION) {
-									s.suggestion.overwriteBefore = position.column - 1;
-									s.suggestion.overwriteAfter = 0;
-								}
-
-								return s.suggestion;
-							})
-						};
-					});
-				} else {
-					suggestionsPromise = TPromise.as({ suggestions: [] });
-				}
-
-				return wireCancellationToken(token, suggestionsPromise);
-			}
-		}));
 	}
 
 	private createDecorations(): IDecorationOptions[] {
@@ -255,21 +224,6 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 				}
 			}
 		}];
-	}
-
-	private isCurlyBracketOpen(): boolean {
-		const value = this.input.getModel().getValue();
-		for (let i = this.input.getPosition().column - 2; i >= 0; i--) {
-			if (value[i] === '{') {
-				return true;
-			}
-
-			if (value[i] === '}') {
-				return false;
-			}
-		}
-
-		return false;
 	}
 
 	public dispose(): void {
