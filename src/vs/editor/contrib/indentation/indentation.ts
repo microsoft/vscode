@@ -345,7 +345,6 @@ export class ReindentSelectedLinesAction extends EditorAction {
 		let edits: IIdentifiedSingleEditOperation[] = [];
 
 		for (let selection of editor.getSelections()) {
-			console.log(selection);
 			let startLineNumber = selection.startLineNumber;
 			let endLineNumber = selection.endLineNumber;
 			if (startLineNumber !== endLineNumber && selection.endColumn === 1) {
