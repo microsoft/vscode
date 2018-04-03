@@ -416,7 +416,7 @@ configurationRegistry.registerConfiguration({
 		'window.clickThroughInactive': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and execute the element under the mouse. If disabled, clicking anywhere on an inactive window will activate it only, without executing the element under the mouse."),
+			'description': nls.localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 			'included': isMacintosh
 		}
 	}
