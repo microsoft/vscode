@@ -10,6 +10,7 @@ import * as assert from 'assert';
 import * as mimeCommon from 'vs/base/common/mime';
 import * as mime from 'vs/base/node/mime';
 import { readExactlyByFile } from 'vs/base/node/stream';
+import { UTF16le, UTF16be } from 'vs/base/node/encoding';
 
 suite('Mime', () => {
 
@@ -60,6 +61,26 @@ suite('Mime', () => {
 		return readExactlyByFile(file, 512).then(buffer => {
 			const mimes = mime.detectMimeAndEncodingFromBuffer(buffer);
 			assert.deepEqual(mimes.mimes, ['application/octet-stream']);
+		});
+	});
+
+	test('detectMimesFromFile (guess UTF-16 LE from content without BOM)', function () {
+		mimeCommon.registerTextMime({ id: 'text', mime: 'text/plain', extension: '.txt' });
+		const file = require.toUrl('./fixtures/utf16_le_nobom.txt');
+		return readExactlyByFile(file, 512).then(buffer => {
+			const mimes = mime.detectMimeAndEncodingFromBuffer(buffer);
+			assert.equal(mimes.encoding, UTF16le);
+			assert.deepEqual(mimes.mimes, ['text/plain']);
+		});
+	});
+
+	test('detectMimesFromFile (guess UTF-16 BE from content without BOM)', function () {
+		mimeCommon.registerTextMime({ id: 'text', mime: 'text/plain', extension: '.txt' });
+		const file = require.toUrl('./fixtures/utf16_be_nobom.txt');
+		return readExactlyByFile(file, 512).then(buffer => {
+			const mimes = mime.detectMimeAndEncodingFromBuffer(buffer);
+			assert.equal(mimes.encoding, UTF16be);
+			assert.deepEqual(mimes.mimes, ['text/plain']);
 		});
 	});
 

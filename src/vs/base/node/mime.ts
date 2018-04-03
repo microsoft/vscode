@@ -11,48 +11,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as stream from 'vs/base/node/stream';
 import * as encoding from 'vs/base/node/encoding';
 
-/**
- * Lots of binary file types exists where the type can be determined by matching the first few bytes against some "magic patterns".
- * E.g. PDF files always start with %PDF- and the rest of the file contains mostly text, but sometimes binary data (for fonts and images).
- * In order to detect these types correctly (and independently from the file's extension), the content base mime type detection must be performed
- * on any file, not only on text files.
- *
- * Here is the original mime type detection in pseudocode:
- *
- * let mimes = [];
- *
- * read file extension
- *
- * if (file extension matches) {
- * 	if (file extension is bogus) {
- * 		// ignore.
- * 		// this covers *.manifest files which can contain arbitrary content, so the extension is of no value.
- * 		// a consequence of this is that the content based mime type becomes the most specific type in the array
- * 	} else {
- * 		mimes.push(associated mime type)	  // first element: most specific
- * 	}
- * }
- *
- * read file contents
- *
- * if (content based match found) {	// this is independent from text or binary
- * 	mimes.push(associated mime type)
- * 	if (a second mime exists for the match) {   // should be rare; text/plain should never be included here
- * 		// e.g. for svg: ['image/svg+xml', 'application/xml']
- * 		mimes.push(second mime)
- * 	}
- * }
- *
- * if (content == text)
- * 	mimes.push('text/plain')   // last element: least specific
- * else
- * 	mimes.push('application/octet-stream')    // last element: least specific
- */
-
 const ZERO_BYTE_DETECTION_BUFFER_MAX_LEN = 512; // number of bytes to look at to decide about a file being binary or not
-
-const NO_GUESS_BUFFER_MAX_LEN = 512; 		// when not auto guessing the encoding, small number of bytes are enough
-const AUTO_GUESS_BUFFER_MAX_LEN = 512 * 8; // with auto guessing we want a lot more content to be read for guessing
+const NO_GUESS_BUFFER_MAX_LEN = 512; 			// when not auto guessing the encoding, small number of bytes are enough
+const AUTO_GUESS_BUFFER_MAX_LEN = 512 * 8; 		// with auto guessing we want a lot more content to be read for guessing
 
 export function maxBufferLen(arg1?: DetectMimesOption | boolean): number {
 	let autoGuessEncoding: boolean;
@@ -77,19 +38,61 @@ export interface DetectMimesOption {
 export function detectMimeAndEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: false): IMimeAndEncoding;
 export function detectMimeAndEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: boolean): TPromise<IMimeAndEncoding>;
 export function detectMimeAndEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResult, autoGuessEncoding?: boolean): TPromise<IMimeAndEncoding> | IMimeAndEncoding {
+
+	// Always first check for BOM to find out about encoding
 	let enc = encoding.detectEncodingByBOMFromBuffer(buffer, bytesRead);
 
-	// Detect 0 bytes to see if file is binary (ignore for UTF 16 though)
+	// Detect 0 bytes to see if file is binary or UTF-16 LE/BE
+	// unless we already know that this file has a UTF-16 encoding
 	let isText = true;
 	if (enc !== encoding.UTF16be && enc !== encoding.UTF16le) {
+		let couldBeUTF16LE = true; // e.g. 0xAA 0x00
+		let couldBeUTF16BE = true; // e.g. 0x00 0xAA
+		let containsZeroByte = false;
+
+		// This is a simplified guess to detect UTF-16 BE or LE by just checking if
+		// the first 512 bytes have the 0-byte at a specific location. For UTF-16 LE
+		// this would be the odd byte index and for UTF-16 BE the even one.
+		// Note: this can produce false positives (a binary file that uses a 2-byte
+		// encoding of the same format as UTF-16) and false negatives (a UTF-16 file
+		// that is using 4 bytes to encode a character).
 		for (let i = 0; i < bytesRead && i < ZERO_BYTE_DETECTION_BUFFER_MAX_LEN; i++) {
-			if (buffer.readInt8(i) === 0) {
-				isText = false;
+			const isEndian = (i % 2 === 1); // assume 2-byte sequences typical for UTF-16
+			const isZeroByte = (buffer.readInt8(i) === 0);
+
+			if (isZeroByte) {
+				containsZeroByte = true;
+			}
+
+			// UTF-16 LE: expect e.g. 0xAA 0x00
+			if (couldBeUTF16LE && (isEndian && !isZeroByte || !isEndian && isZeroByte)) {
+				couldBeUTF16LE = false;
+			}
+
+			// UTF-16 BE: expect e.g. 0x00 0xAA
+			if (couldBeUTF16BE && (isEndian && isZeroByte || !isEndian && !isZeroByte)) {
+				couldBeUTF16BE = false;
+			}
+
+			// Return if this is neither UTF16-LE nor UTF16-BE and thus treat as binary
+			if (isZeroByte && !couldBeUTF16LE && !couldBeUTF16BE) {
 				break;
+			}
+		}
+
+		// Handle case of 0-byte included
+		if (containsZeroByte) {
+			if (couldBeUTF16LE) {
+				enc = encoding.UTF16le;
+			} else if (couldBeUTF16BE) {
+				enc = encoding.UTF16be;
+			} else {
+				isText = false;
 			}
 		}
 	}
 
+	// Auto guess encoding if configured
 	if (autoGuessEncoding && isText && !enc) {
 		return encoding.guessEncodingByBuffer(buffer.slice(0, bytesRead)).then(enc => {
 			return {
