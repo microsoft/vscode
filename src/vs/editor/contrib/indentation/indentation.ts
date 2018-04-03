@@ -327,6 +327,49 @@ export class ReindentLinesAction extends EditorAction {
 	}
 }
 
+export class ReindentSelectedLinesAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.reindentselectedlines',
+			label: nls.localize('editor.reindentselectedlines', "Reindent Selected Lines"),
+			alias: 'Reindent Selected Lines',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		let model = editor.getModel();
+		if (!model) {
+			return;
+		}
+		let edits: IIdentifiedSingleEditOperation[] = [];
+
+		for (let selection of editor.getSelections()) {
+			console.log(selection);
+			let startLineNumber = selection.startLineNumber;
+			let endLineNumber = selection.endLineNumber;
+			if (startLineNumber !== endLineNumber && selection.endColumn === 1) {
+				endLineNumber--;
+			}
+			if (startLineNumber === 1) {
+				if (startLineNumber === endLineNumber) { continue; }
+			} else {
+				startLineNumber--;
+			}
+			let editOperations = getReindentEditOperations(model, startLineNumber, endLineNumber) || [];
+			for (let editOp of editOperations) {
+				edits.push(editOp);
+			}
+		}
+
+		if (edits) {
+			editor.pushUndoStop();
+			editor.executeEdits(this.id, edits);
+			editor.pushUndoStop();
+		}
+	}
+}
+
 export class AutoIndentOnPasteCommand implements ICommand {
 
 	private _edits: TextEdit[];
@@ -649,3 +692,4 @@ registerEditorAction(IndentUsingTabs);
 registerEditorAction(IndentUsingSpaces);
 registerEditorAction(DetectIndentation);
 registerEditorAction(ReindentLinesAction);
+registerEditorAction(ReindentSelectedLinesAction);
