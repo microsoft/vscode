@@ -5,15 +5,14 @@
 'use strict';
 
 import {
-	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities,
-	ConfigurationRequest, WorkspaceFolder, DocumentColorRequest, ColorPresentationRequest
+	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder
 } from 'vscode-languageserver';
 
 import { TextDocument, CompletionList } from 'vscode-languageserver-types';
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-import { formatError, runSafe } from './utils/errors';
+import { formatError, runSafe } from './utils/runner';
 import URI from 'vscode-uri';
 import { getPathCompletionParticipant } from './pathCompletion';
 import { FoldingProviderServerCapabilities, FoldingRangesRequest } from 'vscode-languageserver-protocol-foldingprovider';
@@ -182,7 +181,7 @@ function validateTextDocument(textDocument: TextDocument): void {
 	});
 }
 
-connection.onCompletion(textDocumentPosition => {
+connection.onCompletion((textDocumentPosition, token) => {
 	return runSafe(() => {
 		let document = documents.get(textDocumentPosition.textDocument.uri);
 		const cssLS = getLanguageService(document);
@@ -196,58 +195,58 @@ connection.onCompletion(textDocumentPosition => {
 			isIncomplete: result.isIncomplete,
 			items: [...pathCompletionList.items, ...result.items]
 		};
-	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`);
+	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`, token);
 });
 
-connection.onHover(textDocumentPosition => {
+connection.onHover((textDocumentPosition, token) => {
 	return runSafe(() => {
 		let document = documents.get(textDocumentPosition.textDocument.uri);
 		let styleSheet = stylesheets.get(document);
-		return getLanguageService(document).doHover(document, textDocumentPosition.position, styleSheet)!; /* TODO: remove ! once LS has null annotations */
-	}, null, `Error while computing hover for ${textDocumentPosition.textDocument.uri}`);
+		return getLanguageService(document).doHover(document, textDocumentPosition.position, styleSheet);
+	}, null, `Error while computing hover for ${textDocumentPosition.textDocument.uri}`, token);
 });
 
-connection.onDocumentSymbol(documentSymbolParams => {
+connection.onDocumentSymbol((documentSymbolParams, token) => {
 	return runSafe(() => {
 		let document = documents.get(documentSymbolParams.textDocument.uri);
 		let stylesheet = stylesheets.get(document);
 		return getLanguageService(document).findDocumentSymbols(document, stylesheet);
-	}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`);
+	}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`, token);
 });
 
-connection.onDefinition(documentSymbolParams => {
+connection.onDefinition((documentSymbolParams, token) => {
 	return runSafe(() => {
 		let document = documents.get(documentSymbolParams.textDocument.uri);
 		let stylesheet = stylesheets.get(document);
 		return getLanguageService(document).findDefinition(document, documentSymbolParams.position, stylesheet);
-	}, null, `Error while computing definitions for ${documentSymbolParams.textDocument.uri}`);
+	}, null, `Error while computing definitions for ${documentSymbolParams.textDocument.uri}`, token);
 });
 
-connection.onDocumentHighlight(documentSymbolParams => {
+connection.onDocumentHighlight((documentSymbolParams, token) => {
 	return runSafe(() => {
 		let document = documents.get(documentSymbolParams.textDocument.uri);
 		let stylesheet = stylesheets.get(document);
 		return getLanguageService(document).findDocumentHighlights(document, documentSymbolParams.position, stylesheet);
-	}, [], `Error while computing document highlights for ${documentSymbolParams.textDocument.uri}`);
+	}, [], `Error while computing document highlights for ${documentSymbolParams.textDocument.uri}`, token);
 });
 
-connection.onReferences(referenceParams => {
+connection.onReferences((referenceParams, token) => {
 	return runSafe(() => {
 		let document = documents.get(referenceParams.textDocument.uri);
 		let stylesheet = stylesheets.get(document);
 		return getLanguageService(document).findReferences(document, referenceParams.position, stylesheet);
-	}, [], `Error while computing references for ${referenceParams.textDocument.uri}`);
+	}, [], `Error while computing references for ${referenceParams.textDocument.uri}`, token);
 });
 
-connection.onCodeAction(codeActionParams => {
+connection.onCodeAction((codeActionParams, token) => {
 	return runSafe(() => {
 		let document = documents.get(codeActionParams.textDocument.uri);
 		let stylesheet = stylesheets.get(document);
 		return getLanguageService(document).doCodeActions(document, codeActionParams.range, codeActionParams.context, stylesheet);
-	}, [], `Error while computing code actions for ${codeActionParams.textDocument.uri}`);
+	}, [], `Error while computing code actions for ${codeActionParams.textDocument.uri}`, token);
 });
 
-connection.onRequest(DocumentColorRequest.type, params => {
+connection.onDocumentColor((params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
@@ -255,10 +254,10 @@ connection.onRequest(DocumentColorRequest.type, params => {
 			return getLanguageService(document).findDocumentColors(document, stylesheet);
 		}
 		return [];
-	}, [], `Error while computing document colors for ${params.textDocument.uri}`);
+	}, [], `Error while computing document colors for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest(ColorPresentationRequest.type, params => {
+connection.onColorPresentation((params, token) => {
 	return runSafe(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
@@ -266,15 +265,15 @@ connection.onRequest(ColorPresentationRequest.type, params => {
 			return getLanguageService(document).getColorPresentations(document, stylesheet, params.color, params.range);
 		}
 		return [];
-	}, [], `Error while computing color presentations for ${params.textDocument.uri}`);
+	}, [], `Error while computing color presentations for ${params.textDocument.uri}`, token);
 });
 
-connection.onRenameRequest(renameParameters => {
+connection.onRenameRequest((renameParameters, token) => {
 	return runSafe(() => {
 		let document = documents.get(renameParameters.textDocument.uri);
 		let stylesheet = stylesheets.get(document);
 		return getLanguageService(document).doRename(document, renameParameters.position, renameParameters.newName, stylesheet);
-	}, null, `Error while computing renames for ${renameParameters.textDocument.uri}`);
+	}, null, `Error while computing renames for ${renameParameters.textDocument.uri}`, token);
 });
 
 connection.onRequest(FoldingRangesRequest.type, (params, token) => {
@@ -282,7 +281,7 @@ connection.onRequest(FoldingRangesRequest.type, (params, token) => {
 		let document = documents.get(params.textDocument.uri);
 		let stylesheet = stylesheets.get(document);
 		return getLanguageService(document).findFoldingRegions(document, stylesheet);
-	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`);
+	}, null, `Error while computing folding ranges for ${params.textDocument.uri}`, token);
 });
 
 // Listen on the connection
