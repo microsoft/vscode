@@ -401,8 +401,10 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private extractAndInstall({ zipPath, id, metadata }: InstallableExtension): TPromise<ILocalExtension> {
+		const tempPath = path.join(this.extensionsPath, `.${id}`);
 		const extensionPath = path.join(this.extensionsPath, id);
-		return this.extract(id, zipPath, extensionPath)
+		return this.extractAndRename(id, zipPath, tempPath, extensionPath)
+			.then(null, error => this.isWindowsEPERMError(error) ? this.extract(id, zipPath, extensionPath) : TPromise.wrapError(error))
 			.then(() => {
 				this.logService.info('Installation completed.', id);
 				return this.scanExtension(id, this.extensionsPath, LocalExtensionType.User);
@@ -414,6 +416,17 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				}
 				return local;
 			});
+	}
+
+	private extractAndRename(id: string, zipPath: string, extractPath: string, renamePath: string): TPromise<void> {
+		return this.extract(id, zipPath, extractPath)
+			.then(() => this.rename(id, extractPath, renamePath, Date.now() + (5 * 1000) /* Retry for 5 seconds */)
+				.then(
+					() => this.logService.info('Renamed to', renamePath),
+					e => {
+						this.logService.info('Rename failed. Deleting from extracted location', extractPath);
+						return always(pfs.rimraf(extractPath), () => null).then(() => TPromise.wrapError(e));
+					}));
 	}
 
 	private extract(id: string, zipPath: string, extractPath: string): TPromise<void> {
@@ -431,10 +444,14 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	private rename(id: string, extractPath: string, renamePath: string, retryUntil: number): TPromise<void> {
 		return pfs.rename(extractPath, renamePath)
 			.then(null, error =>
-				isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil
+				this.isWindowsEPERMError(error) && Date.now() < retryUntil
 					? this.rename(id, extractPath, renamePath, retryUntil)
 					: TPromise.wrapError(error)
 			);
+	}
+
+	private isWindowsEPERMError(error: any): boolean {
+		return isWindows && error && error.code === 'EPERM';
 	}
 
 	private rollback(extensions: IGalleryExtension[]): TPromise<void> {
