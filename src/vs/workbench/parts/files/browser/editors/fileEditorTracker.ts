@@ -28,6 +28,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class FileEditorTracker implements IWorkbenchContribution {
 
@@ -46,6 +47,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWindowService private windowService: IWindowService
 	) {
 		this.toUnbind = [];
 		this.modelLoadQueue = new ResourceQueue();
@@ -67,6 +69,9 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		// Editor changing
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 
+		// Update visible editors when focus is gained
+		this.toUnbind.push(this.windowService.onDidChangeFocus(e => this.onWindowFocusChange(e)));
+
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
 
@@ -79,6 +84,24 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;
 		} else {
 			this.closeOnFileDelete = true; // default
+		}
+	}
+
+	private onWindowFocusChange(focused: boolean): void {
+		if (focused) {
+			// the window got focus and we use this as a hint that files might have been changed outside
+			// of this window. since file events can be unreliable, we queue a load for models that
+			// are visible in any editor. since this is a fast operation in the case nothing has changed,
+			// we tolerate the additional work.
+			distinct(
+				this.editorService.getVisibleEditors()
+					.map(editor => {
+						const resource = toResource(editor.input, { supportSideBySide: true });
+						return resource ? this.textFileService.models.get(resource) : void 0;
+					})
+					.filter(model => model && !model.isDirty()),
+				m => m.getResource().toString()
+			).forEach(model => this.queueModelLoad(model));
 		}
 	}
 
