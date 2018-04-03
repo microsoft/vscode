@@ -148,7 +148,7 @@ const schema: IJSONSchema = {
 			uniqueItems: true,
 			items: {
 				type: 'string',
-				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs', 'SCM Providers', 'Azure', 'Language Packs']
+				enum: ['Programming Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs', 'SCM Providers', 'Azure', 'Language Packs']
 			}
 		},
 		galleryBanner: {
