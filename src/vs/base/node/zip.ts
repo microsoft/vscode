@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as path from 'path';
-import { createWriteStream } from 'fs';
+import { createWriteStream, WriteStream } from 'fs';
 import { Readable } from 'stream';
 import { nfcall, ninvoke, SimpleThrottler } from 'vs/base/common/async';
 import { mkdirp, rimraf } from 'vs/base/node/pfs';
@@ -74,23 +74,34 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 	const targetDirName = path.join(targetPath, dirName);
 	const targetFileName = path.join(targetPath, fileName);
 
+	let istream: WriteStream;
 	return mkdirp(targetDirName).then(() => new TPromise((c, e) => {
-		let istream = createWriteStream(targetFileName, { mode });
+		istream = createWriteStream(targetFileName, { mode });
 		istream.once('close', () => c(null));
 		istream.once('error', e);
 		stream.once('error', e);
 		stream.pipe(istream);
+	}, () => {
+		if (istream) {
+			istream.close();
+		}
 	}));
 }
 
 function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): TPromise<void> {
+	let isCanceled = false;
+	let last = TPromise.wrap<any>(null);
+
 	return new TPromise((c, e) => {
 		const throttler = new SimpleThrottler();
-		let last = TPromise.as<any>(null);
 
 		zipfile.once('error', e);
 		zipfile.once('close', () => last.then(c, e));
 		zipfile.on('entry', (entry: Entry) => {
+			if (isCanceled) {
+				return;
+			}
+
 			if (!options.sourcePathRegex.test(entry.fileName)) {
 				return;
 			}
@@ -109,6 +120,10 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): TP
 
 			last = throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options)));
 		});
+	}, () => {
+		isCanceled = true;
+		last.cancel();
+		zipfile.close();
 	}).then(null, err => TPromise.wrapError(toExtractError(err)));
 }
 
