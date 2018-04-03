@@ -13,7 +13,7 @@ import { Dimension } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { buttonBackground, buttonForeground, contrastBorder, buttonHoverBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -26,10 +26,11 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { attachBadgeStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
+import { attachBadgeStyler, attachProgressBarStyler, attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { chain } from 'vs/base/common/event';
+import { Button } from 'vs/base/browser/ui/button/button';
 
 const $ = dom.$;
 
@@ -113,9 +114,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.count = new CountBadge(badgeContainer, { countFormat: localize('quickInput.countSelected', "{0} Selected") });
 		this.toUnbind.push(attachBadgeStyler(this.count, this.themeService));
 
-		const ok = dom.append(headerContainer, $('button.quick-input-action'));
-		ok.textContent = localize('ok', "OK");
-		this.toUnbind.push(dom.addDisposableListener(ok, dom.EventType.CLICK, e => {
+		const okContainer = dom.append(headerContainer, $('.quick-input-action'));
+		const ok = new Button(okContainer);
+		attachButtonStyler(ok, this.themeService);
+		ok.label = localize('ok', "OK");
+		this.toUnbind.push(ok.onDidClick(e => {
 			if (this.ready) {
 				this.close(this.checkboxList.getCheckedElements());
 			}
@@ -293,18 +296,4 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		${contrastBorderColor ? `border: 1px solid ${contrastBorderColor};` : ''}
 		${widgetShadowColor ? `box-shadow: 0 5px 8px ${widgetShadowColor};` : ''}
 	}`);
-
-	const buttonBackgroundColor = theme.getColor(buttonBackground);
-	const buttonForegroundColor = theme.getColor(buttonForeground);
-	collector.addRule(`.quick-input-action {
-		${buttonBackgroundColor ? `background-color: ${buttonBackgroundColor};` : ''}
-		${buttonForegroundColor ? `color: ${buttonForegroundColor};` : ''}
-		${contrastBorderColor ? `border: 1px solid ${contrastBorderColor};` : ''}
-	}`);
-
-	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);
-	if (buttonHoverBackgroundColor) {
-		collector.addRule(`.quick-input-action:hover { background-color: ${buttonHoverBackgroundColor}; }`);
-		collector.addRule(`.quick-input-action:focus { background-color: ${buttonHoverBackgroundColor}; }`);
-	}
 });
