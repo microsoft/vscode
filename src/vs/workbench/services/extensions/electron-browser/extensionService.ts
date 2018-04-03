@@ -299,6 +299,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 		this._extensionHostProcessManager = null;
 		this.startDelayed(lifecycleService);
+
+		if (this._environmentService.disableExtensions) {
+			this._notificationService.info(nls.localize('extensionsDisabled', "All extensions are disabled."));
+		}
 	}
 
 	private startDelayed(lifecycleService: ILifecycleService): void {
