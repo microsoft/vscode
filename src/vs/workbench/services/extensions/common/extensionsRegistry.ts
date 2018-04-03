@@ -147,8 +147,15 @@ const schema: IJSONSchema = {
 			type: 'array',
 			uniqueItems: true,
 			items: {
-				type: 'string',
-				enum: ['Programming Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs', 'SCM Providers', 'Azure', 'Language Packs']
+				oneOf: [{
+					type: 'string',
+					enum: ['Programming Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs', 'SCM Providers', 'Azure', 'Language Packs'],
+				},
+				{
+					type: 'string',
+					const: 'Languages',
+					deprecationMessage: nls.localize('vscode.extension.category.languages.deprecated', 'Use \'Programming  Languages\' instead'),
+				}]
 			}
 		},
 		galleryBanner: {
