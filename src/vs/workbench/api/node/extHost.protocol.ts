@@ -382,7 +382,7 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$unregisterProvider(handle: number): void;
 
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
-	$reportFileChunk(handle: number, session: number, chunk: number[] | null): void;
+	$reportFileChunk(handle: number, session: number, base64Encoded: string | null): void;
 
 	$handleFindMatch(handle: number, session, data: UriComponents | [UriComponents, ILineMatch]): void;
 }
@@ -561,7 +561,7 @@ export interface ExtHostFileSystemShape {
 	$utimes(handle: number, resource: UriComponents, mtime: number, atime: number): TPromise<IStat>;
 	$stat(handle: number, resource: UriComponents): TPromise<IStat>;
 	$read(handle: number, session: number, offset: number, count: number, resource: UriComponents): TPromise<number>;
-	$write(handle: number, resource: UriComponents, content: number[]): TPromise<void>;
+	$write(handle: number, resource: UriComponents, base64Encoded: string): TPromise<void>;
 	$unlink(handle: number, resource: UriComponents): TPromise<void>;
 	$move(handle: number, resource: UriComponents, target: UriComponents): TPromise<IStat>;
 	$mkdir(handle: number, resource: UriComponents): TPromise<IStat>;
