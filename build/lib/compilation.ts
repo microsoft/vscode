@@ -75,7 +75,10 @@ export function compileTask(out: string, build: boolean): () => NodeJS.ReadWrite
 
 		const src = es.merge(
 			gulp.src('src/**', { base: 'src' }),
-			gulp.src('node_modules/typescript/lib/lib.d.ts'),
+			// gulp.src('node_modules/typescript/lib/lib.dom.d.ts'),
+			gulp.src('node_modules/typescript/lib/lib.es6.d.ts'),
+			// gulp.src('node_modules/typescript/lib/lib.dom.iterable.d.ts'),
+			// gulp.src('node_modules/typescript/lib/lib.scripthost.d.ts'),
 		);
 
 		// Do not write .d.ts files to disk, as they are not needed there.
@@ -97,7 +100,10 @@ export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteSt
 
 		const src = es.merge(
 			gulp.src('src/**', { base: 'src' }),
-			gulp.src('node_modules/typescript/lib/lib.d.ts'),
+			// gulp.src('node_modules/typescript/lib/lib.dom.d.ts'),
+			gulp.src('node_modules/typescript/lib/lib.es6.d.ts'),
+			// gulp.src('node_modules/typescript/lib/lib.dom.iterable.d.ts'),
+			// gulp.src('node_modules/typescript/lib/lib.scripthost.d.ts'),
 		);
 		const watchSrc = watch('src/**', { base: 'src' });
 
