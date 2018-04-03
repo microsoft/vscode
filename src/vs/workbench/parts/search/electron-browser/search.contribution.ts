@@ -53,7 +53,7 @@ import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/file
 import { Schemas } from 'vs/base/common/network';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { openSearchView, getSearchView, ReplaceAllInFolderAction, ReplaceAllAction, CloseReplaceAction, FocusNextInputAction, FocusPreviousInputAction, FocusNextSearchResultAction, FocusPreviousSearchResultAction, ReplaceInFilesAction, FindInFilesAction, FocusActiveEditorCommand, toggleCaseSensitiveCommand, ShowNextSearchTermAction, ShowPreviousSearchTermAction, toggleRegexCommand, ShowPreviousSearchIncludeAction, ShowNextSearchIncludeAction, CollapseDeepestExpandedLevelAction, toggleWholeWordCommand, RemoveAction, ReplaceAction, ClearSearchResultsAction, copyPathCommand } from 'vs/workbench/parts/search/browser/searchActions';
+import { openSearchView, getSearchView, ReplaceAllInFolderAction, ReplaceAllAction, CloseReplaceAction, FocusNextInputAction, FocusPreviousInputAction, FocusNextSearchResultAction, FocusPreviousSearchResultAction, ReplaceInFilesAction, FindInFilesAction, FocusActiveEditorCommand, toggleCaseSensitiveCommand, ShowNextSearchTermAction, ShowPreviousSearchTermAction, toggleRegexCommand, ShowPreviousSearchIncludeAction, ShowNextSearchIncludeAction, CollapseDeepestExpandedLevelAction, toggleWholeWordCommand, RemoveAction, ReplaceAction, ClearSearchResultsAction, copyPathCommand, copyMatchCommand } from 'vs/workbench/parts/search/browser/searchActions';
 import { VIEW_ID, ISearchConfigurationProperties } from 'vs/platform/search/common/search';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -236,6 +236,24 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: Constants.CopyMatchCommandId,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: Constants.FileMatchOrMatchFocusKey,
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+	handler: copyMatchCommand
+});
+
+MenuRegistry.appendMenuItem(MenuId.SearchContext, {
+	command: {
+		id: Constants.CopyMatchCommandId,
+		title: nls.localize('copyMatchLabel', "Copy")
+	},
+	when: Constants.FileMatchOrMatchFocusKey,
+	group: 'search_2',
+	order: 3
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.CopyPathCommandId,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: Constants.FileFocusKey,
@@ -252,8 +270,8 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 		title: nls.localize('copyPathLabel', "Copy Path")
 	},
 	when: Constants.FileFocusKey,
-	group: 'search',
-	order: 3
+	group: 'search_2',
+	order: 4
 });
 
 CommandsRegistry.registerCommand({
@@ -274,7 +292,7 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 		title: toggleSearchViewPositionLabel
 	},
 	when: Constants.SearchViewVisibleKey,
-	group: 'search_2',
+	group: 'search_9',
 	order: 1
 });
 

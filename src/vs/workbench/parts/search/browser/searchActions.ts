@@ -18,7 +18,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { ResolvedKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { OS } from 'vs/base/common/platform';
+import { OS, isWindows } from 'vs/base/common/platform';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { VIEW_ID } from 'vs/platform/search/common/search';
@@ -635,10 +635,62 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 }
 
+function fileMatchUriToString(fileMatch: FileMatch): string {
+	const resource = fileMatch.resource();
+	return resource.scheme === Schemas.file ? getPathLabel(resource) : resource.toString();
+}
+
 export const copyPathCommand: ICommandHandler = (accessor, fileMatch: FileMatch) => {
 	const clipboardService = accessor.get(IClipboardService);
 
-	const resource = fileMatch.resource();
-	const text = resource.scheme === Schemas.file ? getPathLabel(resource) : resource.toString();
+	const text = fileMatchUriToString(fileMatch);
 	clipboardService.writeText(text);
+};
+
+function matchToString(match: Match): string {
+	return `${match.range().startLineNumber},${match.range().startColumn}: ${match.text()}`;
+}
+
+const lineDelimiter = isWindows ? '\r\n' : '\n';
+function fileMatchToString(fileMatch: FileMatch, maxMatches: number): { text: string, count: number } {
+	const matchTextRows = fileMatch.matches()
+		.slice(0, maxMatches)
+		.map(matchToString)
+		.map(matchText => '  ' + matchText);
+
+	return {
+		text: `${fileMatchUriToString(fileMatch)}${lineDelimiter}${matchTextRows.join(lineDelimiter)}`,
+		count: matchTextRows.length
+	};
+}
+
+function folderMatchToString(folderMatch: FolderMatch, maxMatches: number): string {
+	const fileResults: string[] = [];
+	let numMatches = 0;
+
+	for (let i = 0; i < folderMatch.fileCount() && numMatches < maxMatches; i++) {
+		const fileResult = fileMatchToString(folderMatch.matches()[i], maxMatches - numMatches);
+		numMatches += fileResult.count;
+		fileResults.push(fileResult.text);
+	}
+
+	return fileResults.join(lineDelimiter + lineDelimiter);
+}
+
+const maxClipboardMatches = 1e4;
+export const copyMatchCommand: ICommandHandler = (accessor, match: RenderableMatch) => {
+	const clipboardService = accessor.get(IClipboardService);
+
+	let text: string;
+	if (match instanceof Match) {
+		text = matchToString(match);
+	} else if (match instanceof FileMatch) {
+		text = fileMatchToString(match, maxClipboardMatches).text;
+	} else if (match instanceof FolderMatch) {
+		text = folderMatchToString(match, maxClipboardMatches);
+	}
+
+	if (text) {
+		clipboardService.writeText(text);
+	}
 };
