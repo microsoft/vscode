@@ -233,23 +233,9 @@ export abstract class BaseTextEditor extends BaseEditor {
 	 * Saves the text editor view state for the given resource.
 	 */
 	protected saveTextEditorViewState(resource: URI): void {
-		const editor = getCodeOrDiffEditor(this).codeEditor;
-		if (!editor) {
-			return; // not supported for diff editors
-		}
-
-		const model = editor.getModel();
-		if (!model) {
-			return; // view state always needs a model
-		}
-
-		const modelUri = model.uri;
-		if (!modelUri) {
-			return; // model URI is needed to make sure we save the view state correctly
-		}
-
-		if (modelUri.toString() !== resource.toString()) {
-			return; // prevent saving view state for a model that is not the expected one
+		const editorViewState = this.retrieveTextEditorViewState(resource);
+		if (!editorViewState) {
+			return;
 		}
 
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
@@ -267,8 +253,31 @@ export abstract class BaseTextEditor extends BaseEditor {
 		}
 
 		if (typeof this.position === 'number') {
-			lastKnownViewState[this.position] = editor.saveViewState();
+			lastKnownViewState[this.position] = editorViewState;
 		}
+	}
+
+	protected retrieveTextEditorViewState(resource: URI): IEditorViewState {
+		const editor = getCodeOrDiffEditor(this).codeEditor;
+		if (!editor) {
+			return null; // not supported for diff editors
+		}
+
+		const model = editor.getModel();
+		if (!model) {
+			return null; // view state always needs a model
+		}
+
+		const modelUri = model.uri;
+		if (!modelUri) {
+			return null; // model URI is needed to make sure we save the view state correctly
+		}
+
+		if (modelUri.toString() !== resource.toString()) {
+			return null; // prevent saving view state for a model that is not the expected one
+		}
+
+		return editor.saveViewState();
 	}
 
 	/**

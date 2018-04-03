@@ -105,7 +105,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		});
 	}
 
-	protected restoreViewState(input: EditorInput) {
+	private restoreViewState(input: EditorInput) {
 		if (input instanceof UntitledEditorInput || input instanceof ResourceEditorInput) {
 			const viewState = this.loadTextEditorViewState(input.getResource());
 			if (viewState) {
