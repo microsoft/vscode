@@ -12,7 +12,7 @@
 	},
 	"main": "./out/extension",
 	"categories": [
-		"Languages"
+		"Programming Languages"
 	],
 	"activationEvents": [
 		"onLanguage:markdown",
