@@ -107,12 +107,16 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 						return isObject(target) ?
 							new Proxy(target, {
 								get: (target: any, property: string) => {
+									if (typeof property === 'string' && property.toLowerCase() === 'tojson') {
+										cloneTarget();
+										return () => clonedTarget;
+									}
 									if (clonedConfig) {
 										clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
 										return clonedTarget[property];
 									}
 									const result = target[property];
-									if (typeof property === 'string' && property.toLowerCase() !== 'tojson') {
+									if (typeof property === 'string') {
 										return cloneOnWriteProxy(result, `${accessor}.${property}`);
 									}
 									return result;

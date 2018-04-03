@@ -22,6 +22,7 @@ import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import { IWordAtPosition, EndOfLineSequence } from 'vs/editor/common/model';
 import { globals } from 'vs/base/common/platform';
+import { IIterator } from 'vs/base/common/iterator';
 
 export interface IMirrorModel {
 	readonly uri: URI;
@@ -58,8 +59,8 @@ export interface ICommonModel {
 	getLinesContent(): string[];
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
+	createWordIterator(wordDefinition: RegExp): IIterator<string>;
 	getWordUntilPosition(position: IPosition, wordDefinition: RegExp): IWordAtPosition;
-	getAllUniqueWords(wordDefinition: RegExp, skipWordOnce?: string): string[];
 	getValueInRange(range: IRange): string;
 	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range;
 	offsetAt(position: IPosition): number;
@@ -146,30 +147,37 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		};
 	}
 
-	private _getAllWords(wordDefinition: RegExp): string[] {
-		let result: string[] = [];
-		this._lines.forEach((line) => {
-			this._wordenize(line, wordDefinition).forEach((info) => {
-				result.push(line.substring(info.start, info.end));
-			});
-		});
-		return result;
-	}
+	public createWordIterator(wordDefinition: RegExp): IIterator<string> {
+		let obj = {
+			done: false,
+			value: ''
+		};
+		let lineNumber = 0;
+		let lineText: string;
+		let wordRangesIdx = 0;
+		let wordRanges: IWordRange[] = [];
+		let next = () => {
 
-	public getAllUniqueWords(wordDefinition: RegExp, skipWordOnce?: string): string[] {
-		let foundSkipWord = false;
-		let uniqueWords = Object.create(null);
-		return this._getAllWords(wordDefinition).filter((word) => {
-			if (skipWordOnce && !foundSkipWord && skipWordOnce === word) {
-				foundSkipWord = true;
-				return false;
-			} else if (uniqueWords[word]) {
-				return false;
+			if (wordRangesIdx < wordRanges.length) {
+				obj.done = false;
+				obj.value = lineText.substring(wordRanges[wordRangesIdx].start, wordRanges[wordRangesIdx].end);
+				wordRangesIdx += 1;
+
+			} else if (lineNumber >= this._lines.length) {
+				obj.done = true;
+				obj.value = undefined;
+
 			} else {
-				uniqueWords[word] = true;
-				return true;
+				lineText = this._lines[lineNumber];
+				wordRanges = this._wordenize(lineText, wordDefinition);
+				wordRangesIdx = 0;
+				lineNumber += 1;
+				return next();
 			}
-		});
+
+			return obj;
+		};
+		return { next };
 	}
 
 	private _wordenize(content: string, wordDefinition: RegExp): IWordRange[] {
@@ -427,6 +435,8 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- BEGIN suggest --------------------------------------------------------------------------
 
+	private static readonly _suggestionsLimit = 10000;
+
 	public textualSuggest(modelUrl: string, position: IPosition, wordDef: string, wordDefFlags: string): TPromise<ISuggestResult> {
 		const model = this._getModel(modelUrl);
 		if (model) {
@@ -434,17 +444,32 @@ export abstract class BaseEditorSimpleWorker {
 			const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
 			const currentWord = model.getWordUntilPosition(position, wordDefRegExp).word;
 
-			for (const word of model.getAllUniqueWords(wordDefRegExp)) {
-				if (word !== currentWord && isNaN(Number(word))) {
-					suggestions.push({
-						type: 'text',
-						label: word,
-						insertText: word,
-						noAutoAccept: true,
-						overwriteBefore: currentWord.length
-					});
+			const seen: Record<string, boolean> = Object.create(null);
+			seen[currentWord] = true;
+
+			for (
+				let iter = model.createWordIterator(wordDefRegExp), e = iter.next();
+				!e.done && suggestions.length <= BaseEditorSimpleWorker._suggestionsLimit;
+				e = iter.next()
+			) {
+				const word = e.value;
+				if (seen[word]) {
+					continue;
 				}
+				seen[word] = true;
+				if (!isNaN(Number(word))) {
+					continue;
+				}
+
+				suggestions.push({
+					type: 'text',
+					label: word,
+					insertText: word,
+					noAutoAccept: true,
+					overwriteBefore: currentWord.length
+				});
 			}
+
 			return TPromise.as({ suggestions });
 		}
 		return undefined;

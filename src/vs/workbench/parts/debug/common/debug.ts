@@ -140,8 +140,8 @@ export interface IProcess extends ITreeElement {
 	getName(includeRoot: boolean): string;
 	configuration: IConfig;
 	session: ISession;
-	sources: Map<string, Source>;
 	state: ProcessState;
+	getSourceForUri(modelUri: uri): Source;
 	getThread(threadId: number): IThread;
 	getAllThreads(): IThread[];
 	getSource(raw: DebugProtocol.Source): Source;
@@ -256,6 +256,7 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	column: number;
 	endColumn?: number;
 	message: string;
+	adapterData: any;
 }
 
 export interface IFunctionBreakpoint extends IBaseBreakpoint {

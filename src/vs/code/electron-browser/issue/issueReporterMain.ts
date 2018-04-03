@@ -781,9 +781,34 @@ export class IssueReporter extends Disposable {
 	}
 
 	private updateExtensionSelector(extensions: ILocalExtension[]): void {
-		const makeOption = (extension: ILocalExtension) => `<option value="${extension.identifier.id}">${escape(extension.manifest.displayName || extension.manifest.name || '')}</option>`;
+		interface IOption {
+			name: string;
+			id: string;
+		}
+
+		const extensionOptions: IOption[] = extensions.map(extension => {
+			return {
+				name: extension.manifest.displayName || extension.manifest.name || '',
+				id: extension.identifier.id
+			};
+		});
+
+		// Sort extensions by name
+		extensionOptions.sort((a, b) => {
+			if (a.name > b.name) {
+				return 1;
+			}
+
+			if (a.name < b.name) {
+				return -1;
+			}
+
+			return 0;
+		});
+
+		const makeOption = (extension: IOption) => `<option value="${extension.id}">${escape(extension.name)}</option>`;
 		const extensionsSelector = document.getElementById('extension-selector');
-		extensionsSelector.innerHTML = '<option></option>' + extensions.map(makeOption).join('\n');
+		extensionsSelector.innerHTML = '<option></option>' + extensionOptions.map(makeOption).join('\n');
 
 		this.addEventListener('extension-selector', 'change', (e: Event) => {
 			const selectedExtensionId = (<HTMLInputElement>e.target).value;

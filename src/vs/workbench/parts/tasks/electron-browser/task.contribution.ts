@@ -146,6 +146,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		const infoTitle = n => nls.localize('totalInfos', "{0} Infos", n);
 
 		Dom.addClass(element, 'task-statusbar-item');
+		element.title = nls.localize('problems', "Problems");
 
 		Dom.addClass(label, 'task-statusbar-item-label');
 		element.appendChild(label);

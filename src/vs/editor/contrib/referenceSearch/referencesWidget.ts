@@ -658,7 +658,7 @@ export class ReferenceWidget extends PeekViewWidget {
 			var onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
 				if (element instanceof OneReference) {
 					if (kind === 'show') {
-						this._revealReference(element);
+						this._revealReference(element, false);
 					}
 					this._onDidSelectReference.fire({ element, kind, source: 'tree' });
 				}
@@ -710,7 +710,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 
 	public setSelection(selection: OneReference): TPromise<any> {
-		return this._revealReference(selection).then(() => {
+		return this._revealReference(selection, true).then(() => {
 
 			// show in tree
 			this._tree.setSelection([selection]);
@@ -780,7 +780,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		return undefined;
 	}
 
-	private _revealReference(reference: OneReference): TPromise<void> {
+	private async _revealReference(reference: OneReference, revealParent: boolean): TPromise<void> {
 
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
@@ -791,7 +791,11 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		const promise = this._textModelResolverService.createModelReference(reference.uri);
 
-		return TPromise.join([promise, this._tree.reveal(reference, 1)]).then(values => {
+		if (revealParent) {
+			await this._tree.reveal(reference.parent);
+		}
+
+		return TPromise.join([promise, this._tree.reveal(reference)]).then(values => {
 			const ref = values[0];
 
 			if (!this._model) {
