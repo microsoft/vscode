@@ -868,6 +868,11 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelLong: 'Western European DOS (CP 850)',
 		labelShort: 'CP 850',
 		order: 47
+	},
+	cp775: {
+		labelLong: 'Baltic DOS (CP 775)',
+		labelShort: 'CP 775',
+		order: 48
 	}
 };
 
