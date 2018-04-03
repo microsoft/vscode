@@ -143,10 +143,7 @@ export class ProductContribution implements IWorkbenchContribution {
 
 		// should we show the new license?
 		if (product.licenseUrl && lastVersion && semver.satisfies(lastVersion, '<1.0.0') && semver.satisfies(pkg.version, '>=1.0.0')) {
-			notificationService.notify({
-				severity: severity.Info,
-				message: nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", product.licenseUrl),
-			});
+			notificationService.info(nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", product.licenseUrl));
 		}
 
 		storageService.store(ProductContribution.KEY, pkg.version, StorageScope.GLOBAL);
@@ -392,7 +389,7 @@ export class UpdateContribution implements IGlobalActivity {
 			message: nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", product.nameLong),
 			actions: { primary: [applyUpdateAction, NotNowAction, releaseNotesAction] }
 		});
-		once(handle.onDidDispose)(() => applyUpdateAction, releaseNotesAction);
+		once(handle.onDidDispose)(() => dispose(applyUpdateAction, releaseNotesAction));
 	}
 
 	private shouldShowNotification(): boolean {

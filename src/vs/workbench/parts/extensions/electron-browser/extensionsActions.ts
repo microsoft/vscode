@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import * as paths from 'vs/base/common/paths';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -131,17 +131,9 @@ export class ReinstallAction extends Action {
 	private reinstallExtension(extension: IExtension): TPromise<void> {
 		return this.extensionsWorkbenchService.reinstall(extension)
 			.then(() => {
-				this.notificationService.notify({
-					message: localize('ReinstallAction.success', "Successfully reinstalled the extension."),
-					severity: Severity.Info,
-					actions: {
-						primary: [<IAction>{
-							id: 'reload',
-							label: localize('ReinstallAction.reloadNow', "Reload Now"),
-							enabled: true,
-							run: () => this.windowService.reloadWindow(),
-							dispose: () => null
-						}]
+				this.notificationService.prompt(Severity.Info, localize('ReinstallAction.success', "Successfully reinstalled the extension."), [localize('ReinstallAction.reloadNow', "Reload Now")]).done(choice => {
+					if (choice === 0) {
+						this.windowService.reloadWindow();
 					}
 				});
 			}, error => this.notificationService.error(error));
