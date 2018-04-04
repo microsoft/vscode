@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+const { bootstrap } = require('./bootstrap-amd');
 
-import { foo } from '../../src/vs/code/node/driverClient';
-
-foo();
+bootstrap('vs/code/node/driver', ({ connect }) => {
+	console.log(connect);
+});

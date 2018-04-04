@@ -6,8 +6,11 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IDriver, DriverChannelClient } from 'vs/code/common/driver';
+import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 
-export function foo() {
-	return 1;
+export async function connect(handle: string): TPromise<IDriver> {
+	const client = await connectNet(handle, 'driverClient');
+	const channel = client.getChannel('driver');
+	return new DriverChannelClient(channel);
 }
