@@ -56,7 +56,7 @@ async function parseModifiedHunkFast(modifyDiffInfo, a, b) {
 	let left = [];
 	let right = [];
 
-	let diffHunks = modifyDiffInfo[3].split('\n');
+	let diffHunks = modifyDiffInfo.split('\n');
 	diffHunks.pop(); // there is one additional line break at the end of the diff ??
 
 	for (let i = 0; i < diffHunks.length; i++) {
