@@ -98,34 +98,28 @@ export async function connect(child: cp.ChildProcess, outPath: string, handlePat
 	}
 }
 
-export function spawn(options: SpawnOptions): Promise<Code> {
+export async function spawn(options: SpawnOptions): Promise<Code> {
 	const codePath = options.codePath;
 	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
 	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
+	const handlePath = await new Promise<string>((c, e) => tmpName((err, handlePath) => err ? e(err) : c(handlePath)));
 
-	return new Promise((c, e) => {
-		tmpName((err, handlePath) => {
-			if (err) { return e(err); }
+	const args = [
+		'--skip-getting-started',
+		'--skip-release-notes',
+		'--sticky-quickopen',
+		'--disable-telemetry',
+		'--disable-updates',
+		'--disable-crash-reporter',
+		`--extensions-dir=${options.extensionsPath}`,
+		`--user-data-dir=${options.userDataDir}`,
+		'--driver', handlePath
+	];
 
-			const args = [
-				'--skip-getting-started',
-				'--skip-release-notes',
-				'--sticky-quickopen',
-				'--disable-telemetry',
-				'--disable-updates',
-				'--disable-crash-reporter',
-				`--extensions-dir=${options.extensionsPath}`,
-				`--user-data-dir=${options.userDataDir}`,
-				'--driver', handlePath
-			];
+	if (!codePath) {
+		args.unshift(repoPath);
+	}
 
-			if (!codePath) {
-				args.unshift(repoPath);
-			}
-
-			const child = cp.spawn(electronPath, args);
-
-			connect(child, outPath, handlePath).then(c, e);
-		});
-	});
+	const child = cp.spawn(electronPath, args);
+	return connect(child, outPath, handlePath);
 }
