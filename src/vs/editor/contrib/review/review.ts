@@ -182,12 +182,12 @@ export class ReviewController implements IEditorContribution {
 		let iconClicked = false;
 		switch (e.target.type) {
 			case MouseTargetType.GUTTER_LINE_DECORATIONS:
-				const data = e.target.detail as IMarginData;
-				const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth;
+				// const data = e.target.detail as IMarginData;
+				// const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth;
 
-				if (gutterOffsetX <= 10) {
-					return;
-				}
+				// if (gutterOffsetX <= 10) {
+				// 	return;
+				// }
 
 				iconClicked = true;
 				break;
