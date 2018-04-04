@@ -56,27 +56,32 @@ export const overviewRulerInfo = registerColor('editorOverviewRuler.infoForegrou
 
 // contains all color rules that used to defined in editor/browser/widget/editor.css
 registerThemingParticipant((theme, collector) => {
-	let background = theme.getColor(editorBackground);
+	const background = theme.getColor(editorBackground);
 	if (background) {
 		collector.addRule(`.monaco-editor, .monaco-editor-background, .monaco-editor .inputarea.ime-input { background-color: ${background}; }`);
 	}
-	let foreground = theme.getColor(editorForeground);
+
+	const foreground = theme.getColor(editorForeground);
 	if (foreground) {
 		collector.addRule(`.monaco-editor, .monaco-editor .inputarea.ime-input { color: ${foreground}; }`);
 	}
-	let gutter = theme.getColor(editorGutter);
+
+	const gutter = theme.getColor(editorGutter);
 	if (gutter) {
 		collector.addRule(`.monaco-editor .margin { background-color: ${gutter}; }`);
 	}
-	let rangeHighlight = theme.getColor(editorRangeHighlight);
+
+	const rangeHighlight = theme.getColor(editorRangeHighlight);
 	if (rangeHighlight) {
 		collector.addRule(`.monaco-editor .rangeHighlight { background-color: ${rangeHighlight}; }`);
 	}
-	let rangeHighlightBorder = theme.getColor(editorRangeHighlightBorder);
+
+	const rangeHighlightBorder = theme.getColor(editorRangeHighlightBorder);
 	if (rangeHighlightBorder) {
-		collector.addRule(`.monaco-editor .rangeHighlight { border: 1px dotted ${rangeHighlightBorder}; }`);
+		collector.addRule(`.monaco-editor .rangeHighlight { border: 1px ${theme.type === 'hc' ? 'dotted' : 'solid'} ${rangeHighlightBorder}; }`);
 	}
-	let invisibles = theme.getColor(editorWhitespaces);
+
+	const invisibles = theme.getColor(editorWhitespaces);
 	if (invisibles) {
 		collector.addRule(`.vs-whitespace { color: ${invisibles} !important; }`);
 	}
