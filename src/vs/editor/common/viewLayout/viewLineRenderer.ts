@@ -334,7 +334,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		}
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
 	}
-	if (!input.containsRTL && !input.fontLigatures) {
+	if (input.isBasicASCII && !input.fontLigatures) {
 		tokens = splitLargeTokens(lineContent, tokens);
 	}
 
@@ -406,11 +406,6 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[]): LinePart[] {
 			const piecesCount = Math.ceil(diff / Constants.LongToken);
 			for (let j = 1; j < piecesCount; j++) {
 				let pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
-				let lastCharInPiece = lineContent.charCodeAt(pieceEndIndex - 1);
-				if (strings.isHighSurrogate(lastCharInPiece)) {
-					// Don't cut in the middle of a surrogate pair
-					pieceEndIndex--;
-				}
 				result[resultLen++] = new LinePart(pieceEndIndex, tokenType);
 			}
 			result[resultLen++] = new LinePart(tokenEndIndex, tokenType);
