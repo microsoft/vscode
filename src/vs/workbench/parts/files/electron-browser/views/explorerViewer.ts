@@ -694,13 +694,15 @@ export class FileFilter implements IFilter {
 		}
 
 		// Workaround for O(N^2) complexity (https://github.com/Microsoft/vscode/issues/9962)
-		let siblingNames = stat.parent && stat.parent.getChildrenNames();
-		if (siblingNames && siblingNames.length > FileFilter.MAX_SIBLINGS_FILTER_THRESHOLD) {
-			siblingNames = void 0;
+		let siblingsFn: () => string[];
+		let siblingCount = stat.parent && stat.parent.getChildrenCount();
+		if (siblingCount && siblingCount > FileFilter.MAX_SIBLINGS_FILTER_THRESHOLD) {
+			siblingsFn = () => void 0;
+		} else {
+			siblingsFn = () => stat.parent ? stat.parent.getChildrenNames() : void 0;
 		}
 
 		// Hide those that match Hidden Patterns
-		const siblingsFn = () => siblingNames;
 		const expression = this.hiddenExpressionPerRoot.get(stat.root.resource.toString()) || Object.create(null);
 		if (glob.match(expression, paths.normalize(relative(stat.root.resource.fsPath, stat.resource.fsPath), true), siblingsFn)) {
 			return false; // hidden through pattern
