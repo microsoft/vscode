@@ -559,7 +559,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				actions
 			});
 
-			once(handle.onDidDispose)(() => dispose(actions.primary));
+			once(handle.onDidClose)(() => dispose(actions.primary));
 		}
 
 		this.editorGroupsControl.updateProgress(position, ProgressState.DONE);

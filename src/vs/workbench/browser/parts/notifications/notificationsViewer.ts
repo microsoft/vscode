@@ -442,7 +442,7 @@ export class NotificationTemplateRenderer {
 					this.actionRunner.run(action, notification);
 
 					// Hide notification
-					notification.dispose();
+					notification.close();
 				}));
 
 				this.inputDisposeables.push(attachButtonStyler(button, this.themeService));

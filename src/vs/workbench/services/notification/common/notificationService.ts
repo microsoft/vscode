@@ -80,7 +80,7 @@ export class NotificationService implements INotificationService {
 
 				// Close notification unless we are told to keep open
 				if (!choice.keepOpen) {
-					handle.dispose();
+					handle.close();
 				}
 
 				return TPromise.as(void 0);
@@ -96,7 +96,7 @@ export class NotificationService implements INotificationService {
 		// Show notification with actions
 		handle = this.notify({ severity, message, actions });
 
-		once(handle.onDidDispose)(() => {
+		once(handle.onDidClose)(() => {
 
 			// Cleanup when notification gets disposed
 			dispose(...actions.primary, ...actions.secondary);

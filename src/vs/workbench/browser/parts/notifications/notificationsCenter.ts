@@ -289,9 +289,9 @@ export class NotificationsCenter extends Themable {
 		// Hide notifications center first
 		this.hide();
 
-		// Dispose all
+		// Close all
 		while (this.model.notifications.length) {
-			this.model.notifications[0].dispose();
+			this.model.notifications[0].close();
 		}
 	}
 }

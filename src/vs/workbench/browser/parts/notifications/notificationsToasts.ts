@@ -168,8 +168,8 @@ export class NotificationsToasts extends Themable {
 			}
 		}));
 
-		// Remove when item gets disposed
-		once(item.onDidDispose)(() => {
+		// Remove when item gets closed
+		once(item.onDidClose)(() => {
 			this.removeToast(item);
 		});
 

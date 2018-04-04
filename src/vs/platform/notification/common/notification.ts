@@ -7,7 +7,6 @@
 
 import BaseSeverity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { Event, Emitter } from 'vs/base/common/event';
 
@@ -89,12 +88,12 @@ export interface INotificationProgress {
 	done(): void;
 }
 
-export interface INotificationHandle extends IDisposable {
+export interface INotificationHandle {
 
 	/**
-	 * Will be fired once the notification is disposed.
+	 * Will be fired once the notification is closed.
 	 */
-	readonly onDidDispose: Event<void>;
+	readonly onDidClose: Event<void>;
 
 	/**
 	 * Allows to indicate progress on the notification even after the
@@ -118,6 +117,11 @@ export interface INotificationHandle extends IDisposable {
 	 * notification is already visible.
 	 */
 	updateActions(actions?: INotificationActions): void;
+
+	/**
+	 * Hide the notification and remove it from the notification center.
+	 */
+	close(): void;
 }
 
 export interface IPromptChoice {
@@ -199,18 +203,18 @@ export interface INotificationService {
 export class NoOpNotification implements INotificationHandle {
 	readonly progress = new NoOpProgress();
 
-	private readonly _onDidDispose: Emitter<void> = new Emitter();
+	private readonly _onDidClose: Emitter<void> = new Emitter();
 
-	public get onDidDispose(): Event<void> {
-		return this._onDidDispose.event;
+	public get onDidClose(): Event<void> {
+		return this._onDidClose.event;
 	}
 
 	updateSeverity(severity: Severity): void { }
 	updateMessage(message: NotificationMessage): void { }
 	updateActions(actions?: INotificationActions): void { }
 
-	dispose(): void {
-		this._onDidDispose.dispose();
+	close(): void {
+		this._onDidClose.dispose();
 	}
 }
 

@@ -203,7 +203,7 @@ export class ProgressService2 implements IProgressService2 {
 
 			updateProgress(handle, increment);
 
-			once(handle.onDidDispose)(() => {
+			once(handle.onDidClose)(() => {
 				dispose(toDispose);
 			});
 
@@ -247,7 +247,7 @@ export class ProgressService2 implements IProgressService2 {
 		// Show progress for at least 800ms and then hide once done or canceled
 		always(TPromise.join([TPromise.timeout(800), p]), () => {
 			if (handle) {
-				handle.dispose();
+				handle.close();
 			}
 		});
 
