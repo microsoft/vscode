@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as path from 'path';
 import { getFileContent, writeTmpFile } from './file';
 import { GitChangeType, RichFileChange } from './models/file';
@@ -86,7 +87,7 @@ export async function parseDiff(text: string, repository: Repository, parentComm
 	let match = reg.exec(text);
 	let richFileChanges: RichFileChange[] = [];
 
-	while(match) {
+	while (match) {
 		let singleFileDiff = match[0];
 		let modifyDiffInfo = MODIFY_DIFF_INFO.exec(singleFileDiff);
 		if (modifyDiffInfo) {
