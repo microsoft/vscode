@@ -224,7 +224,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				'class': ['composite', this.compositeCSSClass],
 				id: composite.getId()
 			}, div => {
-				createCompositePromise = composite.create(div).then(() => {
+				createCompositePromise = composite.create(div.getHTMLElement()).then(() => {
 					composite.updateStyles();
 				});
 			});
@@ -401,7 +401,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		});
 	}
 
-	public createTitleArea(parent: Builder): Builder {
+	public createTitleArea(parent: HTMLElement): HTMLElement {
 
 		// Title Area Container
 		const titleArea = $(parent).div({
@@ -411,7 +411,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		$(titleArea).on(EventType.CONTEXT_MENU, (e: MouseEvent) => this.onTitleAreaContextMenu(new StandardMouseEvent(e)));
 
 		// Left Title Label
-		this.titleLabel = this.createTitleLabel(titleArea);
+		this.titleLabel = this.createTitleLabel(titleArea.getHTMLElement());
 
 		// Right Actions Container
 		$(titleArea).div({
@@ -426,10 +426,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			});
 		});
 
-		return titleArea;
+		return titleArea.getHTMLElement();
 	}
 
-	protected createTitleLabel(parent: Builder): ICompositeTitleLabel {
+	protected createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
 		let titleLabel: Builder;
 		$(parent).div({
 			'class': 'title-label'
@@ -486,14 +486,14 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return undefined;
 	}
 
-	public createContentArea(parent: Builder): Builder {
+	public createContentArea(parent: HTMLElement): HTMLElement {
 		return $(parent).div({
 			'class': 'content'
 		}, div => {
 			this.progressBar = new ProgressBar(div.getHTMLElement());
 			this.toUnbind.push(attachProgressBarStyler(this.progressBar, this.themeService));
 			this.progressBar.hide();
-		});
+		}).getHTMLElement();
 	}
 
 	private onError(error: any): void {

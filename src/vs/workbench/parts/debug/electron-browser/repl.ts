@@ -10,7 +10,6 @@ import { wireCancellationToken } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import { IAction } from 'vs/base/common/actions';
-import { Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
 import { isMacintosh } from 'vs/base/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -127,9 +126,9 @@ export class Repl extends Panel implements IPrivateReplService {
 		}
 	}
 
-	public create(parent: Builder): TPromise<void> {
+	public create(parent: HTMLElement): TPromise<void> {
 		super.create(parent);
-		this.container = dom.append(parent.getHTMLElement(), $('.repl'));
+		this.container = dom.append(parent, $('.repl'));
 		this.treeContainer = dom.append(this.container, $('.repl-tree'));
 		this.createReplInput(this.container);
 

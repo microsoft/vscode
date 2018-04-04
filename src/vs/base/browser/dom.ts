@@ -590,6 +590,36 @@ export interface IDomNodePagePosition {
 	height: number;
 }
 
+export function size(element: HTMLElement, width: number, height: number): void {
+	if (typeof width === 'number') {
+		element.style.width = `${width}px`;
+	}
+
+	if (typeof height === 'number') {
+		element.style.height = `${height}px`;
+	}
+}
+
+export function position(element: HTMLElement, top: number, right?: number, bottom?: number, left?: number, position: string = 'absolute'): void {
+	if (typeof top === 'number') {
+		element.style.top = `${top}px`;
+	}
+
+	if (typeof right === 'number') {
+		element.style.right = `${right}px`;
+	}
+
+	if (typeof bottom === 'number') {
+		element.style.bottom = `${bottom}px`;
+	}
+
+	if (typeof left === 'number') {
+		element.style.left = `${left}px`;
+	}
+
+	element.style.position = position;
+}
+
 /**
  * Returns the position of a dom node relative to the entire page.
  */
@@ -994,12 +1024,14 @@ export function join(nodes: Node[], separator: Node | string): Node[] {
 export function show(...elements: HTMLElement[]): void {
 	for (let element of elements) {
 		element.style.display = '';
+		element.removeAttribute('aria-hidden');
 	}
 }
 
 export function hide(...elements: HTMLElement[]): void {
 	for (let element of elements) {
 		element.style.display = 'none';
+		element.setAttribute('aria-hidden', 'true');
 	}
 }
 

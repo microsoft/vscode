@@ -5,10 +5,4 @@
 
 .monaco-builder-hidden {
 	display: none !important;
-	visibility: hidden !important;
-}
-
-.monaco-builder-visible {
-	display: inherit;
-	visibility: visible;
 }

@@ -14,7 +14,6 @@ import { EditorInput } from 'vs/workbench/common/editor';
 import pkg from 'vs/platform/node/package';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
-import { Builder } from 'vs/base/browser/builder';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -212,10 +211,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		return result;
 	}
 
-	protected createEditor(parent: Builder): void {
-		const container = parent.getHTMLElement();
-
-		addClass(container, 'runtime-extensions-editor');
+	protected createEditor(parent: HTMLElement): void {
+		addClass(parent, 'runtime-extensions-editor');
 
 		const TEMPLATE_ID = 'runtimeExtensionElementTemplate';
 
@@ -362,7 +359,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			}
 		};
 
-		this._list = this._instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
+		this._list = this._instantiationService.createInstance(WorkbenchList, parent, delegate, [renderer], {
 			multipleSelectionSupport: false
 		}) as WorkbenchList<IRuntimeExtension>;
 

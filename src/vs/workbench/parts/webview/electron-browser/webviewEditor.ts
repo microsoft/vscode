@@ -8,7 +8,6 @@ import { IDisposable, } from 'vs/base/common/lifecycle';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { Position } from 'vs/platform/editor/common/editor';
 import { BaseWebviewEditor as BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/parts/html/electron-browser/baseWebviewEditor';
-import { Builder } from 'vs/base/browser/builder';
 import { Webview } from 'vs/workbench/parts/html/electron-browser/webview';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -47,10 +46,10 @@ export class WebviewEditor extends BaseWebviewEditor {
 		super(WebviewEditor.ID, telemetryService, themeService, _contextKeyService);
 	}
 
-	protected createEditor(parent: Builder): void {
-		this.editorFrame = parent.getHTMLElement();
+	protected createEditor(parent: HTMLElement): void {
+		this.editorFrame = parent;
 		this.content = document.createElement('div');
-		parent.append(this.content);
+		parent.appendChild(this.content);
 	}
 
 	private doUpdateContainer() {

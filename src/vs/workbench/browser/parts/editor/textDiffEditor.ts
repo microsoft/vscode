@@ -9,7 +9,6 @@ import 'vs/css!./media/textdiffeditor';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
-import { Builder } from 'vs/base/browser/builder';
 import { Action, IAction } from 'vs/base/common/actions';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as types from 'vs/base/common/types';
@@ -82,7 +81,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		return nls.localize('textDiffEditor', "Text Diff Editor");
 	}
 
-	public createEditorControl(parent: Builder, configuration: IEditorOptions): IDiffEditor {
+	public createEditorControl(parent: HTMLElement, configuration: IEditorOptions): IDiffEditor {
 
 		// Actions
 		this.nextDiffAction = new NavigateAction(this, true);
@@ -122,7 +121,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		// Create a special child of instantiator that will delegate all calls to openEditor() to the same diff editor if the input matches with the modified one
 		const diffEditorInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
 
-		return diffEditorInstantiator.createInstance(DiffEditorWidget, parent.getHTMLElement(), configuration);
+		return diffEditorInstantiator.createInstance(DiffEditorWidget, parent, configuration);
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {

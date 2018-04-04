@@ -9,7 +9,6 @@ import 'vs/css!./media/editorpart';
 import 'vs/workbench/browser/parts/editor/editor.contribution';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Builder, $ } from 'vs/base/browser/builder';
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
@@ -40,7 +39,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
-import { createCSSRule, Dimension } from 'vs/base/browser/dom';
+import { createCSSRule, Dimension, addClass, removeClass } from 'vs/base/browser/dom';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/paths';
 import { IEditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
@@ -470,11 +469,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Create editor as needed
 		if (!editor.getContainer()) {
-			editor.create($().div({
-				'class': 'editor-container',
-				'role': 'tabpanel',
-				id: descriptor.getId()
-			}));
+			const editorContainer = document.createElement('div');
+			editorContainer.id = descriptor.getId();
+			addClass(editorContainer, 'editor-container');
+			editorContainer.setAttribute('role', 'tabpanel');
+
+			editor.create(editorContainer);
 		}
 
 		return editor;
@@ -1134,12 +1134,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return this.editorGroupsControl.getGroupOrientation();
 	}
 
-	public createContentArea(parent: Builder): Builder {
+	public createContentArea(parent: HTMLElement): HTMLElement {
 
 		// Content Container
-		const contentArea = $(parent)
-			.div()
-			.addClass('content');
+		const contentArea = document.createElement('div');
+		addClass(contentArea, 'content');
+		parent.appendChild(contentArea);
 
 		// get settings
 		this.memento = this.getMemento(this.storageService, MementoScope.WORKSPACE);
@@ -1157,19 +1157,19 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Part container
 		const container = this.getContainer();
-		container.style('background-color', this.getColor(editorBackground));
+		container.style.backgroundColor = this.getColor(editorBackground);
 
 		// Content area
 		const content = this.getContentArea();
 
 		const groupCount = this.stacks.groups.length;
 		if (groupCount > 1) {
-			content.addClass('multiple-groups');
+			addClass(content, 'multiple-groups');
 		} else {
-			content.removeClass('multiple-groups');
+			removeClass(content, 'multiple-groups');
 		}
 
-		content.style('background-color', groupCount > 0 ? this.getColor(EDITOR_GROUP_BACKGROUND) : null);
+		content.style.backgroundColor = groupCount > 0 ? this.getColor(EDITOR_GROUP_BACKGROUND) : null;
 	}
 
 	private onGroupFocusChanged(): void {

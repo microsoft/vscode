@@ -164,12 +164,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	public create(parent: Builder): TPromise<void> {
+	public create(parent: HTMLElement): TPromise<void> {
 		super.create(parent);
 
 		this.viewModel = this.searchWorkbenchService.searchModel;
 		let builder: Builder;
-		parent.div({
+		$(parent).div({
 			'class': 'search-view'
 		}, (div) => {
 			builder = div;
@@ -754,9 +754,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 
 		if (this.size.width >= SearchView.WIDE_VIEW_SIZE) {
-			this.getContainer().addClass(SearchView.WIDE_CLASS_NAME);
+			dom.addClass(this.getContainer(), SearchView.WIDE_CLASS_NAME);
 		} else {
-			this.getContainer().removeClass(SearchView.WIDE_CLASS_NAME);
+			dom.removeClass(this.getContainer(), SearchView.WIDE_CLASS_NAME);
 		}
 
 		this.searchWidget.setWidth(this.size.width - 28 /* container margin */);

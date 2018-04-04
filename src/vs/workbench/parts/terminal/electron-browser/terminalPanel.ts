@@ -9,7 +9,6 @@ import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { Action, IAction } from 'vs/base/common/actions';
-import { Builder } from 'vs/base/browser/builder';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -53,9 +52,9 @@ export class TerminalPanel extends Panel {
 		super(TERMINAL_PANEL_ID, telemetryService, themeService);
 	}
 
-	public create(parent: Builder): TPromise<any> {
+	public create(parent: HTMLElement): TPromise<any> {
 		super.create(parent);
-		this._parentDomElement = parent.getHTMLElement();
+		this._parentDomElement = parent;
 		dom.addClass(this._parentDomElement, 'integrated-terminal');
 		this._themeStyleElement = document.createElement('style');
 		this._fontStyleElement = document.createElement('style');
@@ -72,7 +71,7 @@ export class TerminalPanel extends Panel {
 
 		this._attachEventListeners();
 
-		this._terminalService.setContainers(this.getContainer().getHTMLElement(), this._terminalContainer);
+		this._terminalService.setContainers(this.getContainer(), this._terminalContainer);
 
 		this._register(this.themeService.onThemeChange(theme => this._updateTheme(theme)));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {

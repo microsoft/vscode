@@ -8,7 +8,6 @@
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
-import { Builder } from 'vs/base/browser/builder';
 import { empty as EmptyDisposable, IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
 import { Position } from 'vs/platform/editor/common/editor';
@@ -78,11 +77,11 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		super.dispose();
 	}
 
-	protected createEditor(parent: Builder): void {
+	protected createEditor(parent: HTMLElement): void {
 		this._content = document.createElement('div');
 		this._content.style.position = 'absolute';
 		this._content.classList.add(HtmlPreviewPart.class);
-		parent.getHTMLElement().appendChild(this._content);
+		parent.appendChild(this._content);
 	}
 
 	private get webview(): Webview {

@@ -7,7 +7,7 @@ import 'vs/css!./media/panelpart';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
-import { Builder } from 'vs/base/browser/builder';
+import { $ } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -124,11 +124,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	public updateStyles(): void {
 		super.updateStyles();
 
-		const container = this.getContainer();
+		const container = $(this.getContainer());
 		container.style('background-color', this.getColor(PANEL_BACKGROUND));
 		container.style('border-left-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
 
-		const title = this.getTitleArea();
+		const title = $(this.getTitleArea());
 		title.style('border-top-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
 	}
 
@@ -208,8 +208,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.hideActiveComposite().then(composite => void 0);
 	}
 
-	protected createTitleLabel(parent: Builder): ICompositeTitleLabel {
-		const titleArea = this.compositeBar.create(parent.getHTMLElement());
+	protected createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
+		const titleArea = this.compositeBar.create(parent);
 		titleArea.classList.add('panel-switcher-container');
 
 		return {

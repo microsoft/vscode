@@ -18,7 +18,6 @@ import { Action } from 'vs/base/common/actions';
 import * as Dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import * as Builder from 'vs/base/browser/builder';
 import * as Types from 'vs/base/common/types';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { TerminateResponseCode } from 'vs/base/common/processes';
@@ -88,7 +87,6 @@ import { QuickOpenActionContributor } from '../browser/quickOpen';
 import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
-let $ = Builder.$;
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
 namespace ConfigureTaskAction {
@@ -175,17 +173,16 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		Dom.addClass(infoIcon, 'mask-icon');
 		label.appendChild(infoIcon);
 		this.icons.push(infoIcon);
-		$(infoIcon).hide();
+		Dom.hide(infoIcon);
 
 		Dom.addClass(info, 'task-statusbar-item-label-counter');
 		label.appendChild(info);
-		$(info).hide();
+		Dom.hide(info);
 
 		Dom.addClass(building, 'task-statusbar-item-building');
 		element.appendChild(building);
 		building.innerHTML = nls.localize('building', 'Building...');
-		$(building).hide();
-
+		Dom.hide(building);
 
 		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e: MouseEvent) => {
 			const panel = this.panelService.getActivePanel();
@@ -206,11 +203,11 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 			if (stats.infos > 0) {
 				info.innerHTML = packNumber(stats.infos);
 				info.title = infoIcon.title = infoTitle(stats.infos);
-				$(info).show();
-				$(infoIcon).show();
+				Dom.show(info);
+				Dom.show(infoIcon);
 			} else {
-				$(info).hide();
-				$(infoIcon).hide();
+				Dom.hide(info);
+				Dom.hide(infoIcon);
 			}
 		};
 
@@ -226,7 +223,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 				case TaskEventKind.Active:
 					this.activeCount++;
 					if (this.activeCount === 1) {
-						$(building).show();
+						Dom.show(building);
 					}
 					break;
 				case TaskEventKind.Inactive:
@@ -235,13 +232,13 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 					if (this.activeCount > 0) {
 						this.activeCount--;
 						if (this.activeCount === 0) {
-							$(building).hide();
+							Dom.hide(building);
 						}
 					}
 					break;
 				case TaskEventKind.Terminated:
 					if (this.activeCount !== 0) {
-						$(building).hide();
+						Dom.hide(building);
 						this.activeCount = 0;
 					}
 					break;
@@ -299,7 +296,7 @@ class TaskStatusBarItem extends Themable implements IStatusbarItem {
 		let label = new OcticonLabel(labelElement);
 		label.title = nls.localize('runningTasks', "Show Running Tasks");
 
-		$(element).hide();
+		Dom.hide(element);
 
 		callOnDispose.push(Dom.addDisposableListener(labelElement, 'click', (e: MouseEvent) => {
 			(this.taskService as TaskService).runShowTasks();
@@ -308,10 +305,10 @@ class TaskStatusBarItem extends Themable implements IStatusbarItem {
 		let updateStatus = (): void => {
 			this.taskService.getActiveTasks().then(tasks => {
 				if (tasks.length === 0) {
-					$(element).hide();
+					Dom.hide(element);
 				} else {
 					label.text = `$(tools) ${tasks.length}`;
-					$(element).show();
+					Dom.show(element);
 				}
 			});
 		};

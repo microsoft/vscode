@@ -27,6 +27,7 @@ import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER } from 'vs/workbench/common/theme';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension } from 'vs/base/browser/dom';
+import { $ } from 'vs/base/browser/builder';
 
 export class SidebarPart extends CompositePart<Viewlet> {
 
@@ -79,7 +80,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		super.updateStyles();
 
 		// Part container
-		const container = this.getContainer();
+		const container = $(this.getContainer());
 
 		container.style('background-color', this.getColor(SIDE_BAR_BACKGROUND));
 		container.style('color', this.getColor(SIDE_BAR_FOREGROUND));

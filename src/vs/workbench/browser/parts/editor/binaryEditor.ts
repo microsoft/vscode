@@ -60,7 +60,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		return this.input ? this.input.getName() : nls.localize('binaryEditor', "Binary Viewer");
 	}
 
-	protected createEditor(parent: Builder): void {
+	protected createEditor(parent: HTMLElement): void {
 
 		// Container for Binary
 		const binaryContainerElement = document.createElement('div');
@@ -71,7 +71,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 		// Custom Scrollbars
 		this.scrollbar = new DomScrollableElement(binaryContainerElement, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto });
-		parent.getHTMLElement().appendChild(this.scrollbar.getDomNode());
+		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
@@ -99,7 +99,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 				// Render Input
 				this.resourceViewerContext = ResourceViewer.show(
 					{ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag(), mime: model.getMime() },
-					this.binaryContainer,
+					this.binaryContainer.getHTMLElement(),
 					this.scrollbar,
 					resource => this.callbacks.openInternal(input, options),
 					resource => this.callbacks.openExternal(resource),

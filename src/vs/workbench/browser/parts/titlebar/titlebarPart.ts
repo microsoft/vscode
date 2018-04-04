@@ -226,7 +226,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		});
 	}
 
-	public createContentArea(parent: Builder): Builder {
+	public createContentArea(parent: HTMLElement): HTMLElement {
 		this.titleContainer = $(parent);
 
 		// Title
@@ -262,20 +262,19 @@ export class TitlebarPart extends Part implements ITitleService {
 			}, 0 /* need a timeout because we are in capture phase */);
 		}, void 0, true /* use capture to know the currently active element properly */);
 
-		return this.titleContainer;
+		return this.titleContainer.getHTMLElement();
 	}
 
 	protected updateStyles(): void {
 		super.updateStyles();
 
 		// Part container
-		const container = this.getContainer();
-		if (container) {
-			container.style('color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND));
-			container.style('background-color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND));
+		if (this.titleContainer) {
+			this.titleContainer.style('color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND));
+			this.titleContainer.style('background-color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND));
 
 			const titleBorder = this.getColor(TITLE_BAR_BORDER);
-			container.style('border-bottom', titleBorder ? `1px solid ${titleBorder}` : null);
+			this.titleContainer.style('border-bottom', titleBorder ? `1px solid ${titleBorder}` : null);
 		}
 	}
 

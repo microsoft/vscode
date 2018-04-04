@@ -31,7 +31,7 @@ import URI from 'vs/base/common/uri';
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	let searchView = getSearchView(viewletService, panelService);
 	let activeElement = document.activeElement;
-	return searchView && activeElement && DOM.isAncestor(activeElement, searchView.getContainer().getHTMLElement());
+	return searchView && activeElement && DOM.isAncestor(activeElement, searchView.getContainer());
 }
 
 export function appendKeyBindingLabel(label: string, keyBinding: number | ResolvedKeybinding, keyBindingService2: IKeybindingService): string {

@@ -9,7 +9,7 @@ import 'vs/css!./media/activitybarpart';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { illegalArgument } from 'vs/base/common/errors';
-import { Builder, $ } from 'vs/base/browser/builder';
+import { $ } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import { ActionsOrientation, ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/common/activity';
@@ -125,7 +125,7 @@ export class ActivitybarPart extends Part {
 		return toDisposable(() => action.setBadge(undefined));
 	}
 
-	public createContentArea(parent: Builder): Builder {
+	public createContentArea(parent: HTMLElement): HTMLElement {
 		const $el = $(parent);
 		const $result = $('.content').appendTo($el);
 
@@ -156,14 +156,14 @@ export class ActivitybarPart extends Part {
 			});
 		}
 
-		return $result;
+		return $result.getHTMLElement();
 	}
 
 	public updateStyles(): void {
 		super.updateStyles();
 
 		// Part container
-		const container = this.getContainer();
+		const container = $(this.getContainer());
 		const background = this.getColor(ACTIVITY_BAR_BACKGROUND);
 		container.style('background-color', background);
 

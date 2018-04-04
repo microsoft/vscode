@@ -9,7 +9,6 @@ import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
-import { $ } from 'vs/base/browser/builder';
 import { LIGHT, FileThemeIcon, FolderThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITree, IDataSource, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
 import { TreeItemCollapsibleState, ITreeItem, ITreeViewer, ICustomViewsService, ITreeViewDataProvider, ViewsRegistry, IViewDescriptor, TreeViewItemHandleArg, ICustomViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
@@ -171,9 +170,9 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 
 		if (this.tree) {
 			if (this.isVisible) {
-				$(this.tree.getHTMLElement()).show();
+				DOM.show(this.tree.getHTMLElement());
 			} else {
-				$(this.tree.getHTMLElement()).hide(); // make sure the tree goes out of the tabindex world by hiding it
+				DOM.hide(this.tree.getHTMLElement()); // make sure the tree goes out of the tabindex world by hiding it
 			}
 
 			if (this.isVisible) {

@@ -12,7 +12,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { isPromiseCanceledError, onUnexpectedError, create as createError } from 'vs/base/common/errors';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Builder } from 'vs/base/browser/builder';
 import { Event as EventOf, mapEvent, chain } from 'vs/base/common/event';
 import { IAction } from 'vs/base/common/actions';
 import { domEvent } from 'vs/base/browser/event';
@@ -249,9 +248,9 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 		};
 	}
 
-	async create(parent: Builder): TPromise<void> {
-		parent.addClass('extensions-viewlet');
-		this.root = parent.getHTMLElement();
+	async create(parent: HTMLElement): TPromise<void> {
+		addClass(parent, 'extensions-viewlet');
+		this.root = parent;
 
 		const header = append(this.root, $('.header'));
 
@@ -278,7 +277,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 
 		this.onSearchChange = mapEvent(onSearchInput, e => e.target.value);
 
-		await super.create(new Builder(this.extensionsBox));
+		await super.create(this.extensionsBox);
 
 		const installed = await this.extensionManagementService.getInstalled(LocalExtensionType.User);
 

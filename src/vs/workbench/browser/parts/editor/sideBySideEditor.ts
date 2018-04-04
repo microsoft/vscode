@@ -5,7 +5,6 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
-import { Builder } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorInput, EditorOptions, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -39,10 +38,9 @@ export class SideBySideEditor extends BaseEditor {
 		super(SideBySideEditor.ID, telemetryService, themeService);
 	}
 
-	protected createEditor(parent: Builder): void {
-		const parentElement = parent.getHTMLElement();
-		DOM.addClass(parentElement, 'side-by-side-editor');
-		this.createSash(parentElement);
+	protected createEditor(parent: HTMLElement): void {
+		DOM.addClass(parent, 'side-by-side-editor');
+		this.createSash(parent);
 	}
 
 	public setInput(newInput: SideBySideEditorInput, options?: EditorOptions): TPromise<void> {
@@ -135,7 +133,7 @@ export class SideBySideEditor extends BaseEditor {
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
 
 		const editor = descriptor.instantiate(this.instantiationService);
-		editor.create(new Builder(container));
+		editor.create(container);
 		editor.setVisible(this.isVisible(), this.position);
 
 		return editor;
@@ -149,7 +147,7 @@ export class SideBySideEditor extends BaseEditor {
 	}
 
 	private createEditorContainers(): void {
-		const parentElement = this.getContainer().getHTMLElement();
+		const parentElement = this.getContainer();
 		this.detailsEditorContainer = DOM.append(parentElement, DOM.$('.details-editor-container'));
 		this.detailsEditorContainer.style.position = 'absolute';
 		this.masterEditorContainer = DOM.append(parentElement, DOM.$('.master-editor-container'));
@@ -191,7 +189,7 @@ export class SideBySideEditor extends BaseEditor {
 	}
 
 	private disposeEditors(): void {
-		const parentContainer = this.getContainer().getHTMLElement();
+		const parentContainer = this.getContainer();
 		if (this.detailsEditor) {
 			this.detailsEditor.dispose();
 			this.detailsEditor = null;

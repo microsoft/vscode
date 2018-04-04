@@ -6,7 +6,6 @@
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Builder, $ } from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
 import { ThrottledDelayer, Delayer } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
@@ -160,7 +159,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	public renderBody(container: HTMLElement): void {
 		this.treeContainer = DOM.append(container, DOM.$('.explorer-folders-view'));
-		this.tree = this.createViewer($(this.treeContainer));
+		this.tree = this.createViewer(this.treeContainer);
 
 		if (this.toolbar) {
 			this.toolbar.setActions(this.getActions(), this.getSecondaryActions())();
@@ -394,7 +393,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		return model;
 	}
 
-	private createViewer(container: Builder): WorkbenchTree {
+	private createViewer(container: HTMLElement): WorkbenchTree {
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
 		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
 		const controller = this.instantiationService.createInstance(FileController);
@@ -406,7 +405,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		const dnd = this.instantiationService.createInstance(FileDragAndDrop);
 		const accessibilityProvider = this.instantiationService.createInstance(FileAccessibilityProvider);
 
-		this.explorerViewer = this.instantiationService.createInstance(FileIconThemableWorkbenchTree, container.getHTMLElement(), {
+		this.explorerViewer = this.instantiationService.createInstance(FileIconThemableWorkbenchTree, container, {
 			dataSource,
 			renderer,
 			controller,
