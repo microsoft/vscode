@@ -5,16 +5,14 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { parseDiff, DIFF_HUNK_INFO } from './common/diff';
+import { parseDiff } from './common/diff';
 import { GitChangeType } from './common/models/file';
 import { Repository } from './common//models/repository';
 import { Comment } from './common/models/comment';
 import * as _ from 'lodash';
-import { fill } from 'git-credential-node';
 import { Configuration } from './configuration';
-import { Remote } from './common/models/remote';
-
-const Octokit = require('@octokit/rest');
+import { CredentialStore } from './credentials';
+import { parseComments, getMatchingCommentsForDiffViewEditor, getMatchingCommentsForNormalEditor } from './common/comment';
 
 export class PullRequest {
 	public comments?: Comment[];
@@ -51,43 +49,6 @@ export class FileChangeItem implements vscode.TreeItem {
 				this.fileName
 			]
 		};
-	}
-}
-
-class CredentialStore {
-	private octokits: { [key: string]: any };
-	private configuration: Configuration;
-	constructor(configuration: Configuration) {
-		this.configuration = configuration;
-		this.octokits = [];
-	}
-
-	async getOctokit(remote: Remote) {
-		if (this.octokits[remote.url]) {
-			return this.octokits[remote.url];
-		}
-
-		if (this.configuration.host === remote.hostname && this.configuration.accessToken) {
-			this.octokits[remote.url] = Octokit({});
-			this.octokits[remote.url].authenticate({
-				type: 'token',
-				token: this.configuration.accessToken
-			});
-			return this.octokits[remote.url];
-		} else {
-			const data = await fill(remote.url);
-			if (!data) {
-				return null;
-			}
-			this.octokits[remote.url] = Octokit({});
-			this.octokits[remote.url].authenticate({
-				type: 'basic',
-				username: data.username,
-				password: data.password
-			});
-
-			return this.octokits[remote.url];
-		}
 	}
 }
 
@@ -138,7 +99,6 @@ export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileCha
 		};
 
 		this.context.subscriptions.push(vscode.workspace.registerCommentProvider(this));
-		this.context.subscriptions.push(vscode.commands.registerCommand(ShowDiffCommand.id, ShowDiffCommand.run));
 		this.context.subscriptions.push(this.configuration.onDidChange(e => {
 			this._onDidChangeTreeData.fire();
 		}));
@@ -274,42 +234,3 @@ export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileCha
 		return ret;
 	}
 }
-
-function parseComments(comments: any[]): Comment[] {
-	for (let i = 0; i < comments.length; i++) {
-		let diff_hunk = comments[i].diff_hunk;
-		let hunk_info = DIFF_HUNK_INFO.exec(diff_hunk);
-		let oriStartLine = Number(hunk_info[1]);
-		let oriLen = Number(hunk_info[3]) | 0;
-		let startLine = Number(hunk_info[5]);
-		let len = Number(hunk_info[7]) | 0;
-		comments[i].diff_hunk_range = {
-			originalStart: oriStartLine,
-			originalLength: oriLen,
-			start: startLine,
-			length: len
-		};
-	}
-
-	return comments;
-}
-
-function getMatchingCommentsForDiffViewEditor(filePath: string, items: FileChangeItem[], comments: Comment[]): Comment[] {
-	let fileChangeItem = items.filter(item => filePath === path.resolve(item.workspaceRoot, item.filePath));
-
-	if (fileChangeItem.length === 0) {
-		return [];
-	} else {
-		let fileName = fileChangeItem[0].fileName;
-		let matchingComments = comments.filter(comment => comment.path === fileName);
-
-		return matchingComments;
-	}
-}
-
-function getMatchingCommentsForNormalEditor(filePath: string, workspaceRoot: string, comments: Comment[]): Comment[] {
-	// @todo, we should check commit id
-	let matchingComments = comments.filter(comment => path.resolve(workspaceRoot, comment.path) === filePath);
-	return matchingComments;
-}
-
