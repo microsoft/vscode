@@ -103,9 +103,9 @@ export class WebviewService implements IWebviewService {
 		}
 
 		if (webview.position === column) {
-			this._editorService.openEditor(webview, { preserveFocus: true }, column);
+			this._editorService.openEditor(webview, { preserveFocus: false }, column);
 		} else {
-			this._editorGroupService.moveEditor(webview, webview.position, column, { preserveFocus: true });
+			this._editorGroupService.moveEditor(webview, webview.position, column, { preserveFocus: false });
 		}
 	}
 
