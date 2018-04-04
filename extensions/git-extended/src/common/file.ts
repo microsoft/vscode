@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import * as fs from 'fs';
 import * as path from 'path';
 import * as tmp from 'tmp';
@@ -6,19 +11,6 @@ import { GitProcess } from 'dugite';
 import { Repository } from './models/repository';
 import { SlimFileChange, GitChangeType, fromStatus } from './models/file';
 
-
-/**
- * @param content
- *
- * a
- *
- * c
- *
- * b
- *
- *
- * @param ext
- */
 
 export async function writeTmpFile(content: string, ext: string): Promise<string> {
 	return new Promise<string>((resolve, reject) => {
@@ -35,7 +27,7 @@ export async function writeTmpFile(content: string, ext: string): Promise<string
 				reject(ex);
 			}
 		});
-	})
+	});
 }
 
 export async function getFile(commitSha1: string, localFilePath: string): Promise<string> {

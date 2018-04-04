@@ -1,3 +1,13 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* --------------------------------------------------------------------------------------------
+ * Includes code from github/desktop, obtained from
+ * https://github.com/desktop/desktop/blob/master/app/src/models/remote.ts
+ * ------------------------------------------------------------------------------------------ */
+
 export interface IRemote {
 	readonly name: string;
 	readonly url: string;

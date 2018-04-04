@@ -1,3 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* --------------------------------------------------------------------------------------------
+ * Includes code from github/desktop, obtained from
+ * https://github.com/desktop/desktop/blob/0ce0de27f4eff526c073a159ce36ac9b27407e5c/app/src/lib/git/log.ts
+ * ------------------------------------------------------------------------------------------ */
 import { Repository } from './models/repository';
 import { Commit } from './models/commit';
 import { GitProcess } from 'dugite';
