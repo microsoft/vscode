@@ -191,6 +191,7 @@ export class ViewLine implements IVisibleLine {
 		let renderLineInput = new RenderLineInput(
 			options.useMonospaceOptimizations,
 			lineData.content,
+			lineData.isBasicASCII,
 			lineData.containsRTL,
 			lineData.minColumn - 1,
 			lineData.tokens,

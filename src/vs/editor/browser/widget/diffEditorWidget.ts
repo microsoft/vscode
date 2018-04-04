@@ -27,7 +27,7 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
-import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecoration, InlineDecorationType, ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ColorId, MetadataConsts, FontStyle } from 'vs/editor/common/modes';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -1998,10 +1998,13 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		sb.appendASCIIString(String(count * config.lineHeight));
 		sb.appendASCIIString('px;width:1000000px;">');
 
+		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, originalModel.mightContainNonBasicASCII());
+		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, originalModel.mightContainRTL());
 		renderViewLine(new RenderLineInput(
 			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
 			lineContent,
-			originalModel.mightContainRTL(),
+			isBasicASCII,
+			containsRTL,
 			0,
 			lineTokens,
 			actualDecorations,

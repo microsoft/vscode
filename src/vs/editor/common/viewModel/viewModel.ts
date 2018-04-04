@@ -243,19 +243,26 @@ export class ViewLineRenderingData {
 		this.maxColumn = maxColumn;
 		this.content = content;
 
-		this.isBasicASCII = true;
-		if (mightContainNonBasicASCII) {
-			this.isBasicASCII = strings.isBasicASCII(this.content);
-		}
-
-		this.containsRTL = false;
-		if (!this.isBasicASCII && mightContainRTL) {
-			this.containsRTL = strings.containsRTL(this.content);
-		}
+		this.isBasicASCII = ViewLineRenderingData.isBasicASCII(content, mightContainNonBasicASCII);
+		this.containsRTL = ViewLineRenderingData.containsRTL(content, this.isBasicASCII, mightContainRTL);
 
 		this.tokens = tokens;
 		this.inlineDecorations = inlineDecorations;
 		this.tabSize = tabSize;
+	}
+
+	public static isBasicASCII(lineContent: string, mightContainNonBasicASCII: boolean): boolean {
+		if (mightContainNonBasicASCII) {
+			return strings.isBasicASCII(lineContent);
+		}
+		return true;
+	}
+
+	public static containsRTL(lineContent: string, isBasicASCII: boolean, mightContainRTL: boolean): boolean {
+		if (!isBasicASCII && mightContainRTL) {
+			return strings.containsRTL(lineContent);
+		}
+		return false;
 	}
 }
 

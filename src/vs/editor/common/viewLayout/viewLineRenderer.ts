@@ -36,6 +36,7 @@ export class RenderLineInput {
 
 	public readonly useMonospaceOptimizations: boolean;
 	public readonly lineContent: string;
+	public readonly isBasicASCII: boolean;
 	public readonly containsRTL: boolean;
 	public readonly fauxIndentLength: number;
 	public readonly lineTokens: IViewLineTokens;
@@ -50,6 +51,7 @@ export class RenderLineInput {
 	constructor(
 		useMonospaceOptimizations: boolean,
 		lineContent: string,
+		isBasicASCII: boolean,
 		containsRTL: boolean,
 		fauxIndentLength: number,
 		lineTokens: IViewLineTokens,
@@ -63,6 +65,7 @@ export class RenderLineInput {
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.lineContent = lineContent;
+		this.isBasicASCII = isBasicASCII;
 		this.containsRTL = containsRTL;
 		this.fauxIndentLength = fauxIndentLength;
 		this.lineTokens = lineTokens;
@@ -85,6 +88,7 @@ export class RenderLineInput {
 		return (
 			this.useMonospaceOptimizations === other.useMonospaceOptimizations
 			&& this.lineContent === other.lineContent
+			&& this.isBasicASCII === other.isBasicASCII
 			&& this.containsRTL === other.containsRTL
 			&& this.fauxIndentLength === other.fauxIndentLength
 			&& this.tabSize === other.tabSize
