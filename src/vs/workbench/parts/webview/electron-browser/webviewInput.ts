@@ -141,6 +141,11 @@ export class WebviewEditorInput extends EditorInput {
 	}
 
 	public resolve(refresh?: boolean): TPromise<IEditorModel, any> {
+		if (this.reviver && !this._revived) {
+			this._revived = true;
+			return this.reviver.reviveWebview(this).then(() => new EditorModel());
+		}
+
 		return TPromise.as(new EditorModel());
 	}
 
@@ -221,16 +226,11 @@ export class WebviewEditorInput extends EditorInput {
 		this._currentWebviewHtml = '';
 	}
 
-	public onBecameActive(position: Position) {
+	public onBecameActive(position: Position): void {
 		this._position = position;
 
 		if (this._events && this._events.onDidChangePosition) {
 			this._events.onDidChangePosition(position);
-		}
-
-		if (this.reviver && !this._revived) {
-			this._revived = true;
-			this.reviver.reviveWebview(this);
 		}
 	}
 }

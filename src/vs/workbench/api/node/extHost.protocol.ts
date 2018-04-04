@@ -366,7 +366,7 @@ export interface ExtHostWebviewsShape {
 	$onDidChangeActiveWeview(handle: WebviewHandle | undefined): void;
 	$onDidDisposeWeview(handle: WebviewHandle): Thenable<void>;
 	$onDidChangePosition(handle: WebviewHandle, newPosition: EditorPosition): void;
-	$deserializeWebview(newWebviewHandle: WebviewHandle, viewType: string, state: any, position: EditorPosition, options: vscode.WebviewOptions): void;
+	$deserializeWebview(newWebviewHandle: WebviewHandle, viewType: string, state: any, position: EditorPosition, options: vscode.WebviewOptions): Thenable<boolean>;
 	$serializeWebview(webviewHandle: WebviewHandle): Thenable<any>;
 }
 

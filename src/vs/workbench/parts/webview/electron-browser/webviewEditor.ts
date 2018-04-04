@@ -145,10 +145,10 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this._webview = undefined;
 			this.webviewContent = undefined;
 		}
-
 		await super.setInput(input, options);
 
-		input.onBecameActive(this.position);
+		await input.resolve();
+		await input.onBecameActive(this.position);
 		this.updateWebview(input);
 	}
 
