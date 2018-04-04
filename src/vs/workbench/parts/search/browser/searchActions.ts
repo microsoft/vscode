@@ -11,7 +11,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { INavigator } from 'vs/base/common/iterator';
 import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
-import { Match, FileMatch, FileMatchOrMatch, FolderMatch, RenderableMatch } from 'vs/workbench/parts/search/common/searchModel';
+import { Match, FileMatch, FileMatchOrMatch, FolderMatch, RenderableMatch, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -664,7 +664,7 @@ function fileMatchToString(fileMatch: FileMatch, maxMatches: number): { text: st
 	};
 }
 
-function folderMatchToString(folderMatch: FolderMatch, maxMatches: number): string {
+function folderMatchToString(folderMatch: FolderMatch, maxMatches: number): { text: string, count: number } {
 	const fileResults: string[] = [];
 	let numMatches = 0;
 
@@ -674,7 +674,10 @@ function folderMatchToString(folderMatch: FolderMatch, maxMatches: number): stri
 		fileResults.push(fileResult.text);
 	}
 
-	return fileResults.join(lineDelimiter + lineDelimiter);
+	return {
+		text: fileResults.join(lineDelimiter + lineDelimiter),
+		count: numMatches
+	};
 }
 
 const maxClipboardMatches = 1e4;
@@ -687,10 +690,37 @@ export const copyMatchCommand: ICommandHandler = (accessor, match: RenderableMat
 	} else if (match instanceof FileMatch) {
 		text = fileMatchToString(match, maxClipboardMatches).text;
 	} else if (match instanceof FolderMatch) {
-		text = folderMatchToString(match, maxClipboardMatches);
+		text = folderMatchToString(match, maxClipboardMatches).text;
 	}
 
 	if (text) {
 		clipboardService.writeText(text);
 	}
+};
+
+function allFolderMatchesToString(folderMatches: FolderMatch[], maxMatches: number): string {
+	const folderResults: string[] = [];
+	let numMatches = 0;
+
+	for (let i = 0; i < folderMatches.length && numMatches < maxMatches; i++) {
+		const folderResult = folderMatchToString(folderMatches[i], maxMatches - numMatches);
+		if (folderResult.count) {
+			numMatches += folderResult.count;
+			folderResults.push(folderResult.text);
+		}
+	}
+
+	return folderResults.join(lineDelimiter + lineDelimiter);
+}
+
+export const copyAllCommand: ICommandHandler = (accessor) => {
+	const viewletService = accessor.get(IViewletService);
+	const panelService = accessor.get(IPanelService);
+	const clipboardService = accessor.get(IClipboardService);
+
+	const searchView = getSearchView(viewletService, panelService);
+	const root: SearchResult = searchView.getControl().getInput();
+
+	const text = allFolderMatchesToString(root.folderMatches(), maxClipboardMatches);
+	clipboardService.writeText(text);
 };

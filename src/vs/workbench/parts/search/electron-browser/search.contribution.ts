@@ -53,7 +53,7 @@ import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/file
 import { Schemas } from 'vs/base/common/network';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { openSearchView, getSearchView, ReplaceAllInFolderAction, ReplaceAllAction, CloseReplaceAction, FocusNextInputAction, FocusPreviousInputAction, FocusNextSearchResultAction, FocusPreviousSearchResultAction, ReplaceInFilesAction, FindInFilesAction, FocusActiveEditorCommand, toggleCaseSensitiveCommand, ShowNextSearchTermAction, ShowPreviousSearchTermAction, toggleRegexCommand, ShowPreviousSearchIncludeAction, ShowNextSearchIncludeAction, CollapseDeepestExpandedLevelAction, toggleWholeWordCommand, RemoveAction, ReplaceAction, ClearSearchResultsAction, copyPathCommand, copyMatchCommand } from 'vs/workbench/parts/search/browser/searchActions';
+import { openSearchView, getSearchView, ReplaceAllInFolderAction, ReplaceAllAction, CloseReplaceAction, FocusNextInputAction, FocusPreviousInputAction, FocusNextSearchResultAction, FocusPreviousSearchResultAction, ReplaceInFilesAction, FindInFilesAction, FocusActiveEditorCommand, toggleCaseSensitiveCommand, ShowNextSearchTermAction, ShowPreviousSearchTermAction, toggleRegexCommand, ShowPreviousSearchIncludeAction, ShowNextSearchIncludeAction, CollapseDeepestExpandedLevelAction, toggleWholeWordCommand, RemoveAction, ReplaceAction, ClearSearchResultsAction, copyPathCommand, copyMatchCommand, copyAllCommand } from 'vs/workbench/parts/search/browser/searchActions';
 import { VIEW_ID, ISearchConfigurationProperties } from 'vs/platform/search/common/search';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -250,7 +250,7 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 	},
 	when: Constants.FileMatchOrMatchFocusKey,
 	group: 'search_2',
-	order: 3
+	order: 1
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -271,7 +271,22 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 	},
 	when: Constants.FileMatchOrFolderMatchFocusKey,
 	group: 'search_2',
-	order: 4
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.SearchContext, {
+	command: {
+		id: Constants.CopyAllCommandId,
+		title: nls.localize('copyAllLabel', "Copy All")
+	},
+	when: Constants.HasSearchResults,
+	group: 'search_2',
+	order: 3
+});
+
+CommandsRegistry.registerCommand({
+	id: Constants.CopyAllCommandId,
+	handler: copyAllCommand
 });
 
 CommandsRegistry.registerCommand({
