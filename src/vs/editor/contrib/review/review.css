@@ -6,6 +6,8 @@
 .monaco-editor .margin-view-overlays .review {
 	background-image: url('comment.svg');
 	cursor: pointer;
+	background-repeat:no-repeat;
+	background-position: center center;
 }
 
 .monaco-editor .review-widget {
