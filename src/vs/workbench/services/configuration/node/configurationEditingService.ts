@@ -40,6 +40,11 @@ export enum ConfigurationEditingErrorCode {
 	ERROR_UNKNOWN_KEY,
 
 	/**
+	 * Error when trying to write an application setting into workspace settings.
+	 */
+	ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION,
+
+	/**
 	 * Error when trying to write an invalid folder configuration key to folder settings.
 	 */
 	ERROR_INVALID_FOLDER_CONFIGURATION,
@@ -274,6 +279,7 @@ export class ConfigurationEditingService {
 
 			// API constraints
 			case ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY: return nls.localize('errorUnknownKey', "Unable to write to {0} because {1} is not a registered configuration.", this.stringifyTarget(target), operation.key);
+			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION: return nls.localize('errorInvalidWorkspaceConfigurationApplication', "Unable to write {0} to Workspace Settings. This setting can be written only into User settings.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_CONFIGURATION: return nls.localize('errorInvalidFolderConfiguration', "Unable to write to Folder Settings because {0} does not support the folder resource scope.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET: return nls.localize('errorInvalidUserTarget', "Unable to write to User Settings because {0} does not support for global scope.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET: return nls.localize('errorInvalidWorkspaceTarget', "Unable to write to Workspace Settings because {0} does not support for workspace scope in a multi folder workspace.", operation.key);
@@ -394,6 +400,15 @@ export class ConfigurationEditingService {
 		// Target cannot be workspace or folder if no workspace opened
 		if ((target === ConfigurationTarget.WORKSPACE || target === ConfigurationTarget.WORKSPACE_FOLDER) && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return this.wrapError(ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED, target, operation);
+		}
+
+		if (target === ConfigurationTarget.WORKSPACE) {
+			if (!operation.workspaceStandAloneConfigurationKey) {
+				const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+				if (configurationProperties[operation.key].scope === ConfigurationScope.APPLICATION) {
+					return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION, target, operation);
+				}
+			}
 		}
 
 		if (target === ConfigurationTarget.WORKSPACE_FOLDER) {

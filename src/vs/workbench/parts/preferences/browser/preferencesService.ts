@@ -34,7 +34,6 @@ import { Position, IPosition } from 'vs/editor/common/core/position';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { parse } from 'vs/base/common/json';
@@ -51,10 +50,12 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private readonly _onDispose: Emitter<void> = new Emitter<void>();
 
-	private _defaultSettingsUriCounter = 0;
-	private _defaultSettingsContentModel: DefaultSettings;
-	private _defaultResourceSettingsUriCounter = 0;
-	private _defaultResourceSettingsContentModel: DefaultSettings;
+	private _defaultUserSettingsUriCounter = 0;
+	private _defaultUserSettingsContentModel: DefaultSettings;
+	private _defaultWorkspaceSettingsUriCounter = 0;
+	private _defaultWorkspaceSettingsContentModel: DefaultSettings;
+	private _defaultFolderSettingsUriCounter = 0;
+	private _defaultFolderSettingsContentModel: DefaultSettings;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -108,9 +109,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	resolveModel(uri: URI): TPromise<ITextModel> {
-		if (this.isDefaultSettingsResource(uri) || this.isDefaultResourceSettingsResource(uri)) {
+		if (this.isDefaultSettingsResource(uri)) {
 
-			const scope = this.isDefaultSettingsResource(uri) ? ConfigurationScope.WINDOW : ConfigurationScope.RESOURCE;
+			const target = this.getConfigurationTargetFromDefaultSettingsResource(uri);
 			const mode = this.modeService.getOrCreateMode('jsonc');
 			const model = this._register(this.modelService.createModel('', mode, uri));
 
@@ -122,7 +123,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 						// model has not been given out => nothing to do
 						return;
 					}
-					defaultSettings = this.getDefaultSettings(scope);
+					defaultSettings = this.getDefaultSettings(target);
 					this.modelService.updateModel(model, defaultSettings.parse());
 					defaultSettings._onDidChange.fire();
 				}
@@ -130,7 +131,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 			// Check if Default settings is already created and updated in above promise
 			if (!defaultSettings) {
-				defaultSettings = this.getDefaultSettings(scope);
+				defaultSettings = this.getDefaultSettings(target);
 				this.modelService.updateModel(model, defaultSettings.parse());
 			}
 
@@ -138,7 +139,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 
 		if (this.defaultSettingsRawResource.toString() === uri.toString()) {
-			let defaultSettings: DefaultSettings = this.getDefaultSettings(ConfigurationScope.WINDOW);
+			let defaultSettings: DefaultSettings = this.getDefaultSettings(ConfigurationTarget.USER);
 			const mode = this.modeService.getOrCreateMode('jsonc');
 			const model = this._register(this.modelService.createModel(defaultSettings.raw, mode, uri));
 			return TPromise.as(model);
@@ -155,7 +156,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	createPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel<any>> {
-		if (this.isDefaultSettingsResource(uri) || this.isDefaultResourceSettingsResource(uri)) {
+		if (this.isDefaultSettingsResource(uri)) {
 			return this.createDefaultSettingsEditorModel(uri);
 		}
 
@@ -271,20 +272,34 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 	}
 
+	private getConfigurationTargetFromDefaultSettingsResource(uri: URI) {
+		return this.isDefaultWorkspaceSettingsResource(uri) ? ConfigurationTarget.WORKSPACE : this.isDefaultFolderSettingsResource(uri) ? ConfigurationTarget.WORKSPACE_FOLDER : ConfigurationTarget.USER;
+	}
+
 	private isDefaultSettingsResource(uri: URI): boolean {
+		return this.isDefaultUserSettingsResource(uri) || this.isDefaultWorkspaceSettingsResource(uri) || this.isDefaultFolderSettingsResource(uri);
+	}
+
+	private isDefaultUserSettingsResource(uri: URI): boolean {
 		return uri.authority === 'defaultsettings' && uri.scheme === network.Schemas.vscode && !!uri.path.match(/\/(\d+\/)?settings\.json$/);
 	}
 
-	private isDefaultResourceSettingsResource(uri: URI): boolean {
+	private isDefaultWorkspaceSettingsResource(uri: URI): boolean {
+		return uri.authority === 'defaultsettings' && uri.scheme === network.Schemas.vscode && !!uri.path.match(/\/(\d+\/)?workspaceSettings\.json$/);
+	}
+
+	private isDefaultFolderSettingsResource(uri: URI): boolean {
 		return uri.authority === 'defaultsettings' && uri.scheme === network.Schemas.vscode && !!uri.path.match(/\/(\d+\/)?resourceSettings\.json$/);
 	}
 
 	private getDefaultSettingsResource(configurationTarget: ConfigurationTarget): URI {
-		if (configurationTarget === ConfigurationTarget.WORKSPACE_FOLDER) {
-			return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultResourceSettingsUriCounter++}/resourceSettings.json` });
-		} else {
-			return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultSettingsUriCounter++}/settings.json` });
+		switch (configurationTarget) {
+			case ConfigurationTarget.WORKSPACE:
+				return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultWorkspaceSettingsUriCounter++}/workspaceSettings.json` });
+			case ConfigurationTarget.WORKSPACE_FOLDER:
+				return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultFolderSettingsUriCounter++}/resourceSettings.json` });
 		}
+		return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultUserSettingsUriCounter++}/settings.json` });
 	}
 
 	private getPreferencesEditorInputName(target: ConfigurationTarget, resource: URI): string {
@@ -314,24 +329,28 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private createDefaultSettingsEditorModel(defaultSettingsUri: URI): TPromise<DefaultSettingsEditorModel> {
 		return this.textModelResolverService.createModelReference(defaultSettingsUri)
 			.then(reference => {
-				const scope = this.isDefaultSettingsResource(defaultSettingsUri) ? ConfigurationScope.WINDOW : ConfigurationScope.RESOURCE;
-				return this.instantiationService.createInstance(DefaultSettingsEditorModel, defaultSettingsUri, reference, scope, this.getDefaultSettings(scope));
+				const target = this.getConfigurationTargetFromDefaultSettingsResource(defaultSettingsUri);
+				return this.instantiationService.createInstance(DefaultSettingsEditorModel, defaultSettingsUri, reference, this.getDefaultSettings(target));
 			});
 	}
 
-	private getDefaultSettings(scope: ConfigurationScope): DefaultSettings {
-		switch (scope) {
-			case ConfigurationScope.WINDOW:
-				if (!this._defaultSettingsContentModel) {
-					this._defaultSettingsContentModel = new DefaultSettings(this.getMostCommonlyUsedSettings(), scope);
-				}
-				return this._defaultSettingsContentModel;
-			case ConfigurationScope.RESOURCE:
-				if (!this._defaultResourceSettingsContentModel) {
-					this._defaultResourceSettingsContentModel = new DefaultSettings(this.getMostCommonlyUsedSettings(), scope);
-				}
-				return this._defaultResourceSettingsContentModel;
+	private getDefaultSettings(target: ConfigurationTarget): DefaultSettings {
+		if (target === ConfigurationTarget.WORKSPACE) {
+			if (!this._defaultWorkspaceSettingsContentModel) {
+				this._defaultWorkspaceSettingsContentModel = new DefaultSettings(this.getMostCommonlyUsedSettings(), target);
+			}
+			return this._defaultWorkspaceSettingsContentModel;
 		}
+		if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
+			if (!this._defaultFolderSettingsContentModel) {
+				this._defaultFolderSettingsContentModel = new DefaultSettings(this.getMostCommonlyUsedSettings(), target);
+			}
+			return this._defaultFolderSettingsContentModel;
+		}
+		if (!this._defaultUserSettingsContentModel) {
+			this._defaultUserSettingsContentModel = new DefaultSettings(this.getMostCommonlyUsedSettings(), target);
+		}
+		return this._defaultUserSettingsContentModel;
 	}
 
 	private getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): URI {

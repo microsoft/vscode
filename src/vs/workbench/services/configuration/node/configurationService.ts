@@ -10,7 +10,7 @@ import { dirname, basename } from 'path';
 import * as assert from 'vs/base/common/assert';
 import { Event, Emitter } from 'vs/base/common/event';
 import { StrictResourceMap } from 'vs/base/common/map';
-import { equals } from 'vs/base/common/objects';
+import { equals, deepClone } from 'vs/base/common/objects';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Queue } from 'vs/base/common/async';
 import { stat, writeFile } from 'vs/base/node/pfs';
@@ -24,7 +24,7 @@ import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides
 import { Configuration, WorkspaceConfigurationChangeEvent, AllKeysConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
 import { IWorkspaceConfigurationService, FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, settingsSchema, resourceSettingsSchema, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, IConfigurationPropertySchema, allSettings, windowSettings, resourceSettings, applicationSettings } from 'vs/platform/configuration/common/configurationRegistry';
 import { createHash } from 'crypto';
 import { getWorkspaceLabel, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
@@ -40,6 +40,8 @@ import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/works
 import { distinct } from 'vs/base/common/arrays';
 import { UserConfiguration } from 'vs/platform/configuration/node/configuration';
 import { getBaseLabel } from 'vs/base/common/labels';
+import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
+import { localize } from 'vs/nls';
 
 export class WorkspaceService extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
 
@@ -489,15 +491,29 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	private registerConfigurationSchemas(): void {
 		if (this.workspace) {
 			const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-			jsonRegistry.registerSchema(defaultSettingsSchemaId, settingsSchema);
-			jsonRegistry.registerSchema(userSettingsSchemaId, settingsSchema);
+			const convertToNotSuggestedProperties = (properties: IJSONSchemaMap, errorMessage: string): IJSONSchemaMap => {
+				return Object.keys(properties).reduce((result: IJSONSchemaMap, property) => {
+					result[property] = deepClone(properties[property]);
+					result[property].deprecationMessage = errorMessage;
+					return result;
+				}, {});
+			};
+
+			const allSettingsSchema: IJSONSchema = { properties: allSettings.properties, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
+			const unsupportedApplicationSettings = convertToNotSuggestedProperties(applicationSettings.properties, localize('unsupportedApplicationSetting', "This setting can be applied only in User Settings"));
+			const workspaceSettingsSchema: IJSONSchema = { properties: { ...unsupportedApplicationSettings, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
+
+			jsonRegistry.registerSchema(defaultSettingsSchemaId, allSettingsSchema);
+			jsonRegistry.registerSchema(userSettingsSchemaId, allSettingsSchema);
 
 			if (WorkbenchState.WORKSPACE === this.getWorkbenchState()) {
-				jsonRegistry.registerSchema(workspaceSettingsSchemaId, settingsSchema);
-				jsonRegistry.registerSchema(folderSettingsSchemaId, resourceSettingsSchema);
+				const unsupportedWindowSettings = convertToNotSuggestedProperties(windowSettings.properties, localize('unsupportedWindowSetting', "This setting cannot be applied now. It will be applied when you open this folder directly."));
+				const folderSettingsSchema: IJSONSchema = { properties: { ...unsupportedApplicationSettings, ...unsupportedWindowSettings, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
+				jsonRegistry.registerSchema(workspaceSettingsSchemaId, workspaceSettingsSchema);
+				jsonRegistry.registerSchema(folderSettingsSchemaId, folderSettingsSchema);
 			} else {
-				jsonRegistry.registerSchema(workspaceSettingsSchemaId, settingsSchema);
-				jsonRegistry.registerSchema(folderSettingsSchemaId, settingsSchema);
+				jsonRegistry.registerSchema(workspaceSettingsSchemaId, workspaceSettingsSchema);
+				jsonRegistry.registerSchema(folderSettingsSchemaId, workspaceSettingsSchema);
 			}
 		}
 	}

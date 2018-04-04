@@ -57,7 +57,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -848,9 +847,21 @@ class SideBySidePreferencesWidget extends Widget {
 		return TPromise.join([this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, editablePreferencesEditorInput.getResource(), options),
 		this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options)])
 			.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => {
-				this.defaultPreferencesHeader.textContent = defaultPreferencesRenderer && (<DefaultSettingsEditorModel>defaultPreferencesRenderer.preferencesModel).configurationScope === ConfigurationScope.RESOURCE ? nls.localize('defaultFolderSettings', "Default Folder Settings") : nls.localize('defaultSettings', "Default Settings");
+				this.defaultPreferencesHeader.textContent = defaultPreferencesRenderer && this.getDefaultPreferencesHeaderText((<DefaultSettingsEditorModel>defaultPreferencesRenderer.preferencesModel).target);
 				return { defaultPreferencesRenderer, editablePreferencesRenderer };
 			});
+	}
+
+	private getDefaultPreferencesHeaderText(target: ConfigurationTarget): string {
+		switch (target) {
+			case ConfigurationTarget.USER:
+				return nls.localize('defaultUserSettings', "Default User Settings");
+			case ConfigurationTarget.WORKSPACE:
+				return nls.localize('defaultWorkspaceSettings', "Default Workspace Settings");
+			case ConfigurationTarget.WORKSPACE_FOLDER:
+				return nls.localize('defaultFolderSettings', "Default Folder Settings");
+		}
+		return '';
 	}
 
 	public setResultCount(settingsTarget: SettingsTarget, count: number): void {
