@@ -77,7 +77,7 @@ export class ExplorerItem {
 	public etag: string;
 	private _isDirectory: boolean;
 	private _isSymbolicLink: boolean;
-	private children: { [name: string]: ExplorerItem };
+	private children: Map<string, ExplorerItem>;
 	public parent: ExplorerItem;
 
 	public isDirectoryResolved: boolean;
@@ -109,7 +109,7 @@ export class ExplorerItem {
 		if (value !== this._isDirectory) {
 			this._isDirectory = value;
 			if (this._isDirectory) {
-				this.children = Object.create(null);
+				this.children = new Map<string, ExplorerItem>();
 			} else {
 				this.children = undefined;
 			}
@@ -185,18 +185,16 @@ export class ExplorerItem {
 			// Map resource => stat
 			const oldLocalChildren = new ResourceMap<ExplorerItem>();
 			if (local.children) {
-				for (let name in local.children) {
-					const child = local.children[name];
+				local.children.forEach(child => {
 					oldLocalChildren.set(child.resource, child);
-				}
+				});
 			}
 
 			// Clear current children
-			local.children = Object.create(null);
+			local.children = new Map<string, ExplorerItem>();
 
 			// Merge received children
-			for (let name in disk.children) {
-				const diskChild = disk.children[name];
+			disk.children.forEach(diskChild => {
 				const formerLocalChild = oldLocalChildren.get(diskChild.resource);
 				// Existing child: merge
 				if (formerLocalChild) {
@@ -210,7 +208,7 @@ export class ExplorerItem {
 					diskChild.parent = local;
 					local.addChild(diskChild);
 				}
-			}
+			});
 		}
 	}
 
@@ -223,7 +221,7 @@ export class ExplorerItem {
 		child.parent = this;
 		child.updateResource(false);
 
-		this.children[this.getPlatformAwareName(child.name)] = child;
+		this.children.set(this.getPlatformAwareName(child.name), child);
 	}
 
 	public getChild(name: string): ExplorerItem {
@@ -231,7 +229,7 @@ export class ExplorerItem {
 			return undefined;
 		}
 
-		return this.children[this.getPlatformAwareName(name)];
+		return this.children.get(this.getPlatformAwareName(name));
 	}
 
 	/**
@@ -242,7 +240,20 @@ export class ExplorerItem {
 			return undefined;
 		}
 
-		return Object.keys(this.children).map(name => this.children[name]);
+		const items: ExplorerItem[] = [];
+		this.children.forEach(child => {
+			items.push(child);
+		});
+
+		return items;
+	}
+
+	public getChildrenCount(): number {
+		if (!this.children) {
+			return 0;
+		}
+
+		return this.children.size;
 	}
 
 	public getChildrenNames(): string[] {
@@ -250,14 +261,19 @@ export class ExplorerItem {
 			return [];
 		}
 
-		return Object.keys(this.children);
+		const names: string[] = [];
+		this.children.forEach(child => {
+			names.push(child.name);
+		});
+
+		return names;
 	}
 
 	/**
 	 * Removes a child element from this folder.
 	 */
 	public removeChild(child: ExplorerItem): void {
-		delete this.children[this.getPlatformAwareName(child.name)];
+		this.children.delete(this.getPlatformAwareName(child.name));
 	}
 
 	private getPlatformAwareName(name: string): string {
@@ -289,9 +305,9 @@ export class ExplorerItem {
 
 		if (recursive) {
 			if (this.isDirectory && this.children) {
-				for (let name in this.children) {
-					this.children[name].updateResource(true);
-				}
+				this.children.forEach(child => {
+					child.updateResource(true);
+				});
 			}
 		}
 	}
@@ -347,7 +363,7 @@ export class ExplorerItem {
 			// The name to search is between two separators
 			const name = path.substring(index, indexOfNextSep);
 
-			const child = this.children[this.getPlatformAwareName(name)];
+			const child = this.children.get(this.getPlatformAwareName(name));
 
 			if (child) {
 				// We found a child with the given name, search inside it
