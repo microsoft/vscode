@@ -1,20 +1,75 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import * as vscode from 'vscode';
-// import { Octokat } from 'octokat';
-var Octokat = require('octokat');
-// import * as https from 'https';
-// import * as fs from 'fs';
-// import * as tmp from 'tmp';
+const Octokat = require('octokat');
 import * as path from 'path';
 import * as request from 'request';
-
-import { FileChangeItem } from './commitsProvider';
 import { parseDiff, DIFF_HUNK_INFO } from './common/diff';
 import { GitChangeType } from './common/models/file';
 import { Repository } from './common//models/repository';
 import { Comment } from './common/models/comment';
 import * as _ from 'lodash';
 export class PullRequest {
-	constructor(public octoPRItem: any) { };
+	constructor(public octoPRItem: any) { }
+}
+
+export class FileChangeItem implements vscode.TreeItem {
+	public iconPath?: string | vscode.Uri | { light: string | vscode.Uri; dark: string | vscode.Uri };
+	public filePath: string;
+	public sha: string;
+	public parentFilePath: string;
+	public parentSha: string;
+	public command?: vscode.Command;
+	public comments?: any[];
+
+	constructor(
+		public readonly label: string,
+		public readonly status: GitChangeType,
+		public readonly context: vscode.ExtensionContext,
+		public readonly fileName: string,
+		public readonly workspaceRoot?: string
+	) {
+	}
+
+	public populateCommandArgs() {
+		if (this.status === GitChangeType.MODIFY) {
+			this.command = {
+				title: 'show diff',
+				command: ShowDiffCommand.id,
+				arguments: [this]
+			};
+		} else if (this.status === GitChangeType.DELETE) {
+			this.command = {
+				title: 'show diff',
+				command: 'vscode.open',
+				arguments: [
+					vscode.Uri.file(path.resolve(this.workspaceRoot, this.parentFilePath))
+				]
+			};
+		} else {
+			this.command = {
+				title: 'show diff',
+				command: 'vscode.open',
+				arguments: [
+					vscode.Uri.file(path.resolve(this.workspaceRoot, this.filePath))
+				]
+			};
+		}
+	}
+}
+
+class ShowDiffCommand {
+	static readonly id = 'msgit.showDiff';
+
+	static run(item: FileChangeItem) {
+		vscode.commands.executeCommand('vscode.diff',
+			vscode.Uri.file(path.resolve(item.workspaceRoot, item.parentFilePath)),
+			vscode.Uri.file(path.resolve(item.workspaceRoot, item.filePath)),
+			item.fileName);
+	}
 }
 
 export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileChangeItem>, vscode.CommentProvider {
@@ -60,6 +115,7 @@ export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileCha
 		};
 
 		vscode.workspace.registerCommentProvider(this);
+		vscode.commands.registerCommand(ShowDiffCommand.id, ShowDiffCommand.run);
 	}
 
 	getTreeItem(element: PullRequest | FileChangeItem): vscode.TreeItem {
@@ -124,23 +180,6 @@ export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileCha
 					});
 					this._fileChanges = fileChanges;
 					this._comments = comments;
-
-					vscode.workspace.onDidOpenTextDocument(e => {
-						let matchingComments = getMatchingCommentsForDiffViewEditor(e.fileName, fileChanges, comments);
-						console.log('---diff editor---')
-						for (let i = 0; i < matchingComments.length; i++) {
-							let cm = matchingComments[i];
-							console.log(`after line: ${cm.diff_hunk_range.start + cm.position - 1 - 1}, ${'@' + cm.user.login}: '${cm.body}'`);
-						}
-
-						matchingComments = getMatchingCommentsForNormalEditor(e.fileName, this.workspaceRoot, comments);
-						console.log('---editor---')
-						for (let i = 0; i < matchingComments.length; i++) {
-							let cm = matchingComments[i];
-							console.log(`after line: ${cm.diff_hunk_range.start + cm.position - 1 - 1}, ${'@' + cm.user.login}: '${cm.body}'`);
-						}
-					});
-
 					resolve(fileChanges);
 				});
 			});
