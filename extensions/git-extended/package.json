@@ -28,78 +28,14 @@
     },
     "commands": [
       {
-        "command": "commits.revertCommit",
-        "title": "Revert",
-        "icon": {
-          "dark": "resources/icons/dark/clean.svg",
-          "light": "resources/icons/light/clean.svg"
-        }
-      },
-      {
-        "command": "commits.refresh",
-        "title": "Refresh",
-        "icon": {
-          "dark": "resources/icons/dark/refresh.svg",
-          "light": "resources/icons/light/refresh.svg"
-        }
-      },
-      {
         "command": "pr.refreshList",
         "title": "Refresh",
         "icon": {
           "dark": "resources/icons/dark/refresh.svg",
           "light": "resources/icons/light/refresh.svg"
         }
-      },
-      {
-        "command": "stash.apply",
-        "title": "Apply Stash"
-      },
-      {
-        "command": "stash.delete",
-        "title": "Delete Stash"
-      },
-      {
-        "command": "stash.pop",
-        "title": "Pop Stash"
-      },
-      {
-        "command": "stash.stash",
-        "title": "Stash",
-        "icon": {
-          "dark": "resources/icons/dark/stage.svg",
-          "light": "resources/icons/light/stage.svg"
-        }
       }
-    ],
-    "menus": {
-      "view/title": [
-        {
-          "command": "commits.refresh",
-          "when": "view == commits",
-          "group": "navigation"
-        },
-        {
-          "command": "stash.stash",
-          "when": "view == stash",
-          "group": "navigation"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "stash.apply",
-          "when": "view == stash"
-        },
-        {
-          "command": "stash.pop",
-          "when": "view == stash"
-        },
-        {
-          "command": "stash.delete",
-          "when": "view == stash"
-        }
-      ]
-    }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "tsc -p ./",

@@ -158,7 +158,11 @@ export class ReviewController implements IEditorContribution {
 
 	public onModelChanged(): void {
 		this.localToDispose = dispose(this.localToDispose);
-
+		if (this._zoneWidget) {
+			// todo store view state.
+			this._zoneWidget.dispose();
+			this._zoneWidget = null;
+		}
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
 	}

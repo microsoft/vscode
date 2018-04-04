@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-interface DiffHunkRange {
+export interface DiffHunkRange {
 	originalStart: number;
 	originalLength: number;
 	start: number;
@@ -11,7 +11,7 @@ interface DiffHunkRange {
 
 }
 
-interface User {
+export interface User {
 	id: string;
 	login: string;
 }
