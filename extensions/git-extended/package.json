@@ -69,8 +69,9 @@
     "compile": "tsc -watch -p ./"
   },
   "devDependencies": {
-      "typescript": "^2.1.4",
-      "@types/node": "*"
+    "@types/lodash": "^4.14.106",
+    "@types/node": "*",
+    "typescript": "^2.1.4"
   },
   "dependencies": {
     "@octokit/rest": "^15.2.6",

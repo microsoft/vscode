@@ -44,20 +44,13 @@ export class FileChangeItem implements vscode.TreeItem {
 	public populateCommandArgs() {
 		this.command = {
 			title: 'show diff',
-			command: ShowDiffCommand.id,
-			arguments: [this]
+			command: 'vscode.diff',
+			arguments: [
+				vscode.Uri.file(path.resolve(this.workspaceRoot, this.parentFilePath)),
+				vscode.Uri.file(path.resolve(this.workspaceRoot, this.filePath)),
+				this.fileName
+			]
 		};
-	}
-}
-
-class ShowDiffCommand {
-	static readonly id = 'msgit.showDiff';
-
-	static run(item: FileChangeItem) {
-		vscode.commands.executeCommand('vscode.diff',
-			vscode.Uri.file(path.resolve(item.workspaceRoot, item.parentFilePath)),
-			vscode.Uri.file(path.resolve(item.workspaceRoot, item.filePath)),
-			item.fileName);
 	}
 }
 
@@ -235,12 +228,7 @@ export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileCha
 				});
 
 				return Promise.all(promises).then(values => {
-					let prs = [];
-					values.forEach(value => {
-						prs.push(...value);
-					});
-
-					return prs;
+					return _.flatten(values);
 				});
 			}
 
