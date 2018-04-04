@@ -14,9 +14,9 @@ export const DELETE_FILE_INFO = /diff --git a\/(\S+) b\/(\S+).*\n*deleted file m
 export const DIFF_HUNK_INFO = /@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@/;
 
 
-async function parseModifiedHunkComplete(originalContent, modifyDiffInfo, a, b) {
+async function parseModifiedHunkComplete(originalContent, patch, a, b) {
 	let left = originalContent.split(/\r|\n|\r\n/);
-	let diffHunks = modifyDiffInfo[3].split('\n');
+	let diffHunks = patch.split('\n');
 	diffHunks.pop(); // there is one additional line break at the end of the diff ??
 
 	let right = [];
@@ -82,56 +82,24 @@ async function parseModifiedHunkFast(modifyDiffInfo, a, b) {
 	return new RichFileChange(contentPath, originalContentPath, GitChangeType.MODIFY, b);
 }
 
-export async function parseDiff(text: string, repository: Repository, parentCommit: string) {
-	let reg = /diff((?!diff).*\n*)*/g;
-	let match = reg.exec(text);
+export async function parseDiff(reviews: any[], repository: Repository, parentCommit: string) {
 	let richFileChanges: RichFileChange[] = [];
-
-	while (match) {
-		let singleFileDiff = match[0];
-		let modifyDiffInfo = MODIFY_DIFF_INFO.exec(singleFileDiff);
-		if (modifyDiffInfo) {
-			let a = modifyDiffInfo[1];
-			let b = modifyDiffInfo[2];
+	for (let i = 0; i < reviews.length; i++) {
+		let review = reviews[i];
+		if (review.status === 'modified') {
+			let fileName = review.filename;
 
 			try {
-				let originalContent = await getFileContent(repository.path, parentCommit, a);
-				let richFileChange = await parseModifiedHunkComplete(originalContent, modifyDiffInfo, a, b);
+				let originalContent = await getFileContent(repository.path, parentCommit, fileName);
+				let richFileChange = await parseModifiedHunkComplete(originalContent, review.patch, fileName, fileName);
 				richFileChanges.push(richFileChange);
 			} catch (e) {
-				let richFileChange = await parseModifiedHunkFast(modifyDiffInfo, a, b);
+				let richFileChange = await parseModifiedHunkFast(review.patch, fileName, fileName);
 				richFileChanges.push(richFileChange);
 			}
-
-			match = reg.exec(text);
-			continue;
-		}
-
-		let newDiffInfo = NEW_FILE_INFO.exec(singleFileDiff);
-		if (newDiffInfo) {
-			let fileName = newDiffInfo[1];
-			let diffHunks = newDiffInfo[3].split('\n');
-			let contentArray = [];
-			for (let i = 0; i < diffHunks.length; i++) {
-				if (/@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@$/.test(diffHunks[i])) {
-					continue;
-				} else if (/@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@ /.test(diffHunks[i])) {
-					contentArray.push(diffHunks[i].replace(/@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@ /, ''));
-				} else if (/^\+/.test(diffHunks[i])) {
-					contentArray.push(diffHunks[i].substr(1));
-				}
-			}
-			let filePath = await writeTmpFile(contentArray.join('\n'), path.extname(fileName));
-			let richFileChange = new RichFileChange(filePath, filePath, GitChangeType.ADD, fileName);
-			richFileChanges.push(richFileChange);
-			match = reg.exec(text);
-			continue;
-		}
-
-		let deleteDiffInfo = DELETE_FILE_INFO.exec(singleFileDiff);
-		if (deleteDiffInfo) {
-			let fileName = deleteDiffInfo[1];
-			let diffHunks = deleteDiffInfo[3].split('\n');
+		} else if (review.status === 'removed') {
+			let fileName = review.filename;
+			let diffHunks = review.patch.split('\n');
 			let contentArray = [];
 			for (let i = 0; i < diffHunks.length; i++) {
 				if (/@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@$/.test(diffHunks[i])) {
@@ -146,11 +114,25 @@ export async function parseDiff(text: string, repository: Repository, parentComm
 			let filePath = await writeTmpFile('', path.extname(fileName));
 			let richFileChange = new RichFileChange(filePath, originalFilePath, GitChangeType.DELETE, fileName);
 			richFileChanges.push(richFileChange);
-			match = reg.exec(text);
-			continue;
+		} else {
+			// added
+			let fileName = review.filename;
+			let diffHunks = review.patch.split('\n');
+			let contentArray = [];
+			for (let i = 0; i < diffHunks.length; i++) {
+				if (/@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@$/.test(diffHunks[i])) {
+					continue;
+				} else if (/@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@ /.test(diffHunks[i])) {
+					contentArray.push(diffHunks[i].replace(/@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@ /, ''));
+				} else if (/^\+/.test(diffHunks[i])) {
+					contentArray.push(diffHunks[i].substr(1));
+				}
+			}
+			let oriFilePath = await writeTmpFile('', path.extname(fileName));
+			let filePath = await writeTmpFile(contentArray.join('\n'), path.extname(fileName));
+			let richFileChange = new RichFileChange(filePath, oriFilePath, GitChangeType.ADD, fileName);
+			richFileChanges.push(richFileChange);
 		}
-		match = reg.exec(text);
 	}
-
 	return richFileChanges;
 }

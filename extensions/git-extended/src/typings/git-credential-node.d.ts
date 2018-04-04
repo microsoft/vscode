@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export class Remote {
-	constructor(
-		public readonly url: string,
-		public readonly hostname: string,
-		public readonly owner: string,
-		public readonly name: string
-	) { }
+declare module 'git-credential-node' {
+
+	interface Credentials {
+		username: string;
+		password: string;
+	}
+
+	function fill(url: string): Promise<Credentials | null>;
 }

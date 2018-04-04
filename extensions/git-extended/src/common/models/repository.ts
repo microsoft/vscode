@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IGitRemoteURL } from './remote';
+import { Remote } from './remote';
 
 export class Repository {
 	public path: string;
 
-	public remotes: IGitRemoteURL[];
+	public remotes: Remote[];
 
-	constructor(path: string, remotes: IGitRemoteURL[]) {
+	constructor(path: string, remotes: Remote[]) {
 		this.path = path;
 		this.remotes = remotes;
 	}

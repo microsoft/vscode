@@ -5,3 +5,4 @@
 
 /// <reference path='../../../../src/vs/vscode.d.ts'/>
 /// <reference path='../../../../src/vs/vscode.proposed.d.ts'/>
+/// <reference path='./git-credential-node.d.ts'/>

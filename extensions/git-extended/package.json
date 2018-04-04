@@ -42,14 +42,14 @@
     "compile": "tsc -watch -p ./"
   },
   "devDependencies": {
-    "typescript": "^2.1.4",
-    "@types/node": "*"
+      "typescript": "^2.1.4",
+      "@types/node": "*"
   },
   "dependencies": {
+    "@octokit/rest": "^15.2.6",
     "dugite": "^1.28.0",
-    "tmp": "^0.0.31",
-    "octokat": "^0.8.0",
-    "request": "^2.81.0",
-    "lodash": "4.17.5"
+    "git-credential-node": "^1.1.0",
+    "lodash": "4.17.5",
+    "tmp": "^0.0.31"
   }
 }

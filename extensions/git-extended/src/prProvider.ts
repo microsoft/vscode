@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-const Octokat = require('octokat');
 import * as path from 'path';
-import * as request from 'request';
 import { parseDiff, DIFF_HUNK_INFO } from './common/diff';
 import { GitChangeType } from './common/models/file';
 import { Repository } from './common//models/repository';
 import { Comment } from './common/models/comment';
 import * as _ from 'lodash';
+import { fill } from 'git-credential-node';
+const Octokit = require('@octokit/rest');
+
 export class PullRequest {
-	constructor(public octoPRItem: any) { }
+	public comments?: Comment[];
+	public fileChanges?: FileChangeItem[];
+	constructor(public readonly otcokit: any, public readonly owner: string, public readonly repo: string, public prItem: any) { }
 }
 
 export class FileChangeItem implements vscode.TreeItem {
@@ -26,6 +29,7 @@ export class FileChangeItem implements vscode.TreeItem {
 	public comments?: any[];
 
 	constructor(
+		public readonly rItem: any,
 		public readonly label: string,
 		public readonly status: GitChangeType,
 		public readonly context: vscode.ExtensionContext,
@@ -35,29 +39,11 @@ export class FileChangeItem implements vscode.TreeItem {
 	}
 
 	public populateCommandArgs() {
-		if (this.status === GitChangeType.MODIFY) {
-			this.command = {
-				title: 'show diff',
-				command: ShowDiffCommand.id,
-				arguments: [this]
-			};
-		} else if (this.status === GitChangeType.DELETE) {
-			this.command = {
-				title: 'show diff',
-				command: 'vscode.open',
-				arguments: [
-					vscode.Uri.file(path.resolve(this.workspaceRoot, this.parentFilePath))
-				]
-			};
-		} else {
-			this.command = {
-				title: 'show diff',
-				command: 'vscode.open',
-				arguments: [
-					vscode.Uri.file(path.resolve(this.workspaceRoot, this.filePath))
-				]
-			};
-		}
+		this.command = {
+			title: 'show diff',
+			command: ShowDiffCommand.id,
+			arguments: [this]
+		};
 	}
 }
 
@@ -72,17 +58,42 @@ class ShowDiffCommand {
 	}
 }
 
+class CredentialStore {
+	private octokits: { [key: string]: any };
+	constructor() {
+		this.octokits = [];
+	}
+
+	async getOctokit(url: string) {
+		if (this.octokits[url]) {
+			return this.octokits[url];
+		}
+		const data = await fill(url);
+		this.octokits[url] = Octokit({
+			debug: true
+		});
+
+		this.octokits[url].authenticate({
+			type: 'basic',
+			username: data.username,
+			password: data.password
+		});
+
+		return this.octokits[url];
+	}
+}
+
 export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileChangeItem>, vscode.CommentProvider {
 	private _fileChanges: FileChangeItem[];
 	private _comments?: Comment[];
 	private context: vscode.ExtensionContext;
 	private workspaceRoot: string;
 	private repository: Repository;
-	private octo: any;
 	private icons: any;
+	private crendentialStore: CredentialStore;
 
 	constructor() {
-		this.octo = new Octokat();
+		this.crendentialStore = new CredentialStore();
 	}
 
 	activate(context: vscode.ExtensionContext, workspaceRoot: string, repository: Repository) {
@@ -122,7 +133,7 @@ export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileCha
 
 		if (element instanceof PullRequest) {
 			return {
-				label: element.octoPRItem.title,
+				label: element.prItem.title,
 				collapsibleState: 1
 			};
 		} else {
@@ -161,33 +172,44 @@ export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileCha
 
 	getChildren(element?: PullRequest): PullRequest[] | Thenable<PullRequest[]> | FileChangeItem[] | Thenable<FileChangeItem[]> {
 		if (element) {
-			return new Promise<FileChangeItem[]>((resolve, rxeject) => {
-				request({
-					followAllRedirects: true,
-					url: element.octoPRItem.diffUrl
-				}, async (error, response, body) => {
-					// map comments to FileChangeItem
-					// registerCommentProvider
-					const rawComments = await element.octoPRItem.reviewComments.fetch();
-					const comments: Comment[] = parseComments(rawComments.items);
-					let richContentChanges = await parseDiff(body, this.repository, element.octoPRItem.base.sha);
-					let fileChanges = richContentChanges.map(change => {
-						let changedItem = new FileChangeItem(change.fileName ? change.fileName : change.filePath, change.status, this.context, change.fileName, this.workspaceRoot);
-						changedItem.filePath = change.filePath;
-						changedItem.parentFilePath = change.originalFilePath;
-						changedItem.populateCommandArgs();
-						return changedItem;
-					});
-					this._fileChanges = fileChanges;
-					this._comments = comments;
-					resolve(fileChanges);
+			return element.otcokit.pullRequests.getFiles({
+				owner: element.owner,
+				repo: element.repo,
+				number: element.prItem.number
+			}).then(async ({ data }) => {
+				const reviewData = await element.otcokit.pullRequests.getComments({
+					owner: element.owner,
+					repo: element.repo,
+					number: element.prItem.number
 				});
+				const rawComments = reviewData.data;
+				const comments: Comment[] = parseComments(rawComments);
+				let richContentChanges = await parseDiff(data, this.repository, element.prItem.base.sha);
+				let fileChanges = richContentChanges.map(change => {
+					let changedItem = new FileChangeItem(element.prItem, change.fileName, change.status, this.context, change.fileName, this.workspaceRoot);
+					changedItem.filePath = change.filePath;
+					changedItem.parentFilePath = change.originalFilePath;
+					changedItem.comments = comments.filter(comment => comment.path === changedItem.fileName);
+					changedItem.populateCommandArgs();
+					return changedItem;
+				});
+				this._fileChanges = fileChanges;
+				this._comments = comments;
+				return fileChanges;
 			});
 		} else {
 			if (this.repository.remotes && this.repository.remotes.length > 0) {
-				let promises = this.repository.remotes.map(remote => this.octo.repos(remote.owner, remote.name).pulls.fetch().then(prs => {
-					return prs.items.map(item => new PullRequest(item));
-				}));
+				let promises = this.repository.remotes.map(remote => {
+					return this.crendentialStore.getOctokit(remote.url).then(octo => {
+						return octo.pullRequests.getAll({
+							owner: remote.owner,
+							repo: remote.name
+						}).then(({ data }) => {
+							return data.map(item => new PullRequest(octo, remote.owner, remote.name, item));
+						});
+					});
+				});
+
 				return Promise.all(promises).then(values => {
 					let prs = [];
 					values.forEach(value => {
@@ -243,7 +265,7 @@ export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileCha
 
 function parseComments(comments: any[]): Comment[] {
 	for (let i = 0; i < comments.length; i++) {
-		let diff_hunk = comments[i].diffHunk;
+		let diff_hunk = comments[i].diff_hunk;
 		let hunk_info = DIFF_HUNK_INFO.exec(diff_hunk);
 		let oriStartLine = Number(hunk_info[1]);
 		let oriLen = Number(hunk_info[3]) | 0;

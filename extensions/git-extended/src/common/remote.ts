@@ -8,7 +8,7 @@
  * https://github.com/desktop/desktop/blob/master/app/src/lib/git/remote.ts
  * ------------------------------------------------------------------------------------------ */
 import { GitProcess } from 'dugite';
-import { IGitRemoteURL } from './models/remote';
+import { Remote } from './models/remote';
 
 export async function getRemotes(
 	path: string
@@ -25,7 +25,7 @@ export async function getRemotes(
 }
 
 /** Parse the remote information from URL. */
-export function parseRemote(url: string): IGitRemoteURL | null {
+export function parseRemote(url: string): Remote | null {
 	// Examples:
 	// https://github.com/octocat/Hello-World.git
 	// https://github.com/octocat/Hello-World.git/
@@ -48,7 +48,7 @@ export function parseRemote(url: string): IGitRemoteURL | null {
 		const owner = result[2];
 		const name = result[3];
 		if (hostname) {
-			return { hostname, owner, name };
+			return new Remote(url, hostname, owner, name);
 		}
 	}
 
