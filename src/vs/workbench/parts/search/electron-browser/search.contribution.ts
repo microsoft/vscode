@@ -256,7 +256,7 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.CopyPathCommandId,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: Constants.FileFocusKey,
+	when: Constants.FileMatchOrFolderMatchFocusKey,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C,
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
@@ -269,7 +269,7 @@ MenuRegistry.appendMenuItem(MenuId.SearchContext, {
 		id: Constants.CopyPathCommandId,
 		title: nls.localize('copyPathLabel', "Copy Path")
 	},
-	when: Constants.FileFocusKey,
+	when: Constants.FileMatchOrFolderMatchFocusKey,
 	group: 'search_2',
 	order: 4
 });

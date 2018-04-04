@@ -26,6 +26,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { getPathLabel } from 'vs/base/common/labels';
+import URI from 'vs/base/common/uri';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	let searchView = getSearchView(viewletService, panelService);
@@ -635,15 +636,14 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 }
 
-function fileMatchUriToString(fileMatch: FileMatch): string {
-	const resource = fileMatch.resource();
+function uriToClipboardString(resource: URI): string {
 	return resource.scheme === Schemas.file ? getPathLabel(resource) : resource.toString();
 }
 
-export const copyPathCommand: ICommandHandler = (accessor, fileMatch: FileMatch) => {
+export const copyPathCommand: ICommandHandler = (accessor, fileMatch: FileMatch | FolderMatch) => {
 	const clipboardService = accessor.get(IClipboardService);
 
-	const text = fileMatchUriToString(fileMatch);
+	const text = uriToClipboardString(fileMatch.resource());
 	clipboardService.writeText(text);
 };
 
@@ -659,7 +659,7 @@ function fileMatchToString(fileMatch: FileMatch, maxMatches: number): { text: st
 		.map(matchText => '  ' + matchText);
 
 	return {
-		text: `${fileMatchUriToString(fileMatch)}${lineDelimiter}${matchTextRows.join(lineDelimiter)}`,
+		text: `${uriToClipboardString(fileMatch.resource())}${lineDelimiter}${matchTextRows.join(lineDelimiter)}`,
 		count: matchTextRows.length
 	};
 }
