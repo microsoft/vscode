@@ -58,6 +58,7 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { OverviewRulerLane } from 'vs/editor/common/model';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
+import { ExtHostComments } from './extHostComments';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -119,6 +120,7 @@ export function createApiFactory(
 	const extHostWindow = rpcProtocol.set(ExtHostContext.ExtHostWindow, new ExtHostWindow(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostExtensionService, extensionService);
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
+	const exthostCommentProviders = rpcProtocol.set(ExtHostContext.ExtHostComments, new ExtHostComments(rpcProtocol, extHostDocuments));
 
 	// Check that no named customers are missing
 	const expected: ProxyIdentifier<any>[] = Object.keys(ExtHostContext).map((key) => ExtHostContext[key]);
@@ -540,6 +542,9 @@ export function createApiFactory(
 			}),
 			registerSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
 				return extHostFileSystem.registerSearchProvider(scheme, provider);
+			}),
+			registerCommentProvider: proposedApiFunction(extension, (provider: vscode.CommentProvider) => {
+				return exthostCommentProviders.registerCommentProvider(provider);
 			})
 		};
 

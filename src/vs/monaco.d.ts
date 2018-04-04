@@ -4998,6 +4998,20 @@ declare namespace monaco.languages {
 		arguments?: any[];
 	}
 
+	export interface CommentThread {
+		readonly range: IRange;
+		readonly comments: Comment[];
+	}
+
+	export interface Comment {
+		readonly body: IMarkdownString;
+		readonly userName: string;
+	}
+
+	export interface CommentProvider {
+		provideComments(model: editor.ITextModel, token: CancellationToken): CommentThread[];
+	}
+
 	export interface ICodeLensSymbol {
 		range: IRange;
 		id?: string;

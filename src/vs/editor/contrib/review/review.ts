@@ -5,6 +5,7 @@
 'use strict';
 
 import 'vs/css!./review';
+import * as modes from 'vs/editor/common/modes';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -13,10 +14,8 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ZoneWidget, IOptions } from '../zoneWidget/zoneWidget';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
-import { IComment, getComments } from 'vs/editor/contrib/review/reviewProvider';
-import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -67,7 +66,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		container.appendChild(this._domNode);
 	}
 
-	display(comments: IComment[], lineNumber: number) {
+	display(comments: modes.Comment[], lineNumber: number) {
 		this.show({ lineNumber: lineNumber, column: 1 }, 2);
 
 		for (let i = 0; i < comments.length; i++) {
@@ -76,21 +75,21 @@ export class ReviewZoneWidget extends ZoneWidget {
 			let header = document.createElement('h4');
 			let author = document.createElement('strong');
 			author.className = 'author';
-			author.innerText = comments[i].user;
-			let time = document.createElement('span');
-			time.className = 'created_at';
-			time.innerText = comments[i].created_at;
+			author.innerText = comments[i].userName;
+			// let time = document.createElement('span');
+			// time.className = 'created_at';
+			// time.innerText = comments[i].created_at;
 			header.appendChild(author);
-			header.appendChild(time);
+			// header.appendChild(time);
 			singleCommentContainer.appendChild(header);
 			let body = document.createElement('div');
 			body.className = 'comment-body';
 			singleCommentContainer.appendChild(body);
-			let md = new MarkdownString(comments[i].body);
+			let md = comments[i].body;
 			body.appendChild(renderMarkdown(md));
 			this._domNode.appendChild(singleCommentContainer);
-			// this._domNode.appendChild(document.createElement('textarea'));
 		}
+		// this._domNode.appendChild(document.createElement('textarea'));
 		this._resizeObserver = new ResizeObserver(entries => {
 			if (entries[0].target === this._domNode) {
 				const lineHeight = this.editor.getConfiguration().lineHeight;
@@ -111,7 +110,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 }
 
 export class ReviewController implements IEditorContribution {
-
 	private globalToDispose: IDisposable[];
 	private localToDispose: IDisposable[];
 	private editor: ICodeEditor;
@@ -119,16 +117,18 @@ export class ReviewController implements IEditorContribution {
 	private _domNode: HTMLElement;
 	private _zoneWidget: ReviewZoneWidget;
 	private _reviewPanelVisible: IContextKey<boolean>;
+	private _commentThreads: modes.CommentThread[];
 
 	constructor(
 		editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.editor = editor;
 		this.globalToDispose = [];
 		this.localToDispose = [];
 		this.decorationIDs = [];
 		this.mouseDownInfo = null;
+		this._commentThreads = [];
 
 		this._reviewPanelVisible = ctxReviewPanelVisible.bindTo(contextKeyService);
 		this._domNode = document.createElement('div');
@@ -161,20 +161,6 @@ export class ReviewController implements IEditorContribution {
 
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
-
-		this.editor.changeDecorations(accessor => {
-			this.decorationIDs = accessor.deltaDecorations(this.decorationIDs, [
-				{
-					range: {
-						startLineNumber: 6,
-						startColumn: 1,
-						endLineNumber: 6,
-						endColumn: 1
-					},
-					options: REVIEWL_DECORATION
-				}
-			]);
-		});
 	}
 
 	private mouseDownInfo: { lineNumber: number, iconClicked: boolean };
@@ -232,8 +218,29 @@ export class ReviewController implements IEditorContribution {
 
 		this._reviewPanelVisible.set(true);
 		this._zoneWidget = new ReviewZoneWidget(this.editor);
-		this._zoneWidget.display(getComments(), lineNumber);
+		this._zoneWidget.display(this.getComments(lineNumber), lineNumber);
 	}
+
+	getComments(line: number): modes.Comment[] {
+		for (let i = 0; i < this._commentThreads.length; i++) {
+			if (this._commentThreads[i].range.startLineNumber === line) {
+				return this._commentThreads[i].comments;
+			}
+		}
+
+		return [];
+	}
+
+	setComments(commentThreads: modes.CommentThread[]): void {
+		this._commentThreads = commentThreads;
+		this.editor.changeDecorations(accessor => {
+			this.decorationIDs = accessor.deltaDecorations(this.decorationIDs, commentThreads.map(thread => ({
+				range: thread.range,
+				options: REVIEWL_DECORATION
+			})));
+		});
+	}
+
 
 	public closeWidget(): void {
 		this._reviewPanelVisible.reset();

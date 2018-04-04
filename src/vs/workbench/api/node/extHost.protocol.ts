@@ -104,6 +104,11 @@ export interface MainThreadCommandsShape extends IDisposable {
 	$getCommands(): Thenable<string[]>;
 }
 
+export interface MainThreadCommentsShape extends IDisposable {
+	$registerCommentProvider(handle: number): void;
+	$unregisterCommentProvider(handle: number): void;
+}
+
 export interface MainThreadConfigurationShape extends IDisposable {
 	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resource: UriComponents): TPromise<void>;
 	$removeConfigurationOption(target: ConfigurationTarget, key: string, resource: UriComponents): TPromise<void>;
@@ -813,10 +818,15 @@ export interface ExtHostProgressShape {
 	$acceptProgressCanceled(handle: number): void;
 }
 
+export interface ExtHostCommentsShape {
+	$providerComments(handle: number, document: UriComponents): TPromise<modes.CommentThread[]>;
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
 	MainThreadCommands: <ProxyIdentifier<MainThreadCommandsShape>>createMainId<MainThreadCommandsShape>('MainThreadCommands'),
+	MainThreadComments: createMainId<MainThreadCommentsShape>('MainThreadComments'),
 	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration'),
 	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService'),
 	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations'),
@@ -871,5 +881,6 @@ export const ExtHostContext = {
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
 	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
 	ExtHostWebviews: createExtId<ExtHostWebviewsShape>('ExtHostWebviews'),
-	ExtHostProgress: createMainId<ExtHostProgressShape>('ExtHostProgress')
+	ExtHostProgress: createMainId<ExtHostProgressShape>('ExtHostProgress'),
+	ExtHostComments: createMainId<ExtHostCommentsShape>('ExtHostComments')
 };

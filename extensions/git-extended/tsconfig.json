@@ -1,0 +1,18 @@
+{
+	"compilerOptions": {
+		"module": "commonjs",
+		"target": "es6",
+		"outDir": "out",
+		"noUnusedLocals": true,
+		"lib": [
+			"es6"
+		],
+		"sourceMap": true,
+		"rootDir": "./src",
+		"jsx": "react"
+	},
+	"exclude": [
+		"node_modules",
+		".vscode-test"
+	]
+}

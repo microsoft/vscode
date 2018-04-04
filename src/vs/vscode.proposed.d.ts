@@ -723,4 +723,26 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	interface CommentThread {
+		range: Range;
+		comments: Comment[];
+	}
+
+	interface Comment {
+		body: MarkdownString;
+		userName: string;
+	}
+
+	/**
+	 * TODO: force update event?
+	 * TODO: resolve step?
+	 */
+	interface CommentProvider {
+		provideComments(document: TextDocument, token: CancellationToken): Promise<CommentThread[]>;
+	}
+
+	namespace workspace {
+		export function registerCommentProvider(provider: CommentProvider): Disposable;
+	}
 }
