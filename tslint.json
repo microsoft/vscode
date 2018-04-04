@@ -431,6 +431,13 @@
 				]
 			},
 			{
+				"target": "**/test/smoke2/**",
+				"restrictions": [
+					"**/test/smoke2/**",
+					"*"
+				]
+			},
+			{
 				"target": "{**/**.test.ts,**/test/**}",
 				"restrictions": "{**/vs/**,assert,sinon,crypto}"
 			},

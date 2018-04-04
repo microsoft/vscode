@@ -12,6 +12,7 @@ import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 export const ID = 'driverService';
 export const IDriver = createDecorator<IDriver>(ID);
 
+//*START
 export interface IWindow {
 	id: string;
 }
@@ -20,7 +21,7 @@ export interface IDriver {
 	_serviceBrand: any;
 	getWindows(): TPromise<IWindow[]>;
 }
-
+//*END
 
 export interface IDriverChannel extends IChannel {
 	call(command: 'getWindows'): TPromise<IWindow[]>;

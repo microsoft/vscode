@@ -170,7 +170,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
 	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }
 
-	get driverHandle(): string { return this._args['driver-handle']; }
+	get driverHandle(): string { return this._args['driver']; }
 
 	constructor(private _args: ParsedArgs, private _execPath: string) {
 		if (!process.env['VSCODE_LOGS']) {

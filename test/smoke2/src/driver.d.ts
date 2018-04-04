@@ -3,8 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const { bootstrap } = require('./bootstrap-amd');
+export interface IWindow {
+	id: string;
+}
 
-bootstrap('vs/code/node/driver', ({ connect }) => {
-	console.log(connect);
-});
+export interface IDriver {
+	_serviceBrand: any;
+	getWindows(): Promise<IWindow[]>;
+}
+
+export interface IDisposable {
+	dispose(): void;
+}
+
+export function connect(outPath: string, handle: string): Promise<{ client: IDisposable, driver: IDriver }>;

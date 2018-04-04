@@ -62,6 +62,7 @@ import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { join } from 'path';
 import { copy } from 'vs/base/node/pfs';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
+import { serve, Driver } from './driver';
 
 export class CodeApplication {
 
@@ -290,6 +291,18 @@ export class CodeApplication {
 
 				// Services
 				const appInstantiationService = this.initServices(machineId);
+
+				// Create driver
+				if (this.environmentService.driverHandle) {
+					const driver = appInstantiationService.createInstance(Driver);
+
+					serve(this.environmentService.driverHandle, driver).then(server => {
+						this.logService.info('Driver started at:', this.environmentService.driverHandle);
+						this.toDispose.push(server);
+					}, err => {
+						this.logService.error('Failed to start driver running at:', this.environmentService.driverHandle);
+					});
+				}
 
 				// Setup Auth Handler
 				const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
