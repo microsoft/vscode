@@ -17,7 +17,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import pkg from 'vs/platform/node/package';
 import product, { ISurveyData } from 'vs/platform/node/product';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { Severity, INotificationService, PromptOption } from 'vs/platform/notification/common/notification';
+import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 
 class LanguageSurvey {
 
@@ -87,30 +87,36 @@ class LanguageSurvey {
 		// __GDPR__TODO__ Need to move away from dynamic event names as those cannot be registered statically
 		telemetryService.publicLog(`${data.surveyId}.survey/userAsked`);
 
-		const choices: PromptOption[] = [nls.localize('takeShortSurvey', "Take Short Survey"), nls.localize('remindLater', "Remind Me later"), { label: nls.localize('neverAgain', "Don't Show Again") }];
-		notificationService.prompt(Severity.Info, nls.localize('helpUs', "Help us improve our support for {0}", data.languageId), choices).then(choice => {
-			switch (choice) {
-				case 0 /* Take Survey */:
+		notificationService.prompt(
+			Severity.Info,
+			nls.localize('helpUs', "Help us improve our support for {0}", data.languageId),
+			[{
+				label: nls.localize('takeShortSurvey', "Take Short Survey"),
+				run: () => {
 					telemetryService.publicLog(`${data.surveyId}.survey/takeShortSurvey`);
 					telemetryService.getTelemetryInfo().then(info => {
 						window.open(`${data.surveyUrl}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(pkg.version)}&m=${encodeURIComponent(info.machineId)}`);
 						storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
 						storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
 					});
-					break;
-				case 1 /* Remind Later */:
+				}
+			}, {
+				label: nls.localize('remindLater', "Remind Me later"),
+				run: () => {
 					telemetryService.publicLog(`${data.surveyId}.survey/remindMeLater`);
 					storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.GLOBAL);
-					break;
-				case 2 /* Never show again */:
+				}
+			}, {
+				label: nls.localize('neverAgain', "Don't Show Again"),
+				isSecondary: true,
+				run: () => {
 					telemetryService.publicLog(`${data.surveyId}.survey/dontShowAgain`);
 					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
 					storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
-					break;
-			}
-		});
+				}
+			}]
+		);
 	}
-
 }
 
 class LanguageSurveysContribution implements IWorkbenchContribution {

@@ -192,19 +192,19 @@ export class ConfigurationEditingService {
 			: operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY ? nls.localize('openLaunchConfiguration', "Open Launch Configuration")
 				: null;
 		if (openStandAloneConfigurationActionLabel) {
-			this.notificationService.prompt(Severity.Error, error.message, [openStandAloneConfigurationActionLabel])
-				.then(option => {
-					if (option === 0) {
-						this.openFile(operation.resource);
-					}
-				});
+			this.notificationService.prompt(Severity.Error, error.message,
+				[{
+					label: openStandAloneConfigurationActionLabel,
+					run: () => this.openFile(operation.resource)
+				}]
+			);
 		} else {
-			this.notificationService.prompt(Severity.Error, error.message, [nls.localize('open', "Open Settings")])
-				.then(option => {
-					if (option === 0) {
-						this.openSettings(operation);
-					}
-				});
+			this.notificationService.prompt(Severity.Error, error.message,
+				[{
+					label: nls.localize('open', "Open Settings"),
+					run: () => this.openSettings(operation)
+				}]
+			);
 		}
 	}
 
@@ -213,30 +213,30 @@ export class ConfigurationEditingService {
 			: operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY ? nls.localize('openLaunchConfiguration', "Open Launch Configuration")
 				: null;
 		if (openStandAloneConfigurationActionLabel) {
-			this.notificationService.prompt(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save and Retry"), openStandAloneConfigurationActionLabel])
-				.then(option => {
-					switch (option) {
-						case 0 /* Save & Retry */:
-							const key = operation.key ? `${operation.workspaceStandAloneConfigurationKey}.${operation.key}` : operation.workspaceStandAloneConfigurationKey;
-							this.writeConfiguration(operation.target, { key, value: operation.value }, <ConfigurationEditingOptions>{ force: true, scopes });
-							break;
-						case 1 /* Open Config */:
-							this.openFile(operation.resource);
-							break;
+			this.notificationService.prompt(Severity.Error, error.message,
+				[{
+					label: nls.localize('saveAndRetry', "Save and Retry"),
+					run: () => {
+						const key = operation.key ? `${operation.workspaceStandAloneConfigurationKey}.${operation.key}` : operation.workspaceStandAloneConfigurationKey;
+						this.writeConfiguration(operation.target, { key, value: operation.value }, <ConfigurationEditingOptions>{ force: true, scopes });
 					}
-				});
+				},
+				{
+					label: openStandAloneConfigurationActionLabel,
+					run: () => this.openFile(operation.resource)
+				}]
+			);
 		} else {
-			this.notificationService.prompt(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save and Retry"), nls.localize('open', "Open Settings")])
-				.then(option => {
-					switch (option) {
-						case 0 /* Save and Retry */:
-							this.writeConfiguration(operation.target, { key: operation.key, value: operation.value }, <ConfigurationEditingOptions>{ force: true, scopes });
-							break;
-						case 1 /* Open Settings */:
-							this.openSettings(operation);
-							break;
-					}
-				});
+			this.notificationService.prompt(Severity.Error, error.message,
+				[{
+					label: nls.localize('saveAndRetry', "Save and Retry"),
+					run: () => this.writeConfiguration(operation.target, { key: operation.key, value: operation.value }, <ConfigurationEditingOptions>{ force: true, scopes })
+				},
+				{
+					label: nls.localize('open', "Open Settings"),
+					run: () => this.openSettings(operation)
+				}]
+			);
 		}
 	}
 

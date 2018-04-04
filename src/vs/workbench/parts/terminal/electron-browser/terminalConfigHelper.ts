@@ -163,18 +163,16 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			} else { // if (shellArgsConfigValue.workspace !== undefined)
 				changeString = `shellArgs: ${argsString}`;
 			}
-			const message = nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow {0} (defined as a workspace setting) to be launched in the terminal?", changeString);
-			const options = [nls.localize('allow', "Allow"), nls.localize('disallow', "Disallow")];
-			this._notificationService.prompt(Severity.Info, message, options).then(choice => {
-				switch (choice) {
-					case 0:  /* Allow */
-						this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE);
-						break;
-					case 1:  /* Disallow */
-						this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE);
-						break;
-				}
-			});
+			this._notificationService.prompt(Severity.Info, nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow {0} (defined as a workspace setting) to be launched in the terminal?", changeString),
+				[{
+					label: nls.localize('allow', "Allow"),
+					run: () => this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE)
+				},
+				{
+					label: nls.localize('disallow', "Disallow"),
+					run: () => this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE)
+				}]
+			);
 		}
 
 		shell.executable = (isWorkspaceShellAllowed ? shellConfigValue.value : shellConfigValue.user) || shellConfigValue.default;

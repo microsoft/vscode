@@ -10,7 +10,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { Throttler } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
-import { Event, once } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { ActionItem, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -49,21 +49,23 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 
 const promptDownloadManually = (extension: IExtension, message: string, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
-	notificationService.prompt(Severity.Error, message, [localize('download', "Download Manually")]).done(choice => {
-		if (choice === 0) {
-			openerService.open(URI.parse(extension.downloadUrl)).then(() => {
-				const action = instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL);
-				const handle = notificationService.notify({
-					severity: Severity.Info,
-					message: localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', extension.id),
-					actions: {
-						primary: [action]
+	notificationService.prompt(Severity.Error, message, [{
+		label: localize('download', "Download Manually"),
+		run: () => openerService.open(URI.parse(extension.downloadUrl)).then(() => {
+			notificationService.prompt(
+				Severity.Info,
+				localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', extension.id),
+				[{
+					label: InstallVSIXAction.LABEL,
+					run: () => {
+						const action = instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL);
+						action.run();
+						action.dispose();
 					}
-				});
-				once(handle.onDidDispose)(() => action.dispose());
-			});
-		}
-	});
+				}]
+			);
+		})
+	}]);
 };
 
 export class InstallAction extends Action {
@@ -1882,13 +1884,13 @@ export class InstallVSIXAction extends Action {
 		label = InstallVSIXAction.LABEL,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@INotificationService private notificationService: INotificationService,
-		@IWindowService private windowsService: IWindowService
+		@IWindowService private windowService: IWindowService
 	) {
 		super(id, label, 'extension-action install-vsix', true);
 	}
 
 	run(): TPromise<any> {
-		return this.windowsService.showOpenDialog({
+		return this.windowService.showOpenDialog({
 			title: localize('installFromVSIX', "Install from VSIX"),
 			filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
 			properties: ['openFile'],
@@ -1899,18 +1901,18 @@ export class InstallVSIXAction extends Action {
 			}
 
 			return TPromise.join(result.map(vsix => this.extensionsWorkbenchService.install(vsix))).then(() => {
-				return this.notificationService.prompt(Severity.Info, localize('InstallVSIXAction.success', "Successfully installed the extension. Reload to enable it."), [localize('InstallVSIXAction.reloadNow', "Reload Now")]).then(choice => {
-					if (choice === 0) {
-						return this.windowsService.reloadWindow();
-					}
-
-					return TPromise.as(undefined);
-				});
+				this.notificationService.prompt(
+					Severity.Info,
+					localize('InstallVSIXAction.success', "Successfully installed the extension. Reload to enable it."),
+					[{
+						label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
+						run: () => this.windowService.reloadWindow()
+					}]
+				);
 			});
 		});
 	}
 }
-
 
 export class ReinstallAction extends Action {
 
@@ -1955,11 +1957,14 @@ export class ReinstallAction extends Action {
 	private reinstallExtension(extension: IExtension): TPromise<void> {
 		return this.extensionsWorkbenchService.reinstall(extension)
 			.then(() => {
-				this.notificationService.prompt(Severity.Info, localize('ReinstallAction.success', "Successfully reinstalled the extension."), [localize('ReinstallAction.reloadNow', "Reload Now")]).done(choice => {
-					if (choice === 0) {
-						this.windowService.reloadWindow();
-					}
-				});
+				this.notificationService.prompt(
+					Severity.Info,
+					localize('ReinstallAction.success', "Successfully reinstalled the extension."),
+					[{
+						label: localize('ReinstallAction.reloadNow', "Reload Now"),
+						run: () => this.windowService.reloadWindow()
+					}]
+				);
 			}, error => this.notificationService.error(error));
 	}
 }

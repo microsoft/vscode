@@ -535,13 +535,14 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 
 				if (maliciousExtensions.length) {
 					return TPromise.join(maliciousExtensions.map(e => this.extensionsManagementService.uninstall(e, true).then(() => {
-						return this.notificationService.prompt(Severity.Warning, localize('malicious warning', "We have uninstalled '{0}' which was reported to be problematic.", getGalleryExtensionIdFromLocal(e)), [localize('reloadNow', "Reload Now")]).then(choice => {
-							if (choice === 0) {
-								return this.windowService.reloadWindow();
-							}
-
-							return TPromise.as(undefined);
-						});
+						this.notificationService.prompt(
+							Severity.Warning,
+							localize('malicious warning', "We have uninstalled '{0}' which was reported to be problematic.", getGalleryExtensionIdFromLocal(e)),
+							[{
+								label: localize('reloadNow', "Reload Now"),
+								run: () => this.windowService.reloadWindow()
+							}]
+						);
 					})));
 				} else {
 					return TPromise.as(null);

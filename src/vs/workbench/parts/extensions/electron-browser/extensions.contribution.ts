@@ -34,7 +34,7 @@ import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonCo
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeymapExtensions, BetterMergeDisabled } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
+import { KeymapExtensions } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
 import { adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { GalleryExtensionsHandler, ExtensionsHandler } from 'vs/workbench/parts/extensions/browser/extensionsQuickOpen';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
@@ -54,7 +54,6 @@ workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Ru
 workbenchRegistry.registerWorkbenchContribution(MaliciousExtensionChecker, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(ConfigureRecommendedExtensionsCommandsContributor, LifecyclePhase.Eventually);
 workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase.Running);
-workbenchRegistry.registerWorkbenchContribution(BetterMergeDisabled, LifecyclePhase.Running);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel(ExtensionsChannelId, ExtensionsLabel);

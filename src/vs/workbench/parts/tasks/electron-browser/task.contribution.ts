@@ -498,14 +498,17 @@ class TaskService implements ITaskService {
 			let folderSetup = this.computeWorkspaceFolderSetup();
 			if (this.executionEngine !== folderSetup[2]) {
 				if (this._taskSystem && this._taskSystem.getActiveTasks().length > 0) {
-					this.notificationService.prompt(Severity.Info, nls.localize(
-						'TaskSystem.noHotSwap',
-						'Changing the task execution engine with an active task running requires to reload the Window'
-					), [nls.localize('reloadWindow', "Reload Window")]).then(choice => {
-						if (choice === 0) {
-							this._windowService.reloadWindow();
-						}
-					});
+					this.notificationService.prompt(
+						Severity.Info,
+						nls.localize(
+							'TaskSystem.noHotSwap',
+							'Changing the task execution engine with an active task running requires to reload the Window'
+						),
+						[{
+							label: nls.localize('reloadWindow', "Reload Window"),
+							run: () => this._windowService.reloadWindow()
+						}]
+					);
 					return;
 				} else {
 					this.disposeTaskSystemListeners();
@@ -1850,24 +1853,18 @@ class TaskService implements ITaskService {
 			return TPromise.as(undefined);
 		}
 
-		const action = new Action('dontShowAgain', nls.localize('TaskService.notAgain', 'Don\'t Show Again'), null, true, (notification: IDisposable) => {
-			this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
-			this.__showIgnoreMessage = false;
-
-			// Hide notification
-			notification.dispose();
-
-			return TPromise.as(true);
-		});
-
-		const handle = this.notificationService.notify({
-			severity: Severity.Info,
-			message: nls.localize('TaskService.ignoredFolder', 'The following workspace folders are ignored since they use task version 0.1.0: {0}', this.ignoredWorkspaceFolders.map(f => f.name).join(', ')),
-			actions: {
-				secondary: [action]
-			}
-		});
-		once(handle.onDidDispose)(() => action.dispose());
+		this.notificationService.prompt(
+			Severity.Info,
+			nls.localize('TaskService.ignoredFolder', 'The following workspace folders are ignored since they use task version 0.1.0: {0}', this.ignoredWorkspaceFolders.map(f => f.name).join(', ')),
+			[{
+				label: nls.localize('TaskService.notAgain', 'Don\'t Show Again'),
+				isSecondary: true,
+				run: () => {
+					this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
+					this.__showIgnoreMessage = false;
+				}
+			}]
+		);
 
 		return TPromise.as(undefined);
 	}

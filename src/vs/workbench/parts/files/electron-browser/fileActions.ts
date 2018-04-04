@@ -103,11 +103,12 @@ export class BaseErrorReportingAction extends Action {
 	}
 
 	protected onErrorWithRetry(error: any, retry: () => TPromise<any>): void {
-		this._notificationService.prompt(Severity.Error, toErrorMessage(error, false), [nls.localize('retry', "Retry")]).then(choice => {
-			if (choice === 0) {
-				retry();
-			}
-		});
+		this._notificationService.prompt(Severity.Error, toErrorMessage(error, false),
+			[{
+				label: nls.localize('retry', "Retry"),
+				run: () => retry()
+			}]
+		);
 	}
 }
 

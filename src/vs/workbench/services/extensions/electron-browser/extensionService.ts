@@ -386,16 +386,16 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			message = nls.localize('extensionHostProcess.unresponsiveCrash', "Extension host terminated because it was not responsive.");
 		}
 
-		this._notificationService.prompt(Severity.Error, message, [nls.localize('devTools', "Developer Tools"), nls.localize('restart', "Restart Extension Host")]).then(choice => {
-			switch (choice) {
-				case 0 /* Open Dev Tools */:
-					this._windowService.openDevTools();
-					break;
-				case 1 /* Restart Extension Host */:
-					this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents));
-					break;
-			}
-		});
+		this._notificationService.prompt(Severity.Error, message,
+			[{
+				label: nls.localize('devTools', "Open Developer Tools"),
+				run: () => this._windowService.openDevTools()
+			},
+			{
+				label: nls.localize('restart', "Restart Extension Host"),
+				run: () => this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents))
+			}]
+		);
 	}
 
 	// ---- begin IExtensionService
@@ -638,11 +638,14 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			console.error(err);
 		}
 
-		notificationService.prompt(Severity.Error, nls.localize('extensionCache.invalid', "Extensions have been modified on disk. Please reload the window."), [nls.localize('reloadWindow', "Reload Window")]).then(choice => {
-			if (choice === 0) {
-				windowService.reloadWindow();
-			}
-		});
+		notificationService.prompt(
+			Severity.Error,
+			nls.localize('extensionCache.invalid', "Extensions have been modified on disk. Please reload the window."),
+			[{
+				label: nls.localize('reloadWindow', "Reload Window"),
+				run: () => windowService.reloadWindow()
+			}]
+		);
 	}
 
 	private static async _readExtensionCache(environmentService: IEnvironmentService, cacheKey: string): TPromise<IExtensionCacheData> {

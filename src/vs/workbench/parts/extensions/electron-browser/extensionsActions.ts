@@ -59,13 +59,13 @@ export class InstallVSIXAction extends Action {
 		label = InstallVSIXAction.LABEL,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@INotificationService private notificationService: INotificationService,
-		@IWindowService private windowsService: IWindowService
+		@IWindowService private windowService: IWindowService
 	) {
 		super(id, label, 'extension-action install-vsix', true);
 	}
 
 	run(): TPromise<any> {
-		return this.windowsService.showOpenDialog({
+		return this.windowService.showOpenDialog({
 			title: localize('installFromVSIX', "Install from VSIX"),
 			filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
 			properties: ['openFile'],
@@ -76,13 +76,14 @@ export class InstallVSIXAction extends Action {
 			}
 
 			return TPromise.join(result.map(vsix => this.extensionsWorkbenchService.install(vsix))).then(() => {
-				return this.notificationService.prompt(Severity.Info, localize('InstallVSIXAction.success', "Successfully installed the extension. Reload to enable it."), [localize('InstallVSIXAction.reloadNow', "Reload Now")]).then(choice => {
-					if (choice === 0) {
-						return this.windowsService.reloadWindow();
-					}
-
-					return TPromise.as(undefined);
-				});
+				this.notificationService.prompt(
+					Severity.Info,
+					localize('InstallVSIXAction.success', "Successfully installed the extension. Reload to enable it."),
+					[{
+						label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
+						run: () => this.windowService.reloadWindow()
+					}]
+				);
 			});
 		});
 	}
@@ -131,11 +132,14 @@ export class ReinstallAction extends Action {
 	private reinstallExtension(extension: IExtension): TPromise<void> {
 		return this.extensionsWorkbenchService.reinstall(extension)
 			.then(() => {
-				this.notificationService.prompt(Severity.Info, localize('ReinstallAction.success', "Successfully reinstalled the extension."), [localize('ReinstallAction.reloadNow', "Reload Now")]).done(choice => {
-					if (choice === 0) {
-						this.windowService.reloadWindow();
-					}
-				});
+				this.notificationService.prompt(
+					Severity.Info,
+					localize('ReinstallAction.success', "Successfully reinstalled the extension."),
+					[{
+						label: localize('ReinstallAction.reloadNow', "Reload Now"),
+						run: () => this.windowService.reloadWindow()
+					}]
+				);
 			}, error => this.notificationService.error(error));
 	}
 }

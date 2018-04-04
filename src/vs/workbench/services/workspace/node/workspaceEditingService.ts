@@ -155,31 +155,33 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	private handleWorkspaceConfigurationEditingError(error: JSONEditingError): TPromise<void> {
 		switch (error.code) {
 			case JSONEditingErrorCode.ERROR_INVALID_FILE:
-				return this.onInvalidWorkspaceConfigurationFileError();
+				this.onInvalidWorkspaceConfigurationFileError();
+				return TPromise.as(void 0);
 			case JSONEditingErrorCode.ERROR_FILE_DIRTY:
-				return this.onWorkspaceConfigurationFileDirtyError();
+				this.onWorkspaceConfigurationFileDirtyError();
+				return TPromise.as(void 0);
 		}
 		this.notificationService.error(error.message);
 		return TPromise.as(void 0);
 	}
 
-	private onInvalidWorkspaceConfigurationFileError(): TPromise<void> {
+	private onInvalidWorkspaceConfigurationFileError(): void {
 		const message = nls.localize('errorInvalidTaskConfiguration', "Unable to write into workspace configuration file. Please open the file to correct errors/warnings in it and try again.");
-		return this.askToOpenWorkspaceConfigurationFile(message);
+		this.askToOpenWorkspaceConfigurationFile(message);
 	}
 
-	private onWorkspaceConfigurationFileDirtyError(): TPromise<void> {
+	private onWorkspaceConfigurationFileDirtyError(): void {
 		const message = nls.localize('errorWorkspaceConfigurationFileDirty', "Unable to write into workspace configuration file because the file is dirty. Please save it and try again.");
-		return this.askToOpenWorkspaceConfigurationFile(message);
+		this.askToOpenWorkspaceConfigurationFile(message);
 	}
 
-	private askToOpenWorkspaceConfigurationFile(message: string): TPromise<void> {
-		return this.notificationService.prompt(Severity.Error, message, [nls.localize('openWorkspaceConfigurationFile', "Open Workspace Configuration")])
-			.then(option => {
-				if (option === 0) {
-					this.commandService.executeCommand('workbench.action.openWorkspaceConfigFile');
-				}
-			});
+	private askToOpenWorkspaceConfigurationFile(message: string): void {
+		this.notificationService.prompt(Severity.Error, message,
+			[{
+				label: nls.localize('openWorkspaceConfigurationFile', "Open Workspace Configuration"),
+				run: () => this.commandService.executeCommand('workbench.action.openWorkspaceConfigFile')
+			}]
+		);
 	}
 
 	private doEnterWorkspace(mainSidePromise: () => TPromise<IEnterWorkspaceResult>): TPromise<void> {

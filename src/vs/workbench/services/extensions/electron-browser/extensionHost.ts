@@ -235,11 +235,12 @@ export class ExtensionHostProcessWorker {
 							? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
 							: nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
 
-						this._notificationService.prompt(Severity.Warning, msg, [nls.localize('reloadWindow', "Reload Window")]).then(choice => {
-							if (choice === 0) {
-								this._windowService.reloadWindow();
-							}
-						});
+						this._notificationService.prompt(Severity.Warning, msg,
+							[{
+								label: nls.localize('reloadWindow', "Reload Window"),
+								run: () => this._windowService.reloadWindow()
+							}]
+						);
 					}, 10000);
 				}
 
