@@ -568,7 +568,7 @@ declare module 'vscode' {
 	 */
 	export interface Webview {
 		/**
-		 * The type of the webview, such as `'markdownw.preview'`
+		 * The type of the webview, such as `'markdown.preview'`
 		 */
 		readonly viewType: string;
 
@@ -636,16 +636,57 @@ declare module 'vscode' {
 		dispose(): any;
 	}
 
+	/**
+	 * Save and restore webviews that have been persisted when vscode shuts down.
+	 */
+	interface WebviewSerializer {
+		/**
+		 * Save a webview's `state`.
+		 *
+		 * Called before shutdown. Webview may or may not be visible.
+		 *
+		 * @param webview Webview to serialize.
+		 *
+		 * @returns JSON serializable state blob.
+		 */
+		serializeWebview(webview: Webview): Thenable<any>;
+
+		/**
+		 * Restore a webview from its `state`.
+		 *
+		 * Called when a serialized webview first becomes active.
+		 *
+		 * @param webview Webview to restore. The serializer should take ownership of this webview.
+		 * @param state Persisted state.
+		 *
+		 * @return Was deserialization successful?
+		 */
+		deserializeWebview(webview: Webview, state: any): Thenable<boolean>;
+	}
+
 	namespace window {
 		/**
 		 * Create and show a new webview.
 		 *
-		 * @param viewType Identifier the type of the webview.
+		 * @param viewType Identifies the type of the webview.
 		 * @param title Title of the webview.
 		 * @param column Editor column to show the new webview in.
 		 * @param options Content settings for the webview.
 		 */
 		export function createWebview(viewType: string, title: string, column: ViewColumn, options: WebviewOptions): Webview;
+
+		/**
+		 * Registers a webview serializer.
+		 *
+		 * Extensions that support reviving should have an `"onView:viewType"` activation method and
+		 * make sure that `registerWebviewSerializer` is called during activation.
+		 *
+		 * Only a single serializer may be registered at a time for a given `viewType`.
+		 *
+		 * @param viewType Type of the webview that can be serialized.
+		 * @param reviver Webview serializer.
+		 */
+		export function registerWebviewSerializer(viewType: string, reviver: WebviewSerializer): Disposable;
 	}
 
 	//#endregion
