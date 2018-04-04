@@ -9,7 +9,6 @@ import * as modes from 'vs/editor/common/modes';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -182,13 +181,6 @@ export class ReviewController implements IEditorContribution {
 		let iconClicked = false;
 		switch (e.target.type) {
 			case MouseTargetType.GUTTER_LINE_DECORATIONS:
-				// const data = e.target.detail as IMarginData;
-				// const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth;
-
-				// if (gutterOffsetX <= 10) {
-				// 	return;
-				// }
-
 				iconClicked = true;
 				break;
 			default:
