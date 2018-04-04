@@ -166,9 +166,11 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 		return TPromise.join(reviveResponses).then(results => {
 			for (const result of results) {
-				const view = this._webviews.get(result.handle);
-				if (view) {
-					view.state.state = result.state;
+				if (result.state) {
+					const view = this._webviews.get(result.handle);
+					if (view) {
+						view.state.state = result.state;
+					}
 				}
 			}
 			return false; // Don't veto shutdown
@@ -209,7 +211,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		}
 	}
 
-	private onDidClickLink(link: URI, options: vscode.WebviewOptions): void {
+	private onDidClickLink(link: URI, options: WebviewInputOptions): void {
 		if (!link) {
 			return;
 		}

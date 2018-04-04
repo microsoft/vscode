@@ -88,12 +88,10 @@ export class MarkdownPreviewManager implements vscode.WebviewSerializer {
 		}
 	}
 
-	public deserializeWebview(
+	public async deserializeWebview(
 		webview: vscode.Webview,
 		state: any
-	): void {
-		console.log('It\'s close to midnight...');
-
+	): Promise<boolean> {
 		const preview = MarkdownPreview.revive(
 			webview,
 			state,
@@ -104,13 +102,14 @@ export class MarkdownPreviewManager implements vscode.WebviewSerializer {
 
 		this.registerPreview(preview);
 		preview.refresh();
+		return true;
 	}
 
-	public serializeWebview(
+	public async serializeWebview(
 		webview: vscode.Webview,
-	): any {
+	): Promise<any> {
 		const preview = this.previews.find(preview => preview.isWebviewOf(webview));
-		return preview ? preview.state : {};
+		return preview ? preview.state : undefined;
 	}
 
 	private getExistingPreview(

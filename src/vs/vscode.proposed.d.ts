@@ -649,7 +649,7 @@ declare module 'vscode' {
 		 *
 		 * @returns JSON serializable state blob.
 		 */
-		serializeWebview(webview: Webview): any;
+		serializeWebview(webview: Webview): Thenable<any>;
 
 		/**
 		 * Restore a webview from its `state`.
@@ -658,8 +658,10 @@ declare module 'vscode' {
 		 *
 		 * @param webview Webview to restore. The serializer should take ownership of this webview.
 		 * @param state Persisted state.
+		 *
+		 * @return Was deserialization successful?
 		 */
-		deserializeWebview(webview: Webview, state: any): void;
+		deserializeWebview(webview: Webview, state: any): Thenable<boolean>;
 	}
 
 	namespace window {
