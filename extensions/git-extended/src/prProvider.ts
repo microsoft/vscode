@@ -11,6 +11,9 @@ import { Repository } from './common//models/repository';
 import { Comment } from './common/models/comment';
 import * as _ from 'lodash';
 import { fill } from 'git-credential-node';
+import { Configuration } from './configuration';
+import { Remote } from './common/models/remote';
+
 const Octokit = require('@octokit/rest');
 
 export class PullRequest {
@@ -60,26 +63,38 @@ class ShowDiffCommand {
 
 class CredentialStore {
 	private octokits: { [key: string]: any };
-	constructor() {
+	private configuration: Configuration;
+	constructor(configuration: Configuration) {
+		this.configuration = configuration;
 		this.octokits = [];
 	}
 
-	async getOctokit(url: string) {
-		if (this.octokits[url]) {
-			return this.octokits[url];
+	async getOctokit(remote: Remote) {
+		if (this.octokits[remote.url]) {
+			return this.octokits[remote.url];
 		}
-		const data = await fill(url);
-		this.octokits[url] = Octokit({
-			debug: true
-		});
 
-		this.octokits[url].authenticate({
-			type: 'basic',
-			username: data.username,
-			password: data.password
-		});
+		if (this.configuration.host === remote.hostname && this.configuration.accessToken) {
+			this.octokits[remote.url] = Octokit({});
+			this.octokits[remote.url].authenticate({
+				type: 'token',
+				token: this.configuration.accessToken
+			});
+			return this.octokits[remote.url];
+		} else {
+			const data = await fill(remote.url);
+			if (!data) {
+				return null;
+			}
+			this.octokits[remote.url] = Octokit({});
+			this.octokits[remote.url].authenticate({
+				type: 'basic',
+				username: data.username,
+				password: data.password
+			});
 
-		return this.octokits[url];
+			return this.octokits[remote.url];
+		}
 	}
 }
 
@@ -91,9 +106,13 @@ export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileCha
 	private repository: Repository;
 	private icons: any;
 	private crendentialStore: CredentialStore;
+	private configuration: Configuration;
+	private _onDidChangeTreeData = new vscode.EventEmitter<PullRequest | FileChangeItem | undefined>();
+	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-	constructor() {
-		this.crendentialStore = new CredentialStore();
+	constructor(configuration: Configuration) {
+		this.configuration = configuration;
+		this.crendentialStore = new CredentialStore(configuration);
 	}
 
 	activate(context: vscode.ExtensionContext, workspaceRoot: string, repository: Repository) {
@@ -101,7 +120,7 @@ export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileCha
 		this.workspaceRoot = workspaceRoot;
 		this.repository = repository;
 
-		vscode.window.registerTreeDataProvider<PullRequest | FileChangeItem>('pr', this);
+		this.context.subscriptions.push(vscode.window.registerTreeDataProvider<PullRequest | FileChangeItem>('pr', this));
 		this.icons = {
 			light: {
 				Modified: context.asAbsolutePath(path.join('resources', 'icons', 'light', 'status-modified.svg')),
@@ -125,8 +144,11 @@ export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileCha
 			}
 		};
 
-		vscode.workspace.registerCommentProvider(this);
-		vscode.commands.registerCommand(ShowDiffCommand.id, ShowDiffCommand.run);
+		this.context.subscriptions.push(vscode.workspace.registerCommentProvider(this));
+		this.context.subscriptions.push(vscode.commands.registerCommand(ShowDiffCommand.id, ShowDiffCommand.run));
+		this.context.subscriptions.push(this.configuration.onDidChange(e => {
+			this._onDidChangeTreeData.fire();
+		}));
 	}
 
 	getTreeItem(element: PullRequest | FileChangeItem): vscode.TreeItem {
@@ -200,13 +222,15 @@ export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileCha
 		} else {
 			if (this.repository.remotes && this.repository.remotes.length > 0) {
 				let promises = this.repository.remotes.map(remote => {
-					return this.crendentialStore.getOctokit(remote.url).then(octo => {
-						return octo.pullRequests.getAll({
-							owner: remote.owner,
-							repo: remote.name
-						}).then(({ data }) => {
-							return data.map(item => new PullRequest(octo, remote.owner, remote.name, item));
-						});
+					return this.crendentialStore.getOctokit(remote).then(octo => {
+						if (octo) {
+							return octo.pullRequests.getAll({
+								owner: remote.owner,
+								repo: remote.name
+							}).then(({ data }) => {
+								return data.map(item => new PullRequest(octo, remote.owner, remote.name, item));
+							});
+						}
 					});
 				});
 

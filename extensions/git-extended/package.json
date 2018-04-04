@@ -18,6 +18,33 @@
   ],
   "main": "./out/extension",
   "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "GitHub configuration",
+      "properties": {
+        "github.username": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "The username to use when accessing GitHub. The default is to consult the Git credential manager."
+        },
+        "github.host": {
+          "type": "string",
+          "default": "github.com",
+          "description": "The host name to access GitHub. Change this to your GitHub Enterprise host."
+        },
+        "github.accessToken": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "GitHub access token."
+        }
+      }
+    },
     "views": {
       "explorer": [
         {
