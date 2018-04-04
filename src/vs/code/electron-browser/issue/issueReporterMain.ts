@@ -375,33 +375,32 @@ export class IssueReporter extends Disposable {
 		});
 
 		this.addEventListener('disableExtensions', 'keydown', (e: KeyboardEvent) => {
+			e.stopPropagation();
 			if (e.keyCode === 13 || e.keyCode === 32) {
 				ipcRenderer.send('workbenchCommand', 'workbench.extensions.action.disableAll');
 				ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindow');
 			}
 		});
 
-		// Cmd+Enter or Mac or Ctrl+Enter on other platforms previews issue and closes window
-		if (platform.isMacintosh) {
-			let prevKeyWasCommand = false;
-			document.onkeydown = (e: KeyboardEvent) => {
-				if (prevKeyWasCommand && e.keyCode === 13) {
-					if (this.createIssue()) {
-						remote.getCurrentWindow().close();
-					}
+		document.onkeydown = (e: KeyboardEvent) => {
+			const cmdOrCtrlKey = platform.isMacintosh ? e.metaKey : e.ctrlKey;
+			// Cmd/Ctrl+Enter previews issue and closes window
+			if (cmdOrCtrlKey && e.keyCode === 13) {
+				if (this.createIssue()) {
+					remote.getCurrentWindow().close();
 				}
+			}
 
-				prevKeyWasCommand = e.keyCode === 91 || e.keyCode === 93;
-			};
-		} else {
-			document.onkeydown = (e: KeyboardEvent) => {
-				if (e.ctrlKey && e.keyCode === 13) {
-					if (this.createIssue()) {
-						remote.getCurrentWindow().close();
-					}
-				}
-			};
-		}
+			// Cmd/Ctrl + zooms in
+			if (cmdOrCtrlKey && e.keyCode === 187) {
+				this.applyZoom(webFrame.getZoomLevel() + 1);
+			}
+
+			// Cmd/Ctrl - zooms out
+			if (cmdOrCtrlKey && e.keyCode === 189) {
+				this.applyZoom(webFrame.getZoomLevel() - 1);
+			}
+		};
 	}
 
 	private updatePreviewButtonState() {
