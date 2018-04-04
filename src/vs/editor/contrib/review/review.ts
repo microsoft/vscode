@@ -212,9 +212,12 @@ export class ReviewController implements IEditorContribution {
 			return;
 		}
 
-		this._reviewPanelVisible.set(true);
-		this._zoneWidget = new ReviewZoneWidget(this.editor);
-		this._zoneWidget.display(this.getComments(lineNumber), lineNumber);
+		let comments = this.getComments(lineNumber);
+		if (comments && comments.length) {
+			this._reviewPanelVisible.set(true);
+			this._zoneWidget = new ReviewZoneWidget(this.editor);
+			this._zoneWidget.display(this.getComments(lineNumber), lineNumber);
+		}
 	}
 
 	getComments(line: number): modes.Comment[] {
