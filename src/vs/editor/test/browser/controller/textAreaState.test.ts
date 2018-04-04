@@ -82,7 +82,7 @@ suite('TextAreaState', () => {
 		textArea._value = 'Hello world!';
 		textArea._selectionStart = 1;
 		textArea._selectionEnd = 12;
-		let actual = TextAreaState.EMPTY.readFromTextArea(textArea);
+		let actual = TextAreaState.readFromTextArea(textArea);
 
 		assertTextAreaState(actual, 'Hello world!', 1, 12);
 		assert.equal(actual.value, 'Hello world!');
@@ -132,7 +132,7 @@ suite('TextAreaState', () => {
 		textArea._selectionStart = selectionStart;
 		textArea._selectionEnd = selectionEnd;
 
-		let newState = prevState.readFromTextArea(textArea);
+		let newState = TextAreaState.readFromTextArea(textArea);
 		let actual = TextAreaState.deduceInput(prevState, newState, true);
 
 		assert.equal(actual.text, expected);

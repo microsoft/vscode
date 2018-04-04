@@ -51,7 +51,7 @@ export class TextAreaState {
 		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ']';
 	}
 
-	public readFromTextArea(textArea: ITextAreaWrapper): TextAreaState {
+	public static readFromTextArea(textArea: ITextAreaWrapper): TextAreaState {
 		return new TextAreaState(textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), null, null);
 	}
 

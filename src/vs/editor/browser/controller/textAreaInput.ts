@@ -147,7 +147,7 @@ export class TextAreaInput extends Disposable {
 		 */
 		const deduceInputFromTextAreaValue = (couldBeEmojiInput: boolean): [TextAreaState, ITypeData] => {
 			const oldState = this._textAreaState;
-			const newState = this._textAreaState.readFromTextArea(this._textArea);
+			const newState = TextAreaState.readFromTextArea(this._textArea);
 			return [newState, TextAreaState.deduceInput(oldState, newState, couldBeEmojiInput)];
 		};
 
@@ -223,7 +223,7 @@ export class TextAreaInput extends Disposable {
 			// Due to isEdgeOrIE (where the textarea was not cleared initially) and isChrome (the textarea is not updated correctly when composition ends)
 			// we cannot assume the text at the end consists only of the composited text
 			if (browser.isEdgeOrIE || browser.isChrome) {
-				this._textAreaState = this._textAreaState.readFromTextArea(this._textArea);
+				this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
 			}
 
 			if (!this._isDoingComposition) {
