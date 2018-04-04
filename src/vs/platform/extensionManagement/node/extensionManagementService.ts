@@ -419,7 +419,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	private extractAndRename(id: string, zipPath: string, extractPath: string, renamePath: string): TPromise<void> {
 		return this.extract(id, zipPath, extractPath)
-			.then(() => this.rename(id, extractPath, renamePath, Date.now() + (20 * 1000) /* Retry for 20 seconds */)
+			.then(() => this.rename(id, extractPath, renamePath, Date.now() + (30 * 1000) /* Retry for 30 seconds */)
 				.then(
 					() => this.logService.info('Renamed to', renamePath),
 					e => {
