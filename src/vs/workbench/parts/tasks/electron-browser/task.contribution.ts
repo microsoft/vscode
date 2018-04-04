@@ -17,7 +17,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
 import * as Dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Event, Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as Builder from 'vs/base/browser/builder';
 import * as Types from 'vs/base/common/types';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -1621,15 +1621,6 @@ class TaskService implements ITaskService {
 		};
 	}
 
-	private configureBuildTask(): Action {
-		let run = () => { this.runConfigureTasks(); return TPromise.as(undefined); };
-		return new class extends Action {
-			constructor() {
-				super(ConfigureTaskAction.ID, ConfigureTaskAction.TEXT, undefined, true, run);
-			}
-		};
-	}
-
 	public beforeShutdown(): boolean | TPromise<boolean> {
 		if (!this._taskSystem) {
 			return false;
@@ -1689,15 +1680,6 @@ class TaskService implements ITaskService {
 		});
 	}
 
-	private getConfigureAction(code: TaskErrors): Action {
-		switch (code) {
-			case TaskErrors.NoBuildTask:
-				return this.configureBuildTask();
-			default:
-				return this.configureAction();
-		}
-	}
-
 	private handleError(err: any): void {
 		let showOutput = true;
 		if (err instanceof TaskError) {
@@ -1705,14 +1687,16 @@ class TaskService implements ITaskService {
 			let needsConfig = buildError.code === TaskErrors.NotConfigured || buildError.code === TaskErrors.NoBuildTask || buildError.code === TaskErrors.NoTestTask;
 			let needsTerminate = buildError.code === TaskErrors.RunningTask;
 			if (needsConfig || needsTerminate) {
-				let action: Action = needsConfig
-					? this.getConfigureAction(buildError.code)
-					: new Action(
-						'workbench.action.tasks.terminate',
-						nls.localize('TerminateAction.label', "Terminate Task"),
-						undefined, true, () => { this.runTerminateCommand(); return TPromise.wrap<void>(undefined); });
-				let handle = this.notificationService.notify({ severity: buildError.severity, message: buildError.message, actions: { primary: [action] } });
-				once(handle.onDidDispose)(() => action.dispose());
+				this.notificationService.prompt(buildError.severity, buildError.message, [{
+					label: needsConfig ? ConfigureTaskAction.TEXT : nls.localize('TerminateAction.label', "Terminate Task"),
+					run: () => {
+						if (needsConfig) {
+							this.runConfigureTasks();
+						} else {
+							this.runTerminateCommand();
+						}
+					}
+				}]);
 			} else {
 				this.notificationService.notify({ severity: buildError.severity, message: buildError.message });
 			}
