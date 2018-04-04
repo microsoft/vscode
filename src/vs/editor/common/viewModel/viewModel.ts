@@ -15,6 +15,7 @@ import { Scrollable, IScrollPosition } from 'vs/base/common/scrollable';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { ITheme } from 'vs/platform/theme/common/themeService';
+import * as strings from 'vs/base/common/strings';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: number;
@@ -208,13 +209,13 @@ export class ViewLineRenderingData {
 	 */
 	public readonly content: string;
 	/**
-	 * If set to false, it is guaranteed that `content` contains only LTR chars.
+	 * Describes if `content` contains RTL characters.
 	 */
-	public readonly mightContainRTL: boolean;
+	public readonly containsRTL: boolean;
 	/**
-	 * If set to false, it is guaranteed that `content` contains only basic ASCII chars.
+	 * Describes if `content` contains non basic ASCII chars.
 	 */
-	public readonly mightContainNonBasicASCII: boolean;
+	public readonly isBasicASCII: boolean;
 	/**
 	 * The tokens at this view line.
 	 */
@@ -241,8 +242,17 @@ export class ViewLineRenderingData {
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
 		this.content = content;
-		this.mightContainRTL = mightContainRTL;
-		this.mightContainNonBasicASCII = mightContainNonBasicASCII;
+
+		this.isBasicASCII = true;
+		if (mightContainNonBasicASCII) {
+			this.isBasicASCII = strings.isBasicASCII(this.content);
+		}
+
+		this.containsRTL = false;
+		if (!this.isBasicASCII && mightContainRTL) {
+			this.containsRTL = strings.containsRTL(this.content);
+		}
+
 		this.tokens = tokens;
 		this.inlineDecorations = inlineDecorations;
 		this.tabSize = tabSize;

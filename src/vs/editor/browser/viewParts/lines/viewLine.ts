@@ -6,7 +6,6 @@
 
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
@@ -192,7 +191,7 @@ export class ViewLine implements IVisibleLine {
 		let renderLineInput = new RenderLineInput(
 			options.useMonospaceOptimizations,
 			lineData.content,
-			lineData.mightContainRTL,
+			lineData.containsRTL,
 			lineData.minColumn - 1,
 			lineData.tokens,
 			actualInlineDecorations,
@@ -222,13 +221,8 @@ export class ViewLine implements IVisibleLine {
 		sb.appendASCIIString('</div>');
 
 		let renderedViewLine: IRenderedViewLine = null;
-		if (canUseFastRenderedViewLine && options.useMonospaceOptimizations && !output.containsForeignElements) {
-			let isRegularASCII = true;
-			if (lineData.mightContainNonBasicASCII) {
-				isRegularASCII = strings.isBasicASCII(lineData.content);
-			}
-
-			if (isRegularASCII && lineData.content.length < 1000 && renderLineInput.lineTokens.getCount() < 100) {
+		if (canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && !output.containsForeignElements) {
+			if (lineData.content.length < 1000 && renderLineInput.lineTokens.getCount() < 100) {
 				// Browser rounding errors have been observed in Chrome and IE, so using the fast
 				// view line only for short lines. Please test before removing the length check...
 				// ---
