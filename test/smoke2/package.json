@@ -11,6 +11,8 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/tmp": "^0.0.33",
+    "tmp": "^0.0.33",
     "typescript": "^2.8.1"
   }
 }
