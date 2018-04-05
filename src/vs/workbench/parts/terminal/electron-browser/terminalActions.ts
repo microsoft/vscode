@@ -1064,6 +1064,7 @@ export class ScrollToPreviousCommandAction extends Action {
 		const instance = this.terminalService.getActiveInstance();
 		if (instance) {
 			instance.commandTracker.scrollToPreviousCommand();
+			instance.focus();
 		}
 		return TPromise.as(void 0);
 	}
@@ -1084,6 +1085,7 @@ export class ScrollToNextCommandAction extends Action {
 		const instance = this.terminalService.getActiveInstance();
 		if (instance) {
 			instance.commandTracker.scrollToNextCommand();
+			instance.focus();
 		}
 		return TPromise.as(void 0);
 	}
@@ -1104,6 +1106,7 @@ export class SelectToPreviousCommandAction extends Action {
 		const instance = this.terminalService.getActiveInstance();
 		if (instance) {
 			instance.commandTracker.selectToPreviousCommand();
+			instance.focus();
 		}
 		return TPromise.as(void 0);
 	}
@@ -1124,6 +1127,7 @@ export class SelectToNextCommandAction extends Action {
 		const instance = this.terminalService.getActiveInstance();
 		if (instance) {
 			instance.commandTracker.selectToNextCommand();
+			instance.focus();
 		}
 		return TPromise.as(void 0);
 	}
