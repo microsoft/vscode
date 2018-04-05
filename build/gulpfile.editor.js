@@ -93,7 +93,7 @@ gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
 gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor'));
 
 gulp.task('clean-editor-esm', util.rimraf('out-editor-esm'));
-gulp.task('extract-editor-esm', ['clean-editor-esm', 'clean-editor-distro'], function() {
+gulp.task('extract-editor-esm', ['clean-editor-esm', 'clean-editor-distro'], function () {
 	standalone.createESMSourcesAndResources({
 		entryPoints: [
 			'vs/editor/editor.main',
@@ -107,7 +107,7 @@ gulp.task('extract-editor-esm', ['clean-editor-esm', 'clean-editor-distro'], fun
 		}
 	});
 });
-gulp.task('compile-editor-esm', ['extract-editor-esm', 'clean-editor-distro'], function() {
+gulp.task('compile-editor-esm', ['extract-editor-esm', 'clean-editor-distro'], function () {
 	const result = cp.spawnSync(`node`, [`../node_modules/.bin/tsc`], {
 		cwd: path.join(__dirname, '../out-editor-esm')
 	});
@@ -235,3 +235,60 @@ function filterStream(testFunc) {
 		this.emit('data', data);
 	});
 }
+
+
+//#region monaco type checking
+
+function createTscCompileTask(watch) {
+	return () => {
+		const createReporter = require('./lib/reporter').createReporter;
+
+		return new Promise((resolve, reject) => {
+			const args = ['./node_modules/.bin/tsc', '-p', './src/tsconfig.monaco.json', '--noEmit'];
+			if (watch) {
+				args.push('-w');
+			}
+			const child = cp.spawn(`node`, args, {
+				cwd: path.join(__dirname, '..'),
+				// stdio: [null, 'pipe', 'inherit']
+			});
+			let errors = [];
+			let reporter = createReporter();
+			let report;
+			let magic = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+
+			child.stdout.on('data', data => {
+				let str = String(data);
+				str = str.replace(magic, '').trim();
+				if (str.indexOf('Starting compilation') >= 0 || str.indexOf('File change detected') >= 0) {
+					errors.length = 0;
+					report = reporter.end(false);
+
+				} else if (str.indexOf('Compilation complete') >= 0) {
+					report.end();
+
+				} else if (str) {
+					let match = /(.*\(\d+,\d+\): )(.*: )(.*)/.exec(str);
+					if (match) {
+						// trying to massage the message so that it matches the gulp-tsb error messages
+						// e.g. src/vs/base/common/strings.ts(663,5): error TS2322: Type '1234' is not assignable to type 'string'.
+						let fullpath = path.join(root, match[1]);
+						let message = match[3];
+						// @ts-ignore
+						reporter(fullpath + message);
+					} else {
+						// @ts-ignore
+						reporter(str);
+					}
+				}
+			});
+			child.on('exit', resolve);
+			child.on('error', reject);
+		});
+	};
+}
+
+gulp.task('monaco-typecheck-watch', createTscCompileTask(true));
+gulp.task('monaco-typecheck', createTscCompileTask(false));
+
+//#endregion
