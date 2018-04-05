@@ -26,7 +26,7 @@ export interface IWebviewService {
 		events: WebviewEvents
 	): WebviewEditorInput;
 
-	createRevivableWebview(
+	reviveWebview(
 		viewType: string,
 		title: string,
 		state: any,
@@ -110,7 +110,7 @@ export class WebviewService implements IWebviewService {
 		}
 	}
 
-	createRevivableWebview(
+	reviveWebview(
 		viewType: string,
 		title: string,
 		state: any,
@@ -126,7 +126,7 @@ export class WebviewService implements IWebviewService {
 				if (didRevive) {
 					return;
 				}
-				// A reviver may not be registered yet. Put into queue and resolve promise when can can revive
+				// A reviver may not be registered yet. Put into queue and resolve promise when we can revive
 				let resolve: (value: void) => void;
 				const promise = new TPromise<void>(r => { resolve = r; });
 				this._awaitingRevival.push({ input: webview, resolve });

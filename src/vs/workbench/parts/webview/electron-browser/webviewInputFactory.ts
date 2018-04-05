@@ -49,6 +49,6 @@ export class WebviewInputFactory implements IEditorInputFactory {
 		serializedEditorInput: string
 	): WebviewEditorInput {
 		const data: SerializedWebview = JSON.parse(serializedEditorInput);
-		return this._webviewService.createRevivableWebview(data.viewType, data.title, data.state, data.options, data.extensionFolderPath);
+		return this._webviewService.reviveWebview(data.viewType, data.title, data.state, data.options, data.extensionFolderPath);
 	}
 }
