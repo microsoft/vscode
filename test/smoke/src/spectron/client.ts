@@ -14,6 +14,13 @@ export interface APIElement {
 
 export interface Driver {
 	keys(keys: string[]): Promise<void>;
+	click(selector: string, xoffset?: number, yoffset?: number): Promise<any>;
+	doubleClick(selector: string): Promise<any>;
+	move(selector: string): Promise<any>;
+	setValue(selector: string, text: string): Promise<void>;
+	getTitle(): Promise<string>;
+
+	isActiveElement(selector: string): Promise<boolean>;
 	getElements(selector: string): Promise<APIElement[]>;
 }
 
@@ -24,6 +31,31 @@ export class SpectronDriver implements Driver {
 	keys(keys: string[]): Promise<void> {
 		this.spectronClient.keys(keys);
 		return Promise.resolve();
+	}
+
+	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void> {
+		await this.spectronClient.leftClick(selector, xoffset, yoffset);
+	}
+
+	async doubleClick(selector: string): Promise<void> {
+		await this.spectronClient.doubleClick(selector);
+	}
+
+	async move(selector: string): Promise<void> {
+		await this.spectronClient.moveToObject(selector);
+	}
+
+	async setValue(selector: string, text: string): Promise<void> {
+		await this.spectronClient.setValue(selector, text);
+	}
+
+	async getTitle(): Promise<string> {
+		return await this.spectronClient.getTitle();
+	}
+
+	async isActiveElement(selector: string): Promise<boolean> {
+		const result = await (this.spectronClient.execute(s => document.activeElement.matches(s), selector) as any as Promise<{ value: boolean; }>);
+		return result.value;
 	}
 
 	async getElements(selector: string): Promise<APIElement[]> {
@@ -75,28 +107,29 @@ export class API {
 	}
 
 	async waitAndClick(selector: string, xoffset?: number, yoffset?: number): Promise<any> {
-		return this.waitFor(() => this.spectronClient.leftClick(selector, xoffset, yoffset), void 0, `click with selector ${selector}`);
+		return this.waitFor(() => this.driver.click(selector, xoffset, yoffset), () => true, `click with selector ${selector}`);
 	}
 
 	async waitAndDoubleClick(selector: string, capture: boolean = true): Promise<any> {
-		return this.waitFor(() => this.spectronClient.doubleClick(selector), void 0, `doubleClick with selector ${selector}`);
+		return this.waitFor(() => this.driver.doubleClick(selector), () => true, `doubleClick with selector ${selector}`);
 	}
 
 	async waitAndMove(selector: string): Promise<any> {
-		return this.waitFor(() => this.spectronClient.moveToObject(selector), void 0, `move to object with selector ${selector}`);
+		return this.waitFor(() => this.driver.move(selector), () => true, `move to object with selector ${selector}`);
 	}
 
 	async setValue(selector: string, text: string, capture: boolean = true): Promise<any> {
-		return this.spectronClient.setValue(selector, text);
+		return this.driver.setValue(selector, text);
 	}
 
 	async doesElementExist(selector: string): Promise<boolean> {
-		return this.spectronClient.element(selector).then(result => !!result.value);
+		const elements = await this.driver.getElements(selector);
+		return elements.length > 0;
 	}
 
 	async getElementCount(selector: string): Promise<number> {
-		const result = await this.spectronClient.elements(selector);
-		return result.value.length;
+		const elements = await this.driver.getElements(selector);
+		return elements.length;
 	}
 
 	async waitForElements(selector: string, accept: (result: APIElement[]) => boolean = result => result.length > 0): Promise<APIElement[]> {
@@ -108,15 +141,11 @@ export class API {
 	}
 
 	async waitForActiveElement(selector: string): Promise<any> {
-		return this.waitFor(
-			() => this.spectronClient.execute(s => document.activeElement.matches(s), selector),
-			r => r.value,
-			`wait for active element: ${selector}`
-		);
+		return this.waitFor(() => this.driver.isActiveElement(selector), undefined, `wait for active element: ${selector}`);
 	}
 
 	async getTitle(): Promise<string> {
-		return this.spectronClient.getTitle();
+		return this.driver.getTitle();
 	}
 
 	selectorExecute<P>(
