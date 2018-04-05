@@ -244,14 +244,15 @@ function createTscCompileTask(watch) {
 		const createReporter = require('./lib/reporter').createReporter;
 
 		return new Promise((resolve, reject) => {
-			const args = ['./node_modules/.bin/tsc', '-p', './src/tsconfig.monaco.json', '--noEmit'];
+			const args = ['-p', './src/tsconfig.monaco.json', '--noEmit'];
 			if (watch) {
 				args.push('-w');
 			}
-			const child = cp.spawn(`node`, args, {
+			const child = cp.fork('./node_modules/.bin/tsc', args, {
 				cwd: path.join(__dirname, '..'),
-				// stdio: [null, 'pipe', 'inherit']
+				silent: true
 			});
+
 			let errors = [];
 			let reporter = createReporter();
 			let report;
@@ -274,10 +275,8 @@ function createTscCompileTask(watch) {
 						// e.g. src/vs/base/common/strings.ts(663,5): error TS2322: Type '1234' is not assignable to type 'string'.
 						let fullpath = path.join(root, match[1]);
 						let message = match[3];
-						// @ts-ignore
 						reporter(fullpath + message);
 					} else {
-						// @ts-ignore
 						reporter(str);
 					}
 				}
