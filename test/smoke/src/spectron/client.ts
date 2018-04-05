@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application } from 'spectron';
+import { SpectronClient } from 'spectron';
 import { RawResult, Element } from 'webdriverio';
-import { SpectronApplication } from './application';
+import { ScreenCapturer } from '../helpers/screenshot';
 
-export class SpectronClient {
+export class API {
 
 	// waitFor calls should not take more than 200 * 100 = 20 seconds to complete, excluding
 	// the time it takes for the actual retry call to complete
@@ -15,67 +15,67 @@ export class SpectronClient {
 	private readonly retryDuration = 100; // in milliseconds
 
 	constructor(
-		private spectron: Application,
-		private application: SpectronApplication,
+		private spectronClient: SpectronClient,
+		private screenCapturer: ScreenCapturer,
 		waitTime: number
 	) {
 		this.retryCount = (waitTime * 1000) / this.retryDuration;
 	}
 
 	keys(keys: string[]): Promise<void> {
-		this.spectron.client.keys(keys);
+		this.spectronClient.keys(keys);
 		return Promise.resolve();
 	}
 
 	async waitForText(selector: string, text?: string, accept?: (result: string) => boolean): Promise<string> {
 		accept = accept ? accept : result => text !== void 0 ? text === result : !!result;
-		return this.waitFor(() => this.spectron.client.getText(selector), accept, `getText with selector ${selector}`);
+		return this.waitFor(() => this.spectronClient.getText(selector), accept, `getText with selector ${selector}`);
 	}
 
 	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean): Promise<string> {
 		accept = accept ? accept : (result => textContent !== void 0 ? textContent === result : !!result);
-		const fn = async () => await this.spectron.client.selectorExecute(selector, div => Array.isArray(div) ? div[0].textContent : div.textContent);
+		const fn = async () => await this.spectronClient.selectorExecute(selector, div => Array.isArray(div) ? div[0].textContent : div.textContent);
 		return this.waitFor(fn, s => accept!(typeof s === 'string' ? s : ''), `getTextContent with selector ${selector}`);
 	}
 
 	async waitAndClick(selector: string, xoffset?: number, yoffset?: number): Promise<any> {
-		return this.waitFor(() => this.spectron.client.leftClick(selector, xoffset, yoffset), void 0, `click with selector ${selector}`);
+		return this.waitFor(() => this.spectronClient.leftClick(selector, xoffset, yoffset), void 0, `click with selector ${selector}`);
 	}
 
 	async waitAndDoubleClick(selector: string, capture: boolean = true): Promise<any> {
-		return this.waitFor(() => this.spectron.client.doubleClick(selector), void 0, `doubleClick with selector ${selector}`);
+		return this.waitFor(() => this.spectronClient.doubleClick(selector), void 0, `doubleClick with selector ${selector}`);
 	}
 
 	async waitAndMoveToObject(selector: string): Promise<any> {
-		return this.waitFor(() => this.spectron.client.moveToObject(selector), void 0, `move to object with selector ${selector}`);
+		return this.waitFor(() => this.spectronClient.moveToObject(selector), void 0, `move to object with selector ${selector}`);
 	}
 
 	async setValue(selector: string, text: string, capture: boolean = true): Promise<any> {
-		return this.spectron.client.setValue(selector, text);
+		return this.spectronClient.setValue(selector, text);
 	}
 
 	async doesElementExist(selector: string): Promise<boolean> {
-		return this.spectron.client.element(selector).then(result => !!result.value);
+		return this.spectronClient.element(selector).then(result => !!result.value);
 	}
 
 	async waitForElements(selector: string, accept: (result: Element[]) => boolean = result => result.length > 0): Promise<void> {
-		return this.waitFor(() => this.spectron.client.elements(selector), result => accept(result.value), `elements with selector ${selector}`) as Promise<any>;
+		return this.waitFor(() => this.spectronClient.elements(selector), result => accept(result.value), `elements with selector ${selector}`) as Promise<any>;
 	}
 
 	async waitForElement(selector: string, accept: (result: Element | undefined) => boolean = result => !!result): Promise<void> {
-		return this.waitFor<RawResult<Element>>(() => this.spectron.client.element(selector), result => accept(result ? result.value : void 0), `element with selector ${selector}`) as Promise<any>;
+		return this.waitFor<RawResult<Element>>(() => this.spectronClient.element(selector), result => accept(result ? result.value : void 0), `element with selector ${selector}`) as Promise<any>;
 	}
 
 	async waitForActiveElement(selector: string): Promise<any> {
 		return this.waitFor(
-			() => this.spectron.client.execute(s => document.activeElement.matches(s), selector),
+			() => this.spectronClient.execute(s => document.activeElement.matches(s), selector),
 			r => r.value,
 			`wait for active element: ${selector}`
 		);
 	}
 
 	async getTitle(): Promise<string> {
-		return this.spectron.client.getTitle();
+		return this.spectronClient.getTitle();
 	}
 
 	private running = false;
@@ -93,7 +93,7 @@ export class SpectronClient {
 
 			while (true) {
 				if (trial > retryCount) {
-					await this.application.screenCapturer.capture('timeout');
+					await this.screenCapturer.capture('timeout');
 					throw new Error(`${timeoutMessage}: Timed out after ${(retryCount * this.retryDuration) / 1000} seconds.`);
 				}
 

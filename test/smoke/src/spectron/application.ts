@@ -5,7 +5,7 @@
 
 import { Application, SpectronClient as WebClient } from 'spectron';
 import { test as testPort } from 'portastic';
-import { SpectronClient } from './client';
+import { API } from './client';
 import { ScreenCapturer } from '../helpers/screenshot';
 import { Workbench } from '../areas/workbench/workbench';
 import * as fs from 'fs';
@@ -51,11 +51,11 @@ export class SpectronApplication {
 
 	private static count = 0;
 
-	private _client: SpectronClient;
+	private _api: API;
 	private _workbench: Workbench;
 	private _screenCapturer: ScreenCapturer;
 	private spectron: Application | undefined;
-	private keybindings: any[]; private stopLogCollection: (() => Promise<void>) | undefined;
+	private stopLogCollection: (() => Promise<void>) | undefined;
 
 	constructor(
 		private options: SpectronApplicationOptions
@@ -65,8 +65,8 @@ export class SpectronApplication {
 		return this.options.quality;
 	}
 
-	get client(): SpectronClient {
-		return this._client;
+	get client(): API {
+		return this._api;
 	}
 
 	get webclient(): WebClient {
@@ -269,8 +269,8 @@ export class SpectronApplication {
 		}
 
 		this._screenCapturer = new ScreenCapturer(this.spectron, this._suiteName, screenshotsDirPath);
-		this._client = new SpectronClient(this.spectron, this, this.options.waitTime);
-		this._workbench = new Workbench(this);
+		this._api = new API(this.spectron.client, this.screenCapturer, this.options.waitTime);
+		this._workbench = new Workbench(this._api);
 	}
 
 	private async checkWindowReady(): Promise<any> {
@@ -309,43 +309,5 @@ export class SpectronApplication {
 				}
 			});
 		});
-	}
-
-	/**
-	 * Retrieves the command from keybindings file and executes it with WebdriverIO client API
-	 * @param command command (e.g. 'workbench.action.files.newUntitledFile')
-	 */
-	runCommand(command: string): Promise<any> {
-		const binding = this.keybindings.find(x => x['command'] === command);
-		if (!binding) {
-			return this.workbench.quickopen.runCommand(command);
-		}
-
-		const keys: string = binding.key;
-		let keysToPress: string[] = [];
-
-		const chords = keys.split(' ');
-		chords.forEach((chord) => {
-			const keys = chord.split('+');
-			keys.forEach((key) => keysToPress.push(this.transliterate(key)));
-			keysToPress.push('NULL');
-		});
-
-		return this.client.keys(keysToPress);
-	}
-
-	/**
-	 * Transliterates key names from keybindings file to WebdriverIO keyboard actions defined in:
-	 * https://w3c.github.io/webdriver/webdriver-spec.html#keyboard-actions
-	 */
-	private transliterate(key: string): string {
-		switch (key) {
-			case 'ctrl':
-				return 'Control';
-			case 'cmd':
-				return 'Meta';
-			default:
-				return key.length === 1 ? key : key.charAt(0).toUpperCase() + key.slice(1);
-		}
 	}
 }
