@@ -221,20 +221,15 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const searchView = getSearchView(this.viewletService, this.panelService);
 		return openSearchView(this.viewletService, this.panelService, true).then(openedView => {
-			if (!searchView || this.expandSearchReplaceWidget) {
-				const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
-				searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
-				// Focus replace only when there is text in the searchInput box
-				const focusReplace = this.focusReplace && searchAndReplaceWidget.searchInput.getValue();
-				searchAndReplaceWidget.focus(this.selectWidgetText, !!focusReplace);
-			}
+			const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
+			searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
+			// Focus replace only when there is text in the searchInput box
+			const focusReplace = this.focusReplace && searchAndReplaceWidget.searchInput.getValue();
+			searchAndReplaceWidget.focus(this.selectWidgetText, !!focusReplace);
 		});
 	}
 }
-
-export const SHOW_SEARCH_LABEL = nls.localize('showSearchViewlet', "Show Search");
 
 export class FindInFilesAction extends FindOrReplaceInFilesAction {
 
