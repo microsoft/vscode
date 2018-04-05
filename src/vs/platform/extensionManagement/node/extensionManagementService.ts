@@ -49,6 +49,7 @@ const INSTALL_ERROR_VALIDATING = 'validating';
 const INSTALL_ERROR_GALLERY = 'gallery';
 const INSTALL_ERROR_LOCAL = 'local';
 const INSTALL_ERROR_EXTRACTING = 'extracting';
+const INSTALL_ERROR_RENAMING = 'renaming';
 const INSTALL_ERROR_DELETING = 'deleting';
 const ERROR_UNKNOWN = 'unknown';
 
@@ -452,7 +453,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			.then(null, error =>
 				isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil
 					? this.rename(id, extractPath, renamePath, retryUntil)
-					: TPromise.wrapError(error)
+					: TPromise.wrapError(new ExtensionManagementError(error.message || nls.localize('renameError', "Unknown error while"), error.code || INSTALL_ERROR_RENAMING))
 			);
 	}
 
