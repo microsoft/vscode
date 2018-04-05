@@ -29,14 +29,14 @@ export class MarkdownPreview {
 	private forceUpdate = false;
 	private isScrolling = false;
 
-	public static revive(
+	public static async revive(
 		webview: vscode.Webview,
 		state: any,
 		contentProvider: MarkdownContentProvider,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
 		logger: Logger,
 		topmostLineMonitor: MarkdownFileTopmostLineMonitor
-	): MarkdownPreview {
+	): Promise<MarkdownPreview> {
 		const resource = vscode.Uri.parse(state.resource);
 		const locked = state.locked;
 		const line = state.line;
@@ -53,6 +53,7 @@ export class MarkdownPreview {
 		if (!isNaN(line)) {
 			preview.line = line;
 		}
+		await preview.doUpdate();
 		return preview;
 	}
 
@@ -299,13 +300,11 @@ export class MarkdownPreview {
 		this.forceUpdate = false;
 
 		this.currentVersion = { resource, version: document.version };
-		this.contentProvider.provideTextDocumentContent(document, this.previewConfigurations, this.line)
-			.then(content => {
-				if (this._resource === resource) {
-					this.webview.title = MarkdownPreview.getPreviewTitle(this._resource, this.locked);
-					this.webview.html = content;
-				}
-			});
+		const content = await this.contentProvider.provideTextDocumentContent(document, this.previewConfigurations, this.line);
+		if (this._resource === resource) {
+			this.webview.title = MarkdownPreview.getPreviewTitle(this._resource, this.locked);
+			this.webview.html = content;
+		}
 	}
 
 	private static getLocalResourceRoots(
