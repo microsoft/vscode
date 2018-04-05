@@ -41,7 +41,13 @@ const opts = minimist(args, {
 		'wait-time',
 		'test-repo',
 		'keybindings'
-	]
+	],
+	boolean: [
+		'verbose'
+	],
+	default: {
+		verbose: false
+	}
 });
 
 const artifactsPath = opts.log || '';
@@ -261,7 +267,8 @@ function createApp(quality: Quality): SpectronApplication | null {
 		extensionsPath,
 		artifactsPath,
 		workspaceFilePath,
-		waitTime: parseInt(opts['wait-time'] || '0') || 20
+		waitTime: parseInt(opts['wait-time'] || '0') || 20,
+		verbose: opts.verbose
 	});
 }
 before(async function () {

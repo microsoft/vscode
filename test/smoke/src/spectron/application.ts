@@ -42,6 +42,7 @@ export interface SpectronApplicationOptions {
 	artifactsPath: string;
 	workspaceFilePath: string;
 	waitTime: number;
+	verbose: boolean;
 }
 
 /**
@@ -270,7 +271,7 @@ export class SpectronApplication {
 		}
 
 		this._screenCapturer = new ScreenCapturer(this.spectron, this._suiteName, screenshotsDirPath);
-		this._api = new API(this.spectron.client, this.screenCapturer, this.options.waitTime);
+		this._api = new API(this.spectron.client, this.screenCapturer, this.options.waitTime, this.options.verbose);
 		this._workbench = new Workbench(this._api, this.keybindings, this.userDataPath);
 	}
 
