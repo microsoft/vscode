@@ -344,10 +344,12 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 			const replace = searchModel.isReplaceActive() && !!searchModel.replaceString;
 			const matchString = match.getMatchString();
 			const range = match.range();
+			const matchText = match.text().substr(0, range.endColumn + 150);
 			if (replace) {
-				return nls.localize('replacePreviewResultAria', "Replace term {0} with {1} at column position {2} in line with text {3}", matchString, match.replaceString, range.startColumn + 1, match.text());
+				return nls.localize('replacePreviewResultAria', "Replace term {0} with {1} at column position {2} in line with text {3}", matchString, match.replaceString, range.startColumn + 1, matchText);
 			}
-			return nls.localize('searchResultAria', "Found term {0} at column position {1} in line with text {2}", matchString, range.startColumn + 1, match.text());
+
+			return nls.localize('searchResultAria', "Found term {0} at column position {1} in line with text {2}", matchString, range.startColumn + 1, matchText);
 		}
 		return undefined;
 	}
@@ -386,7 +388,9 @@ export class SearchTreeController extends WorkbenchTreeController {
 				const actions: IAction[] = [];
 				fillInActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
 				return TPromise.as(actions);
-			}
+			},
+
+			getActionsContext: () => element
 		});
 
 		return true;

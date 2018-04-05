@@ -632,6 +632,11 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			'id': '_test',
 			'type': 'object',
 			'properties': {
+				'configurationService.folder.applicationSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION
+				},
 				'configurationService.folder.testSetting': {
 					'type': 'string',
 					'default': 'isSet',
@@ -682,7 +687,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('defaults', () => {
-		assert.deepEqual(testObject.getValue('configurationService'), { 'folder': { 'testSetting': 'isSet', 'executableSetting': 'isSet' } });
+		assert.deepEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'testSetting': 'isSet', 'executableSetting': 'isSet' } });
 	});
 
 	test('globals override defaults', () => {
@@ -729,6 +734,13 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 				assert.equal(testObject.getValue('configurationService.folder.newSetting'), 'workspaceValue');
 			});
+	});
+
+	test('application settings are not read from workspace', () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.applicationSetting": "userValue" }');
+		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.applicationSetting": "workspaceValue" }');
+		return testObject.reloadConfiguration()
+			.then(() => assert.equal(testObject.getValue('configurationService.folder.applicationSetting'), 'userValue'));
 	});
 
 	test('executable settings are not read from workspace', () => {
@@ -880,6 +892,11 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			.then(() => assert.equal(testObject.getValue('tasks.service.testSetting'), 'value'));
 	});
 
+	test('update application setting into workspace configuration in a workspace is not supported', () => {
+		return testObject.updateValue('configurationService.folder.applicationSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, true)
+			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION));
+	});
+
 	test('update tasks configuration', () => {
 		return testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, ConfigurationTarget.WORKSPACE)
 			.then(() => assert.deepEqual(testObject.getValue('tasks'), { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }));
@@ -921,6 +938,11 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 				'configurationService.workspace.testSetting': {
 					'type': 'string',
 					'default': 'isSet'
+				},
+				'configurationService.workspace.applicationSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION
 				},
 				'configurationService.workspace.testResourceSetting': {
 					'type': 'string',
@@ -1001,6 +1023,13 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 			.then(() => assert.deepEqual(testObject.getUnsupportedWorkspaceKeys(), ['configurationService.workspace.testExecutableSetting', 'configurationService.workspace.testExecutableResourceSetting']));
 	});
 
+	test('application settings are not read from workspace', () => {
+		fs.writeFileSync(environmentService.appSettingsPath, '{ "configurationService.workspace.applicationSetting": "userValue" }');
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'settings', value: { 'configurationService.workspace.applicationSetting': 'workspaceValue' } }, true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => assert.equal(testObject.getValue('configurationService.workspace.applicationSetting'), 'userValue'));
+	});
+
 	test('workspace settings override user settings after defaults are registered ', () => {
 		fs.writeFileSync(environmentService.appSettingsPath, '{ "configurationService.workspace.newSetting": "userValue" }');
 		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'settings', value: { 'configurationService.workspace.newSetting': 'workspaceValue' } }, true)
@@ -1018,6 +1047,13 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 				});
 				assert.equal(testObject.getValue('configurationService.workspace.newSetting'), 'workspaceValue');
 			});
+	});
+
+	test('application settings are not read from workspace folder', () => {
+		fs.writeFileSync(environmentService.appSettingsPath, '{ "configurationService.workspace.applicationSetting": "userValue" }');
+		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.applicationSetting": "workspaceFolderValue" }');
+		return testObject.reloadConfiguration()
+			.then(() => assert.equal(testObject.getValue('configurationService.workspace.applicationSetting'), 'userValue'));
 	});
 
 	test('executable settings are not read from workspace folder after defaults are registered', () => {
@@ -1204,6 +1240,11 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 		testObject.onDidChangeConfiguration(target);
 		return testObject.updateValue('configurationService.workspace.testSetting', 'workspaceValue', ConfigurationTarget.WORKSPACE)
 			.then(() => assert.ok(target.called));
+	});
+
+	test('update application setting into workspace configuration in a workspace is not supported', () => {
+		return testObject.updateValue('configurationService.workspace.applicationSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, true)
+			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION));
 	});
 
 	test('update workspace folder configuration', () => {

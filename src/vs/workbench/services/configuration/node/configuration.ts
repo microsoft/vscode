@@ -187,7 +187,7 @@ export class FolderConfiguration extends Disposable {
 	constructor(private folder: URI, private configFolderRelativePath: string, workbenchState: WorkbenchState) {
 		super();
 
-		this._folderSettingsModelParser = new FolderSettingsModelParser(FOLDER_SETTINGS_PATH, WorkbenchState.WORKSPACE === workbenchState ? ConfigurationScope.RESOURCE : void 0);
+		this._folderSettingsModelParser = new FolderSettingsModelParser(FOLDER_SETTINGS_PATH, WorkbenchState.WORKSPACE === workbenchState ? [ConfigurationScope.RESOURCE] : [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE]);
 		this.workspaceFilePathToConfiguration = Object.create(null);
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.loadConfiguration().then(configuration => this.reloadConfigurationEventEmitter.fire(configuration), errors.onUnexpectedError), FolderConfiguration.RELOAD_CONFIGURATION_DELAY));
 	}

@@ -386,10 +386,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this.setValueFromTextBuffer(textBuffer);
 	}
 
-	private _createContentChanged2(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): IModelContentChangedEvent {
+	private _createContentChanged2(range: Range, rangeOffset: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): IModelContentChangedEvent {
 		return {
 			changes: [{
-				range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
+				range: range,
+				rangeOffset: rangeOffset,
 				rangeLength: rangeLength,
 				text: text,
 			}],
@@ -435,7 +436,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				false,
 				false
 			),
-			this._createContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, true)
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, true)
 		);
 	}
 
@@ -466,7 +467,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				false,
 				false
 			),
-			this._createContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, false)
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, false)
 		);
 	}
 
@@ -2585,22 +2586,20 @@ export class ModelDecorationOverviewRulerOptions implements model.IModelDecorati
 	}
 }
 
-let lastStaticId = 0;
-
 export class ModelDecorationOptions implements model.IModelDecorationOptions {
 
 	public static EMPTY: ModelDecorationOptions;
 
 	public static register(options: model.IModelDecorationOptions): ModelDecorationOptions {
-		return new ModelDecorationOptions(++lastStaticId, options);
+		return new ModelDecorationOptions(options);
 	}
 
 	public static createDynamic(options: model.IModelDecorationOptions): ModelDecorationOptions {
-		return new ModelDecorationOptions(0, options);
+		return new ModelDecorationOptions(options);
 	}
 
-	readonly staticId: number;
 	readonly stickiness: model.TrackedRangeStickiness;
+	readonly zIndex: number;
 	readonly className: string;
 	readonly hoverMessage: IMarkdownString | IMarkdownString[];
 	readonly glyphMarginHoverMessage: IMarkdownString | IMarkdownString[];
@@ -2614,9 +2613,9 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly beforeContentClassName: string;
 	readonly afterContentClassName: string;
 
-	private constructor(staticId: number, options: model.IModelDecorationOptions) {
-		this.staticId = staticId;
+	private constructor(options: model.IModelDecorationOptions) {
 		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
+		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : strings.empty;
 		this.hoverMessage = options.hoverMessage || [];
 		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || [];

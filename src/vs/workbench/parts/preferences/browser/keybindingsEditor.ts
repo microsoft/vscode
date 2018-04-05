@@ -11,7 +11,6 @@ import * as DOM from 'vs/base/browser/dom';
 import { OS } from 'vs/base/common/platform';
 import { dispose } from 'vs/base/common/lifecycle';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
-import { Builder } from 'vs/base/browser/builder';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IAction } from 'vs/base/common/actions';
@@ -122,16 +121,14 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.delayedFilterLogging = new Delayer<void>(1000);
 	}
 
-	createEditor(parent: Builder): void {
-		const parentElement = parent.getHTMLElement();
-
-		const keybindingsEditorElement = DOM.append(parentElement, $('div', { class: 'keybindings-editor' }));
+	createEditor(parent: HTMLElement): void {
+		const keybindingsEditorElement = DOM.append(parent, $('div', { class: 'keybindings-editor' }));
 
 		this.createOverlayContainer(keybindingsEditorElement);
 		this.createHeader(keybindingsEditorElement);
 		this.createBody(keybindingsEditorElement);
 
-		const focusTracker = this._register(DOM.trackFocus(parentElement));
+		const focusTracker = this._register(DOM.trackFocus(parent));
 		this._register(focusTracker.onDidFocus(() => this.keybindingsEditorContextKey.set(true)));
 		this._register(focusTracker.onDidBlur(() => this.keybindingsEditorContextKey.reset()));
 	}

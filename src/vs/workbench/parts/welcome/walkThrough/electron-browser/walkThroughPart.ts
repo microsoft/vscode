@@ -11,7 +11,6 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { $, Builder } from 'vs/base/browser/builder';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -40,7 +39,7 @@ import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { deepClone } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension } from 'vs/base/browser/dom';
+import { Dimension, size } from 'vs/base/browser/dom';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -109,9 +108,7 @@ export class WalkThroughPart extends BaseEditor {
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
 	}
 
-	createEditor(parent: Builder): void {
-		const container = parent.getHTMLElement();
-
+	createEditor(container: HTMLElement): void {
 		this.content = document.createElement('div');
 		this.content.tabIndex = 0;
 		this.content.style.outlineStyle = 'none';
@@ -215,9 +212,9 @@ export class WalkThroughPart extends BaseEditor {
 		return uri.with({ query: JSON.stringify(query) });
 	}
 
-	layout(size: Dimension): void {
-		this.size = size;
-		$(this.content).style({ height: `${size.height}px`, width: `${size.width}px` });
+	layout(dimension: Dimension): void {
+		this.size = dimension;
+		size(this.content, dimension.width, dimension.height);
 		this.updateSizeClasses();
 		this.contentDisposables.forEach(disposable => {
 			if (disposable instanceof CodeEditor) {

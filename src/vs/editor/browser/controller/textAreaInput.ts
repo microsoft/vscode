@@ -42,6 +42,19 @@ export interface ITextAreaInputHost {
 	deduceModelPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 }
 
+const enum TextAreaInputEventType {
+	none,
+	compositionstart,
+	compositionupdate,
+	compositionend,
+	input,
+	cut,
+	copy,
+	paste,
+	focus,
+	blur
+}
+
 /**
  * Writes screen reader content to the textarea and is able to analyze its input events to generate:
  *  - onCut
@@ -89,6 +102,7 @@ export class TextAreaInput extends Disposable {
 
 	private readonly _host: ITextAreaInputHost;
 	private readonly _textArea: TextAreaWrapper;
+	private _lastTextAreaEvent: TextAreaInputEventType;
 	private readonly _asyncTriggerCut: RunOnceScheduler;
 
 	private _textAreaState: TextAreaState;
@@ -101,6 +115,7 @@ export class TextAreaInput extends Disposable {
 		super();
 		this._host = host;
 		this._textArea = this._register(new TextAreaWrapper(textArea));
+		this._lastTextAreaEvent = TextAreaInputEventType.none;
 		this._asyncTriggerCut = this._register(new RunOnceScheduler(() => this._onCut.fire(), 0));
 
 		this._textAreaState = TextAreaState.EMPTY;
@@ -129,6 +144,8 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionstart', (e: CompositionEvent) => {
+			this._lastTextAreaEvent = TextAreaInputEventType.compositionstart;
+
 			if (this._isDoingComposition) {
 				return;
 			}
@@ -145,10 +162,10 @@ export class TextAreaInput extends Disposable {
 		/**
 		 * Deduce the typed input from a text area's value and the last observed state.
 		 */
-		const deduceInputFromTextAreaValue = (couldBeEmojiInput: boolean): [TextAreaState, ITypeData] => {
+		const deduceInputFromTextAreaValue = (couldBeEmojiInput: boolean, couldBeTypingAtOffset0: boolean): [TextAreaState, ITypeData] => {
 			const oldState = this._textAreaState;
-			const newState = this._textAreaState.readFromTextArea(this._textArea);
-			return [newState, TextAreaState.deduceInput(oldState, newState, couldBeEmojiInput)];
+			const newState = TextAreaState.readFromTextArea(this._textArea);
+			return [newState, TextAreaState.deduceInput(oldState, newState, couldBeEmojiInput, couldBeTypingAtOffset0)];
 		};
 
 		/**
@@ -185,6 +202,8 @@ export class TextAreaInput extends Disposable {
 		};
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionupdate', (e: CompositionEvent) => {
+			this._lastTextAreaEvent = TextAreaInputEventType.compositionupdate;
+
 			if (browser.isChromev56) {
 				// See https://github.com/Microsoft/monaco-editor/issues/320
 				// where compositionupdate .data is broken in Chrome v55 and v56
@@ -195,7 +214,7 @@ export class TextAreaInput extends Disposable {
 			}
 
 			if (compositionDataInValid(e.locale)) {
-				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false);
+				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false, /*couldBeTypingAtOffset0*/false);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
 				this._onCompositionUpdate.fire(e);
@@ -209,9 +228,11 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionend', (e: CompositionEvent) => {
+			this._lastTextAreaEvent = TextAreaInputEventType.compositionend;
+
 			if (compositionDataInValid(e.locale)) {
 				// https://github.com/Microsoft/monaco-editor/issues/339
-				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false);
+				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false, /*couldBeTypingAtOffset0*/false);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
 			} else {
@@ -223,7 +244,7 @@ export class TextAreaInput extends Disposable {
 			// Due to isEdgeOrIE (where the textarea was not cleared initially) and isChrome (the textarea is not updated correctly when composition ends)
 			// we cannot assume the text at the end consists only of the composited text
 			if (browser.isEdgeOrIE || browser.isChrome) {
-				this._textAreaState = this._textAreaState.readFromTextArea(this._textArea);
+				this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
 			}
 
 			if (!this._isDoingComposition) {
@@ -235,6 +256,10 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'input', () => {
+			// We want to find out if this is the first `input` after a `focus`.
+			const previousEventWasFocus = (this._lastTextAreaEvent === TextAreaInputEventType.focus);
+			this._lastTextAreaEvent = TextAreaInputEventType.input;
+
 			// Pretend here we touched the text area, as the `input` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received input event');
@@ -254,7 +279,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
-			const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/platform.isMacintosh);
+			const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/platform.isMacintosh, /*couldBeTypingAtOffset0*/previousEventWasFocus && platform.isMacintosh);
 			if (typeInput.replaceCharCnt === 0 && typeInput.text.length === 1 && strings.isHighSurrogate(typeInput.text.charCodeAt(0))) {
 				// Ignore invalid input but keep it around for next time
 				return;
@@ -279,6 +304,8 @@ export class TextAreaInput extends Disposable {
 		// --- Clipboard operations
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'cut', (e: ClipboardEvent) => {
+			this._lastTextAreaEvent = TextAreaInputEventType.cut;
+
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received cut event');
@@ -288,10 +315,14 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'copy', (e: ClipboardEvent) => {
+			this._lastTextAreaEvent = TextAreaInputEventType.copy;
+
 			this._ensureClipboardGetsEditorSelection(e);
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'paste', (e: ClipboardEvent) => {
+			this._lastTextAreaEvent = TextAreaInputEventType.paste;
+
 			// Pretend here we touched the text area, as the `paste` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received paste event');
@@ -312,8 +343,14 @@ export class TextAreaInput extends Disposable {
 			}
 		}));
 
-		this._register(dom.addDisposableListener(textArea.domNode, 'focus', () => this._setHasFocus(true)));
-		this._register(dom.addDisposableListener(textArea.domNode, 'blur', () => this._setHasFocus(false)));
+		this._register(dom.addDisposableListener(textArea.domNode, 'focus', () => {
+			this._lastTextAreaEvent = TextAreaInputEventType.focus;
+			this._setHasFocus(true);
+		}));
+		this._register(dom.addDisposableListener(textArea.domNode, 'blur', () => {
+			this._lastTextAreaEvent = TextAreaInputEventType.blur;
+			this._setHasFocus(false);
+		}));
 
 
 		// See https://github.com/Microsoft/vscode/issues/27216

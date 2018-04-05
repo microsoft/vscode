@@ -22,7 +22,8 @@
 		"onCommand:markdown.showPreviewToSide",
 		"onCommand:markdown.showLockedPreviewToSide",
 		"onCommand:markdown.showSource",
-		"onCommand:markdown.showPreviewSecuritySelector"
+		"onCommand:markdown.showPreviewSecuritySelector",
+		"onView:markdown.preview"
 	],
 	"contributes": {
 		"commands": [

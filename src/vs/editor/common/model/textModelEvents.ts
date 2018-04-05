@@ -33,6 +33,10 @@ export interface IModelContentChange {
 	 */
 	readonly range: IRange;
 	/**
+	 * The offset of the range that got replaced.
+	 */
+	readonly rangeOffset: number;
+	/**
 	 * The length of the range that got replaced.
 	 */
 	readonly rangeLength: number;

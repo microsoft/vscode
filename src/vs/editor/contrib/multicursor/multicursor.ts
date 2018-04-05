@@ -803,9 +803,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this.state = state;
 
 		if (!this.state) {
-			if (this.decorations.length > 0) {
-				this.decorations = this.editor.deltaDecorations(this.decorations, []);
-			}
+			this.decorations = this.editor.deltaDecorations(this.decorations, []);
 			return;
 		}
 

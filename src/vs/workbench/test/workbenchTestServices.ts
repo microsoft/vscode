@@ -63,7 +63,7 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotificationHandle, INotification, NoOpNotification, PromptOption } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotificationHandle, INotification, NoOpNotification, IPromptChoice } from 'vs/platform/notification/common/notification';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -328,8 +328,8 @@ export class TestNotificationService implements INotificationService {
 		return TestNotificationService.NO_OP;
 	}
 
-	public prompt(severity: Severity, message: string, choices: PromptOption[]): TPromise<number> {
-		return TPromise.as(0);
+	public prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
+		return TestNotificationService.NO_OP;
 	}
 }
 

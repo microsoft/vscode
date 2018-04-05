@@ -10,18 +10,18 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class FoldingDecorationProvider implements IDecorationProvider {
 
-	private COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
+	private static COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
 		linesDecorationsClassName: 'folding collapsed'
 	});
 
-	private EXPANDED_AUTO_HIDE_VISUAL_DECORATION = ModelDecorationOptions.register({
+	private static EXPANDED_AUTO_HIDE_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		linesDecorationsClassName: 'folding'
 	});
 
-	private EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
+	private static EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		linesDecorationsClassName: 'folding alwaysShowFoldIcons'
 	});
@@ -33,11 +33,11 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 
 	getDecorationOption(isCollapsed: boolean): ModelDecorationOptions {
 		if (isCollapsed) {
-			return this.COLLAPSED_VISUAL_DECORATION;
+			return FoldingDecorationProvider.COLLAPSED_VISUAL_DECORATION;
 		} else if (this.autoHideFoldingControls) {
-			return this.EXPANDED_AUTO_HIDE_VISUAL_DECORATION;
+			return FoldingDecorationProvider.EXPANDED_AUTO_HIDE_VISUAL_DECORATION;
 		} else {
-			return this.EXPANDED_VISUAL_DECORATION;
+			return FoldingDecorationProvider.EXPANDED_VISUAL_DECORATION;
 		}
 	}
 

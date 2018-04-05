@@ -721,7 +721,7 @@ export class Workbench implements IPartService {
 	}
 
 	public getContainer(part: Parts): HTMLElement {
-		let container: Builder = null;
+		let container: HTMLElement = null;
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				container = this.titlebarPart.getContainer();
@@ -742,7 +742,8 @@ export class Workbench implements IPartService {
 				container = this.statusbarPart.getContainer();
 				break;
 		}
-		return container && container.getHTMLElement();
+
+		return container;
 	}
 
 	public isVisible(part: Parts): boolean {
@@ -942,10 +943,10 @@ export class Workbench implements IPartService {
 		this.sideBarPosition = position;
 
 		// Adjust CSS
-		this.activitybarPart.getContainer().removeClass(oldPositionValue);
-		this.sidebarPart.getContainer().removeClass(oldPositionValue);
-		this.activitybarPart.getContainer().addClass(newPositionValue);
-		this.sidebarPart.getContainer().addClass(newPositionValue);
+		DOM.removeClass(this.activitybarPart.getContainer(), oldPositionValue);
+		DOM.removeClass(this.sidebarPart.getContainer(), oldPositionValue);
+		DOM.addClass(this.activitybarPart.getContainer(), newPositionValue);
+		DOM.addClass(this.sidebarPart.getContainer(), newPositionValue);
 
 		// Update Styles
 		this.activitybarPart.updateStyles();
@@ -967,8 +968,8 @@ export class Workbench implements IPartService {
 			this.storageService.store(Workbench.panelPositionStorageKey, Position[this.panelPosition].toLowerCase(), StorageScope.WORKSPACE);
 
 			// Adjust CSS
-			this.panelPart.getContainer().removeClass(oldPositionValue);
-			this.panelPart.getContainer().addClass(newPositionValue);
+			DOM.removeClass(this.panelPart.getContainer(), oldPositionValue);
+			DOM.addClass(this.panelPart.getContainer(), newPositionValue);
 
 			// Update Styles
 			this.panelPart.updateStyles();
@@ -1108,10 +1109,10 @@ export class Workbench implements IPartService {
 		const editorContainer = this.editorPart.getContainer();
 		if (visibleEditors === 0) {
 			this.editorsVisibleContext.reset();
-			this.editorBackgroundDelayer.trigger(() => editorContainer.addClass('empty'));
+			this.editorBackgroundDelayer.trigger(() => DOM.addClass(editorContainer, 'empty'));
 		} else {
 			this.editorsVisibleContext.set(true);
-			this.editorBackgroundDelayer.trigger(() => editorContainer.removeClass('empty'));
+			this.editorBackgroundDelayer.trigger(() => DOM.removeClass(editorContainer, 'empty'));
 		}
 	}
 
@@ -1218,7 +1219,7 @@ export class Workbench implements IPartService {
 			role: 'contentinfo'
 		});
 
-		this.titlebarPart.create(titlebarContainer);
+		this.titlebarPart.create(titlebarContainer.getHTMLElement());
 	}
 
 	private createActivityBarPart(): void {
@@ -1229,7 +1230,7 @@ export class Workbench implements IPartService {
 				role: 'navigation'
 			});
 
-		this.activitybarPart.create(activitybarPartContainer);
+		this.activitybarPart.create(activitybarPartContainer.getHTMLElement());
 	}
 
 	private createSidebarPart(): void {
@@ -1240,7 +1241,7 @@ export class Workbench implements IPartService {
 				role: 'complementary'
 			});
 
-		this.sidebarPart.create(sidebarPartContainer);
+		this.sidebarPart.create(sidebarPartContainer.getHTMLElement());
 	}
 
 	private createPanelPart(): void {
@@ -1251,7 +1252,7 @@ export class Workbench implements IPartService {
 				role: 'complementary'
 			});
 
-		this.panelPart.create(panelPartContainer);
+		this.panelPart.create(panelPartContainer.getHTMLElement());
 	}
 
 	private createEditorPart(): void {
@@ -1262,7 +1263,7 @@ export class Workbench implements IPartService {
 				role: 'main'
 			});
 
-		this.editorPart.create(editorContainer);
+		this.editorPart.create(editorContainer.getHTMLElement());
 	}
 
 	private createStatusbarPart(): void {
@@ -1272,7 +1273,7 @@ export class Workbench implements IPartService {
 			role: 'contentinfo'
 		});
 
-		this.statusbarPart.create(statusbarContainer);
+		this.statusbarPart.create(statusbarContainer.getHTMLElement());
 	}
 
 	private createNotificationsHandlers(): void {

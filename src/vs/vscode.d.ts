@@ -5512,6 +5512,10 @@ declare module 'vscode' {
 		 */
 		range: Range;
 		/**
+		 * The offset of the range that got replaced.
+		 */
+		rangeOffset: number;
+		/**
 		 * The length of the range that got replaced.
 		 */
 		rangeLength: number;

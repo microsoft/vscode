@@ -50,8 +50,10 @@ class ErrorTestingSettings {
 	public noSuchFilePrefix: string;
 	public noSuchFileMessage: string;
 	public stack: string[];
-	public randomUserFile: string = 'a/path/that/doesnt/contain/code/names';
-	public anonymizedRandomUserFile: string = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+	public randomUserFile: string = 'a/path/that/doe_snt/con-tain/code/names.js';
+	public anonymizedRandomUserFile: string = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+	public nodeModulePathToRetain: string = 'node_modules/path/that/shouldbe/retained/names.js:14:15854';
+	public nodeModuleAsarPathToRetain: string = 'node_modules.asar/path/that/shouldbe/retained/names.js:14:12354';
 
 	constructor() {
 		this.personalInfo = 'DANGEROUS/PATH';
@@ -66,16 +68,16 @@ class ErrorTestingSettings {
 		this.noSuchFilePrefix = 'ENOENT: no such file or directory';
 		this.noSuchFileMessage = this.noSuchFilePrefix + ' \'' + this.personalInfo + '\'';
 
-		this.stack = [`at e._modelEvents (${this.randomUserFile}.js:11:7309)`,
-		`    at t.AllWorkers (${this.randomUserFile}.js:6:8844)`,
-		`    at e.(anonymous function) [as _modelEvents] (${this.randomUserFile}.js:5:29552)`,
-		`    at Function.<anonymous> (${this.randomUserFile}.js:6:8272)`,
-		`    at e.dispatch (${this.randomUserFile}.js:5:26931)`,
-		`    at e.request (${this.randomUserFile}.js:14:1745)`,
-			'    at t._handleMessage (another/path/that/doesnt/contain/code/names.js:14:17447)',
-			'    at t._onmessage (another/path/that/doesnt/contain/code/names.js:14:16976)',
-			'    at t.onmessage (another/path/that/doesnt/contain/code/names.js:14:15854)',
-			'    at DedicatedWorkerGlobalScope.self.onmessage',
+		this.stack = [`at e._modelEvents (${this.randomUserFile}:11:7309)`,
+		`    at t.AllWorkers (${this.randomUserFile}:6:8844)`,
+		`    at e.(anonymous function) [as _modelEvents] (${this.randomUserFile}:5:29552)`,
+		`    at Function.<anonymous> (${this.randomUserFile}:6:8272)`,
+		`    at e.dispatch (${this.randomUserFile}:5:26931)`,
+		`    at e.request (/${this.nodeModuleAsarPathToRetain})`,
+		`    at t._handleMessage (${this.nodeModuleAsarPathToRetain})`,
+		`    at t._onmessage (/${this.nodeModulePathToRetain})`,
+		`    at t.onmessage (${this.nodeModulePathToRetain})`,
+			`    at DedicatedWorkerGlobalScope.self.onmessage`,
 		this.dangerousPathWithImportantInfo,
 		this.dangerousPathWithoutImportantInfo,
 		this.missingModelMessage,
@@ -460,6 +462,62 @@ suite('TelemetryService', () => {
 		errorTelemetry.dispose();
 		service.dispose();
 	}));
+
+	test('Unexpected Error Telemetry removes PII but preserves Code file path with node modules', sinon.test(function (this: any) {
+
+		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		Errors.setUnexpectedErrorHandler(() => { });
+
+		try {
+			let settings = new ErrorTestingSettings();
+			let testAppender = new TestTelemetryAppender();
+			let service = new TelemetryService({ appender: testAppender }, undefined);
+			const errorTelemetry = new ErrorTelemetry(service);
+
+			let dangerousPathWithImportantInfoError: any = new Error(settings.dangerousPathWithImportantInfo);
+			dangerousPathWithImportantInfoError.stack = settings.stack;
+
+
+			Errors.onUnexpectedError(dangerousPathWithImportantInfoError);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+			assert.notEqual(testAppender.events[0].data.stack.indexOf('(' + settings.nodeModuleAsarPathToRetain), -1);
+			assert.notEqual(testAppender.events[0].data.stack.indexOf('(' + settings.nodeModulePathToRetain), -1);
+			assert.notEqual(testAppender.events[0].data.stack.indexOf('(/' + settings.nodeModuleAsarPathToRetain), -1);
+			assert.notEqual(testAppender.events[0].data.stack.indexOf('(/' + settings.nodeModulePathToRetain), -1);
+
+			errorTelemetry.dispose();
+			service.dispose();
+		}
+		finally {
+			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		}
+	}));
+
+	test('Uncaught Error Telemetry removes PII but preserves Code file path', sinon.test(function (this: any) {
+		let errorStub = sinon.stub();
+		window.onerror = errorStub;
+		let settings = new ErrorTestingSettings();
+		let testAppender = new TestTelemetryAppender();
+		let service = new TelemetryService({ appender: testAppender }, undefined);
+		const errorTelemetry = new ErrorTelemetry(service);
+
+		let dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
+		dangerousPathWithImportantInfoError.stack = settings.stack;
+		(<any>window.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
+		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+		assert.equal(errorStub.callCount, 1);
+
+		assert.notEqual(testAppender.events[0].data.stack.indexOf('(' + settings.nodeModuleAsarPathToRetain), -1);
+		assert.notEqual(testAppender.events[0].data.stack.indexOf('(' + settings.nodeModulePathToRetain), -1);
+		assert.notEqual(testAppender.events[0].data.stack.indexOf('(/' + settings.nodeModuleAsarPathToRetain), -1);
+		assert.notEqual(testAppender.events[0].data.stack.indexOf('(/' + settings.nodeModulePathToRetain), -1);
+
+		errorTelemetry.dispose();
+		service.dispose();
+	}));
+
 
 	test('Unexpected Error Telemetry removes PII but preserves Code file path when PIIPath is configured', sinon.test(function (this: any) {
 

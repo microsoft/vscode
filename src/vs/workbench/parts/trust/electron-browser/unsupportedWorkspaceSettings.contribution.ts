@@ -14,7 +14,7 @@ import { IPreferencesService } from 'vs/workbench/parts/preferences/common/prefe
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Severity, INotificationService, PromptOption } from 'vs/platform/notification/common/notification';
+import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 
 class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution {
 
@@ -60,18 +60,21 @@ class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution
 	}
 
 	private showWarning(unsupportedKeys: string[]): void {
-		const choices: PromptOption[] = [nls.localize('openWorkspaceSettings', 'Open Workspace Settings'), { label: nls.localize('dontShowAgain', 'Don\'t Show Again') }];
-		this.notificationService.prompt(Severity.Warning, nls.localize('unsupportedWorkspaceSettings', 'This Workspace contains settings that can only be set in User Settings ({0}). Click [here]({1}) to learn more.', unsupportedKeys.join(', '), 'https://go.microsoft.com/fwlink/?linkid=839878'), choices).then(choice => {
-			switch (choice) {
-				case 0 /* Open Workspace Settings */:
+		this.notificationService.prompt(
+			Severity.Warning,
+			nls.localize('unsupportedWorkspaceSettings', 'This Workspace contains settings that can only be set in User Settings ({0}). Click [here]({1}) to learn more.', unsupportedKeys.join(', '), 'https://go.microsoft.com/fwlink/?linkid=839878'),
+			[{
+				label: nls.localize('openWorkspaceSettings', 'Open Workspace Settings'),
+				run: () => {
 					this.rememberWarningWasShown();
 					this.preferencesService.openWorkspaceSettings();
-					break;
-				case 1 /* Never show again */:
-					this.rememberWarningWasShown();
-					break;
-			}
-		});
+				}
+			}, {
+				label: nls.localize('dontShowAgain', 'Don\'t Show Again'),
+				isSecondary: true,
+				run: () => this.rememberWarningWasShown()
+			}]
+		);
 	}
 }
 

@@ -375,33 +375,32 @@ export class IssueReporter extends Disposable {
 		});
 
 		this.addEventListener('disableExtensions', 'keydown', (e: KeyboardEvent) => {
+			e.stopPropagation();
 			if (e.keyCode === 13 || e.keyCode === 32) {
 				ipcRenderer.send('workbenchCommand', 'workbench.extensions.action.disableAll');
 				ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindow');
 			}
 		});
 
-		// Cmd+Enter or Mac or Ctrl+Enter on other platforms previews issue and closes window
-		if (platform.isMacintosh) {
-			let prevKeyWasCommand = false;
-			document.onkeydown = (e: KeyboardEvent) => {
-				if (prevKeyWasCommand && e.keyCode === 13) {
-					if (this.createIssue()) {
-						remote.getCurrentWindow().close();
-					}
+		document.onkeydown = (e: KeyboardEvent) => {
+			const cmdOrCtrlKey = platform.isMacintosh ? e.metaKey : e.ctrlKey;
+			// Cmd/Ctrl+Enter previews issue and closes window
+			if (cmdOrCtrlKey && e.keyCode === 13) {
+				if (this.createIssue()) {
+					remote.getCurrentWindow().close();
 				}
+			}
 
-				prevKeyWasCommand = e.keyCode === 91 || e.keyCode === 93;
-			};
-		} else {
-			document.onkeydown = (e: KeyboardEvent) => {
-				if (e.ctrlKey && e.keyCode === 13) {
-					if (this.createIssue()) {
-						remote.getCurrentWindow().close();
-					}
-				}
-			};
-		}
+			// Cmd/Ctrl + zooms in
+			if (cmdOrCtrlKey && e.keyCode === 187) {
+				this.applyZoom(webFrame.getZoomLevel() + 1);
+			}
+
+			// Cmd/Ctrl - zooms out
+			if (cmdOrCtrlKey && e.keyCode === 189) {
+				this.applyZoom(webFrame.getZoomLevel() - 1);
+			}
+		};
 	}
 
 	private updatePreviewButtonState() {
@@ -447,7 +446,7 @@ export class IssueReporter extends Disposable {
 	}
 
 	private searchVSCodeIssues(title: string, issueDescription: string): void {
-		if (title || issueDescription) {
+		if (title) {
 			this.searchDuplicates(title, issueDescription);
 		} else {
 			this.clearSearchResults();
@@ -578,7 +577,7 @@ export class IssueReporter extends Disposable {
 			similarIssues.appendChild(issues);
 		} else {
 			const message = $('div.list-title');
-			message.textContent = localize('noResults', "No results found");
+			message.textContent = localize('noSimilarIssues', "No similar issues found");
 			similarIssues.appendChild(message);
 		}
 	}
@@ -771,10 +770,14 @@ export class IssueReporter extends Disposable {
 		const target = document.querySelector('.block-system .block-info');
 		let tableHtml = '';
 		Object.keys(state.systemInfo).forEach(k => {
+			const data = typeof state.systemInfo[k] === 'object'
+				? Object.keys(state.systemInfo[k]).map(key => `${key}: ${state.systemInfo[k][key]}`).join('<br>')
+				: state.systemInfo[k];
+
 			tableHtml += `
 				<tr>
 					<td>${k}</td>
-					<td>${state.systemInfo[k]}</td>
+					<td>${data}</td>
 				</tr>`;
 		});
 		target.innerHTML = `<table>${tableHtml}</table>`;

@@ -17,7 +17,6 @@ import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { Builder } from 'vs/base/browser/builder';
 import { domEvent } from 'vs/base/browser/event';
 import { append, $, addClass, removeClass, finalHandler, join, toggleClass } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -206,10 +205,8 @@ export class ExtensionEditor extends BaseEditor {
 		this.findInputFocusContextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(this.contextKeyService);
 	}
 
-	createEditor(parent: Builder): void {
-		const container = parent.getHTMLElement();
-
-		const root = append(container, $('.extension-editor'));
+	createEditor(parent: HTMLElement): void {
+		const root = append(parent, $('.extension-editor'));
 		this.header = append(root, $('.header'));
 
 		this.icon = append(this.header, $<HTMLImageElement>('img.icon', { draggable: false }));

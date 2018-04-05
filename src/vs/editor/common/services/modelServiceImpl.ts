@@ -118,26 +118,31 @@ class ModelMarkerHandler {
 		let className: string;
 		let color: ThemeColor;
 		let darkColor: ThemeColor;
+		let zIndex: number;
 
 		switch (marker.severity) {
 			case MarkerSeverity.Hint:
 				className = ClassName.EditorHintDecoration;
+				zIndex = 0;
 				break;
 			case MarkerSeverity.Warning:
 				className = ClassName.EditorWarningDecoration;
 				color = themeColorFromId(overviewRulerWarning);
 				darkColor = themeColorFromId(overviewRulerWarning);
+				zIndex = 20;
 				break;
 			case MarkerSeverity.Info:
 				className = ClassName.EditorInfoDecoration;
 				color = themeColorFromId(overviewRulerInfo);
 				darkColor = themeColorFromId(overviewRulerInfo);
+				zIndex = 10;
 				break;
 			case MarkerSeverity.Error:
 			default:
 				className = ClassName.EditorErrorDecoration;
 				color = themeColorFromId(overviewRulerError);
 				darkColor = themeColorFromId(overviewRulerError);
+				zIndex = 30;
 				break;
 		}
 
@@ -177,7 +182,8 @@ class ModelMarkerHandler {
 				color,
 				darkColor,
 				position: OverviewRulerLane.Right
-			}
+			},
+			zIndex
 		};
 	}
 }

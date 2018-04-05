@@ -82,6 +82,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private inputPatternIncludesFocused: IContextKey<boolean>;
 	private firstMatchFocused: IContextKey<boolean>;
 	private fileMatchOrMatchFocused: IContextKey<boolean>;
+	private fileMatchOrFolderMatchFocus: IContextKey<boolean>;
 	private fileMatchFocused: IContextKey<boolean>;
 	private folderMatchFocused: IContextKey<boolean>;
 	private matchFocused: IContextKey<boolean>;
@@ -137,6 +138,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.inputPatternIncludesFocused = Constants.PatternIncludesFocusedKey.bindTo(this.contextKeyService);
 		this.firstMatchFocused = Constants.FirstMatchFocusKey.bindTo(contextKeyService);
 		this.fileMatchOrMatchFocused = Constants.FileMatchOrMatchFocusKey.bindTo(contextKeyService);
+		this.fileMatchOrFolderMatchFocus = Constants.FileMatchOrFolderMatchFocusKey.bindTo(contextKeyService);
 		this.fileMatchFocused = Constants.FileFocusKey.bindTo(contextKeyService);
 		this.folderMatchFocused = Constants.FolderFocusKey.bindTo(contextKeyService);
 		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
@@ -162,12 +164,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	public create(parent: Builder): TPromise<void> {
+	public create(parent: HTMLElement): TPromise<void> {
 		super.create(parent);
 
 		this.viewModel = this.searchWorkbenchService.searchModel;
 		let builder: Builder;
-		parent.div({
+		$(parent).div({
 			'class': 'search-view'
 		}, (div) => {
 			builder = div;
@@ -191,13 +193,13 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'button', 'title': nls.localize('moreSearch', "Toggle Search Details") })
 				.on(dom.EventType.CLICK, (e) => {
 					dom.EventHelper.stop(e);
-					this.toggleQueryDetails(true);
+					this.toggleQueryDetails();
 				}).on(dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 					let event = new StandardKeyboardEvent(e);
 
 					if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 						dom.EventHelper.stop(e);
-						this.toggleQueryDetails();
+						this.toggleQueryDetails(false);
 					}
 				});
 
@@ -535,6 +537,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 					this.fileMatchFocused.set(focus instanceof FileMatch);
 					this.folderMatchFocused.set(focus instanceof FolderMatch);
 					this.matchFocused.set(focus instanceof Match);
+					this.fileMatchOrFolderMatchFocus.set(focus instanceof FileMatch || focus instanceof FolderMatch);
 				}
 			}));
 
@@ -545,9 +548,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				this.fileMatchFocused.reset();
 				this.folderMatchFocused.reset();
 				this.matchFocused.reset();
+				this.fileMatchOrFolderMatchFocus.reset();
 			}));
-
-
 		});
 	}
 
@@ -752,9 +754,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 
 		if (this.size.width >= SearchView.WIDE_VIEW_SIZE) {
-			this.getContainer().addClass(SearchView.WIDE_CLASS_NAME);
+			dom.addClass(this.getContainer(), SearchView.WIDE_CLASS_NAME);
 		} else {
-			this.getContainer().removeClass(SearchView.WIDE_CLASS_NAME);
+			dom.removeClass(this.getContainer(), SearchView.WIDE_CLASS_NAME);
 		}
 
 		this.searchWidget.setWidth(this.size.width - 28 /* container margin */);
@@ -879,7 +881,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.onQueryChanged(true, true);
 	}
 
-	public toggleQueryDetails(moveFocus?: boolean, show?: boolean, skipLayout?: boolean): void {
+	public toggleQueryDetails(moveFocus = true, show?: boolean, skipLayout?: boolean): void {
 		let cls = 'more';
 		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);
 		this.viewletSettings['query.queryDetailsExpanded'] = show;
@@ -1489,16 +1491,16 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	const diffInsertedOutlineColor = theme.getColor(diffInsertedOutline);
 	if (diffInsertedOutlineColor) {
-		collector.addRule(`.monaco-workbench .search-view .replaceMatch:not(:empty) { border: 1px dashed ${diffInsertedOutlineColor}; }`);
+		collector.addRule(`.monaco-workbench .search-view .replaceMatch:not(:empty) { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${diffInsertedOutlineColor}; }`);
 	}
 
 	const diffRemovedOutlineColor = theme.getColor(diffRemovedOutline);
 	if (diffRemovedOutlineColor) {
-		collector.addRule(`.monaco-workbench .search-view .replace.findInFileMatch { border: 1px dashed ${diffRemovedOutlineColor}; }`);
+		collector.addRule(`.monaco-workbench .search-view .replace.findInFileMatch { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${diffRemovedOutlineColor}; }`);
 	}
 
 	const findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);
 	if (findMatchHighlightBorder) {
-		collector.addRule(`.monaco-workbench .search-view .findInFileMatch { border: 1px dashed ${findMatchHighlightBorder}; }`);
+		collector.addRule(`.monaco-workbench .search-view .findInFileMatch { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${findMatchHighlightBorder}; }`);
 	}
 });

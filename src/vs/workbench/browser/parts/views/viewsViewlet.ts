@@ -6,7 +6,6 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
-import { $, Builder } from 'vs/base/browser/builder';
 import { Scope } from 'vs/workbench/common/memento';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
@@ -137,9 +136,9 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 		}
 
 		if (isVisible) {
-			$(tree.getHTMLElement()).show();
+			DOM.show(tree.getHTMLElement());
 		} else {
-			$(tree.getHTMLElement()).hide(); // make sure the tree goes out of the tabindex world by hiding it
+			DOM.hide(tree.getHTMLElement()); // make sure the tree goes out of the tabindex world by hiding it
 		}
 
 		if (isVisible) {
@@ -215,7 +214,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 	}
 
-	async create(parent: Builder): TPromise<void> {
+	async create(parent: HTMLElement): TPromise<void> {
 		await super.create(parent);
 
 		this._register(this.onDidSashChange(() => this.snapshotViewsStates()));
@@ -644,7 +643,7 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 		this._register(this.onDidChangeViewVisibilityState(id => this.onViewVisibilityChanged(id)));
 	}
 
-	create(parent: Builder): TPromise<void> {
+	create(parent: HTMLElement): TPromise<void> {
 		this.loadViewsStates();
 		return super.create(parent);
 	}

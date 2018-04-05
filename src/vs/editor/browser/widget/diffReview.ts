@@ -29,6 +29,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -738,10 +739,13 @@ export class DiffReview extends Disposable {
 
 		const lineTokens = new LineTokens(tokens, lineContent);
 
+		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, model.mightContainNonBasicASCII());
+		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
 		const r = renderViewLine(new RenderLineInput(
 			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
 			lineContent,
-			model.mightContainRTL(),
+			isBasicASCII,
+			containsRTL,
 			0,
 			lineTokens,
 			[],

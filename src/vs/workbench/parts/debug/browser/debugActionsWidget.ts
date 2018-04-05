@@ -7,7 +7,7 @@ import 'vs/css!./media/debugActionsWidget';
 import * as errors from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import * as browser from 'vs/base/browser/browser';
-import * as builder from 'vs/base/browser/builder';
+import { $, Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -31,7 +31,6 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RunOnceScheduler } from 'vs/base/common/async';
 
-const $ = builder.$;
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
 
 export const debugToolBarBackground = registerColor('debugToolBar.background', {
@@ -47,8 +46,8 @@ export const debugToolBarBorder = registerColor('debugToolBar.border', {
 
 export class DebugActionsWidget extends Themable implements IWorkbenchContribution {
 
-	private $el: builder.Builder;
-	private dragArea: builder.Builder;
+	private $el: Builder;
+	private dragArea: Builder;
 	private actionBar: ActionBar;
 	private allActions: AbstractDebugAction[];
 	private activeActions: AbstractDebugAction[];

@@ -48,7 +48,7 @@ suite('Completions', () => {
 		cssLanguageService.setCompletionParticipants([getPathCompletionParticipant(document, workspaceFolders, participantResult)]);
 
 		const stylesheet = cssLanguageService.parseStylesheet(document);
-		let list = cssLanguageService.doComplete!(document, position, stylesheet);
+		let list = cssLanguageService.doComplete(document, position, stylesheet)!;
 		list.items = list.items.concat(participantResult.items);
 
 		if (expected.count) {

@@ -636,7 +636,6 @@ suite('Builder', () => {
 		assert(!b.isHidden());
 		b.hide();
 		assert(b.isHidden());
-		assert(!b.hasClass('monaco-builder-visible'));
 		b.show();
 		b.hide();
 		assert(b.hasClass('monaco-builder-hidden'));

@@ -7,7 +7,7 @@
 
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -20,6 +20,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['none', 'default'],
 			'default': 'default',
+			'scope': ConfigurationScope.APPLICATION,
 			'description': nls.localize('updateChannel', "Configure whether you receive automatic updates from an update channel. Requires a restart after change.")
 		},
 		'update.enableWindowsBackgroundUpdates': {

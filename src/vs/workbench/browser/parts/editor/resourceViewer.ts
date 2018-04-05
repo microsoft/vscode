@@ -132,7 +132,7 @@ export class ResourceViewer {
 
 	public static show(
 		descriptor: IResourceDescriptor,
-		container: Builder,
+		container: HTMLElement,
 		scrollbar: DomScrollableElement,
 		openInternalClb: (uri: URI) => void,
 		openExternalClb: (uri: URI) => void,
@@ -184,7 +184,7 @@ class ImageView {
 	private static readonly BASE64_MARKER = 'base64,';
 
 	public static create(
-		container: Builder,
+		container: HTMLElement,
 		descriptor: IResourceDescriptor,
 		scrollbar: DomScrollableElement,
 		openExternalClb: (uri: URI) => void,
@@ -221,7 +221,7 @@ class ImageView {
 
 class LargeImageView {
 	public static create(
-		container: Builder,
+		container: HTMLElement,
 		descriptor: IResourceDescriptor,
 		openExternalClb: (uri: URI) => void
 	) {
@@ -247,7 +247,7 @@ class LargeImageView {
 
 class FileTooLargeFileView {
 	public static create(
-		container: Builder,
+		container: HTMLElement,
 		descriptor: IResourceDescriptor,
 		scrollbar: DomScrollableElement,
 		metadataClb: (meta: string) => void
@@ -270,7 +270,7 @@ class FileTooLargeFileView {
 
 class FileSeemsBinaryFileView {
 	public static create(
-		container: Builder,
+		container: HTMLElement,
 		descriptor: IResourceDescriptor,
 		scrollbar: DomScrollableElement,
 		openInternalClb: (uri: URI) => void,
@@ -434,7 +434,7 @@ class InlineImageView {
 	private static readonly imageStateCache = new LRUCache<string, ImageState>(100);
 
 	public static create(
-		container: Builder,
+		container: HTMLElement,
 		descriptor: IResourceDescriptor,
 		scrollbar: DomScrollableElement,
 		metadataClb: (meta: string) => void

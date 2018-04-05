@@ -15,6 +15,7 @@ import { Scrollable, IScrollPosition } from 'vs/base/common/scrollable';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { ITheme } from 'vs/platform/theme/common/themeService';
+import * as strings from 'vs/base/common/strings';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: number;
@@ -208,13 +209,13 @@ export class ViewLineRenderingData {
 	 */
 	public readonly content: string;
 	/**
-	 * If set to false, it is guaranteed that `content` contains only LTR chars.
+	 * Describes if `content` contains RTL characters.
 	 */
-	public readonly mightContainRTL: boolean;
+	public readonly containsRTL: boolean;
 	/**
-	 * If set to false, it is guaranteed that `content` contains only basic ASCII chars.
+	 * Describes if `content` contains non basic ASCII chars.
 	 */
-	public readonly mightContainNonBasicASCII: boolean;
+	public readonly isBasicASCII: boolean;
 	/**
 	 * The tokens at this view line.
 	 */
@@ -241,11 +242,27 @@ export class ViewLineRenderingData {
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
 		this.content = content;
-		this.mightContainRTL = mightContainRTL;
-		this.mightContainNonBasicASCII = mightContainNonBasicASCII;
+
+		this.isBasicASCII = ViewLineRenderingData.isBasicASCII(content, mightContainNonBasicASCII);
+		this.containsRTL = ViewLineRenderingData.containsRTL(content, this.isBasicASCII, mightContainRTL);
+
 		this.tokens = tokens;
 		this.inlineDecorations = inlineDecorations;
 		this.tabSize = tabSize;
+	}
+
+	public static isBasicASCII(lineContent: string, mightContainNonBasicASCII: boolean): boolean {
+		if (mightContainNonBasicASCII) {
+			return strings.isBasicASCII(lineContent);
+		}
+		return true;
+	}
+
+	public static containsRTL(lineContent: string, isBasicASCII: boolean, mightContainRTL: boolean): boolean {
+		if (!isBasicASCII && mightContainRTL) {
+			return strings.containsRTL(lineContent);
+		}
+		return false;
 	}
 }
 

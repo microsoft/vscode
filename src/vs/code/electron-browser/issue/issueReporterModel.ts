@@ -142,7 +142,11 @@ ${this.getInfos()}
 `;
 
 		Object.keys(this._data.systemInfo).forEach(k => {
-			md += `|${k}|${this._data.systemInfo[k]}|\n`;
+			const data = typeof this._data.systemInfo[k] === 'object'
+				? Object.keys(this._data.systemInfo[k]).map(key => `${key}: ${this._data.systemInfo[k][key]}`).join('<br>')
+				: this._data.systemInfo[k];
+
+			md += `|${k}|${data}|\n`;
 		});
 
 		md += '\n</details>';

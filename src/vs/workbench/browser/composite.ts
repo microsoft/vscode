@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Builder } from 'vs/base/browser/builder';
 import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Component } from 'vs/workbench/common/component';
@@ -35,7 +34,7 @@ export abstract class Composite extends Component implements IComposite {
 	private _focusListenerDisposable?: IDisposable;
 
 	private visible: boolean;
-	private parent: Builder;
+	private parent: HTMLElement;
 
 	protected actionRunner: IActionRunner;
 
@@ -75,7 +74,7 @@ export abstract class Composite extends Component implements IComposite {
 	 * Note that DOM-dependent calculations should be performed from the setVisible()
 	 * call. Only then the composite will be part of the DOM.
 	 */
-	public create(parent: Builder): TPromise<void> {
+	public create(parent: HTMLElement): TPromise<void> {
 		this.parent = parent;
 
 		return TPromise.as(null);
@@ -88,12 +87,12 @@ export abstract class Composite extends Component implements IComposite {
 	/**
 	 * Returns the container this composite is being build in.
 	 */
-	public getContainer(): Builder {
+	public getContainer(): HTMLElement {
 		return this.parent;
 	}
 
 	public get onDidFocus(): Event<any> {
-		this._focusTracker = trackFocus(this.getContainer().getHTMLElement());
+		this._focusTracker = trackFocus(this.getContainer());
 		this._focusListenerDisposable = this._focusTracker.onDidFocus(() => {
 			this._onDidFocus.fire();
 		});

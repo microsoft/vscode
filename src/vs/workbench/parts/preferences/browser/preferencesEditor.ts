@@ -11,7 +11,6 @@ import { onUnexpectedError, isPromiseCanceledError, getErrorMessage } from 'vs/b
 import * as DOM from 'vs/base/browser/dom';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
-import { Builder } from 'vs/base/browser/builder';
 import { ArrayNavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -58,7 +57,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -138,11 +136,10 @@ export class PreferencesEditor extends BaseEditor {
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
 	}
 
-	public createEditor(parent: Builder): void {
-		const parentElement = parent.getHTMLElement();
-		DOM.addClass(parentElement, 'preferences-editor');
+	public createEditor(parent: HTMLElement): void {
+		DOM.addClass(parent, 'preferences-editor');
 
-		this.headerContainer = DOM.append(parentElement, DOM.$('.preferences-header'));
+		this.headerContainer = DOM.append(parent, DOM.$('.preferences-header'));
 
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.headerContainer, {
 			ariaLabel: nls.localize('SearchSettingsWidget.AriaLabel', "Search settings"),
@@ -154,7 +151,7 @@ export class PreferencesEditor extends BaseEditor {
 		this._register(this.searchWidget.onFocus(() => this.lastFocusedWidget = this.searchWidget));
 		this.lastFocusedWidget = this.searchWidget;
 
-		const editorsContainer = DOM.append(parentElement, DOM.$('.preferences-editors-container'));
+		const editorsContainer = DOM.append(parent, DOM.$('.preferences-editors-container'));
 		this.sideBySidePreferencesWidget = this._register(this.instantiationService.createInstance(SideBySidePreferencesWidget, editorsContainer));
 		this._register(this.sideBySidePreferencesWidget.onFocus(() => this.lastFocusedWidget = this.sideBySidePreferencesWidget));
 		this._register(this.sideBySidePreferencesWidget.onDidSettingsTargetChange(target => this.switchSettings(target)));
@@ -817,7 +814,7 @@ class SideBySidePreferencesWidget extends Widget {
 		this.defaultPreferencesHeader.textContent = nls.localize('defaultSettings', "Default Settings");
 
 		this.defaultPreferencesEditor = this._register(this.instantiationService.createInstance(DefaultPreferencesEditor));
-		this.defaultPreferencesEditor.create(new Builder(this.defaultPreferencesEditorContainer));
+		this.defaultPreferencesEditor.create(this.defaultPreferencesEditorContainer);
 		this.defaultPreferencesEditor.setVisible(true);
 		(<CodeEditor>this.defaultPreferencesEditor.getControl()).onDidFocusEditor(() => this.lastFocusedEditor = this.defaultPreferencesEditor);
 
@@ -850,9 +847,21 @@ class SideBySidePreferencesWidget extends Widget {
 		return TPromise.join([this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, editablePreferencesEditorInput.getResource(), options),
 		this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options)])
 			.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => {
-				this.defaultPreferencesHeader.textContent = defaultPreferencesRenderer && (<DefaultSettingsEditorModel>defaultPreferencesRenderer.preferencesModel).configurationScope === ConfigurationScope.RESOURCE ? nls.localize('defaultFolderSettings', "Default Folder Settings") : nls.localize('defaultSettings', "Default Settings");
+				this.defaultPreferencesHeader.textContent = defaultPreferencesRenderer && this.getDefaultPreferencesHeaderText((<DefaultSettingsEditorModel>defaultPreferencesRenderer.preferencesModel).target);
 				return { defaultPreferencesRenderer, editablePreferencesRenderer };
 			});
+	}
+
+	private getDefaultPreferencesHeaderText(target: ConfigurationTarget): string {
+		switch (target) {
+			case ConfigurationTarget.USER:
+				return nls.localize('defaultUserSettings', "Default User Settings");
+			case ConfigurationTarget.WORKSPACE:
+				return nls.localize('defaultWorkspaceSettings', "Default Workspace Settings");
+			case ConfigurationTarget.WORKSPACE_FOLDER:
+				return nls.localize('defaultFolderSettings', "Default Folder Settings");
+		}
+		return '';
 	}
 
 	public setResultCount(settingsTarget: SettingsTarget, count: number): void {
@@ -902,7 +911,7 @@ class SideBySidePreferencesWidget extends Widget {
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
 		const editor = descriptor.instantiate(this.instantiationService);
 		this.editablePreferencesEditor = editor;
-		this.editablePreferencesEditor.create(new Builder(this.editablePreferencesEditorContainer));
+		this.editablePreferencesEditor.create(this.editablePreferencesEditorContainer);
 		this.editablePreferencesEditor.setVisible(true);
 		(<CodeEditor>this.editablePreferencesEditor.getControl()).onDidFocusEditor(() => this.lastFocusedEditor = this.editablePreferencesEditor);
 		this.lastFocusedEditor = this.editablePreferencesEditor;
@@ -990,8 +999,8 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
 	}
 
-	public createEditorControl(parent: Builder, configuration: IEditorOptions): editorCommon.IEditor {
-		const editor = this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parent.getHTMLElement(), configuration);
+	public createEditorControl(parent: HTMLElement, configuration: IEditorOptions): editorCommon.IEditor {
+		const editor = this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parent, configuration);
 
 		// Inform user about editor being readonly if user starts type
 		this.toUnbind.push(editor.onDidType(() => this.showReadonlyHint(editor)));
