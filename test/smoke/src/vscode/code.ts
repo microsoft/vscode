@@ -97,6 +97,10 @@ export async function connect(child: cp.ChildProcess, outPath: string, handlePat
 	}
 }
 
+// Kill all running instances, when dead
+const instances = new Set<cp.ChildProcess>();
+process.once('exit', () => instances.forEach(code => code.kill()));
+
 export async function spawn(options: SpawnOptions): Promise<Code> {
 	const codePath = options.codePath;
 	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
@@ -120,5 +124,9 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	}
 
 	const child = cp.spawn(electronPath, args);
+
+	instances.add(child);
+	child.once('exit', () => instances.delete(child));
+
 	return connect(child, outPath, handlePath);
 }
