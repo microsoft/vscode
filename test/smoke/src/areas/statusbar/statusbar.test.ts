@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-
 import { SpectronApplication, Quality } from '../../spectron/application';
 import { StatusBarElement } from './statusbar';
 
@@ -69,7 +67,7 @@ export function setup() {
 			}
 
 			await app.workbench.statusbar.clickOn(StatusBarElement.FEEDBACK_ICON);
-			assert.ok(!!await app.client.waitForElement('.feedback-form'));
+			await app.client.waitForElement('.feedback-form');
 		});
 
 		it(`checks if 'Go to Line' works if called from the status bar`, async function () {

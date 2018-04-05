@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Element } from 'webdriverio';
 import { SpectronApplication } from '../../spectron/application';
 
 export enum ActivityBarPosition {
@@ -17,7 +16,7 @@ export class ActivityBar {
 		// noop
 	}
 
-	public async getActivityBar(position: ActivityBarPosition): Promise<Element> {
+	public async getActivityBar(position: ActivityBarPosition): Promise<void> {
 		let positionClass: string;
 
 		if (position === ActivityBarPosition.LEFT) {

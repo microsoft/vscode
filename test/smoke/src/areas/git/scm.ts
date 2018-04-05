@@ -41,7 +41,7 @@ export class SCM extends Viewlet {
 	}
 
 	async refreshSCMViewlet(): Promise<any> {
-		await this.spectron.client.click(REFRESH_COMMAND);
+		await this.spectron.client.waitAndClick(REFRESH_COMMAND);
 	}
 
 	private async queryChanges(name: string, type?: string): Promise<Change[]> {

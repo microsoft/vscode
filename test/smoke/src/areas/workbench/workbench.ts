@@ -65,12 +65,12 @@ export class Workbench {
 		await this.editor.waitForActiveEditor(fileName);
 	}
 
-	public async waitForActiveTab(fileName: string, isDirty: boolean = false): Promise<any> {
-		return this.spectron.client.waitForElement(`.tabs-container div.tab.active${isDirty ? '.dirty' : ''}[aria-selected="true"][aria-label="${fileName}, tab"]`);
+	public async waitForActiveTab(fileName: string, isDirty: boolean = false): Promise<void> {
+		await this.spectron.client.waitForElement(`.tabs-container div.tab.active${isDirty ? '.dirty' : ''}[aria-selected="true"][aria-label="${fileName}, tab"]`);
 	}
 
-	public async waitForTab(fileName: string, isDirty: boolean = false): Promise<boolean> {
-		return this.spectron.client.waitForElement(`.tabs-container div.tab${isDirty ? '.dirty' : ''}[aria-label="${fileName}, tab"]`).then(() => true);
+	public async waitForTab(fileName: string, isDirty: boolean = false): Promise<void> {
+		await this.spectron.client.waitForElement(`.tabs-container div.tab${isDirty ? '.dirty' : ''}[aria-label="${fileName}, tab"]`);
 	}
 
 	public async newUntitledFile(): Promise<void> {

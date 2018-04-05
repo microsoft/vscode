@@ -18,16 +18,14 @@ export function setup() {
 			const app = this.app as SpectronApplication;
 
 			await app.workbench.explorer.openFile('app.js');
-			let lineNumbers = await app.client.waitForElements('.line-numbers');
+			await app.client.waitForElements('.line-numbers', elements => !!elements.length);
 			await app.screenCapturer.capture('app.js has line numbers');
-			assert.ok(!!lineNumbers.length, 'Line numbers are not present in the editor before disabling them.');
 
 			await app.workbench.settingsEditor.addUserSetting('editor.lineNumbers', '"off"');
 			await app.workbench.selectTab('app.js');
-			lineNumbers = await app.client.waitForElements('.line-numbers', result => !result || result.length === 0);
+			await app.client.waitForElements('.line-numbers', result => !result || result.length === 0);
 
 			await app.screenCapturer.capture('line numbers hidden');
-			assert.ok(!lineNumbers.length, 'Line numbers are still present in the editor after disabling them.');
 		});
 
 		it(`changes 'workbench.action.toggleSidebarPosition' command key binding and verifies it`, async function () {

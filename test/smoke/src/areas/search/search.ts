@@ -22,22 +22,22 @@ export class Search extends Viewlet {
 	}
 
 	async searchFor(text: string): Promise<void> {
-		await this.spectron.client.click(INPUT);
+		await this.spectron.client.waitAndClick(INPUT);
 		await this.spectron.client.waitForActiveElement(INPUT);
 		await this.spectron.client.setValue(INPUT, text);
 		await this.submitSearch();
 	}
 
 	async submitSearch(): Promise<void> {
-		await this.spectron.client.click(INPUT);
+		await this.spectron.client.waitAndClick(INPUT);
 		await this.spectron.client.waitForActiveElement(INPUT);
 
 		await this.spectron.client.keys(['Enter', 'NULL']);
-		await this.spectron.client.element(`${VIEWLET} .messages[aria-hidden="false"]`);
+		await this.spectron.client.waitForElement(`${VIEWLET} .messages[aria-hidden="false"]`);
 	}
 
 	async setFilesToIncludeText(text: string): Promise<void> {
-		await this.spectron.client.click(INCLUDE_INPUT);
+		await this.spectron.client.waitAndClick(INCLUDE_INPUT);
 		await this.spectron.client.waitForActiveElement(INCLUDE_INPUT);
 		await this.spectron.client.setValue(INCLUDE_INPUT, text || '');
 	}
@@ -54,9 +54,8 @@ export class Search extends Viewlet {
 		}
 	}
 
-	async areDetailsVisible(): Promise<boolean> {
-		const element = await this.spectron.client.element(`${VIEWLET} .query-details.more`);
-		return !!element;
+	areDetailsVisible(): Promise<boolean> {
+		return this.spectron.client.doesElementExist(`${VIEWLET} .query-details.more`);
 	}
 
 	async removeFileMatch(index: number): Promise<void> {
@@ -72,13 +71,13 @@ export class Search extends Viewlet {
 
 	async setReplaceText(text: string): Promise<void> {
 		await this.spectron.client.waitAndClick(`${VIEWLET} .search-widget .replace-container .monaco-inputbox input[title="Replace"]`);
-		await this.spectron.client.element(`${VIEWLET} .search-widget .replace-container .monaco-inputbox.synthetic-focus input[title="Replace"]`);
+		await this.spectron.client.waitForElement(`${VIEWLET} .search-widget .replace-container .monaco-inputbox.synthetic-focus input[title="Replace"]`);
 		await this.spectron.client.setValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox.synthetic-focus input[title="Replace"]`, text);
 	}
 
 	async replaceFileMatch(index: number): Promise<void> {
 		await this.spectron.client.waitAndMoveToObject(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch`);
-		await this.spectron.client.click(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch .action-label.icon.action-replace-all`);
+		await this.spectron.client.waitAndClick(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch .action-label.icon.action-replace-all`);
 	}
 
 	async waitForResultText(text: string): Promise<void> {

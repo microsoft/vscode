@@ -52,7 +52,7 @@ export class Debug extends Viewlet {
 
 	async setBreakpointOnLine(lineNumber: number): Promise<any> {
 		await this.spectron.client.waitForElement(`${GLYPH_AREA}(${lineNumber})`);
-		await this.spectron.client.leftClick(`${GLYPH_AREA}(${lineNumber})`, 5, 5);
+		await this.spectron.client.waitAndClick(`${GLYPH_AREA}(${lineNumber})`, 5, 5);
 		await this.spectron.client.waitForElement(BREAKPOINT_GLYPH);
 	}
 

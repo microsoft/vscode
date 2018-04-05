@@ -103,7 +103,7 @@ export class Editor {
 			`.monaco-editor[data-uri$="${filename}"]`
 		].join(' ');
 
-		await this.spectron.client.element(editor);
+		await this.spectron.client.waitForElement(editor);
 
 		const textarea = `${editor} textarea`;
 		await this.spectron.client.waitForActiveElement(textarea);
@@ -174,7 +174,8 @@ export class Editor {
 		const result: { text: string, className: string }[] = await this.spectron.webclient.selectorExecute(`${Editor.VIEW_LINES}>:nth-child(${viewline}) span span`,
 			elements => (Array.isArray(elements) ? elements : [elements])
 				.map(element => ({ text: element.textContent, className: element.className })));
-		return result.filter(r => r.text === term).map(({ className }) => className);
+		const { className } = result.filter(r => r.text === term)[0];
+		return className.split(/\s/g);
 	}
 
 	private async getViewLineIndex(line: number): Promise<number> {

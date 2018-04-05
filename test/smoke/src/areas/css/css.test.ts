@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
 import { SpectronApplication } from '../../spectron/application';
 import { ProblemSeverity, Problems } from '../problems/problems';
 
@@ -26,14 +25,12 @@ export function setup() {
 			await app.workbench.quickopen.openFile('style.css');
 			await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');
 
-			let warning = await app.client.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.WARNING));
+			await app.client.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.WARNING));
 			await app.screenCapturer.capture('CSS Warning in editor');
-			assert.ok(warning, `Warning squiggle is not shown in 'style.css'.`);
 
 			await app.workbench.problems.showProblemsView();
-			warning = await app.client.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.WARNING));
+			await app.client.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.WARNING));
 			await app.screenCapturer.capture('CSS Warning in problems view');
-			assert.ok(warning, 'Warning does not appear in Problems view.');
 			await app.workbench.problems.hideProblemsView();
 		});
 
@@ -43,15 +40,13 @@ export function setup() {
 			await app.workbench.quickopen.openFile('style.css');
 			await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');
 
-			let error = await app.client.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.ERROR));
+			await app.client.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.ERROR));
 			await app.screenCapturer.capture('CSS Error in editor');
-			assert.ok(error, `Warning squiggle is not shown in 'style.css'.`);
 
 			const problems = new Problems(app);
 			await problems.showProblemsView();
-			error = await app.client.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.ERROR));
+			await app.client.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.ERROR));
 			await app.screenCapturer.capture('CSS Error in probles view');
-			assert.ok(error, 'Warning does not appear in Problems view.');
 			await problems.hideProblemsView();
 		});
 	});

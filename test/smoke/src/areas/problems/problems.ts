@@ -32,9 +32,8 @@ export class Problems {
 		}
 	}
 
-	public async isVisible(): Promise<boolean> {
-		const element = await this.spectron.client.element(Problems.PROBLEMS_VIEW_SELECTOR);
-		return !!element;
+	isVisible(): Promise<boolean> {
+		return this.spectron.client.doesElementExist(Problems.PROBLEMS_VIEW_SELECTOR);
 	}
 
 	public async waitForProblemsView(): Promise<void> {

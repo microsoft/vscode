@@ -24,7 +24,7 @@ export class Extensions extends Viewlet {
 	}
 
 	async searchForExtension(name: string): Promise<any> {
-		await this.spectron.client.click(SEARCH_BOX);
+		await this.spectron.client.waitAndClick(SEARCH_BOX);
 		await this.spectron.client.waitForActiveElement(SEARCH_BOX);
 		await this.spectron.client.setValue(SEARCH_BOX, name);
 	}
@@ -34,7 +34,7 @@ export class Extensions extends Viewlet {
 
 		// we might want to wait for a while longer since the Marketplace can be slow
 		// a minute should do
-		await this.spectron.client.waitFor(() => this.spectron.client.click(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.install`), void 0, 'waiting for install button', 600);
+		await this.spectron.client.waitFor(() => this.spectron.client.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.install`), void 0, 'waiting for install button', 600);
 
 		await this.spectron.client.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.reload`);
 		return true;

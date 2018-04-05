@@ -20,9 +20,8 @@ export class Terminal {
 		}
 	}
 
-	async isVisible(): Promise<boolean> {
-		const element = await this.spectron.client.element(PANEL_SELECTOR);
-		return !!element;
+	isVisible(): Promise<boolean> {
+		return this.spectron.client.doesElementExist(PANEL_SELECTOR);
 	}
 
 	async runCommand(commandText: string): Promise<void> {

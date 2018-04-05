@@ -7,9 +7,6 @@ import { Application } from 'spectron';
 import { RawResult, Element } from 'webdriverio';
 import { SpectronApplication } from './application';
 
-/**
- * Abstracts the Spectron's WebdriverIO managed client property on the created Application instances.
- */
 export class SpectronClient {
 
 	// waitFor calls should not take more than 200 * 100 = 20 seconds to complete, excluding
@@ -30,10 +27,6 @@ export class SpectronClient {
 		return Promise.resolve();
 	}
 
-	async getText(selector: string, capture: boolean = true): Promise<any> {
-		return this.spectron.client.getText(selector);
-	}
-
 	async waitForText(selector: string, text?: string, accept?: (result: string) => boolean): Promise<string> {
 		accept = accept ? accept : result => text !== void 0 ? text === result : !!result;
 		return this.waitFor(() => this.spectron.client.getText(selector), accept, `getText with selector ${selector}`);
@@ -45,33 +38,12 @@ export class SpectronClient {
 		return this.waitFor(fn, s => accept!(typeof s === 'string' ? s : ''), `getTextContent with selector ${selector}`);
 	}
 
-	async waitForValue(selector: string, value?: string, accept?: (result: string) => boolean): Promise<any> {
-		accept = accept ? accept : result => value !== void 0 ? value === result : !!result;
-		return this.waitFor(() => this.spectron.client.getValue(selector), accept, `getValue with selector ${selector}`);
+	async waitAndClick(selector: string, xoffset?: number, yoffset?: number): Promise<any> {
+		return this.waitFor(() => this.spectron.client.leftClick(selector, xoffset, yoffset), void 0, `click with selector ${selector}`);
 	}
 
-	async waitAndClick(selector: string): Promise<any> {
-		return this.waitFor(() => this.spectron.client.click(selector), void 0, `click with selector ${selector}`);
-	}
-
-	async click(selector: string): Promise<any> {
-		return this.spectron.client.click(selector);
-	}
-
-	async doubleClickAndWait(selector: string, capture: boolean = true): Promise<any> {
+	async waitAndDoubleClick(selector: string, capture: boolean = true): Promise<any> {
 		return this.waitFor(() => this.spectron.client.doubleClick(selector), void 0, `doubleClick with selector ${selector}`);
-	}
-
-	async leftClick(selector: string, xoffset: number, yoffset: number, capture: boolean = true): Promise<any> {
-		return this.spectron.client.leftClick(selector, xoffset, yoffset);
-	}
-
-	async rightClick(selector: string, capture: boolean = true): Promise<any> {
-		return this.spectron.client.rightClick(selector);
-	}
-
-	async moveToObject(selector: string, capture: boolean = true): Promise<any> {
-		return this.spectron.client.moveToObject(selector);
 	}
 
 	async waitAndMoveToObject(selector: string): Promise<any> {
@@ -82,23 +54,16 @@ export class SpectronClient {
 		return this.spectron.client.setValue(selector, text);
 	}
 
-	async waitForElements(selector: string, accept: (result: Element[]) => boolean = result => result.length > 0): Promise<Element[]> {
-		return this.waitFor<RawResult<Element[]>>(() => this.spectron.client.elements(selector), result => accept(result.value), `elements with selector ${selector}`)
-			.then(result => result.value);
+	async doesElementExist(selector: string): Promise<boolean> {
+		return this.spectron.client.element(selector).then(result => !!result.value);
 	}
 
-	async waitForElement(selector: string, accept: (result: Element | undefined) => boolean = result => !!result): Promise<Element> {
-		return this.waitFor<RawResult<Element>>(() => this.spectron.client.element(selector), result => accept(result ? result.value : void 0), `element with selector ${selector}`)
-			.then(result => result.value);
+	async waitForElements(selector: string, accept: (result: Element[]) => boolean = result => result.length > 0): Promise<void> {
+		return this.waitFor(() => this.spectron.client.elements(selector), result => accept(result.value), `elements with selector ${selector}`) as Promise<any>;
 	}
 
-	async waitForVisibility(selector: string, accept: (result: boolean) => boolean = result => result): Promise<any> {
-		return this.waitFor(() => this.spectron.client.isVisible(selector), accept, `isVisible with selector ${selector}`);
-	}
-
-	async element(selector: string): Promise<Element> {
-		return this.spectron.client.element(selector)
-			.then(result => result.value);
+	async waitForElement(selector: string, accept: (result: Element | undefined) => boolean = result => !!result): Promise<void> {
+		return this.waitFor<RawResult<Element>>(() => this.spectron.client.element(selector), result => accept(result ? result.value : void 0), `element with selector ${selector}`) as Promise<any>;
 	}
 
 	async waitForActiveElement(selector: string): Promise<any> {
@@ -107,38 +72,6 @@ export class SpectronClient {
 			r => r.value,
 			`wait for active element: ${selector}`
 		);
-	}
-
-	async waitForAttribute(selector: string, attribute: string, accept: (result: string) => boolean = result => !!result): Promise<string> {
-		return this.waitFor<string>(() => this.spectron.client.getAttribute(selector), accept, `attribute with selector ${selector}`);
-	}
-
-	async dragAndDrop(sourceElem: string, destinationElem: string, capture: boolean = true): Promise<any> {
-		return this.spectron.client.dragAndDrop(sourceElem, destinationElem);
-	}
-
-	async selectByValue(selector: string, value: string, capture: boolean = true): Promise<any> {
-		return this.spectron.client.selectByValue(selector, value);
-	}
-
-	async getValue(selector: string, capture: boolean = true): Promise<any> {
-		return this.spectron.client.getValue(selector);
-	}
-
-	async getAttribute(selector: string, attribute: string, capture: boolean = true): Promise<any> {
-		return Promise.resolve(this.spectron.client.getAttribute(selector, attribute));
-	}
-
-	buttonDown(): any {
-		return this.spectron.client.buttonDown();
-	}
-
-	buttonUp(): any {
-		return this.spectron.client.buttonUp();
-	}
-
-	async isVisible(selector: string, capture: boolean = true): Promise<any> {
-		return this.spectron.client.isVisible(selector);
 	}
 
 	async getTitle(): Promise<string> {
@@ -182,23 +115,4 @@ export class SpectronClient {
 			this.running = false;
 		}
 	}
-
-	// type(text: string): Promise<any> {
-	// 	return new Promise((res) => {
-	// 		let textSplit = text.split(' ');
-
-	// 		const type = async (i: number) => {
-	// 			if (!textSplit[i] || textSplit[i].length <= 0) {
-	// 				return res();
-	// 			}
-
-	// 			const toType = textSplit[i + 1] ? `${textSplit[i]} ` : textSplit[i];
-	// 			await this.keys(toType);
-	// 			await this.keys(['NULL']);
-	// 			await type(i + 1);
-	// 		};
-
-	// 		return type(0);
-	// 	});
-	// }
 }
