@@ -194,12 +194,13 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 
 		if (element instanceof PRGroup) {
 			// fetch PRs
-			if (element.groupType === PRGroupType.RequestReview) {
+			if (element.groupType !== PRGroupType.All) {
 				let promises = this.repository.remotes.map(async remote => {
 					const octo = await this.crendentialStore.getOctokit(remote);
 					if (octo) {
+						const user = await octo.users.get();
 						const { data } = await octo.search.issues({
-							q: `is:open review-requested:rebornix type:pr repo:${remote.owner}/${remote.name}`
+							q: this.getPRFetchQuery(remote.owner, remote.name, user.data.login, element.groupType)
 						});
 						return data.items.map(item => new PullRequest(octo, remote.owner, remote.name, item));
 					}
@@ -260,6 +261,22 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 				return fileChanges;
 			});
 		}
+	}
+
+	getPRFetchQuery(owner: string, repo: string, user: string, type: PRGroupType) {
+		let filter = '';
+		switch (type) {
+			case PRGroupType.RequestReview:
+				filter = `review-requested:${user}`;
+				break;
+			case PRGroupType.RequestReview:
+				filter = `author:${user}`;
+				break;
+			default:
+				break;
+		}
+
+		return `is:open ${filter} type:pr repo:${owner}/${repo}`;
 	}
 
 	async provideComments(document: vscode.TextDocument): Promise<vscode.CommentThread[]> {
