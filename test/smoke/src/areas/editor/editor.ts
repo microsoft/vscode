@@ -109,7 +109,7 @@ export class Editor {
 		await this.spectron.client.waitForActiveElement(textarea);
 
 		// https://github.com/Microsoft/vscode/issues/34203#issuecomment-334441786
-		await this.spectron.client.spectron.client.selectorExecute(textarea, (elements, text) => {
+		await this.spectron.webclient.selectorExecute(textarea, (elements, text) => {
 			const textarea = (Array.isArray(elements) ? elements : [elements])[0] as HTMLTextAreaElement;
 			const start = textarea.selectionStart;
 			const newStart = start + text.length;

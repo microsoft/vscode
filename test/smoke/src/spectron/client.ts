@@ -15,7 +15,7 @@ export class SpectronClient {
 	private readonly retryDuration = 100; // in milliseconds
 
 	constructor(
-		readonly spectron: Application,
+		private spectron: Application,
 		private application: SpectronApplication,
 		waitTime: number
 	) {

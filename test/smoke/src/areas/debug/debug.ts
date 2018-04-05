@@ -22,6 +22,7 @@ const DEBUG_STATUS_BAR = `.statusbar.debugging`;
 const NOT_DEBUG_STATUS_BAR = `.statusbar:not(debugging)`;
 const TOOLBAR_HIDDEN = `.debug-actions-widget.monaco-builder-hidden`;
 const STACK_FRAME = `${VIEWLET} .monaco-tree-row .stack-frame`;
+const SPECIFIC_STACK_FRAME = filename => `${STACK_FRAME} .file[title$="${filename}"]`;
 const VARIABLE = `${VIEWLET} .debug-variables .monaco-tree-row .expression`;
 const CONSOLE_OUTPUT = `.repl .output.expression`;
 const CONSOLE_INPUT_OUTPUT = `.repl .input-output-pair .output.expression .value`;
@@ -29,7 +30,6 @@ const CONSOLE_INPUT_OUTPUT = `.repl .input-output-pair .output.expression .value
 const REPL_FOCUSED = '.repl-input-wrapper .monaco-editor textarea';
 
 export interface IStackFrame {
-	id: string;
 	name: string;
 	lineNumber: number;
 }
@@ -102,12 +102,11 @@ export class Debug extends Viewlet {
 	}
 
 	async waitForStackFrameLength(length: number): Promise<any> {
-		return await this.spectron.client.waitFor(() => this.getStackFrames(), stackFrames => stackFrames.length === length);
+		await this.spectron.client.waitForElements(STACK_FRAME, result => result.length === length);
 	}
 
 	async focusStackFrame(name: string, message: string): Promise<any> {
-		const stackFrame = await this.waitForStackFrame(sf => sf.name === name, message);
-		await this.spectron.client.spectron.client.elementIdClick(stackFrame.id);
+		await this.spectron.client.waitAndClick(SPECIFIC_STACK_FRAME(name));
 		await this.spectron.workbench.waitForTab(name);
 	}
 
@@ -128,11 +127,6 @@ export class Debug extends Viewlet {
 
 	async getLocalVariableCount(): Promise<number> {
 		return await this.spectron.webclient.selectorExecute(VARIABLE, div => (Array.isArray(div) ? div : [div]).length);
-	}
-
-	async getStackFramesLength(): Promise<number> {
-		const stackFrames = await this.getStackFrames();
-		return stackFrames.length;
 	}
 
 	private async getStackFrames(): Promise<IStackFrame[]> {
