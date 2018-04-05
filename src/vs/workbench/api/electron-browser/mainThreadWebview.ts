@@ -22,6 +22,8 @@ import { extHostNamedCustomer } from './extHostCustomers';
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
 
+	private static readonly serializeTimeout = 500; // ms
+
 	private static readonly viewType = 'mainThreadWebview';
 
 	private static readonly standardSupportedLinkSchemes = ['http', 'https', 'mailto'];
@@ -163,14 +165,19 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		});
 
 		const reviveResponses = toRevive.map(handle =>
-			this._proxy.$serializeWebview(handle).then(state => ({ handle, state })));
+			TPromise.any([
+				this._proxy.$serializeWebview(handle).then(state => ({ handle, state })),
+				TPromise.timeout(MainThreadWebviews.serializeTimeout).then(() => ({ handle, state: null }))
+			]).then(x => x.value));
 
 		return TPromise.join(reviveResponses).then(results => {
 			for (const result of results) {
-				if (result.state) {
-					const view = this._webviews.get(result.handle);
-					if (view) {
+				const view = this._webviews.get(result.handle);
+				if (view) {
+					if (result.state) {
 						view.state.state = result.state;
+					} else {
+						view.state = null;
 					}
 				}
 			}

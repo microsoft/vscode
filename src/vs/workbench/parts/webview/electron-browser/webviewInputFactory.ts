@@ -29,6 +29,11 @@ export class WebviewInputFactory implements IEditorInputFactory {
 	public serialize(
 		input: WebviewEditorInput
 	): string {
+		// Has not state, don't revive
+		if (!input.state) {
+			return null;
+		}
+
 		// Only attempt revival if we may have a reviver
 		if (!this._webviewService.canRevive(input) && !input.reviver) {
 			return null;
