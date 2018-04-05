@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication } from '../../spectron/application';
+import { SpectronApplication } from '../../application';
 import { ActivityBarPosition } from '../activitybar/activityBar';
 
 export function setup() {

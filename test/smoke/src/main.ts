@@ -11,7 +11,7 @@ import * as minimist from 'minimist';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
-import { SpectronApplication, Quality } from './spectron/application';
+import { SpectronApplication, Quality } from './application';
 import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
 
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';

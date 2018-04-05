@@ -6,13 +6,14 @@
 import { Application, SpectronClient as WebClient } from 'spectron';
 import { test as testPort } from 'portastic';
 import { API } from './client';
-import { ScreenCapturer } from '../helpers/screenshot';
-import { Workbench } from '../areas/workbench/workbench';
+import { ScreenCapturer } from './helpers/screenshot';
+import { Workbench } from './areas/workbench/workbench';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as mkdirp from 'mkdirp';
-import { sanitize } from '../helpers/utilities';
+import { sanitize } from './helpers/utilities';
+import { SpectronDriver } from './driver';
 
 // Just hope random helps us here, cross your fingers!
 export async function findFreePort(): Promise<number> {
@@ -271,7 +272,9 @@ export class SpectronApplication {
 		}
 
 		this._screenCapturer = new ScreenCapturer(this.spectron, this._suiteName, screenshotsDirPath);
-		this._api = new API(this.spectron.client, this.screenCapturer, this.options.waitTime, this.options.verbose);
+
+		const driver = new SpectronDriver(this.spectron.client, this.options.verbose);
+		this._api = new API(driver, this.screenCapturer, this.options.waitTime);
 		this._workbench = new Workbench(this._api, this.keybindings, this.userDataPath);
 	}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SpectronApplication } from '../../spectron/application';
+import { SpectronApplication } from '../../application';
 
 export function setup() {
 	describe('Multiroot', () => {

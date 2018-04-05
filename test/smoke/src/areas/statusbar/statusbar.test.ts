@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication, Quality } from '../../spectron/application';
+import { SpectronApplication, Quality } from '../../application';
 import { StatusBarElement } from './statusbar';
 
 export function setup() {

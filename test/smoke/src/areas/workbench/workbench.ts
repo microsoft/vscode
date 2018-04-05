@@ -16,7 +16,7 @@ import { Problems } from '../problems/problems';
 import { SettingsEditor } from '../preferences/settings';
 import { KeybindingsEditor } from '../preferences/keybindings';
 import { Terminal } from '../terminal/terminal';
-import { API } from '../../spectron/client';
+import { API } from '../../client';
 import { Editors } from '../editor/editors';
 
 export interface Commands {

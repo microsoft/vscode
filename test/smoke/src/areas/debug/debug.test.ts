@@ -8,7 +8,7 @@ import * as http from 'http';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as stripJsonComments from 'strip-json-comments';
-import { SpectronApplication } from '../../spectron/application';
+import { SpectronApplication } from '../../application';
 
 export function setup() {
 	describe('Debug', () => {

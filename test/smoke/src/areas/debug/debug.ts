@@ -5,7 +5,7 @@
 
 import { Viewlet } from '../workbench/viewlet';
 import { Commands } from '../workbench/workbench';
-import { API } from '../../spectron/client';
+import { API } from '../../client';
 import { Editors } from '../editor/editors';
 import { Editor } from '../editor/editor';
 

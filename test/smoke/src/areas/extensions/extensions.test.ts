@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SpectronApplication, Quality } from '../../spectron/application';
+import { SpectronApplication, Quality } from '../../application';
 
 export function setup() {
 	describe('Extensions', () => {

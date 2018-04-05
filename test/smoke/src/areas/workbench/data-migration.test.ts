@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, Quality } from '../../spectron/application';
+import { SpectronApplication, Quality } from '../../application';
 import * as rimraf from 'rimraf';
 
 export interface ICreateAppFn {

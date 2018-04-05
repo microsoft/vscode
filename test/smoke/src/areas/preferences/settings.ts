@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { API } from '../../spectron/client';
+import { API } from '../../client';
 import { Commands } from '../workbench/workbench';
 import { Editor } from '../editor/editor';
 import { Editors } from '../editor/editors';

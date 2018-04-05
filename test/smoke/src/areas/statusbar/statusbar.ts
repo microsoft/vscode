@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { API } from '../../spectron/client';
+import { API } from '../../client';
 
 export enum StatusBarElement {
 	BRANCH_STATUS = 0,
