@@ -81,7 +81,12 @@ export interface IModelDecorationOptions {
 	 * Always render the decoration (even when the range it encompasses is collapsed).
 	 * @internal
 	 */
-	readonly showIfCollapsed?: boolean;
+	showIfCollapsed?: boolean;
+	/**
+	 * Specifies the stack order of a decoration.
+	 * A decoration with greater stack order is always in front of a decoration with a lower stack order.
+	 */
+	zIndex?: number;
 	/**
 	 * If set, render this decoration in the overview ruler.
 	 */

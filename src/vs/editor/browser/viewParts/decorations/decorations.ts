@@ -85,8 +85,14 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 
 		// Sort decorations for consistent render output
 		decorations = decorations.sort((a, b) => {
-			let aClassName = a.options.className;
-			let bClassName = b.options.className;
+			if (a.options.zIndex < b.options.zIndex) {
+				return -1;
+			}
+			if (a.options.zIndex > b.options.zIndex) {
+				return 1;
+			}
+			const aClassName = a.options.className;
+			const bClassName = b.options.className;
 
 			if (aClassName < bClassName) {
 				return -1;
