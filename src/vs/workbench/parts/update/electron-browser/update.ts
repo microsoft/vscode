@@ -223,7 +223,7 @@ class CommandAction extends Action {
 export class UpdateContribution implements IGlobalActivity {
 
 	private static readonly showCommandsId = 'workbench.action.showCommands';
-	private static readonly openSettingsId = 'workbench.action.openGlobalSettings';
+	private static readonly openSettingsId = 'workbench.action.openSettings';
 	private static readonly openKeybindingsId = 'workbench.action.openGlobalKeybindings';
 	private static readonly openUserSnippets = 'workbench.action.openSnippets';
 	private static readonly selectColorThemeId = 'workbench.action.selectTheme';

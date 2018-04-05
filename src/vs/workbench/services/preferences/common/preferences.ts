@@ -137,6 +137,7 @@ export interface IPreferencesService {
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
 	openRawDefaultSettings(): TPromise<void>;
+	openSettings(): TPromise<IEditor>;
 	openGlobalSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	openWorkspaceSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	openFolderSettings(folder: URI, options?: IEditorOptions, position?: Position): TPromise<IEditor>;

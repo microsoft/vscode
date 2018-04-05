@@ -72,13 +72,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IModeService private modeService: IModeService
 	) {
 		super();
-		this.editorGroupService.onEditorsChanged(() => {
-			const activeEditorInput = this.editorService.getActiveEditorInput();
-			if (activeEditorInput instanceof PreferencesEditorInput) {
-				this.lastOpenedSettingsInput = activeEditorInput;
-			}
-		});
-
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
 		// if a model has been given out we update it accordingly.
 		keybindingService.onDidUpdateKeybindings(() => {
@@ -178,6 +171,12 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.editorService.openEditor({ resource: this.defaultSettingsRawResource }, EditorPosition.ONE) as TPromise<any>;
 	}
 
+	openSettings(): TPromise<IEditor> {
+		const resource = this.lastOpenedSettingsInput ? this.lastOpenedSettingsInput.master.getResource() : this.userSettingsResource;
+		const target = this.getConfigurationTargetFromSettingsResource(resource);
+		return this.doOpenSettings(target, resource);
+	}
+
 	openGlobalSettings(options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
 		return this.doOpenSettings(ConfigurationTarget.USER, this.userSettingsResource, options, position);
 	}
@@ -201,7 +200,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				.then(toInput => {
 					const replaceWith = new PreferencesEditorInput(this.getPreferencesEditorInputName(target, resource), toInput.getDescription(), this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(target)), toInput);
 					return this.editorService.replaceEditors([{
-						toReplace: this.lastOpenedSettingsInput,
+						toReplace: activeEditor.input,
 						replaceWith
 					}], activeEditor.position).then(() => {
 						this.lastOpenedSettingsInput = replaceWith;
@@ -268,6 +267,24 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				}
 				return this.editorService.openEditor(editableSettingsEditorInput, options, position);
 			});
+	}
+
+	private getConfigurationTargetFromSettingsResource(resource: URI): ConfigurationTarget {
+		if (this.userSettingsResource.toString() === resource.toString()) {
+			return ConfigurationTarget.USER;
+		}
+
+		const workspaceSettingsResource = this.workspaceSettingsResource;
+		if (workspaceSettingsResource && workspaceSettingsResource.toString() === resource.toString()) {
+			return ConfigurationTarget.WORKSPACE;
+		}
+
+		const folder = this.contextService.getWorkspaceFolder(resource);
+		if (folder) {
+			return ConfigurationTarget.WORKSPACE_FOLDER;
+		}
+
+		return ConfigurationTarget.USER;
 	}
 
 	private getConfigurationTargetFromDefaultSettingsResource(uri: URI) {
