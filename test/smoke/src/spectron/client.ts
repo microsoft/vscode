@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SpectronClient } from 'spectron';
-import { RawResult, Element } from 'webdriverio';
 import { ScreenCapturer } from '../helpers/screenshot';
 
 export interface APIElement {
@@ -13,30 +12,66 @@ export interface APIElement {
 	textContent: string;
 }
 
-export class API {
+export interface Driver {
+	keys(keys: string[]): Promise<void>;
+	getElements(selector: string): Promise<APIElement[]>;
+}
 
-	// waitFor calls should not take more than 200 * 100 = 20 seconds to complete, excluding
-	// the time it takes for the actual retry call to complete
-	private retryCount: number;
-	private readonly retryDuration = 100; // in milliseconds
+export class SpectronDriver implements Driver {
 
-	constructor(
-		private spectronClient: SpectronClient,
-		private screenCapturer: ScreenCapturer,
-		waitTime: number
-	) {
-		this.retryCount = (waitTime * 1000) / this.retryDuration;
-	}
+	constructor(private spectronClient: SpectronClient) { }
 
 	keys(keys: string[]): Promise<void> {
 		this.spectronClient.keys(keys);
 		return Promise.resolve();
 	}
 
+	async getElements(selector: string): Promise<APIElement[]> {
+		const result = await (this.spectronClient.execute(selector => {
+			const query = document.querySelectorAll(selector);
+			const result: APIElement[] = [];
+
+			for (let i = 0; i < query.length; i++) {
+				const element: HTMLElement = query.item(i);
+
+				result.push({
+					tagName: element.tagName,
+					className: element.className,
+					textContent: element.textContent || ''
+				});
+			}
+
+			return result;
+		}, selector) as any as Promise<{ value: APIElement[]; }>);
+
+		return result.value;
+	}
+}
+
+export class API {
+
+	// waitFor calls should not take more than 200 * 100 = 20 seconds to complete, excluding
+	// the time it takes for the actual retry call to complete
+	private retryCount: number;
+	private readonly retryDuration = 100; // in milliseconds
+	private driver: Driver;
+
+	constructor(
+		private spectronClient: SpectronClient,
+		private screenCapturer: ScreenCapturer,
+		waitTime: number
+	) {
+		this.driver = new SpectronDriver(spectronClient);
+		this.retryCount = (waitTime * 1000) / this.retryDuration;
+	}
+
+	keys(keys: string[]): Promise<void> {
+		return this.driver.keys(keys);
+	}
+
 	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean): Promise<string> {
 		accept = accept ? accept : (result => textContent !== void 0 ? textContent === result : !!result);
-		const fn = async () => await this.spectronClient.selectorExecute(selector, div => Array.isArray(div) ? div[0].textContent : div.textContent);
-		return this.waitFor(fn, s => accept!(typeof s === 'string' ? s : ''), `getTextContent with selector ${selector}`);
+		return this.waitFor(() => this.driver.getElements(selector).then(els => els[0].textContent), s => accept!(typeof s === 'string' ? s : ''), `getTextContent with selector ${selector}`);
 	}
 
 	async waitAndClick(selector: string, xoffset?: number, yoffset?: number): Promise<any> {
@@ -47,7 +82,7 @@ export class API {
 		return this.waitFor(() => this.spectronClient.doubleClick(selector), void 0, `doubleClick with selector ${selector}`);
 	}
 
-	async waitAndMoveToObject(selector: string): Promise<any> {
+	async waitAndMove(selector: string): Promise<any> {
 		return this.waitFor(() => this.spectronClient.moveToObject(selector), void 0, `move to object with selector ${selector}`);
 	}
 
@@ -65,31 +100,11 @@ export class API {
 	}
 
 	async waitForElements(selector: string, accept: (result: APIElement[]) => boolean = result => result.length > 0): Promise<APIElement[]> {
-		const _fn: any = () => {
-			return this.spectronClient.execute(selector => {
-				const query = document.querySelectorAll(selector);
-				const result: APIElement[] = [];
-
-				for (let i = 0; i < query.length; i++) {
-					const element: HTMLElement = query.item(i);
-
-					result.push({
-						tagName: element.tagName,
-						className: element.className,
-						textContent: element.textContent || ''
-					});
-				}
-
-				return result;
-			}, selector)
-				.then(result => result.value);
-		};
-
-		return this.waitFor(_fn, accept, `elements with selector ${selector}`) as Promise<any>;
+		return this.waitFor(() => this.driver.getElements(selector), accept, `elements with selector ${selector}`) as Promise<any>;
 	}
 
-	async waitForElement(selector: string, accept: (result: Element | undefined) => boolean = result => !!result): Promise<void> {
-		return this.waitFor<RawResult<Element>>(() => this.spectronClient.element(selector), result => accept(result ? result.value : void 0), `element with selector ${selector}`) as Promise<any>;
+	async waitForElement(selector: string, accept: (result: APIElement | undefined) => boolean = result => !!result): Promise<void> {
+		return this.waitFor(() => this.driver.getElements(selector).then(els => els[0]), accept, `element with selector ${selector}`) as Promise<any>;
 	}
 
 	async waitForActiveElement(selector: string): Promise<any> {
