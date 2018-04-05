@@ -215,10 +215,21 @@ export class RestartAction extends AbstractDebugAction {
 	static LABEL = nls.localize('restartDebug', "Restart");
 	static RECONNECT_LABEL = nls.localize('reconnectDebug', "Reconnect");
 
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	private startAction: StartAction;
+
+	constructor(id: string, label: string,
+		@IDebugService debugService: IDebugService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IWorkspaceContextService private contextService?: IWorkspaceContextService,
+		@IHistoryService historyService?: IHistoryService
+	) {
 		super(id, label, 'debug-action restart', debugService, keybindingService, 70);
 		this.setLabel(this.debugService.getViewModel().focusedProcess);
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.setLabel(this.debugService.getViewModel().focusedProcess)));
+
+		if (contextService !== undefined && historyService !== undefined) {
+			this.startAction = new StartAction(id, label, debugService, keybindingService, contextService, historyService);
+		}
 	}
 
 	private setLabel(process: IProcess): void {
@@ -230,7 +241,7 @@ export class RestartAction extends AbstractDebugAction {
 			process = this.debugService.getViewModel().focusedProcess;
 		}
 		if (!process) {
-			return TPromise.as(null);
+			return this.startAction.run();
 		}
 
 		if (this.debugService.getModel().getProcesses().length <= 1) {
@@ -240,6 +251,9 @@ export class RestartAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: State): boolean {
+		if (!this.debugService.getViewModel().focusedProcess) {
+			return StartAction.isEnabled(this.debugService, this.contextService, this.debugService.getConfigurationManager().selectedConfiguration.name);
+		}
 		return super.isEnabled(state) && (state === State.Running || state === State.Stopped);
 	}
 }
