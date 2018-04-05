@@ -16,7 +16,7 @@ import { Action } from 'vs/base/common/actions';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { ExplorerFolderContext, ExplorerRootContext } from 'vs/workbench/parts/files/common/files';
-import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions } from 'vs/workbench/browser/quickopen';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -63,6 +63,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
 searchWidgetContributions();
+
+const category = nls.localize('search', "Search");
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.search.toggleQueryDetails',
@@ -301,11 +303,14 @@ CommandsRegistry.registerCommand({
 });
 
 const toggleSearchViewPositionLabel = nls.localize('toggleSearchViewPositionLabel', "Toggle Search View Position");
+const ToggleSearchViewPositionCommand: ICommandAction = {
+	id: Constants.ToggleSearchViewPositionCommandId,
+	title: toggleSearchViewPositionLabel,
+	category
+};
+MenuRegistry.addCommand(ToggleSearchViewPositionCommand);
 MenuRegistry.appendMenuItem(MenuId.SearchContext, {
-	command: {
-		id: Constants.ToggleSearchViewPositionCommandId,
-		title: toggleSearchViewPositionLabel
-	},
+	command: ToggleSearchViewPositionCommand,
 	when: Constants.SearchViewVisibleKey,
 	group: 'search_9',
 	order: 1
@@ -431,7 +436,6 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 // Actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-const category = nls.localize('search', "Search");
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(FindInFilesAction, VIEW_ID, nls.localize('showSearchViewl', "Show Search"), { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F },
 	Constants.SearchViewVisibleKey.toNegated()), 'View: Show Search', nls.localize('view', "View"));
