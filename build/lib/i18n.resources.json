@@ -209,6 +209,10 @@
 		{
 			"name": "vs/workbench/services/decorations",
 			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/preferences",
+			"project": "vscode-preferences"
 		}
 	]
 }
