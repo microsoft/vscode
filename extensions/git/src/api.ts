@@ -19,39 +19,49 @@ export class InputBoxImpl implements InputBox {
 	constructor(private inputBox: SourceControlInputBox) { }
 }
 
-export interface Repository {
-	readonly rootUri: Uri;
-	readonly inputBox: InputBox;
-}
+// export interface Repository {
+// 	readonly rootUri: Uri;
+// 	readonly inputBox: InputBox;
+// }
 
-export class RepositoryImpl implements Repository {
+// export class RepositoryImpl implements Repository {
 
-	readonly rootUri: Uri;
-	readonly inputBox: InputBox;
+// 	readonly rootUri: Uri;
+// 	readonly inputBox: InputBox;
 
-	constructor(repository: ModelRepository) {
-		this.rootUri = Uri.file(repository.root);
-		this.inputBox = new InputBoxImpl(repository.inputBox);
-	}
-}
+// 	constructor(repository: ModelRepository) {
+// 		this.rootUri = Uri.file(repository.root);
+// 		this.inputBox = new InputBoxImpl(repository.inputBox);
+// 	}
+// }
 
 export interface API {
-	getRepositories(): Promise<Repository[]>;
+	getRepositories(): Promise<ModelRepository[]>;
 	getGitPath(): Promise<string>;
+	getModel(): Promise<Model>;
 }
 
 export class APIImpl implements API {
-
-	constructor(private modelPromise: Promise<Model>) { }
+	private model?: Model;
+	constructor(private modelPromise: Promise<Model>) {
+		this.model = undefined;
+	}
 
 	async getGitPath(): Promise<string> {
 		const model = await this.modelPromise;
 		return model.git.path;
 	}
 
-	async getRepositories(): Promise<Repository[]> {
+	async getModel(): Promise<Model> {
 		const model = await this.modelPromise;
-		return model.repositories.map(repository => new RepositoryImpl(repository));
+		this.model = model;
+		return model;
+	}
+
+	async getRepositories(): Promise<ModelRepository[]> {
+		const model = await this.modelPromise;
+		this.model = model;
+		return this.model.repositories;
 	}
 }
 

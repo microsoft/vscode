@@ -16,6 +16,9 @@
     "onView:stash",
     "onView:pr"
   ],
+  "extensionDependencies": [
+      "vscode.git"
+  ],
   "main": "./out/extension",
   "contributes": {
     "configuration": {

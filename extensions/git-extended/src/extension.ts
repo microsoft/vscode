@@ -59,7 +59,35 @@ export async function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
+	let gitExt = vscode.extensions.getExtension('vscode.git');
+	let importedGitApi = gitExt.exports;
+	let repos = await importedGitApi.getRepositories();
+	let repo;
+	if (!repos || !repos.length) {
+		let model = await importedGitApi.getModel();
+		let waitForRepo = new Promise((resolve, reject) => {
+			model.onDidOpenRepository(repository => {
+				resolve(repository);
+			});
+		});
+		repo = await waitForRepo;
+	} else {
+		repo = repos[0];
+	}
+	// importedGitApi.getModel().then((model: any) => {
+	// 	model.onDidOpenRepository(repository => {
+	// 		console.log(repository);
+	// 		let prGroup = repository._sourceControl.createResourceGroup('pr', "Changes from PR");
+	// 		prGroup.resourceStates = [{
+	// 			resourceUri: vscode.Uri.file('/Users/penlv/code/vscode/extensions/git-extended/src/extension.ts')
+	// 		}
+
+	// 		];
+	// 	});
+	// });
+
+
 	const remoteUrls = remotes.map(remote => parseRemote(remote.url));
 	const repository = new Repository(rootPath, remoteUrls);
-	new PRProvider(configuration).activate(context, rootPath, repository);
+	new PRProvider(configuration).activate(context, rootPath, repository, repo);
 }
