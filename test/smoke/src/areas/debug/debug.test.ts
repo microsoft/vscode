@@ -69,16 +69,16 @@ export function setup() {
 		it('focus stack frames and variables', async function () {
 			const app = this.app as SpectronApplication;
 
-			await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 4, 'there should be 4 local variables');
+			await app.api.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 4, 'there should be 4 local variables');
 
 			await app.workbench.debug.focusStackFrame('layer.js', 'looking for layer.js');
-			await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 5, 'there should be 5 local variables');
+			await app.api.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 5, 'there should be 5 local variables');
 
 			await app.workbench.debug.focusStackFrame('route.js', 'looking for route.js');
-			await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 3, 'there should be 3 local variables');
+			await app.api.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 3, 'there should be 3 local variables');
 
 			await app.workbench.debug.focusStackFrame('index.js', 'looking for index.js');
-			await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 4, 'there should be 4 local variables');
+			await app.api.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 4, 'there should be 4 local variables');
 		});
 
 		it('stepOver, stepIn, stepOut', async function () {

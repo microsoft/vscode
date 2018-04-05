@@ -25,11 +25,11 @@ export function setup() {
 			await app.workbench.quickopen.openFile('style.css');
 			await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');
 
-			await app.client.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.WARNING));
+			await app.api.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.WARNING));
 			await app.screenCapturer.capture('CSS Warning in editor');
 
 			await app.workbench.problems.showProblemsView();
-			await app.client.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.WARNING));
+			await app.api.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.WARNING));
 			await app.screenCapturer.capture('CSS Warning in problems view');
 			await app.workbench.problems.hideProblemsView();
 		});
@@ -40,12 +40,12 @@ export function setup() {
 			await app.workbench.quickopen.openFile('style.css');
 			await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');
 
-			await app.client.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.ERROR));
+			await app.api.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.ERROR));
 			await app.screenCapturer.capture('CSS Error in editor');
 
-			const problems = new Problems(app.client, app.workbench);
+			const problems = new Problems(app.api, app.workbench);
 			await problems.showProblemsView();
-			await app.client.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.ERROR));
+			await app.api.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.ERROR));
 			await app.screenCapturer.capture('CSS Error in probles view');
 			await problems.hideProblemsView();
 		});

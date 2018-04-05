@@ -68,11 +68,11 @@ export class SpectronApplication {
 		return this.options.quality;
 	}
 
-	get client(): API {
+	get api(): API {
 		return this._api;
 	}
 
-	get webclient(): WebClient {
+	private get webclient(): WebClient {
 		if (!this.spectron) {
 			throw new Error('Application not started');
 		}
@@ -292,12 +292,12 @@ export class SpectronApplication {
 			}
 		}
 
-		await this.client.waitForElement('.monaco-workbench');
+		await this.api.waitForElement('.monaco-workbench');
 	}
 
 	private async waitForWelcome(): Promise<any> {
-		await this.client.waitForElement('.explorer-folders-view');
-		await this.client.waitForElement(`.editor-container[id="workbench.editor.walkThroughPart"] .welcomePage`);
+		await this.api.waitForElement('.explorer-folders-view');
+		await this.api.waitForElement(`.editor-container[id="workbench.editor.walkThroughPart"] .welcomePage`);
 	}
 
 	private retrieveKeybindings(): Promise<void> {

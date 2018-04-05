@@ -18,12 +18,12 @@ export function setup() {
 			const app = this.app as SpectronApplication;
 
 			await app.workbench.explorer.openFile('app.js');
-			await app.client.waitForElements('.line-numbers', elements => !!elements.length);
+			await app.api.waitForElements('.line-numbers', elements => !!elements.length);
 			await app.screenCapturer.capture('app.js has line numbers');
 
 			await app.workbench.settingsEditor.addUserSetting('editor.lineNumbers', '"off"');
 			await app.workbench.editors.selectTab('app.js');
-			await app.client.waitForElements('.line-numbers', result => !result || result.length === 0);
+			await app.api.waitForElements('.line-numbers', result => !result || result.length === 0);
 
 			await app.screenCapturer.capture('line numbers hidden');
 		});
@@ -34,7 +34,7 @@ export function setup() {
 
 			await app.workbench.keybindingsEditor.updateKeybinding('workbench.action.toggleSidebarPosition', ['Control', 'u'], 'Control+U');
 
-			await app.client.keys(['Control', 'u', 'NULL']);
+			await app.api.keys(['Control', 'u', 'NULL']);
 			assert.ok(await app.workbench.activitybar.getActivityBar(ActivityBarPosition.RIGHT), 'Activity bar was not moved to right after toggling its position.');
 		});
 

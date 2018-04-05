@@ -67,7 +67,7 @@ export function setup() {
 			}
 
 			await app.workbench.statusbar.clickOn(StatusBarElement.FEEDBACK_ICON);
-			await app.client.waitForElement('.feedback-form');
+			await app.api.waitForElement('.feedback-form');
 		});
 
 		it(`checks if 'Go to Line' works if called from the status bar`, async function () {
