@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, SpectronClient as WebClient } from 'spectron';
 import { test as testPort } from 'portastic';
 import { API } from './api';
 import { ScreenCapturer } from './helpers/screenshot';
 import { Workbench } from './areas/workbench/workbench';
 import * as fs from 'fs';
 import * as cp from 'child_process';
-import * as path from 'path';
-import * as mkdirp from 'mkdirp';
-import { sanitize } from './helpers/utilities';
-import { SpectronDriver } from './driver';
+import * as assert from 'assert';
+import { CodeDriver } from './driver';
+import { Code, spawn, SpawnOptions } from './vscode/code';
 
 // Just hope random helps us here, cross your fingers!
 export async function findFreePort(): Promise<number> {
@@ -34,12 +32,10 @@ export enum Quality {
 	Stable
 }
 
-export interface SpectronApplicationOptions {
+export interface SpectronApplicationOptions extends SpawnOptions {
 	quality: Quality;
 	electronPath: string;
 	workspacePath: string;
-	userDataDir: string;
-	extensionsPath: string;
 	artifactsPath: string;
 	workspaceFilePath: string;
 	waitTime: number;
@@ -51,12 +47,12 @@ export interface SpectronApplicationOptions {
  */
 export class SpectronApplication {
 
-	private static count = 0;
+	// private static count = 0;
 
 	private _api: API;
 	private _workbench: Workbench;
 	private _screenCapturer: ScreenCapturer;
-	private spectron: Application | undefined;
+	private codeInstance: Code | undefined;
 	private keybindings: any[];
 	private stopLogCollection: (() => Promise<void>) | undefined;
 
@@ -70,14 +66,6 @@ export class SpectronApplication {
 
 	get api(): API {
 		return this._api;
-	}
-
-	private get webclient(): WebClient {
-		if (!this.spectron) {
-			throw new Error('Application not started');
-		}
-
-		return this.spectron.client;
 	}
 
 	get screenCapturer(): ScreenCapturer {
@@ -145,152 +133,146 @@ export class SpectronApplication {
 			this.stopLogCollection = undefined;
 		}
 
-		if (this.spectron && this.spectron.isRunning()) {
-			await this.spectron.stop();
-			this.spectron = undefined;
+		if (this.codeInstance) {
+			this.codeInstance.dispose();
+			this.codeInstance = undefined;
 		}
 	}
 
 	private async startApplication(workspaceOrFolder: string, extraArgs: string[] = []): Promise<any> {
 
-		let args: string[] = [];
-		let chromeDriverArgs: string[] = [];
+		// let args: string[] = [];
+		// let chromeDriverArgs: string[] = [];
 
-		if (process.env.VSCODE_REPOSITORY) {
-			args.push(process.env.VSCODE_REPOSITORY as string);
-		}
+		// if (process.env.VSCODE_REPOSITORY) {
+		// 	args.push(process.env.VSCODE_REPOSITORY as string);
+		// }
 
-		args.push(workspaceOrFolder);
+		// args.push(workspaceOrFolder);
 
-		// Prevent 'Getting Started' web page from opening on clean user-data-dir
-		args.push('--skip-getting-started');
+		// // Prevent 'Getting Started' web page from opening on clean user-data-dir
+		// args.push('--skip-getting-started');
 
-		// Prevent 'Getting Started' web page from opening on clean user-data-dir
-		args.push('--skip-release-notes');
+		// // Prevent 'Getting Started' web page from opening on clean user-data-dir
+		// args.push('--skip-release-notes');
 
-		// Prevent Quick Open from closing when focus is stolen, this allows concurrent smoketest suite running
-		args.push('--sticky-quickopen');
+		// // Prevent Quick Open from closing when focus is stolen, this allows concurrent smoketest suite running
+		// args.push('--sticky-quickopen');
 
-		// Disable telemetry
-		args.push('--disable-telemetry');
+		// // Disable telemetry
+		// args.push('--disable-telemetry');
 
-		// Disable updates
-		args.push('--disable-updates');
+		// // Disable updates
+		// args.push('--disable-updates');
 
-		// Disable crash reporter
-		// This seems to be the fix for the strange hangups in which Code stays unresponsive
-		// and tests finish badly with timeouts, leaving Code running in the background forever
-		args.push('--disable-crash-reporter');
+		// // Disable crash reporter
+		// // This seems to be the fix for the strange hangups in which Code stays unresponsive
+		// // and tests finish badly with timeouts, leaving Code running in the background forever
+		// args.push('--disable-crash-reporter');
 
-		// Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
-		args.push(`--extensions-dir=${this.options.extensionsPath}`);
+		// // Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
+		// args.push(`--extensions-dir=${this.options.extensionsPath}`);
 
-		args.push(...extraArgs);
+		// args.push(...extraArgs);
 
-		chromeDriverArgs.push(`--user-data-dir=${this.options.userDataDir}`);
+		// chromeDriverArgs.push(`--user-data-dir=${this.options.userDataDir}`);
 
 		// Spectron always uses the same port number for the chrome driver
 		// and it handles gracefully when two instances use the same port number
 		// This works, but when one of the instances quits, it takes down
 		// chrome driver with it, leaving the other instance in DISPAIR!!! :(
-		const port = await findFreePort();
+		// const port = await findFreePort();
 
 		// We must get a different port for debugging the smoketest express app
 		// otherwise concurrent test runs will clash on those ports
-		const env = { PORT: String(await findFreePort()), ...process.env };
+		// const env = { PORT: String(await findFreePort()), ...process.env };
 
-		const opts: any = {
-			path: this.options.electronPath,
-			port,
-			args,
-			env,
-			chromeDriverArgs,
-			startTimeout: 10000,
-			requireName: 'nodeRequire'
-		};
+		// const opts = {
+		// 	path: this.options.electronPath,
+		// 	port,
+		// 	args,
+		// 	env,
+		// 	chromeDriverArgs,
+		// 	startTimeout: 10000,
+		// 	requireName: 'nodeRequire'
+		// };
 
-		const runName = String(SpectronApplication.count++);
-		let testsuiteRootPath: string | undefined = undefined;
-		let screenshotsDirPath: string | undefined = undefined;
+		// const runName = String(SpectronApplication.count++);
+		// let testsuiteRootPath: string | undefined = undefined;
+		// let screenshotsDirPath: string | undefined = undefined;
 
-		if (this.options.artifactsPath) {
-			testsuiteRootPath = path.join(this.options.artifactsPath, sanitize(runName));
-			mkdirp.sync(testsuiteRootPath);
+		// if (this.options.artifactsPath) {
+		// 	testsuiteRootPath = path.join(this.options.artifactsPath, sanitize(runName));
+		// 	mkdirp.sync(testsuiteRootPath);
 
-			// Collect screenshots
-			screenshotsDirPath = path.join(testsuiteRootPath, 'screenshots');
-			mkdirp.sync(screenshotsDirPath);
+		// 	// Collect screenshots
+		// 	screenshotsDirPath = path.join(testsuiteRootPath, 'screenshots');
+		// 	mkdirp.sync(screenshotsDirPath);
 
-			// Collect chromedriver logs
-			const chromedriverLogPath = path.join(testsuiteRootPath, 'chromedriver.log');
-			opts.chromeDriverLogPath = chromedriverLogPath;
+		// 	// Collect chromedriver logs
+		// 	const chromedriverLogPath = path.join(testsuiteRootPath, 'chromedriver.log');
+		// 	opts.chromeDriverLogPath = chromedriverLogPath;
 
-			// Collect webdriver logs
-			const webdriverLogsPath = path.join(testsuiteRootPath, 'webdriver');
-			mkdirp.sync(webdriverLogsPath);
-			opts.webdriverLogPath = webdriverLogsPath;
-		}
+		// 	// Collect webdriver logs
+		// 	const webdriverLogsPath = path.join(testsuiteRootPath, 'webdriver');
+		// 	mkdirp.sync(webdriverLogsPath);
+		// 	opts.webdriverLogPath = webdriverLogsPath;
+		// }
 
-		this.spectron = new Application(opts);
-		await this.spectron.start();
+		this.codeInstance = await spawn(this.options);
 
-		if (testsuiteRootPath) {
-			// Collect logs
-			const mainProcessLogPath = path.join(testsuiteRootPath, 'main.log');
-			const rendererProcessLogPath = path.join(testsuiteRootPath, 'renderer.log');
+		// if (testsuiteRootPath) {
+		// 	// Collect logs
+		// 	const mainProcessLogPath = path.join(testsuiteRootPath, 'main.log');
+		// 	const rendererProcessLogPath = path.join(testsuiteRootPath, 'renderer.log');
 
-			const flush = async () => {
-				if (!this.spectron) {
-					return;
-				}
+		// 	const flush = async () => {
+		// 		if (!this.spectron) {
+		// 			return;
+		// 		}
 
-				const mainLogs = await this.spectron.client.getMainProcessLogs();
-				await new Promise((c, e) => fs.appendFile(mainProcessLogPath, mainLogs.join('\n'), { encoding: 'utf8' }, err => err ? e(err) : c()));
+		// 		const mainLogs = await this.spectron.client.getMainProcessLogs();
+		// 		await new Promise((c, e) => fs.appendFile(mainProcessLogPath, mainLogs.join('\n'), { encoding: 'utf8' }, err => err ? e(err) : c()));
 
-				const rendererLogs = (await this.spectron.client.getRenderProcessLogs()).map(m => `${m.timestamp} - ${m.level} - ${m.message}`);
-				await new Promise((c, e) => fs.appendFile(rendererProcessLogPath, rendererLogs.join('\n'), { encoding: 'utf8' }, err => err ? e(err) : c()));
-			};
+		// 		const rendererLogs = (await this.spectron.client.getRenderProcessLogs()).map(m => `${m.timestamp} - ${m.level} - ${m.message}`);
+		// 		await new Promise((c, e) => fs.appendFile(rendererProcessLogPath, rendererLogs.join('\n'), { encoding: 'utf8' }, err => err ? e(err) : c()));
+		// 	};
 
-			let running = true;
-			const loopFlush = async () => {
-				while (true) {
-					await flush();
+		// 	let running = true;
+		// 	const loopFlush = async () => {
+		// 		while (true) {
+		// 			await flush();
 
-					if (!running) {
-						return;
-					}
+		// 			if (!running) {
+		// 				return;
+		// 			}
 
-					await new Promise(c => setTimeout(c, 1000));
-				}
-			};
+		// 			await new Promise(c => setTimeout(c, 1000));
+		// 		}
+		// 	};
 
-			const loopPromise = loopFlush();
-			this.stopLogCollection = () => {
-				running = false;
-				return loopPromise;
-			};
-		}
+		// 	const loopPromise = loopFlush();
+		// 	this.stopLogCollection = () => {
+		// 		running = false;
+		// 		return loopPromise;
+		// 	};
+		// }
 
-		this._screenCapturer = new ScreenCapturer(this.spectron, this._suiteName, screenshotsDirPath);
+		this._screenCapturer = new ScreenCapturer(null as any, this._suiteName, '');
 
-		const driver = new SpectronDriver(this.spectron.client, this.options.verbose);
+		const driver = new CodeDriver(this.codeInstance.driver);
 		this._api = new API(driver, this.screenCapturer, this.options.waitTime);
 		this._workbench = new Workbench(this._api, this.keybindings, this.userDataPath);
 	}
 
 	private async checkWindowReady(): Promise<any> {
-		await this.webclient.waitUntilWindowLoaded();
-
-		// Pick the first workbench window here
-		const count = await this.webclient.getWindowCount();
-
-		for (let i = 0; i < count; i++) {
-			await this.webclient.windowByIndex(i);
-
-			if (/bootstrap\/index\.html/.test(await this.webclient.getUrl())) {
-				break;
-			}
+		if (!this.codeInstance) {
+			console.error('No code instance found');
+			return;
 		}
+
+		const windows = await this.codeInstance.driver.getWindows();
+		assert.ok(windows.length > 0, 'theres more than one window');
 
 		await this.api.waitForElement('.monaco-workbench');
 	}

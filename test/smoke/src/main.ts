@@ -261,6 +261,7 @@ function createApp(quality: Quality): SpectronApplication | null {
 
 	return new SpectronApplication({
 		quality,
+		codePath: opts.build,
 		electronPath: path,
 		workspacePath,
 		userDataDir,

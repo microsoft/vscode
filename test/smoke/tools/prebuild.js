@@ -27,7 +27,7 @@ export interface IDisposable {
 export function connect(outPath: string, handle: string): Promise<{ client: IDisposable, driver: IDriver }>;
 `;
 
-const srcPath = path.join(path.dirname(__dirname), 'src');
+const srcPath = path.join(path.dirname(__dirname), 'src/vscode');
 const outDriverPath = path.join(srcPath, 'driver.d.ts');
 
 fs.writeFileSync(outDriverPath, contents);

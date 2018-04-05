@@ -3,12 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const fs = require('fs');
-const path = require('path');
+export interface IWindow {
+	id: string;
+}
 
-const root = path.dirname(__dirname);
-const driverPath = path.join(root, 'src/driver.js');
-const driver = fs.readFileSync(driverPath);
+export interface IDriver {
+	_serviceBrand: any;
+	getWindows(): Promise<IWindow[]>;
+}
 
-const outDriverPath = path.join(root, 'out/driver.js');
-fs.writeFileSync(outDriverPath, driver);
+export interface IDisposable {
+	dispose(): void;
+}
+
+export function connect(outPath: string, handle: string): Promise<{ client: IDisposable, driver: IDriver }>;

@@ -4,7 +4,8 @@
   "main": "./src/main.js",
   "scripts": {
     "postinstall": "tsc",
-    "watch": "tsc --watch",
+    "compile": "node tools/prebuild && tsc && node tools/postbuild",
+    "watch": "node tools/prebuild && node tools/postbuild && tsc --watch",
     "mocha": "mocha"
   },
   "devDependencies": {

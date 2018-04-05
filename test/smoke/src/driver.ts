@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SpectronClient } from 'spectron';
+import { IDriver } from './vscode/driver';
 
 export interface Element {
 	tagName: string;
@@ -125,5 +126,38 @@ export class SpectronDriver implements Driver {
 
 		let _script = (element, script, ...args) => script(Array.isArray(element) ? element : [element], ...args);
 		return this.spectronClient.selectorExecute(selector, _script, script, ...args);
+	}
+}
+
+export class CodeDriver implements Driver {
+
+	constructor(driver: IDriver) { }
+
+	keys(keys: string[]): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<any> {
+		throw new Error('Method not implemented.');
+	}
+	doubleClick(selector: string): Promise<any> {
+		throw new Error('Method not implemented.');
+	}
+	move(selector: string): Promise<any> {
+		throw new Error('Method not implemented.');
+	}
+	setValue(selector: string, text: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	getTitle(): Promise<string> {
+		throw new Error('Method not implemented.');
+	}
+	isActiveElement(selector: string): Promise<boolean> {
+		throw new Error('Method not implemented.');
+	}
+	getElements(selector: string): Promise<Element[]> {
+		throw new Error('Method not implemented.');
+	}
+	selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): Promise<P> {
+		throw new Error('Method not implemented.');
 	}
 }

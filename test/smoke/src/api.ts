@@ -103,7 +103,11 @@ export class API {
 				try {
 					result = await func();
 				} catch (e) {
-					// console.log(e);
+					// console.warn(e);
+
+					if (/Method not implemented/.test(e.message)) {
+						throw e;
+					}
 				}
 
 				if (accept(result)) {
