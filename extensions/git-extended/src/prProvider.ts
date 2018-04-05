@@ -14,6 +14,38 @@ import { Configuration } from './configuration';
 import { CredentialStore } from './credentials';
 import { parseComments, getMatchingCommentsForDiffViewEditor, getMatchingCommentsForNormalEditor } from './common/comment';
 
+export enum PRGroupType {
+	RequestReview = 0,
+	Mine = 1,
+	Mention = 2,
+	All = 3
+}
+
+export class PRGroup implements vscode.TreeItem {
+	public readonly label: string;
+	public collapsibleState: vscode.TreeItemCollapsibleState;
+	public prs: PullRequest[];
+	public groupType: PRGroupType;
+	constructor(type: PRGroupType) {
+		this.prs = [];
+		this.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
+		this.groupType = type;
+		switch (type) {
+			case PRGroupType.All:
+				this.label = 'All';
+				break;
+			case PRGroupType.RequestReview:
+				this.label = 'Request Review';
+				break;
+			case PRGroupType.Mine:
+				this.label = 'Mine';
+				break;
+			default:
+				break;
+		}
+	}
+}
+
 export class PullRequest {
 	public comments?: Comment[];
 	public fileChanges?: FileChangeItem[];
@@ -52,7 +84,7 @@ export class FileChangeItem implements vscode.TreeItem {
 	}
 }
 
-export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileChangeItem>, vscode.CommentProvider {
+export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest | FileChangeItem>, vscode.CommentProvider {
 	private _fileChanges: FileChangeItem[];
 	private _comments?: Comment[];
 	private context: vscode.ExtensionContext;
@@ -61,7 +93,7 @@ export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileCha
 	private icons: any;
 	private crendentialStore: CredentialStore;
 	private configuration: Configuration;
-	private _onDidChangeTreeData = new vscode.EventEmitter<PullRequest | FileChangeItem | undefined>();
+	private _onDidChangeTreeData = new vscode.EventEmitter<PRGroup | PullRequest | FileChangeItem | undefined>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
 	constructor(configuration: Configuration) {
@@ -74,7 +106,7 @@ export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileCha
 		this.workspaceRoot = workspaceRoot;
 		this.repository = repository;
 
-		this.context.subscriptions.push(vscode.window.registerTreeDataProvider<PullRequest | FileChangeItem>('pr', this));
+		this.context.subscriptions.push(vscode.window.registerTreeDataProvider<PRGroup | PullRequest | FileChangeItem>('pr', this));
 		this.icons = {
 			light: {
 				Modified: context.asAbsolutePath(path.join('resources', 'icons', 'light', 'status-modified.svg')),
@@ -104,7 +136,10 @@ export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileCha
 		}));
 	}
 
-	getTreeItem(element: PullRequest | FileChangeItem): vscode.TreeItem {
+	getTreeItem(element: PRGroup | PullRequest | FileChangeItem): vscode.TreeItem {
+		if (element instanceof PRGroup) {
+			return element;
+		}
 
 		if (element instanceof PullRequest) {
 			return {
@@ -145,8 +180,51 @@ export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileCha
 		}
 	}
 
-	getChildren(element?: PullRequest): PullRequest[] | Thenable<PullRequest[]> | FileChangeItem[] | Thenable<FileChangeItem[]> {
-		if (element) {
+	getChildren(element?: PRGroup | PullRequest | FileChangeItem): Thenable<(PRGroup | PullRequest | FileChangeItem)[]> {
+		if (!element) {
+			return Promise.resolve([
+				new PRGroup(PRGroupType.RequestReview),
+				new PRGroup(PRGroupType.Mine),
+				new PRGroup(PRGroupType.All)
+			]);
+		}
+		if (!this.repository.remotes || !this.repository.remotes.length) {
+			return Promise.resolve([]);
+		}
+
+		if (element instanceof PRGroup) {
+			// fetch PRs
+			if (element.groupType === PRGroupType.RequestReview) {
+				let promises = this.repository.remotes.map(async remote => {
+					const octo = await this.crendentialStore.getOctokit(remote);
+					if (octo) {
+						const { data } = await octo.search.issues({
+							q: `is:open review-requested:rebornix type:pr repo:${remote.owner}/${remote.name}`
+						});
+						return data.items.map(item => new PullRequest(octo, remote.owner, remote.name, item));
+					}
+				});
+
+				return Promise.all(promises).then(values => {
+					return _.flatten(values);
+				});
+			} else if (element.groupType === PRGroupType.All) {
+				let promises = this.repository.remotes.map(async remote => {
+					const octo = await this.crendentialStore.getOctokit(remote);
+					if (octo) {
+						const { data } = await octo.pullRequests.getAll({
+							owner: remote.owner,
+							repo: remote.name
+						});
+						return data.map(item => new PullRequest(octo, remote.owner, remote.name, item));
+					}
+				});
+
+				return Promise.all(promises).then(values => {
+					return _.flatten(values);
+				});
+			}
+		} else if (element instanceof PullRequest) {
 			return element.otcokit.pullRequests.getFiles({
 				owner: element.owner,
 				repo: element.repo,
@@ -159,6 +237,15 @@ export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileCha
 				});
 				const rawComments = reviewData.data;
 				const comments: Comment[] = parseComments(rawComments);
+				if (!element.prItem.base) {
+					// this one is from search results, which is not complete.
+					const { data } = await element.otcokit.pullRequests.get({
+						owner: element.owner,
+						repo: element.repo,
+						number: element.prItem.number
+					});
+					element.prItem = data;
+				}
 				let richContentChanges = await parseDiff(data, this.repository, element.prItem.base.sha);
 				let fileChanges = richContentChanges.map(change => {
 					let changedItem = new FileChangeItem(element.prItem, change.fileName, change.status, this.context, change.fileName, this.workspaceRoot);
@@ -172,27 +259,6 @@ export class PRProvider implements vscode.TreeDataProvider<PullRequest | FileCha
 				this._comments = comments;
 				return fileChanges;
 			});
-		} else {
-			if (this.repository.remotes && this.repository.remotes.length > 0) {
-				let promises = this.repository.remotes.map(remote => {
-					return this.crendentialStore.getOctokit(remote).then(octo => {
-						if (octo) {
-							return octo.pullRequests.getAll({
-								owner: remote.owner,
-								repo: remote.name
-							}).then(({ data }) => {
-								return data.map(item => new PullRequest(octo, remote.owner, remote.name, item));
-							});
-						}
-					});
-				});
-
-				return Promise.all(promises).then(values => {
-					return _.flatten(values);
-				});
-			}
-
-			return [];
 		}
 	}
 
