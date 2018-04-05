@@ -130,6 +130,25 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 			}
 		};
 
+		const collection = vscode.languages.createDiagnosticCollection('reviews');
+		this.context.subscriptions.push(vscode.commands.registerCommand('pr.pick', (pr: PullRequest) => {
+			if (!pr.fileChanges || !pr.comments) {
+				return;
+			}
+
+			pr.fileChanges.forEach(filechange => {
+				let comments = pr.comments.filter(comment => comment.path === filechange.fileName);
+				let diags = comments.map(comment => ({
+					code: '',
+					message: `@${comment.user.login}: ${comment.body}`,
+					range: new vscode.Range(new vscode.Position(comment.diff_hunk_range.start + comment.position - 1 - 1, 0), new vscode.Position(comment.diff_hunk_range.start + comment.position - 1 - 1, 0)),
+					severity: vscode.DiagnosticSeverity.Error,
+					source: '',
+					relatedInformation: []
+				}));
+				collection.set(vscode.Uri.file(path.resolve(this.workspaceRoot, filechange.fileName)), diags);
+			});
+		}));
 		this.context.subscriptions.push(vscode.workspace.registerCommentProvider(this));
 		this.context.subscriptions.push(this.configuration.onDidChange(e => {
 			this._onDidChangeTreeData.fire();
@@ -144,7 +163,8 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 		if (element instanceof PullRequest) {
 			return {
 				label: element.prItem.title,
-				collapsibleState: 1
+				collapsibleState: 1,
+				contextValue: 'pullrequest'
 			};
 		} else {
 			let iconUri: string;
@@ -256,6 +276,8 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 					changedItem.populateCommandArgs();
 					return changedItem;
 				});
+				element.comments = comments;
+				element.fileChanges = fileChanges;
 				this._fileChanges = fileChanges;
 				this._comments = comments;
 				return fileChanges;

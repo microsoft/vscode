@@ -5,10 +5,12 @@
 			"name": "Launch Extension",
 			"type": "extensionHost",
 			"request": "launch",
-			"runtimeExecutable": "${execPath}",
+			"runtimeExecutable": "/Users/penlv/code/vscode/scripts/code.sh",
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}"
 			],
+			"trace": true,
+			"protocol": "inspector",
 			"stopOnEntry": false,
 			"sourceMaps": true,
 			"outFiles": ["${workspaceFolder}/client/out/**/*.js"],

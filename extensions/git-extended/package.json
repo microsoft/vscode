@@ -61,8 +61,26 @@
           "dark": "resources/icons/dark/refresh.svg",
           "light": "resources/icons/light/refresh.svg"
         }
+      },
+      {
+          "command": "pr.pick",
+          "title": "Checkout & Review"
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "pr.refreshList",
+          "when": "view == pr"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "pr.pick",
+          "when": "view == pr && viewItem == pullrequest"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "tsc -p ./",

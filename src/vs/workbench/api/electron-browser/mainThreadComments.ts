@@ -25,7 +25,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	constructor(
 		extHostContext: IExtHostContext,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService workbenchEditorService: IWorkbenchEditorService,
+		@IWorkbenchEditorService private _workbenchEditorService: IWorkbenchEditorService,
 		@ICodeEditorService private _codeEditorService: ICodeEditorService
 	) {
 		super();
@@ -61,7 +61,9 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	getFocusedEditor(): ICodeEditor {
 		let editor = this._codeEditorService.getFocusedCodeEditor();
-		// if\
+		if (!editor) {
+			editor = this._workbenchEditorService.getActiveEditor().getControl() as ICodeEditor;
+		}
 
 		return editor;
 	}
