@@ -5,7 +5,7 @@
 
 import { Application, SpectronClient as WebClient } from 'spectron';
 import { test as testPort } from 'portastic';
-import { API } from './client';
+import { API } from './api';
 import { ScreenCapturer } from './helpers/screenshot';
 import { Workbench } from './areas/workbench/workbench';
 import * as fs from 'fs';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { API } from '../../client';
+import { API } from '../../api';
 import { Commands } from '../workbench/workbench';
 
 const SEARCH_INPUT = '.settings-search-input input';

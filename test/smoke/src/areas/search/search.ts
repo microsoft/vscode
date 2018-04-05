@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Viewlet } from '../workbench/viewlet';
-import { API } from '../../client';
+import { API } from '../../api';
 import { Commands } from '../workbench/workbench';
 
 const VIEWLET = 'div[id="workbench.view.search"] .search-view';

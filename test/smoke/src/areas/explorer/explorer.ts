@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Viewlet } from '../workbench/viewlet';
-import { API } from '../../client';
+import { API } from '../../api';
 import { Editors } from '../editor/editors';
 import { Commands } from '../workbench/workbench';
 

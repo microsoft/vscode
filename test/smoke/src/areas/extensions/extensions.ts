@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Viewlet } from '../workbench/viewlet';
-import { API } from '../../client';
+import { API } from '../../api';
 import { Commands } from '../workbench/workbench';
 
 const SEARCH_BOX = 'div.extensions-viewlet[id="workbench.view.extensions"] input.search-box';

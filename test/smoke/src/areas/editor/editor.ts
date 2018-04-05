@@ -5,7 +5,7 @@
 
 import { References } from './peek';
 import { Commands } from '../workbench/workbench';
-import { API } from '../../client';
+import { API } from '../../api';
 
 const RENAME_BOX = '.monaco-editor .monaco-editor.rename-box';
 const RENAME_INPUT = `${RENAME_BOX} .rename-input`;
