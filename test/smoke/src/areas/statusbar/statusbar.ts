@@ -35,11 +35,11 @@ export class StatusBar {
 	}
 
 	async waitForEOL(eol: string): Promise<string> {
-		return this.api.waitForText(this.getSelector(StatusBarElement.EOL_STATUS), eol);
+		return this.api.waitForTextContent(this.getSelector(StatusBarElement.EOL_STATUS), eol);
 	}
 
 	async getStatusbarTextByTitle(title: string): Promise<string> {
-		return await this.api.waitForText(`${this.mainSelector} span[title="smoke test"]`);
+		return await this.api.waitForTextContent(`${this.mainSelector} span[title="smoke test"]`);
 	}
 
 	private getSelector(element: StatusBarElement): string {

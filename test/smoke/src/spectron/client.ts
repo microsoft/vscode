@@ -33,11 +33,6 @@ export class API {
 		return Promise.resolve();
 	}
 
-	async waitForText(selector: string, text?: string, accept?: (result: string) => boolean): Promise<string> {
-		accept = accept ? accept : result => text !== void 0 ? text === result : !!result;
-		return this.waitFor(() => this.spectronClient.getText(selector), accept, `getText with selector ${selector}`);
-	}
-
 	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean): Promise<string> {
 		accept = accept ? accept : (result => textContent !== void 0 ? textContent === result : !!result);
 		const fn = async () => await this.spectronClient.selectorExecute(selector, div => Array.isArray(div) ? div[0].textContent : div.textContent);

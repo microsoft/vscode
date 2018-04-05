@@ -61,9 +61,9 @@ export class Search extends Viewlet {
 
 	async removeFileMatch(index: number): Promise<void> {
 		await this.api.waitAndMoveToObject(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch`);
-		const file = await this.api.waitForText(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch a.label-name`);
+		const file = await this.api.waitForTextContent(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch a.label-name`);
 		await this.api.waitAndClick(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch .action-label.icon.action-remove`);
-		await this.api.waitForText(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch a.label-name`, void 0, result => result !== file);
+		await this.api.waitForTextContent(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch a.label-name`, void 0, result => result !== file);
 	}
 
 	async expandReplace(): Promise<void> {
@@ -82,6 +82,6 @@ export class Search extends Viewlet {
 	}
 
 	async waitForResultText(text: string): Promise<void> {
-		await this.api.waitForText(`${VIEWLET} .messages[aria-hidden="false"] .message>p`, text);
+		await this.api.waitForTextContent(`${VIEWLET} .messages[aria-hidden="false"] .message>p`, text);
 	}
 }

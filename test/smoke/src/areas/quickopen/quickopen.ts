@@ -84,7 +84,7 @@ export class QuickOpen {
 		while (++retries < 10) {
 			await this.commands.runCommand('workbench.action.gotoSymbol');
 
-			const text = await this.api.waitForText('div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties div.monaco-tree-row .quick-open-entry .monaco-icon-label .label-name .monaco-highlighted-label span');
+			const text = await this.api.waitForTextContent('div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties div.monaco-tree-row .quick-open-entry .monaco-icon-label .label-name .monaco-highlighted-label span');
 
 			if (text !== 'No symbol information for the file') {
 				return;

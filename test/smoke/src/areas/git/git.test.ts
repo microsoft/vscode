@@ -67,13 +67,13 @@ export function setup() {
 			await app.workbench.scm.waitForChange('app.js', 'Index Modified');
 
 			await app.workbench.scm.commit('first commit');
-			await app.client.waitForText(SYNC_STATUSBAR, ' 0↓ 1↑');
+			await app.client.waitForTextContent(SYNC_STATUSBAR, ' 0↓ 1↑');
 
 			await app.workbench.runCommand('Git: Stage All Changes');
 			await app.workbench.scm.waitForChange('index.jade', 'Index Modified');
 
 			await app.workbench.scm.commit('second commit');
-			await app.client.waitForText(SYNC_STATUSBAR, ' 0↓ 2↑');
+			await app.client.waitForTextContent(SYNC_STATUSBAR, ' 0↓ 2↑');
 
 			cp.execSync('git reset --hard origin/master', { cwd: app.workspacePath });
 		});

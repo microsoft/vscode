@@ -19,7 +19,7 @@ export class References {
 	}
 
 	async waitForReferencesCountInTitle(count: number): Promise<void> {
-		await this.api.waitForText(References.REFERENCES_TITLE_COUNT, void 0, titleCount => {
+		await this.api.waitForTextContent(References.REFERENCES_TITLE_COUNT, void 0, titleCount => {
 			const matches = titleCount.match(/\d+/);
 			return matches ? parseInt(matches[0]) === count : false;
 		});
@@ -30,7 +30,7 @@ export class References {
 	}
 
 	async waitForFile(file: string): Promise<void> {
-		await this.api.waitForText(References.REFERENCES_TITLE_FILE_NAME, file);
+		await this.api.waitForTextContent(References.REFERENCES_TITLE_FILE_NAME, file);
 	}
 
 	async close(): Promise<void> {

@@ -12,6 +12,6 @@ export abstract class Viewlet {
 	}
 
 	async getTitle(): Promise<string> {
-		return this.api.waitForText('.monaco-workbench-container .part.sidebar > .title > .title-label > span');
+		return this.api.waitForTextContent('.monaco-workbench-container .part.sidebar > .title > .title-label > span');
 	}
 }

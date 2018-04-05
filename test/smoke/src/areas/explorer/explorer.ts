@@ -22,7 +22,7 @@ export class Explorer extends Viewlet {
 	}
 
 	getOpenEditorsViewTitle(): Promise<string> {
-		return this.api.waitForText(Explorer.OPEN_EDITORS_VIEW);
+		return this.api.waitForTextContent(Explorer.OPEN_EDITORS_VIEW);
 	}
 
 	async openFile(fileName: string): Promise<any> {
