@@ -38,7 +38,9 @@ const opts = minimist(args, {
 		'build',
 		'stable-build',
 		'log',
-		'wait-time'
+		'wait-time',
+		'test-repo',
+		'keybindings'
 	]
 });
 
@@ -147,54 +149,79 @@ function toUri(path: string): string {
 	return `${path}`;
 }
 
+async function getKeybindings(): Promise<void> {
+	if (opts.keybindings) {
+		console.log('*** Using keybindings: ', opts.keybindings);
+		const rawKeybindings = fs.readFileSync(opts.keybindings);
+		fs.writeFileSync(keybindingsPath, rawKeybindings);
+	} else {
+		const keybindingsUrl = `https://raw.githubusercontent.com/Microsoft/vscode-docs/master/build/keybindings/doc.keybindings.${getKeybindingPlatform()}.json`;
+		console.log('*** Fetching keybindings...');
+
+		await new Promise((c, e) => {
+			https.get(keybindingsUrl, res => {
+				const output = fs.createWriteStream(keybindingsPath);
+				res.on('error', e);
+				output.on('error', e);
+				output.on('close', c);
+				res.pipe(output);
+			}).on('error', e);
+		});
+	}
+}
+
+async function createWorkspaceFile(): Promise<void> {
+	if (fs.existsSync(workspaceFilePath)) {
+		return;
+	}
+
+	console.log('*** Creating workspace file...');
+	const workspace = {
+		folders: [
+			{
+				path: toUri(path.join(workspacePath, 'public'))
+			},
+			{
+				path: toUri(path.join(workspacePath, 'routes'))
+			},
+			{
+				path: toUri(path.join(workspacePath, 'views'))
+			}
+		]
+	};
+
+	fs.writeFileSync(workspaceFilePath, JSON.stringify(workspace, null, '\t'));
+}
+
+async function setupRepository(): Promise<void> {
+	if (opts['test-repo']) {
+		console.log('*** Copying test project repository:', opts['test-repo']);
+		rimraf.sync(workspacePath);
+		// not platform friendly
+		cp.execSync(`cp -R "${opts['test-repo']}" "${workspacePath}"`);
+	} else {
+		if (!fs.existsSync(workspacePath)) {
+			console.log('*** Cloning test project repository...');
+			cp.spawnSync('git', ['clone', testRepoUrl, workspacePath]);
+		} else {
+			console.log('*** Cleaning test project repository...');
+			cp.spawnSync('git', ['fetch'], { cwd: workspacePath });
+			cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath });
+			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
+		}
+
+		console.log('*** Running npm install...');
+		cp.execSync('npm install', { cwd: workspacePath, stdio: 'inherit' });
+	}
+}
+
 async function setup(): Promise<void> {
 	console.log('*** Test data:', testDataPath);
 	console.log('*** Preparing smoketest setup...');
 
-	const keybindingsUrl = `https://raw.githubusercontent.com/Microsoft/vscode-docs/master/build/keybindings/doc.keybindings.${getKeybindingPlatform()}.json`;
-	console.log('*** Fetching keybindings...');
-
-	await new Promise((c, e) => {
-		https.get(keybindingsUrl, res => {
-			const output = fs.createWriteStream(keybindingsPath);
-			res.on('error', e);
-			output.on('error', e);
-			output.on('close', c);
-			res.pipe(output);
-		}).on('error', e);
-	});
-
-	if (!fs.existsSync(workspaceFilePath)) {
-		console.log('*** Creating workspace file...');
-		const workspace = {
-			folders: [
-				{
-					path: toUri(path.join(workspacePath, 'public'))
-				},
-				{
-					path: toUri(path.join(workspacePath, 'routes'))
-				},
-				{
-					path: toUri(path.join(workspacePath, 'views'))
-				}
-			]
-		};
-
-		fs.writeFileSync(workspaceFilePath, JSON.stringify(workspace, null, '\t'));
-	}
-
-	if (!fs.existsSync(workspacePath)) {
-		console.log('*** Cloning test project repository...');
-		cp.spawnSync('git', ['clone', testRepoUrl, workspacePath]);
-	} else {
-		console.log('*** Cleaning test project repository...');
-		cp.spawnSync('git', ['fetch'], { cwd: workspacePath });
-		cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath });
-		cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
-	}
-
-	console.log('*** Running npm install...');
-	cp.execSync('npm install', { cwd: workspacePath, stdio: 'inherit' });
+	await getKeybindings();
+	await createWorkspaceFile();
+	await setupRepository();
 
 	console.log('*** Smoketest setup done!\n');
 }
