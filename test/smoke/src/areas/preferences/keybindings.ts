@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../spectron/application';
+import { API } from '../../spectron/client';
+import { Commands } from '../workbench/workbench';
 
 const SEARCH_INPUT = '.settings-search-input input';
 
 export class KeybindingsEditor {
 
-	constructor(private spectron: SpectronApplication) { }
+	constructor(private api: API, private commands: Commands) { }
 
 	async updateKeybinding(command: string, keys: string[], ariaLabel: string): Promise<any> {
-		await this.spectron.runCommand('workbench.action.openGlobalKeybindings');
-		await this.spectron.client.waitForActiveElement(SEARCH_INPUT);
-		await this.spectron.client.setValue(SEARCH_INPUT, command);
+		await this.commands.runCommand('workbench.action.openGlobalKeybindings');
+		await this.api.waitForActiveElement(SEARCH_INPUT);
+		await this.api.setValue(SEARCH_INPUT, command);
 
-		await this.spectron.client.waitAndClick('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item');
-		await this.spectron.client.waitForElement('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item.focused.selected');
+		await this.api.waitAndClick('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item');
+		await this.api.waitForElement('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item.focused.selected');
 
-		await this.spectron.client.waitAndClick('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item .action-item .icon.add');
-		await this.spectron.client.waitForElement('.defineKeybindingWidget .monaco-inputbox.synthetic-focus');
+		await this.api.waitAndClick('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item .action-item .icon.add');
+		await this.api.waitForElement('.defineKeybindingWidget .monaco-inputbox.synthetic-focus');
 
-		await this.spectron.client.keys([...keys, 'NULL', 'Enter', 'NULL']);
-		await this.spectron.client.waitForElement(`div[aria-label="Keybindings"] div[aria-label="Keybinding is ${ariaLabel}."]`);
+		await this.api.keys([...keys, 'NULL', 'Enter', 'NULL']);
+		await this.api.waitForElement(`div[aria-label="Keybindings"] div[aria-label="Keybinding is ${ariaLabel}."]`);
 	}
 }

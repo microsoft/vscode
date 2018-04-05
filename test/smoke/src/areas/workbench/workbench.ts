@@ -17,12 +17,18 @@ import { SettingsEditor } from '../preferences/settings';
 import { KeybindingsEditor } from '../preferences/keybindings';
 import { Terminal } from '../terminal/terminal';
 import { API } from '../../spectron/client';
+import { Editors } from '../editor/editors';
 
-export class Workbench {
+export interface Commands {
+	runCommand(command: string): Promise<any>;
+}
 
+export class Workbench implements Commands {
+
+	readonly quickopen: QuickOpen;
+	readonly editors: Editors;
 	readonly explorer: Explorer;
 	readonly activitybar: ActivityBar;
-	readonly quickopen: QuickOpen;
 	readonly search: Search;
 	readonly extensions: Extensions;
 	readonly editor: Editor;
@@ -33,60 +39,33 @@ export class Workbench {
 	readonly settingsEditor: SettingsEditor;
 	readonly keybindingsEditor: KeybindingsEditor;
 	readonly terminal: Terminal;
-	private keybindings: any[];
 
-	constructor(private api: API) {
-		this.explorer = new Explorer(api);
+	constructor(private api: API, private keybindings: any[], userDataPath: string) {
+		this.editors = new Editors(api, this);
+		this.quickopen = new QuickOpen(api, this, this.editors);
+		this.explorer = new Explorer(api, this.quickopen, this.editors);
 		this.activitybar = new ActivityBar(api);
-		this.quickopen = new QuickOpen(api);
-		this.search = new Search(api);
-		this.extensions = new Extensions(api);
-		this.editor = new Editor(api);
-		this.scm = new SCM(api);
-		this.debug = new Debug(api);
+		this.search = new Search(api, this);
+		this.extensions = new Extensions(api, this);
+		this.editor = new Editor(api, this);
+		this.scm = new SCM(api, this);
+		this.debug = new Debug(api, this, this.editors, this.editor);
 		this.statusbar = new StatusBar(api);
-		this.problems = new Problems(api);
-		this.settingsEditor = new SettingsEditor(api);
-		this.keybindingsEditor = new KeybindingsEditor(api);
-		this.terminal = new Terminal(api);
-	}
-
-	public async saveOpenedFile(): Promise<any> {
-		await this.api.waitForElement('.tabs-container div.tab.active.dirty');
-		await this.quickopen.runCommand('File: Save');
-	}
-
-	public async selectTab(tabName: string, untitled: boolean = false): Promise<void> {
-		await this.api.waitAndClick(`.tabs-container div.tab[aria-label="${tabName}, tab"]`);
-		await this.waitForEditorFocus(tabName, untitled);
-	}
-
-	public async waitForEditorFocus(fileName: string, untitled: boolean = false): Promise<void> {
-		await this.waitForActiveTab(fileName);
-		await this.editor.waitForActiveEditor(fileName);
-	}
-
-	public async waitForActiveTab(fileName: string, isDirty: boolean = false): Promise<void> {
-		await this.api.waitForElement(`.tabs-container div.tab.active${isDirty ? '.dirty' : ''}[aria-selected="true"][aria-label="${fileName}, tab"]`);
-	}
-
-	public async waitForTab(fileName: string, isDirty: boolean = false): Promise<void> {
-		await this.api.waitForElement(`.tabs-container div.tab${isDirty ? '.dirty' : ''}[aria-label="${fileName}, tab"]`);
-	}
-
-	public async newUntitledFile(): Promise<void> {
-		await this.runCommand('workbench.action.files.newUntitledFile');
-		await this.waitForEditorFocus('Untitled-1', true);
+		this.problems = new Problems(api, this);
+		this.settingsEditor = new SettingsEditor(api, userDataPath, this, this.editors, this.editor);
+		this.keybindingsEditor = new KeybindingsEditor(api, this);
+		this.terminal = new Terminal(api, this);
 	}
 
 	/**
 	 * Retrieves the command from keybindings file and executes it with WebdriverIO client API
 	 * @param command command (e.g. 'workbench.action.files.newUntitledFile')
 	 */
-	runCommand(command: string): Promise<any> {
+	async runCommand(command: string): Promise<any> {
 		const binding = this.keybindings.find(x => x['command'] === command);
 		if (!binding) {
-			return this.quickopen.runCommand(command);
+			await this.quickopen.runCommand(command);
+			return;
 		}
 
 		const keys: string = binding.key;
@@ -117,3 +96,4 @@ export class Workbench {
 		}
 	}
 }
+

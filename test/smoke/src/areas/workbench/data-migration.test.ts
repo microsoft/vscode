@@ -32,7 +32,7 @@ export function setup(userDataDir: string, createApp: ICreateAppFn) {
 
 			const textToType = 'Very dirty file';
 
-			await stableApp.workbench.newUntitledFile();
+			await stableApp.workbench.editors.newUntitledFile();
 			await stableApp.workbench.editor.waitForTypeInEditor('Untitled-1', textToType);
 
 			await stableApp.stop();
@@ -48,7 +48,7 @@ export function setup(userDataDir: string, createApp: ICreateAppFn) {
 			await app.start(false);
 			app.suiteName = 'Data Migration';
 
-			assert.ok(await app.workbench.waitForActiveTab('Untitled-1', true), `Untitled-1 tab is not present after migration.`);
+			assert.ok(await app.workbench.editors.waitForActiveTab('Untitled-1', true), `Untitled-1 tab is not present after migration.`);
 
 			await app.workbench.editor.waitForEditorContents('Untitled-1', c => c.indexOf(textToType) > -1);
 			await app.screenCapturer.capture('Untitled file text');
@@ -87,7 +87,7 @@ export function setup(userDataDir: string, createApp: ICreateAppFn) {
 			await app.start(false);
 			app.suiteName = 'Data Migration';
 
-			assert.ok(await app.workbench.waitForActiveTab(fileName), `dirty file tab is not present after migration.`);
+			assert.ok(await app.workbench.editors.waitForActiveTab(fileName), `dirty file tab is not present after migration.`);
 			await app.workbench.editor.waitForEditorContents(fileName, c => c.indexOf(textPart) > -1);
 
 			await app.stop();
@@ -107,9 +107,9 @@ export function setup(userDataDir: string, createApp: ICreateAppFn) {
 			const fileName1 = 'app.js', fileName2 = 'jsconfig.json', fileName3 = 'readme.md';
 
 			await stableApp.workbench.quickopen.openFile(fileName1);
-			await stableApp.workbench.quickopen.runCommand('View: Keep Editor');
+			await stableApp.workbench.runCommand('View: Keep Editor');
 			await stableApp.workbench.quickopen.openFile(fileName2);
-			await stableApp.workbench.quickopen.runCommand('View: Keep Editor');
+			await stableApp.workbench.runCommand('View: Keep Editor');
 			await stableApp.workbench.quickopen.openFile(fileName3);
 			await stableApp.stop();
 
@@ -122,9 +122,9 @@ export function setup(userDataDir: string, createApp: ICreateAppFn) {
 			await app.start(false);
 			app.suiteName = 'Data Migration';
 
-			assert.ok(await app.workbench.waitForTab(fileName1), `${fileName1} tab was not restored after migration.`);
-			assert.ok(await app.workbench.waitForTab(fileName2), `${fileName2} tab was not restored after migration.`);
-			assert.ok(await app.workbench.waitForTab(fileName3), `${fileName3} tab was not restored after migration.`);
+			assert.ok(await app.workbench.editors.waitForTab(fileName1), `${fileName1} tab was not restored after migration.`);
+			assert.ok(await app.workbench.editors.waitForTab(fileName2), `${fileName2} tab was not restored after migration.`);
+			assert.ok(await app.workbench.editors.waitForTab(fileName3), `${fileName3} tab was not restored after migration.`);
 
 			await app.stop();
 		});

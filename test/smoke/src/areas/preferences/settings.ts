@@ -5,7 +5,10 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { SpectronApplication } from '../../spectron/application';
+import { API } from '../../spectron/client';
+import { Commands } from '../workbench/workbench';
+import { Editor } from '../editor/editor';
+import { Editors } from '../editor/editors';
 
 export enum ActivityBarPosition {
 	LEFT = 0,
@@ -17,29 +20,26 @@ const EDITOR = '.editable-preferences-editor-container .monaco-editor textarea';
 
 export class SettingsEditor {
 
-	constructor(private spectron: SpectronApplication) { }
+	constructor(private api: API, private userDataPath: string, private commands: Commands, private editors: Editors, private editor: Editor) { }
 
 	async addUserSetting(setting: string, value: string): Promise<void> {
-		await this.spectron.runCommand('workbench.action.openGlobalSettings');
-		await this.spectron.client.waitAndClick(SEARCH_INPUT);
-		await this.spectron.client.waitForActiveElement(SEARCH_INPUT);
+		await this.commands.runCommand('workbench.action.openGlobalSettings');
+		await this.api.waitAndClick(SEARCH_INPUT);
+		await this.api.waitForActiveElement(SEARCH_INPUT);
 
-		await this.spectron.client.keys(['ArrowDown', 'NULL']);
-		await this.spectron.client.waitForActiveElement(EDITOR);
+		await this.api.keys(['ArrowDown', 'NULL']);
+		await this.api.waitForActiveElement(EDITOR);
 
-		await this.spectron.client.keys(['ArrowRight', 'NULL']);
-		await this.spectron.screenCapturer.capture('user settings is open and focused');
+		await this.api.keys(['ArrowRight', 'NULL']);
 
-		await this.spectron.workbench.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value}`, '.editable-preferences-editor-container');
-		await this.spectron.workbench.saveOpenedFile();
-
-		await this.spectron.screenCapturer.capture('user settings has changed');
+		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value}`, '.editable-preferences-editor-container');
+		await this.editors.saveOpenedFile();
 	}
 
 	async clearUserSettings(): Promise<void> {
-		const settingsPath = path.join(this.spectron.userDataPath, 'User', 'settings.json');
+		const settingsPath = path.join(this.userDataPath, 'User', 'settings.json');
 		await new Promise((c, e) => fs.writeFile(settingsPath, '{}', 'utf8', err => err ? e(err) : c()));
 
-		await this.spectron.workbench.editor.waitForEditorContents('settings.json', c => c.length === 0, '.editable-preferences-editor-container');
+		await this.editor.waitForEditorContents('settings.json', c => c.length === 0, '.editable-preferences-editor-container');
 	}
 }

@@ -7,6 +7,12 @@ import { SpectronClient } from 'spectron';
 import { RawResult, Element } from 'webdriverio';
 import { ScreenCapturer } from '../helpers/screenshot';
 
+export interface APIElement {
+	tagName: string;
+	className: string;
+	textContent: string;
+}
+
 export class API {
 
 	// waitFor calls should not take more than 200 * 100 = 20 seconds to complete, excluding
@@ -58,8 +64,33 @@ export class API {
 		return this.spectronClient.element(selector).then(result => !!result.value);
 	}
 
-	async waitForElements(selector: string, accept: (result: Element[]) => boolean = result => result.length > 0): Promise<void> {
-		return this.waitFor(() => this.spectronClient.elements(selector), result => accept(result.value), `elements with selector ${selector}`) as Promise<any>;
+	async getElementCount(selector: string): Promise<number> {
+		const result = await this.spectronClient.elements(selector);
+		return result.value.length;
+	}
+
+	async waitForElements(selector: string, accept: (result: APIElement[]) => boolean = result => result.length > 0): Promise<APIElement[]> {
+		const _fn: any = () => {
+			return this.spectronClient.execute(selector => {
+				const query = document.querySelectorAll(selector);
+				const result: APIElement[] = [];
+
+				for (let i = 0; i < query.length; i++) {
+					const element: HTMLElement = query.item(i);
+
+					result.push({
+						tagName: element.tagName,
+						className: element.className,
+						textContent: element.textContent || ''
+					});
+				}
+
+				return result;
+			}, selector)
+				.then(result => result.value);
+		};
+
+		return this.waitFor(_fn, accept, `elements with selector ${selector}`) as Promise<any>;
 	}
 
 	async waitForElement(selector: string, accept: (result: Element | undefined) => boolean = result => !!result): Promise<void> {
@@ -76,6 +107,14 @@ export class API {
 
 	async getTitle(): Promise<string> {
 		return this.spectronClient.getTitle();
+	}
+
+	selectorExecute<P>(
+		selectors: string | string[],
+		script: (elements: HTMLElement | HTMLElement[], ...args: any[]) => P,
+		...args: any[]
+	): Promise<P> {
+		return this.spectronClient.selectorExecute(selectors, script, ...args);
 	}
 
 	private running = false;

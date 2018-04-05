@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../spectron/application';
+import { API } from '../../spectron/client';
 
 export enum StatusBarElement {
 	BRANCH_STATUS = 0,
@@ -23,23 +23,23 @@ export class StatusBar {
 	private readonly leftSelector = '.statusbar-item.left';
 	private readonly rightSelector = '.statusbar-item.right';
 
-	constructor(private spectron: SpectronApplication) {
+	constructor(private api: API) {
 	}
 
-	public async waitForStatusbarElement(element: StatusBarElement): Promise<void> {
-		await this.spectron.client.waitForElement(this.getSelector(element));
+	async waitForStatusbarElement(element: StatusBarElement): Promise<void> {
+		await this.api.waitForElement(this.getSelector(element));
 	}
 
-	public async clickOn(element: StatusBarElement): Promise<void> {
-		await this.spectron.client.waitAndClick(this.getSelector(element));
+	async clickOn(element: StatusBarElement): Promise<void> {
+		await this.api.waitAndClick(this.getSelector(element));
 	}
 
-	public async waitForEOL(eol: string): Promise<string> {
-		return this.spectron.client.waitForText(this.getSelector(StatusBarElement.EOL_STATUS), eol);
+	async waitForEOL(eol: string): Promise<string> {
+		return this.api.waitForText(this.getSelector(StatusBarElement.EOL_STATUS), eol);
 	}
 
-	public async getStatusbarTextByTitle(title: string): Promise<string> {
-		return await this.spectron.client.waitForText(`${this.mainSelector} span[title="smoke test"]`);
+	async getStatusbarTextByTitle(title: string): Promise<string> {
+		return await this.api.waitForText(`${this.mainSelector} span[title="smoke test"]`);
 	}
 
 	private getSelector(element: StatusBarElement): string {

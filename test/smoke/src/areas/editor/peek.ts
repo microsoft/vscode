@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../spectron/application';
+import { API } from '../../spectron/client';
 
 export class References {
 
@@ -12,30 +12,29 @@ export class References {
 	private static readonly REFERENCES_TITLE_COUNT = `${References.REFERENCES_WIDGET} .head .peekview-title .meta`;
 	private static readonly REFERENCES = `${References.REFERENCES_WIDGET} .body .ref-tree.inline .monaco-tree-row .reference`;
 
-	constructor(private spectron: SpectronApplication) {
+	constructor(private api: API) { }
+
+	async waitUntilOpen(): Promise<void> {
+		await this.api.waitForElement(References.REFERENCES_WIDGET);
 	}
 
-	public async waitUntilOpen(): Promise<void> {
-		await this.spectron.client.waitForElement(References.REFERENCES_WIDGET);
-	}
-
-	public async waitForReferencesCountInTitle(count: number): Promise<void> {
-		await this.spectron.client.waitForText(References.REFERENCES_TITLE_COUNT, void 0, titleCount => {
+	async waitForReferencesCountInTitle(count: number): Promise<void> {
+		await this.api.waitForText(References.REFERENCES_TITLE_COUNT, void 0, titleCount => {
 			const matches = titleCount.match(/\d+/);
 			return matches ? parseInt(matches[0]) === count : false;
 		});
 	}
 
-	public async waitForReferencesCount(count: number): Promise<void> {
-		await this.spectron.client.waitForElements(References.REFERENCES, result => result && result.length === count);
+	async waitForReferencesCount(count: number): Promise<void> {
+		await this.api.waitForElements(References.REFERENCES, result => result && result.length === count);
 	}
 
-	public async waitForFile(file: string): Promise<void> {
-		await this.spectron.client.waitForText(References.REFERENCES_TITLE_FILE_NAME, file);
+	async waitForFile(file: string): Promise<void> {
+		await this.api.waitForText(References.REFERENCES_TITLE_FILE_NAME, file);
 	}
 
-	public async close(): Promise<void> {
-		await this.spectron.client.keys(['Escape', 'NULL']);
-		await this.spectron.client.waitForElement(References.REFERENCES_WIDGET, element => !element);
+	async close(): Promise<void> {
+		await this.api.keys(['Escape', 'NULL']);
+		await this.api.waitForElement(References.REFERENCES_WIDGET, element => !element);
 	}
 }

@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../spectron/application';
+import { API } from '../../spectron/client';
 
 export abstract class Viewlet {
 
-	constructor(protected spectron: SpectronApplication) {
+	constructor(protected api: API) {
 		// noop
 	}
 
-	public async getTitle(): Promise<string> {
-		return this.spectron.client.waitForText('.monaco-workbench-container .part.sidebar > .title > .title-label > span');
+	async getTitle(): Promise<string> {
+		return this.api.waitForText('.monaco-workbench-container .part.sidebar > .title > .title-label > span');
 	}
-
 }

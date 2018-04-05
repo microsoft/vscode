@@ -13,7 +13,7 @@ export function setup() {
 
 		it(`verifies that 'hot exit' works for dirty files`, async function () {
 			const app = this.app as SpectronApplication;
-			await app.workbench.newUntitledFile();
+			await app.workbench.editors.newUntitledFile();
 
 			const untitled = 'Untitled-1';
 			const textToTypeInUntitled = 'Hello, Unitled Code';
@@ -29,12 +29,12 @@ export function setup() {
 			await app.reload();
 			await app.screenCapturer.capture('After reload');
 
-			await app.workbench.waitForActiveTab(readmeMd, true);
+			await app.workbench.editors.waitForActiveTab(readmeMd, true);
 			await app.screenCapturer.capture(`${readmeMd} after reload`);
 			await app.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
 
-			await app.workbench.waitForTab(untitled, true);
-			await app.workbench.selectTab(untitled, true);
+			await app.workbench.editors.waitForTab(untitled, true);
+			await app.workbench.editors.selectTab(untitled, true);
 			await app.screenCapturer.capture('Untitled file after reload');
 			await app.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
 		});

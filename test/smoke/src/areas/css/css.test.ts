@@ -16,7 +16,7 @@ export function setup() {
 			const app = this.app as SpectronApplication;
 			await app.workbench.quickopen.openFile('style.css');
 
-			await app.workbench.editor.openOutline();
+			await app.workbench.quickopen.openQuickOutline();
 			await app.workbench.quickopen.waitForQuickOpenElements(names => names.length === 2);
 		});
 
@@ -43,7 +43,7 @@ export function setup() {
 			await app.client.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.ERROR));
 			await app.screenCapturer.capture('CSS Error in editor');
 
-			const problems = new Problems(app);
+			const problems = new Problems(app.client, app.workbench);
 			await problems.showProblemsView();
 			await app.client.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.ERROR));
 			await app.screenCapturer.capture('CSS Error in probles view');

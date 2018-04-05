@@ -55,6 +55,7 @@ export class SpectronApplication {
 	private _workbench: Workbench;
 	private _screenCapturer: ScreenCapturer;
 	private spectron: Application | undefined;
+	private keybindings: any[];
 	private stopLogCollection: (() => Promise<void>) | undefined;
 
 	constructor(
@@ -130,7 +131,7 @@ export class SpectronApplication {
 	}
 
 	async reload(): Promise<any> {
-		await this.workbench.quickopen.runCommand('Reload Window');
+		await this.workbench.runCommand('Reload Window');
 		// TODO @sandy: Find a proper condition to wait for reload
 		await new Promise(c => setTimeout(c, 1500));
 		await this.checkWindowReady();
@@ -270,7 +271,7 @@ export class SpectronApplication {
 
 		this._screenCapturer = new ScreenCapturer(this.spectron, this._suiteName, screenshotsDirPath);
 		this._api = new API(this.spectron.client, this.screenCapturer, this.options.waitTime);
-		this._workbench = new Workbench(this._api);
+		this._workbench = new Workbench(this._api, this.keybindings, this.userDataPath);
 	}
 
 	private async checkWindowReady(): Promise<any> {

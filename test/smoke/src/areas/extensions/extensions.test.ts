@@ -28,7 +28,7 @@ export function setup() {
 
 			await app.reload();
 			await app.workbench.extensions.waitForExtensionsViewlet();
-			await app.workbench.quickopen.runCommand('Smoke Test Check');
+			await app.workbench.runCommand('Smoke Test Check');
 
 			const statusbarText = await app.workbench.statusbar.getStatusbarTextByTitle('smoke test');
 			await app.screenCapturer.capture('Statusbar');

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../spectron/application';
+import { API } from '../../spectron/client';
 
 export enum ActivityBarPosition {
 	LEFT = 0,
@@ -12,7 +12,7 @@ export enum ActivityBarPosition {
 
 export class ActivityBar {
 
-	constructor(private spectron: SpectronApplication) {
+	constructor(private api: API) {
 		// noop
 	}
 
@@ -27,6 +27,6 @@ export class ActivityBar {
 			throw new Error('No such position for activity bar defined.');
 		}
 
-		return this.spectron.client.waitForElement(`.part.activitybar.${positionClass}`);
+		return this.api.waitForElement(`.part.activitybar.${positionClass}`);
 	}
 }

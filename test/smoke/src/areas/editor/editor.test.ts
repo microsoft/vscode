@@ -15,7 +15,7 @@ export function setup() {
 			const app = this.app as SpectronApplication;
 			await app.workbench.quickopen.openFile('www');
 
-			await app.workbench.editor.openOutline();
+			await app.workbench.quickopen.openQuickOutline();
 			await app.workbench.quickopen.waitForQuickOpenElements(names => names.length >= 6);
 		});
 
@@ -60,7 +60,7 @@ export function setup() {
 
 			await app.workbench.editor.gotoDefinition('express', 11);
 
-			await app.workbench.waitForActiveTab('index.d.ts');
+			await app.workbench.editors.waitForActiveTab('index.d.ts');
 		});
 
 		it(`verifies that 'Peek Definition' works`, async function () {

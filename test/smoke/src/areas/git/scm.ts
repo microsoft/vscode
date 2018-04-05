@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../spectron/application';
 import { Viewlet } from '../workbench/viewlet';
+import { API } from '../../spectron/client';
+import { Commands } from '../workbench/workbench';
 
 const VIEWLET = 'div[id="workbench.view.scm"]';
 const SCM_INPUT = `${VIEWLET} .scm-editor textarea`;
@@ -24,28 +25,28 @@ interface Change {
 
 export class SCM extends Viewlet {
 
-	constructor(spectron: SpectronApplication) {
-		super(spectron);
+	constructor(api: API, private commands: Commands) {
+		super(api);
 	}
 
 	async openSCMViewlet(): Promise<any> {
-		await this.spectron.runCommand('workbench.view.scm');
-		await this.spectron.client.waitForElement(SCM_INPUT);
+		await this.commands.runCommand('workbench.view.scm');
+		await this.api.waitForElement(SCM_INPUT);
 	}
 
 	waitForChange(name: string, type?: string): Promise<void> {
-		return this.spectron.client.waitFor(async () => {
+		return this.api.waitFor(async () => {
 			const changes = await this.queryChanges(name, type);
 			return changes.length;
 		}, l => l > 0, 'Getting SCM changes') as Promise<any> as Promise<void>;
 	}
 
 	async refreshSCMViewlet(): Promise<any> {
-		await this.spectron.client.waitAndClick(REFRESH_COMMAND);
+		await this.api.waitAndClick(REFRESH_COMMAND);
 	}
 
 	private async queryChanges(name: string, type?: string): Promise<Change[]> {
-		const result = await this.spectron.webclient.selectorExecute(SCM_RESOURCE, (div, name, type) => {
+		const result = await this.api.selectorExecute(SCM_RESOURCE, (div, name, type) => {
 			return (Array.isArray(div) ? div : [div])
 				.map(element => {
 					const name = element.querySelector('.label-name') as HTMLElement;
@@ -59,7 +60,7 @@ export class SCM extends Viewlet {
 					}
 
 					return {
-						name: name.textContent,
+						name: name.textContent || '',
 						type,
 						actions
 					};
@@ -81,25 +82,25 @@ export class SCM extends Viewlet {
 	}
 
 	async openChange(name: string): Promise<void> {
-		await this.spectron.client.waitAndClick(SCM_RESOURCE_CLICK(name));
+		await this.api.waitAndClick(SCM_RESOURCE_CLICK(name));
 	}
 
 	async stage(name: string): Promise<void> {
-		await this.spectron.client.waitAndClick(SCM_RESOURCE_ACTION_CLICK(name, 'Stage Changes'));
+		await this.api.waitAndClick(SCM_RESOURCE_ACTION_CLICK(name, 'Stage Changes'));
 	}
 
 	async stageAll(): Promise<void> {
-		await this.spectron.client.waitAndClick(SCM_RESOURCE_GROUP_COMMAND_CLICK('Stage All Changes'));
+		await this.api.waitAndClick(SCM_RESOURCE_GROUP_COMMAND_CLICK('Stage All Changes'));
 	}
 
 	async unstage(name: string): Promise<void> {
-		await this.spectron.client.waitAndClick(SCM_RESOURCE_ACTION_CLICK(name, 'Unstage Changes'));
+		await this.api.waitAndClick(SCM_RESOURCE_ACTION_CLICK(name, 'Unstage Changes'));
 	}
 
 	async commit(message: string): Promise<void> {
-		await this.spectron.client.waitAndClick(SCM_INPUT);
-		await this.spectron.client.waitForActiveElement(SCM_INPUT);
-		await this.spectron.client.setValue(SCM_INPUT, message);
-		await this.spectron.client.waitAndClick(COMMIT_COMMAND);
+		await this.api.waitAndClick(SCM_INPUT);
+		await this.api.waitForActiveElement(SCM_INPUT);
+		await this.api.setValue(SCM_INPUT, message);
+		await this.api.waitAndClick(COMMIT_COMMAND);
 	}
 }

@@ -3,33 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../spectron/application';
 import { Viewlet } from '../workbench/viewlet';
-
+import { API } from '../../spectron/client';
+import { Editors } from '../editor/editors';
+import { Commands } from '../workbench/workbench';
 
 export class Explorer extends Viewlet {
 
 	private static readonly EXPLORER_VIEWLET = 'div[id="workbench.view.explorer"]';
 	private static readonly OPEN_EDITORS_VIEW = `${Explorer.EXPLORER_VIEWLET} .split-view-view:nth-child(1) .title`;
 
-	constructor(spectron: SpectronApplication) {
-		super(spectron);
+	constructor(api: API, private commands: Commands, private editors: Editors) {
+		super(api);
 	}
 
-	public openExplorerView(): Promise<any> {
-		return this.spectron.runCommand('workbench.view.explorer');
+	openExplorerView(): Promise<any> {
+		return this.commands.runCommand('workbench.view.explorer');
 	}
 
-	public getOpenEditorsViewTitle(): Promise<string> {
-		return this.spectron.client.waitForText(Explorer.OPEN_EDITORS_VIEW);
+	getOpenEditorsViewTitle(): Promise<string> {
+		return this.api.waitForText(Explorer.OPEN_EDITORS_VIEW);
 	}
 
-	public async openFile(fileName: string): Promise<any> {
-		await this.spectron.client.waitAndDoubleClick(`div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.getExtensionSelector(fileName)} explorer-item"]`);
-		await this.spectron.workbench.waitForEditorFocus(fileName);
+	async openFile(fileName: string): Promise<any> {
+		await this.api.waitAndDoubleClick(`div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.getExtensionSelector(fileName)} explorer-item"]`);
+		await this.editors.waitForEditorFocus(fileName);
 	}
 
-	public getExtensionSelector(fileName: string): string {
+	getExtensionSelector(fileName: string): string {
 		const extension = fileName.split('.')[1];
 		if (extension === 'js') {
 			return 'js-ext-file-icon ext-file-icon javascript-lang-file-icon';

@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../spectron/application';
+import { API } from '../../spectron/client';
+import { Commands } from '../workbench/workbench';
 
 export enum ProblemSeverity {
 	WARNING = 0,
@@ -14,30 +15,30 @@ export class Problems {
 
 	static PROBLEMS_VIEW_SELECTOR = '.panel.markers-panel';
 
-	constructor(private spectron: SpectronApplication) {
+	constructor(private api: API, private commands: Commands) {
 		// noop
 	}
 
 	public async showProblemsView(): Promise<any> {
 		if (!await this.isVisible()) {
-			await this.spectron.runCommand('workbench.actions.view.problems');
+			await this.commands.runCommand('workbench.actions.view.problems');
 			await this.waitForProblemsView();
 		}
 	}
 
 	public async hideProblemsView(): Promise<any> {
 		if (await this.isVisible()) {
-			await this.spectron.runCommand('workbench.actions.view.problems');
-			await this.spectron.client.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR, el => !el);
+			await this.commands.runCommand('workbench.actions.view.problems');
+			await this.api.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR, el => !el);
 		}
 	}
 
 	isVisible(): Promise<boolean> {
-		return this.spectron.client.doesElementExist(Problems.PROBLEMS_VIEW_SELECTOR);
+		return this.api.doesElementExist(Problems.PROBLEMS_VIEW_SELECTOR);
 	}
 
 	public async waitForProblemsView(): Promise<void> {
-		await this.spectron.client.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR);
+		await this.api.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR);
 	}
 
 	public static getSelectorInProblemsView(problemType: ProblemSeverity): string {
@@ -46,7 +47,7 @@ export class Problems {
 	}
 
 	public static getSelectorInEditor(problemType: ProblemSeverity): string {
-		let selector = problemType === ProblemSeverity.WARNING ? 'squiggly-c-warning' : 'squiggly-d-error';
+		let selector = problemType === ProblemSeverity.WARNING ? 'squiggly-warning' : 'squiggly-error';
 		return `.view-overlays .cdr.${selector}`;
 	}
 }
