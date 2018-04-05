@@ -275,7 +275,7 @@ function packageTask(platform, arch, opts) {
 		const packageJsonStream = gulp.src(['package.json'], { base: '.' })
 			.pipe(json({ name, version }));
 
-		const settingsSearchBuildId = getBuildNumber();
+		const settingsSearchBuildId = getSettingsSearchBuildId();
 		const date = new Date().toISOString();
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(json({ commit, date, checksums, settingsSearchBuildId }));
@@ -481,14 +481,12 @@ gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () =
 	}
 
 	if (!fs.existsSync(allConfigDetailsPath)) {
-		console.error(`configuration file at ${allConfigDetailsPath} does not exist`);
-		return;
+		throw new Error(`configuration file at ${allConfigDetailsPath} does not exist`);
 	}
 
-	const settingsSearchBuildId = getBuildNumber();
+	const settingsSearchBuildId = getSettingsSearchBuildId();
 	if (!settingsSearchBuildId) {
-		console.error('Failed to compute build number');
-		return;
+		throw new Error('Failed to compute build number');
 	}
 
 	return gulp.src(allConfigDetailsPath)
@@ -500,10 +498,10 @@ gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () =
 		}));
 });
 
-function getBuildNumber() {
+function getSettingsSearchBuildId() {
 	const previous = getPreviousVersion(packageJson.version);
 	if (!previous) {
-		return 0;
+		throw new Error('Could not determine settings search build ID');
 	}
 
 	try {
@@ -511,14 +509,13 @@ function getBuildNumber() {
 		const count = parseInt(out.toString());
 		return versionStringToNumber(packageJson.version) * 1e4 + count;
 	} catch (e) {
-		console.error('Could not determine build number: ' + e.toString());
-		return 0;
+		throw new Error('Could not determine build number: ' + e.toString());
 	}
 }
 
 /**
  * Given 1.17.2, return 1.17.1
- * 1.18.0 => 1.17.2.
+ * 1.18.0 => 1.17.2. (or the highest 1.17.x)
  * 2.0.0 => 1.18.0 (or the highest 1.x)
  */
 function getPreviousVersion(versionStr) {
@@ -531,11 +528,10 @@ function getPreviousVersion(versionStr) {
 		}
 	}
 
-	function getLastTagFromBase(semverArr, componentToTest) {
+	function getLatestTagFromBase(semverArr, componentToTest) {
 		const baseVersion = semverArr.join('.');
 		if (!tagExists(baseVersion)) {
-			console.error('Failed to find tag for base version, ' + baseVersion);
-			return null;
+			throw new Error('Failed to find git tag for base version, ' + baseVersion);
 		}
 
 		let goodTag;
@@ -553,10 +549,10 @@ function getPreviousVersion(versionStr) {
 		return semverArr.join('.');
 	} else if (semverArr[1] > 0) {
 		semverArr[1]--;
-		return getLastTagFromBase(semverArr, 2);
+		return getLatestTagFromBase(semverArr, 2);
 	} else {
 		semverArr[0]--;
-		return getLastTagFromBase(semverArr, 1);
+		return getLatestTagFromBase(semverArr, 1);
 	}
 }
 
@@ -601,8 +597,5 @@ gulp.task('generate-vscode-configuration', () => {
 			clearTimeout(timer);
 			reject(err);
 		});
-	}).catch(e => {
-		// Don't fail the build
-		console.error(e.toString());
 	});
 });
