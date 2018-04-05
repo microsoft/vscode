@@ -172,13 +172,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openSettings(): TPromise<IEditor> {
-		const resource = this.lastOpenedSettingsInput ? this.lastOpenedSettingsInput.master.getResource() : this.userSettingsResource;
+		const editorInput = this.getActiveSettingsEditorInput() || this.lastOpenedSettingsInput;
+		const resource = editorInput ? editorInput.master.getResource() : this.userSettingsResource;
 		const target = this.getConfigurationTargetFromSettingsResource(resource);
-		return this.doOpenSettings(target, resource);
+		return this.openOrSwitchSettings(target, resource);
 	}
 
 	openGlobalSettings(options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
-		return this.doOpenSettings(ConfigurationTarget.USER, this.userSettingsResource, options, position);
+		return this.openOrSwitchSettings(ConfigurationTarget.USER, this.userSettingsResource, options, position);
 	}
 
 	openWorkspaceSettings(options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
@@ -186,29 +187,19 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			this.notificationService.info(nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
 			return TPromise.as(null);
 		}
-		return this.doOpenSettings(ConfigurationTarget.WORKSPACE, this.workspaceSettingsResource, options, position);
+		return this.openOrSwitchSettings(ConfigurationTarget.WORKSPACE, this.workspaceSettingsResource, options, position);
 	}
 
 	openFolderSettings(folder: URI, options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
-		return this.doOpenSettings(ConfigurationTarget.WORKSPACE_FOLDER, this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, folder), options, position);
+		return this.openOrSwitchSettings(ConfigurationTarget.WORKSPACE_FOLDER, this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, folder), options, position);
 	}
 
 	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void> {
 		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor && activeEditor.input instanceof PreferencesEditorInput) {
-			return this.getOrCreateEditableSettingsEditorInput(target, this.getEditableSettingsURI(target, resource))
-				.then(toInput => {
-					const replaceWith = new PreferencesEditorInput(this.getPreferencesEditorInputName(target, resource), toInput.getDescription(), this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(target)), toInput);
-					return this.editorService.replaceEditors([{
-						toReplace: activeEditor.input,
-						replaceWith
-					}], activeEditor.position).then(() => {
-						this.lastOpenedSettingsInput = replaceWith;
-					});
-				});
+			return this.doSwitchSettings(target, resource, activeEditor.input, activeEditor.position).then(() => null);
 		} else {
-			this.doOpenSettings(target, resource);
-			return undefined;
+			return this.doOpenSettings(target, resource).then(() => null);
 		}
 	}
 
@@ -249,6 +240,16 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 	}
 
+	private openOrSwitchSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
+		const activeGroup = this.editorGroupService.getStacksModel().activeGroup;
+		const positionToReplace = position !== void 0 ? position : activeGroup ? this.editorGroupService.getStacksModel().positionOfGroup(activeGroup) : EditorPosition.ONE;
+		const editorInput = this.getActiveSettingsEditorInput(positionToReplace);
+		if (editorInput && editorInput.master.getResource().fsPath !== resource.fsPath) {
+			return this.doSwitchSettings(configurationTarget, resource, editorInput, positionToReplace);
+		}
+		return this.doOpenSettings(configurationTarget, resource, options, position);
+	}
+
 	private doOpenSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
 		const openDefaultSettings = !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING);
 		return this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource)
@@ -267,6 +268,26 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				}
 				return this.editorService.openEditor(editableSettingsEditorInput, options, position);
 			});
+	}
+
+	private doSwitchSettings(target: ConfigurationTarget, resource: URI, input: PreferencesEditorInput, position?: EditorPosition): TPromise<IEditor> {
+		return this.getOrCreateEditableSettingsEditorInput(target, this.getEditableSettingsURI(target, resource))
+			.then(toInput => {
+				const replaceWith = new PreferencesEditorInput(this.getPreferencesEditorInputName(target, resource), toInput.getDescription(), this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(target)), toInput);
+				return this.editorService.replaceEditors([{
+					toReplace: input,
+					replaceWith
+				}], position).then(editors => {
+					this.lastOpenedSettingsInput = replaceWith;
+					return editors[0];
+				});
+			});
+	}
+
+	private getActiveSettingsEditorInput(position?: EditorPosition): PreferencesEditorInput {
+		const stacksModel = this.editorGroupService.getStacksModel();
+		const group = position !== void 0 ? stacksModel.groupAt(position) : stacksModel.activeGroup;
+		return group && <PreferencesEditorInput>group.getEditors().filter(e => e instanceof PreferencesEditorInput)[0];
 	}
 
 	private getConfigurationTargetFromSettingsResource(resource: URI): ConfigurationTarget {
