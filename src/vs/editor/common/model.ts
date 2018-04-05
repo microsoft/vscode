@@ -1152,6 +1152,5 @@ export class ApplyEditsResult {
  */
 export interface IInternalModelContentChange extends IModelContentChange {
 	range: Range;
-	rangeOffset: number;
 	forceMoveMarkers: boolean;
 }

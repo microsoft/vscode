@@ -386,10 +386,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this.setValueFromTextBuffer(textBuffer);
 	}
 
-	private _createContentChanged2(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): IModelContentChangedEvent {
+	private _createContentChanged2(range: Range, rangeOffset: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): IModelContentChangedEvent {
 		return {
 			changes: [{
-				range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
+				range: range,
+				rangeOffset: rangeOffset,
 				rangeLength: rangeLength,
 				text: text,
 			}],
@@ -435,7 +436,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				false,
 				false
 			),
-			this._createContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, true)
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, true)
 		);
 	}
 
@@ -466,7 +467,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				false,
 				false
 			),
-			this._createContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, false)
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, false)
 		);
 	}
 
