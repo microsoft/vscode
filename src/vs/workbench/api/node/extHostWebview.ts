@@ -140,8 +140,6 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	private readonly _webviews = new Map<WebviewHandle, ExtHostWebview>();
 	private readonly _serializers = new Map<string, vscode.WebviewSerializer>();
 
-	private _activeWebview: ExtHostWebview | undefined;
-
 	constructor(
 		mainContext: IMainContext
 	) {
@@ -187,21 +185,14 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 	}
 
-	$onDidChangeActiveWeview(handle: WebviewHandle | undefined): void {
-		if (handle) {
-			const webview = this.getWebview(handle);
-			if (webview) {
-				if (webview !== this._activeWebview) {
-					this._activeWebview = webview;
-					webview.active = true;
-					webview.onDidChangeViewStateEmitter.fire({ viewColumn: webview.viewColumn, active: true });
-				}
-			}
-		} else {
-			if (this._activeWebview) {
-				this._activeWebview.active = false;
-				this._activeWebview.onDidChangeViewStateEmitter.fire({ viewColumn: this._activeWebview.viewColumn, active: false });
-				this._activeWebview = undefined;
+	$onDidChangeWeviewViewState(handle: WebviewHandle, active: boolean, position: Position): void {
+		const webview = this.getWebview(handle);
+		if (webview) {
+			const viewColumn = typeConverters.toViewColumn(position);
+			if (webview.active !== active || webview.viewColumn !== viewColumn) {
+				webview.active = active;
+				webview.viewColumn = viewColumn;
+				webview.onDidChangeViewStateEmitter.fire({ active, viewColumn });
 			}
 		}
 	}
@@ -211,22 +202,8 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		if (webview) {
 			webview.onDisposeEmitter.fire();
 			this._webviews.delete(handle);
-			if (this._activeWebview === webview) {
-				this._activeWebview = undefined;
-			}
 		}
 		return TPromise.as(void 0);
-	}
-
-	$onDidChangePosition(handle: WebviewHandle, newPosition: Position): void {
-		const webview = this.getWebview(handle);
-		if (webview) {
-			const newViewColumn = typeConverters.toViewColumn(newPosition);
-			if (webview.viewColumn !== newViewColumn) {
-				webview.viewColumn = newViewColumn;
-				webview.onDidChangeViewStateEmitter.fire({ viewColumn: newViewColumn, active: webview.active });
-			}
-		}
 	}
 
 	$deserializeWebview(
