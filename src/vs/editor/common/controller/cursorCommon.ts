@@ -93,6 +93,7 @@ export class CursorConfiguration {
 			e.layoutInfo
 			|| e.wordSeparators
 			|| e.emptySelectionClipboard
+			|| e.multiCursorMergeOverlapping
 			|| e.autoClosingBrackets
 			|| e.useTabStops
 			|| e.lineHeight
