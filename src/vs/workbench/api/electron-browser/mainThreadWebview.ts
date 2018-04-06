@@ -138,7 +138,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		if (editor && editor.getControl()) {
 			(editor.getControl() as ICodeEditor).getContribution<WebviewWidgetContribution>(EDITOR_CONTRIBUTION_ID).showWebviewWidget(lineNumber, 0, webview => {
 				this._webviews.set(handle, webview);
-				webview.onDidClickLink(uri => this.onDidClickLink(uri, webview.options));
+				webview.onDidClickLink(uri => this.onDidClickLink(handle, uri));
 				webview.onMessage(message => this._proxy.$onMessage(handle, message));
 			});
 		}
