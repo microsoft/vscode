@@ -7,7 +7,7 @@
 
 import * as processes from 'vs/base/node/processes';
 
-const sender = processes.createQueuedSender(<any>process);
+const sender = processes.createQueuedSender(process);
 
 process.on('message', msg => {
 	sender.send(msg);

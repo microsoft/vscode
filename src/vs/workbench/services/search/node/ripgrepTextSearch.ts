@@ -29,7 +29,7 @@ const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.u
 export class RipgrepEngine {
 	private isDone = false;
 	private rgProc: cp.ChildProcess;
-	private killRgProcFn: (code?: number) => void;
+	private killRgProcFn: Function;
 	private postProcessExclusions: glob.ParsedExpression;
 
 	private ripgrepParser: RipgrepParser;

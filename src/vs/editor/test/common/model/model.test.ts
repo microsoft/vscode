@@ -109,7 +109,7 @@ suite('Editor Model - Model', () => {
 		let e: ModelRawContentChangedEvent = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
-				assert.fail('Unexpected assertion error');
+				assert.fail();
 			}
 			e = _e;
 		});
@@ -128,7 +128,7 @@ suite('Editor Model - Model', () => {
 		let e: ModelRawContentChangedEvent = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
-				assert.fail('Unexpected assertion error');
+				assert.fail();
 			}
 			e = _e;
 		});
@@ -205,7 +205,7 @@ suite('Editor Model - Model', () => {
 		let e: ModelRawContentChangedEvent = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
-				assert.fail('Unexpected assertion error');
+				assert.fail();
 			}
 			e = _e;
 		});
@@ -224,7 +224,7 @@ suite('Editor Model - Model', () => {
 		let e: ModelRawContentChangedEvent = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
-				assert.fail('Unexpected assertion error');
+				assert.fail();
 			}
 			e = _e;
 		});
@@ -243,7 +243,7 @@ suite('Editor Model - Model', () => {
 		let e: ModelRawContentChangedEvent = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
-				assert.fail('Unexpected assertion error');
+				assert.fail();
 			}
 			e = _e;
 		});
@@ -263,7 +263,7 @@ suite('Editor Model - Model', () => {
 		let e: ModelRawContentChangedEvent = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
-				assert.fail('Unexpected assertion error');
+				assert.fail();
 			}
 			e = _e;
 		});
@@ -314,7 +314,7 @@ suite('Editor Model - Model', () => {
 		let e: ModelRawContentChangedEvent = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
-				assert.fail('Unexpected assertion error');
+				assert.fail();
 			}
 			e = _e;
 		});

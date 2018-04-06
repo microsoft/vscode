@@ -96,7 +96,7 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 						stream = stream.pipe(createGunzip());
 					}
 
-					c({ res, stream } as IRequestContext);
+					c({ res, stream });
 				}
 			});
 

@@ -61,7 +61,7 @@ export class NsfwWatcherService implements IWatcherService {
 			ignored: request.ignored
 		};
 
-		process.on('uncaughtException', (e: Error | string) => {
+		process.on('uncaughtException', e => {
 
 			// Specially handle ENOSPC errors that can happen when
 			// the watcher consumes so many file descriptors that

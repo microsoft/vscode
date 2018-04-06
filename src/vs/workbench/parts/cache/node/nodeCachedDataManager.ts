@@ -55,12 +55,12 @@ export class NodeCachedDataManager implements IWorkbenchContribution {
 			}
 		*/
 		this._telemetryService.publicLog('cachedDataInfo', {
-			didRequestCachedData: Boolean((<any>global).require.getConfig().nodeCachedDataDir),
+			didRequestCachedData: Boolean(global.require.getConfig().nodeCachedDataDir),
 			didRejectCachedData,
 			didProduceCachedData
 		});
 
-		(<any>global).require.config({ onNodeCachedData: undefined });
+		global.require.config({ onNodeCachedData: undefined });
 		delete MonacoEnvironment.onNodeCachedData;
 	}
 }
