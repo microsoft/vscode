@@ -6,7 +6,7 @@
 import * as path from 'path';
 import { Comment } from './models/comment';
 import { DIFF_HUNK_INFO } from './diff';
-import { FileChange } from '../prProvider';
+import { FileChange } from './treeItems';
 
 export function parseComments(comments: any[]): Comment[] {
 	for (let i = 0; i < comments.length; i++) {
