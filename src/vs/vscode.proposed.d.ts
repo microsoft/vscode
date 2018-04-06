@@ -11,32 +11,6 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
-	//#region Joh: readable diagnostics
-
-	export interface DiagnosticChangeEvent {
-		uris: Uri[];
-	}
-
-	export namespace languages {
-
-		/**
-		 *
-		 */
-		export const onDidChangeDiagnostics: Event<DiagnosticChangeEvent>;
-
-		/**
-		 *
-		 */
-		export function getDiagnostics(resource: Uri): Diagnostic[];
-
-		/**
-		 *
-		 */
-		export function getDiagnostics(): [Uri, Diagnostic[]][];
-	}
-
-	//#endregion
-
 	//#region Aeschli: folding
 
 	export class FoldingRangeList {
