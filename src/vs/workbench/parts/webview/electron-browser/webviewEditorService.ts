@@ -142,7 +142,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		reviver: WebviewReviver
 	): IDisposable {
 		if (this._revivers.has(viewType)) {
-			throw new Error(`Reveriver for '${viewType}' already registered`);
+			throw new Error(`Reviver for '${viewType}' already registered`);
 		}
 
 		this._revivers.set(viewType, reviver);
