@@ -685,6 +685,8 @@ declare module 'vscode' {
 		 * @param reviver Webview serializer.
 		 */
 		export function registerWebviewSerializer(viewType: string, reviver: WebviewSerializer): Disposable;
+
+		export function showWebviewWidget(editor: TextEditor, position: Position, viewType: string, title: string, options: WebviewOptions): Thenable<Webview>;
 	}
 
 	//#endregion

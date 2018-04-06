@@ -10,6 +10,7 @@ import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { Position } from 'vs/platform/editor/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from './extHostTypes';
+import { ExtHostTextEditor } from './extHostTextEditor';
 
 export class ExtHostWebview implements vscode.Webview {
 
@@ -141,7 +142,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	private readonly _serializers = new Map<string, vscode.WebviewSerializer>();
 
 	constructor(
-		mainContext: IMainContext
+		mainContext: IMainContext,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadWebviews);
 	}
@@ -176,6 +177,15 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 			this._serializers.delete(viewType);
 			this._proxy.$unregisterSerializer(viewType);
 		});
+	}
+
+	async showWebviewWidget(editor: vscode.TextEditor, lineNumber: number, viewType: string, title: string, options: vscode.WebviewOptions) {
+		const handle = ExtHostWebviews.webviewHandlePool++ + '';
+		this._proxy.$showWebviewWidget(handle, (editor as ExtHostTextEditor).id, lineNumber, viewType, options);
+
+		const webview = new ExtHostWebview(handle, this._proxy, viewType, undefined, options);
+		this._webviews.set(handle, webview);
+		return webview;
 	}
 
 	$onMessage(handle: WebviewHandle, message: any): void {

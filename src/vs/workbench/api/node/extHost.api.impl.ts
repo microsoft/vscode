@@ -421,6 +421,9 @@ export function createApiFactory(
 			}),
 			registerWebviewSerializer: proposedApiFunction(extension, (viewType: string, serializer: vscode.WebviewSerializer) => {
 				return extHostWebviews.registerWebviewSerializer(viewType, serializer);
+			}),
+			showWebviewWidget: proposedApiFunction(extension, (editor: vscode.TextEditor, position: vscode.Position, viewType: string, title: string, options: vscode.WebviewOptions) => {
+				return extHostWebviews.showWebviewWidget(editor, position.line, viewType, title, options);
 			})
 		};
 

@@ -184,6 +184,10 @@ export class WebviewElement {
 		parent.appendChild(this._webview);
 	}
 
+	public getDomNode() {
+		return this._webview;
+	}
+
 	public notifyFindWidgetFocusChanged(isFocused: boolean) {
 		this._contextKey.set(isFocused || document.activeElement === this._webview);
 	}
