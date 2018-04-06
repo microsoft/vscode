@@ -218,7 +218,13 @@ export class SpectronApplication {
 		// 	opts.webdriverLogPath = webdriverLogsPath;
 		// }
 
-		this.codeInstance = await spawn(this.options);
+		this.codeInstance = await spawn({
+			codePath: this.options.codePath,
+			workspacePath: workspaceOrFolder,
+			userDataDir: this.options.userDataDir,
+			extensionsPath: this.options.extensionsPath,
+			verbose: this.options.verbose
+		});
 
 		// if (testsuiteRootPath) {
 		// 	// Collect logs

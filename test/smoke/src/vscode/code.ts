@@ -74,6 +74,7 @@ export class Code {
 
 export interface SpawnOptions {
 	codePath?: string;
+	workspacePath: string;
 	userDataDir: string;
 	extensionsPath: string;
 	verbose: boolean;
@@ -109,6 +110,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	const handlePath = await new Promise<string>((c, e) => tmpName((err, handlePath) => err ? e(err) : c(handlePath)));
 
 	const args = [
+		options.workspacePath,
 		'--skip-getting-started',
 		'--skip-release-notes',
 		'--sticky-quickopen',
