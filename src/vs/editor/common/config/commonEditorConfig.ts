@@ -370,10 +370,10 @@ const editorConfiguration: IConfigurationNode = {
 				]
 			}, "The modifier to be used to add multiple cursors with the mouse. `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier.")
 		},
-		'editor.multiCursorCollapsible': {
+		'editor.multiCursorMergeOverlapping': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.multiCursorCollapsible,
-			'description': nls.localize('multiCursorCollapsible', "Enable cursors to collapse when overlapping.")
+			'default': EDITOR_DEFAULTS.multiCursorMergeOverlapping,
+			'description': nls.localize('multiCursorMergeOverlapping', "Merge multiple cursors when they are overlapping.")
 		},
 		'editor.quickSuggestions': {
 			'anyOf': [

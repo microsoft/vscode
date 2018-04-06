@@ -193,7 +193,7 @@ export class CursorCollection {
 			const currentViewSelection = current.viewSelection;
 			const nextViewSelection = next.viewSelection;
 
-			if (!this.context.config.multiCursorCollapsible) {
+			if (!this.context.config.multiCursorMergeOverlapping) {
 				continue;
 			}
 

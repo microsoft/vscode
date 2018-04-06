@@ -78,7 +78,7 @@ export class CursorConfiguration {
 	public readonly useTabStops: boolean;
 	public readonly wordSeparators: string;
 	public readonly emptySelectionClipboard: boolean;
-	public readonly multiCursorCollapsible: boolean;
+	public readonly multiCursorMergeOverlapping: boolean;
 	public readonly autoClosingBrackets: boolean;
 	public readonly autoIndent: boolean;
 	public readonly autoClosingPairsOpen: CharacterMap;
@@ -119,7 +119,7 @@ export class CursorConfiguration {
 		this.useTabStops = c.useTabStops;
 		this.wordSeparators = c.wordSeparators;
 		this.emptySelectionClipboard = c.emptySelectionClipboard;
-		this.multiCursorCollapsible = c.multiCursorCollapsible;
+		this.multiCursorMergeOverlapping = c.multiCursorMergeOverlapping;
 		this.autoClosingBrackets = c.autoClosingBrackets;
 		this.autoIndent = c.autoIndent;
 
