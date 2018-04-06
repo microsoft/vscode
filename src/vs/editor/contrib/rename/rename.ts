@@ -139,6 +139,10 @@ class RenameController implements IEditorContribution {
 			return undefined;
 		}
 
+		if (!range) {
+			return undefined;
+		}
+
 		let text = this.editor.getModel().getValueInRange(range);
 		let selection = this.editor.getSelection();
 		let selectionStart = 0;
