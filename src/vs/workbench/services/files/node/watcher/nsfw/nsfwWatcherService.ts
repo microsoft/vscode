@@ -8,7 +8,7 @@ import * as paths from 'vs/base/common/paths';
 import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as watcher from 'vs/workbench/services/files/node/watcher/common';
-import * as nsfw from 'nsfw';
+import * as nsfw from 'vscode-nsfw';
 import { IWatcherService, IWatcherRequest } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
 import { TPromise, ProgressCallback, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -61,7 +61,7 @@ export class NsfwWatcherService implements IWatcherService {
 			ignored: request.ignored
 		};
 
-		process.on('uncaughtException', e => {
+		process.on('uncaughtException', (e: Error | string) => {
 
 			// Specially handle ENOSPC errors that can happen when
 			// the watcher consumes so many file descriptors that

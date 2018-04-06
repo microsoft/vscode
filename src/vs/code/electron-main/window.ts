@@ -7,7 +7,7 @@
 
 import * as path from 'path';
 import * as objects from 'vs/base/common/objects';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/common/state';
 import { shell, screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage } from 'electron';
@@ -20,33 +20,17 @@ import product from 'vs/platform/node/product';
 import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { mark, exportEntries } from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 
-export interface IWindowState {
-	width?: number;
-	height?: number;
-	x?: number;
-	y?: number;
-	mode?: WindowMode;
-	display?: number;
-}
-
 export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
 	isExtensionTestHost?: boolean;
-}
-
-export enum WindowMode {
-	Maximized,
-	Normal,
-	Minimized, // not used anymore, but also cannot remove due to existing stored UI state (needs migration)
-	Fullscreen
 }
 
 export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
@@ -92,7 +76,7 @@ export class CodeWindow implements ICodeWindow {
 	private toDispose: IDisposable[];
 	private representedFilename: string;
 
-	private whenReadyCallbacks: TValueCallback<CodeWindow>[];
+	private whenReadyCallbacks: TValueCallback<ICodeWindow>[];
 
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
@@ -167,8 +151,16 @@ export class CodeWindow implements ICodeWindow {
 
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 
+		if (isMacintosh) {
+			options.acceptFirstMouse = true; // enabled by default
+
+			if (windowConfig && windowConfig.clickThroughInactive === false) {
+				options.acceptFirstMouse = false;
+			}
+		}
+
 		let useNativeTabs = false;
-		if (windowConfig && windowConfig.nativeTabs) {
+		if (isMacintosh && windowConfig && windowConfig.nativeTabs === true) {
 			options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
 			useNativeTabs = true;
 		}
@@ -213,15 +205,6 @@ export class CodeWindow implements ICodeWindow {
 
 		if (useCustomTitleStyle) {
 			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
-		}
-
-		// Set relaunch command
-		if (isWindows && product.win32AppUserModelId && typeof this._win.setAppDetails === 'function') {
-			this._win.setAppDetails({
-				appId: product.win32AppUserModelId,
-				relaunchCommand: `"${process.execPath}" -n`,
-				relaunchDisplayName: product.nameLong
-			});
 		}
 
 		if (isFullscreenOrMaximized) {
@@ -320,8 +303,8 @@ export class CodeWindow implements ICodeWindow {
 		}
 	}
 
-	public ready(): TPromise<CodeWindow> {
-		return new TPromise<CodeWindow>((c) => {
+	public ready(): TPromise<ICodeWindow> {
+		return new TPromise<ICodeWindow>((c) => {
 			if (this._readyState === ReadyState.READY) {
 				return c(this);
 			}
@@ -439,6 +422,34 @@ export class CodeWindow implements ICodeWindow {
 
 		// Handle Workspace events
 		this.toDispose.push(this.workspacesMainService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
+
+		// TODO@Ben workaround for https://github.com/Microsoft/vscode/issues/13612
+		// It looks like smooth scrolling disappears as soon as the window is minimized
+		// and maximized again. Touching some window properties "fixes" it, like toggling
+		// the visibility of the menu.
+		if (isWindows) {
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+			if (windowConfig && windowConfig.smoothScrollingWorkaround === true) {
+				let minimized = false;
+
+				const restoreSmoothScrolling = () => {
+					if (minimized) {
+						const visibility = this.getMenuBarVisibility();
+						const temporaryVisibility: MenuBarVisibility = (visibility === 'hidden' || visibility === 'toggle') ? 'default' : 'hidden';
+						setTimeout(() => {
+							this.doSetMenuBarVisibility(temporaryVisibility);
+							this.doSetMenuBarVisibility(visibility);
+						}, 0);
+					}
+
+					minimized = false;
+				};
+
+				this._win.on('minimize', () => minimized = true);
+				this._win.on('restore', () => restoreSmoothScrolling());
+				this._win.on('maximize', () => restoreSmoothScrolling());
+			}
+		}
 	}
 
 	private onUntitledWorkspaceDeleted(workspace: IWorkspaceIdentifier): void {
@@ -595,7 +606,7 @@ export class CodeWindow implements ICodeWindow {
 
 		// Perf Counters
 		windowConfiguration.perfEntries = exportEntries();
-		windowConfiguration.perfStartTime = global.perfStartTime;
+		windowConfiguration.perfStartTime = (<any>global).perfStartTime;
 		windowConfiguration.perfWindowLoadTime = Date.now();
 
 		// Config (combination of process.argv and window configuration)
@@ -822,11 +833,32 @@ export class CodeWindow implements ICodeWindow {
 		return menuBarVisibility;
 	}
 
-	public setMenuBarVisibility(visibility: MenuBarVisibility, notify: boolean = true): void {
+	private setMenuBarVisibility(visibility: MenuBarVisibility, notify: boolean = true): void {
 		if (isMacintosh) {
 			return; // ignore for macOS platform
 		}
 
+		if (visibility === 'toggle') {
+			if (notify) {
+				this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the Alt-key."));
+			}
+		}
+
+		if (visibility === 'hidden') {
+			// for some weird reason that I have no explanation for, the menu bar is not hiding when calling
+			// this without timeout (see https://github.com/Microsoft/vscode/issues/19777). there seems to be
+			// a timing issue with us opening the first window and the menu bar getting created. somehow the
+			// fact that we want to hide the menu without being able to bring it back via Alt key makes Electron
+			// still show the menu. Unable to reproduce from a simple Hello World application though...
+			setTimeout(() => {
+				this.doSetMenuBarVisibility(visibility);
+			});
+		} else {
+			this.doSetMenuBarVisibility(visibility);
+		}
+	}
+
+	private doSetMenuBarVisibility(visibility: MenuBarVisibility): void {
 		const isFullscreen = this._win.isFullScreen();
 
 		switch (visibility) {
@@ -843,22 +875,11 @@ export class CodeWindow implements ICodeWindow {
 			case ('toggle'):
 				this._win.setMenuBarVisibility(false);
 				this._win.setAutoHideMenuBar(true);
-
-				if (notify) {
-					this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the Alt-key."));
-				}
 				break;
 
 			case ('hidden'):
-				// for some weird reason that I have no explanation for, the menu bar is not hiding when calling
-				// this without timeout (see https://github.com/Microsoft/vscode/issues/19777). there seems to be
-				// a timing issue with us opening the first window and the menu bar getting created. somehow the
-				// fact that we want to hide the menu without being able to bring it back via Alt key makes Electron
-				// still show the menu. Unable to reproduce from a simple Hello World application though...
-				setTimeout(() => {
-					this._win.setMenuBarVisibility(false);
-					this._win.setAutoHideMenuBar(false);
-				});
+				this._win.setMenuBarVisibility(false);
+				this._win.setAutoHideMenuBar(false);
 				break;
 		}
 	}
@@ -903,7 +924,9 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	public send(channel: string, ...args: any[]): void {
-		this._win.webContents.send(channel, ...args);
+		if (this._win) {
+			this._win.webContents.send(channel, ...args);
+		}
 	}
 
 	public updateTouchBar(groups: ICommandAction[][]): void {

@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import paths = require('vs/base/common/paths');
-import encoding = require('vs/base/node/encoding');
-import errors = require('vs/base/common/errors');
+import * as paths from 'vs/base/common/paths';
+import * as encoding from 'vs/base/node/encoding';
+import * as errors from 'vs/base/common/errors';
 import uri from 'vs/base/common/uri';
 import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IResolveFileResult, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent, ICreateFileOptions, ITextSnapshot } from 'vs/platform/files/common/files';
 import { FileService as NodeFileService, IFileServiceOptions, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
@@ -18,14 +18,14 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { shell } from 'electron';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
 import { Schemas } from 'vs/base/common/network';
-import { Severity } from 'vs/platform/notification/common/notification';
-import { IChoiceService, Choice } from 'vs/platform/dialogs/common/dialogs';
+import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
+import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 
 export class FileService implements IFileService {
 
@@ -50,7 +50,7 @@ export class FileService implements IFileService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IChoiceService private choiceService: IChoiceService,
+		@INotificationService private notificationService: INotificationService,
 		@IStorageService private storageService: IStorageService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
 	) {
@@ -109,32 +109,36 @@ export class FileService implements IFileService {
 
 		// Detect if we run < .NET Framework 4.5 (TODO@ben remove with new watcher impl)
 		if (msg.indexOf(FileService.NET_VERSION_ERROR) >= 0 && !this.storageService.getBoolean(FileService.NET_VERSION_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
-			const choices: Choice[] = [nls.localize('installNet', "Download .NET Framework 4.5"), { label: nls.localize('neverShowAgain', "Don't Show Again") }];
-			this.choiceService.choose(Severity.Warning, nls.localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."), choices).then(choice => {
-				switch (choice) {
-					case 0 /* Read More */:
-						window.open('https://go.microsoft.com/fwlink/?LinkId=786533');
-						break;
-					case 1 /* Never show again */:
-						this.storageService.store(FileService.NET_VERSION_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE);
-						break;
-				}
-			});
+			this.notificationService.prompt(
+				Severity.Warning,
+				nls.localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."),
+				[{
+					label: nls.localize('installNet', "Download .NET Framework 4.5"),
+					run: () => window.open('https://go.microsoft.com/fwlink/?LinkId=786533')
+				},
+				{
+					label: nls.localize('neverShowAgain', "Don't Show Again"),
+					isSecondary: true,
+					run: () => this.storageService.store(FileService.NET_VERSION_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE)
+				}]
+			);
 		}
 
 		// Detect if we run into ENOSPC issues
 		if (msg.indexOf(FileService.ENOSPC_ERROR) >= 0 && !this.storageService.getBoolean(FileService.ENOSPC_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
-			const choices: Choice[] = [nls.localize('learnMore', "Instructions"), { label: nls.localize('neverShowAgain', "Don't Show Again") }];
-			this.choiceService.choose(Severity.Warning, nls.localize('enospcError', "{0} is running out of file handles. Please follow the instructions link to resolve this issue.", product.nameLong), choices).then(choice => {
-				switch (choice) {
-					case 0 /* Read More */:
-						window.open('https://go.microsoft.com/fwlink/?linkid=867693');
-						break;
-					case 1 /* Never show again */:
-						this.storageService.store(FileService.ENOSPC_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE);
-						break;
-				}
-			});
+			this.notificationService.prompt(
+				Severity.Warning,
+				nls.localize('enospcError', "{0} is unable to watch for file changes in this large workspace. Please follow the instructions link to resolve this issue.", product.nameLong),
+				[{
+					label: nls.localize('learnMore', "Instructions"),
+					run: () => window.open('https://go.microsoft.com/fwlink/?linkid=867693')
+				},
+				{
+					label: nls.localize('neverShowAgain', "Don't Show Again"),
+					isSecondary: true,
+					run: () => this.storageService.store(FileService.ENOSPC_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE)
+				}]
+			);
 		}
 	}
 
@@ -160,9 +164,16 @@ export class FileService implements IFileService {
 
 	private getEncodingOverrides(): IEncodingOverride[] {
 		const encodingOverride: IEncodingOverride[] = [];
-		encodingOverride.push({ resource: uri.file(this.environmentService.appSettingsHome), encoding: encoding.UTF8 });
+
+		// Global settings
+		encodingOverride.push({ parent: uri.file(this.environmentService.appSettingsHome), encoding: encoding.UTF8 });
+
+		// Workspace files
+		encodingOverride.push({ extension: WORKSPACE_EXTENSION, encoding: encoding.UTF8 });
+
+		// Folder Settings
 		this.contextService.getWorkspace().folders.forEach(folder => {
-			encodingOverride.push({ resource: uri.file(paths.join(folder.uri.fsPath, '.vscode')), encoding: encoding.UTF8 });
+			encodingOverride.push({ parent: uri.file(paths.join(folder.uri.fsPath, '.vscode')), encoding: encoding.UTF8 });
 		});
 
 		return encodingOverride;

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
-import env = require('vs/base/common/platform');
-import DOM = require('vs/base/browser/dom');
+import * as env from 'vs/base/common/platform';
+import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -56,7 +56,7 @@ export class EmptyView extends ViewsViewletPanel {
 
 		let section = $('div.section').appendTo(container);
 
-		this.button = new Button(section);
+		this.button = new Button(section.getHTMLElement());
 		attachButtonStyler(this.button, this.themeService);
 
 		this.disposables.push(this.button.onDidClick(() => {

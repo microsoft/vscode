@@ -10,7 +10,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
@@ -131,9 +130,7 @@ class InPlaceReplaceController implements IEditorContribution {
 			this.decorationRemover.cancel();
 			this.decorationRemover = TPromise.timeout(350);
 			this.decorationRemover.then(() => {
-				this.editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-					this.decorationIds = accessor.deltaDecorations(this.decorationIds, []);
-				});
+				this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
 			});
 		});
 	}
@@ -148,7 +145,7 @@ class InPlaceReplaceUp extends EditorAction {
 			alias: 'Replace with Previous Value',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA
 			}
 		});
@@ -172,7 +169,7 @@ class InPlaceReplaceDown extends EditorAction {
 			alias: 'Replace with Next Value',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT
 			}
 		});

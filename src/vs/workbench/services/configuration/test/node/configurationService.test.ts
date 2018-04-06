@@ -16,8 +16,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import extfs = require('vs/base/node/extfs');
-import uuid = require('vs/base/common/uuid');
+import * as pfs from 'vs/base/node/pfs';
+import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/node/configurationEditingService';
@@ -34,7 +34,6 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { mkdirp } from 'vs/base/node/pfs';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -54,7 +53,7 @@ function setUpFolderWorkspace(folderName: string): TPromise<{ parentDir: string,
 function setUpFolder(folderName: string, parentDir: string): TPromise<string> {
 	const folderDir = path.join(parentDir, folderName);
 	const workspaceSettingsDir = path.join(folderDir, '.vscode');
-	return mkdirp(workspaceSettingsDir, 493).then(() => folderDir);
+	return pfs.mkdirp(workspaceSettingsDir, 493).then(() => folderDir);
 }
 
 function setUpWorkspace(folders: string[]): TPromise<{ parentDir: string, configPath: string }> {
@@ -62,7 +61,7 @@ function setUpWorkspace(folders: string[]): TPromise<{ parentDir: string, config
 	const id = uuid.generateUuid();
 	const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 
-	return mkdirp(parentDir, 493)
+	return pfs.mkdirp(parentDir, 493)
 		.then(() => {
 			const configPath = path.join(parentDir, 'vsctests.code-workspace');
 			const workspace = { folders: folders.map(path => ({ path })) };
@@ -91,13 +90,14 @@ suite('WorkspaceContextService - Folder', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (workspaceContextService) {
 			(<WorkspaceService>workspaceContextService).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('getWorkspace()', () => {
@@ -161,13 +161,14 @@ suite('WorkspaceContextService - Workspace', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (testObject) {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('workspace folders', () => {
@@ -276,7 +277,7 @@ suite('WorkspaceContextService - Workspace', () => {
 
 	test('remove folders and add them back by writing into the file', done => {
 		const folders = testObject.getWorkspace().folders;
-		return testObject.removeFolders([folders[0].uri])
+		testObject.removeFolders([folders[0].uri])
 			.then(() => {
 				testObject.onDidChangeWorkspaceFolders(actual => {
 					assert.deepEqual(actual.added.map(r => r.uri.toString()), [folders[0].uri.toString()]);
@@ -284,7 +285,7 @@ suite('WorkspaceContextService - Workspace', () => {
 				});
 				const workspace = { folders: [{ path: folders[0].uri.fsPath }, { path: folders[1].uri.fsPath }] };
 				fs.writeFileSync(testObject.getWorkspace().configuration.fsPath, JSON.stringify(workspace, null, '\t'));
-			});
+			}, done);
 	});
 
 	test('update folders (remove last and add to end)', () => {
@@ -371,7 +372,7 @@ suite('WorkspaceContextService - Workspace', () => {
 suite('WorkspaceService - Initialization', () => {
 
 	let parentResource: string, workspaceConfigPath: string, testObject: WorkspaceService, globalSettingsFile: string;
-	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
@@ -417,13 +418,14 @@ suite('WorkspaceService - Initialization', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (testObject) {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('initialize a folder workspace from an empty workspace with no configuration changes', () => {
@@ -623,13 +625,18 @@ suite('WorkspaceService - Initialization', () => {
 suite('WorkspaceConfigurationService - Folder', () => {
 
 	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IWorkspaceConfigurationService, globalSettingsFile: string;
-	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
 			'id': '_test',
 			'type': 'object',
 			'properties': {
+				'configurationService.folder.applicationSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION
+				},
 				'configurationService.folder.testSetting': {
 					'type': 'string',
 					'default': 'isSet',
@@ -669,17 +676,18 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (testObject) {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('defaults', () => {
-		assert.deepEqual(testObject.getValue('configurationService'), { 'folder': { 'testSetting': 'isSet', 'executableSetting': 'isSet' } });
+		assert.deepEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'testSetting': 'isSet', 'executableSetting': 'isSet' } });
 	});
 
 	test('globals override defaults', () => {
@@ -726,6 +734,13 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 				assert.equal(testObject.getValue('configurationService.folder.newSetting'), 'workspaceValue');
 			});
+	});
+
+	test('application settings are not read from workspace', () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.applicationSetting": "userValue" }');
+		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.applicationSetting": "workspaceValue" }');
+		return testObject.reloadConfiguration()
+			.then(() => assert.equal(testObject.getValue('configurationService.folder.applicationSetting'), 'userValue'));
 	});
 
 	test('executable settings are not read from workspace', () => {
@@ -877,6 +892,11 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			.then(() => assert.equal(testObject.getValue('tasks.service.testSetting'), 'value'));
 	});
 
+	test('update application setting into workspace configuration in a workspace is not supported', () => {
+		return testObject.updateValue('configurationService.folder.applicationSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, true)
+			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION));
+	});
+
 	test('update tasks configuration', () => {
 		return testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, ConfigurationTarget.WORKSPACE)
 			.then(() => assert.deepEqual(testObject.getValue('tasks'), { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }));
@@ -908,7 +928,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 suite('WorkspaceConfigurationService - Multiroot', () => {
 
 	let parentResource: string, workspaceContextService: IWorkspaceContextService, environmentService: IEnvironmentService, jsonEditingServce: IJSONEditingService, testObject: IWorkspaceConfigurationService;
-	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
@@ -918,6 +938,11 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 				'configurationService.workspace.testSetting': {
 					'type': 'string',
 					'default': 'isSet'
+				},
+				'configurationService.workspace.applicationSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION
 				},
 				'configurationService.workspace.testResourceSetting': {
 					'type': 'string',
@@ -967,13 +992,14 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 			});
 	});
 
-	teardown(done => {
+	teardown(() => {
 		if (testObject) {
 			(<WorkspaceService>testObject).dispose();
 		}
 		if (parentResource) {
-			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+			return pfs.del(parentResource, os.tmpdir());
 		}
+		return void 0;
 	});
 
 	test('executable settings are not read from workspace', () => {
@@ -997,6 +1023,13 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 			.then(() => assert.deepEqual(testObject.getUnsupportedWorkspaceKeys(), ['configurationService.workspace.testExecutableSetting', 'configurationService.workspace.testExecutableResourceSetting']));
 	});
 
+	test('application settings are not read from workspace', () => {
+		fs.writeFileSync(environmentService.appSettingsPath, '{ "configurationService.workspace.applicationSetting": "userValue" }');
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'settings', value: { 'configurationService.workspace.applicationSetting': 'workspaceValue' } }, true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => assert.equal(testObject.getValue('configurationService.workspace.applicationSetting'), 'userValue'));
+	});
+
 	test('workspace settings override user settings after defaults are registered ', () => {
 		fs.writeFileSync(environmentService.appSettingsPath, '{ "configurationService.workspace.newSetting": "userValue" }');
 		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'settings', value: { 'configurationService.workspace.newSetting': 'workspaceValue' } }, true)
@@ -1014,6 +1047,13 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 				});
 				assert.equal(testObject.getValue('configurationService.workspace.newSetting'), 'workspaceValue');
 			});
+	});
+
+	test('application settings are not read from workspace folder', () => {
+		fs.writeFileSync(environmentService.appSettingsPath, '{ "configurationService.workspace.applicationSetting": "userValue" }');
+		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.applicationSetting": "workspaceFolderValue" }');
+		return testObject.reloadConfiguration()
+			.then(() => assert.equal(testObject.getValue('configurationService.workspace.applicationSetting'), 'userValue'));
 	});
 
 	test('executable settings are not read from workspace folder after defaults are registered', () => {
@@ -1200,6 +1240,11 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 		testObject.onDidChangeConfiguration(target);
 		return testObject.updateValue('configurationService.workspace.testSetting', 'workspaceValue', ConfigurationTarget.WORKSPACE)
 			.then(() => assert.ok(target.called));
+	});
+
+	test('update application setting into workspace configuration in a workspace is not supported', () => {
+		return testObject.updateValue('configurationService.workspace.applicationSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, true)
+			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION));
 	});
 
 	test('update workspace folder configuration', () => {

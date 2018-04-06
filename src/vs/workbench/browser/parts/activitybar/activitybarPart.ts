@@ -6,10 +6,10 @@
 'use strict';
 
 import 'vs/css!./media/activitybarpart';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { illegalArgument } from 'vs/base/common/errors';
-import { Builder, $, Dimension } from 'vs/base/browser/builder';
+import { $ } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import { ActionsOrientation, ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/common/activity';
@@ -29,6 +29,7 @@ import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, 
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
+import { Dimension } from 'vs/base/browser/dom';
 
 export class ActivitybarPart extends Part {
 
@@ -61,6 +62,7 @@ export class ActivitybarPart extends Part {
 		super(id, { hasTitle: false }, themeService);
 
 		this.globalActivityIdToActions = Object.create(null);
+
 		this.compositeBar = this.instantiationService.createInstance(CompositeBar, {
 			icon: true,
 			storageId: ActivitybarPart.PINNED_VIEWLETS,
@@ -75,6 +77,7 @@ export class ActivitybarPart extends Part {
 			colors: ActivitybarPart.COLORS,
 			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		});
+
 		this.registerListeners();
 	}
 
@@ -118,7 +121,7 @@ export class ActivitybarPart extends Part {
 		return toDisposable(() => action.setBadge(undefined));
 	}
 
-	public createContentArea(parent: Builder): Builder {
+	public createContentArea(parent: HTMLElement): HTMLElement {
 		const $el = $(parent);
 		const $result = $('.content').appendTo($el);
 
@@ -128,14 +131,14 @@ export class ActivitybarPart extends Part {
 		// Top Actionbar with action items for each viewlet action
 		this.createGlobalActivityActionBar($('.global-activity').appendTo($result).getHTMLElement());
 
-		return $result;
+		return $result.getHTMLElement();
 	}
 
 	public updateStyles(): void {
 		super.updateStyles();
 
 		// Part container
-		const container = this.getContainer();
+		const container = $(this.getContainer());
 		const background = this.getColor(ACTIVITY_BAR_BACKGROUND);
 		container.style('background-color', background);
 

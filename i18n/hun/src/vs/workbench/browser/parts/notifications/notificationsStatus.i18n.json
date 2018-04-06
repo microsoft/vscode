@@ -8,5 +8,7 @@
 	],
 	"hideNotifications": "Értesítések elrejtése",
 	"zeroNotifications": "Nincs értesítés",
-	"noNotifications": "Nincs új értesítés"
+	"noNotifications": "Nincs új értesítés",
+	"oneNotification": "1 új értesítés",
+	"notifications": "{0} új értesítés"
 }

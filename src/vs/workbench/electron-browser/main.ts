@@ -5,25 +5,25 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as perf from 'vs/base/common/performance';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WorkbenchShell } from 'vs/workbench/electron-browser/shell';
 import * as browser from 'vs/base/browser/browser';
 import { domContentLoaded } from 'vs/base/browser/dom';
-import errors = require('vs/base/common/errors');
-import comparer = require('vs/base/common/comparers');
-import platform = require('vs/base/common/platform');
-import paths = require('vs/base/common/paths');
+import * as errors from 'vs/base/common/errors';
+import * as comparer from 'vs/base/common/comparers';
+import * as platform from 'vs/base/common/platform';
+import * as paths from 'vs/base/common/paths';
 import uri from 'vs/base/common/uri';
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { realpath } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import gracefulFs = require('graceful-fs');
+import * as gracefulFs from 'graceful-fs';
 import { IInitData } from 'vs/workbench/services/timer/common/timerService';
 import { TimerService } from 'vs/workbench/services/timer/node/timerService';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -36,17 +36,18 @@ import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/
 import { webFrame } from 'electron';
 import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
+import { URLHandlerChannel, URLServiceChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspacesIpc';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
-
-import fs = require('fs');
+import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
 import { IssueChannelClient } from 'vs/platform/issue/common/issueIpc';
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
+import { RelayURLService } from 'vs/platform/url/common/urlService';
+
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
@@ -72,7 +73,7 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 }
 
 function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
-	const mainProcessClient = new ElectronIPCClient(String(`window${configuration.windowId}`));
+	const mainProcessClient = new ElectronIPCClient(`window:${configuration.windowId}`);
 	const mainServices = createMainProcessServices(mainProcessClient, configuration);
 
 	const environmentService = new EnvironmentService(configuration, configuration.execPath);
@@ -216,7 +217,12 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient, configu
 	serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, updateChannel));
 
 	const urlChannel = mainProcessClient.getChannel('url');
-	serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, configuration.windowId));
+	const mainUrlService = new URLServiceChannelClient(urlChannel);
+	const urlService = new RelayURLService(mainUrlService);
+	serviceCollection.set(IURLService, urlService);
+
+	const urlHandlerChannel = new URLHandlerChannel(urlService);
+	mainProcessClient.registerChannel('urlHandler', urlHandlerChannel);
 
 	const issueChannel = mainProcessClient.getChannel('issue');
 	serviceCollection.set(IIssueService, new SyncDescriptor(IssueChannelClient, issueChannel));

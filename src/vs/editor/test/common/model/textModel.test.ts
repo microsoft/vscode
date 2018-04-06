@@ -16,6 +16,7 @@ function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: numb
 	var m = TextModel.createFromString(
 		text.join('\n'),
 		{
+			isForSimpleWidget: false,
 			tabSize: defaultTabSize,
 			insertSpaces: defaultInsertSpaces,
 			detectIndentation: true,
@@ -710,6 +711,7 @@ suite('Editor Model - TextModel', () => {
 	test('normalizeIndentation 1', () => {
 		let model = TextModel.createFromString('',
 			{
+				isForSimpleWidget: false,
 				detectIndentation: false,
 				tabSize: 4,
 				insertSpaces: false,
@@ -748,6 +750,7 @@ suite('Editor Model - TextModel', () => {
 	test('normalizeIndentation 2', () => {
 		let model = TextModel.createFromString('',
 			{
+				isForSimpleWidget: false,
 				detectIndentation: false,
 				tabSize: 4,
 				insertSpaces: true,

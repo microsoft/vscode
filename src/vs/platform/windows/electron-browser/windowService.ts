@@ -5,7 +5,7 @@
 
 'use strict';
 
-import Event, { filterEvent, mapEvent, anyEvent } from 'vs/base/common/event';
+import { Event, filterEvent, mapEvent, anyEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';

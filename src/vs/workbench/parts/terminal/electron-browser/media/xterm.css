@@ -44,8 +44,6 @@
 	font-feature-settings: "liga" 0;
 	position: relative;
 	user-select: none;
-	-ms-user-select: none;
-	-webkit-user-select: none;
 }
 
 .xterm.focus,
@@ -121,11 +119,13 @@
 	visibility: hidden;
 }
 
-.xterm .xterm-char-measure-element {
+.xterm-char-measure-element {
 	display: inline-block;
 	visibility: hidden;
 	position: absolute;
+	top: 0;
 	left: -9999em;
+	line-height: normal;
 }
 
 .xterm.enable-mouse-events {
@@ -158,4 +158,8 @@
 	width: 1px;
 	height: 1px;
 	overflow: hidden;
+}
+
+.xterm-cursor-pointer {
+	cursor: pointer !important;
 }

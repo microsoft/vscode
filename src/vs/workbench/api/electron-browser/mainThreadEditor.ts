@@ -5,7 +5,7 @@
 'use strict';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -185,7 +185,7 @@ export class MainThreadTextEditor {
 	private _codeEditorListeners: IDisposable[];
 
 	private _properties: MainThreadTextEditorProperties;
-	private _onPropertiesChanged: Emitter<IEditorPropertiesChangeData>;
+	private readonly _onPropertiesChanged: Emitter<IEditorPropertiesChangeData>;
 
 	constructor(
 		id: string,
@@ -322,7 +322,7 @@ export class MainThreadTextEditor {
 		if (newConfiguration.tabSize === 'auto' || newConfiguration.insertSpaces === 'auto') {
 			// one of the options was set to 'auto' => detect indentation
 
-			let creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language, this._model.uri);
+			let creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language, this._model.uri, this._model.isForSimpleWidget);
 			let insertSpaces = creationOpts.insertSpaces;
 			let tabSize = creationOpts.tabSize;
 

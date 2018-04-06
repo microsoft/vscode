@@ -75,7 +75,6 @@
 	"ok": "OK",
 	"push with tags success": "Envio de rótulos finalizado com sucesso.",
 	"pick remote": "Pegue um  remoto para publicar o ramo '{0}':",
-	"sync is unpredictable": "Esta ação vai fazer push e pull nos commits de e para '{0}'.",
 	"never again": "OK, Não Mostrar Novamente",
 	"no remotes to publish": "Seu repositório não possui remotos configurados para publicação.",
 	"no changes stash": "Não há nenhuma mudança para esconder.",

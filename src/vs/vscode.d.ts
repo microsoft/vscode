@@ -538,6 +538,20 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents an event describing the change in a [text editor's visible ranges](#TextEditor.visibleRanges).
+	 */
+	export interface TextEditorVisibleRangesChangeEvent {
+		/**
+		 * The [text editor](#TextEditor) for which the visible ranges have changed.
+		 */
+		textEditor: TextEditor;
+		/**
+		 * The new value for the [text editor's visible ranges](#TextEditor.visibleRanges).
+		 */
+		visibleRanges: Range[];
+	}
+
+	/**
 	 * Represents an event describing the change in a [text editor's options](#TextEditor.options).
 	 */
 	export interface TextEditorOptionsChangeEvent {
@@ -1063,6 +1077,12 @@ declare module 'vscode' {
 		selections: Selection[];
 
 		/**
+		 * The current visible ranges in the editor (vertically).
+		 * This accounts only for vertical scrolling, and not for horizontal scrolling.
+		 */
+		readonly visibleRanges: Range[];
+
+		/**
 		 * Text editor options.
 		 */
 		options: TextEditorOptions;
@@ -1329,7 +1349,7 @@ declare module 'vscode' {
 		cancel(): void;
 
 		/**
-		 * Dispose object and free resources. Will call [cancel](#CancellationTokenSource.cancel).
+		 * Dispose object and free resources.
 		 */
 		dispose(): void;
 	}
@@ -1502,12 +1522,20 @@ declare module 'vscode' {
 		/**
 		 * A human readable string which is rendered less prominent.
 		 */
-		description: string;
+		description?: string;
 
 		/**
 		 * A human readable string which is rendered less prominent.
 		 */
 		detail?: string;
+
+		/**
+		 * Optional flag indicating if this item is picked initially.
+		 * (Only honored when the picker allows multiple selections.)
+		 *
+		 * @see [QuickPickOptions.canPickMany](#QuickPickOptions.canPickMany)
+		 */
+		picked?: boolean;
 	}
 
 	/**
@@ -1533,6 +1561,11 @@ declare module 'vscode' {
 		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
 		 */
 		ignoreFocusOut?: boolean;
+
+		/**
+		 * An optional flag to make the picker accept multiple selections, if true the result is an array of picks.
+		 */
+		canPickMany?: boolean;
 
 		/**
 		 * An optional function that is invoked whenever an item is selected.
@@ -3648,6 +3681,17 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The event that is fired when diagnostics change.
+	 */
+	export interface DiagnosticChangeEvent {
+
+		/**
+		 * An array of resources for which diagnostics have changed.
+		 */
+		readonly uris: Uri[];
+	}
+
+	/**
 	 * Represents the severity of diagnostics.
 	 */
 	export enum DiagnosticSeverity {
@@ -3675,6 +3719,32 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a related message and source code location for a diagnostic. This should be
+	 * used to point to code locations that cause or related to a diagnostics, e.g when duplicating
+	 * a symbol in a scope.
+	 */
+	export class DiagnosticRelatedInformation {
+
+		/**
+		 * The location of this related diagnostic information.
+		 */
+		location: Location;
+
+		/**
+		 * The message of this related diagnostic information.
+		 */
+		message: string;
+
+		/**
+		 * Creates a new related diagnostic information object.
+		 *
+		 * @param location The location.
+		 * @param message The message.
+		 */
+		constructor(location: Location, message: string);
+	}
+
+	/**
 	 * Represents a diagnostic, such as a compiler error or warning. Diagnostic objects
 	 * are only valid in the scope of a file.
 	 */
@@ -3691,22 +3761,28 @@ declare module 'vscode' {
 		message: string;
 
 		/**
-		 * A human-readable string describing the source of this
-		 * diagnostic, e.g. 'typescript' or 'super lint'.
-		 */
-		source: string;
-
-		/**
 		 * The severity, default is [error](#DiagnosticSeverity.Error).
 		 */
 		severity: DiagnosticSeverity;
+
+		/**
+		 * A human-readable string describing the source of this
+		 * diagnostic, e.g. 'typescript' or 'super lint'.
+		 */
+		source?: string;
 
 		/**
 		 * A code or identifier for this diagnostics. Will not be surfaced
 		 * to the user, but should be used for later processing, e.g. when
 		 * providing [code actions](#CodeActionContext).
 		 */
-		code: string | number;
+		code?: string | number;
+
+		/**
+		 * An array of related diagnostic information, e.g. when symbol-names within
+		 * a scope collide all definitions can be marked via this property.
+		 */
+		relatedInformation?: DiagnosticRelatedInformation[];
 
 		/**
 		 * Creates a new diagnostic object.
@@ -3783,7 +3859,7 @@ declare module 'vscode' {
 		 * modify the diagnostics-array returned from this call.
 		 *
 		 * @param uri A resource identifier.
-		 * @returns An immutable array of [diagnostics](#Diagnostic) or `undefined`.
+		 * @returns An immutable array of [diagnostics](#Diagnxostic) or `undefined`.
 		 */
 		get(uri: Uri): Diagnostic[] | undefined;
 
@@ -3973,7 +4049,8 @@ declare module 'vscode' {
 
 		/**
 		 * Report a progress update.
-		 * @param value A progress item, like a message or an updated percentage value
+		 * @param value A progress item, like a message and/or an
+		 * report on how much work finished
 		 */
 		report(value: T): void;
 	}
@@ -4333,6 +4410,38 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The shell quoting options.
+	 */
+	export interface ShellQuotingOptions {
+
+		/**
+		 * The character used to do character escaping. If a string is provided only spaces
+		 * are escaped. If a `{ escapeChar, charsToEscape }` literal is provide all characters
+		 * in `charsToEscape` are escaped using the `escapeChar`.
+		 */
+		escape?: string | {
+			/**
+			 * The escape character.
+			 */
+			escapeChar: string;
+			/**
+			 * The characters to escape.
+			 */
+			charsToEscape: string;
+		};
+
+		/**
+		 * The character used for strong quoting. The string's length must be 1.
+		 */
+		strong?: string;
+
+		/**
+		 * The character used for weak quoting. The string's length must be 1.
+		 */
+		weak?: string;
+	}
+
+	/**
 	 * Options for a shell execution
 	 */
 	export interface ShellExecutionOptions {
@@ -4345,6 +4454,11 @@ declare module 'vscode' {
 		 * The arguments to be passed to the shell executable used to run the task.
 		 */
 		shellArgs?: string[];
+
+		/**
+		 * The shell quotes supported by this shell.
+		 */
+		shellQuoting?: ShellQuotingOptions;
 
 		/**
 		 * The current working directory of the executed shell.
@@ -4360,10 +4474,55 @@ declare module 'vscode' {
 		env?: { [key: string]: string };
 	}
 
+	/**
+	 * Defines how an argument should be quoted if it contains
+	 * spaces or unsuppoerted characters.
+	 */
+	export enum ShellQuoting {
+
+		/**
+		 * Character escaping should be used. This for example
+		 * uses \ on bash and ` on PowerShell.
+		 */
+		Escape = 1,
+
+		/**
+		 * Strong string quoting should be used. This for example
+		 * uses " for Windows cmd and ' for bash and PowerShell.
+		 * Strong quoting treats arguments as literal strings.
+		 * Under PowerShell echo 'The value is $(2 * 3)' will
+		 * print `The value is $(2 * 3)`
+		 */
+		Strong = 2,
+
+		/**
+		 * Weak string quoting should be used. This for example
+		 * uses " for Windows cmd, bash and PowerShell. Weak quoting
+		 * still performs some kind of evaluation inside the quoted
+		 * string.  Under PowerShell echo "The value is $(2 * 3)"
+		 * will print `The value is 6`
+		 */
+		Weak = 3
+	}
+
+	/**
+	 * A string that will be quoted depending on the used shell.
+	 */
+	export interface ShellQuotedString {
+		/**
+		 * The actual string value.
+		 */
+		value: string;
+
+		/**
+		 * The quoting style to use.
+		 */
+		quoting: ShellQuoting;
+	}
 
 	export class ShellExecution {
 		/**
-		 * Creates a process execution.
+		 * Creates a shell execution with a full command line.
 		 *
 		 * @param commandLine The command line to execute.
 		 * @param options Optional options for the started the shell.
@@ -4371,9 +4530,31 @@ declare module 'vscode' {
 		constructor(commandLine: string, options?: ShellExecutionOptions);
 
 		/**
-		 * The shell command line
+		 * Creates a shell execution with a command and arguments. For the real execution VS Code will
+		 * construct a command line from the command and the arguments. This is subject to interpretation
+		 * especially when it comes to quoting. If full control over the command line is needed please
+		 * use the constructor that creates a `ShellExecution` with the full command line.
+		 *
+		 * @param command The command to execute.
+		 * @param args The command arguments.
+		 * @param options Optional options for the started the shell.
+		 */
+		constructor(command: string | ShellQuotedString, args: (string | ShellQuotedString)[], options?: ShellExecutionOptions);
+
+		/**
+		 * The shell command line. Is `undefined` if created with a command and arguments.
 		 */
 		commandLine: string;
+
+		/**
+		 * The shell command. Is `undefined` if created with a full command line.
+		 */
+		command: string | ShellQuotedString;
+
+		/**
+		 * The shell args. Is `undefined` if created with a full command line.
+		 */
+		args: (string | ShellQuotedString)[];
 
 		/**
 		 * The shell options used when the command line is executed in a shell.
@@ -4496,9 +4677,12 @@ declare module 'vscode' {
 
 		/**
 		 * Resolves a task that has no [`execution`](#Task.execution) set. Tasks are
-		 * often created from information found in the `task.json`-file. Such tasks miss
+		 * often created from information found in the `tasks.json`-file. Such tasks miss
 		 * the information on how to execute them and a task provider must fill in
-		 * the missing information in the `resolveTask`-method.
+		 * the missing information in the `resolveTask`-method. This method will not be
+		 * called for tasks returned from the above `provideTasks` method since those
+		 * tasks are always fully resolved. A valid default implementation for the
+		 * `resolveTask` method is to return `undefined`.
 		 *
 		 * @param task The task to resolve.
 		 * @param token A cancellation token.
@@ -4690,6 +4874,11 @@ declare module 'vscode' {
 		 * An [event](#Event) which fires when the selection in an editor has changed.
 		 */
 		export const onDidChangeTextEditorSelection: Event<TextEditorSelectionChangeEvent>;
+
+		/**
+		 * An [event](#Event) which fires when the selection in an editor has changed.
+		 */
+		export const onDidChangeTextEditorVisibleRanges: Event<TextEditorVisibleRangesChangeEvent>;
 
 		/**
 		 * An [event](#Event) which fires when the options of an editor have changed.
@@ -4898,6 +5087,16 @@ declare module 'vscode' {
 		export function showErrorMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
 
 		/**
+		 * Shows a selection list allowing multiple selections.
+		 *
+		 * @param items An array of strings, or a promise that resolves to an array of strings.
+		 * @param options Configures the behavior of the selection list.
+		 * @param token A token that can be used to signal cancellation.
+		 * @return A promise that resolves to the selected items or `undefined`.
+		 */
+		export function showQuickPick(items: string[] | Thenable<string[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<string[] | undefined>;
+
+		/**
 		 * Shows a selection list.
 		 *
 		 * @param items An array of strings, or a promise that resolves to an array of strings.
@@ -4906,6 +5105,16 @@ declare module 'vscode' {
 		 * @return A promise that resolves to the selection or `undefined`.
 		 */
 		export function showQuickPick(items: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
+
+		/**
+		 * Shows a selection list allowing multiple selections.
+		 *
+		 * @param items An array of items, or a promise that resolves to an array of items.
+		 * @param options Configures the behavior of the selection list.
+		 * @param token A token that can be used to signal cancellation.
+		 * @return A promise that resolves to the selected items or `undefined`.
+		 */
+		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<T[] | undefined>;
 
 		/**
 		 * Shows a selection list.
@@ -5015,9 +5224,19 @@ declare module 'vscode' {
 		 *
 		 * @param task A callback returning a promise. Progress state can be reported with
 		 * the provided [progress](#Progress)-object.
+		 *
+		 * To report discrete progress, use `increment` to indicate how much work has been completed. Each call with
+		 * a `increment` value will be summed up and reflected as overall progress until 100% is reached (a value of
+		 * e.g. `10` accounts for `10%` of work done).
+		 * Note that currently only `ProgressLocation.Notification` is capable of showing discrete progress.
+		 *
+		 * To monitor if the operation has been cancelled by the user, use the provided [`CancellationToken`](#CancellationToken).
+		 * Note that currently only `ProgressLocation.Notification` is supporting to show a cancel button to cancel the
+		 * long running operation.
+		 *
 		 * @return The thenable the task-callback returned.
 		 */
-		export function withProgress<R>(options: ProgressOptions, task: (progress: Progress<{ message?: string; }>) => Thenable<R>): Thenable<R>;
+		export function withProgress<R>(options: ProgressOptions, task: (progress: Progress<{ message?: string; increment?: number }>, token: CancellationToken) => Thenable<R>): Thenable<R>;
 
 		/**
 		 * Creates a status bar [item](#StatusBarItem).
@@ -5050,11 +5269,39 @@ declare module 'vscode' {
 
 		/**
 		 * Register a [TreeDataProvider](#TreeDataProvider) for the view contributed using the extension point `views`.
+		 * This will allow you to contribute data to the [TreeView](#TreeView) and update if the data changes.
+		 *
+		 * **Note:** To get access to the [TreeView](#TreeView) and perform operations on it, use [createTreeView](#window.createTreeView).
+		 *
 		 * @param viewId Id of the view contributed using the extension point `views`.
 		 * @param treeDataProvider A [TreeDataProvider](#TreeDataProvider) that provides tree data for the view
 		 */
 		export function registerTreeDataProvider<T>(viewId: string, treeDataProvider: TreeDataProvider<T>): Disposable;
+
+		/**
+		 * Create a [TreeView](#TreeView) for the view contributed using the extension point `views`.
+		 * @param viewId Id of the view contributed using the extension point `views`.
+		 * @param options Options object to provide [TreeDataProvider](#TreeDataProvider) for the view.
+		 * @returns a [TreeView](#TreeView).
+		 */
+		export function createTreeView<T>(viewId: string, options: { treeDataProvider: TreeDataProvider<T> }): TreeView<T>;
 	}
+
+	/**
+	 * Represents a Tree view
+	 */
+	export interface TreeView<T> extends Disposable {
+
+		/**
+		 * Reveal an element. By default revealed element is selected.
+		 *
+		 * In order to not to select, set the option `select` to `false`.
+		 *
+		 * **NOTE:** [TreeDataProvider](#TreeDataProvider) is required to implement [getParent](#TreeDataProvider.getParent) method to access this API.
+		 */
+		reveal(element: T, options?: { select?: boolean }): Thenable<void>;
+	}
+
 
 	/**
 	 * A data provider that provides tree data
@@ -5082,6 +5329,17 @@ declare module 'vscode' {
 		 * @return Children of `element` or root if no element is passed.
 		 */
 		getChildren(element?: T): ProviderResult<T[]>;
+
+		/**
+		 * Optional method to return the parent of `element`.
+		 * Return `null` or `undefined` if `element` is a child of root.
+		 *
+		 * **NOTE:** This method should be implemented in order to access [reveal](#TreeView.reveal) API.
+		 *
+		 * @param element The element for which the parent has to be returned.
+		 * @return Parent of `element`.
+		 */
+		getParent?(element: T): ProviderResult<T>;
 	}
 
 	export class TreeItem {
@@ -5216,14 +5474,19 @@ declare module 'vscode' {
 
 		/**
 		 * Show progress for the source control viewlet, as overlay for the icon and as progress bar
-		 * inside the viewlet (when visible).
+		 * inside the viewlet (when visible). Neither supports cancellation nor discrete progress.
 		 */
 		SourceControl = 1,
 
 		/**
-		 * Show progress in the status bar of the editor.
+		 * Show progress in the status bar of the editor. Neither supports cancellation nor discrete progress.
 		 */
-		Window = 10
+		Window = 10,
+
+		/**
+		 * Show progress as notifiation with an optional cancel button. Supports to show infinite and discrete progress.
+		 */
+		Notification = 15
 	}
 
 	/**
@@ -5241,6 +5504,14 @@ declare module 'vscode' {
 		 * operation.
 		 */
 		title?: string;
+
+		/**
+		 * Controls if a cancel button should show to allow the user to
+		 * cancel the long running operation.  Note that currently only
+		 * `ProgressLocation.Notification` is supporting to show a cancel
+		 * button.
+		 */
+		cancellable?: boolean;
 	}
 
 	/**
@@ -5251,6 +5522,10 @@ declare module 'vscode' {
 		 * The range that got replaced.
 		 */
 		range: Range;
+		/**
+		 * The offset of the range that got replaced.
+		 */
+		rangeOffset: number;
 		/**
 		 * The length of the range that got replaced.
 		 */
@@ -5779,6 +6054,29 @@ declare module 'vscode' {
 		 * @return A number `>0` when the selector matches and `0` when the selector does not match.
 		 */
 		export function match(selector: DocumentSelector, document: TextDocument): number;
+
+		/**
+		 * An [event](#Event) which fires when the global set of diagnostics changes. This is
+		 * newly added and removed diagnostics.
+		 */
+		export const onDidChangeDiagnostics: Event<DiagnosticChangeEvent>;
+
+		/**
+		 * Get all diagnostics for a given resource. *Note* that this includes diagnostics from
+		 * all extensions but *not yet* from the task framework.
+		 *
+		 * @param resource A resource
+		 * @returns An arrary of [diagnostics](#Diagnostic) objects or an empty array.
+		 */
+		export function getDiagnostics(resource: Uri): Diagnostic[];
+
+		/**
+		 * Get all diagnostics. *Note* that this includes diagnostics from
+		 * all extensions but *not yet* from the task framework.
+		 *
+		 * @returns An array of uri-diagnostics tuples or an empty array.
+		 */
+		export function getDiagnostics(): [Uri, Diagnostic[]][];
 
 		/**
 		 * Create a diagnostics collection.
@@ -6427,8 +6725,12 @@ declare module 'vscode' {
 		 * An optional expression that controls how many hits of the breakpoint are ignored.
 		 */
 		readonly hitCondition?: string;
+		/**
+		 * An optional message that gets logged when this breakpoint is hit. Embedded expressions within {} are interpolated by the debug adapter.
+		 */
+		readonly logMessage?: string;
 
-		protected constructor(enabled?: boolean, condition?: string, hitCondition?: string);
+		protected constructor(enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string);
 	}
 
 	/**
@@ -6443,7 +6745,7 @@ declare module 'vscode' {
 		/**
 		 * Create a new breakpoint for a source location.
 		 */
-		constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string);
+		constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string);
 	}
 
 	/**
@@ -6458,7 +6760,7 @@ declare module 'vscode' {
 		/**
 		 * Create a new function breakpoint.
 		 */
-		constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string);
+		constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string);
 	}
 
 	/**

@@ -6,12 +6,11 @@
 import 'vs/css!./media/panelviewlet';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter, filterEvent } from 'vs/base/common/event';
+import { Event, Emitter, filterEvent } from 'vs/base/common/event';
 import { ColorIdentifier, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { attachStyler, IColorMapping, IThemable } from 'vs/platform/theme/common/styler';
+import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
-import { Dimension, Builder } from 'vs/base/browser/builder';
-import { append, $, trackFocus, toggleClass, EventType, isAncestor } from 'vs/base/browser/dom';
+import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
@@ -34,15 +33,6 @@ export interface IPanelColors extends IColorMapping {
 	headerForeground?: ColorIdentifier;
 	headerBackground?: ColorIdentifier;
 	headerHighContrastBorder?: ColorIdentifier;
-}
-
-export function attachPanelStyler(widget: IThemable, themeService: IThemeService) {
-	return attachStyler<IPanelColors>(themeService, {
-		headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,
-		headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
-		headerHighContrastBorder: contrastBorder,
-		dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
-	}, widget);
 }
 
 export interface IViewletPanelOptions extends IPanelOptions {
@@ -175,13 +165,12 @@ export class PanelViewlet extends Viewlet {
 		super(id, partService, telemetryService, themeService);
 	}
 
-	async create(parent: Builder): TPromise<void> {
+	async create(parent: HTMLElement): TPromise<void> {
 		super.create(parent);
 
-		const container = parent.getHTMLElement();
-		this.panelview = this._register(new PanelView(container, this.options));
+		this.panelview = this._register(new PanelView(parent, this.options));
 		this._register(this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel)));
-		this._register(parent.on(EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
+		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
 	}
 
 	private showContextMenu(event: StandardMouseEvent): void {
@@ -262,15 +251,24 @@ export class PanelViewlet extends Viewlet {
 				this.lastFocusedPanel = undefined;
 			}
 		}, null, disposables);
-		const styler = attachPanelStyler(panel, this.themeService);
-		const disposable = combinedDisposable([onDidFocus, styler, onDidChange]);
+
+		const panelStyler = attachStyler<IPanelColors>(this.themeService, {
+			headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,
+			headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
+			headerHighContrastBorder: index === 0 ? null : contrastBorder,
+			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
+		}, panel);
+		const disposable = combinedDisposable([onDidFocus, panelStyler, onDidChange]);
 		const panelItem: IViewletPanelItem = { panel, disposable };
 
+		const wasSingleView = this.isSingleView();
 		this.panelItems.splice(index, 0, panelItem);
 		this.panelview.addPanel(panel, size, index);
 
 		this.updateViewHeaders();
-		this.updateTitleArea();
+		if (this.isSingleView() !== wasSingleView) {
+			this.updateTitleArea();
+		}
 	}
 
 	removePanel(panel: ViewletPanel): void {
@@ -284,12 +282,15 @@ export class PanelViewlet extends Viewlet {
 			this.lastFocusedPanel = undefined;
 		}
 
+		const wasSingleView = this.isSingleView();
 		this.panelview.removePanel(panel);
 		const [panelItem] = this.panelItems.splice(index, 1);
 		panelItem.disposable.dispose();
 
 		this.updateViewHeaders();
-		this.updateTitleArea();
+		if (wasSingleView !== this.isSingleView()) {
+			this.updateTitleArea();
+		}
 	}
 
 	movePanel(from: ViewletPanel, to: ViewletPanel): void {

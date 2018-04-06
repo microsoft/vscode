@@ -382,6 +382,11 @@ export interface IEditorOptions {
 	 */
 	multiCursorModifier?: 'ctrlCmd' | 'alt';
 	/**
+	 * Merge overlapping selections.
+	 * Defaults to true
+	 */
+	multiCursorMergeOverlapping?: boolean;
+	/**
 	 * Configure the editor's accessibility support.
 	 * Defaults to 'auto'. It is best to leave this to 'auto'.
 	 */
@@ -460,7 +465,7 @@ export interface IEditorOptions {
 	/**
 	 * The history mode for suggestions.
 	 */
-	suggestSelection?: string;
+	suggestSelection?: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 	/**
 	 * The font size for the suggest widget.
 	 * Defaults to the editor font size.
@@ -497,9 +502,14 @@ export interface IEditorOptions {
 	lightbulb?: IEditorLightbulbOptions;
 	/**
 	 * Enable code folding
-	 * Defaults to true in vscode and to false in monaco-editor.
+	 * Defaults to true.
 	 */
 	folding?: boolean;
+	/**
+	 * Selects the folding strategy. 'auto' uses the strategies contributed for the current document, 'indentation' uses the indentation based folding strategy.
+	 * Defaults to 'auto'.
+	 */
+	foldingStrategy?: 'auto' | 'indentation';
 	/**
 	 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
 	 * Defaults to 'mouseover'.
@@ -838,6 +848,7 @@ export interface EditorContribOptions {
 	readonly occurrencesHighlight: boolean;
 	readonly codeLens: boolean;
 	readonly folding: boolean;
+	readonly foldingStrategy: 'auto' | 'indentation';
 	readonly showFoldingControls: 'always' | 'mouseover';
 	readonly matchBrackets: boolean;
 	readonly find: InternalEditorFindOptions;
@@ -872,6 +883,7 @@ export interface IValidatedEditorOptions {
 	readonly emptySelectionClipboard: boolean;
 	readonly useTabStops: boolean;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+	readonly multiCursorMergeOverlapping: boolean;
 	readonly accessibilitySupport: 'auto' | 'off' | 'on';
 
 	readonly viewInfo: InternalEditorViewOptions;
@@ -894,6 +906,7 @@ export class InternalEditorOptions {
 	 */
 	readonly accessibilitySupport: platform.AccessibilitySupport;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+	readonly multiCursorMergeOverlapping: boolean;
 
 	// ---- cursor options
 	readonly wordSeparators: string;
@@ -922,6 +935,7 @@ export class InternalEditorOptions {
 		readOnly: boolean;
 		accessibilitySupport: platform.AccessibilitySupport;
 		multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+		multiCursorMergeOverlapping: boolean;
 		wordSeparators: string;
 		autoClosingBrackets: boolean;
 		autoIndent: boolean;
@@ -942,6 +956,7 @@ export class InternalEditorOptions {
 		this.readOnly = source.readOnly;
 		this.accessibilitySupport = source.accessibilitySupport;
 		this.multiCursorModifier = source.multiCursorModifier;
+		this.multiCursorMergeOverlapping = source.multiCursorMergeOverlapping;
 		this.wordSeparators = source.wordSeparators;
 		this.autoClosingBrackets = source.autoClosingBrackets;
 		this.autoIndent = source.autoIndent;
@@ -968,6 +983,7 @@ export class InternalEditorOptions {
 			&& this.readOnly === other.readOnly
 			&& this.accessibilitySupport === other.accessibilitySupport
 			&& this.multiCursorModifier === other.multiCursorModifier
+			&& this.multiCursorMergeOverlapping === other.multiCursorMergeOverlapping
 			&& this.wordSeparators === other.wordSeparators
 			&& this.autoClosingBrackets === other.autoClosingBrackets
 			&& this.autoIndent === other.autoIndent
@@ -995,6 +1011,7 @@ export class InternalEditorOptions {
 			readOnly: (this.readOnly !== newOpts.readOnly),
 			accessibilitySupport: (this.accessibilitySupport !== newOpts.accessibilitySupport),
 			multiCursorModifier: (this.multiCursorModifier !== newOpts.multiCursorModifier),
+			multiCursorMergeOverlapping: (this.multiCursorMergeOverlapping !== newOpts.multiCursorMergeOverlapping),
 			wordSeparators: (this.wordSeparators !== newOpts.wordSeparators),
 			autoClosingBrackets: (this.autoClosingBrackets !== newOpts.autoClosingBrackets),
 			autoIndent: (this.autoIndent !== newOpts.autoIndent),
@@ -1188,6 +1205,7 @@ export class InternalEditorOptions {
 			&& a.occurrencesHighlight === b.occurrencesHighlight
 			&& a.codeLens === b.codeLens
 			&& a.folding === b.folding
+			&& a.foldingStrategy === b.foldingStrategy
 			&& a.showFoldingControls === b.showFoldingControls
 			&& a.matchBrackets === b.matchBrackets
 			&& this._equalFindOptions(a.find, b.find)
@@ -1347,6 +1365,7 @@ export interface IConfigurationChangedEvent {
 	readonly readOnly: boolean;
 	readonly accessibilitySupport: boolean;
 	readonly multiCursorModifier: boolean;
+	readonly multiCursorMergeOverlapping: boolean;
 	readonly wordSeparators: boolean;
 	readonly autoClosingBrackets: boolean;
 	readonly autoIndent: boolean;
@@ -1395,14 +1414,14 @@ function _string(value: any, defaultValue: string): string {
 	return value;
 }
 
-function _stringSet<T>(value: any, defaultValue: T, allowedValues: string[]): T {
+function _stringSet<T>(value: T, defaultValue: T, allowedValues: T[]): T {
 	if (typeof value !== 'string') {
 		return defaultValue;
 	}
 	if (allowedValues.indexOf(value) === -1) {
 		return defaultValue;
 	}
-	return <T><any>value;
+	return value;
 }
 
 function _clampedInt(value: any, defaultValue: number, minimum: number, maximum: number): number {
@@ -1532,6 +1551,7 @@ export class EditorOptionsValidator {
 			emptySelectionClipboard: _boolean(opts.emptySelectionClipboard, defaults.emptySelectionClipboard),
 			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
 			multiCursorModifier: multiCursorModifier,
+			multiCursorMergeOverlapping: _boolean(opts.multiCursorMergeOverlapping, defaults.multiCursorMergeOverlapping),
 			accessibilitySupport: _stringSet<'auto' | 'on' | 'off'>(opts.accessibilitySupport, defaults.accessibilitySupport, ['auto', 'on', 'off']),
 			viewInfo: viewInfo,
 			contribInfo: contribInfo,
@@ -1652,7 +1672,11 @@ export class EditorOptionsValidator {
 			renderLineHighlight = _stringSet<'none' | 'gutter' | 'line' | 'all'>(opts.renderLineHighlight, defaults.renderLineHighlight, ['none', 'gutter', 'line', 'all']);
 		}
 
-		const mouseWheelScrollSensitivity = _float(opts.mouseWheelScrollSensitivity, defaults.scrollbar.mouseWheelScrollSensitivity);
+		let mouseWheelScrollSensitivity = _float(opts.mouseWheelScrollSensitivity, defaults.scrollbar.mouseWheelScrollSensitivity);
+		if (mouseWheelScrollSensitivity === 0) {
+			// Disallow 0, as it would prevent/block scrolling
+			mouseWheelScrollSensitivity = 1;
+		}
 		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, defaults.scrollbar, mouseWheelScrollSensitivity);
 		const minimap = this._sanitizeMinimapOpts(opts.minimap, defaults.minimap);
 
@@ -1695,6 +1719,10 @@ export class EditorOptionsValidator {
 		} else {
 			quickSuggestions = _boolean(opts.quickSuggestions, defaults.quickSuggestions);
 		}
+		// Compatibility support for acceptSuggestionOnEnter
+		if (typeof opts.acceptSuggestionOnEnter === 'boolean') {
+			opts.acceptSuggestionOnEnter = opts.acceptSuggestionOnEnter ? 'on' : 'off';
+		}
 		const find = this._santizeFindOpts(opts.find, defaults.find);
 		return {
 			selectionClipboard: _boolean(opts.selectionClipboard, defaults.selectionClipboard),
@@ -1708,7 +1736,7 @@ export class EditorOptionsValidator {
 			formatOnType: _boolean(opts.formatOnType, defaults.formatOnType),
 			formatOnPaste: _boolean(opts.formatOnPaste, defaults.formatOnPaste),
 			suggestOnTriggerCharacters: _boolean(opts.suggestOnTriggerCharacters, defaults.suggestOnTriggerCharacters),
-			acceptSuggestionOnEnter: typeof opts.acceptSuggestionOnEnter === 'string' ? _stringSet<'on' | 'smart' | 'off'>(opts.acceptSuggestionOnEnter, defaults.acceptSuggestionOnEnter, ['on', 'smart', 'off']) : opts.acceptSuggestionOnEnter ? 'on' : 'off',
+			acceptSuggestionOnEnter: _stringSet<'on' | 'smart' | 'off'>(opts.acceptSuggestionOnEnter, defaults.acceptSuggestionOnEnter, ['on', 'smart', 'off']),
 			acceptSuggestionOnCommitCharacter: _boolean(opts.acceptSuggestionOnCommitCharacter, defaults.acceptSuggestionOnCommitCharacter),
 			snippetSuggestions: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippetSuggestions, ['top', 'bottom', 'inline', 'none']),
 			wordBasedSuggestions: _boolean(opts.wordBasedSuggestions, defaults.wordBasedSuggestions),
@@ -1719,6 +1747,7 @@ export class EditorOptionsValidator {
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
 			codeLens: _boolean(opts.codeLens, defaults.codeLens) && _boolean(opts.referenceInfos, true),
 			folding: _boolean(opts.folding, defaults.folding),
+			foldingStrategy: _stringSet<'auto' | 'indentation'>(opts.foldingStrategy, defaults.foldingStrategy, ['auto', 'indentation']),
 			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
 			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
 			find: find,
@@ -1758,6 +1787,7 @@ export class InternalEditorOptionsFactory {
 			emptySelectionClipboard: opts.emptySelectionClipboard,
 			useTabStops: opts.useTabStops,
 			multiCursorModifier: opts.multiCursorModifier,
+			multiCursorMergeOverlapping: opts.multiCursorMergeOverlapping,
 			accessibilitySupport: opts.accessibilitySupport,
 
 			viewInfo: {
@@ -1820,6 +1850,7 @@ export class InternalEditorOptionsFactory {
 				occurrencesHighlight: (accessibilityIsOn ? false : opts.contribInfo.occurrencesHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
 				codeLens: (accessibilityIsOn ? false : opts.contribInfo.codeLens), // DISABLED WHEN SCREEN READER IS ATTACHED
 				folding: (accessibilityIsOn ? false : opts.contribInfo.folding), // DISABLED WHEN SCREEN READER IS ATTACHED
+				foldingStrategy: opts.contribInfo.foldingStrategy,
 				showFoldingControls: opts.contribInfo.showFoldingControls,
 				matchBrackets: (accessibilityIsOn ? false : opts.contribInfo.matchBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
 				find: opts.contribInfo.find,
@@ -1964,6 +1995,7 @@ export class InternalEditorOptionsFactory {
 			readOnly: opts.readOnly,
 			accessibilitySupport: accessibilitySupport,
 			multiCursorModifier: opts.multiCursorModifier,
+			multiCursorMergeOverlapping: opts.multiCursorMergeOverlapping,
 			wordSeparators: opts.wordSeparators,
 			autoClosingBrackets: opts.autoClosingBrackets,
 			autoIndent: opts.autoIndent,
@@ -1984,31 +2016,31 @@ export class InternalEditorOptionsFactory {
  * @internal
  */
 export interface IEditorLayoutProviderOpts {
-	outerWidth: number;
-	outerHeight: number;
+	readonly outerWidth: number;
+	readonly outerHeight: number;
 
-	showGlyphMargin: boolean;
-	lineHeight: number;
+	readonly showGlyphMargin: boolean;
+	readonly lineHeight: number;
 
-	showLineNumbers: boolean;
-	lineNumbersMinChars: number;
-	lineNumbersDigitCount: number;
+	readonly showLineNumbers: boolean;
+	readonly lineNumbersMinChars: number;
+	readonly lineNumbersDigitCount: number;
 
-	lineDecorationsWidth: number;
+	readonly lineDecorationsWidth: number;
 
-	typicalHalfwidthCharacterWidth: number;
-	maxDigitWidth: number;
+	readonly typicalHalfwidthCharacterWidth: number;
+	readonly maxDigitWidth: number;
 
-	verticalScrollbarWidth: number;
-	verticalScrollbarHasArrows: boolean;
-	scrollbarArrowSize: number;
-	horizontalScrollbarHeight: number;
+	readonly verticalScrollbarWidth: number;
+	readonly verticalScrollbarHasArrows: boolean;
+	readonly scrollbarArrowSize: number;
+	readonly horizontalScrollbarHeight: number;
 
-	minimap: boolean;
-	minimapSide: string;
-	minimapRenderCharacters: boolean;
-	minimapMaxColumn: number;
-	pixelRatio: number;
+	readonly minimap: boolean;
+	readonly minimapSide: string;
+	readonly minimapRenderCharacters: boolean;
+	readonly minimapMaxColumn: number;
+	readonly pixelRatio: number;
 }
 
 /**
@@ -2202,6 +2234,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	emptySelectionClipboard: true,
 	useTabStops: true,
 	multiCursorModifier: 'altKey',
+	multiCursorMergeOverlapping: true,
 	accessibilitySupport: 'auto',
 
 	viewInfo: {
@@ -2277,6 +2310,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		occurrencesHighlight: true,
 		codeLens: true,
 		folding: true,
+		foldingStrategy: 'auto',
 		showFoldingControls: 'mouseover',
 		matchBrackets: true,
 		find: {

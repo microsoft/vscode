@@ -355,7 +355,7 @@
 		"editorCursor.foreground": "#D30102",
 		"editorWhitespace.foreground": "#93A1A180",
 		"editor.lineHighlightBackground": "#073642",
-		"editorActiveLineNumber.foreground": "#949494",
+		"editorLineNumber.activeForeground": "#949494",
 		"editor.selectionBackground": "#073642",
 		// "editorIndentGuide.background": "",
 		"editorHoverWidget.background": "#004052",
@@ -456,10 +456,6 @@
 		"debugToolBar.background": "#00212B",
 		"debugExceptionWidget.background": "#00212B",
 		"debugExceptionWidget.border": "#AB395B",
-
-		// Workbench: Notifications
-		"notification.background": "#003847",
-		// "notification.foreground": "",
 
 		// Workbench: Quick Open
 		"pickerGroup.foreground": "#2AA19899",

@@ -6,11 +6,11 @@
 'use strict';
 
 import 'vs/css!./media/statusbarpart';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { Builder, $ } from 'vs/base/browser/builder';
+import { $ } from 'vs/base/browser/builder';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -39,7 +39,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private static readonly PRIORITY_PROP = 'priority';
 	private static readonly ALIGNMENT_PROP = 'alignment';
 
-	private statusItemsContainer: Builder;
+	private statusItemsContainer: HTMLElement;
 	private statusMsgDispose: IDisposable;
 
 	private styleElement: HTMLStyleElement;
@@ -67,7 +67,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		const toDispose = item.render(el);
 
 		// Insert according to priority
-		const container = this.statusItemsContainer.getHTMLElement();
+		const container = this.statusItemsContainer;
 		const neighbours = this.getEntries(alignment);
 		let inserted = false;
 		for (let i = 0; i < neighbours.length; i++) {
@@ -101,7 +101,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private getEntries(alignment: StatusbarAlignment): HTMLElement[] {
 		const entries: HTMLElement[] = [];
 
-		const container = this.statusItemsContainer.getHTMLElement();
+		const container = this.statusItemsContainer;
 		const children = container.children;
 		for (let i = 0; i < children.length; i++) {
 			const childElement = <HTMLElement>children.item(i);
@@ -113,8 +113,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return entries;
 	}
 
-	public createContentArea(parent: Builder): Builder {
-		this.statusItemsContainer = $(parent);
+	public createContentArea(parent: HTMLElement): HTMLElement {
+		this.statusItemsContainer = parent;
 
 		// Fill in initial items that were contributed from the registry
 		const registry = Registry.as<IStatusbarRegistry>(Extensions.Statusbar);
@@ -129,7 +129,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			const el = this.doCreateStatusItem(descriptor.alignment, descriptor.priority);
 
 			const dispose = item.render(el);
-			this.statusItemsContainer.append(el);
+			this.statusItemsContainer.appendChild(el);
 
 			return dispose;
 		}));
@@ -140,7 +140,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	protected updateStyles(): void {
 		super.updateStyles();
 
-		const container = this.getContainer();
+		const container = $(this.getContainer());
 
 		// Background colors
 		const backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND);
@@ -334,12 +334,12 @@ class ManageExtensionAction extends Action {
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
 	if (statusBarItemHoverBackground) {
-		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a:hover:not([disabled]):not(.disabled) { background-color: ${statusBarItemHoverBackground}; }`);
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a:hover { background-color: ${statusBarItemHoverBackground}; }`);
 	}
 
 	const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
 	if (statusBarItemActiveBackground) {
-		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a:active:not([disabled]):not(.disabled) { background-color: ${statusBarItemActiveBackground}; }`);
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a:active { background-color: ${statusBarItemActiveBackground}; }`);
 	}
 
 	const statusBarProminentItemBackground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_BACKGROUND);
@@ -349,6 +349,6 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	const statusBarProminentItemHoverBackground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND);
 	if (statusBarProminentItemHoverBackground) {
-		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a.status-bar-info:hover:not([disabled]):not(.disabled) { background-color: ${statusBarProminentItemHoverBackground}; }`);
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a.status-bar-info:hover { background-color: ${statusBarProminentItemHoverBackground}; }`);
 	}
 });

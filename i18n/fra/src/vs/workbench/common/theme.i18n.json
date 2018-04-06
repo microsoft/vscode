@@ -59,11 +59,12 @@
 	"titleBarActiveBackground": "Arrière-plan de la barre de titre quand la fenêtre est active. Notez que cette couleur est uniquement prise en charge sur macOS.",
 	"titleBarInactiveBackground": "Arrière-plan de la barre de titre quand la fenêtre est inactive. Notez que cette couleur est uniquement prise en charge sur macOS.",
 	"titleBarBorder": "Couleur de bordure de la barre titre. Notez que cette couleur est actuellement uniquement pris en charge sur macOS.",
-	"notificationsCenterBorder": "Couleur de bordure du centre de notifications. Les notifications défilent à partir du bas à droite de la fenêtre.",
-	"notificationsToastBorder": "Couleur de bordure du toast des notifications. Les notifications défilent à partir du bas à droite de la fenêtre.",
+	"notificationCenterBorder": "Couleur de bordure du centre de notifications. Les notifications défilent à partir du bas à droite de la fenêtre.",
+	"notificationToastBorder": "Couleur de bordure du toast des notifications. Les notifications défilent à partir du bas à droite de la fenêtre.",
 	"notificationsForeground": "Couleur de premier plan des notifications. Les notifications défilent à partir du bas à droite de la fenêtre.",
 	"notificationsBackground": "Couleur d'arrière plan des notifications. Les notifications défilent à partir du bas à droite de la fenêtre.",
 	"notificationsLink": "Couleur de premier plan des liens des notifications. Les notifications défilent à partir du bas à droite de la fenêtre.",
-	"notificationsCenterHeaderBackground": "Couleur d'arrière plan de l'en-tête du centre de notifications. Les notifications défilent à partir du bas à droite de la fenêtre.",
+	"notificationCenterHeaderForeground": "Couleur de premier plan de l'en-tête du centre de notifications. Les notifications défilent à partir du bas à droite de la fenêtre.",
+	"notificationCenterHeaderBackground": "Couleur d'arrière plan de l'en-tête du centre de notifications. Les notifications défilent à partir du bas à droite de la fenêtre.",
 	"notificationsBorder": "Couleur de bordure séparant des autres notifications dans le centre de notifications. Les notifications défilent à partir du bas à droite de la fenêtre."
 }

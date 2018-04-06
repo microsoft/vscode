@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { FoldingModel, CollapseMemento } from 'vs/editor/contrib/folding/foldingModel';
 import { IDisposable } from 'vs/base/common/lifecycle';

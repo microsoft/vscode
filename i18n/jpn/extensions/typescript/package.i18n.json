@@ -56,5 +56,6 @@
 	"typescript.locale": "TypeScript のエラーを報告するために使用するロケールを設定します。TypeScript 2.6.0 以上が必要です。'null' の規定値は TypeScript のエラーに VS Code のロケールを使用します。",
 	"javascript.implicitProjectConfig.experimentalDecorators": "プロジェクト外の JavaScript ファイルの 'experimentalDecorators' を有効/無効にします。既存の jsconfi.json や tsconfi.json ファイルの設定はこれより優先されます。TypeScript は 2.3.1 以上である必要があります。",
 	"typescript.autoImportSuggestions.enabled": "自動 import 提案を有効/無効にします。TypeScript 2.6.1 以上が必要です",
-	"typescript.experimental.syntaxFolding": "構文の折りたたみマーカー認識を有効/無効にします。"
+	"typescript.experimental.syntaxFolding": "構文の折りたたみマーカー認識を有効/無効にします。",
+	"taskDefinition.tsconfig.description": "TS ビルドを定義する tsconfig ファイル。"
 }

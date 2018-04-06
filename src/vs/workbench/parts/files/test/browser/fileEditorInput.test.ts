@@ -43,7 +43,7 @@ suite('Files - FileEditorInput', () => {
 		accessor = instantiationService.createInstance(ServiceAccessor);
 	});
 
-	test('Basics', function (done) {
+	test('Basics', function () {
 		let input = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/file.js'), void 0);
 		const otherInput = instantiationService.createInstance(FileEditorInput, toResource(this, 'foo/bar/otherfile.js'), void 0);
 		const otherInputSame = instantiationService.createInstance(FileEditorInput, toResource(this, 'foo/bar/file.js'), void 0);
@@ -96,8 +96,6 @@ suite('Files - FileEditorInput', () => {
 								stat = (resolved as TextFileEditorModel).getStat();
 								return inputToResolve.resolve(false).then(resolved => {
 									assert(stat === (resolved as TextFileEditorModel).getStat()); // Same stat, because not refreshed
-
-									done();
 								});
 							});
 						});
@@ -121,7 +119,7 @@ suite('Files - FileEditorInput', () => {
 		assert.strictEqual(input1.matches(input2Upper), false);
 	});
 
-	test('getEncoding/setEncoding', function (done) {
+	test('getEncoding/setEncoding', function () {
 		const input = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/updatefile.js'), void 0);
 
 		input.setEncoding('utf16', EncodingMode.Encode);
@@ -131,46 +129,40 @@ suite('Files - FileEditorInput', () => {
 			assert.equal(input.getEncoding(), resolved.getEncoding());
 
 			resolved.dispose();
-
-			done();
 		});
 	});
 
-	test('save', function (done) {
+	test('save', function () {
 		const input = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/updatefile.js'), void 0);
 
 		return input.resolve(true).then((resolved: TextFileEditorModel) => {
 			resolved.textEditorModel.setValue('changed');
 			assert.ok(input.isDirty());
 
-			input.save().then(() => {
+			return input.save().then(() => {
 				assert.ok(!input.isDirty());
 
 				resolved.dispose();
-
-				done();
 			});
 		});
 	});
 
-	test('revert', function (done) {
+	test('revert', function () {
 		const input = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/updatefile.js'), void 0);
 
 		return input.resolve(true).then((resolved: TextFileEditorModel) => {
 			resolved.textEditorModel.setValue('changed');
 			assert.ok(input.isDirty());
 
-			input.revert().then(() => {
+			return input.revert().then(() => {
 				assert.ok(!input.isDirty());
 
 				resolved.dispose();
-
-				done();
 			});
 		});
 	});
 
-	test('resolve handles binary files', function (done) {
+	test('resolve handles binary files', function () {
 		const input = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/updatefile.js'), void 0);
 
 		accessor.textFileService.setResolveTextContentErrorOnce(new FileOperationError('error', FileOperationResult.FILE_IS_BINARY));
@@ -179,17 +171,27 @@ suite('Files - FileEditorInput', () => {
 			assert.ok(resolved);
 
 			resolved.dispose();
-
-			done();
 		});
 	});
 
-	test('disposes model when not open anymore', function (done) {
+	test('resolve handles too large files', function () {
+		const input = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/updatefile.js'), void 0);
+
+		accessor.textFileService.setResolveTextContentErrorOnce(new FileOperationError('error', FileOperationResult.FILE_TOO_LARGE));
+
+		return input.resolve(true).then(resolved => {
+			assert.ok(resolved);
+
+			resolved.dispose();
+		});
+	});
+
+	test('disposes model when not open anymore', function () {
 		const resource = toResource(this, '/path/index.txt');
 
 		const input = createFileInput(instantiationService, resource);
 
-		input.resolve().then((model: TextFileEditorModel) => {
+		return input.resolve().then((model: TextFileEditorModel) => {
 			const stacks = accessor.editorGroupService.getStacksModel();
 			const group = stacks.openGroup('group', true);
 			group.openEditor(input);
@@ -204,8 +206,6 @@ suite('Files - FileEditorInput', () => {
 
 			model.dispose();
 			assert.ok(!accessor.modelService.getModel(model.getResource()));
-
-			done();
 		});
 	});
 });

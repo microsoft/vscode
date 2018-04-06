@@ -17,7 +17,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IPosition } from 'vs/editor/common/core/position';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -173,7 +173,7 @@ function _createTestCodeEditor(options: TestCodeEditorCreationOptions): TestCode
 	services.set(IContextKeyService, contextKeyService);
 	let instantiationService = new InstantiationService(services);
 
-	let editor = new TestCodeEditor(new MockScopeLocation(), options, instantiationService, contextKeyService);
+	let editor = new TestCodeEditor(new MockScopeLocation(), options, false, instantiationService, contextKeyService);
 	editor.setModel(options.model);
 	return editor;
 }

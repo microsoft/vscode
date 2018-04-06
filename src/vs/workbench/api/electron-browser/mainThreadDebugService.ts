@@ -6,7 +6,7 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import uri from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IAdapterExecutable } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
@@ -14,6 +14,10 @@ import {
 } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import severity from 'vs/base/common/severity';
+import { AbstractDebugAdapter } from 'vs/workbench/parts/debug/node/v8Protocol';
+import { convertToDAPaths, convertToVSCPaths } from 'vs/workbench/parts/debug/node/DapPathConverter';
+import * as paths from 'vs/base/common/paths';
+
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape {
@@ -21,6 +25,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 	private _proxy: ExtHostDebugServiceShape;
 	private _toDispose: IDisposable[];
 	private _breakpointEventsActive: boolean;
+	private _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
+	private _debugAdaptersHandleCounter = 1;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -46,6 +52,18 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 				}
 			}
 		}));
+
+		this._debugAdapters = new Map<number, ExtensionHostDebugAdapter>();
+
+		// register a default DA provider
+		debugService.getConfigurationManager().registerDebugAdapterProvider('*', {
+			createDebugAdapter: (debugType, adapterInfo) => {
+				const handle = this._debugAdaptersHandleCounter++;
+				const da = new ExtensionHostDebugAdapter(handle, this._proxy, debugType, adapterInfo);
+				this._debugAdapters.set(handle, da);
+				return da;
+			}
+		});
 	}
 
 	public dispose(): void {
@@ -101,7 +119,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 						lineNumber: l.line + 1,
 						column: l.character > 0 ? l.character + 1 : 0,
 						condition: l.condition,
-						hitCondition: l.hitCondition
+						hitCondition: l.hitCondition,
+						logMessage: l.logMessage
 					}
 				);
 				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps);
@@ -126,9 +145,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 					type: 'function',
 					id: fbp.getId(),
 					enabled: fbp.enabled,
-					functionName: fbp.name,
+					condition: fbp.condition,
 					hitCondition: fbp.hitCondition,
-					/* condition: fbp.condition */
+					logMessage: fbp.logMessage,
+					functionName: fbp.name
 				};
 			} else {
 				const sbp = <IBreakpoint>bp;
@@ -138,6 +158,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 					enabled: sbp.enabled,
 					condition: sbp.condition,
 					hitCondition: sbp.hitCondition,
+					logMessage: sbp.logMessage,
 					uri: sbp.uri,
 					line: sbp.lineNumber > 0 ? sbp.lineNumber - 1 : 0,
 					character: (typeof sbp.column === 'number' && sbp.column > 0) ? sbp.column - 1 : 0,
@@ -204,5 +225,60 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		// Use warning as severity to get the orange color for messages coming from the debug extension
 		this.debugService.logToRepl(value, severity.Warning);
 		return TPromise.wrap<void>(undefined);
+	}
+
+	public $acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage) {
+
+		convertToVSCPaths(message, source => {
+			if (typeof source.path === 'object') {
+				source.path = uri.revive(source.path).toString();
+			}
+		});
+
+		this._debugAdapters.get(handle).acceptMessage(message);
+	}
+
+	public $acceptDAError(handle: number, name: string, message: string, stack: string) {
+		this._debugAdapters.get(handle).fireError(handle, new Error(`${name}: ${message}\n${stack}`));
+	}
+
+	public $acceptDAExit(handle: number, code: number, signal: string) {
+		this._debugAdapters.get(handle).fireExit(handle, code, signal);
+	}
+}
+
+class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
+
+	constructor(private _handle: number, private _proxy: ExtHostDebugServiceShape, private _debugType: string, private _adapterExecutable: IAdapterExecutable | null) {
+		super();
+	}
+
+	public fireError(handle: number, err: Error) {
+		this._onError.fire(err);
+	}
+
+	public fireExit(handle: number, code: number, signal: string) {
+		this._onExit.fire(code);
+	}
+
+	public startSession(): TPromise<void> {
+		return this._proxy.$startDASession(this._handle, this._debugType, this._adapterExecutable);
+	}
+
+	public sendMessage(message: DebugProtocol.ProtocolMessage): void {
+
+		convertToDAPaths(message, source => {
+			if (paths.isAbsolute(source.path)) {
+				(<any>source).path = uri.file(source.path);
+			} else {
+				(<any>source).path = uri.parse(source.path);
+			}
+		});
+
+		this._proxy.$sendDAMessage(this._handle, message);
+	}
+
+	public stopSession(): TPromise<void> {
+		return this._proxy.$stopDASession(this._handle);
 	}
 }

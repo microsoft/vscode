@@ -9,5 +9,7 @@
 	"installNet": "Скачать .NET Framework 4.5",
 	"neverShowAgain": "Больше не показывать",
 	"netVersionError": "Требуется платформа Microsoft .NET Framework 4.5. Нажмите ссылку, чтобы установить ее.",
+	"learnMore": "Инструкции",
+	"binFailed": "Не удалось переместить \"{0}\" в корзину",
 	"trashFailed": "Не удалось переместить \"{0}\" в корзину."
 }

@@ -51,5 +51,9 @@
 	"workbench.action.terminal.hideFindWidget": "Keresőmodul elrejtése",
 	"nextTerminalFindTerm": "Következő keresési kifejezés megjelenítése",
 	"previousTerminalFindTerm": "Előző keresési kifejezés megjelenítése",
-	"quickOpenTerm": "Aktív terminál váltása"
+	"quickOpenTerm": "Aktív terminál váltása",
+	"workbench.action.terminal.focusPreviousCommand": "Váltás az előző parancsra",
+	"workbench.action.terminal.focusNextCommand": "Váltás a következő parancsra",
+	"workbench.action.terminal.selectToPreviousCommand": "Előző parancs kiválasztása",
+	"workbench.action.terminal.selectToNextCommand": "Következő parancs kiválasztása"
 }

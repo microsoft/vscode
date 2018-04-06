@@ -13,7 +13,7 @@ import * as browser from 'vs/base/browser/browser';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CharCode } from 'vs/base/common/charCode';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 
 export function clearNode(node: HTMLElement) {
@@ -35,7 +35,9 @@ export function isInDOM(node: Node): boolean {
 interface IDomClassList {
 	hasClass(node: HTMLElement, className: string): boolean;
 	addClass(node: HTMLElement, className: string): void;
+	addClasses(node: HTMLElement, ...classNames: string[]): void;
 	removeClass(node: HTMLElement, className: string): void;
+	removeClasses(node: HTMLElement, ...classNames: string[]): void;
 	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void;
 }
 
@@ -110,6 +112,10 @@ const _manualClassList = new class implements IDomClassList {
 		return this._lastStart !== -1;
 	}
 
+	addClasses(node: HTMLElement, ...classNames: string[]): void {
+		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.addClass(node, name)));
+	}
+
 	addClass(node: HTMLElement, className: string): void {
 		if (!node.className) { // doesn't have it for sure
 			node.className = className;
@@ -130,6 +136,10 @@ const _manualClassList = new class implements IDomClassList {
 		}
 	}
 
+	removeClasses(node: HTMLElement, ...classNames: string[]): void {
+		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.removeClass(node, name)));
+	}
+
 	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
 		this._findClassName(node, className);
 		if (this._lastStart !== -1 && (shouldHaveIt === void 0 || !shouldHaveIt)) {
@@ -146,6 +156,10 @@ const _nativeClassList = new class implements IDomClassList {
 		return className && node.classList && node.classList.contains(className);
 	}
 
+	addClasses(node: HTMLElement, ...classNames: string[]): void {
+		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.addClass(node, name)));
+	}
+
 	addClass(node: HTMLElement, className: string): void {
 		if (className && node.classList) {
 			node.classList.add(className);
@@ -156,6 +170,10 @@ const _nativeClassList = new class implements IDomClassList {
 		if (className && node.classList) {
 			node.classList.remove(className);
 		}
+	}
+
+	removeClasses(node: HTMLElement, ...classNames: string[]): void {
+		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.removeClass(node, name)));
 	}
 
 	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
@@ -170,7 +188,9 @@ const _nativeClassList = new class implements IDomClassList {
 const _classList: IDomClassList = browser.isIE ? _manualClassList : _nativeClassList;
 export const hasClass: (node: HTMLElement, className: string) => boolean = _classList.hasClass.bind(_classList);
 export const addClass: (node: HTMLElement, className: string) => void = _classList.addClass.bind(_classList);
+export const addClasses: (node: HTMLElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
 export const removeClass: (node: HTMLElement, className: string) => void = _classList.removeClass.bind(_classList);
+export const removeClasses: (node: HTMLElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
 export const toggleClass: (node: HTMLElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
 
 class DomListener implements IDisposable {
@@ -454,10 +474,38 @@ function getDimension(element: HTMLElement, cssPropertyName: string, jsPropertyN
 	return convertToPixels(element, value);
 }
 
+export function getClientArea(element: HTMLElement): Dimension {
+
+	// Try with DOM clientWidth / clientHeight
+	if (element !== document.body) {
+		return new Dimension(element.clientWidth, element.clientHeight);
+	}
+
+	// Try innerWidth / innerHeight
+	if (window.innerWidth && window.innerHeight) {
+		return new Dimension(window.innerWidth, window.innerHeight);
+	}
+
+	// Try with document.body.clientWidth / document.body.clientHeigh
+	if (document.body && document.body.clientWidth && document.body.clientWidth) {
+		return new Dimension(document.body.clientWidth, document.body.clientHeight);
+	}
+
+	// Try with document.documentElement.clientWidth / document.documentElement.clientHeight
+	if (document.documentElement && document.documentElement.clientWidth && document.documentElement.clientHeight) {
+		return new Dimension(document.documentElement.clientWidth, document.documentElement.clientHeight);
+	}
+
+	throw new Error('Unable to figure out browser width and height');
+}
+
 const sizeUtils = {
 
 	getBorderLeftWidth: function (element: HTMLElement): number {
 		return getDimension(element, 'border-left-width', 'borderLeftWidth');
+	},
+	getBorderRightWidth: function (element: HTMLElement): number {
+		return getDimension(element, 'border-right-width', 'borderRightWidth');
 	},
 	getBorderTopWidth: function (element: HTMLElement): number {
 		return getDimension(element, 'border-top-width', 'borderTopWidth');
@@ -466,6 +514,12 @@ const sizeUtils = {
 		return getDimension(element, 'border-bottom-width', 'borderBottomWidth');
 	},
 
+	getPaddingLeft: function (element: HTMLElement): number {
+		return getDimension(element, 'padding-left', 'paddingLeft');
+	},
+	getPaddingRight: function (element: HTMLElement): number {
+		return getDimension(element, 'padding-right', 'paddingRight');
+	},
 	getPaddingTop: function (element: HTMLElement): number {
 		return getDimension(element, 'padding-top', 'paddingTop');
 	},
@@ -490,6 +544,16 @@ const sizeUtils = {
 
 // ----------------------------------------------------------------------------------------
 // Position & Dimension
+
+export class Dimension {
+	public width: number;
+	public height: number;
+
+	constructor(width: number, height: number) {
+		this.width = width;
+		this.height = height;
+	}
+}
 
 export function getTopLeftOffset(element: HTMLElement): { left: number; top: number; } {
 	// Adapted from WinJS.Utilities.getPosition
@@ -524,6 +588,36 @@ export interface IDomNodePagePosition {
 	top: number;
 	width: number;
 	height: number;
+}
+
+export function size(element: HTMLElement, width: number, height: number): void {
+	if (typeof width === 'number') {
+		element.style.width = `${width}px`;
+	}
+
+	if (typeof height === 'number') {
+		element.style.height = `${height}px`;
+	}
+}
+
+export function position(element: HTMLElement, top: number, right?: number, bottom?: number, left?: number, position: string = 'absolute'): void {
+	if (typeof top === 'number') {
+		element.style.top = `${top}px`;
+	}
+
+	if (typeof right === 'number') {
+		element.style.right = `${right}px`;
+	}
+
+	if (typeof bottom === 'number') {
+		element.style.bottom = `${bottom}px`;
+	}
+
+	if (typeof left === 'number') {
+		element.style.left = `${left}px`;
+	}
+
+	element.style.position = position;
 }
 
 /**
@@ -569,6 +663,12 @@ export const StandardWindow: IStandardWindow = new class {
 export function getTotalWidth(element: HTMLElement): number {
 	let margin = sizeUtils.getMarginLeft(element) + sizeUtils.getMarginRight(element);
 	return element.offsetWidth + margin;
+}
+
+export function getContentWidth(element: HTMLElement): number {
+	let border = sizeUtils.getBorderLeftWidth(element) + sizeUtils.getBorderRightWidth(element);
+	let padding = sizeUtils.getPaddingLeft(element) + sizeUtils.getPaddingRight(element);
+	return element.offsetWidth - border - padding;
 }
 
 export function getTotalScrollWidth(element: HTMLElement): number {
@@ -924,12 +1024,14 @@ export function join(nodes: Node[], separator: Node | string): Node[] {
 export function show(...elements: HTMLElement[]): void {
 	for (let element of elements) {
 		element.style.display = '';
+		element.removeAttribute('aria-hidden');
 	}
 }
 
 export function hide(...elements: HTMLElement[]): void {
 	for (let element of elements) {
 		element.style.display = 'none';
+		element.setAttribute('aria-hidden', 'true');
 	}
 }
 

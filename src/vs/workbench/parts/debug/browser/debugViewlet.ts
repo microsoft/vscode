@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/debugViewlet';
 import * as nls from 'vs/nls';
-import { Builder } from 'vs/base/browser/builder';
 import { Action, IAction } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -56,11 +55,10 @@ export class DebugViewlet extends PersistentViewsViewlet {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateTitleArea()));
 	}
 
-	async create(parent: Builder): TPromise<void> {
+	async create(parent: HTMLElement): TPromise<void> {
 		await super.create(parent);
 
-		const el = parent.getHTMLElement();
-		DOM.addClass(el, 'debug-viewlet');
+		DOM.addClass(parent, 'debug-viewlet');
 	}
 
 	public focus(): void {

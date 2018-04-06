@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -33,6 +33,7 @@ export interface IPickOpenEntry {
 	run?: (context: IEntryRunContext) => void;
 	action?: IAction;
 	payload?: any;
+	picked?: boolean;
 }
 
 export interface IPickOpenItem {
@@ -84,6 +85,11 @@ export interface IPickOptions {
 	 * a context key to set when this picker is active
 	 */
 	contextKey?: string;
+
+	/**
+	 * an optional flag to make this picker multi-select (honoured by extension API)
+	 */
+	canSelectMany?: boolean;
 }
 
 export interface IInputOptions {

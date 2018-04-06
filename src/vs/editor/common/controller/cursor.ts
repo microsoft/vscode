@@ -19,7 +19,7 @@ import { RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ITextModel, IIdentifiedSingleEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
 
 function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
@@ -361,7 +361,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	private _interpretCommandResult(cursorState: Selection[]): void {
 		if (!cursorState || cursorState.length === 0) {
-			return;
+			cursorState = this._cursors.readSelectionFromMarkers();
 		}
 
 		this._columnSelectData = null;

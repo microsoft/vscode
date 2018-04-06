@@ -151,7 +151,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(FocusBreakpointsViewAc
 
 
 // Register Quick Open
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
+(Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
 		DebugQuickOpenHandler,
 		DebugQuickOpenHandler.ID,
@@ -209,6 +209,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces"),
 			default: { configurations: [], compounds: [] },
 			$ref: launchSchemaId
+		},
+		'debug.extensionHostDebugAdapter': {
+			type: 'boolean',
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'extensionHostDebugAdapter' }, "Run debug adapter in extension host"),
+			default: false
 		}
 	}
 });

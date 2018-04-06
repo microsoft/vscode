@@ -28,6 +28,8 @@
 	"JsonSchema.tasks.group.none": "N'assigne la tâche à aucun groupe",
 	"JsonSchema.tasks.group": "Définit le groupe d'exécution auquel la tâche appartient. Prend en charge \"build\" pour l'ajouter au groupe de génération et \"test\" pour l'ajouter au groupe de test.",
 	"JsonSchema.tasks.type": "Définit si la tâche est exécutée comme un processus ou comme une commande à l’intérieur d’un shell.",
+	"JsonSchema.command": "Commande à exécuter. Il peut s'agir d'un programme externe ou d'une commande d'interpréteur de commandes.",
+	"JsonSchema.tasks.args": "Arguments passés à la commande quand cette tâche est appelée.",
 	"JsonSchema.tasks.label": "L'étiquette de l’interface utilisateur de la tâche",
 	"JsonSchema.version": "Numéro de version de la configuration.",
 	"JsonSchema.tasks.identifier": "Identificateur défini par l'utilisateur pour référencer la tâche dans launch.json ou une clause dependsOn.",

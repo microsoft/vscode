@@ -27,15 +27,14 @@ suite('keyboardMapper - MAC de_ch', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup((done) => {
-		createKeyboardMapper(false, 'mac_de_ch', OperatingSystem.Macintosh).then((_mapper) => {
+	suiteSetup(() => {
+		return createKeyboardMapper(false, 'mac_de_ch', OperatingSystem.Macintosh).then((_mapper) => {
 			mapper = _mapper;
-			done();
-		}, done);
+		});
 	});
 
-	test('mapping', (done) => {
-		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_de_ch.txt', done);
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_de_ch.txt');
 	});
 
 	function assertKeybindingTranslation(kb: number, expected: string | string[]): void {
@@ -378,15 +377,14 @@ suite('keyboardMapper - MAC en_us', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup((done) => {
-		createKeyboardMapper(true, 'mac_en_us', OperatingSystem.Macintosh).then((_mapper) => {
+	suiteSetup(() => {
+		return createKeyboardMapper(true, 'mac_en_us', OperatingSystem.Macintosh).then((_mapper) => {
 			mapper = _mapper;
-			done();
-		}, done);
+		});
 	});
 
-	test('mapping', (done) => {
-		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_en_us.txt', done);
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_en_us.txt');
 	});
 
 	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
@@ -457,15 +455,14 @@ suite('keyboardMapper - LINUX de_ch', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup((done) => {
-		createKeyboardMapper(false, 'linux_de_ch', OperatingSystem.Linux).then((_mapper) => {
+	suiteSetup(() => {
+		return createKeyboardMapper(false, 'linux_de_ch', OperatingSystem.Linux).then((_mapper) => {
 			mapper = _mapper;
-			done();
-		}, done);
+		});
 	});
 
-	test('mapping', (done) => {
-		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_de_ch.txt', done);
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_de_ch.txt');
 	});
 
 	function assertKeybindingTranslation(kb: number, expected: string | string[]): void {
@@ -808,15 +805,14 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup((done) => {
-		createKeyboardMapper(true, 'linux_en_us', OperatingSystem.Linux).then((_mapper) => {
+	suiteSetup(() => {
+		return createKeyboardMapper(true, 'linux_en_us', OperatingSystem.Linux).then((_mapper) => {
 			mapper = _mapper;
-			done();
-		}, done);
+		});
 	});
 
-	test('mapping', (done) => {
-		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_en_us.txt', done);
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_en_us.txt');
 	});
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
@@ -1328,15 +1324,14 @@ suite('keyboardMapper - LINUX ru', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup((done) => {
-		createKeyboardMapper(false, 'linux_ru', OperatingSystem.Linux).then((_mapper) => {
+	suiteSetup(() => {
+		return createKeyboardMapper(false, 'linux_ru', OperatingSystem.Linux).then((_mapper) => {
 			mapper = _mapper;
-			done();
-		}, done);
+		});
 	});
 
-	test('mapping', (done) => {
-		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_ru.txt', done);
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_ru.txt');
 	});
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
@@ -1363,15 +1358,14 @@ suite('keyboardMapper - LINUX en_uk', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup((done) => {
-		createKeyboardMapper(false, 'linux_en_uk', OperatingSystem.Linux).then((_mapper) => {
+	suiteSetup(() => {
+		return createKeyboardMapper(false, 'linux_en_uk', OperatingSystem.Linux).then((_mapper) => {
 			mapper = _mapper;
-			done();
-		}, done);
+		});
 	});
 
-	test('mapping', (done) => {
-		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_en_uk.txt', done);
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_en_uk.txt');
 	});
 
 	test('issue #24522: resolveKeyboardEvent Ctrl+Alt+[Minus]', () => {
@@ -1402,15 +1396,14 @@ suite('keyboardMapper - MAC zh_hant', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup((done) => {
-		createKeyboardMapper(false, 'mac_zh_hant', OperatingSystem.Macintosh).then((_mapper) => {
+	suiteSetup(() => {
+		return createKeyboardMapper(false, 'mac_zh_hant', OperatingSystem.Macintosh).then((_mapper) => {
 			mapper = _mapper;
-			done();
-		}, done);
+		});
 	});
 
-	test('mapping', (done) => {
-		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_zh_hant.txt', done);
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_zh_hant.txt');
 	});
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {

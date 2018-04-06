@@ -351,7 +351,7 @@ export class EditorWorkerClient extends Disposable {
 				));
 			} catch (err) {
 				logOnceWebWorkerWarning(err);
-				this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl());
+				this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl(null));
 			}
 		}
 		return this._worker;
@@ -360,7 +360,7 @@ export class EditorWorkerClient extends Disposable {
 	protected _getProxy(): TPromise<EditorSimpleWorkerImpl> {
 		return new ShallowCancelThenPromise(this._getOrCreateWorker().getProxyObject().then(null, (err) => {
 			logOnceWebWorkerWarning(err);
-			this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl());
+			this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl(null));
 			return this._getOrCreateWorker().getProxyObject();
 		}));
 	}

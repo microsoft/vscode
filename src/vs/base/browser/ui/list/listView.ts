@@ -7,7 +7,7 @@ import { getOrDefault } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import * as DOM from 'vs/base/browser/dom';
-import Event, { mapEvent, filterEvent } from 'vs/base/common/event';
+import { Event, mapEvent, filterEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
@@ -360,19 +360,22 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private toMouseEvent(browserEvent: MouseEvent): IListMouseEvent<T> {
 		const index = this.getItemIndexFromEventTarget(browserEvent.target);
-		const element = index < 0 ? undefined : this.items[index].element;
+		const item = index < 0 ? undefined : this.items[index];
+		const element = item && item.element;
 		return { browserEvent, index, element };
 	}
 
 	private toTouchEvent(browserEvent: TouchEvent): IListTouchEvent<T> {
 		const index = this.getItemIndexFromEventTarget(browserEvent.target);
-		const element = index < 0 ? undefined : this.items[index].element;
+		const item = index < 0 ? undefined : this.items[index];
+		const element = item && item.element;
 		return { browserEvent, index, element };
 	}
 
 	private toGestureEvent(browserEvent: GestureEvent): IListGestureEvent<T> {
 		const index = this.getItemIndexFromEventTarget(browserEvent.initialTarget);
-		const element = index < 0 ? undefined : this.items[index].element;
+		const item = index < 0 ? undefined : this.items[index];
+		const element = item && item.element;
 		return { browserEvent, index, element };
 	}
 

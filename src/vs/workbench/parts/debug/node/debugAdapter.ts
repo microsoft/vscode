@@ -3,108 +3,59 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import fs = require('fs');
-import path = require('path');
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
-import * as paths from 'vs/base/common/paths';
-import * as platform from 'vs/base/common/platform';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IRawAdapter, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager } from 'vs/workbench/parts/debug/common/debug';
+import { IConfig, IRawAdapter, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugConfiguration } from 'vs/workbench/parts/debug/common/debug';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IOutputService } from 'vs/workbench/parts/output/common/output';
+import { DebugAdapter } from 'vs/workbench/parts/debug/node/v8Protocol';
 
-export class Adapter {
+
+export class Debugger {
+
+	private _mergedExtensionDescriptions: IExtensionDescription[];
 
 	constructor(private configurationManager: IConfigurationManager, private rawAdapter: IRawAdapter, public extensionDescription: IExtensionDescription,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {
-		if (rawAdapter.windows) {
-			rawAdapter.win = rawAdapter.windows;
-		}
+		this._mergedExtensionDescriptions = [extensionDescription];
 	}
 
 	public hasConfigurationProvider = false;
 
-	public getAdapterExecutable(root: IWorkspaceFolder, verifyAgainstFS = true): TPromise<IAdapterExecutable> {
+	public createDebugAdapter(root: IWorkspaceFolder, outputService: IOutputService): TPromise<IDebugAdapter> {
+		return this.getAdapterExecutable(root).then(adapterExecutable => {
+			const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
+			if (debugConfigs.extensionHostDebugAdapter) {
+				return this.configurationManager.createDebugAdapter(this.rawAdapter.type, adapterExecutable);
+			} else {
+				return new DebugAdapter(this.rawAdapter.type, adapterExecutable, this._mergedExtensionDescriptions, outputService);
+			}
+		});
+	}
+
+	public getAdapterExecutable(root: IWorkspaceFolder): TPromise<IAdapterExecutable | null> {
 
 		return this.configurationManager.debugAdapterExecutable(root ? root.uri : undefined, this.rawAdapter.type).then(adapterExecutable => {
 
 			if (adapterExecutable) {
-				return this.verifyAdapterDetails(adapterExecutable, verifyAgainstFS);
+				return adapterExecutable;
 			}
 
 			// try deprecated command based extension API
 			if (this.rawAdapter.adapterExecutableCommand) {
-				return this.commandService.executeCommand<IAdapterExecutable>(this.rawAdapter.adapterExecutableCommand, root ? root.uri.toString() : undefined).then(ad => {
-					return this.verifyAdapterDetails(ad, verifyAgainstFS);
-				});
+				return this.commandService.executeCommand<IAdapterExecutable>(this.rawAdapter.adapterExecutableCommand, root ? root.uri.toString() : undefined);
 			}
 
-			// fallback: executable contribution specified in package.json
-			adapterExecutable = <IAdapterExecutable>{
-				command: this.getProgram(),
-				args: this.getAttributeBasedOnPlatform('args')
-			};
-			const runtime = this.getRuntime();
-			if (runtime) {
-				const runtimeArgs = this.getAttributeBasedOnPlatform('runtimeArgs');
-				adapterExecutable.args = (runtimeArgs || []).concat([adapterExecutable.command]).concat(adapterExecutable.args || []);
-				adapterExecutable.command = runtime;
-			}
-			return this.verifyAdapterDetails(adapterExecutable, verifyAgainstFS);
+			return TPromise.as(null);
 		});
-	}
-
-	private verifyAdapterDetails(details: IAdapterExecutable, verifyAgainstFS: boolean): TPromise<IAdapterExecutable> {
-
-		if (details.command) {
-			if (verifyAgainstFS) {
-				if (path.isAbsolute(details.command)) {
-					return new TPromise<IAdapterExecutable>((c, e) => {
-						fs.exists(details.command, exists => {
-							if (exists) {
-								c(details);
-							} else {
-								e(new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", details.command)));
-							}
-						});
-					});
-				} else {
-					// relative path
-					if (details.command.indexOf('/') < 0 && details.command.indexOf('\\') < 0) {
-						// no separators: command looks like a runtime name like 'node' or 'mono'
-						return TPromise.as(details);	// TODO: check that the runtime is available on PATH
-					}
-				}
-			} else {
-				return TPromise.as(details);
-			}
-		}
-
-		return TPromise.wrapError(new Error(nls.localize({ key: 'debugAdapterCannotDetermineExecutable', comment: ['Adapter executable file not found'] },
-			"Cannot determine executable for debug adapter '{0}'.", this.type)));
-	}
-
-	private getRuntime(): string {
-		let runtime = this.getAttributeBasedOnPlatform('runtime');
-		if (runtime && runtime.indexOf('./') === 0) {
-			runtime = paths.join(this.extensionDescription.extensionFolderPath, runtime);
-		}
-		return runtime;
-	}
-
-	private getProgram(): string {
-		let program = this.getAttributeBasedOnPlatform('program');
-		if (program) {
-			program = paths.join(this.extensionDescription.extensionFolderPath, program);
-		}
-		return program;
 	}
 
 	public get aiKey(): string {
@@ -132,6 +83,10 @@ export class Adapter {
 	}
 
 	public merge(secondRawAdapter: IRawAdapter, extensionDescription: IExtensionDescription): void {
+
+		// remember all ext descriptions that are the source of this debugger
+		this._mergedExtensionDescriptions.push(extensionDescription);
+
 		// Give priority to built in debug adapters
 		if (extensionDescription.isBuiltin) {
 			this.extensionDescription = extensionDescription;
@@ -212,8 +167,13 @@ export class Adapter {
 			};
 			properties['preLaunchTask'] = {
 				type: ['string', 'null'],
-				default: null,
+				default: '',
 				description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
+			};
+			properties['postDebugTask'] = {
+				type: ['string', 'null'],
+				default: '',
+				description: nls.localize('debugPostDebugTask', "Task to run after debug session ends.")
 			};
 			properties['internalConsoleOptions'] = INTERNAL_CONSOLE_OPTIONS_SCHEMA;
 
@@ -242,20 +202,5 @@ export class Adapter {
 
 			return attributes;
 		});
-	}
-
-	private getAttributeBasedOnPlatform(key: string): any {
-		let result: any;
-		if (platform.isWindows && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432') && this.rawAdapter.winx86) {
-			result = this.rawAdapter.winx86[key];
-		} else if (platform.isWindows && this.rawAdapter.win) {
-			result = this.rawAdapter.win[key];
-		} else if (platform.isMacintosh && this.rawAdapter.osx) {
-			result = this.rawAdapter.osx[key];
-		} else if (platform.isLinux && this.rawAdapter.linux) {
-			result = this.rawAdapter.linux[key];
-		}
-
-		return result || this.rawAdapter[key];
 	}
 }

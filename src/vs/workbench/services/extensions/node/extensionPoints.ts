@@ -546,11 +546,13 @@ export class ExtensionScanner {
 				const gallery: IExtensionReference[] = [];
 
 				refs.forEach(ref => {
-					const { id, version } = getIdAndVersionFromLocalExtensionId(ref.name);
-					if (!id || !version) {
-						nonGallery.push(ref);
-					} else {
-						gallery.push(ref);
+					if (ref.name.indexOf('.') !== 0) { // Do not consider user extension folder starting with `.`
+						const { id, version } = getIdAndVersionFromLocalExtensionId(ref.name);
+						if (!id || !version) {
+							nonGallery.push(ref);
+						} else {
+							gallery.push(ref);
+						}
 					}
 				});
 				refs = [...nonGallery, ...gallery];

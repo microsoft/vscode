@@ -5,11 +5,11 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import errors = require('vs/base/common/errors');
+import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import types = require('vs/base/common/types');
-import paths = require('vs/base/common/paths');
+import * as types from 'vs/base/common/types';
+import * as paths from 'vs/base/common/paths';
 import { Action } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerViewlet } from 'vs/workbench/parts/files/common/files';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -24,10 +24,13 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 /**
  * An implementation of editor for file system resources.
@@ -48,6 +51,8 @@ export class TextFileEditor extends BaseTextEditor {
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService,
+		@IWindowsService private windowsService: IWindowsService,
+		@IPreferencesService private preferencesService: IPreferencesService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
 
@@ -160,6 +165,29 @@ export class TextFileEditor extends BaseTextEditor {
 										pinned: true // new file gets pinned by default
 									}
 								}));
+							})
+						]
+					}));
+				}
+
+				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEED_MEMORY_LIMIT) {
+					let memoryLimit = Math.max(2048, +this.configurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB') || 4096);
+
+					return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
+						actions: [
+							new Action('workbench.window.action.relaunchWithIncreasedMemoryLimit', nls.localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), null, true, () => {
+								return this.windowsService.relaunch({
+									addArgs: [
+										`--max-memory=${memoryLimit}`
+									]
+								});
+							}),
+							new Action('workbench.window.action.configureMemoryLimit', nls.localize('configureMemoryLimit', 'Configure Memory Limit'), null, true, () => {
+								return this.preferencesService.openGlobalSettings().then(editor => {
+									if (editor instanceof PreferencesEditor) {
+										editor.focusSearch('files.maxMemoryForLargeFilesMB');
+									}
+								});
 							})
 						]
 					}));

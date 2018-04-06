@@ -8,7 +8,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
-import Event, { Emitter, anyEvent } from 'vs/base/common/event';
+import { Event, Emitter, anyEvent } from 'vs/base/common/event';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView } from 'vs/base/browser/ui/splitview/splitview';
 import { IPartService, Position } from 'vs/workbench/services/part/common/partService';
@@ -130,7 +130,6 @@ class SplitPaneContainer {
 		this._withDisabledLayout(() => this._splitView.addView(child, size, index));
 
 		this.resetSize();
-		this._refreshOrderClasses();
 
 		this._onDidChange = anyEvent(...this._children.map(c => c.onDidChange));
 	}
@@ -146,26 +145,10 @@ class SplitPaneContainer {
 			this._children.splice(index, 1);
 			this._splitView.removeView(index);
 			this.resetSize();
-			this._refreshOrderClasses();
-		}
-	}
-
-	private _refreshOrderClasses(): void {
-		this._children.forEach((c, i) => {
-			c.setIsFirst(i === 0);
-			c.setIsLast(i === this._children.length - 1);
-		});
-		// HACK: Force another layout, this isn't ideal but terminal instance uses the first/last CSS
-		// rules for sizing the terminal and the layout is performed when the split view is added.
-		if (this._children.length > 0) {
-			this.layout(this._width, this._height);
 		}
 	}
 
 	public layout(width: number, height: number): void {
-		if (!this._isManuallySized) {
-			this.resetSize();
-		}
 		this._width = width;
 		this._height = height;
 		if (this.orientation === Orientation.HORIZONTAL) {
@@ -174,6 +157,9 @@ class SplitPaneContainer {
 		} else {
 			this._children.forEach(c => c.orthogonalLayout(width));
 			this._splitView.layout(height);
+		}
+		if (!this._isManuallySized) {
+			this.resetSize();
 		}
 	}
 
@@ -217,7 +203,6 @@ class SplitPane implements IView {
 	public instance: ITerminalInstance;
 	public orientation: Orientation | undefined;
 	protected _size: number;
-	private _container: HTMLElement | undefined;
 
 	private _onDidChange: Event<number | undefined> = Event.None;
 	public get onDidChange(): Event<number | undefined> { return this._onDidChange; }
@@ -231,20 +216,7 @@ class SplitPane implements IView {
 		if (!container) {
 			return;
 		}
-		this._container = container;
 		this.instance.attachToElement(container);
-	}
-
-	public setIsFirst(isFirst: boolean): void {
-		if (this._container) {
-			this._container.classList.toggle('first', isFirst);
-		}
-	}
-
-	public setIsLast(isLast: boolean): void {
-		if (this._container) {
-			this._container.classList.toggle('last', isLast);
-		}
 	}
 
 	public layout(size: number): void {
@@ -276,9 +248,9 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
-	private _onDisposed: Emitter<ITerminalTab>;
+	private readonly _onDisposed: Emitter<ITerminalTab>;
 	public get onDisposed(): Event<ITerminalTab> { return this._onDisposed.event; }
-	private _onInstancesChanged: Emitter<void>;
+	private readonly _onInstancesChanged: Emitter<void>;
 	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
 
 	constructor(
@@ -447,14 +419,18 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (this._splitPaneContainer) {
 			// Check if the panel position changed and rotate panes if so
 			const newPanelPosition = this._partService.getPanelPosition();
-			if (newPanelPosition !== this._panelPosition) {
+			const panelPositionChanged = newPanelPosition !== this._panelPosition;
+			if (panelPositionChanged) {
 				const newOrientation = newPanelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 				this._splitPaneContainer.setOrientation(newOrientation);
 				this._panelPosition = newPanelPosition;
 			}
 
 			this._splitPaneContainer.layout(width, height);
-			this._splitPaneContainer.resetSize();
+
+			if (panelPositionChanged) {
+				this._splitPaneContainer.resetSize();
+			}
 		}
 	}
 

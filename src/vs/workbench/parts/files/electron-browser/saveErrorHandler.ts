@@ -5,10 +5,10 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import errors = require('vs/base/common/errors');
+import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import { Action } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
@@ -34,6 +34,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { once } from 'vs/base/common/event';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -101,7 +102,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 	private onFileSavedOrReverted(resource: URI): void {
 		const messageHandle = this.messages.get(resource);
 		if (messageHandle) {
-			messageHandle.dispose();
+			messageHandle.close();
 			this.messages.delete(resource);
 		}
 	}
@@ -177,7 +178,9 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 		}
 
 		// Show message and keep function to hide in case the file gets saved/reverted
-		this.messages.set(model.getResource(), this.notificationService.notify({ severity: Severity.Error, message, actions }));
+		const handle = this.notificationService.notify({ severity: Severity.Error, message, actions });
+		once(handle.onDidClose)(() => dispose(...actions.primary, ...actions.secondary));
+		this.messages.set(model.getResource(), handle);
 	}
 
 	public dispose(): void {
@@ -190,7 +193,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 const pendingResolveSaveConflictMessages: INotificationHandle[] = [];
 function clearPendingResolveSaveConflictMessages(): void {
 	while (pendingResolveSaveConflictMessages.length > 0) {
-		pendingResolveSaveConflictMessages.pop().dispose();
+		pendingResolveSaveConflictMessages.pop().close();
 	}
 }
 
@@ -262,6 +265,7 @@ class ResolveSaveConflictAction extends Action {
 				actions.secondary.push(this.instantiationService.createInstance(DoNotShowResolveConflictLearnMoreAction));
 
 				const handle = this.notificationService.notify({ severity: Severity.Info, message: conflictEditorHelp, actions });
+				once(handle.onDidClose)(() => dispose(...actions.primary, ...actions.secondary));
 				pendingResolveSaveConflictMessages.push(handle);
 			});
 		}

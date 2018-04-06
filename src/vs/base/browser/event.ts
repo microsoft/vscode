@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import _Event, { Emitter, mapEvent } from 'vs/base/common/event';
+import { Event as _Event, Emitter, mapEvent } from 'vs/base/common/event';
 
 export type EventHandler = HTMLElement | HTMLDocument | Window;
 

@@ -9,5 +9,6 @@
 	"toggleOutput": "切换输出",
 	"clearOutput": "清除输出",
 	"toggleOutputScrollLock": "切换输出 Scroll Lock",
-	"switchToOutput.label": "切换到输出"
+	"switchToOutput.label": "切换到输出",
+	"openInLogViewer": "打开日志文件"
 }

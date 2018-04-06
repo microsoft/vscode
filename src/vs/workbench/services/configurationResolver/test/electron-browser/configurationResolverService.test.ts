@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import uri from 'vs/base/common/uri';
-import platform = require('vs/base/common/platform');
+import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, getConfigurationValue, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -86,7 +86,7 @@ suite('Configuration Resolver Service', () => {
 		if (platform.isWindows) {
 			assert.strictEqual(configurationResolverService.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - Value for key1');
 		} else {
-			assert.strictEqual(configurationResolverService.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - ${env:Key1}');
+			assert.strictEqual(configurationResolverService.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - ');
 		}
 	});
 
@@ -216,7 +216,7 @@ suite('Configuration Resolver Service', () => {
 
 		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService, new TestContextService());
 		assert.strictEqual(service.resolve(workspace, 'abc ${invalidVariable} xyz'), 'abc ${invalidVariable} xyz');
-		assert.strictEqual(service.resolve(workspace, 'abc ${env:invalidVariable} xyz'), 'abc ${env:invalidVariable} xyz');
+		assert.strictEqual(service.resolve(workspace, 'abc ${env:invalidVariable} xyz'), 'abc  xyz');
 		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.abc.def} xyz'), 'abc ${config:editor.abc.def} xyz');
 		assert.strictEqual(service.resolve(workspace, 'abc ${config:panel.abc} xyz'), 'abc ${config:panel.abc} xyz');
 	});

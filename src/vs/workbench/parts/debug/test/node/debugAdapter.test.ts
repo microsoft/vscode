@@ -6,15 +6,17 @@
 import * as assert from 'assert';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
-import { IRawAdapter, IAdapterExecutable, IConfigurationManager } from 'vs/workbench/parts/debug/common/debug';
-import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { IAdapterExecutable, IConfigurationManager } from 'vs/workbench/parts/debug/common/debug';
+import { Debugger } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { DebugAdapter } from 'vs/workbench/parts/debug/node/v8Protocol';
 
 
-suite('Debug - Adapter', () => {
-	let adapter: Adapter;
+suite('Debug - Debugger', () => {
+	let _debugger: Debugger;
+
 	const extensionFolderPath = 'a/b/c/';
 	const rawAdapter = {
 		type: 'mock',
@@ -44,6 +46,73 @@ suite('Debug - Adapter', () => {
 			}
 		]
 	};
+
+	const extensionDescriptor0 = {
+		id: 'adapter',
+		name: 'myAdapter',
+		version: '1.0.0',
+		publisher: 'vscode',
+		extensionFolderPath: extensionFolderPath,
+		isBuiltin: false,
+		engines: null,
+		contributes: {
+			'debuggers': [
+				rawAdapter
+			]
+		}
+	};
+
+	const extensionDescriptor1 = {
+		id: 'extension1',
+		name: 'extension1',
+		version: '1.0.0',
+		publisher: 'vscode',
+		extensionFolderPath: '/e1/b/c/',
+		isBuiltin: false,
+		engines: null,
+		contributes: {
+			'debuggers': [
+				{
+					type: 'mock',
+					runtime: 'runtime',
+					runtimeArgs: ['rarg'],
+					program: 'mockprogram',
+					args: ['parg']
+				}
+			]
+		}
+	};
+
+	const extensionDescriptor2 = {
+		id: 'extension2',
+		name: 'extension2',
+		version: '1.0.0',
+		publisher: 'vscode',
+		extensionFolderPath: '/e2/b/c/',
+		isBuiltin: false,
+		engines: null,
+		contributes: {
+			'debuggers': [
+				{
+					type: 'mock',
+					win: {
+						runtime: 'winRuntime',
+						program: 'winProgram'
+					},
+					linux: {
+						runtime: 'linuxRuntime',
+						program: 'linuxProgram'
+					},
+					osx: {
+						runtime: 'osxRuntime',
+						program: 'osxProgram'
+					}
+				}
+			]
+		}
+	};
+
+
 	const configurationManager = {
 		debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined> {
 			return TPromise.as(undefined);
@@ -51,26 +120,25 @@ suite('Debug - Adapter', () => {
 	};
 
 	setup(() => {
-		adapter = new Adapter(<IConfigurationManager>configurationManager, rawAdapter, { extensionFolderPath, id: 'adapter', name: 'myAdapter', version: '1.0.0', publisher: 'vscode', isBuiltin: false, engines: null },
-			new TestConfigurationService(), null);
+		_debugger = new Debugger(<IConfigurationManager>configurationManager, rawAdapter, extensionDescriptor0, new TestConfigurationService(), null);
 	});
 
 	teardown(() => {
-		adapter = null;
+		_debugger = null;
 	});
 
 	test('attributes', () => {
-		assert.equal(adapter.type, rawAdapter.type);
-		assert.equal(adapter.label, rawAdapter.label);
+		assert.equal(_debugger.type, rawAdapter.type);
+		assert.equal(_debugger.label, rawAdapter.label);
 
-		return adapter.getAdapterExecutable(undefined, false).then(details => {
-			assert.equal(details.command, paths.join(extensionFolderPath, rawAdapter.program));
-			assert.deepEqual(details.args, rawAdapter.args);
-		});
+		const ae = DebugAdapter.platformAdapterExecutable([extensionDescriptor0], 'mock');
+
+		assert.equal(ae.command, paths.join(extensionFolderPath, rawAdapter.program));
+		assert.deepEqual(ae.args, rawAdapter.args);
 	});
 
 	test('schema attributes', () => {
-		const schemaAttribute = adapter.getSchemaAttributes()[0];
+		const schemaAttribute = _debugger.getSchemaAttributes()[0];
 		assert.notDeepEqual(schemaAttribute, rawAdapter.configurationAttributes);
 		Object.keys(rawAdapter.configurationAttributes.launch).forEach(key => {
 			assert.deepEqual(schemaAttribute[key], rawAdapter.configurationAttributes.launch[key]);
@@ -83,38 +151,13 @@ suite('Debug - Adapter', () => {
 		assert.equal(!!schemaAttribute['properties']['preLaunchTask'], true);
 	});
 
-	test('merge', () => {
+	test('merge platform specific attributes', () => {
 
-		const da: IRawAdapter = {
-			type: 'mock',
-			win: {
-				runtime: 'winRuntime'
-			},
-			linux: {
-				runtime: 'linuxRuntime'
-			},
-			osx: {
-				runtime: 'osxRuntime'
-			},
-			runtimeArgs: ['first arg'],
-			program: 'mockprogram',
-			args: ['arg']
-		};
 
-		adapter.merge(da, {
-			name: 'my name',
-			id: 'my_id',
-			version: '1.0',
-			publisher: 'mockPublisher',
-			isBuiltin: true,
-			extensionFolderPath: 'a/b/c/d',
-			engines: null
-		});
-
-		return adapter.getAdapterExecutable(undefined, false).then(details => {
-			assert.equal(details.command, platform.isLinux ? da.linux.runtime : platform.isMacintosh ? da.osx.runtime : da.win.runtime);
-			assert.deepEqual(details.args, da.runtimeArgs.concat(['a/b/c/d/mockprogram'].concat(da.args)));
-		});
+		const ae2 = DebugAdapter.platformAdapterExecutable([extensionDescriptor1, extensionDescriptor2], 'mock');
+		assert.equal(ae2.command, platform.isLinux ? 'linuxRuntime' : (platform.isMacintosh ? 'osxRuntime' : 'winRuntime'));
+		const xprogram = platform.isLinux ? 'linuxProgram' : (platform.isMacintosh ? 'osxProgram' : 'winProgram');
+		assert.deepEqual(ae2.args, ['rarg', '/e2/b/c/' + xprogram, 'parg']);
 	});
 
 	test('initial config file content', () => {
@@ -134,8 +177,8 @@ suite('Debug - Adapter', () => {
 			'	]',
 			'}'].join('\n');
 
-		return adapter.getInitialConfigurationContent().then(content => {
+		return _debugger.getInitialConfigurationContent().then(content => {
 			assert.equal(content, expected);
-		}, err => assert.fail());
+		}, err => assert.fail(err));
 	});
 });

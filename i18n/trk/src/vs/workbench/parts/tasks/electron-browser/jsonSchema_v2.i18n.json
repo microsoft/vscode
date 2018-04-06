@@ -28,6 +28,8 @@
 	"JsonSchema.tasks.group.none": "Görevi grupsuz olarak atar",
 	"JsonSchema.tasks.group": "Bu görevin ait olduğu çalıştırma grubunu tanımlar. Derleme grubuna eklemek için \"build\"ı ve test grubuna eklemek için \"test\"i destekler.",
 	"JsonSchema.tasks.type": "Görevin bir işlem olarak veya bir kabukta komut olarak çalıştırılıp çalıştırılmayacağını tanımlar.",
+	"JsonSchema.command": "Çalıştırılacak komut. Harici bir program veya bir kabuk komutu olabilir.",
+	"JsonSchema.tasks.args": "Bu görev çağrıldığında, komuta iletilecek argümanlar.",
 	"JsonSchema.tasks.label": "Görevin kullanıcı arayüzü etiketi",
 	"JsonSchema.version": "Yapılandırmanın sürüm numarası.",
 	"JsonSchema.tasks.identifier": "launch.json veya dependsOn maddesindeki göreve atıfta başvuracak, kullanıcı tanımlı bir tanımlayıcı.",

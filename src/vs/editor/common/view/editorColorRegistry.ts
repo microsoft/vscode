@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { registerColor, editorBackground, activeContrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -21,7 +21,10 @@ export const editorCursorBackground = registerColor('editorCursor.background', n
 export const editorWhitespaces = registerColor('editorWhitespace.foreground', { dark: '#e3e4e229', light: '#33333333', hc: '#e3e4e229' }, nls.localize('editorWhitespaces', 'Color of whitespace characters in the editor.'));
 export const editorIndentGuides = registerColor('editorIndentGuide.background', { dark: editorWhitespaces, light: editorWhitespaces, hc: editorWhitespaces }, nls.localize('editorIndentGuides', 'Color of the editor indentation guides.'));
 export const editorLineNumbers = registerColor('editorLineNumber.foreground', { dark: '#5A5A5A', light: '#2B91AF', hc: Color.white }, nls.localize('editorLineNumbers', 'Color of editor line numbers.'));
-export const editorActiveLineNumber = registerColor('editorActiveLineNumber.foreground', { dark: null, light: null, hc: null }, nls.localize('editorActiveLineNumber', 'Color of editor active line number'));
+
+const deprecatedEditorActiveLineNumber = registerColor('editorActiveLineNumber.foreground', { dark: null, light: null, hc: null }, nls.localize('editorActiveLineNumber', 'Color of editor active line number'), false, nls.localize('deprecatedEditorActiveLineNumber', 'Id is deprecated. Use \'editorLineNumber.activeForeground\' instead.'));
+export const editorActiveLineNumber = registerColor('editorLineNumber.activeForeground', { dark: deprecatedEditorActiveLineNumber, light: deprecatedEditorActiveLineNumber, hc: deprecatedEditorActiveLineNumber }, nls.localize('editorActiveLineNumber', 'Color of editor active line number'));
+
 export const editorRuler = registerColor('editorRuler.foreground', { dark: '#5A5A5A', light: Color.lightgrey, hc: Color.white }, nls.localize('editorRuler', 'Color of the editor rulers.'));
 
 export const editorCodeLensForeground = registerColor('editorCodeLens.foreground', { dark: '#999999', light: '#999999', hc: '#999999' }, nls.localize('editorCodeLensForeground', 'Foreground color of editor code lenses'));
@@ -42,35 +45,43 @@ export const editorWarningBorder = registerColor('editorWarning.border', { dark:
 export const editorInfoForeground = registerColor('editorInfo.foreground', { dark: '#008000', light: '#008000', hc: null }, nls.localize('infoForeground', 'Foreground color of info squigglies in the editor.'));
 export const editorInfoBorder = registerColor('editorInfo.border', { dark: null, light: null, hc: Color.fromHex('#71B771').transparent(0.8) }, nls.localize('infoBorder', 'Border color of info squigglies in the editor.'));
 
+export const editorHintForeground = registerColor('editorHint.foreground', { dark: Color.fromHex('#eeeeee').transparent(0.7), light: '#6c6c6c', hc: null }, nls.localize('hintForeground', 'Foreground color of hint squigglies in the editor.'));
+export const editorHintBorder = registerColor('editorHint.border', { dark: null, light: null, hc: Color.fromHex('#eeeeee').transparent(0.8) }, nls.localize('hintBorder', 'Border color of hint squigglies in the editor.'));
+
 const rulerRangeDefault = new Color(new RGBA(0, 122, 204, 0.6));
-export const overviewRulerRangeHighlight = registerColor('editorOverviewRuler.rangeHighlightForeground', { dark: rulerRangeDefault, light: rulerRangeDefault, hc: rulerRangeDefault }, nls.localize('overviewRulerRangeHighlight', 'Overview ruler marker color for range highlights.'));
+export const overviewRulerRangeHighlight = registerColor('editorOverviewRuler.rangeHighlightForeground', { dark: rulerRangeDefault, light: rulerRangeDefault, hc: rulerRangeDefault }, nls.localize('overviewRulerRangeHighlight', 'Overview ruler marker color for range highlights. The color must not be opaque to not hide underlying decorations.'), true);
 export const overviewRulerError = registerColor('editorOverviewRuler.errorForeground', { dark: new Color(new RGBA(255, 18, 18, 0.7)), light: new Color(new RGBA(255, 18, 18, 0.7)), hc: new Color(new RGBA(255, 50, 50, 1)) }, nls.localize('overviewRuleError', 'Overview ruler marker color for errors.'));
 export const overviewRulerWarning = registerColor('editorOverviewRuler.warningForeground', { dark: new Color(new RGBA(18, 136, 18, 0.7)), light: new Color(new RGBA(18, 136, 18, 0.7)), hc: new Color(new RGBA(50, 255, 50, 1)) }, nls.localize('overviewRuleWarning', 'Overview ruler marker color for warnings.'));
 export const overviewRulerInfo = registerColor('editorOverviewRuler.infoForeground', { dark: new Color(new RGBA(18, 18, 136, 0.7)), light: new Color(new RGBA(18, 18, 136, 0.7)), hc: new Color(new RGBA(50, 50, 255, 1)) }, nls.localize('overviewRuleInfo', 'Overview ruler marker color for infos.'));
 
 // contains all color rules that used to defined in editor/browser/widget/editor.css
 registerThemingParticipant((theme, collector) => {
-	let background = theme.getColor(editorBackground);
+	const background = theme.getColor(editorBackground);
 	if (background) {
 		collector.addRule(`.monaco-editor, .monaco-editor-background, .monaco-editor .inputarea.ime-input { background-color: ${background}; }`);
 	}
-	let foreground = theme.getColor(editorForeground);
+
+	const foreground = theme.getColor(editorForeground);
 	if (foreground) {
 		collector.addRule(`.monaco-editor, .monaco-editor .inputarea.ime-input { color: ${foreground}; }`);
 	}
-	let gutter = theme.getColor(editorGutter);
+
+	const gutter = theme.getColor(editorGutter);
 	if (gutter) {
 		collector.addRule(`.monaco-editor .margin { background-color: ${gutter}; }`);
 	}
-	let rangeHighlight = theme.getColor(editorRangeHighlight);
+
+	const rangeHighlight = theme.getColor(editorRangeHighlight);
 	if (rangeHighlight) {
 		collector.addRule(`.monaco-editor .rangeHighlight { background-color: ${rangeHighlight}; }`);
 	}
-	let rangeHighlightBorder = theme.getColor(editorRangeHighlightBorder);
+
+	const rangeHighlightBorder = theme.getColor(editorRangeHighlightBorder);
 	if (rangeHighlightBorder) {
-		collector.addRule(`.monaco-editor .rangeHighlight { border: 1px dotted ${rangeHighlightBorder}; }`);
+		collector.addRule(`.monaco-editor .rangeHighlight { border: 1px ${theme.type === 'hc' ? 'dotted' : 'solid'} ${rangeHighlightBorder}; }`);
 	}
-	let invisibles = theme.getColor(editorWhitespaces);
+
+	const invisibles = theme.getColor(editorWhitespaces);
 	if (invisibles) {
 		collector.addRule(`.vs-whitespace { color: ${invisibles} !important; }`);
 	}

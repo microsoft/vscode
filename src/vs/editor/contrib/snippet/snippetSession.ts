@@ -50,7 +50,9 @@ export class OneSnippet {
 
 	dispose(): void {
 		if (this._placeholderDecorations) {
-			this._editor.changeDecorations(accessor => this._placeholderDecorations.forEach(handle => accessor.removeDecoration(handle)));
+			let toRemove: string[] = [];
+			this._placeholderDecorations.forEach(handle => toRemove.push(handle));
+			this._editor.deltaDecorations(toRemove, []);
 		}
 		this._placeholderGroups.length = 0;
 	}

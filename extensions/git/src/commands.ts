@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, CancellationTokenSource, StatusBarAlignment } from 'vscode';
+import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, CancellationTokenSource, StatusBarAlignment, MessageOptions } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
@@ -1205,7 +1205,7 @@ export class CommandCenter {
 
 			const message = localize('confirm force delete branch', "The branch '{0}' is not fully merged. Delete anyway?", name);
 			const yes = localize('delete branch', "Delete Branch");
-			const pick = await window.showWarningMessage(message, yes);
+			const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 			if (pick === yes) {
 				await run(true);
@@ -1345,7 +1345,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.pull(repository.HEAD && repository.HEAD.upstream);
+		await repository.pull(repository.HEAD);
 	}
 
 	@command('git.pullRebase', { repository: true })
@@ -1357,7 +1357,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.pullWithRebase(repository.HEAD && repository.HEAD.upstream);
+		await repository.pullWithRebase(repository.HEAD);
 	}
 
 	@command('git.push', { repository: true })
@@ -1375,7 +1375,7 @@ export class CommandCenter {
 		}
 
 		try {
-			await repository.push(repository.HEAD.upstream);
+			await repository.push(repository.HEAD);
 		} catch (err) {
 			if (err.gitErrorCode !== GitErrorCodes.NoUpstreamBranch) {
 				throw err;
@@ -1456,9 +1456,9 @@ export class CommandCenter {
 		}
 
 		if (rebase) {
-			await repository.syncRebase(HEAD.upstream);
+			await repository.syncRebase(HEAD);
 		} else {
-			await repository.sync(HEAD.upstream);
+			await repository.sync(HEAD);
 		}
 	}
 
@@ -1476,7 +1476,7 @@ export class CommandCenter {
 				return;
 			}
 
-			await repository.sync(HEAD.upstream);
+			await repository.sync(HEAD);
 		}));
 	}
 
@@ -1635,6 +1635,10 @@ export class CommandCenter {
 			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });
 
 			return result.catch(async err => {
+				const options: MessageOptions = {
+					modal: err.gitErrorCode === GitErrorCodes.DirtyWorkTree
+				};
+
 				let message: string;
 
 				switch (err.gitErrorCode) {
@@ -1664,9 +1668,11 @@ export class CommandCenter {
 					return;
 				}
 
+				options.modal = true;
+
 				const outputChannel = this.outputChannel as OutputChannel;
 				const openOutputChannelChoice = localize('open git log', "Open Git Log");
-				const choice = await window.showErrorMessage(message, openOutputChannelChoice);
+				const choice = await window.showErrorMessage(message, options, openOutputChannelChoice);
 
 				if (choice === openOutputChannelChoice) {
 					outputChannel.show();

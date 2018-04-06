@@ -5,10 +5,10 @@
 
 'use strict';
 
-import { app, ipcMain as ipc, BrowserWindow } from 'electron';
+import { app, ipcMain as ipc } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
-import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -29,7 +29,7 @@ import { IStateService } from 'vs/platform/state/common/state';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IURLService } from 'vs/platform/url/common/url';
-import { URLChannel } from 'vs/platform/url/common/urlIpc';
+import { URLHandlerChannelClient, URLServiceChannel } from 'vs/platform/url/common/urlIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -59,6 +59,7 @@ import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 
 export class CodeApplication {
 
@@ -126,7 +127,7 @@ export class CodeApplication {
 			return srcUri.startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
 		};
 
-		app.on('web-contents-created', (_event: any, contents) => {
+		app.on('web-contents-created', (event: any, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
 				delete webPreferences.preload;
 				webPreferences.nodeIntegration = false;
@@ -181,15 +182,15 @@ export class CodeApplication {
 			this.windowsMainService.openNewWindow(OpenContext.DESKTOP); //macOS native tab "+" button
 		});
 
-		ipc.on('vscode:exit', (_event: any, code: number) => {
+		ipc.on('vscode:exit', (event: any, code: number) => {
 			this.logService.trace('IPC#vscode:exit', code);
 
 			this.dispose();
 			this.lifecycleService.kill(code);
 		});
 
-		ipc.on('vscode:fetchShellEnv', (_event: any, windowId: number) => {
-			const { webContents } = BrowserWindow.fromId(windowId);
+		ipc.on('vscode:fetchShellEnv', event => {
+			const webContents = event.sender.webContents;
 			getShellEnvironment().then(shellEnv => {
 				if (!webContents.isDestroyed()) {
 					webContents.send('vscode:acceptShellEnv', shellEnv);
@@ -203,7 +204,7 @@ export class CodeApplication {
 			});
 		});
 
-		ipc.on('vscode:broadcast', (_event: any, windowId: number, broadcast: { channel: string; payload: any; }) => {
+		ipc.on('vscode:broadcast', (event: any, windowId: number, broadcast: { channel: string; payload: any; }) => {
 			if (this.windowsMainService && broadcast.channel && !isUndefinedOrNull(broadcast.payload)) {
 				this.logService.trace('IPC#vscode:broadcast', broadcast.channel, broadcast.payload);
 
@@ -277,8 +278,7 @@ export class CodeApplication {
 			this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 			// Spawn shared process
-			this.sharedProcess = new SharedProcess(this.environmentService, machineId, this.userEnv, this.logService);
-			this.toDispose.push(this.sharedProcess);
+			this.sharedProcess = new SharedProcess(this.environmentService, this.lifecycleService, this.logService, machineId, this.userEnv);
 			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
 			// Services
@@ -325,7 +325,7 @@ export class CodeApplication {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, machineId));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
-		services.set(IIssueService, new SyncDescriptor(IssueService, machineId));
+		services.set(IIssueService, new SyncDescriptor(IssueService, machineId, this.userEnv));
 
 		// Telemtry
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
@@ -346,16 +346,6 @@ export class CodeApplication {
 	private openFirstWindow(accessor: ServicesAccessor): void {
 		const appInstantiationService = accessor.get(IInstantiationService);
 
-		// TODO@Joao: unfold this
-		this.windowsMainService = accessor.get(IWindowsMainService);
-
-		// TODO@Joao: so ugly...
-		this.windowsMainService.onWindowsCountChanged(e => {
-			if (!platform.isMacintosh && e.newCount === 0) {
-				this.sharedProcess.dispose();
-			}
-		});
-
 		// Register more Main IPC services
 		const launchService = accessor.get(ILaunchService);
 		const launchChannel = new LaunchChannel(launchService);
@@ -365,10 +355,6 @@ export class CodeApplication {
 		const updateService = accessor.get(IUpdateService);
 		const updateChannel = new UpdateChannel(updateService);
 		this.electronIpcServer.registerChannel('update', updateChannel);
-
-		const urlService = accessor.get(IURLService);
-		const urlChannel = appInstantiationService.createInstance(URLChannel, urlService);
-		this.electronIpcServer.registerChannel('url', urlChannel);
 
 		const issueService = accessor.get(IIssueService);
 		const issueChannel = new IssueChannel(issueService);
@@ -383,6 +369,10 @@ export class CodeApplication {
 		this.electronIpcServer.registerChannel('windows', windowsChannel);
 		this.sharedProcessClient.done(client => client.registerChannel('windows', windowsChannel));
 
+		const urlService = accessor.get(IURLService);
+		const urlChannel = new URLServiceChannel(urlService);
+		this.electronIpcServer.registerChannel('url', urlChannel);
+
 		// Log level management
 		const logLevelChannel = new LogLevelSetterChannel(accessor.get(ILogService));
 		this.electronIpcServer.registerChannel('loglevel', logLevelChannel);
@@ -392,15 +382,32 @@ export class CodeApplication {
 		this.lifecycleService.ready();
 
 		// Propagate to clients
+		this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this
+
+		const args = this.environmentService.args;
+
+		// Create a URL handler which forwards to the last active window
+		const activeWindowManager = new ActiveWindowManager(windowsService);
+		const urlHandlerChannel = this.electronIpcServer.getChannel('urlHandler', { route: () => activeWindowManager.activeClientId });
+		const multiplexURLHandler = new URLHandlerChannelClient(urlHandlerChannel);
+
+		// Register the multiple URL handker
+		urlService.registerHandler(multiplexURLHandler);
+
+		// Watch Electron URLs and forward them to the UrlService
+		const urls = args['open-url'] ? args._urls : [];
+		const urlListener = new ElectronURLListener(urls, urlService, this.windowsMainService);
+		this.toDispose.push(urlListener);
+
 		this.windowsMainService.ready(this.userEnv);
 
 		// Open our first window
-		const args = this.environmentService.args;
+		const macOpenFiles = (<any>global).macOpenFiles as string[];
 		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 		if (args['new-window'] && args._.length === 0) {
 			this.windowsMainService.open({ context, cli: args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
-		} else if (global.macOpenFiles && global.macOpenFiles.length && (!args._ || !args._.length)) {
-			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, pathsToOpen: global.macOpenFiles, initialStartup: true }); // mac: open-file event received on startup
+		} else if (macOpenFiles && macOpenFiles.length && (!args._ || !args._.length)) {
+			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, pathsToOpen: macOpenFiles, initialStartup: true }); // mac: open-file event received on startup
 		} else {
 			this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!args._.length && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
 		}

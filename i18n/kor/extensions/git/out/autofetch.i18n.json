@@ -8,5 +8,6 @@
 	],
 	"yes": "예",
 	"no": "아니요",
-	"not now": "나중에 물어보기"
+	"not now": "나중에 물어보기",
+	"suggest auto fetch": "Code에서 ['git fetch']({0})를 정기적으로 실행하도록 하시겠습니까?"
 }

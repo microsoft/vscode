@@ -8,8 +8,6 @@
 	],
 	"nextSearchIncludePattern": "Sonraki Aramaya Dahil Edilen Kalıbı Göster",
 	"previousSearchIncludePattern": "Önceki Aramaya Dahil Edilen Kalıbı Göster",
-	"nextSearchExcludePattern": "Sonraki Aramada Hariç Tutulan Kalıbı Göster",
-	"previousSearchExcludePattern": "Önceki Aramada Hariç Tutulan Kalıbı Göster",
 	"nextSearchTerm": "Sonraki Arama Terimini Göster",
 	"previousSearchTerm": "Önceki Arama Terimini Göster",
 	"showSearchViewlet": "Aramayı Göster",

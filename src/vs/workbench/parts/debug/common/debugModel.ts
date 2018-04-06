@@ -8,7 +8,7 @@ import uri from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as lifecycle from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as errors from 'vs/base/common/errors';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -20,7 +20,7 @@ import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IProcess, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IModel, IReplElementSource,
-	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IReplElement, ProcessState, IBreakpointsChangeEvent, IBreakpointUpdateData
+	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IReplElement, ProcessState, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint
 } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -39,6 +39,7 @@ export abstract class AbstractReplElement implements IReplElement {
 		return `replelement:${this.id}`;
 	}
 
+	// Used by the copy all action in repl
 	abstract toString(): string;
 }
 
@@ -97,7 +98,7 @@ export class RawObjectReplElement extends AbstractReplElement implements IExpres
 	}
 
 	public toString(): string {
-		return this.name ? `${this.name}: ${this.value}` : this.value;
+		return `${this.name}\n${this.value}`;
 	}
 }
 
@@ -531,8 +532,9 @@ export class Thread implements IThread {
 
 export class Process implements IProcess {
 
-	public sources: Map<string, Source>;
+	private sources: Map<string, Source>;
 	private threads: Map<number, Thread>;
+
 	public inactive = true;
 
 	constructor(public configuration: IConfig, private _session: ISession & ITreeElement) {
@@ -555,6 +557,10 @@ export class Process implements IProcess {
 		}
 
 		return this.configuration.type === 'attach' ? ProcessState.ATTACH : ProcessState.LAUNCH;
+	}
+
+	public getSourceForUri(modelUri: uri): Source {
+		return this.sources.get(modelUri.toString());
 	}
 
 	public getSource(raw: DebugProtocol.Source): Source {
@@ -671,12 +677,48 @@ export class Process implements IProcess {
 			return result;
 		}, err => []);
 	}
+
+	setNotAvailable(modelUri: uri) {
+		const source = this.sources.get(modelUri.toString());
+		if (source) {
+			source.available = false;
+		}
+	}
 }
 
-export class Breakpoint implements IBreakpoint {
+export class Enablement implements IEnablement {
+	constructor(
+		public enabled: boolean,
+		private id: string
+	) { }
+
+	public getId(): string {
+		return this.id;
+	}
+}
+
+export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 
 	public verified: boolean;
 	public idFromAdapter: number;
+
+	constructor(
+		enabled: boolean,
+		public hitCondition: string,
+		public condition: string,
+		public logMessage: string,
+		id: string
+	) {
+		super(enabled, id);
+		if (enabled === undefined) {
+			this.enabled = true;
+		}
+		this.verified = false;
+	}
+}
+
+export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
+
 	public message: string;
 	public endLineNumber: number;
 	public endColumn: number;
@@ -685,47 +727,34 @@ export class Breakpoint implements IBreakpoint {
 		public uri: uri,
 		public lineNumber: number,
 		public column: number,
-		public enabled: boolean,
-		public condition: string,
-		public hitCondition: string,
+		enabled: boolean,
+		condition: string,
+		hitCondition: string,
+		logMessage: string,
 		public adapterData: any,
-		private id = generateUuid()
+		id = generateUuid()
 	) {
-		if (enabled === undefined) {
-			this.enabled = true;
-		}
-		this.verified = false;
-	}
-
-	public getId(): string {
-		return this.id;
+		super(enabled, hitCondition, condition, logMessage, id);
 	}
 }
 
-export class FunctionBreakpoint implements IFunctionBreakpoint {
+export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreakpoint {
 
-	public verified: boolean;
-	public idFromAdapter: number;
-
-	constructor(public name: string, public enabled: boolean, public hitCondition: string, private id = generateUuid()) {
-		this.verified = false;
-	}
-
-	public getId(): string {
-		return this.id;
+	constructor(
+		public name: string,
+		enabled: boolean,
+		hitCondition: string,
+		condition: string,
+		logMessage: string,
+		id = generateUuid()) {
+		super(enabled, hitCondition, condition, logMessage, id);
 	}
 }
 
-export class ExceptionBreakpoint implements IExceptionBreakpoint {
+export class ExceptionBreakpoint extends Enablement implements IExceptionBreakpoint {
 
-	private id: string;
-
-	constructor(public filter: string, public label: string, public enabled: boolean) {
-		this.id = generateUuid();
-	}
-
-	public getId(): string {
-		return this.id;
+	constructor(public filter: string, public label: string, enabled: boolean) {
+		super(enabled, generateUuid());
 	}
 }
 
@@ -743,10 +772,10 @@ export class Model implements IModel {
 	private toDispose: lifecycle.IDisposable[];
 	private replElements: IReplElement[];
 	private schedulers = new Map<string, RunOnceScheduler>();
-	private _onDidChangeBreakpoints: Emitter<IBreakpointsChangeEvent>;
-	private _onDidChangeCallStack: Emitter<void>;
-	private _onDidChangeWatchExpressions: Emitter<IExpression>;
-	private _onDidChangeREPLElements: Emitter<void>;
+	private readonly _onDidChangeBreakpoints: Emitter<IBreakpointsChangeEvent>;
+	private readonly _onDidChangeCallStack: Emitter<void>;
+	private readonly _onDidChangeWatchExpressions: Emitter<IExpression>;
+	private readonly _onDidChangeREPLElements: Emitter<void>;
 
 	constructor(
 		private breakpoints: Breakpoint[],
@@ -837,8 +866,21 @@ export class Model implements IModel {
 		return thread.fetchCallStack();
 	}
 
-	public getBreakpoints(): Breakpoint[] {
+	public getBreakpoints(): IBreakpoint[] {
 		return this.breakpoints;
+	}
+
+	public getBreakpointsForResource(resource: uri): IBreakpoint[] {
+		const uriString = resource.toString();
+		return this.breakpoints.filter(bp => bp.uri.toString() === uriString);
+	}
+
+	public getActivatedBreakpointsForResource(resource: uri): IBreakpoint[] {
+		if (this.breakpointsActivated) {
+			const uriString = resource.toString();
+			return this.breakpoints.filter(bp => bp.uri.toString() === uriString);
+		}
+		return [];
 	}
 
 	public getFunctionBreakpoints(): IFunctionBreakpoint[] {
@@ -868,8 +910,8 @@ export class Model implements IModel {
 		this._onDidChangeBreakpoints.fire();
 	}
 
-	public addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): Breakpoint[] {
-		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, undefined, rawBp.id));
+	public addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {
+		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, rawBp.id));
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
 		this.sortAndDeDup();
@@ -909,6 +951,9 @@ export class Model implements IModel {
 				}
 				if (!isUndefinedOrNull(bpData.hitCondition)) {
 					bp.hitCondition = bpData.hitCondition;
+				}
+				if (!isUndefinedOrNull(bpData.logMessage)) {
+					bp.logMessage = bpData.logMessage;
 				}
 				updated.push(bp);
 			}
@@ -970,8 +1015,8 @@ export class Model implements IModel {
 		this._onDidChangeBreakpoints.fire({ changed: changed });
 	}
 
-	public addFunctionBreakpoint(functionName: string, id: string): FunctionBreakpoint {
-		const newFunctionBreakpoint = new FunctionBreakpoint(functionName, true, null, id);
+	public addFunctionBreakpoint(functionName: string, id: string): IFunctionBreakpoint {
+		const newFunctionBreakpoint = new FunctionBreakpoint(functionName, true, undefined, undefined, undefined, id);
 		this.functionBreakpoints.push(newFunctionBreakpoint);
 		this._onDidChangeBreakpoints.fire({ added: [newFunctionBreakpoint] });
 
@@ -1091,11 +1136,7 @@ export class Model implements IModel {
 	}
 
 	public sourceIsNotAvailable(uri: uri): void {
-		this.processes.forEach(p => {
-			if (p.sources.has(uri.toString())) {
-				p.sources.get(uri.toString()).available = false;
-			}
-		});
+		this.processes.forEach(p => p.setNotAvailable(uri));
 		this._onDidChangeCallStack.fire();
 	}
 

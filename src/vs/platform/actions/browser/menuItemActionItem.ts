@@ -14,24 +14,24 @@ import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { domEvent } from 'vs/base/browser/event';
 import { Emitter } from 'vs/base/common/event';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { memoize } from 'vs/base/common/decorators';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { createCSSRule } from 'vs/base/browser/dom';
 import URI from 'vs/base/common/uri';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 
 // The alternative key on all platforms is alt. On windows we also support shift as an alternative key #44136
 class AlternativeKeyEmitter extends Emitter<boolean> {
 
 	private _subscriptions: IDisposable[] = [];
 	private _isPressed: boolean;
+	private static instance: AlternativeKeyEmitter;
 
 	private constructor(contextMenuService: IContextMenuService) {
 		super();
 
 		this._subscriptions.push(domEvent(document.body, 'keydown')(e => {
-			this.isPressed = e.altKey || (isWindows && e.shiftKey);
+			this.isPressed = e.altKey || ((isWindows || isLinux) && e.shiftKey);
 		}));
 		this._subscriptions.push(domEvent(document.body, 'keyup')(e => this.isPressed = false));
 		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => this.isPressed = false));
@@ -49,9 +49,12 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 		this.fire(this._isPressed);
 	}
 
-	@memoize
 	static getInstance(contextMenuService: IContextMenuService) {
-		return new AlternativeKeyEmitter(contextMenuService);
+		if (!AlternativeKeyEmitter.instance) {
+			AlternativeKeyEmitter.instance = new AlternativeKeyEmitter(contextMenuService);
+		}
+
+		return AlternativeKeyEmitter.instance;
 	}
 
 	dispose() {

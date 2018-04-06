@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
 import { MainContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IMainContext } from './extHost.protocol';
 import { ExtHostDocumentData } from './extHostDocumentData';
@@ -12,7 +12,6 @@ import { ExtHostTextEditor } from './extHostTextEditor';
 import * as assert from 'assert';
 import * as typeConverters from './extHostTypeConverters';
 import URI from 'vs/base/common/uri';
-import { ExtHostWebview, ExtHostWebviews } from './extHostWebview';
 import { Disposable } from './extHostTypes';
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
@@ -20,7 +19,6 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	private _disposables: Disposable[] = [];
 
 	private _activeEditorId: string;
-	private _activeWebview: ExtHostWebview;
 
 	private readonly _editors = new Map<string, ExtHostTextEditor>();
 	private readonly _documents = new Map<string, ExtHostDocumentData>();
@@ -29,31 +27,15 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	private readonly _onDidRemoveDocuments = new Emitter<ExtHostDocumentData[]>();
 	private readonly _onDidChangeVisibleTextEditors = new Emitter<ExtHostTextEditor[]>();
 	private readonly _onDidChangeActiveTextEditor = new Emitter<ExtHostTextEditor>();
-	private readonly _onDidChangeActiveEditor = new Emitter<ExtHostTextEditor | ExtHostWebview>();
 
 	readonly onDidAddDocuments: Event<ExtHostDocumentData[]> = this._onDidAddDocuments.event;
 	readonly onDidRemoveDocuments: Event<ExtHostDocumentData[]> = this._onDidRemoveDocuments.event;
 	readonly onDidChangeVisibleTextEditors: Event<ExtHostTextEditor[]> = this._onDidChangeVisibleTextEditors.event;
 	readonly onDidChangeActiveTextEditor: Event<ExtHostTextEditor> = this._onDidChangeActiveTextEditor.event;
-	readonly onDidChangeActiveEditor: Event<ExtHostTextEditor | ExtHostWebview> = this._onDidChangeActiveEditor.event;
 
 	constructor(
 		private readonly _mainContext: IMainContext,
-		_extHostWebviews?: ExtHostWebviews
-	) {
-		if (_extHostWebviews) {
-			_extHostWebviews.onDidChangeActiveWebview(webview => {
-				if (webview) {
-					if (webview !== this._activeWebview) {
-						this._onDidChangeActiveEditor.fire(webview);
-						this._activeWebview = webview;
-					}
-				} else {
-					this._activeWebview = webview;
-				}
-			}, this, this._disposables);
-		}
-	}
+	) { }
 
 	dispose() {
 		this._disposables = dispose(this._disposables);
@@ -143,9 +125,6 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 		}
 		if (delta.newActiveEditor !== undefined) {
 			this._onDidChangeActiveTextEditor.fire(this.activeEditor());
-
-			const activeEditor = this.activeEditor();
-			this._onDidChangeActiveEditor.fire(activeEditor || this._activeWebview);
 		}
 	}
 

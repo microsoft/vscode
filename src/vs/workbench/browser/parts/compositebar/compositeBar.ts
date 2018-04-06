@@ -5,26 +5,25 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { illegalArgument } from 'vs/base/common/errors';
-import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
-import { Dimension } from 'vs/base/browser/builder';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar, IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { CompositeActionItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionItem, ActivityAction, ICompositeBar, ICompositeBarColors } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Dimension, $, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 
 export interface ICompositeBarOptions {
 	icon: boolean;
 	storageId: string;
 	orientation: ActionsOrientation;
-	composites: { id: string, name: string }[];
+	composites: { id: string, name: string, order: number }[];
 	colors: ICompositeBarColors;
 	overflowActionSize: number;
 	getActivityAction: (compositeId: string) => ActivityAction;
@@ -37,7 +36,7 @@ export interface ICompositeBarOptions {
 
 export class CompositeBar implements ICompositeBar {
 
-	private _onDidContextMenu: Emitter<MouseEvent>;
+	private readonly _onDidContextMenu: Emitter<MouseEvent>;
 
 	private dimension: Dimension;
 	private toDispose: IDisposable[];
@@ -81,13 +80,16 @@ export class CompositeBar implements ICompositeBar {
 		return this._onDidContextMenu.event;
 	}
 
-	public addComposite(compositeData: { id: string; name: string }): void {
+	public addComposite(compositeData: { id: string; name: string, order: number }): void {
 		if (this.options.composites.filter(c => c.id === compositeData.id).length) {
 			return;
 		}
-
+		let i = 0;
+		while (i < this.options.composites.length && this.options.composites[i].order < compositeData.order) {
+			i++;
+		}
 		this.options.composites.push(compositeData);
-		this.pin(compositeData.id);
+		this.pin(compositeData.id, true, i);
 	}
 
 	public removeComposite(id: string): void {
@@ -97,6 +99,9 @@ export class CompositeBar implements ICompositeBar {
 
 		this.options.composites = this.options.composites.filter(c => c.id !== id);
 		this.unpin(id);
+		this.pullComposite(id);
+		// Only at the end deactivate composite so the unpin and pull properly finish
+		this.deactivateComposite(id);
 	}
 
 	public activateComposite(id: string): void {
@@ -118,6 +123,12 @@ export class CompositeBar implements ICompositeBar {
 	public deactivateComposite(id: string): void {
 		if (this.compositeIdToActions[id]) {
 			this.compositeIdToActions[id].deactivate();
+		}
+		if (this.activeCompositeId === id) {
+			this.activeCompositeId = undefined;
+		}
+		if (this.activeUnpinnedCompositeId === id) {
+			this.activeUnpinnedCompositeId = undefined;
 		}
 	}
 
@@ -191,7 +202,7 @@ export class CompositeBar implements ICompositeBar {
 	}
 
 	public create(parent: HTMLElement): HTMLElement {
-		const actionBarDiv = parent.appendChild(dom.$('.composite-bar'));
+		const actionBarDiv = parent.appendChild($('.composite-bar'));
 		this.compositeSwitcherBar = new ActionBar(actionBarDiv, {
 			actionItemProvider: (action: Action) => action instanceof CompositeOverflowActivityAction ? this.compositeOverflowActionItem : this.compositeIdToActionItems[action.id],
 			orientation: this.options.orientation,
@@ -201,16 +212,16 @@ export class CompositeBar implements ICompositeBar {
 		this.toDispose.push(this.compositeSwitcherBar);
 
 		// Contextmenu for composites
-		this.toDispose.push(dom.addDisposableListener(parent, dom.EventType.CONTEXT_MENU, (e: MouseEvent) => {
-			dom.EventHelper.stop(e, true);
+		this.toDispose.push(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => {
+			EventHelper.stop(e, true);
 			this._onDidContextMenu.fire(e);
 		}));
 
 		// Allow to drop at the end to move composites to the end
-		this.toDispose.push(dom.addDisposableListener(parent, dom.EventType.DROP, (e: DragEvent) => {
+		this.toDispose.push(addDisposableListener(parent, EventType.DROP, (e: DragEvent) => {
 			const draggedCompositeId = CompositeActionItem.getDraggedCompositeId();
 			if (draggedCompositeId) {
-				dom.EventHelper.stop(e, true);
+				EventHelper.stop(e, true);
 				CompositeActionItem.clearDraggedComposite();
 
 				const targetId = this.pinnedComposites[this.pinnedComposites.length - 1];
@@ -431,13 +442,13 @@ export class CompositeBar implements ICompositeBar {
 		return this.pinnedComposites.indexOf(compositeId) >= 0;
 	}
 
-	public pin(compositeId: string, update = true): void {
+	public pin(compositeId: string, update = true, index = this.pinnedComposites.length): void {
 		if (this.isPinned(compositeId)) {
 			return;
 		}
 
 		this.options.openComposite(compositeId).then(() => {
-			this.pinnedComposites.push(compositeId);
+			this.pinnedComposites.splice(index, 0, compositeId);
 			this.pinnedComposites = arrays.distinct(this.pinnedComposites);
 
 			if (update) {

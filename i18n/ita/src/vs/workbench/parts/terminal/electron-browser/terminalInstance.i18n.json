@@ -8,7 +8,9 @@
 	],
 	"terminal.integrated.a11yBlankLine": "Riga vuota",
 	"terminal.integrated.a11yPromptLabel": "Input di terminale",
+	"terminal.integrated.a11yTooMuchOutput": "Troppo output da annunciare. Per leggere, spostarsi manualmente nelle righe",
 	"terminal.integrated.copySelection.noSelection": "Il terminale non contiene alcuna selezione da copiare",
 	"terminal.integrated.exitedWithCode": "Il processo del terminale è stato terminato. Codice di uscita: {0}",
-	"terminal.integrated.waitOnExit": "Premere un tasto qualsiasi per chiudere il terminale"
+	"terminal.integrated.waitOnExit": "Premere un tasto qualsiasi per chiudere il terminale",
+	"terminal.integrated.launchFailed": "Non è stato possibile avviare il comando '{0}{1}' del processo del terminale (codice di uscita: {2})"
 }

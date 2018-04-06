@@ -34,7 +34,7 @@ export class InsertCursorAbove extends EditorAction {
 			alias: 'Add Cursor Above',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
 				linux: {
 					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
@@ -70,7 +70,7 @@ export class InsertCursorBelow extends EditorAction {
 			alias: 'Add Cursor Below',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
 				linux: {
 					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
@@ -107,7 +107,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 			alias: 'Add Cursors to Line Ends',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I
 			}
 		});
@@ -603,7 +603,7 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 			alias: 'Change All Occurrences',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F2
 			},
 			menuOpts: {
@@ -803,9 +803,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this.state = state;
 
 		if (!this.state) {
-			if (this.decorations.length > 0) {
-				this.decorations = this.editor.deltaDecorations(this.decorations, []);
-			}
+			this.decorations = this.editor.deltaDecorations(this.decorations, []);
 			return;
 		}
 

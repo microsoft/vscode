@@ -8,5 +8,6 @@
 	],
 	"yes": "Ja",
 	"no": "Nein",
-	"not now": "Erneut nachfragen"
+	"not now": "Erneut nachfragen",
+	"suggest auto fetch": "Möchten Sie Code [regelmäßig \"git fetch\" ausführen lassen] ({0})?"
 }

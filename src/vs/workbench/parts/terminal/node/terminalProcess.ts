@@ -24,7 +24,7 @@ var cols = process.env.PTYCOLS;
 var rows = process.env.PTYROWS;
 var currentTitle = '';
 
-setupPlanB(process.env.PTYPID);
+setupPlanB(Number(process.env.PTYPID));
 cleanEnv();
 
 interface IOptions {
@@ -91,9 +91,9 @@ process.on('message', function (message) {
 sendProcessId();
 setupTitlePolling();
 
-function getArgs() {
+function getArgs(): string[] {
 	if (process.env['PTYSHELLCMDLINE']) {
-		return process.env['PTYSHELLCMDLINE'];
+		return [process.env['PTYSHELLCMDLINE']];
 	}
 	var args = [];
 	var i = 0;
@@ -107,6 +107,7 @@ function getArgs() {
 function cleanEnv() {
 	var keys = [
 		'AMD_ENTRYPOINT',
+		'ELECTRON_NO_ASAR',
 		'ELECTRON_RUN_AS_NODE',
 		'GOOGLE_API_KEY',
 		'PTYCWD',

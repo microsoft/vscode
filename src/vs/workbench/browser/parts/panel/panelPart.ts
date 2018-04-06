@@ -6,13 +6,13 @@
 import 'vs/css!./media/panelpart';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
-import Event from 'vs/base/common/event';
-import { Builder, Dimension } from 'vs/base/browser/builder';
+import { Event } from 'vs/base/common/event';
+import { $ } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel } from 'vs/workbench/common/panel';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
-import { Panel, PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
+import { Panel, PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -30,6 +30,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Dimension } from 'vs/base/browser/dom';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -123,11 +124,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	public updateStyles(): void {
 		super.updateStyles();
 
-		const container = this.getContainer();
+		const container = $(this.getContainer());
 		container.style('background-color', this.getColor(PANEL_BACKGROUND));
 		container.style('border-left-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
 
-		const title = this.getTitleArea();
+		const title = $(this.getTitleArea());
 		title.style('border-top-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
 	}
 
@@ -169,7 +170,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		});
 	}
 
-	public getPanels(): IPanelIdentifier[] {
+	public getPanels(): PanelDescriptor[] {
 		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
 			.filter(p => p.enabled)
 			.sort((v1, v2) => v1.order - v2.order);
@@ -207,8 +208,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.hideActiveComposite().then(composite => void 0);
 	}
 
-	protected createTitleLabel(parent: Builder): ICompositeTitleLabel {
-		const titleArea = this.compositeBar.create(parent.getHTMLElement());
+	protected createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
+		const titleArea = this.compositeBar.create(parent);
 		titleArea.classList.add('panel-switcher-container');
 
 		return {
@@ -258,7 +259,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			return 0;
 		}
 		if (!this.toolbarWidth.has(activePanel.getId())) {
-			this.toolbarWidth.set(activePanel.getId(), this.toolBar.getContainer().getHTMLElement().offsetWidth);
+			this.toolbarWidth.set(activePanel.getId(), this.toolBar.getContainer().offsetWidth);
 		}
 
 		return this.toolbarWidth.get(activePanel.getId());

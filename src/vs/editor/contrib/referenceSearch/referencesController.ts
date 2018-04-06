@@ -155,16 +155,17 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 			// show widget
 			return this._widget.setModel(this._model).then(() => {
+				if (this._widget) { // might have been closed
+					// set title
+					this._widget.setMetaTitle(options.getMetaTitle(this._model));
 
-				// set title
-				this._widget.setMetaTitle(options.getMetaTitle(this._model));
-
-				// set 'best' selection
-				let uri = this._editor.getModel().uri;
-				let pos = new Position(range.startLineNumber, range.startColumn);
-				let selection = this._model.nearestReference(uri, pos);
-				if (selection) {
-					return this._widget.setSelection(selection);
+					// set 'best' selection
+					let uri = this._editor.getModel().uri;
+					let pos = new Position(range.startLineNumber, range.startColumn);
+					let selection = this._model.nearestReference(uri, pos);
+					if (selection) {
+						return this._widget.setSelection(selection);
+					}
 				}
 				return undefined;
 			});
@@ -172,6 +173,19 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}, error => {
 			this._notificationService.error(error);
 		});
+	}
+
+	public async goToNextOrPreviousReference(fwd: boolean) {
+		if (this._model) { // can be called while still resolving...
+			let source = this._model.nearestReference(this._editor.getModel().uri, this._widget.position);
+			let target = this._model.nextOrPreviousReference(source, fwd);
+			let editorFocus = this._editor.isFocused();
+			await this._widget.setSelection(target);
+			await this._gotoReference(target);
+			if (editorFocus) {
+				this._editor.focus();
+			}
+		}
 	}
 
 	public closeWidget(): void {
@@ -189,16 +203,16 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._requestIdPool += 1; // Cancel pending requests
 	}
 
-	private _gotoReference(ref: Location): void {
+	private _gotoReference(ref: Location): TPromise<any> {
 		this._widget.hide();
 
 		this._ignoreModelChangeEvent = true;
-		const { uri, range } = ref;
+		const range = Range.lift(ref.range).collapseToStart();
 
-		this._editorService.openEditor({
-			resource: uri,
+		return this._editorService.openEditor({
+			resource: ref.uri,
 			options: { selection: range }
-		}).done(openedEditor => {
+		}).then(openedEditor => {
 			this._ignoreModelChangeEvent = false;
 
 			if (!openedEditor || openedEditor.getControl() !== this._editor) {

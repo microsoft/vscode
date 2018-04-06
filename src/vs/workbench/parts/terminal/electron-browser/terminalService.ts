@@ -22,7 +22,10 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { getTerminalDefaultShellWindows } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 import { TerminalTab } from 'vs/workbench/parts/terminal/electron-browser/terminalTab';
-import { IChoiceService, IConfirmationService, Choice } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ipcRenderer as ipc } from 'electron';
+import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
@@ -42,13 +45,26 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
-		@IChoiceService private readonly _choiceService: IChoiceService,
-		@IConfirmationService private readonly _confirmationService: IConfirmationService
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IDialogService private readonly _dialogService: IDialogService
 	) {
 		super(contextKeyService, panelService, partService, lifecycleService, storageService);
 
 		this._terminalTabs = [];
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
+
+		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => {
+			// if the request to open files is coming in from the integrated terminal (identified though
+			// the termProgram variable) and we are instructed to wait for editors close, wait for the
+			// marker file to get deleted and then focus back to the integrated terminal.
+			if (request.termProgram === 'vscode' && request.filesToWait) {
+				pfs.whenDeleted(request.filesToWait.waitMarkerFilePath).then(() => {
+					if (this.terminalInstances.length > 0) {
+						this.getActiveInstance().focus();
+					}
+				});
+			}
+		});
 	}
 
 	public createInstance(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {
@@ -126,11 +142,12 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			return;
 		}
 
-		const message = nls.localize('terminal.integrated.chooseWindowsShellInfo', "You can change the default terminal shell by selecting the customize button.");
-		const options: Choice[] = [nls.localize('customize', "Customize"), { label: nls.localize('never again', "Don't Show Again") }];
-		this._choiceService.choose(Severity.Info, message, options).then(choice => {
-			switch (choice) {
-				case 0 /* Customize */:
+		this._notificationService.prompt(
+			Severity.Info,
+			nls.localize('terminal.integrated.chooseWindowsShellInfo', "You can change the default terminal shell by selecting the customize button."),
+			[{
+				label: nls.localize('customize', "Customize"),
+				run: () => {
 					this.selectDefaultWindowsShell().then(shell => {
 						if (!shell) {
 							return TPromise.as(null);
@@ -145,12 +162,14 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 						}
 						return TPromise.as(null);
 					});
-					break;
-				case 1 /* Do not show again */:
-					this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true);
-					break;
-			}
-		});
+				}
+			},
+			{
+				label: nls.localize('never again', "Don't Show Again"),
+				isSecondary: true,
+				run: () => this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true)
+			}]
+		);
 	}
 
 	public selectDefaultWindowsShell(): TPromise<string> {
@@ -225,10 +244,10 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
 		}
 
-		return this._confirmationService.confirm({
+		return this._dialogService.confirm({
 			message,
 			type: 'warning',
-		}).then(confirmed => !confirmed);
+		}).then(res => !res.confirmed);
 	}
 
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {

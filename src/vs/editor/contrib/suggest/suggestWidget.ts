@@ -9,7 +9,7 @@ import 'vs/css!./media/suggest';
 import * as nls from 'vs/nls';
 import { createMatches } from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
-import Event, { Emitter, chain } from 'vs/base/common/event';
+import { Event, Emitter, chain } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -361,7 +361,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	private isAuto: boolean;
 	private loadingTimeout: number;
 	private currentSuggestionDetails: TPromise<void>;
-	private focusedItemIndex: number;
 	private focusedItem: ICompletionItem;
 	private ignoreFocusEvents = false;
 	private completionModel: CompletionModel;
@@ -371,6 +370,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	private listElement: HTMLElement;
 	private details: SuggestionDetails;
 	private list: List<ICompletionItem>;
+	private listHeight: number;
 
 	private suggestWidgetVisible: IContextKey<boolean>;
 	private suggestWidgetMultipleSuggestions: IContextKey<boolean>;
@@ -439,7 +439,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.list = new List(this.listElement, this, [renderer], {
 			useShadows: false,
 			selectOnMouseDown: true,
-			focusOnMouseDown: false
+			focusOnMouseDown: false,
+			openController: { shouldOpen: () => false }
 		});
 
 		this.toDispose = [
@@ -591,27 +592,17 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.suggestionSupportsAutoAccept.set(!item.suggestion.noAutoAccept);
 
-		const oldFocus = this.focusedItem;
-		const oldFocusIndex = this.focusedItemIndex;
-		this.focusedItemIndex = index;
 		this.focusedItem = item;
-
-		if (oldFocus) {
-			this.ignoreFocusEvents = true;
-			this.list.splice(oldFocusIndex, 1, [oldFocus]);
-			this.ignoreFocusEvents = false;
-		}
 
 		this.list.reveal(index);
 
 		this.currentSuggestionDetails = item.resolve()
 			.then(() => {
+				// item can have extra information, so re-render
 				this.ignoreFocusEvents = true;
 				this.list.splice(index, 1, [item]);
-				this.ignoreFocusEvents = false;
-
 				this.list.setFocus([index]);
-				this.list.reveal(index);
+				this.ignoreFocusEvents = false;
 
 				if (this.expandDocsSettingFromStorage()) {
 					this.showDetails();
@@ -640,6 +631,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			case State.Hidden:
 				hide(this.messageElement, this.details.element, this.listElement);
 				this.hide();
+				this.listHeight = 0;
 				if (stateChanged) {
 					this.list.splice(0, this.list.length);
 				}
@@ -674,10 +666,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.show();
 				this._ariaAlert(this.details.getAriaLabel());
 				break;
-		}
-
-		if (stateChanged && this.state !== State.Hidden) {
-			this.editor.layoutContentWidget(this);
 		}
 	}
 
@@ -728,7 +716,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			stats['wasAutomaticallyTriggered'] = !!isAuto;
 			/* __GDPR__
 				"suggestWidget" : {
-					"wasAutomaticallyTriggered" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"wasAutomaticallyTriggered" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"${include}": [
 						"${ICompletionStats}",
 						"${EditorTelemetryData}"
@@ -738,7 +726,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.telemetryService.publicLog('suggestWidget', { ...stats, ...this.editor.getTelemetryData() });
 
 			this.focusedItem = null;
-			this.focusedItemIndex = null;
 			this.list.splice(0, this.list.length, this.completionModel.items);
 
 			if (isFrozen) {
@@ -936,7 +923,12 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	}
 
 	private show(): void {
-		this.updateListHeight();
+		const newHeight = this.updateListHeight();
+		if (newHeight !== this.listHeight) {
+			this.editor.layoutContentWidget(this);
+			this.listHeight = newHeight;
+		}
+
 		this.suggestWidgetVisible.set(true);
 
 		this.showTimeout = TPromise.timeout(100).then(() => {
@@ -976,7 +968,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		return SuggestWidget.ID;
 	}
 
-	private updateListHeight(): void {
+	private updateListHeight(): number {
 		let height = 0;
 
 		if (this.state === State.Empty || this.state === State.Loading) {
@@ -989,6 +981,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.element.style.lineHeight = `${this.unfocusedHeight}px`;
 		this.listElement.style.height = `${height}px`;
 		this.list.layout(height);
+		return height;
 	}
 
 	private adjustDocsPosition() {

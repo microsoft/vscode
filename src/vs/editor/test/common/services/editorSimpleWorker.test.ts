@@ -32,7 +32,7 @@ suite('EditorSimpleWorker', () => {
 	let model: ICommonModel;
 
 	setup(() => {
-		worker = new WorkerWithModels();
+		worker = new WorkerWithModels(null);
 		model = worker.addModel([
 			'This is line one', //16
 			'and this is line number two', //27
@@ -167,5 +167,26 @@ suite('EditorSimpleWorker', () => {
 			assert.equal(suggestions.length, 1);
 			assert.equal(suggestions[0].label, 'foobar');
 		});
+	});
+
+	test('get words via iterator, issue #46930', function () {
+
+		let model = worker.addModel([
+			'one line',	// 1
+			'two line',	// 2
+			'',
+			'past empty',
+			'single',
+			'',
+			'and now we are done'
+		]);
+
+		let words: string[] = [];
+
+		for (let iter = model.createWordIterator(/[a-z]+/img), e = iter.next(); !e.done; e = iter.next()) {
+			words.push(e.value);
+		}
+
+		assert.deepEqual(words, ['one', 'line', 'two', 'line', 'past', 'empty', 'single', 'and', 'now', 'we', 'are', 'done']);
 	});
 });

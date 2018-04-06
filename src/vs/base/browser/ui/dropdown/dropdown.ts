@@ -12,10 +12,10 @@ import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { BaseActionItem, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { IContextViewProvider, IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { EventHelper, EventType } from 'vs/base/browser/dom';
+import { EventHelper, EventType, removeClass, addClass } from 'vs/base/browser/dom';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 
 export interface ILabelRenderer {
@@ -33,6 +33,7 @@ export class BaseDropdown extends ActionRunner {
 	private $boxContainer: Builder;
 	private $label: Builder;
 	private $contents: Builder;
+	private visible: boolean;
 
 	constructor(container: HTMLElement, options: IBaseDropdownOptions) {
 		super();
@@ -58,7 +59,11 @@ export class BaseDropdown extends ActionRunner {
 				return; // prevent multiple clicks to open multiple context menus (https://github.com/Microsoft/vscode/issues/41363)
 			}
 
-			this.show();
+			if (this.visible) {
+				this.hide();
+			} else {
+				this.show();
+			}
 		}).appendTo(this.$el);
 
 		let cleanupFn = labelRenderer(this.$label.getHTMLElement());
@@ -74,12 +79,12 @@ export class BaseDropdown extends ActionRunner {
 		return this._toDispose;
 	}
 
-	public get element(): Builder {
-		return this.$el;
+	public get element(): HTMLElement {
+		return this.$el.getHTMLElement();
 	}
 
-	public get label(): Builder {
-		return this.$label;
+	public get label(): HTMLElement {
+		return this.$label.getHTMLElement();
 	}
 
 	public set tooltip(tooltip: string) {
@@ -87,11 +92,11 @@ export class BaseDropdown extends ActionRunner {
 	}
 
 	public show(): void {
-		// noop
+		this.visible = true;
 	}
 
 	public hide(): void {
-		// noop
+		this.visible = false;
 	}
 
 	protected onEvent(e: Event, activeElement: HTMLElement): void {
@@ -135,10 +140,12 @@ export class Dropdown extends BaseDropdown {
 	}
 
 	public show(): void {
-		this.element.addClass('active');
+		super.show();
+
+		addClass(this.element, 'active');
 
 		this.contextViewProvider.showContextView({
-			getAnchor: () => this.element.getHTMLElement(),
+			getAnchor: () => this.getAnchor(),
 
 			render: (container) => {
 				return this.renderContents(container);
@@ -148,13 +155,21 @@ export class Dropdown extends BaseDropdown {
 				this.onEvent(e, activeElement);
 			},
 
-			onHide: () => {
-				this.element.removeClass('active');
-			}
+			onHide: () => this.onHide()
 		});
 	}
 
+	protected getAnchor(): HTMLElement | IAnchor {
+		return this.element;
+	}
+
+	protected onHide(): void {
+		removeClass(this.element, 'active');
+	}
+
 	public hide(): void {
+		super.hide();
+
 		if (this.contextViewProvider) {
 			this.contextViewProvider.hideContextView();
 		}
@@ -217,22 +232,24 @@ export class DropdownMenu extends BaseDropdown {
 	}
 
 	public show(): void {
-		this.element.addClass('active');
+		super.show();
+
+		addClass(this.element, 'active');
 
 		this._contextMenuProvider.showContextMenu({
-			getAnchor: () => this.element.getHTMLElement(),
+			getAnchor: () => this.element,
 			getActions: () => TPromise.as(this.actions),
 			getActionsContext: () => this.menuOptions ? this.menuOptions.context : null,
 			getActionItem: (action) => this.menuOptions && this.menuOptions.actionItemProvider ? this.menuOptions.actionItemProvider(action) : null,
 			getKeyBinding: (action: IAction) => this.menuOptions && this.menuOptions.getKeyBinding ? this.menuOptions.getKeyBinding(action) : null,
 			getMenuClassName: () => this.menuClassName,
-			onHide: () => this.element.removeClass('active'),
+			onHide: () => removeClass(this.element, 'active'),
 			actionRunner: this.menuOptions ? this.menuOptions.actionRunner : null
 		});
 	}
 
 	public hide(): void {
-		// noop
+		super.hide();
 	}
 }
 

@@ -14,16 +14,14 @@ import { LinkedList } from 'vs/base/common/linkedList';
  * To an event a function with one or zero parameters
  * can be subscribed. The event is the subscriber function itself.
  */
-interface Event<T> {
+export interface Event<T> {
 	(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
 }
 
-namespace Event {
+export namespace Event {
 	const _disposable = { dispose() { } };
 	export const None: Event<any> = function () { return _disposable; };
 }
-
-export default Event;
 
 type Listener = [Function, any] | Function;
 
@@ -163,7 +161,7 @@ export class Emitter<T> {
 
 export class EventMultiplexer<T> implements IDisposable {
 
-	private emitter: Emitter<T>;
+	private readonly emitter: Emitter<T>;
 	private hasListeners = false;
 	private events: { event: Event<T>; listener: IDisposable; }[] = [];
 
@@ -367,6 +365,7 @@ export interface IChainableEvent<T> {
 	map<O>(fn: (i: T) => O): IChainableEvent<O>;
 	forEach(fn: (i: T) => void): IChainableEvent<T>;
 	filter(fn: (e: T) => boolean): IChainableEvent<T>;
+	latch(): IChainableEvent<T>;
 	on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
 }
 
@@ -398,6 +397,10 @@ class ChainableEvent<T> implements IChainableEvent<T> {
 
 	filter(fn: (e: T) => boolean): IChainableEvent<T> {
 		return new ChainableEvent(filterEvent(this._event, fn));
+	}
+
+	latch(): IChainableEvent<T> {
+		return new ChainableEvent(latch(this._event));
 	}
 
 	on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
@@ -535,4 +538,16 @@ export function fromNodeEventEmitter<T>(emitter: NodeEventEmitter, eventName: st
 	const result = new Emitter<T>({ onFirstListenerAdd, onLastListenerRemove });
 
 	return result.event;
+}
+
+export function latch<T>(event: Event<T>): Event<T> {
+	let firstCall = true;
+	let cache: T;
+
+	return filterEvent(event, value => {
+		let shouldEmit = firstCall || value !== cache;
+		firstCall = false;
+		cache = value;
+		return shouldEmit;
+	});
 }

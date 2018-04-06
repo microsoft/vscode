@@ -15,6 +15,7 @@ import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
 import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
 import { CancellationToken } from 'vscode';
+import { detectEncoding } from './encoding';
 
 const readfile = denodeify<string, string | null, string>(fs.readFile);
 
@@ -366,14 +367,14 @@ function getGitErrorCode(stderr: string): string | undefined {
 
 export class Git {
 
-	private gitPath: string;
+	readonly path: string;
 	private env: any;
 
 	private _onOutput = new EventEmitter();
 	get onOutput(): EventEmitter { return this._onOutput; }
 
 	constructor(options: IGitOptions) {
-		this.gitPath = options.gitPath;
+		this.path = options.gitPath;
 		this.env = options.env || {};
 	}
 
@@ -447,7 +448,7 @@ export class Git {
 	}
 
 	spawn(args: string[], options: SpawnOptions = {}): cp.ChildProcess {
-		if (!this.gitPath) {
+		if (!this.path) {
 			throw new Error('git could not be found in the system.');
 		}
 
@@ -469,7 +470,7 @@ export class Git {
 			this.log(`> git ${args.join(' ')}\n`);
 		}
 
-		return cp.spawn(this.gitPath, args, options);
+		return cp.spawn(this.path, args, options);
 	}
 
 	private log(output: string): void {
@@ -659,9 +660,16 @@ export class Repository {
 		return result.stdout;
 	}
 
-	async bufferString(object: string, encoding: string = 'utf8'): Promise<string> {
+	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false): Promise<string> {
 		const stdout = await this.buffer(object);
-		return iconv.decode(stdout, iconv.encodingExists(encoding) ? encoding : 'utf8');
+
+		if (autoGuessEncoding) {
+			encoding = detectEncoding(stdout) || encoding;
+		}
+
+		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
+
+		return iconv.decode(stdout, encoding);
 	}
 
 	async buffer(object: string): Promise<Buffer> {

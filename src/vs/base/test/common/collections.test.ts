@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import collections = require('vs/base/common/collections');
+import * as collections from 'vs/base/common/collections';
 
 
 suite('Collections', () => {

@@ -27,6 +27,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
@@ -89,7 +90,11 @@ export class DebugHoverWidget implements IContentWidget {
 		this.editor.applyFontInfo(this.domNode);
 
 		this.toDispose.push(attachStylerCallback(this.themeService, { editorHoverBackground, editorHoverBorder }, colors => {
-			this.domNode.style.backgroundColor = colors.editorHoverBackground;
+			if (colors.editorHoverBackground) {
+				this.domNode.style.backgroundColor = colors.editorHoverBackground.toString();
+			} else {
+				this.domNode.style.backgroundColor = null;
+			}
 			if (colors.editorHoverBorder) {
 				this.domNode.style.border = `1px solid ${colors.editorHoverBorder}`;
 			} else {
@@ -204,14 +209,16 @@ export class DebugHoverWidget implements IContentWidget {
 
 			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
 				range: new Range(pos.lineNumber, expressionRange.startColumn, pos.lineNumber, expressionRange.startColumn + matchingExpression.length),
-				options: {
-					className: 'hoverHighlight'
-				}
+				options: DebugHoverWidget._HOVER_HIGHLIGHT_DECORATION_OPTIONS
 			}]);
 
 			return this.doShow(pos, expression, focus);
 		});
 	}
+
+	private static _HOVER_HIGHLIGHT_DECORATION_OPTIONS = ModelDecorationOptions.register({
+		className: 'hoverHighlight'
+	});
 
 	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): TPromise<IExpression> {
 		if (!container) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -164,7 +164,7 @@ export interface ITerminalService {
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
-	splitInstance(instance: ITerminalInstance): void;
+	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): void;
 
 	getActiveTab(): ITerminalTab;
 	setActiveTabToNext(): void;
@@ -266,6 +266,12 @@ export interface ITerminalInstance {
 	 * resize events.
 	 */
 	disableLayout: boolean;
+
+	/**
+	 * An object that tracks when commands are run and enables navigating and selecting between
+	 * them.
+	 */
+	readonly commandTracker: ITerminalCommandTracker;
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
@@ -439,4 +445,11 @@ export interface ITerminalInstance {
 	setTitle(title: string, eventFromProcess: boolean): void;
 
 	addDisposable(disposable: IDisposable): void;
+}
+
+export interface ITerminalCommandTracker {
+	scrollToPreviousCommand(): void;
+	scrollToNextCommand(): void;
+	selectToPreviousCommand(): void;
+	selectToNextCommand(): void;
 }

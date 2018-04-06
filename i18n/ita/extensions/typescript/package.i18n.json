@@ -55,5 +55,7 @@
 	"typescript.quickSuggestionsForPaths": "Attiva/Disattiva suggerimenti rapidi quando si digita un percorso di importazione.",
 	"typescript.locale": "Assegna le impostazioni internazionali utilizzate per riportare errori TypeScript. Richiede TypeScript > = 2.6.0. Il valore predefinito 'null' utilizza le impostazioni internazionali di VS Code.",
 	"javascript.implicitProjectConfig.experimentalDecorators": "Abilita/disabilita 'experimentalDecorators' per i file JavaScript che non fanno parte di un progetto. File jsconfig.json o tsconfig.json esistenti ignorano questa impostazione. Richiede TypeScript >= 2.3.1.",
-	"typescript.autoImportSuggestions.enabled": "Abilita/Disabilita suggerimenti importazione automatica. Richiede una versione di TypeScript >= 2.6.1"
+	"typescript.autoImportSuggestions.enabled": "Abilita/Disabilita suggerimenti importazione automatica. Richiede una versione di TypeScript >= 2.6.1",
+	"typescript.experimental.syntaxFolding": "Abilita/disabilita i marcatori di folding con riconoscimento della sintassi.",
+	"taskDefinition.tsconfig.description": "File tsconfig che definisce la compilazione TS."
 }

@@ -96,21 +96,21 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 	}
 
 	private _triggerAndDisposeAction(instantitationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: any): Thenable<void> {
-		const actionInstance = instantitationService.createInstance(descriptor.syncDescriptor);
-		actionInstance.label = descriptor.label || actionInstance.label;
-
-		// don't run the action when not enabled
-		if (!actionInstance.enabled) {
-			actionInstance.dispose();
-
-			return void 0;
-		}
-
-		const from = args && args.from || 'keybinding';
-
 		// run action when workbench is created
 		return lifecycleService.when(LifecyclePhase.Running).then(() => {
+			const actionInstance = instantitationService.createInstance(descriptor.syncDescriptor);
 			try {
+				actionInstance.label = descriptor.label || actionInstance.label;
+
+				// don't run the action when not enabled
+				if (!actionInstance.enabled) {
+					actionInstance.dispose();
+
+					return void 0;
+				}
+
+				const from = args && args.from || 'keybinding';
+
 				return TPromise.as(actionInstance.run(undefined, { from })).then(() => {
 					actionInstance.dispose();
 				}, (err) => {
@@ -124,4 +124,3 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		});
 	}
 });
-

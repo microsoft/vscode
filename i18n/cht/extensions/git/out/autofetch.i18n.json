@@ -8,5 +8,6 @@
 	],
 	"yes": "是",
 	"no": "否",
-	"not now": "稍後詢問我"
+	"not now": "稍後詢問我",
+	"suggest auto fetch": "您希望 Code [定期執行 'git fetch']({0}) 嗎?"
 }

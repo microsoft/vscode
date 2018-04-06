@@ -6,10 +6,12 @@
 'use strict';
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { focusBorder, inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectListBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listInactiveFocusForeground, listInactiveFocusBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, lighten, badgeBackground, badgeForeground, progressBarBackground } from 'vs/platform/theme/common/colorRegistry';
+import { focusBorder, inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectListBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listInactiveFocusBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, lighten, badgeBackground, badgeForeground, progressBarBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Color } from 'vs/base/common/color';
+import { mixin } from 'vs/base/common/objects';
 
-export type styleFn = (colors: { [name: string]: ColorIdentifier }) => void;
+export type styleFn = (colors: { [name: string]: Color }) => void;
 
 export interface IStyleOverrides {
 	[color: string]: ColorIdentifier;
@@ -23,17 +25,27 @@ export interface IColorMapping {
 	[optionsKey: string]: ColorIdentifier | ColorFunction | undefined;
 }
 
-export function attachStyler<T extends IColorMapping>(themeService: IThemeService, optionsMapping: T, widgetOrCallback: IThemable | styleFn): IDisposable {
-	function applyStyles(theme: ITheme): void {
-		const styles = Object.create(null);
-		for (let key in optionsMapping) {
-			const value = optionsMapping[key as string];
-			if (typeof value === 'string') {
-				styles[key] = theme.getColor(value);
-			} else if (typeof value === 'function') {
-				styles[key] = value(theme);
-			}
+export interface IComputedStyles {
+	[color: string]: Color;
+}
+
+export function computeStyles(theme: ITheme, styleMap: IColorMapping): IComputedStyles {
+	const styles = Object.create(null) as IComputedStyles;
+	for (let key in styleMap) {
+		const value = styleMap[key as string];
+		if (typeof value === 'string') {
+			styles[key] = theme.getColor(value);
+		} else if (typeof value === 'function') {
+			styles[key] = value(theme);
 		}
+	}
+
+	return styles;
+}
+
+export function attachStyler<T extends IColorMapping>(themeService: IThemeService, styleMap: T, widgetOrCallback: IThemable | styleFn): IDisposable {
+	function applyStyles(theme: ITheme): void {
+		const styles = computeStyles(themeService.getTheme(), styleMap);
 
 		if (typeof widgetOrCallback === 'function') {
 			widgetOrCallback(styles);
@@ -172,7 +184,6 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 		listInactiveSelectionBackground: (style && style.listInactiveSelectionBackground) || listInactiveSelectionBackground,
 		listInactiveSelectionForeground: (style && style.listInactiveSelectionForeground) || listInactiveSelectionForeground,
 		listInactiveFocusBackground: (style && style.listInactiveFocusBackground) || listInactiveFocusBackground,
-		listInactiveFocusForeground: (style && style.listInactiveFocusForeground) || listInactiveFocusForeground,
 		listHoverBackground: (style && style.listHoverBackground) || listHoverBackground,
 		listHoverForeground: (style && style.listHoverForeground) || listHoverForeground,
 		listDropBackground: (style && style.listDropBackground) || listDropBackground,
@@ -192,7 +203,6 @@ export interface IListStyleOverrides extends IStyleOverrides {
 	listInactiveSelectionBackground?: ColorIdentifier;
 	listInactiveSelectionForeground?: ColorIdentifier;
 	listInactiveFocusBackground?: ColorIdentifier;
-	listInactiveFocusForeground?: ColorIdentifier;
 	listHoverBackground?: ColorIdentifier;
 	listHoverForeground?: ColorIdentifier;
 	listDropBackground?: ColorIdentifier;
@@ -202,27 +212,27 @@ export interface IListStyleOverrides extends IStyleOverrides {
 	listHoverOutline?: ColorIdentifier;
 }
 
-export function attachListStyler(widget: IThemable, themeService: IThemeService, style?: IListStyleOverrides): IDisposable {
-	return attachStyler(themeService, {
-		listFocusBackground: (style && style.listFocusBackground) || listFocusBackground,
-		listFocusForeground: (style && style.listFocusForeground) || listFocusForeground,
-		listActiveSelectionBackground: (style && style.listActiveSelectionBackground) || lighten(listActiveSelectionBackground, 0.1),
-		listActiveSelectionForeground: (style && style.listActiveSelectionForeground) || listActiveSelectionForeground,
-		listFocusAndSelectionBackground: style && style.listFocusAndSelectionBackground || listActiveSelectionBackground,
-		listFocusAndSelectionForeground: (style && style.listFocusAndSelectionForeground) || listActiveSelectionForeground,
-		listInactiveSelectionBackground: (style && style.listInactiveSelectionBackground) || listInactiveSelectionBackground,
-		listInactiveSelectionForeground: (style && style.listInactiveSelectionForeground) || listInactiveSelectionForeground,
-		listInactiveFocusBackground: (style && style.listInactiveFocusBackground) || listInactiveFocusBackground,
-		listInactiveFocusForeground: (style && style.listInactiveFocusForeground) || listInactiveFocusForeground,
-		listHoverBackground: (style && style.listHoverBackground) || listHoverBackground,
-		listHoverForeground: (style && style.listHoverForeground) || listHoverForeground,
-		listDropBackground: (style && style.listDropBackground) || listDropBackground,
-		listFocusOutline: (style && style.listFocusOutline) || activeContrastBorder,
-		listSelectionOutline: (style && style.listSelectionOutline) || activeContrastBorder,
-		listHoverOutline: (style && style.listHoverOutline) || activeContrastBorder,
-		listInactiveFocusOutline: style && style.listInactiveFocusOutline // not defined by default, only opt-in
-	} as IListStyleOverrides, widget);
+export function attachListStyler(widget: IThemable, themeService: IThemeService, overrides?: IListStyleOverrides): IDisposable {
+	return attachStyler(themeService, mixin(overrides || Object.create(null), defaultListStyles, false) as IListStyleOverrides, widget);
 }
+
+export const defaultListStyles: IColorMapping = {
+	listFocusBackground: listFocusBackground,
+	listFocusForeground: listFocusForeground,
+	listActiveSelectionBackground: lighten(listActiveSelectionBackground, 0.1),
+	listActiveSelectionForeground: listActiveSelectionForeground,
+	listFocusAndSelectionBackground: listActiveSelectionBackground,
+	listFocusAndSelectionForeground: listActiveSelectionForeground,
+	listInactiveSelectionBackground: listInactiveSelectionBackground,
+	listInactiveSelectionForeground: listInactiveSelectionForeground,
+	listInactiveFocusBackground: listInactiveFocusBackground,
+	listHoverBackground: listHoverBackground,
+	listHoverForeground: listHoverForeground,
+	listDropBackground: listDropBackground,
+	listFocusOutline: activeContrastBorder,
+	listSelectionOutline: activeContrastBorder,
+	listHoverOutline: activeContrastBorder
+};
 
 export interface IButtonStyleOverrides extends IStyleOverrides {
 	buttonForeground?: ColorIdentifier;

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
@@ -34,8 +34,8 @@ export interface ITabFocus {
 export const TabFocus: ITabFocus = new class implements ITabFocus {
 	private _tabFocus: boolean = false;
 
-	private _onDidChangeTabFocus: Emitter<boolean> = new Emitter<boolean>();
-	public onDidChangeTabFocus: Event<boolean> = this._onDidChangeTabFocus.event;
+	private readonly _onDidChangeTabFocus: Emitter<boolean> = new Emitter<boolean>();
+	public readonly onDidChangeTabFocus: Event<boolean> = this._onDidChangeTabFocus.event;
 
 	public getTabFocusMode(): boolean {
 		return this._tabFocus;
@@ -70,7 +70,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	private _lineNumbersDigitCount: number;
 
 	private _onDidChange = this._register(new Emitter<editorOptions.IConfigurationChangedEvent>());
-	public onDidChange: Event<editorOptions.IConfigurationChangedEvent> = this._onDidChange.event;
+	public readonly onDidChange: Event<editorOptions.IConfigurationChangedEvent> = this._onDidChange.event;
 
 	constructor(options: editorOptions.IEditorOptions) {
 		super();
@@ -166,7 +166,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 }
 
-const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 const editorConfiguration: IConfigurationNode = {
 	'id': 'editor',
 	'order': 5,
@@ -369,6 +369,11 @@ const editorConfiguration: IConfigurationNode = {
 					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
 				]
 			}, "The modifier to be used to add multiple cursors with the mouse. `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier.")
+		},
+		'editor.multiCursorMergeOverlapping': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.multiCursorMergeOverlapping,
+			'description': nls.localize('multiCursorMergeOverlapping', "Merge multiple cursors when they are overlapping.")
 		},
 		'editor.quickSuggestions': {
 			'anyOf': [
@@ -574,6 +579,16 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.folding,
 			'description': nls.localize('folding', "Controls whether the editor has code folding enabled")
+		},
+		'editor.foldingStrategy': {
+			'type': 'string',
+			'enum': ['auto', 'indentation'],
+			'enumDescriptions': [
+				nls.localize('foldingStrategyAuto', 'If available, use a langauge specific folding strategy, otherwise falls back to the indentation based strategy.'),
+				nls.localize('foldingStrategyIndentation', 'Always use the indentation based folding strategy')
+			],
+			'default': EDITOR_DEFAULTS.contribInfo.foldingStrategy,
+			'description': nls.localize('foldingStrategy', "Controls the way folding ranges are computed. 'auto' picks uses a language specific folding strategy, if available. 'indentation' forces that the indentation based folding strategy is used.")
 		},
 		'editor.showFoldingControls': {
 			'type': 'string',

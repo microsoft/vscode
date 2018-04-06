@@ -36,7 +36,8 @@ export class RenderLineInput {
 
 	public readonly useMonospaceOptimizations: boolean;
 	public readonly lineContent: string;
-	public readonly mightContainRTL: boolean;
+	public readonly isBasicASCII: boolean;
+	public readonly containsRTL: boolean;
 	public readonly fauxIndentLength: number;
 	public readonly lineTokens: IViewLineTokens;
 	public readonly lineDecorations: LineDecoration[];
@@ -50,7 +51,8 @@ export class RenderLineInput {
 	constructor(
 		useMonospaceOptimizations: boolean,
 		lineContent: string,
-		mightContainRTL: boolean,
+		isBasicASCII: boolean,
+		containsRTL: boolean,
 		fauxIndentLength: number,
 		lineTokens: IViewLineTokens,
 		lineDecorations: LineDecoration[],
@@ -63,7 +65,8 @@ export class RenderLineInput {
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.lineContent = lineContent;
-		this.mightContainRTL = mightContainRTL;
+		this.isBasicASCII = isBasicASCII;
+		this.containsRTL = containsRTL;
 		this.fauxIndentLength = fauxIndentLength;
 		this.lineTokens = lineTokens;
 		this.lineDecorations = lineDecorations;
@@ -85,7 +88,8 @@ export class RenderLineInput {
 		return (
 			this.useMonospaceOptimizations === other.useMonospaceOptimizations
 			&& this.lineContent === other.lineContent
-			&& this.mightContainRTL === other.mightContainRTL
+			&& this.isBasicASCII === other.isBasicASCII
+			&& this.containsRTL === other.containsRTL
 			&& this.fauxIndentLength === other.fauxIndentLength
 			&& this.tabSize === other.tabSize
 			&& this.spaceWidth === other.spaceWidth
@@ -330,11 +334,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		}
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
 	}
-	let containsRTL = false;
-	if (input.mightContainRTL) {
-		containsRTL = strings.containsRTL(lineContent);
-	}
-	if (!containsRTL && !input.fontLigatures) {
+	if (input.isBasicASCII && !input.fontLigatures) {
 		tokens = splitLargeTokens(lineContent, tokens);
 	}
 
@@ -346,7 +346,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		tokens,
 		containsForeignElements,
 		input.tabSize,
-		containsRTL,
+		input.containsRTL,
 		input.spaceWidth,
 		input.renderWhitespace,
 		input.renderControlCharacters
@@ -406,11 +406,6 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[]): LinePart[] {
 			const piecesCount = Math.ceil(diff / Constants.LongToken);
 			for (let j = 1; j < piecesCount; j++) {
 				let pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
-				let lastCharInPiece = lineContent.charCodeAt(pieceEndIndex - 1);
-				if (strings.isHighSurrogate(lastCharInPiece)) {
-					// Don't cut in the middle of a surrogate pair
-					pieceEndIndex--;
-				}
 				result[resultLen++] = new LinePart(pieceEndIndex, tokenType);
 			}
 			result[resultLen++] = new LinePart(tokenEndIndex, tokenType);

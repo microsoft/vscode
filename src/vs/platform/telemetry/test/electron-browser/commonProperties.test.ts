@@ -8,13 +8,13 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
 import { del } from 'vs/base/node/extfs';
 import { mkdirp } from 'vs/base/node/pfs';
+import { timeout } from 'vs/base/common/async';
 
 suite('Telemetry - common properties', function () {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'telemetryservice');
@@ -93,7 +93,7 @@ suite('Telemetry - common properties', function () {
 			assert.ok(value1 !== value2, 'timestamp');
 
 			value1 = props['common.timesincesessionstart'];
-			return TPromise.timeout(10).then(_ => {
+			return timeout(10).then(_ => {
 				value2 = props['common.timesincesessionstart'];
 				assert.ok(value1 !== value2, 'timesincesessionstart');
 			});

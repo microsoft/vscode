@@ -9,7 +9,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ipcRenderer as ipc } from 'electron';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mark } from 'vs/base/common/performance';
 import { Barrier } from 'vs/base/common/async';

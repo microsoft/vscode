@@ -17,6 +17,7 @@
 	"focusNextGroup": "Váltás a következő csoportra",
 	"openToSide": "Megnyitás oldalt",
 	"closeEditor": "Szerkesztőablak bezárása",
+	"closeOneEditor": "Bezárás",
 	"revertAndCloseActiveEditor": "Visszaállítás és szerkesztőablak bezárása",
 	"closeEditorsToTheLeft": "Balra lévő szerkesztőablakok bezárása",
 	"closeAllEditors": "Összes szerkesztőablak bezárása",

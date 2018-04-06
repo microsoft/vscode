@@ -30,5 +30,6 @@
 	"vscode.extension.badges.description": "Descrizione della notifica.",
 	"vscode.extension.extensionDependencies": "Dipendenze ad altre estensioni. L'identificatore di un'estensione è sempre ${publisher}.${name}. Ad esempio: vscode.csharp.",
 	"vscode.extension.scripts.prepublish": "Script eseguito prima che il pacchetto venga pubblicato come estensione Visual Studio Code.",
+	"vscode.extension.scripts.uninstall": "Hook di disinstallazione per l'estensione VS Code. Script che viene eseguito quando l'estensione viene disinstallata completamente da VS Code, ovvero quando VS Code viene riavviato (arresto e avvio) dopo la disinstallazione dell'estensione. Sono supportati solo gli script Node.",
 	"vscode.extension.icon": "Percorso di un'icona da 128x128 pixel."
 }

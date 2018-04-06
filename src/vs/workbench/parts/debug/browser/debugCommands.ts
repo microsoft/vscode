@@ -34,13 +34,12 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.lastFocusedList;
-
-			// Tree only
-			if (!(focused instanceof List)) {
-				const tree = focused;
-				const element = <IEnablement>tree.getFocus();
-				debugService.enableOrDisableBreakpoints(!element.enabled, element).done(null, errors.onUnexpectedError);
+			const list = listService.lastFocusedList;
+			if (list instanceof List) {
+				const focused = <IEnablement[]>list.getFocusedElements();
+				if (focused && focused.length) {
+					debugService.enableOrDisableBreakpoints(!focused[0].enabled, focused[0]).done(null, errors.onUnexpectedError);
+				}
 			}
 		}
 	});
@@ -111,17 +110,18 @@ export function registerCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'debug.removeBreakpoint',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: ContextKeyExpr.and(CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_BREAKPOINT_SELECTED.toNegated()),
+		when: ContextKeyExpr.and(CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_BREAKPOINT_SELECTED.toNegated()),
 		primary: KeyCode.Delete,
 		mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.lastFocusedList;
+			const list = listService.lastFocusedList;
 
 			// Tree only
-			if (!(focused instanceof List)) {
-				const element = focused.getFocus();
+			if (list instanceof List) {
+				const focused = list.getFocusedElements();
+				const element = focused.length ? focused[0] : undefined;
 				if (element instanceof Breakpoint) {
 					debugService.removeBreakpoints(element.getId()).done(null, errors.onUnexpectedError);
 				} else if (element instanceof FunctionBreakpoint) {
@@ -177,7 +177,7 @@ export function registerCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		primary: KeyMod.Shift | KeyCode.F9,
-		when: EditorContextKeys.textFocus,
+		when: EditorContextKeys.editorTextFocus,
 		id: COLUMN_BREAKPOINT_COMMAND_ID,
 		handler: (accessor) => {
 			const debugService = accessor.get(IDebugService);

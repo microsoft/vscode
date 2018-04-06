@@ -10,7 +10,7 @@
         color-picker: [],
         css-less-sass: [ aeschli ],
         debug: {
-            assignees: [ isidorn ],
+            assignees: [ weinand ],
             assignLabel: false
         },
         diff-editor: [],
@@ -35,15 +35,15 @@
         error-list: [],
         extensions: [],
         file-encoding: {
-            assignees: [ bpasero ],
+            assignees: [],
             assignLabel: false
         },
         file-io: {
-            assignees: [ bpasero ],
+            assignees: [],
             assignLabel: false
         },
         file-watcher: {
-            assignees: [ bpasero ],
+            assignees: [],
             assignLabel: false
         },
         file-explorer: {
@@ -65,7 +65,7 @@
         markdown: [ mjbvz ],
         merge-conflict: [ chrmarti ],
         multi-root: {
-            assignees: [ bpasero ],
+            assignees: [],
             assignLabel: false
         },
         perf-profile: [],
@@ -86,59 +86,59 @@
         themes: [],
         typescript: [ mjbvz ],
         workbench: {
-            assignees: [ bpasero ],
+            assignees: [],
             assignLabel: false
         },
         workbench-dnd: {
-            assignees: [ bpasero ],
+            assignees: [],
             assignLabel: false
         },
         workbench-editors: {
-            assignees: [ bpasero ],
+            assignees: [],
             assignLabel: false
         },
         workbench-electron: {
-            assignees: [ bpasero ],
+            assignees: [],
             assignLabel: false
         },
         workbench-feedback: {
-            assignees: [ bpasero ],
+            assignees: [],
             assignLabel: false
         },
         workbench-history: {
-            assignees: [ bpasero ],
+            assignees: [],
             assignLabel: false
         },
         workbench-layout: {
-            assignees: [ bpasero ],
+            assignees: [],
             assignLabel: false
         },
         workbench-menu: {
-            assignees: [ bpasero ],
+            assignees: [],
             assignLabel: false
         },
         workbench-notifications: {
-            assignees: [ bpasero ],
+            assignees: [],
             assignLabel: false
         },
         workbench-state: {
-            assignees: [ bpasero ],
+            assignees: [],
             assignLabel: false
         },
         workbench-status: {
-            assignees: [ bpasero ],
+            assignees: [],
             assignLabel: false
         },
         workbench-tabs: {
-            assignees: [ bpasero ],
+            assignees: [],
             assignLabel: false
         },
         workbench-title: {
-            assignees: [ bpasero ],
+            assignees: [],
             assignLabel: false
         },
         workbench-touchbar: {
-            assignees: [ bpasero ],
+            assignees: [],
             assignLabel: false
         },
         workbench-welcome: [ chrmarti ]

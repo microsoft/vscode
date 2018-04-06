@@ -10,6 +10,7 @@
 	"malicious": "Bu eklentinin sorunlu olduğu bildirildi.",
 	"installingMarketPlaceExtension": "Marketten eklenti yükleniyor...",
 	"uninstallingExtension": "Eklenti kaldırılıyor...",
+	"enableDependeciesConfirmation": "'{0}' eklentisini etkinleştirdiğinizde onun bağımlılıkları da etkinleştirilir. Devam etmek istiyor musunuz?",
 	"enable": "Evet",
 	"doNotEnable": "Hayır",
 	"disableDependeciesConfirmation": "Yalnızca '{0}' eklentisini mi devre dışı bırakmak istersiniz yoksa bağımlılıklarını da devre dışı bırakmak ister misiniz?",

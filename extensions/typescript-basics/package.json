@@ -42,7 +42,12 @@
       {
         "language": "typescript",
         "scopeName": "source.ts",
-        "path": "./syntaxes/TypeScript.tmLanguage.json"
+        "path": "./syntaxes/TypeScript.tmLanguage.json",
+        "tokenTypes": {
+          "entity.name.type.instance.jsdoc": "other",
+          "entity.name.function.tagged-template": "other",
+          "meta.import string.quoted": "other"
+        }
       },
       {
         "language": "typescriptreact",
@@ -53,6 +58,11 @@
           "meta.tag.without-attributes.tsx": "jsx-tags",
           "meta.tag.attributes.tsx": "typescriptreact",
           "meta.embedded.expression.tsx": "typescriptreact"
+        },
+        "tokenTypes": {
+          "entity.name.type.instance.jsdoc": "other",
+          "entity.name.function.tagged-template": "other",
+          "meta.import string.quoted": "other"
         }
       }
     ],

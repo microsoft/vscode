@@ -7,7 +7,7 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
@@ -47,6 +47,7 @@ export class LineContext {
 		}
 		const pos = editor.getPosition();
 		model.tokenizeIfCheap(pos.lineNumber);
+
 		const word = model.getWordAtPosition(pos);
 		if (!word) {
 			return false;
@@ -96,9 +97,9 @@ export class SuggestModel implements IDisposable {
 	private _currentSelection: Selection;
 
 	private _completionModel: CompletionModel;
-	private _onDidCancel: Emitter<ICancelEvent> = new Emitter<ICancelEvent>();
-	private _onDidTrigger: Emitter<ITriggerEvent> = new Emitter<ITriggerEvent>();
-	private _onDidSuggest: Emitter<ISuggestEvent> = new Emitter<ISuggestEvent>();
+	private readonly _onDidCancel: Emitter<ICancelEvent> = new Emitter<ICancelEvent>();
+	private readonly _onDidTrigger: Emitter<ITriggerEvent> = new Emitter<ITriggerEvent>();
+	private readonly _onDidSuggest: Emitter<ISuggestEvent> = new Emitter<ISuggestEvent>();
 
 	readonly onDidCancel: Event<ICancelEvent> = this._onDidCancel.event;
 	readonly onDidTrigger: Event<ITriggerEvent> = this._onDidTrigger.event;
@@ -401,6 +402,12 @@ export class SuggestModel implements IDisposable {
 
 		if (ctx.lineNumber !== this._context.lineNumber) {
 			// e.g. happens when pressing Enter while IntelliSense is computed
+			this.cancel();
+			return;
+		}
+
+		if (ctx.leadingWord.startColumn < this._context.leadingWord.startColumn) {
+			// happens when the current word gets outdented
 			this.cancel();
 			return;
 		}

@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -20,6 +20,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const VARIABLES_VIEW_ID = 'workbench.debug.variablesView';
@@ -34,9 +35,10 @@ export const CONTEXT_IN_DEBUG_MODE = new RawContextKey<boolean>('inDebugMode', f
 export const CONTEXT_NOT_IN_DEBUG_MODE: ContextKeyExpr = CONTEXT_IN_DEBUG_MODE.toNegated();
 export const CONTEXT_IN_DEBUG_REPL = new RawContextKey<boolean>('inDebugRepl', false);
 export const CONTEXT_NOT_IN_DEBUG_REPL: ContextKeyExpr = CONTEXT_IN_DEBUG_REPL.toNegated();
-export const CONTEXT_ON_FIRST_DEBUG_REPL_LINE = new RawContextKey<boolean>('onFirsteDebugReplLine', false);
+export const CONTEXT_ON_FIRST_DEBUG_REPL_LINE = new RawContextKey<boolean>('onFirstDebugReplLine', false);
 export const CONTEXT_ON_LAST_DEBUG_REPL_LINE = new RawContextKey<boolean>('onLastDebugReplLine', false);
 export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
+export const CONTEXT_IN_BREAKPOINT_WIDGET = new RawContextKey<boolean>('inBreakpointWidget', false);
 export const CONTEXT_BREAKPOINTS_FOCUSED = new RawContextKey<boolean>('breakpointsFocused', true);
 export const CONTEXT_WATCH_EXPRESSIONS_FOCUSED = new RawContextKey<boolean>('watchExpressionsFocused', true);
 export const CONTEXT_VARIABLES_FOCUSED = new RawContextKey<boolean>('variablesFocused', true);
@@ -139,8 +141,8 @@ export interface IProcess extends ITreeElement {
 	getName(includeRoot: boolean): string;
 	configuration: IConfig;
 	session: ISession;
-	sources: Map<string, Source>;
 	state: ProcessState;
+	getSourceForUri(modelUri: uri): Source;
 	getThread(threadId: number): IThread;
 	getAllThreads(): IThread[];
 	getSource(raw: DebugProtocol.Source): Source;
@@ -230,32 +232,36 @@ export interface IBreakpointData {
 	column?: number;
 	enabled?: boolean;
 	condition?: string;
+	logMessage?: string;
 	hitCondition?: string;
 }
 
 export interface IBreakpointUpdateData extends DebugProtocol.Breakpoint {
 	condition?: string;
 	hitCondition?: string;
+	logMessage?: string;
 }
 
-export interface IBreakpoint extends IEnablement {
+export interface IBaseBreakpoint extends IEnablement {
+	condition: string;
+	hitCondition: string;
+	logMessage: string;
+	verified: boolean;
+	idFromAdapter: number;
+}
+
+export interface IBreakpoint extends IBaseBreakpoint {
 	uri: uri;
 	lineNumber: number;
 	endLineNumber?: number;
 	column: number;
 	endColumn?: number;
-	condition: string;
-	hitCondition: string;
-	verified: boolean;
-	idFromAdapter: number;
 	message: string;
+	adapterData: any;
 }
 
-export interface IFunctionBreakpoint extends IEnablement {
+export interface IFunctionBreakpoint extends IBaseBreakpoint {
 	name: string;
-	verified: boolean;
-	idFromAdapter: number;
-	hitCondition: string;
 }
 
 export interface IExceptionBreakpoint extends IEnablement {
@@ -342,6 +348,7 @@ export interface IDebugConfiguration {
 	hideActionBar: boolean;
 	showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
 	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
+	extensionHostDebugAdapter: boolean;
 }
 
 export interface IGlobalConfig {
@@ -356,6 +363,7 @@ export interface IEnvConfig {
 	request: string;
 	internalConsoleOptions?: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	preLaunchTask?: string;
+	postDebugTask?: string;
 	__restart?: any;
 	__sessionId?: string;
 	debugServer?: number;
@@ -372,6 +380,22 @@ export interface IConfig extends IEnvConfig {
 export interface ICompound {
 	name: string;
 	configurations: (string | { name: string, folder: string })[];
+}
+
+export interface IDebugAdapter extends IDisposable {
+	readonly onError: Event<Error>;
+	readonly onExit: Event<number>;
+	onRequest(callback: (request: DebugProtocol.Request) => void);
+	onEvent(callback: (event: DebugProtocol.Event) => void);
+	startSession(): TPromise<void>;
+	sendMessage(message: DebugProtocol.ProtocolMessage): void;
+	sendResponse(response: DebugProtocol.Response): void;
+	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void): void;
+	stopSession(): TPromise<void>;
+}
+
+export interface IDebugAdapterProvider {
+	createDebugAdapter(debugType: string, adapterInfo: IAdapterExecutable | null): IDebugAdapter;
 }
 
 export interface IAdapterExecutable {
@@ -442,6 +466,9 @@ export interface IConfigurationManager {
 
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): TPromise<any>;
 	debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined>;
+
+	registerDebugAdapterProvider(debugType: string, debugAdapterLauncher: IDebugAdapterProvider);
+	createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable | null): IDebugAdapter;
 }
 
 export interface ILaunch {
@@ -627,7 +654,7 @@ export interface IDebugService {
 	 * Also saves all files, manages if compounds are present in the configuration
 	 * and resolveds configurations via DebugConfigurationProviders.
 	 */
-	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
+	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): TPromise<void>;
 
 	/**
 	 * Restarts a process or creates a new one if there is no active session.
@@ -656,9 +683,14 @@ export interface IDebugService {
 }
 
 // Editor interfaces
+export enum BreakpointWidgetContext {
+	CONDITION = 0,
+	HIT_COUNT = 1,
+	LOG_MESSAGE = 2
+}
 export interface IDebugEditorContribution extends IEditorContribution {
 	showHover(range: Range, focus: boolean): TPromise<void>;
-	showBreakpointWidget(lineNumber: number, column: number): void;
+	showBreakpointWidget(lineNumber: number, column: number, context?: BreakpointWidgetContext): void;
 	closeBreakpointWidget(): void;
 	addLaunchConfiguration(): TPromise<any>;
 }

@@ -114,7 +114,7 @@ export class CursorUndo extends EditorCommand {
 			id: 'cursorUndo',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_U
 			}
 		});

@@ -40,12 +40,12 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		return true;
 	}
 
-	protected doCheckForUpdates(explicit: boolean): void {
+	protected doCheckForUpdates(context: any): void {
 		if (!this.url) {
 			return;
 		}
 
-		this.setState(State.CheckingForUpdates(explicit));
+		this.setState(State.CheckingForUpdates(context));
 
 		this.requestService.request({ url: this.url })
 			.then<IUpdate>(asJson)
@@ -53,10 +53,10 @@ export class LinuxUpdateService extends AbstractUpdateService {
 				if (!update || !update.url || !update.version || !update.productVersion) {
 					/* __GDPR__
 							"update:notAvailable" : {
-								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 							}
 						*/
-					this.telemetryService.publicLog('update:notAvailable', { explicit });
+					this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
 
 					this.setState(State.Idle);
 				} else {
@@ -68,10 +68,10 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 				/* __GDPR__
 					"update:notAvailable" : {
-					"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 					*/
-				this.telemetryService.publicLog('update:notAvailable', { explicit });
+				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
 				this.setState(State.Idle);
 			});
 	}

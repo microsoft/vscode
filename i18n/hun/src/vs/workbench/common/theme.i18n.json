@@ -59,12 +59,12 @@
 	"titleBarActiveBackground": "A címsor háttérszíne, ha az ablak aktív. Megjegyzés: ez a beállítás jelenleg csak macOS-en támogatott.",
 	"titleBarInactiveBackground": "A címsor háttérszíne, ha az ablak inaktív. Megjegyzés: ez a beállítás jelenleg csak macOS-en támogatott.",
 	"titleBarBorder": "A címsor keretszíne, ha az ablak aktív. Megjegyzés: ez a beállítás jelenleg csak macOS-en támogatott.",
-	"notificationsCenterBorder": "Az értesítési központ keretszíne. Az értesítések az ablak jobb alsó részén jelennek meg.",
-	"notificationsToastBorder": "Az értesítések keretszíne. Az értesítések az ablak jobb alsó részén jelennek meg.",
+	"notificationCenterBorder": "Az értesítési központ keretszíne. Az értesítések az ablak jobb alsó részén jelennek meg.",
+	"notificationToastBorder": "Az értesítések keretszíne. Az értesítések az ablak jobb alsó részén jelennek meg.",
 	"notificationsForeground": "Az értesítések előtérszíne. Az értesítések az ablak jobb alsó részén jelennek meg.",
 	"notificationsBackground": "Az értesítések háttérszíne. Az értesítések az ablak jobb alsó részén jelennek meg.",
 	"notificationsLink": "Az értesítésekben található hivatkozások előtérszíne. Az értesítések az ablak jobb alsó részén jelennek meg.",
-	"notificationsCenterHeaderForeground": "Az értesítési központ fejlécének előtérszíne. Az értesítések az ablak jobb alsó részén jelennek meg.",
-	"notificationsCenterHeaderBackground": "Az értesítési központ fejlécének háttérszíne. Az értesítések az ablak jobb alsó részén jelennek meg.",
+	"notificationCenterHeaderForeground": "Az értesítési központ fejlécének előtérszíne. Az értesítések az ablak jobb alsó részén jelennek meg.",
+	"notificationCenterHeaderBackground": "Az értesítési központ fejlécének háttérszíne. Az értesítések az ablak jobb alsó részén jelennek meg.",
 	"notificationsBorder": "Az értesítéseket egymástól elválasztó keret színe az értesítési központban. Az értesítések az ablak jobb alsó részén jelennek meg."
 }

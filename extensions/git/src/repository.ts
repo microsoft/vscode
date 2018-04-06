@@ -6,7 +6,7 @@
 'use strict';
 
 import { commands, Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType } from 'vscode';
-import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError, Submodule, DiffOptions, UpstreamRef } from './git';
+import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError, Submodule, DiffOptions } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
@@ -728,26 +728,26 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async pullWithRebase(upstream?: UpstreamRef): Promise<void> {
+	async pullWithRebase(head: Branch | undefined): Promise<void> {
 		let remote: string | undefined;
 		let branch: string | undefined;
 
-		if (upstream) {
-			remote = upstream.remote;
-			branch = upstream.name;
+		if (head && head.name && head.upstream) {
+			remote = head.upstream.remote;
+			branch = `${head.upstream.name}`;
 		}
 
 		await this.run(Operation.Pull, () => this.repository.pull(true, remote, branch));
 	}
 
 	@throttle
-	async pull(upstream?: UpstreamRef): Promise<void> {
+	async pull(head: Branch | undefined): Promise<void> {
 		let remote: string | undefined;
 		let branch: string | undefined;
 
-		if (upstream) {
-			remote = upstream.remote;
-			branch = upstream.name;
+		if (head && head.name && head.upstream) {
+			remote = head.upstream.remote;
+			branch = `${head.upstream.name}`;
 		}
 
 		await this.run(Operation.Pull, () => this.repository.pull(false, remote, branch));
@@ -758,13 +758,13 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async push(upstream?: UpstreamRef): Promise<void> {
+	async push(head: Branch): Promise<void> {
 		let remote: string | undefined;
 		let branch: string | undefined;
 
-		if (upstream) {
-			remote = upstream.remote;
-			branch = upstream.name;
+		if (head && head.name && head.upstream) {
+			remote = head.upstream.remote;
+			branch = `${head.name}:${head.upstream.name}`;
 		}
 
 		await this.run(Operation.Push, () => this.repository.push(remote, branch));
@@ -778,47 +778,53 @@ export class Repository implements Disposable {
 		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true));
 	}
 
-	private async _sync(upstream: UpstreamRef, rebase: boolean): Promise<void> {
+	@throttle
+	sync(head: Branch): Promise<void> {
+		return this._sync(head, false);
+	}
+
+	@throttle
+	async syncRebase(head: Branch): Promise<void> {
+		return this._sync(head, true);
+	}
+
+	private async _sync(head: Branch, rebase: boolean): Promise<void> {
+		let remote: string | undefined;
+		let pullBranch: string | undefined;
+		let pushBranch: string | undefined;
+
+		if (head.name && head.upstream) {
+			remote = head.upstream.remote;
+			pullBranch = `${head.upstream.name}`;
+			pushBranch = `${head.name}:${head.upstream.name}`;
+		}
+
 		await this.run(Operation.Sync, async () => {
-			await this.repository.pull(rebase, upstream.remote, upstream.name);
+			await this.repository.pull(rebase, remote, pullBranch);
 
 			const shouldPush = this.HEAD && typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true;
 
 			if (shouldPush) {
-				await this.repository.push(upstream.remote, upstream.name);
+				await this.repository.push(remote, pushBranch);
 			}
 		});
 	}
 
-	@throttle
-	sync(upstream: UpstreamRef): Promise<void> {
-		return this._sync(upstream, false);
-	}
-
-	@throttle
-	async syncRebase(upstream: UpstreamRef): Promise<void> {
-		return this._sync(upstream, true);
-	}
-
 	async show(ref: string, filePath: string): Promise<string> {
-		return await this.run(Operation.Show, async () => {
+		return this.run(Operation.Show, () => {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
 			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
-			const encoding = configFiles.get<string>('encoding');
+			const defaultEncoding = configFiles.get<string>('encoding');
+			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding');
 
-			// TODO@joao: Resource config api
-			return await this.repository.bufferString(`${ref}:${relativePath}`, encoding);
+			return this.repository.bufferString(`${ref}:${relativePath}`, defaultEncoding, autoGuessEncoding);
 		});
 	}
 
 	async buffer(ref: string, filePath: string): Promise<Buffer> {
-		return await this.run(Operation.Show, async () => {
+		return this.run(Operation.Show, () => {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
-			// const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
-			// const encoding = configFiles.get<string>('encoding');
-
-			// TODO@joao: REsource config api
-			return await this.repository.buffer(`${ref}:${relativePath}`);
+			return this.repository.buffer(`${ref}:${relativePath}`);
 		});
 	}
 

@@ -30,5 +30,6 @@
 	"vscode.extension.badges.description": "Gösterge açıklaması.",
 	"vscode.extension.extensionDependencies": "Diğer uzantılara bağımlılıklar. Bir uzantının tanımlayıcısı her zaman ${publisher}.${name} biçimindedir. Örneğin: vscode.csharp.",
 	"vscode.extension.scripts.prepublish": "Paket, bir VS Code eklentisi olarak yayımlamadan önce çalıştırılacak betik.",
+	"vscode.extension.scripts.uninstall": "VS Code eklentisi için kaldırma betiği. VS Code, eklenti kaldırıldıktan sonra yeniden başlatıldığında (kapatıp açma) ve eklenti tamamen kaldırıldığında çalıştırılacak betik. Sadece Node betikleri desteklenir.",
 	"vscode.extension.icon": "128x128 piksellik bir simgenin yolu."
 }

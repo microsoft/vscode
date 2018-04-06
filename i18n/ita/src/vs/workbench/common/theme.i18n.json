@@ -58,5 +58,13 @@
 	"titleBarInactiveForeground": "Colore primo piano della barra del titolo quando la finestra è inattiva. Si noti che questo colore è attualmente supportato solo su macOS.",
 	"titleBarActiveBackground": "Colore di sfondo della barra di titolo quando la finestra è attiva. Si noti che questo colore è attualmente solo supportati su macOS.",
 	"titleBarInactiveBackground": "Colore di sfondo della barra del titolo quando la finestra è inattiva. Si noti che questo colore è attualmente supportato solo su macOS.",
-	"titleBarBorder": "Colore del bordo della barra di stato. Si noti che questo colore è attualmente supportato solo su macOS."
+	"titleBarBorder": "Colore del bordo della barra di stato. Si noti che questo colore è attualmente supportato solo su macOS.",
+	"notificationCenterBorder": "Colore del bordo del centro notifiche. Le notifiche scorrono dalla parte inferiore destra della finestra.",
+	"notificationToastBorder": "Colore del bordo dell'avviso popup di notifica. Le notifiche scorrono dalla parte inferiore destra della finestra.",
+	"notificationsForeground": "Colore primo piano delle notifiche. Le notifiche scorrono dalla parte inferiore destra della finestra.",
+	"notificationsBackground": "Colore di sfondo delle notifiche. Le notifiche scorrono dalla parte inferiore destra della finestra.",
+	"notificationsLink": "Colore primo piano dei collegamenti delle notifiche. Le notifiche scorrono dalla parte inferiore destra della finestra.",
+	"notificationCenterHeaderForeground": "Colore primo piano dell'intestazione del centro notifiche. Le notifiche scorrono dalla parte inferiore destra della finestra.",
+	"notificationCenterHeaderBackground": "Colore di sfondo dell'intestazione del centro notifiche. Le notifiche scorrono dalla parte inferiore destra della finestra.",
+	"notificationsBorder": "Colore del bordo che separa le notifiche da altre notifiche nel centro notifiche. Le notifiche scorrono dalla parte inferiore destra della finestra."
 }

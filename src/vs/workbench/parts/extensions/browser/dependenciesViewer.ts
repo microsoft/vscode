@@ -59,7 +59,7 @@ export class Renderer implements IRenderer {
 	private static readonly EXTENSION_TEMPLATE_ID = 'extension-template';
 	private static readonly UNKNOWN_EXTENSION_TEMPLATE_ID = 'unknown-extension-template';
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
 	}
 
 	public getHeight(tree: ITree, element: IExtensionDependencies): number {
@@ -198,7 +198,7 @@ class OpenExtensionAction extends Action {
 
 	private _extensionDependencies: IExtensionDependencies;
 
-	constructor( @IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
+	constructor(@IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
 		super('extensions.action.openDependency', '');
 	}
 

@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import Event, { buffer } from 'vs/base/common/event';
+import { Event, buffer } from 'vs/base/common/event';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 
 export interface ILocalizationsChannel extends IChannel {

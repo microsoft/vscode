@@ -5,7 +5,7 @@
 
 'use strict';
 
-import Event, { anyEvent } from 'vs/base/common/event';
+import { Event, anyEvent } from 'vs/base/common/event';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { append, $ } from 'vs/base/browser/dom';
 import { SplitView, IView } from 'vs/base/browser/ui/splitview/splitview';

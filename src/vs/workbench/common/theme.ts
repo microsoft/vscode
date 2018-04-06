@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
@@ -361,7 +361,7 @@ export const TITLE_BAR_INACTIVE_BACKGROUND = registerColor('titleBar.inactiveBac
 export const TITLE_BAR_BORDER = registerColor('titleBar.border', {
 	dark: null,
 	light: null,
-	hc: null
+	hc: contrastBorder
 }, nls.localize('titleBarBorder', "Title bar border color. Note that this color is currently only supported on macOS."));
 
 // < --- Notifications --- >

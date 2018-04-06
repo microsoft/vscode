@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Assert = require('vs/base/common/assert');
+import * as Assert from 'vs/base/common/assert';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import arrays = require('vs/base/common/arrays');
+import * as arrays from 'vs/base/common/arrays';
 import { INavigator } from 'vs/base/common/iterator';
-import WinJS = require('vs/base/common/winjs.base');
-import _ = require('./tree');
-import Event, { Emitter, once, EventMultiplexer, Relay } from 'vs/base/common/event';
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as _ from './tree';
+import { Event, Emitter, once, EventMultiplexer, Relay } from 'vs/base/common/event';
 
 interface IMap<T> { [id: string]: T; }
 interface IItemMap extends IMap<Item> { }

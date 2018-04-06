@@ -19,7 +19,7 @@ export class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	private _decorationOptionProviders: { [key: string]: IModelDecorationOptionsProvider };
 	private _themeService: IThemeService;
 
-	constructor( @IThemeService themeService: IThemeService, styleSheet = dom.createStyleSheet()) {
+	constructor(@IThemeService themeService: IThemeService, styleSheet = dom.createStyleSheet()) {
 		super();
 		this._styleSheet = styleSheet;
 		this._decorationOptionProviders = Object.create(null);

@@ -199,9 +199,13 @@ export interface ICursorState {
  * A (serializable) state of the view.
  */
 export interface IViewState {
-	scrollTop: number;
-	scrollTopWithoutViewZones: number;
+	/** written by previous versions */
+	scrollTop?: number;
+	/** written by previous versions */
+	scrollTopWithoutViewZones?: number;
 	scrollLeft: number;
+	firstPosition: IPosition;
+	firstPositionDeltaTop: number;
 }
 /**
  * A (serializable) state of the code editor.

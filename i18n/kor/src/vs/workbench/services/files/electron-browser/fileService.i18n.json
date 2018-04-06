@@ -9,5 +9,7 @@
 	"installNet": ".NET Framework 4.5 다운로드",
 	"neverShowAgain": "다시 표시 안 함",
 	"netVersionError": "Microsoft .NET Framework 4.5가 필요합니다. 설치하려면 링크를 클릭하세요.",
+	"learnMore": "지침",
+	"binFailed": "'{0}'을(를) 휴지통으로 이동하지 못함",
 	"trashFailed": "'{0}'을(를) 휴지통으로 이동하지 못함"
 }

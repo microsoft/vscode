@@ -69,7 +69,7 @@ async function readFile(file: string): Promise<string> {
 
 interface NpmTaskDefinition extends vscode.TaskDefinition {
 	script: string;
-	file?: string;
+	path?: string;
 }
 
 const buildNames: string[] = ['build', 'compile', 'watch'];
@@ -100,17 +100,22 @@ async function provideNpmScripts(): Promise<vscode.Task[]> {
 	let emptyTasks: vscode.Task[] = [];
 	let allTasks: vscode.Task[] = [];
 
-	let paths = await vscode.workspace.findFiles('**/package.json', '**/node_modules/**');
-	if (paths.length === 0) {
+	let folders = vscode.workspace.workspaceFolders;
+	if (!folders) {
 		return emptyTasks;
 	}
-
 	try {
-		for (let i = 0; i < paths.length; i++) {
-			let folder = vscode.workspace.getWorkspaceFolder(paths[i]);
-			if (folder && isEnabled(folder) && !isExcluded(folder, paths[i])) {
-				let tasks = await provideNpmScriptsForFolder(paths[i]);
-				allTasks.push(...tasks);
+		for (let i = 0; i < folders.length; i++) {
+			let folder = folders[i];
+			if (isEnabled(folder)) {
+				let relativePattern = new vscode.RelativePattern(folder, '**/package.json');
+				let paths = await vscode.workspace.findFiles(relativePattern, '**/node_modules/**');
+				for (let j = 0; j < paths.length; j++) {
+					if (!isExcluded(folder, paths[j])) {
+						let tasks = await provideNpmScriptsForFolder(paths[j]);
+						allTasks.push(...tasks);
+					}
+				}
 			}
 		}
 		return allTasks;
@@ -208,8 +213,8 @@ function createTask(script: string, cmd: string, folder: vscode.WorkspaceFolder,
 
 	function getRelativePath(folder: vscode.WorkspaceFolder, packageJsonUri: vscode.Uri): string {
 		let rootUri = folder.uri;
-		let absolutePath = packageJsonUri.fsPath;
-		return absolutePath.substring(rootUri.fsPath.length + 1, absolutePath.length - 'package.json'.length);
+		let absolutePath = packageJsonUri.path.substring(0, packageJsonUri.path.length - 'package.json'.length);
+		return absolutePath.substring(rootUri.path.length + 1);
 	}
 
 	let kind: NpmTaskDefinition = {
@@ -218,7 +223,7 @@ function createTask(script: string, cmd: string, folder: vscode.WorkspaceFolder,
 	};
 	let relativePackageJson = getRelativePath(folder, packageJsonUri);
 	if (relativePackageJson.length) {
-		kind.file = getRelativePath(folder, packageJsonUri);
+		kind.path = getRelativePath(folder, packageJsonUri);
 	}
 	let taskName = getTaskName(script, relativePackageJson);
 	let cwd = path.dirname(packageJsonUri.fsPath);

@@ -20,7 +20,7 @@ import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/commo
 import { snapshotToString } from 'vs/platform/files/common/files';
 
 class ServiceAccessor {
-	constructor( @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
+	constructor(@ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
 	}
 }
 
@@ -39,10 +39,10 @@ suite('MainThreadSaveParticipant', function () {
 		TextFileEditorModel.setSaveParticipant(null); // reset any set participant
 	});
 
-	test('insert final new line', function (done) {
+	test('insert final new line', function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/final_new_line.txt'), 'utf8');
 
-		model.load().then(() => {
+		return model.load().then(() => {
 			const configService = new TestConfigurationService();
 			configService.setUserConfiguration('files', { 'insertFinalNewline': true });
 
@@ -71,15 +71,13 @@ suite('MainThreadSaveParticipant', function () {
 			model.textEditorModel.setValue(lineContent);
 			participant.participate(model, { reason: SaveReason.EXPLICIT });
 			assert.equal(snapshotToString(model.createSnapshot()), `${lineContent}${model.textEditorModel.getEOL()}`);
-
-			done();
 		});
 	});
 
-	test('trim final new lines', function (done) {
+	test('trim final new lines', function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8');
 
-		model.load().then(() => {
+		return model.load().then(() => {
 			const configService = new TestConfigurationService();
 			configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
 
@@ -111,15 +109,13 @@ suite('MainThreadSaveParticipant', function () {
 			model.textEditorModel.setValue(lineContent);
 			participant.participate(model, { reason: SaveReason.EXPLICIT });
 			assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}${textContent}${eol}`);
-
-			done();
 		});
 	});
 
-	test('trim final new lines bug#39750', function (done) {
+	test('trim final new lines bug#39750', function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8');
 
-		model.load().then(() => {
+		return model.load().then(() => {
 			const configService = new TestConfigurationService();
 			configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
 
@@ -140,8 +136,34 @@ suite('MainThreadSaveParticipant', function () {
 			participant.participate(model, { reason: SaveReason.EXPLICIT });
 			model.textEditorModel.redo();
 			assert.equal(snapshotToString(model.createSnapshot()), `${textContent}.`);
-			done();
 		});
 	});
 
+	test('trim final new lines bug#46075', function () {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8');
+
+		return model.load().then(() => {
+			const configService = new TestConfigurationService();
+			configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
+
+			const participant = new TrimFinalNewLinesParticipant(configService, undefined);
+
+			const textContent = 'Test';
+			const eol = `${model.textEditorModel.getEOL()}`;
+
+			let content = `${textContent}${eol}${eol}`;
+			model.textEditorModel.setValue(content);
+			// save many times
+			for (let i = 0; i < 10; i++) {
+				participant.participate(model, { reason: SaveReason.EXPLICIT });
+			}
+			// confirm trimming
+			assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}`);
+			// undo should go back to previous content immediately
+			model.textEditorModel.undo();
+			assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}${eol}`);
+			model.textEditorModel.redo();
+			assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}`);
+		});
+	});
 });

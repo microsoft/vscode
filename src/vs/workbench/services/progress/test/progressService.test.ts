@@ -212,11 +212,12 @@ class TestProgressBar {
 		return this.done();
 	}
 
-	public getContainer() {
-		return {
-			show: function () { },
-			hide: function () { }
-		};
+	public show(): void {
+
+	}
+
+	public hide(): void {
+
 	}
 }
 
@@ -280,12 +281,12 @@ suite('Progress Service', () => {
 
 		// Acive: Show While
 		let p = TPromise.as(null);
-		service.showWhile(p).then(() => {
+		return service.showWhile(p).then(() => {
 			assert.strictEqual(true, testProgressBar.fDone);
 
 			viewletService.onDidViewletCloseEmitter.fire(testViewlet);
 			p = TPromise.as(null);
-			service.showWhile(p).then(() => {
+			return service.showWhile(p).then(() => {
 				assert.strictEqual(true, testProgressBar.fDone);
 
 				viewletService.onDidViewletOpenEmitter.fire(testViewlet);

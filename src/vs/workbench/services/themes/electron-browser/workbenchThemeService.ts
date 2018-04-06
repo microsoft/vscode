@@ -5,14 +5,14 @@
 'use strict';
 
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, CUSTOM_EDITOR_SCOPE_COLORS_SETTING, DETECT_HC_SETTING, HC_THEME_ID } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -20,18 +20,16 @@ import { ColorThemeData } from './colorThemeData';
 import { ITheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
-
-import { $ } from 'vs/base/browser/builder';
-import Event, { Emitter } from 'vs/base/common/event';
-
-import colorThemeSchema = require('vs/workbench/services/themes/common/colorThemeSchema');
-import fileIconThemeSchema = require('vs/workbench/services/themes/common/fileIconThemeSchema');
+import { Event, Emitter } from 'vs/base/common/event';
+import * as colorThemeSchema from 'vs/workbench/services/themes/common/colorThemeSchema';
+import * as fileIconThemeSchema from 'vs/workbench/services/themes/common/fileIconThemeSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IBroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
 import { ColorThemeStore } from 'vs/workbench/services/themes/electron-browser/colorThemeStore';
 import { FileIconThemeStore } from 'vs/workbench/services/themes/electron-browser/fileIconThemeStore';
 import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { removeClasses, addClasses } from 'vs/base/browser/dom';
 
 // implementation
 
@@ -74,11 +72,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private colorThemeStore: ColorThemeStore;
 	private currentColorTheme: ColorThemeData;
 	private container: HTMLElement;
-	private onColorThemeChange: Emitter<IColorTheme>;
+	private readonly onColorThemeChange: Emitter<IColorTheme>;
 
 	private iconThemeStore: FileIconThemeStore;
 	private currentIconTheme: IFileIconTheme;
-	private onFileIconThemeChange: Emitter<IFileIconTheme>;
+	private readonly onFileIconThemeChange: Emitter<IFileIconTheme>;
 
 	private themingParticipantChangeListener: IDisposable;
 	private _configurationWriter: ConfigurationWriter;
@@ -315,11 +313,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget, silent = false): TPromise<IColorTheme> {
 		if (this.container) {
 			if (this.currentColorTheme) {
-				$(this.container).removeClass(this.currentColorTheme.id);
+				removeClasses(this.container, this.currentColorTheme.id);
 			} else {
-				$(this.container).removeClass(VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME);
+				removeClasses(this.container, VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME);
 			}
-			$(this.container).addClass(newTheme.id);
+			addClasses(this.container, newTheme.id);
 		}
 		this.currentColorTheme = newTheme;
 		if (!this.themingParticipantChangeListener) {
@@ -361,8 +359,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 					"activatePlugin" : {
 						"id" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-						"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"publisherDisplayName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+						"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"themeId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
 					}
 				*/
@@ -415,9 +413,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		if (this.container) {
 			if (iconThemeData.id) {
-				$(this.container).addClass(fileIconsEnabledClass);
+				addClasses(this.container, fileIconsEnabledClass);
 			} else {
-				$(this.container).removeClass(fileIconsEnabledClass);
+				removeClasses(this.container, fileIconsEnabledClass);
 			}
 		}
 		if (iconThemeData.id) {
@@ -465,7 +463,7 @@ colorThemeSchema.register();
 fileIconThemeSchema.register();
 
 class ConfigurationWriter {
-	constructor( @IConfigurationService private configurationService: IConfigurationService) {
+	constructor(@IConfigurationService private configurationService: IConfigurationService) {
 	}
 
 	public writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget): TPromise<void> {

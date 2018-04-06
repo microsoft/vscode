@@ -6,7 +6,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import URI from 'vs/base/common/uri';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vs/base/common/lifecycle';
 

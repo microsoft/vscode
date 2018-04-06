@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import path = require('path');
+import * as path from 'path';
 import * as cp from 'child_process';
 import { fork } from 'vs/base/node/stdFork';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { PPromise, TPromise, TValueCallback, TProgressCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import * as Types from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -381,7 +381,7 @@ export interface IQueuedSender {
 // queue is free again to consume messages.
 // On Windows we always wait for the send() method to return before sending the next message
 // to workaround https://github.com/nodejs/node/issues/7657 (IPC can freeze process)
-export function createQueuedSender(childProcess: cp.ChildProcess | NodeJS.Process): IQueuedSender {
+export function createQueuedSender(childProcess: cp.ChildProcess): IQueuedSender {
 	let msgQueue: string[] = [];
 	let useQueue = false;
 

@@ -29,6 +29,7 @@ export interface SystemInfo {
 	VM: string;
 	'Screen Reader': string;
 	'Process Argv': string;
+	'GPU Status': Electron.GPUFeatureStatus;
 }
 
 export interface ProcessInfo {
@@ -92,7 +93,8 @@ export function getSystemInfo(info: IMainProcessInfo): SystemInfo {
 		'Memory (System)': `${(os.totalmem() / GB).toFixed(2)}GB (${(os.freemem() / GB).toFixed(2)}GB free)`,
 		VM: `${Math.round((virtualMachineHint.value() * 100))}%`,
 		'Screen Reader': `${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`,
-		'Process Argv': `${info.mainArguments.join(' ')}`
+		'Process Argv': `${info.mainArguments.join(' ')}`,
+		'GPU Status': app.getGPUFeatureStatus()
 	};
 
 	const cpus = os.cpus();
@@ -208,7 +210,14 @@ function formatLaunchConfigs(configs: WorkspaceStatItem[]): string {
 	return output.join('\n');
 }
 
-function formatEnvironment(info: IMainProcessInfo): string {
+function expandGPUFeatures(): string {
+	const gpuFeatures = app.getGPUFeatureStatus();
+	const longestFeatureName = Math.max(...Object.keys(gpuFeatures).map(feature => feature.length));
+	// Make columns aligned by adding spaces after feature name
+	return Object.keys(gpuFeatures).map(feature => `${feature}:  ${repeat(' ', longestFeatureName - feature.length)}  ${gpuFeatures[feature]}`).join('\n                  ');
+}
+
+export function formatEnvironment(info: IMainProcessInfo): string {
 	const MB = 1024 * 1024;
 	const GB = 1024 * MB;
 
@@ -226,6 +235,7 @@ function formatEnvironment(info: IMainProcessInfo): string {
 	output.push(`VM:               ${Math.round((virtualMachineHint.value() * 100))}%`);
 	output.push(`Screen Reader:    ${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`);
 	output.push(`Process Argv:     ${info.mainArguments.join(' ')}`);
+	output.push(`GPU Status:       ${expandGPUFeatures()}`);
 
 	return output.join('\n');
 }

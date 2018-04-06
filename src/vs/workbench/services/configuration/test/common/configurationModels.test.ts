@@ -18,7 +18,7 @@ import { StrictResourceMap } from 'vs/base/common/map';
 suite('FolderSettingsModelParser', () => {
 
 	suiteSetup(() => {
-		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration({
 			'id': 'FolderSettingsModelParser_1',
 			'type': 'object',
@@ -42,7 +42,7 @@ suite('FolderSettingsModelParser', () => {
 	});
 
 	test('parse all folder settings', () => {
-		const testObject = new FolderSettingsModelParser('settings');
+		const testObject = new FolderSettingsModelParser('settings', [ConfigurationScope.RESOURCE, ConfigurationScope.WINDOW]);
 
 		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.executable': 'executable' }));
 
@@ -50,7 +50,7 @@ suite('FolderSettingsModelParser', () => {
 	});
 
 	test('parse resource folder settings', () => {
-		const testObject = new FolderSettingsModelParser('settings', ConfigurationScope.RESOURCE);
+		const testObject = new FolderSettingsModelParser('settings', [ConfigurationScope.RESOURCE]);
 
 		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.executable': 'executable' }));
 
@@ -58,13 +58,13 @@ suite('FolderSettingsModelParser', () => {
 	});
 
 	test('reprocess folder settings excludes executable', () => {
-		const testObject = new FolderSettingsModelParser('settings');
+		const testObject = new FolderSettingsModelParser('settings', [ConfigurationScope.RESOURCE, ConfigurationScope.WINDOW]);
 
 		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.anotherExecutable': 'executable' }));
 
 		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'resource': 'resource', 'anotherExecutable': 'executable' } });
 
-		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration({
 			'id': 'FolderSettingsModelParser_2',
 			'type': 'object',

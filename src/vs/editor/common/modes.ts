@@ -12,7 +12,7 @@ import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegis
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 import { Color } from 'vs/base/common/color';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
@@ -827,6 +827,13 @@ export interface DocumentColorProvider {
 }
 
 /**
+ * @internal
+ */
+export interface FoldingContext {
+	maxRanges?: number;
+}
+
+/**
  * A provider of colors for editor models.
  */
 /**
@@ -836,7 +843,7 @@ export interface FoldingProvider {
 	/**
 	 * Provides the color ranges for a specific model.
 	 */
-	provideFoldingRanges(model: model.ITextModel, token: CancellationToken): IFoldingRangeList | Thenable<IFoldingRangeList>;
+	provideFoldingRanges(model: model.ITextModel, context: FoldingContext, token: CancellationToken): IFoldingRangeList | Thenable<IFoldingRangeList>;
 }
 /**
  * @internal
@@ -917,14 +924,9 @@ export interface WorkspaceEdit {
 	rejectReason?: string; // TODO@joh, move to rename
 }
 
-export interface RenameInformation {
-	range: IRange;
-	text: string;
-}
-
 export interface RenameProvider {
 	provideRenameEdits(model: model.ITextModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
-	resolveInitialRenameValue?(model: model.ITextModel, position: Position, token: CancellationToken): RenameInformation | Thenable<RenameInformation>;
+	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): IRange | Thenable<IRange>;
 }
 
 

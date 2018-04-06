@@ -5,34 +5,32 @@
 
 'use strict';
 
-import paths = require('path');
-import fs = require('fs');
-import os = require('os');
-import crypto = require('crypto');
-import assert = require('assert');
+import * as paths from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as crypto from 'crypto';
+import * as assert from 'assert';
 import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot } from 'vs/platform/files/common/files';
 import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
-import arrays = require('vs/base/common/arrays');
-import baseMime = require('vs/base/common/mime');
+import * as arrays from 'vs/base/common/arrays';
 import { TPromise } from 'vs/base/common/winjs.base';
-import objects = require('vs/base/common/objects');
-import extfs = require('vs/base/node/extfs');
+import * as objects from 'vs/base/common/objects';
+import * as extfs from 'vs/base/node/extfs';
 import { nfcall, ThrottledDelayer } from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import pfs = require('vs/base/node/pfs');
-import encoding = require('vs/base/node/encoding');
-import { detectMimeAndEncodingFromBuffer, IMimeAndEncoding } from 'vs/base/node/mime';
-import flow = require('vs/base/node/flow');
+import * as pfs from 'vs/base/node/pfs';
+import * as encoding from 'vs/base/node/encoding';
+import * as flow from 'vs/base/node/flow';
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
 import { toFileChangesEvent, normalize, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/watcherService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -40,13 +38,12 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { getBaseLabel } from 'vs/base/common/labels';
-import { assign } from 'vs/base/common/objects';
 import { Readable } from 'stream';
-import { IWriteFileOptions, IStatAndLink } from 'vs/base/node/extfs';
 import { Schemas } from 'vs/base/common/network';
 
 export interface IEncodingOverride {
-	resource: uri;
+	parent?: uri;
+	extension?: string;
 	encoding: string;
 }
 
@@ -119,8 +116,8 @@ export class FileService implements IFileService {
 	private tmpPath: string;
 	private options: IFileServiceOptions;
 
-	private _onFileChanges: Emitter<FileChangesEvent>;
-	private _onAfterOperation: Emitter<FileOperationEvent>;
+	private readonly _onFileChanges: Emitter<FileChangesEvent>;
+	private readonly _onAfterOperation: Emitter<FileOperationEvent>;
 
 	private toDispose: IDisposable[];
 
@@ -280,14 +277,14 @@ export class FileService implements IFileService {
 			value: void 0
 		};
 
-		const contentResolverToken = new CancellationTokenSource();
+		const contentResolverTokenSource = new CancellationTokenSource();
 
 		const onStatError = (error: Error) => {
 
 			// error: stop reading the file the stat and content resolve call
 			// usually race, mostly likely the stat call will win and cancel
 			// the content call
-			contentResolverToken.cancel();
+			contentResolverTokenSource.cancel();
 
 			// forward error
 			return TPromise.wrapError(error);
@@ -321,7 +318,7 @@ export class FileService implements IFileService {
 			if (typeof stat.size === 'number') {
 				if (stat.size > Math.max(this.environmentService.args['max-memory'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
 					return onStatError(new FileOperationError(
-						nls.localize('fileTooLargeForHeapError', "File size exceeds window memory limit, please try to run code --max-memory=NEWSIZE"),
+						nls.localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart VS Code and allow it to use more memory"),
 						FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
 					));
 				}
@@ -355,17 +352,21 @@ export class FileService implements IFileService {
 		// etag from the stat before we actually read the file again.
 		if (options && options.etag) {
 			completePromise = statsPromise.then(() => {
-				return this.fillInContents(result, resource, options, contentResolverToken.token); // Waterfall -> only now resolve the contents
+				return this.fillInContents(result, resource, options, contentResolverTokenSource.token); // Waterfall -> only now resolve the contents
 			});
 		}
 
 		// a fresh load without a previous etag which means we can resolve the file stat
 		// and the content at the same time, avoiding the waterfall.
 		else {
-			completePromise = Promise.all([statsPromise, this.fillInContents(result, resource, options, contentResolverToken.token)]);
+			completePromise = Promise.all([statsPromise, this.fillInContents(result, resource, options, contentResolverTokenSource.token)]);
 		}
 
-		return TPromise.wrap(completePromise).then(() => result);
+		return TPromise.wrap(completePromise).then(() => {
+			contentResolverTokenSource.dispose();
+
+			return result;
+		});
 	}
 
 	private fillInContents(content: IStreamContent, resource: uri, options: IResolveContentOptions, token: CancellationToken): Thenable<any> {
@@ -467,7 +468,7 @@ export class FileService implements IFileService {
 
 						if (totalBytesRead > Math.max(this.environmentService.args['max-memory'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
 							finish(new FileOperationError(
-								nls.localize('fileTooLargeForHeapError', "File size exceeds window memory limit, please try to run code --max-memory=NEWSIZE"),
+								nls.localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart VS Code and allow it to use more memory"),
 								FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
 							));
 						}
@@ -490,12 +491,12 @@ export class FileService implements IFileService {
 						} else {
 							// when receiving the first chunk of data we need to create the
 							// decoding stream which is then used to drive the string stream.
-							TPromise.as(detectMimeAndEncodingFromBuffer(
+							TPromise.as(encoding.detectEncodingFromBuffer(
 								{ buffer: chunkBuffer, bytesRead },
 								options && options.autoGuessEncoding || this.configuredAutoGuessEncoding(resource)
-							)).then(value => {
+							)).then(detected => {
 
-								if (options && options.acceptTextOnly && value.mimes.indexOf(baseMime.MIME_BINARY) >= 0) {
+								if (options && options.acceptTextOnly && detected.seemsBinary) {
 									// Return error early if client only accepts text and this is not text
 									finish(new FileOperationError(
 										nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
@@ -504,7 +505,7 @@ export class FileService implements IFileService {
 									));
 
 								} else {
-									result.encoding = this.getEncoding(resource, this.getPeferredEncoding(resource, options, value));
+									result.encoding = this.getEncoding(resource, this.getPeferredEncoding(resource, options, detected));
 									result.stream = decoder = encoding.decodeStream(result.encoding);
 									resolve(result);
 									handleChunk(bytesRead);
@@ -602,7 +603,7 @@ export class FileService implements IFileService {
 		let writeFilePromise: TPromise<void>;
 
 		// Configure encoding related options as needed
-		const writeFileOptions: IWriteFileOptions = options ? options : Object.create(null);
+		const writeFileOptions: extfs.IWriteFileOptions = options ? options : Object.create(null);
 		if (addBOM || encodingToWrite !== encoding.UTF8) {
 			writeFileOptions.encoding = {
 				charset: encodingToWrite,
@@ -654,7 +655,7 @@ export class FileService implements IFileService {
 
 		// 1.) check file
 		return this.checkFile(absolutePath, options, options.overwriteReadonly /* ignore readonly if we overwrite readonly, this is handled via sudo later */).then(exists => {
-			const writeOptions: IUpdateContentOptions = assign(Object.create(null), options);
+			const writeOptions: IUpdateContentOptions = objects.assign(Object.create(null), options);
 			writeOptions.writeElevated = false;
 			writeOptions.encoding = this.getEncoding(resource, options.encoding);
 
@@ -815,7 +816,12 @@ export class FileService implements IFileService {
 
 	private doMoveOrCopyFile(sourcePath: string, targetPath: string, keepCopy: boolean, overwrite: boolean): TPromise<boolean /* exists */> {
 
-		// 1.) check if target exists
+		// 1.) validate operation
+		if (isParent(targetPath, sourcePath, !isLinux)) {
+			return TPromise.wrapError<boolean>(new Error('Unable to move/copy when source path is parent of target path'));
+		}
+
+		// 2.) check if target exists
 		return pfs.exists(targetPath).then(exists => {
 			const isCaseRename = sourcePath.toLowerCase() === targetPath.toLowerCase();
 			const isSameFile = sourcePath === targetPath;
@@ -825,7 +831,7 @@ export class FileService implements IFileService {
 				return TPromise.wrapError<boolean>(new FileOperationError(nls.localize('fileMoveConflict', "Unable to move/copy. File already exists at destination."), FileOperationResult.FILE_MOVE_CONFLICT));
 			}
 
-			// 2.) make sure target is deleted before we move/copy unless this is a case rename of the same file
+			// 3.) make sure target is deleted before we move/copy unless this is a case rename of the same file
 			let deleteTargetPromise = TPromise.wrap<void>(void 0);
 			if (exists && !isCaseRename) {
 				if (isEqualOrParent(sourcePath, targetPath, !isLinux /* ignorecase */)) {
@@ -837,7 +843,7 @@ export class FileService implements IFileService {
 
 			return deleteTargetPromise.then(() => {
 
-				// 3.) make sure parents exists
+				// 4.) make sure parents exists
 				return pfs.mkdirp(paths.dirname(targetPath)).then(() => {
 
 					// 4.) copy/move
@@ -917,7 +923,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	private getPeferredEncoding(resource: uri, options: IResolveContentOptions, detected: IMimeAndEncoding): string {
+	private getPeferredEncoding(resource: uri, options: IResolveContentOptions, detected: encoding.IDetectedEncodingResult): string {
 		let preferredEncoding: string;
 		if (options && options.encoding) {
 			if (detected.encoding === encoding.UTF8 && options.encoding === encoding.UTF8) {
@@ -969,9 +975,13 @@ export class FileService implements IFileService {
 			for (let i = 0; i < this.options.encodingOverride.length; i++) {
 				const override = this.options.encodingOverride[i];
 
-				// check if the resource is a child of the resource with override and use
-				// the provided encoding in that case
-				if (isParent(resource.fsPath, override.resource.fsPath, !isLinux /* ignorecase */)) {
+				// check if the resource is child of encoding override path
+				if (override.parent && isParent(resource.fsPath, override.parent.fsPath, !isLinux /* ignorecase */)) {
+					return override.encoding;
+				}
+
+				// check if the resource extension is equal to encoding override
+				if (override.extension && paths.extname(resource.fsPath) === `.${override.extension}`) {
 					return override.encoding;
 				}
 			}
@@ -1236,7 +1246,7 @@ export class StatResolver {
 						extfs.statLink(fileResource.fsPath, this);
 					},
 
-					function countChildren(this: any, statAndLink: IStatAndLink): void {
+					function countChildren(this: any, statAndLink: extfs.IStatAndLink): void {
 						fileStat = statAndLink.stat;
 						isSymbolicLink = statAndLink.isSymbolicLink;
 

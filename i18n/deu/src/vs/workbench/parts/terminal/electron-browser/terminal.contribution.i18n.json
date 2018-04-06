@@ -20,10 +20,13 @@
 	"terminal.integrated.fontFamily": "Steuert die Schriftartfamilie des Terminals. Der Standardwert ist \"editor.fontFamily\".",
 	"terminal.integrated.fontSize": "Steuert den Schriftgrad des Terminals in Pixeln.",
 	"terminal.integrated.lineHeight": "Steuert die Zeilenhöhe für das Terminal. Dieser Wert wird mit dem Schriftgrad des Terminals multipliziert, um die tatsächliche Zeilenhöhe in Pixeln zu erhalten.",
+	"terminal.integrated.fontWeight": "Die innerhalb des Terminals zu verwendende Schriftbreite für nicht fetten Text.",
+	"terminal.integrated.fontWeightBold": "Die innerhalb des Terminals zu verwendende Schriftbreite für fetten Text.",
 	"terminal.integrated.cursorBlinking": "Steuert, ob der Terminalcursor blinkt.",
 	"terminal.integrated.cursorStyle": "Steuert den Stil des Terminalcursors.",
 	"terminal.integrated.scrollback": "Steuert die maximale Anzahl von Zeilen, die das Terminal im Puffer beibehält.",
 	"terminal.integrated.setLocaleVariables": "Steuert, ob Gebietsschemavariablen beim Start des Terminals festgelegt werden. Der Standardwert ist unter OS X TRUE und FALSE auf anderen Plattformen.",
+	"terminal.integrated.rightClickBehavior": "Steuert, wie das Terminal auf einen Rechtsklick reagiert. Möglich sind \"default\", \"copyPaste\", und \"selectWord\". \"default\" zeigt das Kontextmenü an, \"copyPaste\" kopiert, wenn eine Auswahl vorhanden ist, \"selectWord\" wählt das Wort unter dem Cursor aus und zeigt das Kontextmenü an.",
 	"terminal.integrated.cwd": "Ein expliziter Startpfad zum Starten des Terminals, dies dient als das aktuelle Arbeitsverzeichnis (CWD) für den Shellprozess. Dies ist insbesondere in Arbeitsbereichseinstellungen praktisch, wenn das Stammverzeichnis kein passendes CWD ist.",
 	"terminal.integrated.confirmOnExit": "Ob aktive Terminalsitzungen beim Beenden bestätigt werden sollen.",
 	"terminal.integrated.enableBell": "Gibt an, ob die Terminalglocke aktiviert ist.",
@@ -32,6 +35,7 @@
 	"terminal.integrated.env.linux": "Objekt mit Umgebungsvariablen, das dem unter Linux vom Terminal zu verwendenden VS Code-Prozess hinzugefügt wird",
 	"terminal.integrated.env.windows": "Objekt mit Umgebungsvariablen, das dem unter Windows vom Terminal zu verwendenden VS Code-Prozess hinzugefügt wird",
 	"terminal.integrated.showExitAlert": "Warnung \"Der Terminalprozess wurde mit folgendem Exitcode beendet\" anzeigen, wenn der Exitcode nicht Null ist.",
+	"terminal.integrated.experimentalRestore": "Ob aktive Terminalsitzungen für den Arbeitsbereich beim Starten von VS Code automatisch wiederhergestellt werden sollen. Diese Einstellung ist in der Testphase, kann fehlerhaft sein und in Zukunft geändert werden.",
 	"terminalCategory": "Terminal",
 	"viewCategory": "Anzeigen"
 }
