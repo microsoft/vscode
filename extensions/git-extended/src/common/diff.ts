@@ -32,6 +32,8 @@ async function parseModifiedHunkComplete(originalContent, patch, a, b) {
 				right.push(left[j - 1]);
 			}
 			lastCommonLine = oriStartLine + oriEndLine - 1;
+		} else if (/^\-/.test(line)) {
+			// do nothing
 		} else if (/^\+/.test(line)) {
 			right.push(line.substr(1));
 		} else {
