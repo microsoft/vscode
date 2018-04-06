@@ -71,17 +71,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		options: WebviewInputOptions,
 		extensionFolderPath: string
 	): void {
-		const webview = this._webviewService.createWebview(MainThreadWebviews.viewType, title, column, options, extensionFolderPath, {
-			onDidClickLink: uri => this.onDidClickLink(uri, webview.options),
-			onMessage: message => this._proxy.$onMessage(handle, message),
-			onDidChangePosition: position => this._proxy.$onDidChangePosition(handle, position),
-			onDispose: () => {
-				this._proxy.$onDidDisposeWeview(handle).then(() => {
-					this._webviews.delete(handle);
-				});
-			}
-		});
-
+		const webview = this._webviewService.createWebview(MainThreadWebviews.viewType, title, column, options, extensionFolderPath, this.createWebviewEventDelegate(handle));
 		webview.state = {
 			viewType: viewType,
 			state: undefined
@@ -137,17 +127,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		return this._extensionService.activateByEvent(`onView:${viewType}`).then(() => {
 			const handle = 'revival-' + MainThreadWebviews.revivalPool++;
 			this._webviews.set(handle, webview);
-
-			webview._events = {
-				onDidClickLink: uri => this.onDidClickLink(uri, webview.options),
-				onMessage: message => this._proxy.$onMessage(handle, message),
-				onDidChangePosition: position => this._proxy.$onDidChangePosition(handle, position),
-				onDispose: () => {
-					this._proxy.$onDidDisposeWeview(handle).then(() => {
-						this._webviews.delete(handle);
-					});
-				}
-			};
+			webview._events = this.createWebviewEventDelegate(handle);
 
 			return this._proxy.$deserializeWebview(handle, webview.state.viewType, webview.state.state, webview.position, webview.options)
 				.then(undefined, () => {
@@ -191,6 +171,19 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		});
 	}
 
+	private createWebviewEventDelegate(handle: WebviewHandle) {
+		return {
+			onDidClickLink: uri => this.onDidClickLink(handle, uri),
+			onMessage: message => this._proxy.$onMessage(handle, message),
+			onDidChangePosition: position => this._proxy.$onDidChangePosition(handle, position),
+			onDispose: () => {
+				this._proxy.$onDidDisposeWeview(handle).then(() => {
+					this._webviews.delete(handle);
+				});
+			}
+		};
+	}
+
 	private getWebview(handle: WebviewHandle): WebviewEditorInput {
 		const webview = this._webviews.get(handle);
 		if (!webview) {
@@ -225,12 +218,13 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		}
 	}
 
-	private onDidClickLink(link: URI, options: WebviewInputOptions): void {
+	private onDidClickLink(handle: WebviewHandle, link: URI): void {
 		if (!link) {
 			return;
 		}
 
-		const enableCommandUris = options.enableCommandUris;
+		const webview = this.getWebview(handle);
+		const enableCommandUris = webview.options.enableCommandUris;
 		if (MainThreadWebviews.standardSupportedLinkSchemes.indexOf(link.scheme) >= 0 || enableCommandUris && link.scheme === 'command') {
 			this._openerService.open(link);
 		}
