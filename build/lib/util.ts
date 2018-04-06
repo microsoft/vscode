@@ -330,11 +330,11 @@ function versionStringToNumberArray(versionStr: string): number[] {
 		.map(s => parseInt(s));
 }
 
-export function versionStringToNumber(versionStr) {
+export function versionStringToNumber(versionStr: string) {
 	const semverRegex = /(\d+)\.(\d+)\.(\d+)/;
 	const match = versionStr.match(semverRegex);
 	if (!match) {
-		return 0;
+		throw new Error('Version string is not properly formatted: ' + versionStr);
 	}
 
 	return parseInt(match[1], 10) * 1e4 + parseInt(match[2], 10) * 1e2 + parseInt(match[3], 10);
