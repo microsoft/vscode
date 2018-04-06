@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, Color, CodeActionKind } from 'vs/workbench/api/node/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind } from 'vs/workbench/api/node/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
@@ -780,7 +780,7 @@ class ColorProviderAdapter {
 
 			const colorInfos: IRawColorInfo[] = colors.map(ci => {
 				return {
-					color: [ci.color.red, ci.color.green, ci.color.blue, ci.color.alpha] as [number, number, number, number],
+					color: TypeConverters.Color.from(ci.color),
 					range: TypeConverters.fromRange(ci.range)
 				};
 			});
@@ -792,7 +792,7 @@ class ColorProviderAdapter {
 	provideColorPresentations(resource: URI, raw: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
 		const document = this._documents.getDocumentData(resource).document;
 		const range = TypeConverters.toRange(raw.range);
-		const color = new Color(raw.color[0], raw.color[1], raw.color[2], raw.color[3]);
+		const color = TypeConverters.Color.to(raw.color);
 		return asWinJsPromise(token => this._provider.provideColorPresentations(color, { document, range }, token)).then(value => {
 			return value.map(TypeConverters.ColorPresentation.from);
 		});

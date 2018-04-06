@@ -28,7 +28,6 @@
 	"warningBorder": "편집기 내 경고 표시선의 테두리 색입니다.",
 	"infoForeground": "편집기 내 정보 표시선의 전경색입니다.",
 	"infoBorder": "편집기 내 정보 표시선의 테두리 색입니다.",
-	"overviewRulerRangeHighlight": "범위 강조 표시의 개요 눈금자 마커 색입니다.",
 	"overviewRuleError": "오류의 개요 눈금자 마커 색입니다.",
 	"overviewRuleWarning": "경고의 개요 눈금자 마커 색입니다.",
 	"overviewRuleInfo": "정보의 개요 눈금자 마커 색입니다."

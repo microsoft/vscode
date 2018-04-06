@@ -9,5 +9,6 @@
 	"output": "Çıktı",
 	"logViewer": "Günlük Görüntüleyici",
 	"viewCategory": "Görüntüle",
-	"clearOutput.label": "Çıktıyı Temizle"
+	"clearOutput.label": "Çıktıyı Temizle",
+	"openActiveLogOutputFile": "Görüntüle: Aktif Günlük Dosyasını Aç"
 }

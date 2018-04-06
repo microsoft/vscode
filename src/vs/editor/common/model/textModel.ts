@@ -33,28 +33,10 @@ import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { TextModelSearch, SearchParams, SearchData } from 'vs/editor/common/model/textModelSearch';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IStringStream, ITextSnapshot } from 'vs/platform/files/common/files';
-import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { ChunksTextBufferBuilder } from 'vs/editor/common/model/chunksTextBuffer/chunksTextBufferBuilder';
-
-export enum TextBufferType {
-	LinesArray,
-	PieceTree,
-	Chunks
-}
-// Here is the master switch for the text buffer implementation:
-export const OPTIONS = {
-	TEXT_BUFFER_IMPLEMENTATION: TextBufferType.PieceTree
-};
 
 function createTextBufferBuilder() {
-	if (OPTIONS.TEXT_BUFFER_IMPLEMENTATION === TextBufferType.PieceTree) {
-		return new PieceTreeTextBufferBuilder();
-	}
-	if (OPTIONS.TEXT_BUFFER_IMPLEMENTATION === TextBufferType.Chunks) {
-		return new ChunksTextBufferBuilder();
-	}
-	return new LinesTextBufferBuilder();
+	return new PieceTreeTextBufferBuilder();
 }
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
@@ -229,11 +211,14 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public readonly onDidChangeOptions: Event<IModelOptionsChangedEvent> = this._onDidChangeOptions.event;
 
 	private readonly _eventEmitter: DidChangeContentEmitter = this._register(new DidChangeContentEmitter());
+	public onDidChangeRawContentFast(listener: (e: ModelRawContentChangedEvent) => void): IDisposable {
+		return this._eventEmitter.fastEvent((e: InternalModelContentChangeEvent) => listener(e.rawContentChangedEvent));
+	}
 	public onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.event((e: InternalModelContentChangeEvent) => listener(e.rawContentChangedEvent));
+		return this._eventEmitter.slowEvent((e: InternalModelContentChangeEvent) => listener(e.rawContentChangedEvent));
 	}
 	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.event((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
+		return this._eventEmitter.slowEvent((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
 	}
 	//#endregion
 
@@ -401,10 +386,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this.setValueFromTextBuffer(textBuffer);
 	}
 
-	private _createContentChanged2(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): IModelContentChangedEvent {
+	private _createContentChanged2(range: Range, rangeOffset: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): IModelContentChangedEvent {
 		return {
 			changes: [{
-				range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
+				range: range,
+				rangeOffset: rangeOffset,
 				rangeLength: rangeLength,
 				text: text,
 			}],
@@ -450,7 +436,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				false,
 				false
 			),
-			this._createContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, true)
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, true)
 		);
 	}
 
@@ -481,7 +467,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				false,
 				false
 			),
-			this._createContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, false)
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, false)
 		);
 	}
 
@@ -549,6 +535,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public isAttachedToEditor(): boolean {
 		return this._attachedEditorCount > 0;
+	}
+
+	public getAttachedEditorCount(): number {
+		return this._attachedEditorCount;
 	}
 
 	public isTooLargeForHavingARichMode(): boolean {
@@ -895,6 +885,41 @@ export class TextModel extends Disposable implements model.ITextModel {
 	/**
 	 * @param strict Do NOT allow a position inside a high-low surrogate pair
 	 */
+	private _isValidPosition(lineNumber: number, column: number, strict: boolean): boolean {
+
+		if (lineNumber < 1) {
+			return false;
+		}
+
+		const lineCount = this._buffer.getLineCount();
+		if (lineNumber > lineCount) {
+			return false;
+		}
+
+		if (column < 1) {
+			return false;
+		}
+
+		const maxColumn = this.getLineMaxColumn(lineNumber);
+		if (column > maxColumn) {
+			return false;
+		}
+
+		if (strict) {
+			if (column > 1) {
+				const charCodeBefore = this._buffer.getLineCharCode(lineNumber, column - 2);
+				if (strings.isHighSurrogate(charCodeBefore)) {
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * @param strict Do NOT allow a position inside a high-low surrogate pair
+	 */
 	private _validatePosition(_lineNumber: number, _column: number, strict: boolean): Position {
 		const lineNumber = Math.floor(typeof _lineNumber === 'number' ? _lineNumber : 1);
 		const column = Math.floor(typeof _column === 'number' ? _column : 1);
@@ -932,11 +957,60 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public validatePosition(position: IPosition): Position {
 		this._assertNotDisposed();
+
+		// Avoid object allocation and cover most likely case
+		if (position instanceof Position) {
+			if (this._isValidPosition(position.lineNumber, position.column, true)) {
+				return position;
+			}
+		}
+
 		return this._validatePosition(position.lineNumber, position.column, true);
+	}
+
+	/**
+	 * @param strict Do NOT allow a range to have its boundaries inside a high-low surrogate pair
+	 */
+	private _isValidRange(range: Range, strict: boolean): boolean {
+		const startLineNumber = range.startLineNumber;
+		const startColumn = range.startColumn;
+		const endLineNumber = range.endLineNumber;
+		const endColumn = range.endColumn;
+
+		if (!this._isValidPosition(startLineNumber, startColumn, false)) {
+			return false;
+		}
+		if (!this._isValidPosition(endLineNumber, endColumn, false)) {
+			return false;
+		}
+
+		if (strict) {
+			const charCodeBeforeStart = (startColumn > 1 ? this._buffer.getLineCharCode(startLineNumber, startColumn - 2) : 0);
+			const charCodeBeforeEnd = (endColumn > 1 && endColumn <= this._buffer.getLineLength(endLineNumber) ? this._buffer.getLineCharCode(endLineNumber, endColumn - 2) : 0);
+
+			const startInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeStart);
+			const endInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeEnd);
+
+			if (!startInsideSurrogatePair && !endInsideSurrogatePair) {
+				return true;
+			}
+
+			return false;
+		}
+
+		return true;
 	}
 
 	public validateRange(_range: IRange): Range {
 		this._assertNotDisposed();
+
+		// Avoid object allocation and cover most likely case
+		if ((_range instanceof Range) && !(_range instanceof Selection)) {
+			if (this._isValidRange(_range, true)) {
+				return _range;
+			}
+		}
+
 		const start = this._validatePosition(_range.startLineNumber, _range.startColumn, false);
 		const end = this._validatePosition(_range.endLineNumber, _range.endColumn, false);
 
@@ -1000,7 +1074,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			searchRange = this.getFullModelRange();
 		}
 
-		if (!isRegex && searchString.indexOf('\n') < 0 && OPTIONS.TEXT_BUFFER_IMPLEMENTATION === TextBufferType.PieceTree) {
+		if (!isRegex && searchString.indexOf('\n') < 0) {
 			// not regex, not multi line
 			const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
 			const searchData = searchParams.parseSearchRequest();
@@ -1019,7 +1093,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._assertNotDisposed();
 		const searchStart = this.validatePosition(rawSearchStart);
 
-		if (!isRegex && searchString.indexOf('\n') < 0 && OPTIONS.TEXT_BUFFER_IMPLEMENTATION === TextBufferType.PieceTree) {
+		if (!isRegex && searchString.indexOf('\n') < 0) {
 			const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
 			const searchData = searchParams.parseSearchRequest();
 			const lineCount = this.getLineCount();
@@ -2512,22 +2586,20 @@ export class ModelDecorationOverviewRulerOptions implements model.IModelDecorati
 	}
 }
 
-let lastStaticId = 0;
-
 export class ModelDecorationOptions implements model.IModelDecorationOptions {
 
 	public static EMPTY: ModelDecorationOptions;
 
 	public static register(options: model.IModelDecorationOptions): ModelDecorationOptions {
-		return new ModelDecorationOptions(++lastStaticId, options);
+		return new ModelDecorationOptions(options);
 	}
 
 	public static createDynamic(options: model.IModelDecorationOptions): ModelDecorationOptions {
-		return new ModelDecorationOptions(0, options);
+		return new ModelDecorationOptions(options);
 	}
 
-	readonly staticId: number;
 	readonly stickiness: model.TrackedRangeStickiness;
+	readonly zIndex: number;
 	readonly className: string;
 	readonly hoverMessage: IMarkdownString | IMarkdownString[];
 	readonly glyphMarginHoverMessage: IMarkdownString | IMarkdownString[];
@@ -2541,9 +2613,9 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly beforeContentClassName: string;
 	readonly afterContentClassName: string;
 
-	private constructor(staticId: number, options: model.IModelDecorationOptions) {
-		this.staticId = staticId;
+	private constructor(options: model.IModelDecorationOptions) {
 		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
+		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : strings.empty;
 		this.hoverMessage = options.hoverMessage || [];
 		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || [];
@@ -2614,8 +2686,13 @@ export class DidChangeDecorationsEmitter extends Disposable {
 
 export class DidChangeContentEmitter extends Disposable {
 
-	private readonly _actual: Emitter<InternalModelContentChangeEvent> = this._register(new Emitter<InternalModelContentChangeEvent>());
-	public readonly event: Event<InternalModelContentChangeEvent> = this._actual.event;
+	/**
+	 * Both `fastEvent` and `slowEvent` work the same way and contain the same events, but first we invoke `fastEvent` and then `slowEvent`.
+	 */
+	private readonly _fastEmitter: Emitter<InternalModelContentChangeEvent> = this._register(new Emitter<InternalModelContentChangeEvent>());
+	public readonly fastEvent: Event<InternalModelContentChangeEvent> = this._fastEmitter.event;
+	private readonly _slowEmitter: Emitter<InternalModelContentChangeEvent> = this._register(new Emitter<InternalModelContentChangeEvent>());
+	public readonly slowEvent: Event<InternalModelContentChangeEvent> = this._slowEmitter.event;
 
 	private _deferredCnt: number;
 	private _deferredEvent: InternalModelContentChangeEvent;
@@ -2636,7 +2713,8 @@ export class DidChangeContentEmitter extends Disposable {
 			if (this._deferredEvent !== null) {
 				const e = this._deferredEvent;
 				this._deferredEvent = null;
-				this._actual.fire(e);
+				this._fastEmitter.fire(e);
+				this._slowEmitter.fire(e);
 			}
 		}
 	}
@@ -2650,6 +2728,7 @@ export class DidChangeContentEmitter extends Disposable {
 			}
 			return;
 		}
-		this._actual.fire(e);
+		this._fastEmitter.fire(e);
+		this._slowEmitter.fire(e);
 	}
 }

@@ -75,7 +75,6 @@
 	"ok": "OK",
 	"push with tags success": "Push mit Tags erfolgreich ausgeführt.",
 	"pick remote": "Remotespeicherort auswählen, an dem der Branch \"{0}\" veröffentlicht wird:",
-	"sync is unpredictable": "Mit dieser Aktion werden Commits per Push und Pull an und von \"{0}\" übertragen.",
 	"never again": "OK, nicht mehr anzeigen",
 	"no remotes to publish": "In Ihrem Repository wurden keine Remoteelemente für die Veröffentlichung konfiguriert.",
 	"no changes stash": "Es sind keine Änderungen vorhanden, für die ein Stash ausgeführt werden kann.",

@@ -84,7 +84,17 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		}
 
 		if (selected !== undefined) {
-			this.select(selected);
+			// Guard against out of bounds selected values
+			// Cannot currently return error, set selected within range
+			if (selected >= 0 && selected < this.options.length) {
+				this.select(selected);
+			} else if (selected > this.options.length - 1) {
+				// This could make client out of sync with the select
+				this.select(this.options.length - 1);
+				console.error('selectBoxNative: setOptions selected exceeds options length');
+			} else if (selected < 0) {
+				this.selected = 0;
+			}
 		}
 	}
 

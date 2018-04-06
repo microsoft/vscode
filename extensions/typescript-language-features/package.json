@@ -12,6 +12,9 @@
   "engines": {
     "vscode": "*"
   },
+	"categories": [
+		"Programming Languages"
+	],
   "dependencies": {
     "semver": "4.3.6",
     "vscode-extension-telemetry": "0.0.15",
@@ -411,8 +414,20 @@
         },
         "typescript.experimental.syntaxFolding": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "%typescript.experimental.syntaxFolding%"
+        },
+        "javascript.suggestionActions.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%javascript.suggestionActions.enabled%",
+          "scope": "window"
+        },
+        "typescript.suggestionActions.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.suggestionActions.enabled%",
+          "scope": "window"
         }
       }
     },
@@ -456,6 +471,11 @@
         "command": "typescript.organizeImports",
         "title": "%typescript.organizeImports%",
         "category": "TypeScript"
+      },
+      {
+        "command": "javascript.organizeImports",
+        "title": "%typescript.organizeImports%",
+        "category": "JavaScript"
       }
     ],
     "keybindings": [
@@ -513,7 +533,19 @@
         },
         {
           "command": "typescript.organizeImports",
-          "when": "typescript.isManagedFile && typescript.canOrganizeImports"
+          "when": "editorLangId == typescriptreact && typescript.isManagedFile && typescript.canOrganizeImports"
+        },
+        {
+          "command": "typescript.organizeImports",
+          "when": "editorLangId == typescript && typescript.isManagedFile && typescript.canOrganizeImports"
+        },
+        {
+          "command": "javascript.organizeImports",
+          "when": "editorLangId == javascriptreact && typescript.isManagedFile && typescript.canOrganizeImports"
+        },
+        {
+          "command": "javascript.organizeImports",
+          "when": "editorLangId == javascript && typescript.isManagedFile && typescript.canOrganizeImports"
         }
       ]
     },

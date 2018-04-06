@@ -10,7 +10,6 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
-import * as builder from 'vs/base/browser/builder';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -68,15 +67,15 @@ export class MarkersPanel extends Panel {
 		this.autoExpanded = new Set<string>();
 	}
 
-	public create(parent: builder.Builder): TPromise<void> {
+	public create(parent: HTMLElement): TPromise<void> {
 		super.create(parent);
 
 		this.rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 		this.toUnbind.push(this.rangeHighlightDecorations);
 
-		dom.addClass(parent.getHTMLElement(), 'markers-panel');
+		dom.addClass(parent, 'markers-panel');
 
-		let container = dom.append(parent.getHTMLElement(), dom.$('.markers-panel-container'));
+		let container = dom.append(parent, dom.$('.markers-panel-container'));
 
 		this.createMessageBox(container);
 		this.createTree(container);
@@ -90,8 +89,8 @@ export class MarkersPanel extends Panel {
 		return Messages.MARKERS_PANEL_TITLE_PROBLEMS;
 	}
 
-	public layout(dimension: builder.Dimension): void {
-		this.tree.layout(dimension.height);
+	public layout(dimension: dom.Dimension): void {
+		this.tree.layout(dimension.height, dimension.width);
 	}
 
 	public focus(): void {
@@ -204,7 +203,17 @@ export class MarkersPanel extends Panel {
 				ariaLabel: Messages.MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE
 			});
 
-		Constants.MarkerFocusContextKey.bindTo(this.tree.contextKeyService);
+		const markerFocusContextKey = Constants.MarkerFocusContextKey.bindTo(this.tree.contextKeyService);
+		const relatedInformationFocusContextKey = Constants.RelatedInformationFocusContextKey.bindTo(this.tree.contextKeyService);
+		this._register(this.tree.onDidChangeFocus((e: { focus: any }) => {
+			markerFocusContextKey.set(e.focus instanceof Marker);
+			relatedInformationFocusContextKey.set(e.focus instanceof RelatedInformation);
+		}));
+		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
+		this._register(focusTracker.onDidBlur(() => {
+			markerFocusContextKey.set(false);
+			relatedInformationFocusContextKey.set(false);
+		}));
 
 		const markersNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
 		this._register(debounceEvent(markersNavigator.openResource, (last, event) => event, 75, true)(options => {

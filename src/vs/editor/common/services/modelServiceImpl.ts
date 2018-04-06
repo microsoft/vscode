@@ -13,7 +13,6 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -119,26 +118,31 @@ class ModelMarkerHandler {
 		let className: string;
 		let color: ThemeColor;
 		let darkColor: ThemeColor;
+		let zIndex: number;
 
 		switch (marker.severity) {
 			case MarkerSeverity.Hint:
 				className = ClassName.EditorHintDecoration;
+				zIndex = 0;
 				break;
 			case MarkerSeverity.Warning:
 				className = ClassName.EditorWarningDecoration;
 				color = themeColorFromId(overviewRulerWarning);
 				darkColor = themeColorFromId(overviewRulerWarning);
+				zIndex = 20;
 				break;
 			case MarkerSeverity.Info:
 				className = ClassName.EditorInfoDecoration;
 				color = themeColorFromId(overviewRulerInfo);
 				darkColor = themeColorFromId(overviewRulerInfo);
+				zIndex = 10;
 				break;
 			case MarkerSeverity.Error:
 			default:
 				className = ClassName.EditorErrorDecoration;
 				color = themeColorFromId(overviewRulerError);
 				darkColor = themeColorFromId(overviewRulerError);
+				zIndex = 30;
 				break;
 		}
 
@@ -178,7 +182,8 @@ class ModelMarkerHandler {
 				color,
 				darkColor,
 				position: OverviewRulerLane.Right
-			}
+			},
+			zIndex
 		};
 	}
 }
@@ -398,9 +403,9 @@ export class ModelServiceImpl implements IModelService {
 		// Otherwise find a diff between the values and update model
 		model.setEOL(textBuffer.getEOL() === '\r\n' ? EndOfLineSequence.CRLF : EndOfLineSequence.LF);
 		model.pushEditOperations(
-			[new Selection(1, 1, 1, 1)],
+			[],
 			ModelServiceImpl._computeEdits(model, textBuffer),
-			(inverseEditOperations: IIdentifiedSingleEditOperation[]) => [new Selection(1, 1, 1, 1)]
+			(inverseEditOperations: IIdentifiedSingleEditOperation[]) => []
 		);
 	}
 
@@ -451,7 +456,7 @@ export class ModelServiceImpl implements IModelService {
 			newRange = new Range(1, 1, textBufferLineCount, 1 + textBuffer.getLineLength(textBufferLineCount));
 		}
 
-		return [EditOperation.replace(oldRange, textBuffer.getValueInRange(newRange, EndOfLinePreference.TextDefined))];
+		return [EditOperation.replaceMove(oldRange, textBuffer.getValueInRange(newRange, EndOfLinePreference.TextDefined))];
 	}
 
 	public createModel(value: string | ITextBufferFactory, modeOrPromise: TPromise<IMode> | IMode, resource: URI, isForSimpleWidget: boolean = false): ITextModel {

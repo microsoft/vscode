@@ -12,7 +12,7 @@
 	},
 	"main": "./out/extension",
 	"categories": [
-		"Languages"
+		"Programming Languages"
 	],
 	"activationEvents": [
 		"onLanguage:markdown",
@@ -22,10 +22,16 @@
 		"onCommand:markdown.showPreviewToSide",
 		"onCommand:markdown.showLockedPreviewToSide",
 		"onCommand:markdown.showSource",
-		"onCommand:markdown.showPreviewSecuritySelector"
+		"onCommand:markdown.showPreviewSecuritySelector",
+		"onView:markdown.preview"
 	],
 	"contributes": {
 		"commands": [
+			{
+				"command": "unicorn",
+				"title": "🦄 unicorn",
+				"category": "Markdown"
+			},
 			{
 				"command": "markdown.showPreview",
 				"title": "%markdown.preview.title%",

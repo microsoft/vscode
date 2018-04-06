@@ -155,16 +155,17 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 			// show widget
 			return this._widget.setModel(this._model).then(() => {
+				if (this._widget) { // might have been closed
+					// set title
+					this._widget.setMetaTitle(options.getMetaTitle(this._model));
 
-				// set title
-				this._widget.setMetaTitle(options.getMetaTitle(this._model));
-
-				// set 'best' selection
-				let uri = this._editor.getModel().uri;
-				let pos = new Position(range.startLineNumber, range.startColumn);
-				let selection = this._model.nearestReference(uri, pos);
-				if (selection) {
-					return this._widget.setSelection(selection);
+					// set 'best' selection
+					let uri = this._editor.getModel().uri;
+					let pos = new Position(range.startLineNumber, range.startColumn);
+					let selection = this._model.nearestReference(uri, pos);
+					if (selection) {
+						return this._widget.setSelection(selection);
+					}
 				}
 				return undefined;
 			});
@@ -175,13 +176,15 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	}
 
 	public async goToNextOrPreviousReference(fwd: boolean) {
-		let source = this._model.nearestReference(this._editor.getModel().uri, this._widget.position);
-		let target = this._model.nextOrPreviousReference(source, fwd);
-		let editorFocus = this._editor.isFocused();
-		await this._widget.setSelection(target);
-		await this._gotoReference(target);
-		if (editorFocus) {
-			this._editor.focus();
+		if (this._model) { // can be called while still resolving...
+			let source = this._model.nearestReference(this._editor.getModel().uri, this._widget.position);
+			let target = this._model.nextOrPreviousReference(source, fwd);
+			let editorFocus = this._editor.isFocused();
+			await this._widget.setSelection(target);
+			await this._gotoReference(target);
+			if (editorFocus) {
+				this._editor.focus();
+			}
 		}
 	}
 

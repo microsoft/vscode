@@ -28,14 +28,14 @@ import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 
 // const nativeExit = process.exit.bind(process);
 function patchProcess(allowExit: boolean) {
-	process.exit = function (code) {
+	process.exit = function (code?: number) {
 		if (allowExit) {
 			exit(code);
 		} else {
 			const err = new Error('An extension called process.exit() and this was prevented.');
 			console.warn(err.stack);
 		}
-	};
+	} as (code?: number) => never;
 
 	process.crash = function () {
 		const err = new Error('An extension called process.crash() and this was prevented.');

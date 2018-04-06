@@ -29,6 +29,5 @@
 	"showErrors": "Afficher les erreurs",
 	"noFolderWorkspaceDebugError": "Impossible de déboguer le fichier actif. Vérifiez qu'il est enregistré sur le disque et qu'une extension de débogage est installée pour ce type de fichier.",
 	"cancel": "Annuler",
-	"DebugTaskNotFound": "preLaunchTask '{0}' introuvable.",
-	"taskNotTracked": "La tâche de prélancement '{0}' n'a pas pu être tracée."
+	"DebugTaskNotFound": "Tâche '{0}' introuvable."
 }

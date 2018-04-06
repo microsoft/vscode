@@ -6,7 +6,6 @@
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Builder, $ } from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
 import { ThrottledDelayer, Delayer } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
@@ -160,7 +159,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	public renderBody(container: HTMLElement): void {
 		this.treeContainer = DOM.append(container, DOM.$('.explorer-folders-view'));
-		this.tree = this.createViewer($(this.treeContainer));
+		this.tree = this.createViewer(this.treeContainer);
 
 		if (this.toolbar) {
 			this.toolbar.setActions(this.getActions(), this.getSecondaryActions())();
@@ -227,7 +226,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = activeFile.toString();
 
 			// Select file if input is inside workspace
-			if (this.isVisible() && this.contextService.isInsideWorkspace(activeFile)) {
+			if (this.isVisible() && !this.isDisposed && this.contextService.isInsideWorkspace(activeFile)) {
 				const selection = this.hasSingleSelection(activeFile);
 				if (!selection) {
 					this.select(activeFile).done(null, errors.onUnexpectedError);
@@ -394,7 +393,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		return model;
 	}
 
-	private createViewer(container: Builder): WorkbenchTree {
+	private createViewer(container: HTMLElement): WorkbenchTree {
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
 		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
 		const controller = this.instantiationService.createInstance(FileController);
@@ -406,7 +405,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		const dnd = this.instantiationService.createInstance(FileDragAndDrop);
 		const accessibilityProvider = this.instantiationService.createInstance(FileAccessibilityProvider);
 
-		this.explorerViewer = this.instantiationService.createInstance(FileIconThemableWorkbenchTree, container.getHTMLElement(), {
+		this.explorerViewer = this.instantiationService.createInstance(FileIconThemableWorkbenchTree, container, {
 			dataSource,
 			renderer,
 			controller,
@@ -611,24 +610,21 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	}
 
 	private shouldRefreshFromEvent(e: FileChangesEvent): boolean {
-
-		// Filter to the ones we care
-		e = this.filterFileEvents(e);
-
 		if (!this.isCreated) {
 			return false;
 		}
 
-		if (e.gotAdded()) {
-			const added = e.getAdded();
+		// Filter to the ones we care
+		e = this.filterToViewRelevantEvents(e);
+
+		// Handle added files/folders
+		const added = e.getAdded();
+		if (added.length) {
 
 			// Check added: Refresh if added file/folder is not part of resolved root and parent is part of it
 			const ignoredPaths: { [resource: string]: boolean } = <{ [resource: string]: boolean }>{};
 			for (let i = 0; i < added.length; i++) {
 				const change = added[i];
-				if (!this.contextService.isInsideWorkspace(change.resource)) {
-					continue; // out of workspace file
-				}
 
 				// Find parent
 				const parent = resources.dirname(change.resource);
@@ -651,15 +647,13 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			}
 		}
 
-		if (e.gotDeleted()) {
-			const deleted = e.getDeleted();
+		// Handle deleted files/folders
+		const deleted = e.getDeleted();
+		if (deleted.length) {
 
 			// Check deleted: Refresh if deleted file/folder part of resolved root
 			for (let j = 0; j < deleted.length; j++) {
 				const del = deleted[j];
-				if (!this.contextService.isInsideWorkspace(del.resource)) {
-					continue; // out of workspace file
-				}
 
 				if (this.model.findClosest(del.resource)) {
 					return true;
@@ -667,15 +661,13 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			}
 		}
 
-		if (this.sortOrder === SortOrderConfiguration.MODIFIED && e.gotUpdated()) {
+		// Handle updated files/folders if we sort by modified
+		if (this.sortOrder === SortOrderConfiguration.MODIFIED) {
 			const updated = e.getUpdated();
 
 			// Check updated: Refresh if updated file/folder part of resolved root
 			for (let j = 0; j < updated.length; j++) {
 				const upd = updated[j];
-				if (!this.contextService.isInsideWorkspace(upd.resource)) {
-					continue; // out of workspace file
-				}
 
 				if (this.model.findClosest(upd.resource)) {
 					return true;
@@ -686,8 +678,12 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		return false;
 	}
 
-	private filterFileEvents(e: FileChangesEvent): FileChangesEvent {
+	private filterToViewRelevantEvents(e: FileChangesEvent): FileChangesEvent {
 		return new FileChangesEvent(e.changes.filter(change => {
+			if (change.type === FileChangeType.UPDATED && this.sortOrder !== SortOrderConfiguration.MODIFIED) {
+				return false; // we only are about updated if we sort by modified time
+			}
+
 			if (!this.contextService.isInsideWorkspace(change.resource)) {
 				return false; // exclude changes for resources outside of workspace
 			}
@@ -701,7 +697,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	}
 
 	private refreshFromEvent(newRoots: IWorkspaceFolder[] = []): void {
-		if (this.isVisible()) {
+		if (this.isVisible() && !this.isDisposed) {
 			this.explorerRefreshDelayer.trigger(() => {
 				if (!this.explorerViewer.getHighlight()) {
 					return this.doRefresh(newRoots.map(r => r.uri)).then(() => {

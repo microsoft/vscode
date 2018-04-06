@@ -10,7 +10,7 @@ import URI from 'vscode-uri';
 
 import { TextDocument, CompletionList, CompletionItemKind, CompletionItem, TextEdit, Range, Position } from 'vscode-languageserver-types';
 import { WorkspaceFolder } from 'vscode-languageserver';
-import { ICompletionParticipant } from 'vscode-css-languageservice';
+import { ICompletionParticipant, URILiteralCompletionContext } from 'vscode-css-languageservice';
 
 import { startsWith } from './utils/strings';
 
@@ -20,7 +20,7 @@ export function getPathCompletionParticipant(
 	result: CompletionList
 ): ICompletionParticipant {
 	return {
-		onURILiteralValue: (context: { uriValue: string, position: Position, range: Range; }) => {
+		onURILiteralValue: (context: URILiteralCompletionContext) => {
 			if (!workspaceFolders || workspaceFolders.length === 0) {
 				return;
 			}
@@ -54,16 +54,11 @@ export function providePathSuggestions(value: string, range: Range, activeDocFsP
 		replaceRange = getReplaceRange(range, valueAfterLastSlash);
 	}
 
-	let parentDir: string;
-	if (lastIndexOfSlash === -1) {
-		parentDir = path.resolve(root);
-	} else {
-		const valueBeforeLastSlash = value.slice(0, lastIndexOfSlash + 1);
+	const valueBeforeLastSlash = value.slice(0, lastIndexOfSlash + 1);
 
-		parentDir = startsWith(value, '/')
-			? path.resolve(root, '.' + valueBeforeLastSlash)
-			: path.resolve(activeDocFsPath, '..', valueBeforeLastSlash);
-	}
+	const parentDir = startsWith(value, '/')
+		? path.resolve(root, '.' + valueBeforeLastSlash)
+		: path.resolve(activeDocFsPath, '..', valueBeforeLastSlash);
 
 	try {
 		return fs.readdirSync(parentDir).map(f => {
@@ -91,7 +86,11 @@ export function providePathSuggestions(value: string, range: Range, activeDocFsP
 }
 
 const isDir = (p: string) => {
-	return fs.statSync(p).isDirectory();
+	try {
+		return fs.statSync(p).isDirectory();
+	} catch (e) {
+		return false;
+	}
 };
 
 function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: WorkspaceFolder[]): string | undefined {

@@ -100,7 +100,7 @@ export class CodeMenu {
 		this.windowsMainService.onWindowClose(() => this.updateWorkspaceMenuItems());
 
 		// Listen to extension viewlets
-		ipc.on('vscode:extensionViewlets', (_event: any, rawExtensionViewlets: string) => {
+		ipc.on('vscode:extensionViewlets', (event: any, rawExtensionViewlets: string) => {
 			let extensionViewlets: IExtensionViewlet[] = [];
 			try {
 				extensionViewlets = JSON.parse(rawExtensionViewlets);
@@ -451,7 +451,7 @@ export class CodeMenu {
 	}
 
 	private getPreferencesMenu(): Electron.MenuItem {
-		const settings = this.createMenuItem(nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings"), 'workbench.action.openGlobalSettings');
+		const settings = this.createMenuItem(nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings"), 'workbench.action.openSettings');
 		const kebindingSettings = this.createMenuItem(nls.localize({ key: 'miOpenKeymap', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts"), 'workbench.action.openGlobalKeybindings');
 		const keymapExtensions = this.createMenuItem(nls.localize({ key: 'miOpenKeymapExtensions', comment: ['&& denotes a mnemonic'] }, "&&Keymap Extensions"), 'workbench.extensions.action.showRecommendedKeymapExtensions');
 		const snippetsSettings = this.createMenuItem(nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets"), 'workbench.action.openSnippets');

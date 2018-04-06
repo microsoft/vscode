@@ -20,6 +20,9 @@
     "postinstall": "cd server && yarn install",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
+	"categories": [
+		"Programming Languages"
+	],
   "contributes": {
     "configuration": {
       "id": "json",

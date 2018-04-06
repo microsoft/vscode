@@ -37,7 +37,7 @@ export class WorkspaceConfigurationModelParser extends ConfigurationModelParser 
 
 	constructor(name: string) {
 		super(name);
-		this._settingsModelParser = new FolderSettingsModelParser(name);
+		this._settingsModelParser = new FolderSettingsModelParser(name, [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE]);
 		this._launchModel = new ConfigurationModel();
 	}
 
@@ -98,7 +98,7 @@ export class FolderSettingsModelParser extends ConfigurationModelParser {
 	private _raw: any;
 	private _settingsModel: SettingsModel;
 
-	constructor(name: string, private configurationScope?: ConfigurationScope) {
+	constructor(name: string, private scopes: ConfigurationScope[]) {
 		super(name);
 	}
 
@@ -125,7 +125,8 @@ export class FolderSettingsModelParser extends ConfigurationModelParser {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		for (let key in rawSettings) {
 			if (this.isNotExecutable(key, configurationProperties)) {
-				if (this.configurationScope === void 0 || this.getScope(key, configurationProperties) === this.configurationScope) {
+				const scope = this.getScope(key, configurationProperties);
+				if (this.scopes.indexOf(scope) !== -1) {
 					rawWorkspaceSettings[key] = rawSettings[key];
 				}
 			} else {

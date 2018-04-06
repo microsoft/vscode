@@ -125,7 +125,7 @@ const schema: IJSONSchema = {
 	properties: {
 		engines: {
 			type: 'object',
-
+			description: nls.localize('vscode.extension.engines', "Engine compatibility."),
 			properties: {
 				'vscode': {
 					type: 'string',
@@ -147,8 +147,15 @@ const schema: IJSONSchema = {
 			type: 'array',
 			uniqueItems: true,
 			items: {
-				type: 'string',
-				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs', 'SCM Providers', 'Azure', 'Language Packs']
+				oneOf: [{
+					type: 'string',
+					enum: ['Programming Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs', 'SCM Providers', 'Azure', 'Language Packs'],
+				},
+				{
+					type: 'string',
+					const: 'Languages',
+					deprecationMessage: nls.localize('vscode.extension.category.languages.deprecated', 'Use \'Programming  Languages\' instead'),
+				}]
 			}
 		},
 		galleryBanner: {
@@ -248,6 +255,25 @@ const schema: IJSONSchema = {
 					}
 				}
 			}
+		},
+		markdown: {
+			type: 'string',
+			description: nls.localize('vscode.extension.markdown', "Controls the Markdown rendering engine used in the Marketplace. Either github (default) or standard."),
+			enum: ['github', 'standard'],
+			default: 'github'
+		},
+		qna: {
+			default: 'marketplace',
+			description: nls.localize('vscode.extension.qna', "Controls the Q&A link in the Marketplace. Set to marketplace to enable the default Marketplace Q & A site. Set to a string to provide the URL of a custom Q & A site. Set to false to disable Q & A altogether."),
+			anyOf: [
+				{
+					type: ['string', 'boolean'],
+					enum: ['marketplace', false]
+				},
+				{
+					type: 'string'
+				}
+			]
 		},
 		extensionDependencies: {
 			description: nls.localize('vscode.extension.extensionDependencies', 'Dependencies to other extensions. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp.'),

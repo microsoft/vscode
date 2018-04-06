@@ -1003,17 +1003,14 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 
 				return this.windowService.show().then(() => {
 					return this.open(extension).then(() => {
-						const message = nls.localize('installConfirmation', "Would you like to install the '{0}' extension?", extension.displayName, extension.publisher);
-						const options = [
-							nls.localize('install', "Install")
-						];
-						return this.notificationService.prompt(Severity.Info, message, options).then(value => {
-							if (value === 0) {
-								return this.install(extension);
-							}
-
-							return TPromise.as(null);
-						});
+						this.notificationService.prompt(
+							Severity.Info,
+							nls.localize('installConfirmation', "Would you like to install the '{0}' extension?", extension.displayName, extension.publisher),
+							[{
+								label: nls.localize('install', "Install"),
+								run: () => this.install(extension).done(undefined, error => this.onError(error))
+							}]
+						);
 					});
 				});
 			});

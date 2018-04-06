@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { app, ipcMain as ipc, BrowserWindow } from 'electron';
+import { app, ipcMain as ipc } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
@@ -59,11 +59,14 @@ import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { join } from 'path';
+import { copy } from 'vs/base/node/pfs';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 
 export class CodeApplication {
 
 	private static readonly MACHINE_ID_KEY = 'telemetry.machineId';
+	private static readonly LOCAL_STORAGE_BACKED_UP_KEY = 'localStorage.backedUp';
 
 	private toDispose: IDisposable[];
 	private windowsMainService: IWindowsMainService;
@@ -127,7 +130,7 @@ export class CodeApplication {
 			return srcUri.startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
 		};
 
-		app.on('web-contents-created', (_event: any, contents) => {
+		app.on('web-contents-created', (event: any, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
 				delete webPreferences.preload;
 				webPreferences.nodeIntegration = false;
@@ -182,15 +185,15 @@ export class CodeApplication {
 			this.windowsMainService.openNewWindow(OpenContext.DESKTOP); //macOS native tab "+" button
 		});
 
-		ipc.on('vscode:exit', (_event: any, code: number) => {
+		ipc.on('vscode:exit', (event: any, code: number) => {
 			this.logService.trace('IPC#vscode:exit', code);
 
 			this.dispose();
 			this.lifecycleService.kill(code);
 		});
 
-		ipc.on('vscode:fetchShellEnv', (_event: any, windowId: number) => {
-			const { webContents } = BrowserWindow.fromId(windowId);
+		ipc.on('vscode:fetchShellEnv', event => {
+			const webContents = event.sender.webContents;
 			getShellEnvironment().then(shellEnv => {
 				if (!webContents.isDestroyed()) {
 					webContents.send('vscode:acceptShellEnv', shellEnv);
@@ -204,7 +207,7 @@ export class CodeApplication {
 			});
 		});
 
-		ipc.on('vscode:broadcast', (_event: any, windowId: number, broadcast: { channel: string; payload: any; }) => {
+		ipc.on('vscode:broadcast', (event: any, windowId: number, broadcast: { channel: string; payload: any; }) => {
 			if (this.windowsMainService && broadcast.channel && !isUndefinedOrNull(broadcast.payload)) {
 				this.logService.trace('IPC#vscode:broadcast', broadcast.channel, broadcast.payload);
 
@@ -261,38 +264,43 @@ export class CodeApplication {
 		this.logService.debug(`from: ${this.environmentService.appRoot}`);
 		this.logService.debug('args:', this.environmentService.args);
 
-		// Make sure we associate the program with the app user model id
-		// This will help Windows to associate the running program with
-		// any shortcut that is pinned to the taskbar and prevent showing
-		// two icons in the taskbar for the same app.
-		if (platform.isWindows && product.win32AppUserModelId) {
-			app.setAppUserModelId(product.win32AppUserModelId);
-		}
+		// Backup local storage (TODO@Ben remove me after a while)
+		this.logService.trace('Backing up localStorage if needed...');
+		return this.backupLocalStorage().then(() => {
 
-		// Create Electron IPC Server
-		this.electronIpcServer = new ElectronIPCServer();
+			// Make sure we associate the program with the app user model id
+			// This will help Windows to associate the running program with
+			// any shortcut that is pinned to the taskbar and prevent showing
+			// two icons in the taskbar for the same app.
+			if (platform.isWindows && product.win32AppUserModelId) {
+				app.setAppUserModelId(product.win32AppUserModelId);
+			}
 
-		// Resolve unique machine ID
-		this.logService.trace('Resolving machine identifier...');
-		return this.resolveMachineId().then(machineId => {
-			this.logService.trace(`Resolved machine identifier: ${machineId}`);
+			// Create Electron IPC Server
+			this.electronIpcServer = new ElectronIPCServer();
 
-			// Spawn shared process
-			this.sharedProcess = new SharedProcess(this.environmentService, this.lifecycleService, this.logService, machineId, this.userEnv);
-			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
+			// Resolve unique machine ID
+			this.logService.trace('Resolving machine identifier...');
+			return this.resolveMachineId().then(machineId => {
+				this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
-			// Services
-			const appInstantiationService = this.initServices(machineId);
+				// Spawn shared process
+				this.sharedProcess = new SharedProcess(this.environmentService, this.lifecycleService, this.logService, machineId, this.userEnv);
+				this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
-			// Setup Auth Handler
-			const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
-			this.toDispose.push(authHandler);
+				// Services
+				const appInstantiationService = this.initServices(machineId);
 
-			// Open Windows
-			appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
+				// Setup Auth Handler
+				const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
+				this.toDispose.push(authHandler);
 
-			// Post Open Windows Tasks
-			appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+				// Open Windows
+				appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
+
+				// Post Open Windows Tasks
+				appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+			});
 		});
 	}
 
@@ -311,6 +319,24 @@ export class CodeApplication {
 		});
 	}
 
+	private backupLocalStorage(): TPromise<void> {
+		const localStorageBackedUp = this.stateService.getItem<string>(CodeApplication.LOCAL_STORAGE_BACKED_UP_KEY);
+		if (localStorageBackedUp) {
+			return TPromise.wrap(void 0);
+		}
+
+		const afterBackupDone = () => {
+
+			// Remember in global storage
+			this.stateService.setItem(CodeApplication.LOCAL_STORAGE_BACKED_UP_KEY, true);
+		};
+
+		const localStorageFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage');
+		const localStorageJournalFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal');
+
+		return copy(localStorageFile, `${localStorageFile}.vscbak`).then(() => copy(localStorageJournalFile, `${localStorageJournalFile}.vscbak`)).then(afterBackupDone, afterBackupDone);
+	}
+
 	private initServices(machineId: string): IInstantiationService {
 		const services = new ServiceCollection();
 
@@ -325,7 +351,7 @@ export class CodeApplication {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, machineId));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
-		services.set(IIssueService, new SyncDescriptor(IssueService, machineId));
+		services.set(IIssueService, new SyncDescriptor(IssueService, machineId, this.userEnv));
 
 		// Telemtry
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
@@ -402,11 +428,12 @@ export class CodeApplication {
 		this.windowsMainService.ready(this.userEnv);
 
 		// Open our first window
+		const macOpenFiles = (<any>global).macOpenFiles as string[];
 		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 		if (args['new-window'] && args._.length === 0) {
 			this.windowsMainService.open({ context, cli: args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
-		} else if (global.macOpenFiles && global.macOpenFiles.length && (!args._ || !args._.length)) {
-			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, pathsToOpen: global.macOpenFiles, initialStartup: true }); // mac: open-file event received on startup
+		} else if (macOpenFiles && macOpenFiles.length && (!args._ || !args._.length)) {
+			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, pathsToOpen: macOpenFiles, initialStartup: true }); // mac: open-file event received on startup
 		} else {
 			this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!args._.length && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
 		}

@@ -24,7 +24,7 @@
         "editor.wordHighlightBackground": "#4a4a7680",
         "editor.wordHighlightStrongBackground": "#6a6a9680",
 		"editor.lineHighlightBackground": "#3e3d32",
-		"editorActiveLineNumber.foreground": "#c2c2bf",
+		"editorLineNumber.activeForeground": "#c2c2bf",
 		"editorCursor.foreground": "#f8f8f0",
 		"editorWhitespace.foreground": "#464741",
 		"editorIndentGuide.background": "#464741",

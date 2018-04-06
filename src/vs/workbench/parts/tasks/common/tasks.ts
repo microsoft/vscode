@@ -34,6 +34,9 @@ export enum ShellQuoting {
 
 export namespace ShellQuoting {
 	export function from(this: void, value: string): ShellQuoting {
+		if (!value) {
+			return ShellQuoting.Strong;
+		}
 		switch (value.toLowerCase()) {
 			case 'escape':
 				return ShellQuoting.Escape;

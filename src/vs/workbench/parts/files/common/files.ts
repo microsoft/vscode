@@ -151,7 +151,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 			// Make sure to keep contents on disk up to date when it changes
 			if (!this.fileWatcher) {
 				this.fileWatcher = this.fileService.onFileChanges(changes => {
-					if (changes.contains(fileOnDiskResource, FileChangeType.UPDATED)) { //
+					if (changes.contains(fileOnDiskResource, FileChangeType.UPDATED)) {
 						this.resolveEditorModel(resource, false /* do not create if missing */).done(null, onUnexpectedError); // update model when resource changes
 					}
 				});

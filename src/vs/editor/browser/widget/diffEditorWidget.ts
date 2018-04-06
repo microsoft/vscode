@@ -27,7 +27,7 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
-import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecoration, InlineDecorationType, ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ColorId, MetadataConsts, FontStyle } from 'vs/editor/common/modes';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -99,12 +99,7 @@ class VisualEditorState {
 		this._zonesMap = {};
 
 		// (2) Model decorations
-		if (this._decorations.length > 0) {
-			editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
-				changeAccessor.deltaDecorations(this._decorations, []);
-			});
-		}
-		this._decorations = [];
+		this._decorations = editor.deltaDecorations(this._decorations, []);
 	}
 
 	public apply(editor: CodeEditor, overviewRuler: editorBrowser.IOverviewRuler, newDecorations: IEditorDiffDecorationsWithZones): void {
@@ -1998,10 +1993,13 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		sb.appendASCIIString(String(count * config.lineHeight));
 		sb.appendASCIIString('px;width:1000000px;">');
 
+		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, originalModel.mightContainNonBasicASCII());
+		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, originalModel.mightContainRTL());
 		renderViewLine(new RenderLineInput(
 			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
 			lineContent,
-			originalModel.mightContainRTL(),
+			isBasicASCII,
+			containsRTL,
 			0,
 			lineTokens,
 			actualDecorations,
@@ -2032,27 +2030,31 @@ function createFakeLinesDiv(): HTMLElement {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let added = theme.getColor(diffInserted);
+	const added = theme.getColor(diffInserted);
 	if (added) {
 		collector.addRule(`.monaco-editor .line-insert, .monaco-editor .char-insert { background-color: ${added}; }`);
 		collector.addRule(`.monaco-diff-editor .line-insert, .monaco-diff-editor .char-insert { background-color: ${added}; }`);
 		collector.addRule(`.monaco-editor .inline-added-margin-view-zone { background-color: ${added}; }`);
 	}
-	let removed = theme.getColor(diffRemoved);
+
+	const removed = theme.getColor(diffRemoved);
 	if (removed) {
 		collector.addRule(`.monaco-editor .line-delete, .monaco-editor .char-delete { background-color: ${removed}; }`);
 		collector.addRule(`.monaco-diff-editor .line-delete, .monaco-diff-editor .char-delete { background-color: ${removed}; }`);
 		collector.addRule(`.monaco-editor .inline-deleted-margin-view-zone { background-color: ${removed}; }`);
 	}
-	let addedOutline = theme.getColor(diffInsertedOutline);
+
+	const addedOutline = theme.getColor(diffInsertedOutline);
 	if (addedOutline) {
-		collector.addRule(`.monaco-editor .line-insert, .monaco-editor .char-insert { border: 1px dashed ${addedOutline}; }`);
+		collector.addRule(`.monaco-editor .line-insert, .monaco-editor .char-insert { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${addedOutline}; }`);
 	}
-	let removedOutline = theme.getColor(diffRemovedOutline);
+
+	const removedOutline = theme.getColor(diffRemovedOutline);
 	if (removedOutline) {
-		collector.addRule(`.monaco-editor .line-delete, .monaco-editor .char-delete { border: 1px dashed ${removedOutline}; }`);
+		collector.addRule(`.monaco-editor .line-delete, .monaco-editor .char-delete { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${removedOutline}; }`);
 	}
-	let shadow = theme.getColor(scrollbarShadow);
+
+	const shadow = theme.getColor(scrollbarShadow);
 	if (shadow) {
 		collector.addRule(`.monaco-diff-editor.side-by-side .editor.modified { box-shadow: -6px 0 5px -5px ${shadow}; }`);
 	}

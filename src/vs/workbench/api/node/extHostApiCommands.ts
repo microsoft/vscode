@@ -10,6 +10,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import * as types from 'vs/workbench/api/node/extHostTypes';
+import { IRawColorInfo } from 'vs/workbench/api/node/extHost.protocol';
+
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
@@ -177,7 +179,21 @@ export class ExtHostApiCommands {
 			args: [],
 			returns: 'An array of task handles'
 		});
-
+		this._register('vscode.executeDocumentColorProvider', this._executeDocumentColorProvider, {
+			description: 'Execute document color provider.',
+			args: [
+				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
+			],
+			returns: 'A promise that resolves to an array of ColorInformation objects.'
+		});
+		this._register('vscode.executeColorPresentationProvider', this._executeColorPresentationProvider, {
+			description: 'Execute color presentation provider.',
+			args: [
+				{ name: 'color', description: 'The color to show and insert', constraint: types.Color },
+				{ name: 'context', description: 'Context object with uri and range' }
+			],
+			returns: 'A promise that resolves to an array of ColorPresentation objects.'
+		});
 		this._register('vscode.previewHtml', (uri: URI, position?: vscode.ViewColumn, label?: string, options?: any) => {
 			return this._commands.executeCommand('_workbench.previewHtml',
 				uri,
@@ -388,6 +404,32 @@ export class ExtHostApiCommands {
 				return new types.CompletionList(items, result.incomplete);
 			}
 			return undefined;
+		});
+	}
+
+	private _executeDocumentColorProvider(resource: URI): Thenable<types.ColorInformation[]> {
+		const args = {
+			resource
+		};
+		return this._commands.executeCommand<IRawColorInfo[]>('_executeDocumentColorProvider', args).then(result => {
+			if (result) {
+				return result.map(ci => ({ range: typeConverters.toRange(ci.range), color: typeConverters.Color.to(ci.color) }));
+			}
+			return [];
+		});
+	}
+
+	private _executeColorPresentationProvider(color: types.Color, context: { uri: URI, range: types.Range }): Thenable<types.ColorPresentation[]> {
+		const args = {
+			resource: context.uri,
+			color: typeConverters.Color.from(color),
+			range: typeConverters.fromRange(context.range),
+		};
+		return this._commands.executeCommand<modes.IColorPresentation[]>('_executeColorPresentationProvider', args).then(result => {
+			if (result) {
+				return result.map(typeConverters.ColorPresentation.to);
+			}
+			return [];
 		});
 	}
 

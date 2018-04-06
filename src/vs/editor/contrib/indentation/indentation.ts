@@ -586,18 +586,27 @@ function getIndentationEditOperations(model: ITextModel, builder: IEditOperation
 		spaces += ' ';
 	}
 
-	const content = model.getLinesContent();
-	for (let i = 0; i < content.length; i++) {
-		let lastIndentationColumn = model.getLineFirstNonWhitespaceColumn(i + 1);
+	let spacesRegExp = new RegExp(spaces, 'gi');
+
+	for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
+		let lastIndentationColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
 		if (lastIndentationColumn === 0) {
-			lastIndentationColumn = model.getLineMaxColumn(i + 1);
+			lastIndentationColumn = model.getLineMaxColumn(lineNumber);
 		}
 
-		const text = (tabsToSpaces ? content[i].substr(0, lastIndentationColumn).replace(/\t/ig, spaces) :
-			content[i].substr(0, lastIndentationColumn).replace(new RegExp(spaces, 'gi'), '\t')) +
-			content[i].substr(lastIndentationColumn);
+		if (lastIndentationColumn === 1) {
+			continue;
+		}
 
-		builder.addEditOperation(new Range(i + 1, 1, i + 1, model.getLineMaxColumn(i + 1)), text);
+		const originalIndentationRange = new Range(lineNumber, 1, lineNumber, lastIndentationColumn);
+		const originalIndentation = model.getValueInRange(originalIndentationRange);
+		const newIndentation = (
+			tabsToSpaces
+				? originalIndentation.replace(/\t/ig, spaces)
+				: originalIndentation.replace(spacesRegExp, '\t')
+		);
+
+		builder.addEditOperation(originalIndentationRange, newIndentation);
 	}
 }
 

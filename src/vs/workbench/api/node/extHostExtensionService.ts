@@ -423,7 +423,7 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 		"TelemetryActivationEvent" : {
 			"id": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 			"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-			"publisherDisplayName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+			"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"activationEvents": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		}

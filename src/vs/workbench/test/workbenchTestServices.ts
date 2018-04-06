@@ -20,7 +20,7 @@ import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IPartService, Parts, Position as PartPosition, Dimension } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts, Position as PartPosition, IDimension } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
@@ -63,7 +63,7 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotificationHandle, INotification, NoOpNotification, PromptOption } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotificationHandle, INotification, NoOpNotification, IPromptChoice } from 'vs/platform/notification/common/notification';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -257,6 +257,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(INotificationService, new TestNotificationService());
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
+	instantiationService.stub(IWindowService, new TestWindowService());
 	instantiationService.stub(IWindowsService, new TestWindowsService());
 	instantiationService.stub(ITextFileService, <ITextFileService>instantiationService.createInstance(TestTextFileService));
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -327,8 +328,8 @@ export class TestNotificationService implements INotificationService {
 		return TestNotificationService.NO_OP;
 	}
 
-	public prompt(severity: Severity, message: string, choices: PromptOption[]): TPromise<number> {
-		return TPromise.as(0);
+	public prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
+		return TestNotificationService.NO_OP;
 	}
 }
 
@@ -350,13 +351,13 @@ export class TestPartService implements IPartService {
 	public _serviceBrand: any;
 
 	private _onTitleBarVisibilityChange = new Emitter<void>();
-	private _onEditorLayout = new Emitter<Dimension>();
+	private _onEditorLayout = new Emitter<IDimension>();
 
 	public get onTitleBarVisibilityChange(): Event<void> {
 		return this._onTitleBarVisibilityChange.event;
 	}
 
-	public get onEditorLayout(): Event<Dimension> {
+	public get onEditorLayout(): Event<IDimension> {
 		return this._onEditorLayout.event;
 	}
 
@@ -896,7 +897,7 @@ export class TestWindowService implements IWindowService {
 
 	public _serviceBrand: any;
 
-	onDidChangeFocus: Event<boolean>;
+	onDidChangeFocus: Event<boolean> = new Emitter<boolean>().event;
 
 	isFocused(): TPromise<boolean> {
 		return TPromise.as(false);

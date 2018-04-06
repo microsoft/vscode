@@ -14,7 +14,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import Uri from 'vs/base/common/uri';
 import { WindowsShellHelper } from 'vs/workbench/parts/terminal/electron-browser/windowsShellHelper';
 import { Terminal as XTermTerminal } from 'vscode-xterm';
-import { Dimension } from 'vs/base/browser/builder';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -69,7 +68,7 @@ enum ProcessState {
 export class TerminalInstance implements ITerminalInstance {
 	private static readonly EOL_REGEX = /\r?\n/g;
 
-	private static _lastKnownDimensions: Dimension = null;
+	private static _lastKnownDimensions: dom.Dimension = null;
 	private static _idCounter = 1;
 
 	private _id: number;
@@ -246,7 +245,7 @@ export class TerminalInstance implements ITerminalInstance {
 		return dimension.width;
 	}
 
-	private _getDimension(width: number, height: number): Dimension {
+	private _getDimension(width: number, height: number): dom.Dimension {
 		// The font needs to have been initialized
 		const font = this._configHelper.getFont(this._xterm);
 		if (!font || !font.charWidth || !font.charHeight) {
@@ -278,7 +277,7 @@ export class TerminalInstance implements ITerminalInstance {
 		const innerWidth = width - marginLeft - marginRight;
 		const innerHeight = height - bottom;
 
-		TerminalInstance._lastKnownDimensions = new Dimension(innerWidth, innerHeight);
+		TerminalInstance._lastKnownDimensions = new dom.Dimension(innerWidth, innerHeight);
 		return TerminalInstance._lastKnownDimensions;
 	}
 
@@ -466,7 +465,7 @@ export class TerminalInstance implements ITerminalInstance {
 			const computedStyle = window.getComputedStyle(this._container);
 			const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
 			const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
-			this.layout(new Dimension(width, height));
+			this.layout(new dom.Dimension(width, height));
 			this.setVisible(this._isVisible);
 			this.updateConfig();
 
@@ -613,7 +612,7 @@ export class TerminalInstance implements ITerminalInstance {
 				const computedStyle = window.getComputedStyle(this._container);
 				const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
 				const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
-				this.layout(new Dimension(width, height));
+				this.layout(new dom.Dimension(width, height));
 			}
 		}
 	}
@@ -704,10 +703,10 @@ export class TerminalInstance implements ITerminalInstance {
 		// Continue env initialization, merging in the env from the launch
 		// config and adding keys that are needed to create the process
 		const env = TerminalInstance.createTerminalEnv(parentEnv, this._shellLaunchConfig, this._initialCwd, locale, this._cols, this._rows);
-		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], {
-			env,
-			cwd: Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath
-		});
+		const cwd = Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath;
+		const options = { env, cwd };
+		this._logService.debug(`Terminal process launching (id: ${this.id})`, options);
+		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
 		this._processState = ProcessState.LAUNCHING;
 
 		if (this._shellLaunchConfig.name) {
@@ -756,6 +755,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _sendPtyDataToXterm(message: { type: string, content: string }): void {
+		this._logService.debug(`Terminal process message (id: ${this.id})`, message);
 		if (message.type === 'data') {
 			if (this._widgetManager) {
 				this._widgetManager.closeMessage();
@@ -767,6 +767,8 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _onPtyProcessExit(exitCode: number): void {
+		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
+
 		// Prevent dispose functions being triggered multiple times
 		if (this._isExiting) {
 			return;
@@ -792,6 +794,9 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._processState === ProcessState.RUNNING) {
 			this._processState = ProcessState.KILLED_BY_PROCESS;
 		}
+
+
+		this._logService.debug(`Terminal process exit (id: ${this.id}) state ${this._processState}`);
 
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
@@ -1103,7 +1108,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	public layout(dimension: Dimension): void {
+	public layout(dimension: dom.Dimension): void {
 		if (this.disableLayout) {
 			return;
 		}

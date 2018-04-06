@@ -11,7 +11,7 @@ import { Action } from 'vs/base/common/actions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
-import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
@@ -31,6 +31,24 @@ export class OpenRawDefaultSettingsAction extends Action {
 
 	public run(event?: any): TPromise<any> {
 		return this.preferencesService.openRawDefaultSettings();
+	}
+}
+
+export class OpenSettingsAction extends Action {
+
+	public static readonly ID = 'workbench.action.openSettings';
+	public static readonly LABEL = nls.localize('openSettings', "Open Settings");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPreferencesService private preferencesService: IPreferencesService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.preferencesService.openSettings();
 	}
 }
 

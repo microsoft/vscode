@@ -8,8 +8,6 @@
 	],
 	"nextSearchIncludePattern": "顯示下一個搜尋包含模式",
 	"previousSearchIncludePattern": "顯示上一個搜尋包含模式",
-	"nextSearchExcludePattern": "顯示下一個搜尋排除模式",
-	"previousSearchExcludePattern": "顯示上一個搜尋排除模式",
 	"nextSearchTerm": "顯示下一個搜尋字詞",
 	"previousSearchTerm": "顯示上一個搜尋字詞",
 	"showSearchViewlet": "顯示搜尋",

@@ -59,5 +59,6 @@
 	"emmetPreferencesCssWebkitProperties": "CSS-tulajdonságok vesszővel ellátott listája, melyek 'webkit' gyártói előtagot kapnak azoknál az Emmet-rövidtéseknél, melyek `-` karakterrel kezdődnek. Állítsa üres szövegre, ha soha nem szeretne 'webkit' előtagot használni.",
 	"emmetPreferencesCssMozProperties": "CSS-tulajdonságok vesszővel ellátott listája, melyek 'moz' gyártói előtagot kapnak azoknál az Emmet-rövidtéseknél, melyek `-` karakterrel kezdődnek. Állítsa üres szövegre, ha soha nem szeretne 'moz' előtagot használni.",
 	"emmetPreferencesCssOProperties": "CSS-tulajdonságok vesszővel ellátott listája, melyek 'o' gyártói előtagot kapnak azoknál az Emmet-rövidtéseknél, melyek `-` karakterrel kezdődnek. Állítsa üres szövegre, ha soha nem szeretne 'o' előtagot használni.",
-	"emmetPreferencesCssMsProperties": "CSS-tulajdonságok vesszővel ellátott listája, melyek 'ms' gyártói előtagot kapnak azoknál az Emmet-rövidtéseknél, melyek `-` karakterrel kezdődnek. Állítsa üres szövegre, ha soha nem szeretne 'ms' előtagot használni."
+	"emmetPreferencesCssMsProperties": "CSS-tulajdonságok vesszővel ellátott listája, melyek 'ms' gyártói előtagot kapnak azoknál az Emmet-rövidtéseknél, melyek `-` karakterrel kezdődnek. Állítsa üres szövegre, ha soha nem szeretne 'ms' előtagot használni.",
+	"emmetPreferencesCssFuzzySearchMinScore": "A minimális pontszám (0-tól 1-ig), amit egy fuzzy keresési találatnak el kell érnie. Az alacsonyabb értékek álpozitív találatokat eredményezhetnek, míg a magasabb értékek szűkítik a lehetséges találatok számát."
 }

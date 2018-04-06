@@ -28,7 +28,6 @@
 	"warningBorder": "編輯器內警告提示線的邊框色彩.",
 	"infoForeground": "編輯器內資訊提示線的前景色彩",
 	"infoBorder": "編輯器內資訊提示線的邊框色彩",
-	"overviewRulerRangeHighlight": "範圍醒目提示的概觀尺規標記色彩。",
 	"overviewRuleError": "錯誤的概觀尺規標記色彩。",
 	"overviewRuleWarning": "警示的概觀尺規標記色彩。",
 	"overviewRuleInfo": "資訊的概觀尺規標記色彩。"

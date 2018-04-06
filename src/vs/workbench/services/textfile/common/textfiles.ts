@@ -140,8 +140,22 @@ export interface IRawTextContent extends IBaseStat {
 }
 
 export interface IModelLoadOrCreateOptions {
+
+
+	/**
+	 * The encoding to use when resolving the model text content.
+	 */
 	encoding?: string;
+
+	/**
+	 * Wether to reload the model if it already exists.
+	 */
 	reload?: boolean;
+
+	/**
+	 * Allow to load a model even if we think it is a binary file.
+	 */
+	allowBinary?: boolean;
 }
 
 export interface ITextFileEditorModelManager {
@@ -179,6 +193,19 @@ export interface ISaveOptions {
 	writeElevated?: boolean;
 }
 
+export interface ILoadOptions {
+
+	/**
+	 * Go to disk bypassing any cache of the model if any.
+	 */
+	forceReadFromDisk?: boolean;
+
+	/**
+	 * Allow to load a model even if we think it is a binary file.
+	 */
+	allowBinary?: boolean;
+}
+
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
 
 	onDidContentChange: Event<StateChange>;
@@ -196,7 +223,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	save(options?: ISaveOptions): TPromise<void>;
 
-	load(): TPromise<ITextFileEditorModel>;
+	load(options?: ILoadOptions): TPromise<ITextFileEditorModel>;
 
 	revert(soft?: boolean): TPromise<void>;
 

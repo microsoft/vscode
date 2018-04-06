@@ -9,7 +9,7 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 import { languages, window, commands, ExtensionContext, Range, Position, TextDocument, CompletionItem, CompletionItemKind, TextEdit, SnippetString, FoldingRangeList, FoldingRange, FoldingContext, CancellationToken } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Disposable } from 'vscode-languageclient';
 import { FoldingRangesRequest, FoldingRangeRequestParam } from 'vscode-languageserver-protocol-foldingprovider';
 
 // this method is called when vs code is activated
@@ -68,48 +68,58 @@ export function activate(context: ExtensionContext) {
 		indentationRules: indentationRules
 	});
 
-	const regionCompletionRegExpr = /^(\s*)(\/(\*\s*(#\w*)?)?)?$/;
-	languages.registerCompletionItemProvider(documentSelector, {
-		provideCompletionItems(doc, pos) {
-			let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));
-			let match = lineUntilPos.match(regionCompletionRegExpr);
-			if (match) {
-				let range = new Range(new Position(pos.line, match[1].length), pos);
-				let beginProposal = new CompletionItem('#region', CompletionItemKind.Snippet);
-				beginProposal.range = range; TextEdit.replace(range, '/* #region */');
-				beginProposal.insertText = new SnippetString('/* #region $1*/');
-				beginProposal.documentation = localize('folding.start', 'Folding Region Start');
-				beginProposal.filterText = match[2];
-				beginProposal.sortText = 'za';
-				let endProposal = new CompletionItem('#endregion', CompletionItemKind.Snippet);
-				endProposal.range = range;
-				endProposal.insertText = '/* #endregion */';
-				endProposal.documentation = localize('folding.end', 'Folding Region End');
-				endProposal.sortText = 'zb';
-				endProposal.filterText = match[2];
-				return [beginProposal, endProposal];
-			}
-			return null;
-		}
+	client.onReady().then(() => {
+		context.subscriptions.push(initCompletionProvider());
+		context.subscriptions.push(initFoldingProvider());
 	});
 
-	languages.registerFoldingProvider(documentSelector, {
-		provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken) {
-			const param: FoldingRangeRequestParam = {
-				textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
-				maxRanges: context.maxRanges
-			};
-			return client.sendRequest(FoldingRangesRequest.type, param, token).then(res => {
-				if (res && Array.isArray(res.ranges)) {
-					return new FoldingRangeList(res.ranges.map(r => new FoldingRange(r.startLine, r.endLine, r.type)));
+	function initCompletionProvider(): Disposable {
+		const regionCompletionRegExpr = /^(\s*)(\/(\*\s*(#\w*)?)?)?$/;
+
+		return languages.registerCompletionItemProvider(documentSelector, {
+			provideCompletionItems(doc, pos) {
+				let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));
+				let match = lineUntilPos.match(regionCompletionRegExpr);
+				if (match) {
+					let range = new Range(new Position(pos.line, match[1].length), pos);
+					let beginProposal = new CompletionItem('#region', CompletionItemKind.Snippet);
+					beginProposal.range = range; TextEdit.replace(range, '/* #region */');
+					beginProposal.insertText = new SnippetString('/* #region $1*/');
+					beginProposal.documentation = localize('folding.start', 'Folding Region Start');
+					beginProposal.filterText = match[2];
+					beginProposal.sortText = 'za';
+					let endProposal = new CompletionItem('#endregion', CompletionItemKind.Snippet);
+					endProposal.range = range;
+					endProposal.insertText = '/* #endregion */';
+					endProposal.documentation = localize('folding.end', 'Folding Region End');
+					endProposal.sortText = 'zb';
+					endProposal.filterText = match[2];
+					return [beginProposal, endProposal];
 				}
 				return null;
-			}, error => {
-				client.logFailedRequest(FoldingRangesRequest.type, error);
-				return null;
-			});
-		}
-	});
+			}
+		});
+	}
+
+	function initFoldingProvider(): Disposable {
+		return languages.registerFoldingProvider(documentSelector, {
+			provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken) {
+				const param: FoldingRangeRequestParam = {
+					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+					maxRanges: context.maxRanges
+				};
+				return client.sendRequest(FoldingRangesRequest.type, param, token).then(res => {
+					if (res && Array.isArray(res.ranges)) {
+						return new FoldingRangeList(res.ranges.map(r => new FoldingRange(r.startLine, r.endLine, r.type)));
+					}
+					return null;
+				}, error => {
+					client.logFailedRequest(FoldingRangesRequest.type, error);
+					return null;
+				});
+			}
+		});
+	}
 
 	commands.registerCommand('_css.applyCodeAction', applyCodeAction);
 

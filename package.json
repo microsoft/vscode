@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.22.0",
-  "distro": "6e8c6e1a8dc5df53e357062bee4f14a1843c2249",
+  "version": "1.23.0",
+  "distro": "6834b79a655ade3dce6df4799a264ff29bff6652",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -43,10 +43,10 @@
     "sudo-prompt": "^8.0.0",
     "v8-inspect-profiler": "^0.0.7",
     "vscode-chokidar": "1.6.2",
-    "vscode-debugprotocol": "1.27.0",
+    "vscode-debugprotocol": "1.28.0",
     "vscode-nsfw": "1.0.17",
     "vscode-ripgrep": "^0.8.1",
-    "vscode-textmate": "^3.3.2",
+    "vscode-textmate": "^3.3.3",
     "vscode-xterm": "3.3.0-beta8",
     "yauzl": "2.8.0"
   },
@@ -132,6 +132,6 @@
   "optionalDependencies": {
     "windows-foreground-love": "0.1.0",
     "windows-mutex": "^0.2.0",
-    "windows-process-tree": "0.1.6"
+    "windows-process-tree": "0.2.0"
   }
 }

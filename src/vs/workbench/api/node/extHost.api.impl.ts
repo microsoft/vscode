@@ -368,7 +368,7 @@ export function createApiFactory(
 			showErrorMessage(message, first, ...rest) {
 				return extHostMessageService.showMessage(extension, Severity.Error, message, first, rest);
 			},
-			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) {
+			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken): any {
 				return extHostQuickOpen.showQuickPick(items, options, token);
 			},
 			showWorkspaceFolderPick(options: vscode.WorkspaceFolderPickOptions) {
@@ -420,6 +420,12 @@ export function createApiFactory(
 			}),
 			createWebview: proposedApiFunction(extension, (viewType: string, title: string, column: vscode.ViewColumn, options: vscode.WebviewOptions) => {
 				return extHostWebviews.createWebview(viewType, title, column, options, extension.extensionFolderPath);
+			}),
+			registerWebviewSerializer: proposedApiFunction(extension, (viewType: string, serializer: vscode.WebviewSerializer) => {
+				return extHostWebviews.registerWebviewSerializer(viewType, serializer);
+			}),
+			showWebviewWidget: proposedApiFunction(extension, (editor: vscode.TextEditor, position: vscode.Position, viewType: string, title: string, options: vscode.WebviewOptions) => {
+				return extHostWebviews.showWebviewWidget(editor, position, viewType, title, options);
 			})
 		};
 

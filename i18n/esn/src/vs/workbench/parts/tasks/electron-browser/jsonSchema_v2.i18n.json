@@ -28,6 +28,8 @@
 	"JsonSchema.tasks.group.none": "No asigna la tarea a ningún grupo",
 	"JsonSchema.tasks.group": "Define a qué grupo de ejecución pertenece esta tarea. Admite \"compilación\" para agregarla al grupo de compilación y \"prueba\" para agregarla al grupo de prueba.",
 	"JsonSchema.tasks.type": "Define si la tarea se ejecuta como un proceso o como un comando dentro de in shell. ",
+	"JsonSchema.command": "El comando que se va a ejecutar. Puede ser un programa externo o un comando shell.",
+	"JsonSchema.tasks.args": "Argumentos que se pasan al comando cuando se invoca esta tarea.",
 	"JsonSchema.tasks.label": "Etiqueta de interfaz de usuario de la tarea",
 	"JsonSchema.version": "El número de versión de la configuración.",
 	"JsonSchema.tasks.identifier": "Un identificador definido por el usuario para hacer referencia a la tarea en launch.json o una cláusula dependsOn.",

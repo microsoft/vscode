@@ -28,7 +28,6 @@
 	"warningBorder": "Colore del bordo degli squggle di avviso nell'editor.",
 	"infoForeground": "Colore primo piano degli squiggle di informazione nell'editor",
 	"infoBorder": "Colore del bordo degli squiggle di informazione nell'editor",
-	"overviewRulerRangeHighlight": "Colore del marcatore del righello delle annotazioni per le evidenziazioni degli intervalli.",
 	"overviewRuleError": "Colore del marcatore del righello delle annotazioni per gli errori.",
 	"overviewRuleWarning": "Colore del marcatore del righello delle annotazioni per gli avvisi.",
 	"overviewRuleInfo": "Colore del marcatore del righello delle annotazioni per i messaggi di tipo informativo."

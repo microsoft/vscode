@@ -493,9 +493,10 @@ export interface IResolveContentOptions {
 	acceptTextOnly?: boolean;
 
 	/**
-	 * The optional etag parameter allows to return a 304 (Not Modified) if the etag matches
-	 * with the remote resource. It is the task of the caller to makes sure to handle this
-	 * error case from the promise.
+	 * The optional etag parameter allows to return early from resolving the resource if
+	 * the contents on disk match the etag. This prevents accumulated reading of resources
+	 * that have been read already with the same etag.
+	 * It is the task of the caller to makes sure to handle this error case from the promise.
 	 */
 	etag?: string;
 

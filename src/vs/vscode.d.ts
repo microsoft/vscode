@@ -1522,12 +1522,20 @@ declare module 'vscode' {
 		/**
 		 * A human readable string which is rendered less prominent.
 		 */
-		description: string;
+		description?: string;
 
 		/**
 		 * A human readable string which is rendered less prominent.
 		 */
 		detail?: string;
+
+		/**
+		 * Optional flag indicating if this item is picked initially.
+		 * (Only honored when the picker allows multiple selections.)
+		 *
+		 * @see [QuickPickOptions.canPickMany](#QuickPickOptions.canPickMany)
+		 */
+		picked?: boolean;
 	}
 
 	/**
@@ -1553,6 +1561,11 @@ declare module 'vscode' {
 		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
 		 */
 		ignoreFocusOut?: boolean;
+
+		/**
+		 * An optional flag to make the picker accept multiple selections, if true the result is an array of picks.
+		 */
+		canPickMany?: boolean;
 
 		/**
 		 * An optional function that is invoked whenever an item is selected.
@@ -3737,28 +3750,28 @@ declare module 'vscode' {
 		message: string;
 
 		/**
-		 * A human-readable string describing the source of this
-		 * diagnostic, e.g. 'typescript' or 'super lint'.
-		 */
-		source: string;
-
-		/**
 		 * The severity, default is [error](#DiagnosticSeverity.Error).
 		 */
 		severity: DiagnosticSeverity;
+
+		/**
+		 * A human-readable string describing the source of this
+		 * diagnostic, e.g. 'typescript' or 'super lint'.
+		 */
+		source?: string;
 
 		/**
 		 * A code or identifier for this diagnostics. Will not be surfaced
 		 * to the user, but should be used for later processing, e.g. when
 		 * providing [code actions](#CodeActionContext).
 		 */
-		code: string | number;
+		code?: string | number;
 
 		/**
 		 * An array of related diagnostic information, e.g. when symbol-names within
 		 * a scope collide all definitions can be marked via this property.
 		 */
-		relatedInformation: DiagnosticRelatedInformation[];
+		relatedInformation?: DiagnosticRelatedInformation[];
 
 		/**
 		 * Creates a new diagnostic object.
@@ -4025,7 +4038,8 @@ declare module 'vscode' {
 
 		/**
 		 * Report a progress update.
-		 * @param value A progress item, like a message or an updated percentage value
+		 * @param value A progress item, like a message and/or an
+		 * report on how much work finished
 		 */
 		report(value: T): void;
 	}
@@ -5062,6 +5076,16 @@ declare module 'vscode' {
 		export function showErrorMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
 
 		/**
+		 * Shows a selection list allowing multiple selections.
+		 *
+		 * @param items An array of strings, or a promise that resolves to an array of strings.
+		 * @param options Configures the behavior of the selection list.
+		 * @param token A token that can be used to signal cancellation.
+		 * @return A promise that resolves to the selected items or `undefined`.
+		 */
+		export function showQuickPick(items: string[] | Thenable<string[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<string[] | undefined>;
+
+		/**
 		 * Shows a selection list.
 		 *
 		 * @param items An array of strings, or a promise that resolves to an array of strings.
@@ -5070,6 +5094,16 @@ declare module 'vscode' {
 		 * @return A promise that resolves to the selection or `undefined`.
 		 */
 		export function showQuickPick(items: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
+
+		/**
+		 * Shows a selection list allowing multiple selections.
+		 *
+		 * @param items An array of items, or a promise that resolves to an array of items.
+		 * @param options Configures the behavior of the selection list.
+		 * @param token A token that can be used to signal cancellation.
+		 * @return A promise that resolves to the selected items or `undefined`.
+		 */
+		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<T[] | undefined>;
 
 		/**
 		 * Shows a selection list.
@@ -5180,9 +5214,10 @@ declare module 'vscode' {
 		 * @param task A callback returning a promise. Progress state can be reported with
 		 * the provided [progress](#Progress)-object.
 		 *
-		 * To report discrete progress, use `percentage` to indicate how much work has been completed. Each call with
-		 * a `percentage` value will be summed up and reflected as overall progress until 100% is reached. Note that
-		 * currently only `ProgressLocation.Notification` is capable of showing discrete progress.
+		 * To report discrete progress, use `increment` to indicate how much work has been completed. Each call with
+		 * a `increment` value will be summed up and reflected as overall progress until 100% is reached (a value of
+		 * e.g. `10` accounts for `10%` of work done).
+		 * Note that currently only `ProgressLocation.Notification` is capable of showing discrete progress.
 		 *
 		 * To monitor if the operation has been cancelled by the user, use the provided [`CancellationToken`](#CancellationToken).
 		 * Note that currently only `ProgressLocation.Notification` is supporting to show a cancel button to cancel the
@@ -5190,7 +5225,7 @@ declare module 'vscode' {
 		 *
 		 * @return The thenable the task-callback returned.
 		 */
-		export function withProgress<R>(options: ProgressOptions, task: (progress: Progress<{ message?: string; percentage?: number }>, token: CancellationToken) => Thenable<R>): Thenable<R>;
+		export function withProgress<R>(options: ProgressOptions, task: (progress: Progress<{ message?: string; increment?: number }>, token: CancellationToken) => Thenable<R>): Thenable<R>;
 
 		/**
 		 * Creates a status bar [item](#StatusBarItem).
@@ -5224,7 +5259,8 @@ declare module 'vscode' {
 		/**
 		 * Register a [TreeDataProvider](#TreeDataProvider) for the view contributed using the extension point `views`.
 		 * This will allow you to contribute data to the [TreeView](#TreeView) and update if the data changes.
-		 * To get access to the [TreeView](#TreeView) and perform operations on it, use [createTreeView](#window.createTreeView).
+		 *
+		 * **Note:** To get access to the [TreeView](#TreeView) and perform operations on it, use [createTreeView](#window.createTreeView).
 		 *
 		 * @param viewId Id of the view contributed using the extension point `views`.
 		 * @param treeDataProvider A [TreeDataProvider](#TreeDataProvider) that provides tree data for the view
@@ -5475,6 +5511,10 @@ declare module 'vscode' {
 		 * The range that got replaced.
 		 */
 		range: Range;
+		/**
+		 * The offset of the range that got replaced.
+		 */
+		rangeOffset: number;
 		/**
 		 * The length of the range that got replaced.
 		 */

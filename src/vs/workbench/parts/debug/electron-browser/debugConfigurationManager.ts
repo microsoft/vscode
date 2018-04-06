@@ -33,7 +33,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
-import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawAdapter[]>('debuggers', [], {

@@ -59,4 +59,12 @@ export function activate(context: vscode.ExtensionContext) {
 		logger.updateConfiguration();
 		previewManager.updateConfiguration();
 	}));
+
+	vscode.commands.registerCommand('unicorn', () => {
+		if (vscode.window.activeTextEditor) {
+			vscode.window.showWebviewWidget(vscode.window.activeTextEditor, vscode.window.activeTextEditor.selection.active, 'unicorn', 'Webview', {}).then(webview => {
+				webview.html = '<img src="https://media.giphy.com/media/JIX9t2j0ZTN9S/giphy.gif"/>';
+			});
+		}
+	});
 }

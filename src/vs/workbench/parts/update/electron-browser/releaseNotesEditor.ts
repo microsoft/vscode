@@ -5,29 +5,29 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { marked } from 'vs/base/common/marked/marked';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { OS } from 'vs/base/common/platform';
+import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { asText } from 'vs/base/node/request';
 import { IMode, TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IRequestService } from 'vs/platform/request/node/request';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WebviewInput } from 'vs/workbench/parts/webview/electron-browser/webviewInput';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
-import URI from 'vs/base/common/uri';
-import { asText } from 'vs/base/node/request';
+import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import * as nls from 'vs/nls';
-import { OS } from 'vs/base/common/platform';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IRequestService } from 'vs/platform/request/node/request';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
+import { IWebviewEditorService } from 'vs/workbench/parts/webview/electron-browser/webviewEditorService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
+import { Position } from 'vs/platform/editor/common/editor';
+import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
 
 function renderBody(
 	body: string,
@@ -51,18 +51,17 @@ export class ReleaseNotesManager {
 
 	private _releaseNotesCache: { [version: string]: TPromise<string>; } = Object.create(null);
 
-	private _currentReleaseNotes: WebviewInput | undefined = undefined;
+	private _currentReleaseNotes: WebviewEditorInput | undefined = undefined;
 
 	public constructor(
-		@IEditorGroupService private readonly _editorGroupService: IEditorGroupService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IModeService private readonly _modeService: IModeService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IPartService private readonly _partService: IPartService,
 		@IRequestService private readonly _requestService: IRequestService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
+		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
 	) { }
 
 	public async show(
@@ -73,21 +72,23 @@ export class ReleaseNotesManager {
 		const html = await this.renderBody(releaseNoteText);
 		const title = nls.localize('releaseNotesInputName', "Release Notes: {0}", version);
 
+		const activeEditor = this._editorService.getActiveEditor();
 		if (this._currentReleaseNotes) {
 			this._currentReleaseNotes.setName(title);
-			this._currentReleaseNotes.setHtml(html);
-			const activeEditor = this._editorService.getActiveEditor();
-			if (activeEditor && activeEditor.position !== this._currentReleaseNotes.position) {
-				this._editorGroupService.moveEditor(this._currentReleaseNotes, this._currentReleaseNotes.position, activeEditor.position, { preserveFocus: true });
-			} else {
-				this._editorService.openEditor(this._currentReleaseNotes, { preserveFocus: true });
-			}
+			this._currentReleaseNotes.html = html;
+			this._webviewEditorService.revealWebview(this._currentReleaseNotes, activeEditor ? activeEditor.position : undefined);
 		} else {
-			this._currentReleaseNotes = new WebviewInput(title, { tryRestoreScrollPosition: true, enableFindWidget: true }, html, {
-				onDidClickLink: uri => this.onDidClickLink(uri),
-				onDispose: () => { this._currentReleaseNotes = undefined; }
-			}, this._partService);
-			await this._editorService.openEditor(this._currentReleaseNotes, { pinned: true });
+			this._currentReleaseNotes = this._webviewEditorService.createWebview(
+				'releaseNotes',
+				title,
+				activeEditor ? activeEditor.position : Position.ONE,
+				{ tryRestoreScrollPosition: true, enableFindWidget: true },
+				undefined, {
+					onDidClickLink: uri => this.onDidClickLink(uri),
+					onDispose: () => { this._currentReleaseNotes = undefined; }
+				});
+
+			this._currentReleaseNotes.html = html;
 		}
 
 		return true;

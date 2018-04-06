@@ -386,7 +386,7 @@ export class ActionBar implements IActionRunner {
 	private _onDidRun = new Emitter<IRunEvent>();
 	private _onDidBeforeRun = new Emitter<IRunEvent>();
 
-	constructor(container: HTMLElement | Builder, options: IActionBarOptions = defaultOptions) {
+	constructor(container: HTMLElement, options: IActionBarOptions = defaultOptions) {
 		this.options = options;
 		this._context = options.context;
 		this.toDispose = [];
@@ -496,7 +496,7 @@ export class ActionBar implements IActionRunner {
 
 		this.domNode.appendChild(this.actionsList);
 
-		((container instanceof Builder) ? container.getHTMLElement() : container).appendChild(this.domNode);
+		container.appendChild(this.domNode);
 	}
 
 	public get onDidBlur(): Event<void> {
@@ -553,8 +553,8 @@ export class ActionBar implements IActionRunner {
 		}
 	}
 
-	public getContainer(): Builder {
-		return $(this.domNode);
+	public getContainer(): HTMLElement {
+		return this.domNode;
 	}
 
 	public push(arg: IAction | IAction[], options: IActionOptions = {}): void {
@@ -748,7 +748,7 @@ export class ActionBar implements IActionRunner {
 
 		this.toDispose = lifecycle.dispose(this.toDispose);
 
-		this.getContainer().destroy();
+		$(this.getContainer()).destroy();
 	}
 }
 

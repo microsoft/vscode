@@ -15,7 +15,7 @@ suite('CSS Emmet Support', () => {
 	const cssLanguageService = getCSSLanguageService();
 	const scssLanguageService = getSCSSLanguageService();
 
-	function assertCompletions(syntax: string, value: string, expectedProposal: string, expectedProposalDoc: string): void {
+	function assertCompletions(syntax: string, value: string, expectedProposal: string | null, expectedProposalDoc: string | null): void {
 		const offset = value.indexOf('|');
 		value = value.substr(0, offset) + value.substr(offset + 1);
 
@@ -23,12 +23,12 @@ suite('CSS Emmet Support', () => {
 		const position = document.positionAt(offset);
 		const emmetCompletionList: CompletionList = {
 			isIncomplete: true,
-			items: undefined
+			items: []
 		};
 		const languageService = syntax === 'scss' ? scssLanguageService : cssLanguageService;
 		languageService.setCompletionParticipants([getEmmetCompletionParticipants(document, position, document.languageId, {}, emmetCompletionList)]);
 		const stylesheet = languageService.parseStylesheet(document);
-		const list = languageService.doComplete!(document, position, stylesheet);
+		const list = languageService.doComplete(document, position, stylesheet);
 
 		assert.ok(list);
 		assert.ok(emmetCompletionList);
@@ -43,7 +43,7 @@ suite('CSS Emmet Support', () => {
 		}
 	}
 
-	test('Css Emmet Completions', function (): any {
+	test('Css Emmet Completions', function (this: any): any {
 		this.skip(); // disabled again (see #29113)
 
 		assertCompletions('css', '.foo { display: none; m10| }', 'margin: 10px;', 'margin: 10px;');
@@ -56,7 +56,7 @@ suite('CSS Emmet Support', () => {
 		assertCompletions('css', '.foo { display: none; -m-m10| }', 'margin: 10px;', '-moz-margin: 10px;\nmargin: 10px;');
 	});
 
-	test('Scss Emmet Completions', function (): any {
+	test('Scss Emmet Completions', function (this: any): any {
 		this.skip(); // disabled again (see #29113)
 
 		assertCompletions('scss', '.foo { display: none; .bar { m10| } }', 'margin: 10px;', 'margin: 10px;');

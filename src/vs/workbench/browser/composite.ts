@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Dimension, Builder } from 'vs/base/browser/builder';
 import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Component } from 'vs/workbench/common/component';
@@ -14,8 +13,8 @@ import { IEditorControl } from 'vs/platform/editor/common/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import * as DOM from 'vs/base/browser/dom';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IFocusTracker, trackFocus, Dimension } from 'vs/base/browser/dom';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
@@ -31,11 +30,11 @@ export abstract class Composite extends Component implements IComposite {
 	private readonly _onTitleAreaUpdate: Emitter<void>;
 	private readonly _onDidFocus: Emitter<void>;
 
-	private _focusTracker?: DOM.IFocusTracker;
+	private _focusTracker?: IFocusTracker;
 	private _focusListenerDisposable?: IDisposable;
 
 	private visible: boolean;
-	private parent: Builder;
+	private parent: HTMLElement;
 
 	protected actionRunner: IActionRunner;
 
@@ -75,7 +74,7 @@ export abstract class Composite extends Component implements IComposite {
 	 * Note that DOM-dependent calculations should be performed from the setVisible()
 	 * call. Only then the composite will be part of the DOM.
 	 */
-	public create(parent: Builder): TPromise<void> {
+	public create(parent: HTMLElement): TPromise<void> {
 		this.parent = parent;
 
 		return TPromise.as(null);
@@ -88,12 +87,12 @@ export abstract class Composite extends Component implements IComposite {
 	/**
 	 * Returns the container this composite is being build in.
 	 */
-	public getContainer(): Builder {
+	public getContainer(): HTMLElement {
 		return this.parent;
 	}
 
 	public get onDidFocus(): Event<any> {
-		this._focusTracker = DOM.trackFocus(this.getContainer().getHTMLElement());
+		this._focusTracker = trackFocus(this.getContainer());
 		this._focusListenerDisposable = this._focusTracker.onDidFocus(() => {
 			this._onDidFocus.fire();
 		});

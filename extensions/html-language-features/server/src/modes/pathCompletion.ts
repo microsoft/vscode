@@ -69,25 +69,28 @@ function providePaths(valueBeforeCursor: string, activeDocFsPath: string, root?:
 	}
 
 	const lastIndexOfSlash = valueBeforeCursor.lastIndexOf('/');
-	let parentDir: string;
-	if (lastIndexOfSlash === -1) {
-		parentDir = path.resolve(root);
-	} else {
-		const valueBeforeLastSlash = valueBeforeCursor.slice(0, lastIndexOfSlash + 1);
+	const valueBeforeLastSlash = valueBeforeCursor.slice(0, lastIndexOfSlash + 1);
 
-		parentDir = startsWith(valueBeforeCursor, '/')
-			? path.resolve(root, '.' + valueBeforeLastSlash)
-			: path.resolve(activeDocFsPath, '..', valueBeforeLastSlash);
-	}
+	const parentDir = startsWith(valueBeforeCursor, '/')
+		? path.resolve(root, '.' + valueBeforeLastSlash)
+		: path.resolve(activeDocFsPath, '..', valueBeforeLastSlash);
 
 	try {
 		return fs.readdirSync(parentDir).map(f => {
-			return fs.statSync(path.resolve(parentDir, f)).isDirectory()
+			return isDir(path.resolve(parentDir, f))
 				? f + '/'
 				: f;
 		});
 	} catch (e) {
 		return [];
+	}
+}
+
+function isDir(p: string) {
+	try {
+		return fs.statSync(p).isDirectory();
+	} catch (e) {
+		return false;
 	}
 }
 
