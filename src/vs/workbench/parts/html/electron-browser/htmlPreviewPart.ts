@@ -20,13 +20,13 @@ import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/r
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { WebviewElement, WebviewOptions } from './webview';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { BaseWebviewEditor } from './baseWebviewEditor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import URI from 'vs/base/common/uri';
 import { Scope } from 'vs/workbench/common/memento';
 import { Dimension } from 'vs/base/browser/dom';
+import { BaseWebviewEditor } from 'vs/workbench/parts/webview/electron-browser/baseWebviewEditor';
+import { WebviewElement, WebviewOptions } from 'vs/workbench/parts/webview/electron-browser/webview';
 
 export interface HtmlPreviewEditorViewState {
 	scrollYPercentage: number;
