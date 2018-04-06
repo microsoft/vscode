@@ -13,7 +13,9 @@ import { Disposable } from './extHostTypes';
 
 export class ExtHostWebview implements vscode.Webview {
 
+	private readonly _handle: WebviewHandle;
 	private readonly _viewType: string;
+	private readonly _proxy: MainThreadWebviewsShape;
 	private _title: string;
 	private _html: string;
 	private _options: vscode.WebviewOptions;
@@ -32,12 +34,14 @@ export class ExtHostWebview implements vscode.Webview {
 	public readonly onDidChangeViewState: Event<vscode.WebViewOnDidChangeViewStateEvent> = this.onDidChangeViewStateEmitter.event;
 
 	constructor(
-		private readonly _handle: WebviewHandle,
-		private readonly _proxy: MainThreadWebviewsShape,
+		handle: WebviewHandle,
+		proxy: MainThreadWebviewsShape,
 		viewType: string,
 		viewColumn: vscode.ViewColumn,
 		options: vscode.WebviewOptions
 	) {
+		this._handle = handle;
+		this._proxy = proxy;
 		this._viewType = viewType;
 		this._viewColumn = viewColumn;
 		this._options = options;
