@@ -16,20 +16,10 @@ export class ShowWebViewEditorFindWidgetCommand extends Command {
 	public static readonly ID = 'editor.action.webvieweditor.showFind';
 
 	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const webViewEditor = this.getWebViewEditor(accessor);
+		const webViewEditor = getActiveWebviewEditor(accessor);
 		if (webViewEditor) {
 			webViewEditor.showFind();
 		}
-		return null;
-	}
-
-	private getWebViewEditor(accessor: ServicesAccessor): BaseWebviewEditor {
-		const workbenchEditorService = accessor.get(IWorkbenchEditorService);
-		const activeEditor = workbenchEditorService.getActiveEditor() as BaseWebviewEditor;
-		if (activeEditor.isWebviewEditor) {
-			return activeEditor;
-		}
-		return null;
 	}
 }
 
@@ -37,18 +27,10 @@ export class HideWebViewEditorFindCommand extends Command {
 	public static readonly Id = 'editor.action.webvieweditor.hideFind';
 
 	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const webViewEditor = this.getWebViewEditor(accessor);
+		const webViewEditor = getActiveWebviewEditor(accessor);
 		if (webViewEditor) {
 			webViewEditor.hideFind();
 		}
-	}
-
-	private getWebViewEditor(accessor: ServicesAccessor): BaseWebviewEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as BaseWebviewEditor;
-		if (activeEditor.isWebviewEditor) {
-			return activeEditor;
-		}
-		return null;
 	}
 }
 
@@ -60,7 +42,7 @@ export class ShowWebViewEditorFindTermCommand extends Command {
 	}
 
 	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const webViewEditor = this.getWebViewEditor(accessor);
+		const webViewEditor = getActiveWebviewEditor(accessor);
 		if (webViewEditor) {
 			if (this._next) {
 				webViewEditor.showNextFindTerm();
@@ -68,14 +50,6 @@ export class ShowWebViewEditorFindTermCommand extends Command {
 				webViewEditor.showPreviousFindTerm();
 			}
 		}
-	}
-
-	private getWebViewEditor(accessor: ServicesAccessor): BaseWebviewEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as BaseWebviewEditor;
-		if (activeEditor.isWebviewEditor) {
-			return activeEditor;
-		}
-		return null;
 	}
 }
 
@@ -127,4 +101,10 @@ export class ReloadWebviewAction extends Action {
 			.filter(c => c && (c as any).isWebviewEditor)
 			.map(e => e as BaseWebviewEditor);
 	}
+}
+
+function getActiveWebviewEditor(accessor: ServicesAccessor): BaseWebviewEditor | null {
+	const workbenchEditorService = accessor.get(IWorkbenchEditorService);
+	const activeEditor = workbenchEditorService.getActiveEditor() as BaseWebviewEditor;
+	return activeEditor.isWebviewEditor ? activeEditor : null;
 }
