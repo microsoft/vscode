@@ -270,18 +270,6 @@ export function filter(fn: (data: any) => boolean): FilterStream {
 	return result;
 }
 
-export function getSettingsSearchBuildId(packageJson): number {
-	const previous = getPreviousVersion(packageJson.version);
-
-	try {
-		const out = cp.execSync(`git rev-list ${previous}..HEAD --count`);
-		const count = parseInt(out.toString());
-		return versionStringToNumber(packageJson.version) * 1e4 + count;
-	} catch (e) {
-		throw new Error('Could not determine build number: ' + e.toString());
-	}
-}
-
 function tagExists(tagName: string): boolean {
 	try {
 		cp.execSync(`git rev-parse ${tagName}`, { stdio: 'ignore' });
@@ -297,10 +285,10 @@ function tagExists(tagName: string): boolean {
  * 1.18.0 => 1.17.2. (or the highest 1.17.x)
  * 2.0.0 => 1.18.0 (or the highest 1.x)
  */
-function getPreviousVersion(versionStr: string) {
+export function getPreviousVersion(versionStr: string, _tagExists = tagExists) {
 	function getLatestTagFromBase(semverArr: number[], componentToTest: number): string {
 		const baseVersion = semverArr.join('.');
-		if (!tagExists(baseVersion)) {
+		if (!_tagExists(baseVersion)) {
 			throw new Error('Failed to find git tag for base version, ' + baseVersion);
 		}
 
@@ -308,7 +296,7 @@ function getPreviousVersion(versionStr: string) {
 		do {
 			goodTag = semverArr.join('.');
 			semverArr[componentToTest]++;
-		} while (tagExists(semverArr.join('.')));
+		} while (_tagExists(semverArr.join('.')));
 
 		return goodTag;
 	}
@@ -317,7 +305,7 @@ function getPreviousVersion(versionStr: string) {
 	if (semverArr[2] > 0) {
 		semverArr[2]--;
 		const previous = semverArr.join('.');
-		if (!tagExists(previous)) {
+		if (!_tagExists(previous)) {
 			throw new Error('Failed to find git tag for previous version, ' + previous);
 		}
 
@@ -327,7 +315,12 @@ function getPreviousVersion(versionStr: string) {
 		return getLatestTagFromBase(semverArr, 2);
 	} else {
 		semverArr[0]--;
-		return getLatestTagFromBase(semverArr, 1);
+
+		// Find 1.x.0 for latest x
+		const latestMinorVersion = getLatestTagFromBase(semverArr, 1);
+
+		// Find 1.x.y for latest y
+		return getLatestTagFromBase(versionStringToNumberArray(latestMinorVersion), 2);
 	}
 }
 
@@ -337,7 +330,7 @@ function versionStringToNumberArray(versionStr: string): number[] {
 		.map(s => parseInt(s));
 }
 
-function versionStringToNumber(versionStr) {
+export function versionStringToNumber(versionStr) {
 	const semverRegex = /(\d+)\.(\d+)\.(\d+)/;
 	const match = versionStr.match(semverRegex);
 	if (!match) {

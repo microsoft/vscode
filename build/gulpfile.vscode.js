@@ -275,7 +275,7 @@ function packageTask(platform, arch, opts) {
 		const packageJsonStream = gulp.src(['package.json'], { base: '.' })
 			.pipe(json({ name, version }));
 
-		const settingsSearchBuildId = util.getSettingsSearchBuildId(packageJson);
+		const settingsSearchBuildId = getSettingsSearchBuildId(packageJson);
 		const date = new Date().toISOString();
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(json({ commit, date, checksums, settingsSearchBuildId }));
@@ -484,7 +484,7 @@ gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () =
 		throw new Error(`configuration file at ${allConfigDetailsPath} does not exist`);
 	}
 
-	const settingsSearchBuildId = util.getSettingsSearchBuildId(packageJson);
+	const settingsSearchBuildId = getSettingsSearchBuildId(packageJson);
 	if (!settingsSearchBuildId) {
 		throw new Error('Failed to compute build number');
 	}
@@ -497,6 +497,18 @@ gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () =
 			prefix: `${settingsSearchBuildId}/${commit}/`
 		}));
 });
+
+function getSettingsSearchBuildId(packageJson) {
+	const previous = util.getPreviousVersion(packageJson.version);
+
+	try {
+		const out = cp.execSync(`git rev-list ${previous}..HEAD --count`);
+		const count = parseInt(out.toString());
+		return util.versionStringToNumber(packageJson.version) * 1e4 + count;
+	} catch (e) {
+		throw new Error('Could not determine build number: ' + e.toString());
+	}
+}
 
 // This task is only run for the MacOS build
 gulp.task('generate-vscode-configuration', () => {
