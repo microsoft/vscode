@@ -8,7 +8,7 @@ import { IDisposable, } from 'vs/base/common/lifecycle';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { Position } from 'vs/platform/editor/common/editor';
 import { BaseWebviewEditor as BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
-import { WebviewElement } from './webview';
+import { WebviewElement } from './webviewElement';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';

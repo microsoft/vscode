@@ -32,7 +32,7 @@ import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
-import { WebviewElement } from 'vs/workbench/parts/webview/electron-browser/webview';
+import { WebviewElement } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';

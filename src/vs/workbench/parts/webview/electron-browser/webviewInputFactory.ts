@@ -29,7 +29,7 @@ export class WebviewInputFactory implements IEditorInputFactory {
 	public serialize(
 		input: WebviewEditorInput
 	): string {
-		// Has not state, don't revive
+		// Has no state, don't revive
 		if (!input.state) {
 			return null;
 		}

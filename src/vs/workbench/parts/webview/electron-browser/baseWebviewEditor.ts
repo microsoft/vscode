@@ -8,7 +8,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 import { IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
-import { WebviewElement } from './webview';
+import { WebviewElement } from './webviewElement';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { Dimension } from 'vs/base/browser/dom';
 

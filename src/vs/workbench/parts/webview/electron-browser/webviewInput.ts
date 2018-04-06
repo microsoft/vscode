@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorInput, IEditorModel, Position } from 'vs/platform/editor/common/editor';
 import { EditorInput, EditorModel } from 'vs/workbench/common/editor';
-import { WebviewElement } from './webview';
+import { WebviewElement } from './webviewElement';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { WebviewEvents, WebviewInputOptions, WebviewReviver } from './webviewEditorService';
 

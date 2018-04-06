@@ -26,7 +26,7 @@ import URI from 'vs/base/common/uri';
 import { Scope } from 'vs/workbench/common/memento';
 import { Dimension } from 'vs/base/browser/dom';
 import { BaseWebviewEditor } from 'vs/workbench/parts/webview/electron-browser/baseWebviewEditor';
-import { WebviewElement, WebviewOptions } from 'vs/workbench/parts/webview/electron-browser/webview';
+import { WebviewElement, WebviewOptions } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
 
 export interface HtmlPreviewEditorViewState {
 	scrollYPercentage: number;
