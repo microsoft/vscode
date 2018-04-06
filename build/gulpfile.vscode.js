@@ -275,7 +275,7 @@ function packageTask(platform, arch, opts) {
 		const packageJsonStream = gulp.src(['package.json'], { base: '.' })
 			.pipe(json({ name, version }));
 
-		const settingsSearchBuildId = getSettingsSearchBuildId();
+		const settingsSearchBuildId = util.getSettingsSearchBuildId(packageJson);
 		const date = new Date().toISOString();
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(json({ commit, date, checksums, settingsSearchBuildId }));
@@ -484,7 +484,7 @@ gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () =
 		throw new Error(`configuration file at ${allConfigDetailsPath} does not exist`);
 	}
 
-	const settingsSearchBuildId = getSettingsSearchBuildId();
+	const settingsSearchBuildId = util.getSettingsSearchBuildId(packageJson);
 	if (!settingsSearchBuildId) {
 		throw new Error('Failed to compute build number');
 	}
@@ -497,74 +497,6 @@ gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () =
 			prefix: `${settingsSearchBuildId}/${commit}/`
 		}));
 });
-
-function getSettingsSearchBuildId() {
-	const previous = getPreviousVersion(packageJson.version);
-	if (!previous) {
-		throw new Error('Could not determine settings search build ID');
-	}
-
-	try {
-		const out = cp.execSync(`git rev-list ${previous}..HEAD --count`);
-		const count = parseInt(out.toString());
-		return versionStringToNumber(packageJson.version) * 1e4 + count;
-	} catch (e) {
-		throw new Error('Could not determine build number: ' + e.toString());
-	}
-}
-
-/**
- * Given 1.17.2, return 1.17.1
- * 1.18.0 => 1.17.2. (or the highest 1.17.x)
- * 2.0.0 => 1.18.0 (or the highest 1.x)
- */
-function getPreviousVersion(versionStr) {
-	function tagExists(tagName) {
-		try {
-			cp.execSync(`git rev-parse ${tagName}`, { stdio: 'ignore' });
-			return true;
-		} catch (e) {
-			return false;
-		}
-	}
-
-	function getLatestTagFromBase(semverArr, componentToTest) {
-		const baseVersion = semverArr.join('.');
-		if (!tagExists(baseVersion)) {
-			throw new Error('Failed to find git tag for base version, ' + baseVersion);
-		}
-
-		let goodTag;
-		do {
-			goodTag = semverArr.join('.');
-			semverArr[componentToTest]++;
-		} while (tagExists(semverArr.join('.')));
-
-		return goodTag;
-	}
-
-	const semverArr = versionStr.split('.');
-	if (semverArr[2] > 0) {
-		semverArr[2]--;
-		return semverArr.join('.');
-	} else if (semverArr[1] > 0) {
-		semverArr[1]--;
-		return getLatestTagFromBase(semverArr, 2);
-	} else {
-		semverArr[0]--;
-		return getLatestTagFromBase(semverArr, 1);
-	}
-}
-
-function versionStringToNumber(versionStr) {
-	const semverRegex = /(\d+)\.(\d+)\.(\d+)/;
-	const match = versionStr.match(semverRegex);
-	if (!match) {
-		return 0;
-	}
-
-	return parseInt(match[1], 10) * 1e4 + parseInt(match[2], 10) * 1e2 + parseInt(match[3], 10);
-}
 
 // This task is only run for the MacOS build
 gulp.task('generate-vscode-configuration', () => {

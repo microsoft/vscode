@@ -210,3 +210,74 @@ function filter(fn) {
     return result;
 }
 exports.filter = filter;
+function getSettingsSearchBuildId(packageJson) {
+    var previous = getPreviousVersion(packageJson.version);
+    try {
+        var out = cp.execSync("git rev-list " + previous + "..HEAD --count");
+        var count = parseInt(out.toString());
+        return versionStringToNumber(packageJson.version) * 1e4 + count;
+    }
+    catch (e) {
+        throw new Error('Could not determine build number: ' + e.toString());
+    }
+}
+exports.getSettingsSearchBuildId = getSettingsSearchBuildId;
+function tagExists(tagName) {
+    try {
+        cp.execSync("git rev-parse " + tagName, { stdio: 'ignore' });
+        return true;
+    }
+    catch (e) {
+        return false;
+    }
+}
+/**
+ * Returns the version previous to the given version. Throws if a git tag for that version doesn't exist.
+ * Given 1.17.2, return 1.17.1
+ * 1.18.0 => 1.17.2. (or the highest 1.17.x)
+ * 2.0.0 => 1.18.0 (or the highest 1.x)
+ */
+function getPreviousVersion(versionStr) {
+    function getLatestTagFromBase(semverArr, componentToTest) {
+        var baseVersion = semverArr.join('.');
+        if (!tagExists(baseVersion)) {
+            throw new Error('Failed to find git tag for base version, ' + baseVersion);
+        }
+        var goodTag;
+        do {
+            goodTag = semverArr.join('.');
+            semverArr[componentToTest]++;
+        } while (tagExists(semverArr.join('.')));
+        return goodTag;
+    }
+    var semverArr = versionStringToNumberArray(versionStr);
+    if (semverArr[2] > 0) {
+        semverArr[2]--;
+        var previous = semverArr.join('.');
+        if (!tagExists(previous)) {
+            throw new Error('Failed to find git tag for previous version, ' + previous);
+        }
+        return previous;
+    }
+    else if (semverArr[1] > 0) {
+        semverArr[1]--;
+        return getLatestTagFromBase(semverArr, 2);
+    }
+    else {
+        semverArr[0]--;
+        return getLatestTagFromBase(semverArr, 1);
+    }
+}
+function versionStringToNumberArray(versionStr) {
+    return versionStr
+        .split('.')
+        .map(function (s) { return parseInt(s); });
+}
+function versionStringToNumber(versionStr) {
+    var semverRegex = /(\d+)\.(\d+)\.(\d+)/;
+    var match = versionStr.match(semverRegex);
+    if (!match) {
+        return 0;
+    }
+    return parseInt(match[1], 10) * 1e4 + parseInt(match[2], 10) * 1e2 + parseInt(match[3], 10);
+}
