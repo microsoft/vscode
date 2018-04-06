@@ -7,7 +7,7 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInputFactory } from 'vs/workbench/common/editor';
-import { IWebviewService, WebviewInputOptions } from './webviewService';
+import { IWebviewEditorService, WebviewInputOptions } from './webviewEditorService';
 import { WebviewEditorInput } from './webviewInput';
 
 interface SerializedWebview {
@@ -23,7 +23,7 @@ export class WebviewInputFactory implements IEditorInputFactory {
 	public static readonly ID = WebviewEditorInput.typeId;
 
 	public constructor(
-		@IWebviewService private readonly _webviewService: IWebviewService
+		@IWebviewEditorService private readonly _webviewService: IWebviewEditorService
 	) { }
 
 	public serialize(

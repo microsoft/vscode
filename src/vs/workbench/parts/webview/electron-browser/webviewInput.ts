@@ -12,7 +12,7 @@ import { IEditorInput, IEditorModel, Position } from 'vs/platform/editor/common/
 import { EditorInput, EditorModel } from 'vs/workbench/common/editor';
 import { Webview } from 'vs/workbench/parts/html/electron-browser/webview';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import { WebviewEvents, WebviewInputOptions, WebviewReviver } from './webviewService';
+import { WebviewEvents, WebviewInputOptions, WebviewReviver } from './webviewEditorService';
 
 
 export class WebviewEditorInput extends EditorInput {

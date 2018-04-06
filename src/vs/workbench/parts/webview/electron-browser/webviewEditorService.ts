@@ -12,9 +12,9 @@ import * as vscode from 'vscode';
 import { WebviewEditorInput } from './webviewInput';
 import { TPromise } from 'vs/base/common/winjs.base';
 
-export const IWebviewService = createDecorator<IWebviewService>('webviewService');
+export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
 
-export interface IWebviewService {
+export interface IWebviewEditorService {
 	_serviceBrand: any;
 
 	createWebview(
@@ -70,7 +70,7 @@ export interface WebviewInputOptions extends vscode.WebviewOptions {
 	tryRestoreScrollPosition?: boolean;
 }
 
-export class WebviewService implements IWebviewService {
+export class WebviewEditorService implements IWebviewEditorService {
 	_serviceBrand: any;
 
 	private readonly _revivers = new Map<string, WebviewReviver>();

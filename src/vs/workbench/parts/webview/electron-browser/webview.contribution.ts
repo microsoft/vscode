@@ -11,7 +11,7 @@ import { WebviewEditorInput } from './webviewInput';
 import { localize } from 'vs/nls';
 import { IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWebviewService, WebviewService } from './webviewService';
+import { IWebviewEditorService, WebviewEditorService } from './webviewEditorService';
 import { WebviewInputFactory } from 'vs/workbench/parts/webview/electron-browser/webviewInputFactory';
 
 (Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(
@@ -24,4 +24,4 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	WebviewInputFactory.ID,
 	WebviewInputFactory);
 
-registerSingleton(IWebviewService, WebviewService);
+registerSingleton(IWebviewEditorService, WebviewEditorService);

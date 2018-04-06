@@ -13,7 +13,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewHandle } from 'vs/workbench/api/node/extHost.protocol';
 import { WebviewEditor } from 'vs/workbench/parts/webview/electron-browser/webviewEditor';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewInput';
-import { IWebviewService, WebviewInputOptions, WebviewReviver } from 'vs/workbench/parts/webview/electron-browser/webviewService';
+import { IWebviewEditorService, WebviewInputOptions, WebviewReviver } from 'vs/workbench/parts/webview/electron-browser/webviewService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -44,7 +44,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
-		@IWebviewService private readonly _webviewService: IWebviewService,
+		@IWebviewService private readonly _webviewService: IWebviewEditorService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 
