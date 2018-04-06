@@ -8,7 +8,7 @@ import { IDisposable, } from 'vs/base/common/lifecycle';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { Position } from 'vs/platform/editor/common/editor';
 import { BaseWebviewEditor as BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/parts/html/electron-browser/baseWebviewEditor';
-import { Webview } from 'vs/workbench/parts/html/electron-browser/webview';
+import { WebviewElement } from 'vs/workbench/parts/html/electron-browser/webview';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -179,7 +179,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 		return rootPaths;
 	}
 
-	private getWebview(input: WebviewEditorInput): Webview {
+	private getWebview(input: WebviewEditorInput): WebviewElement {
 		if (this._webview) {
 			return this._webview;
 		}
@@ -203,7 +203,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		}
 
-		this._webview = new Webview(
+		this._webview = new WebviewElement(
 			this._partService.getContainer(Parts.EDITOR_PART),
 			this.themeService,
 			this._environmentService,

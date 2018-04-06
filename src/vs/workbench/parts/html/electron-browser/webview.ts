@@ -25,7 +25,7 @@ export interface WebviewOptions {
 	readonly localResourceRoots?: URI[];
 }
 
-export class Webview {
+export class WebviewElement {
 	private readonly _webview: Electron.WebviewTag;
 	private _ready: Promise<this>;
 	private _disposables: IDisposable[] = [];

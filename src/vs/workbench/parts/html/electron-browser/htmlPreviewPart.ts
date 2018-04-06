@@ -20,7 +20,7 @@ import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/r
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Webview, WebviewOptions } from './webview';
+import { WebviewElement, WebviewOptions } from './webview';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { BaseWebviewEditor } from './baseWebviewEditor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -84,14 +84,14 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		parent.appendChild(this._content);
 	}
 
-	private get webview(): Webview {
+	private get webview(): WebviewElement {
 		if (!this._webview) {
 			let webviewOptions: WebviewOptions = {};
 			if (this.input && this.input instanceof HtmlInput) {
 				webviewOptions = this.input.options;
 			}
 
-			this._webview = new Webview(
+			this._webview = new WebviewElement(
 				this._partService.getContainer(Parts.EDITOR_PART),
 				this.themeService,
 				this._environmentService,

@@ -8,7 +8,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 import { IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
-import { Webview } from './webview';
+import { WebviewElement } from './webview';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { Dimension } from 'vs/base/browser/dom';
 
@@ -25,7 +25,7 @@ export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<
  */
 export abstract class BaseWebviewEditor extends BaseEditor {
 
-	protected _webview: Webview | undefined;
+	protected _webview: WebviewElement | undefined;
 	protected contextKey: IContextKey<boolean>;
 	protected findWidgetVisible: IContextKey<boolean>;
 	protected findInputFocusContextKey: IContextKey<boolean>;

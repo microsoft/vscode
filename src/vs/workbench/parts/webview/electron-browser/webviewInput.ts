@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorInput, IEditorModel, Position } from 'vs/platform/editor/common/editor';
 import { EditorInput, EditorModel } from 'vs/workbench/common/editor';
-import { Webview } from 'vs/workbench/parts/html/electron-browser/webview';
+import { WebviewElement } from 'vs/workbench/parts/html/electron-browser/webview';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { WebviewEvents, WebviewInputOptions, WebviewReviver } from './webviewEditorService';
 
@@ -26,7 +26,7 @@ export class WebviewEditorInput extends EditorInput {
 	private _currentWebviewHtml: string = '';
 	public _events: WebviewEvents | undefined;
 	private _container: HTMLElement;
-	private _webview: Webview | undefined;
+	private _webview: WebviewElement | undefined;
 	private _webviewOwner: any;
 	private _webviewDisposables: IDisposable[] = [];
 	private _position?: Position;
@@ -163,11 +163,11 @@ export class WebviewEditorInput extends EditorInput {
 		return this._container;
 	}
 
-	public get webview(): Webview | undefined {
+	public get webview(): WebviewElement | undefined {
 		return this._webview;
 	}
 
-	public set webview(value: Webview) {
+	public set webview(value: WebviewElement) {
 		this._webviewDisposables = dispose(this._webviewDisposables);
 
 		this._webview = value;

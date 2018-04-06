@@ -5,13 +5,13 @@
 
 import { SimpleFindWidget } from 'vs/editor/contrib/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { Webview } from './webview';
+import { WebviewElement } from './webview';
 
 export class WebviewFindWidget extends SimpleFindWidget {
 
 	constructor(
 		@IContextViewService contextViewService: IContextViewService,
-		private readonly webview: Webview
+		private readonly webview: WebviewElement
 	) {
 		super(contextViewService);
 	}
