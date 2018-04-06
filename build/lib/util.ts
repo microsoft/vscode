@@ -17,6 +17,7 @@ import * as git from './git';
 import * as VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
 import * as sm from 'source-map';
+import * as cp from 'child_process';
 
 export interface ICancellationToken {
 	isCancellationRequested(): boolean;

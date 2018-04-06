@@ -14,6 +14,7 @@ var fs = require("fs");
 var _rimraf = require("rimraf");
 var git = require("./git");
 var VinylFile = require("vinyl");
+var cp = require("child_process");
 var NoCancellationToken = { isCancellationRequested: function () { return false; } };
 function incremental(streamProvider, initial, supportsCancellation) {
     var input = es.through();
