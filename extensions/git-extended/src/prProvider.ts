@@ -191,7 +191,8 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 			return {
 				label: element.prItem.title,
 				collapsibleState: 1,
-				contextValue: 'pullrequest'
+				contextValue: 'pullrequest',
+				iconPath: this.getGravatarUri(element)
 			};
 		} else {
 			let iconUri: string;
@@ -310,6 +311,12 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 				return fileChanges;
 			});
 		}
+	}
+
+	getGravatarUri(pr: PullRequest, size: number = 16): vscode.Uri {
+		let key = pr.prItem.user.avatar_url;
+		let gravatar = vscode.Uri.parse(`${key}&s=${size}`);
+		return gravatar;
 	}
 
 	getPRFetchQuery(owner: string, repo: string, user: string, type: PRGroupType) {
