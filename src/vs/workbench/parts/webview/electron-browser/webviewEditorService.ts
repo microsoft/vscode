@@ -148,7 +148,6 @@ export class WebviewEditorService implements IWebviewEditorService {
 		this._revivers.set(viewType, reviver);
 
 		// Resolve any pending views
-
 		const toRevive = this._awaitingRevival.filter(x => x.input.viewType === viewType);
 		this._awaitingRevival = this._awaitingRevival.filter(x => x.input.viewType !== viewType);
 
@@ -168,15 +167,15 @@ export class WebviewEditorService implements IWebviewEditorService {
 		return this._revivers.has(viewType) && this._revivers.get(viewType).canRevive(webview);
 	}
 
-	tryRevive(
+	private async tryRevive(
 		webview: WebviewEditorInput
-	): boolean {
+	): TPromise<boolean> {
 		const reviver = this._revivers.get(webview.viewType);
 		if (!reviver) {
 			return false;
 		}
 
-		reviver.reviveWebview(webview);
+		await reviver.reviveWebview(webview);
 		return true;
 	}
 }
