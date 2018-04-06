@@ -826,8 +826,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Close: By Filter or all
 		else {
-			editorsToClose = group.getEditors(true /* in MRU order */);
 			filter = filterOrEditors || Object.create(null);
+
+			const hasDirection = !types.isUndefinedOrNull(filter.direction);
+			editorsToClose = group.getEditors(!hasDirection /* in MRU order only if direction is not specified */);
 
 			// Filter: saved only
 			if (filter.savedOnly) {
@@ -835,7 +837,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			}
 
 			// Filter: direction (left / right)
-			else if (!types.isUndefinedOrNull(filter.direction)) {
+			else if (hasDirection) {
 				editorsToClose = (filter.direction === Direction.LEFT) ? editorsToClose.slice(0, group.indexOf(filter.except)) : editorsToClose.slice(group.indexOf(filter.except) + 1);
 			}
 
