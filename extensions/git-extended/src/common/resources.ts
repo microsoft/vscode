@@ -67,12 +67,18 @@ export class Resource {
 			light: iconUri,
 			dark: iconDarkUri
 		};
-
 	}
 
-	static getGravatarUri(pr: PullRequest, size: number = 16): vscode.Uri {
+	static getGravatarUri(pr: PullRequest, size: number = 64): vscode.Uri {
 		let key = pr.prItem.user.avatar_url;
 		let gravatar = vscode.Uri.parse(`${key}&s=${size}`);
+
+		// hack, to ensure queries are not wrongly encoded.
+		const originalToStringFn = gravatar.toString;
+		gravatar.toString = function (skipEncoding?: boolean | undefined) {
+			return originalToStringFn.call(gravatar, true);
+		};
+
 		return gravatar;
 	}
 }
