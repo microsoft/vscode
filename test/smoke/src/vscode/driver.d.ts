@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface IWindow {
-	id: string;
+export interface IElement {
+	tagName: string;
+	className: string;
+	textContent: string;
 }
 
 export interface IDriver {
 	_serviceBrand: any;
-	getWindows(): Promise<IWindow[]>;
+	getWindowIds(): Promise<number[]>;
+	getElements(windowId: number, selector: string): Promise<IElement[]>;
 }
 
 export interface IDisposable {

@@ -9,7 +9,6 @@ import { ScreenCapturer } from './helpers/screenshot';
 import { Workbench } from './areas/workbench/workbench';
 import * as fs from 'fs';
 import * as cp from 'child_process';
-import * as assert from 'assert';
 import { CodeDriver } from './driver';
 import { Code, spawn, SpawnOptions } from './vscode/code';
 
@@ -260,7 +259,7 @@ export class SpectronApplication {
 
 		this._screenCapturer = new ScreenCapturer(null as any, this._suiteName, '');
 
-		const driver = new CodeDriver(this.codeInstance.driver);
+		const driver = new CodeDriver(this.codeInstance.driver, this.options.verbose);
 		this._api = new API(driver, this.screenCapturer, this.options.waitTime);
 		this._workbench = new Workbench(this._api, this.keybindings, this.userDataPath);
 	}
@@ -271,8 +270,17 @@ export class SpectronApplication {
 			return;
 		}
 
-		const windows = await this.codeInstance.driver.getWindows();
-		assert.ok(windows.length > 0, 'theres more than one window');
+		let retries = 0;
+
+		while (++retries < 50) {
+			const ids = await this.codeInstance.driver.getWindowIds();
+
+			if (ids.length > 0) {
+				break;
+			}
+
+			await new Promise(c => setTimeout(c, 100));
+		}
 
 		await this.api.waitForElement('.monaco-workbench');
 	}

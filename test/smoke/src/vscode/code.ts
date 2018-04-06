@@ -76,6 +76,7 @@ export interface SpawnOptions {
 	codePath?: string;
 	userDataDir: string;
 	extensionsPath: string;
+	verbose: boolean;
 }
 
 export async function connect(child: cp.ChildProcess, outPath: string, handlePath: string): Promise<Code> {
@@ -123,7 +124,13 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		args.unshift(repoPath);
 	}
 
-	const child = cp.spawn(electronPath, args);
+	const spawnOptions: cp.SpawnOptions = {};
+
+	if (options.verbose) {
+		spawnOptions.stdio = 'inherit';
+	}
+
+	const child = cp.spawn(electronPath, args, spawnOptions);
 
 	instances.add(child);
 	child.once('exit', () => instances.delete(child));

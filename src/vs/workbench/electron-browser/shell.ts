@@ -60,7 +60,7 @@ import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/work
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ICrashReporterService, NullCrashReporterService, CrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
-import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
+import { getDelayedChannel, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -95,6 +95,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/common/dialogIpc';
 import { EventType, addDisposableListener, addClass, getClientArea } from 'vs/base/browser/dom';
+import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 
 /**
  * Services that we require for the Shell
@@ -139,7 +140,7 @@ export class WorkbenchShell {
 	private configuration: IWindowConfiguration;
 	private workbench: Workbench;
 
-	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, configuration: IWindowConfiguration) {
+	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, mainProcessClient: IPCClient, configuration: IWindowConfiguration) {
 		this.container = container;
 
 		this.configuration = configuration;
@@ -155,6 +156,11 @@ export class WorkbenchShell {
 
 		this.toUnbind = [];
 		this.previousErrorTime = 0;
+
+		if (coreServices.environmentService.driverHandle) {
+			registerWindowDriver(mainProcessClient, configuration.windowId)
+				.then(disposable => this.toUnbind.push(disposable));
+		}
 	}
 
 	private createContents(parent: HTMLElement): HTMLElement {

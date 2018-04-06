@@ -131,33 +131,93 @@ export class SpectronDriver implements Driver {
 
 export class CodeDriver implements Driver {
 
-	constructor(driver: IDriver) { }
+	constructor(
+		private driver: IDriver,
+		private verbose: boolean
+	) { }
+
+	private _activeWindowId: number | undefined = undefined;
+
+	private async getWindowId(): Promise<number> {
+		if (typeof this._activeWindowId !== 'number') {
+			const windows = await this.driver.getWindowIds();
+			this._activeWindowId = windows[0];
+		}
+
+		return this._activeWindowId;
+	}
 
 	keys(keys: string[]): Promise<void> {
+		if (this.verbose) {
+			console.log('- keys:', keys);
+		}
+
 		throw new Error('Method not implemented.');
 	}
+
 	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<any> {
+		if (this.verbose) {
+			console.log('- click:', selector);
+		}
+
 		throw new Error('Method not implemented.');
 	}
+
 	doubleClick(selector: string): Promise<any> {
+		if (this.verbose) {
+			console.log('- doubleClick:', selector);
+		}
+
 		throw new Error('Method not implemented.');
 	}
+
 	move(selector: string): Promise<any> {
+		if (this.verbose) {
+			console.log('- move:', selector);
+		}
+
 		throw new Error('Method not implemented.');
 	}
+
 	setValue(selector: string, text: string): Promise<void> {
+		if (this.verbose) {
+			console.log('- setValue:', selector, text);
+		}
+
 		throw new Error('Method not implemented.');
 	}
+
 	getTitle(): Promise<string> {
+		if (this.verbose) {
+			console.log('- getTitle:');
+		}
+
 		throw new Error('Method not implemented.');
 	}
+
 	isActiveElement(selector: string): Promise<boolean> {
+		if (this.verbose) {
+			console.log('- isActiveElement:', selector);
+		}
+
 		throw new Error('Method not implemented.');
 	}
-	getElements(selector: string): Promise<Element[]> {
-		throw new Error('Method not implemented.');
+
+	async getElements(selector: string): Promise<Element[]> {
+		if (this.verbose) {
+			console.log('- getElements:', selector);
+		}
+
+		const windowId = await this.getWindowId();
+		const result = await this.driver.getElements(windowId, selector);
+		return result;
 	}
+
 	selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): Promise<P> {
+		if (this.verbose) {
+			console.log('- selectorExecute:', selector);
+		}
+
 		throw new Error('Method not implemented.');
 	}
 }

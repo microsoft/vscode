@@ -8,5 +8,5 @@ const path = require('path');
 exports.connect = function (outPath, handle) {
 	const bootstrapPath = path.join(outPath, 'bootstrap-amd.js');
 	const { bootstrap } = require(bootstrapPath);
-	return new Promise((c, e) => bootstrap('vs/code/node/driver', ({ connect }) => connect(handle).then(c, e), e));
+	return new Promise((c, e) => bootstrap('vs/platform/driver/node/driver', ({ connect }) => connect(handle).then(c, e), e));
 };

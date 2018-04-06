@@ -62,7 +62,7 @@ import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { join } from 'path';
 import { copy } from 'vs/base/node/pfs';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
-import { serve, Driver } from './driver';
+import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 
 export class CodeApplication {
 
@@ -292,27 +292,27 @@ export class CodeApplication {
 				// Services
 				const appInstantiationService = this.initServices(machineId);
 
+				let promise: TPromise<any> = TPromise.as(null);
+
 				// Create driver
 				if (this.environmentService.driverHandle) {
-					const driver = appInstantiationService.createInstance(Driver);
-
-					serve(this.environmentService.driverHandle, driver).then(server => {
+					serveDriver(this.electronIpcServer, this.environmentService.driverHandle, appInstantiationService).then(server => {
 						this.logService.info('Driver started at:', this.environmentService.driverHandle);
 						this.toDispose.push(server);
-					}, err => {
-						this.logService.error('Failed to start driver running at:', this.environmentService.driverHandle);
 					});
 				}
 
-				// Setup Auth Handler
-				const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
-				this.toDispose.push(authHandler);
+				return promise.then(() => {
+					// Setup Auth Handler
+					const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
+					this.toDispose.push(authHandler);
 
-				// Open Windows
-				appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
+					// Open Windows
+					appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
 
-				// Post Open Windows Tasks
-				appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+					// Post Open Windows Tasks
+					appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+				});
 			});
 		});
 	}
