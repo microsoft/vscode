@@ -14,7 +14,9 @@ export interface DiffHunkRange {
 export interface User {
 	id: string;
 	login: string;
+	avatar_url: string;
 }
+
 export interface Comment {
 	url: string;
 	id: string;

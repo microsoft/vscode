@@ -72,6 +72,7 @@ function convertCommentThread(vscodeCommentThread: vscode.CommentThread): modes.
 function convertComment(vscodeComment: vscode.Comment): modes.Comment {
 	return {
 		body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
-		userName: vscodeComment.userName
+		userName: vscodeComment.userName,
+		gravatar: vscodeComment.gravatar
 	};
 }

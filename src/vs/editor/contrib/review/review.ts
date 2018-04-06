@@ -5,9 +5,11 @@
 'use strict';
 
 import 'vs/css!./review';
+import * as nls from 'vs/nls';
 import * as modes from 'vs/editor/common/modes';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IViewZone } from 'vs/editor/browser/editorBrowser';
+import { $ } from 'vs/base/browser/builder';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -20,6 +22,11 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action } from 'vs/base/common/actions';
+import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { peekViewEditorBackground, peekViewBorder, } from 'vs/editor/contrib/referenceSearch/referencesWidget';
+import { Color } from 'vs/base/common/color';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 export const ID = 'editor.contrib.review';
@@ -28,7 +35,7 @@ declare var ResizeObserver: any;
 
 const REVIEWL_DECORATION = ModelDecorationOptions.register({
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-	linesDecorationsClassName: 'review'
+	glyphMarginClassName: 'review'
 });
 
 export class ReviewViewZone implements IViewZone {
@@ -50,27 +57,85 @@ export class ReviewViewZone implements IViewZone {
 }
 
 export class ReviewZoneWidget extends ZoneWidget {
-	private _domNode: HTMLElement;
+	private _headElement: HTMLElement;
+	protected _primaryHeading: HTMLElement;
+	protected _secondaryHeading: HTMLElement;
+	protected _metaHeading: HTMLElement;
+	protected _actionbarWidget: ActionBar;
+	private _bodyElement: HTMLElement;
 	private _resizeObserver: any;
+	private _comments: modes.Comment[];
 
-	constructor(editor: ICodeEditor, options: IOptions = {}) {
+	constructor(@IThemeService private themeService: IThemeService,
+		editor: ICodeEditor, options: IOptions = {}, comments: modes.Comment[]) {
 		super(editor, options);
 		this._resizeObserver = null;
+		this._comments = comments;
 		this.create();
+		this.themeService.onThemeChange(this._applyTheme, this);
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'review-widget';
-		container.appendChild(this._domNode);
+		this.setCssClass('review-widget');
+		this._headElement = <HTMLDivElement>$('.head').getHTMLElement();
+		container.appendChild(this._headElement);
+		this._fillHead(this._headElement);
+
+		this._bodyElement = <HTMLDivElement>$('.body').getHTMLElement(); document.createElement('div');
+		container.appendChild(this._bodyElement);
+	}
+
+	protected _fillHead(container: HTMLElement): void {
+		var titleElement = $('.review-title').
+			// on(dom.EventType.CLICK, e => this._onTitleClick(<MouseEvent>e)).
+			appendTo(this._headElement).
+			getHTMLElement();
+
+		this._primaryHeading = $('span.filename').appendTo(titleElement).getHTMLElement();
+		this._secondaryHeading = $('span.dirname').appendTo(titleElement).getHTMLElement();
+		this._metaHeading = $('span.meta').appendTo(titleElement).getHTMLElement();
+
+		let primaryHeading = 'Discussion';
+		$(this._primaryHeading).safeInnerHtml(primaryHeading);
+		this._primaryHeading.setAttribute('aria-label', primaryHeading);
+		let secondaryHeading = `@${this._comments[0].userName}`;
+		$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
+
+		const actionsContainer = $('.review-actions').appendTo(this._headElement);
+		this._actionbarWidget = new ActionBar(actionsContainer, {});
+		this._disposables.push(this._actionbarWidget);
+
+		this._actionbarWidget.push(new Action('review.expand', nls.localize('label.expand', "Expand"), 'expand-review-action octicon octicon-chevron-down', true, () => {
+			this._bodyElement.style.display = 'block';
+			return null;
+		}), { label: false, icon: true });
+
+		this._actionbarWidget.push(new Action('review.close', nls.localize('label.close', "Close"), 'close-review-action', true, () => {
+			this.dispose();
+			return null;
+		}), { label: false, icon: true });
+
 	}
 
 	display(comments: modes.Comment[], lineNumber: number) {
 		this.show({ lineNumber: lineNumber, column: 1 }, 2);
 
+		this._bodyElement.style.display = 'none';
 		for (let i = 0; i < comments.length; i++) {
 			let singleCommentContainer = document.createElement('div');
-			singleCommentContainer.className = 'review-comment-contents';
+			singleCommentContainer.className = 'review-comment';
+			let avatar = document.createElement('span');
+			avatar.className = 'float-left';
+			let img = document.createElement('img');
+			img.className = 'avatar';
+			img.src = comments[i].gravatar;
+			avatar.appendChild(img);
+			let commentDetailsContainer = document.createElement('div');
+			commentDetailsContainer.className = 'review-comment-contents';
+
+			singleCommentContainer.appendChild(avatar);
+			singleCommentContainer.appendChild(commentDetailsContainer);
+
 			let header = document.createElement('h4');
 			let author = document.createElement('strong');
 			author.className = 'author';
@@ -80,17 +145,17 @@ export class ReviewZoneWidget extends ZoneWidget {
 			// time.innerText = comments[i].created_at;
 			header.appendChild(author);
 			// header.appendChild(time);
-			singleCommentContainer.appendChild(header);
+			commentDetailsContainer.appendChild(header);
 			let body = document.createElement('div');
 			body.className = 'comment-body';
-			singleCommentContainer.appendChild(body);
+			commentDetailsContainer.appendChild(body);
 			let md = comments[i].body;
 			body.appendChild(renderMarkdown(md));
-			this._domNode.appendChild(singleCommentContainer);
+			this._bodyElement.appendChild(singleCommentContainer);
 		}
 		// this._domNode.appendChild(document.createElement('textarea'));
 		this._resizeObserver = new ResizeObserver(entries => {
-			if (entries[0].target === this._domNode) {
+			if (entries[0].target === this._bodyElement) {
 				const lineHeight = this.editor.getConfiguration().lineHeight;
 				const arrowHeight = Math.round(lineHeight / 3);
 				const computedLinesNumber = Math.ceil((entries[0].contentRect.height + arrowHeight + 30) / lineHeight);
@@ -98,14 +163,25 @@ export class ReviewZoneWidget extends ZoneWidget {
 			}
 		});
 
-		this._resizeObserver.observe(this._domNode);
+		this._resizeObserver.observe(this._bodyElement);
+	}
+
+	private _applyTheme(theme: ITheme) {
+		let borderColor = theme.getColor(peekViewBorder) || Color.transparent;
+		this.style({
+			arrowColor: borderColor,
+			frameColor: borderColor
+		});
 	}
 
 	dispose() {
 		super.dispose();
-		this._resizeObserver.disconnect();
-		this._resizeObserver = null;
+		if (this._resizeObserver) {
+			this._resizeObserver.disconnect();
+			this._resizeObserver = null;
+		}
 	}
+
 }
 
 export class ReviewController implements IEditorContribution {
@@ -115,12 +191,14 @@ export class ReviewController implements IEditorContribution {
 	private decorationIDs: string[];
 	private _domNode: HTMLElement;
 	private _zoneWidget: ReviewZoneWidget;
+	private _zoneWidgets: ReviewZoneWidget[];
 	private _reviewPanelVisible: IContextKey<boolean>;
 	private _commentThreads: modes.CommentThread[];
 
 	constructor(
 		editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService private themeService: IThemeService
 	) {
 		this.editor = editor;
 		this.globalToDispose = [];
@@ -128,6 +206,7 @@ export class ReviewController implements IEditorContribution {
 		this.decorationIDs = [];
 		this.mouseDownInfo = null;
 		this._commentThreads = [];
+		this._zoneWidgets = [];
 
 		this._reviewPanelVisible = ctxReviewPanelVisible.bindTo(contextKeyService);
 		this._domNode = document.createElement('div');
@@ -162,6 +241,11 @@ export class ReviewController implements IEditorContribution {
 			this._zoneWidget.dispose();
 			this._zoneWidget = null;
 		}
+
+		this._zoneWidgets.forEach(zone => {
+			zone.dispose();
+		});
+		this._zoneWidgets = [];
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
 	}
@@ -180,7 +264,7 @@ export class ReviewController implements IEditorContribution {
 
 		let iconClicked = false;
 		switch (e.target.type) {
-			case MouseTargetType.GUTTER_LINE_DECORATIONS:
+			case MouseTargetType.GUTTER_GLYPH_MARGIN:
 				iconClicked = true;
 				break;
 			default:
@@ -203,7 +287,7 @@ export class ReviewController implements IEditorContribution {
 		}
 
 		if (iconClicked) {
-			if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
+			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN) {
 				return;
 			}
 		}
@@ -215,7 +299,7 @@ export class ReviewController implements IEditorContribution {
 		let comments = this.getComments(lineNumber);
 		if (comments && comments.length) {
 			this._reviewPanelVisible.set(true);
-			this._zoneWidget = new ReviewZoneWidget(this.editor);
+			this._zoneWidget = new ReviewZoneWidget(this.themeService, this.editor, {}, comments);
 			this._zoneWidget.display(this.getComments(lineNumber), lineNumber);
 		}
 	}
@@ -238,6 +322,17 @@ export class ReviewController implements IEditorContribution {
 				options: REVIEWL_DECORATION
 			})));
 		});
+
+		// create viewzones
+		this._zoneWidgets.forEach(zone => {
+			zone.dispose();
+		});
+
+		this._commentThreads.forEach(thread => {
+			let zoneWidget = new ReviewZoneWidget(this.themeService, this.editor, {}, thread.comments);
+			zoneWidget.display(this.getComments(thread.range.startLineNumber), thread.range.startLineNumber);
+		});
+
 	}
 
 
@@ -287,3 +382,15 @@ function closeReviewPanel(accessor: ServicesAccessor, args: any) {
 
 	controller.closeWidget();
 }
+
+
+registerThemingParticipant((theme, collector) => {
+	let editorBackground = theme.getColor(peekViewEditorBackground);
+	if (editorBackground) {
+		collector.addRule(
+			`.monaco-editor .review-widget,` +
+			`.monaco-editor .review-widget {` +
+			`	background-color: ${editorBackground};` +
+			`}`);
+	}
+});

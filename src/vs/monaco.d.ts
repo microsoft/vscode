@@ -5006,6 +5006,7 @@ declare namespace monaco.languages {
 	export interface Comment {
 		readonly body: IMarkdownString;
 		readonly userName: string;
+		readonly gravatar: string;
 	}
 
 	export interface CommentProvider {

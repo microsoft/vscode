@@ -135,11 +135,24 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 			let promises = this.repository.remotes.map(async remote => {
 				const octo = await this.crendentialStore.getOctokit(remote);
 				if (octo) {
-					const { data } = await octo.pullRequests.getAll({
+					let { data } = await octo.pullRequests.getAll({
 						owner: remote.owner,
-						repo: remote.name
+						repo: remote.name,
+						per_page: 100
 					});
-					return data.map(item => new PullRequest(octo, remote, item));
+					let ret = data.map(item => new PullRequest(octo, remote, item));
+
+					if (ret.length >= 100) {
+						let secondPage = await octo.pullRequests.getAll({
+							owner: remote.owner,
+							repo: remote.name,
+							per_page: 100,
+							page: 2
+						});
+
+						ret.push(...secondPage.data.map(item => new PullRequest(octo, remote, item)));
+					}
+					return ret;
 				}
 			});
 
@@ -204,7 +217,8 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 				comments: comments.map(comment => {
 					return {
 						body: new vscode.MarkdownString(comment.body),
-						userName: comment.user.login
+						userName: comment.user.login,
+						gravatar: comment.user.avatar_url
 					};
 				})
 			});

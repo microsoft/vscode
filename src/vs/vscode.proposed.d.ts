@@ -732,6 +732,7 @@ declare module 'vscode' {
 	interface Comment {
 		body: MarkdownString;
 		userName: string;
+		gravatar: string;
 	}
 
 	/**
