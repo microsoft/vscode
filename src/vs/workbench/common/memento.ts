@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 /**
@@ -32,7 +32,7 @@ export class Memento {
 	private static globalMementos: { [id: string]: ScopedMemento } = {};
 	private static workspaceMementos: { [id: string]: ScopedMemento } = {};
 
-	private static COMMON_PREFIX = 'memento/';
+	private static readonly COMMON_PREFIX = 'memento/';
 
 	private id: string;
 

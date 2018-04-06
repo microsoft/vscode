@@ -161,8 +161,8 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 
 class CustomizeTaskAction extends Action {
 
-	private static ID = 'workbench.action.tasks.customizeTask';
-	private static LABEL = nls.localize('customizeTask', "Configure Task");
+	private static readonly ID = 'workbench.action.tasks.customizeTask';
+	private static readonly LABEL = nls.localize('customizeTask', "Configure Task");
 
 	constructor(private taskService: ITaskService, private quickOpenService: IQuickOpenService) {
 		super(CustomizeTaskAction.ID, CustomizeTaskAction.LABEL);
@@ -200,7 +200,7 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 
 	private action: CustomizeTaskAction;
 
-	constructor( @ITaskService taskService: ITaskService, @IQuickOpenService quickOpenService: IQuickOpenService) {
+	constructor(@ITaskService taskService: ITaskService, @IQuickOpenService quickOpenService: IQuickOpenService) {
 		super();
 		this.action = new CustomizeTaskAction(taskService, quickOpenService);
 	}

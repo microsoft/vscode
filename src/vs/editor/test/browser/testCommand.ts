@@ -8,9 +8,10 @@ import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 
 export function testCommand(
 	lines: string[],
@@ -20,7 +21,7 @@ export function testCommand(
 	expectedLines: string[],
 	expectedSelection: Selection
 ): void {
-	let model = Model.createFromString(lines.join('\n'), undefined, languageIdentifier);
+	let model = TextModel.createFromString(lines.join('\n'), undefined, languageIdentifier);
 	withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 
 		cursor.setSelections('tests', [selection]);
@@ -39,24 +40,20 @@ export function testCommand(
 /**
  * Extract edit operations if command `command` were to execute on model `model`
  */
-export function getEditOperation(model: editorCommon.IModel, command: editorCommon.ICommand): editorCommon.IIdentifiedSingleEditOperation[] {
-	var operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
+export function getEditOperation(model: ITextModel, command: editorCommon.ICommand): IIdentifiedSingleEditOperation[] {
+	var operations: IIdentifiedSingleEditOperation[] = [];
 	var editOperationBuilder: editorCommon.IEditOperationBuilder = {
 		addEditOperation: (range: Range, text: string) => {
 			operations.push({
-				identifier: null,
 				range: range,
-				text: text,
-				forceMoveMarkers: false
+				text: text
 			});
 		},
 
 		addTrackedEditOperation: (range: Range, text: string) => {
 			operations.push({
-				identifier: null,
 				range: range,
-				text: text,
-				forceMoveMarkers: false
+				text: text
 			});
 		},
 

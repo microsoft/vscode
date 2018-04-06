@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as strings from 'vs/base/common/strings';
-import { IndentationRule, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
+import { IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 
 export const enum IndentConsts {
 	INCREASE_MASK = 0b00000001,
@@ -20,30 +19,6 @@ export class IndentRulesSupport {
 
 	constructor(indentationRules: IndentationRule) {
 		this._indentationRules = indentationRules;
-	}
-
-	public onType(text: string): IndentAction {
-		if (this._indentationRules) {
-			if (this._indentationRules.unIndentedLinePattern && this._indentationRules.unIndentedLinePattern.test(text)) {
-				return null;
-			}
-
-			if (this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(text)) {
-				return IndentAction.Outdent;
-			}
-		}
-		return null;
-	}
-
-	public containNonWhitespace(text: string): boolean {
-		// the text doesn't contain any non-whitespace character.
-		let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(text);
-
-		if (nonWhitespaceIdx >= 0) {
-			return true;
-		}
-
-		return false;
 	}
 
 	public shouldIncrease(text: string): boolean {
@@ -99,4 +74,3 @@ export class IndentRulesSupport {
 		return ret;
 	}
 }
-

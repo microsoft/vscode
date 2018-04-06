@@ -6,13 +6,14 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { buffer } from 'vs/base/common/event';
+import { Event, buffer } from 'vs/base/common/event';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions } from 'vs/platform/windows/common/windows';
+import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import URI from 'vs/base/common/uri';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 export interface IWindowsChannel extends IChannel {
 	call(command: 'event:onWindowOpen'): TPromise<number>;
@@ -22,7 +23,10 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'pickFileAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
 	call(command: 'pickFolderAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
 	call(command: 'pickWorkspaceAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
-	call(command: 'reloadWindow', arg: number): TPromise<void>;
+	call(command: 'showMessageBox', arg: [number, MessageBoxOptions]): TPromise<IMessageBoxResult>;
+	call(command: 'showSaveDialog', arg: [number, SaveDialogOptions]): TPromise<string>;
+	call(command: 'showOpenDialog', arg: [number, OpenDialogOptions]): TPromise<string[]>;
+	call(command: 'reloadWindow', arg: [number, ParsedArgs]): TPromise<void>;
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
 	call(command: 'closeWorkspace', arg: number): TPromise<void>;
 	call(command: 'createAndEnterWorkspace', arg: [number, IWorkspaceFolderCreationData[], string]): TPromise<IEnterWorkspaceResult>;
@@ -60,6 +64,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'showItemInFolder', arg: string): TPromise<void>;
 	call(command: 'openExternal', arg: string): TPromise<boolean>;
 	call(command: 'startCrashReporter', arg: CrashReporterStartOptions): TPromise<void>;
+	call(command: 'openAboutDialog'): TPromise<void>;
 	call(command: string, arg?: any): TPromise<any>;
 }
 
@@ -84,7 +89,10 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg);
 			case 'pickFolderAndOpen': return this.service.pickFolderAndOpen(arg);
 			case 'pickWorkspaceAndOpen': return this.service.pickWorkspaceAndOpen(arg);
-			case 'reloadWindow': return this.service.reloadWindow(arg);
+			case 'showMessageBox': return this.service.showMessageBox(arg[0], arg[1]);
+			case 'showSaveDialog': return this.service.showSaveDialog(arg[0], arg[1]);
+			case 'showOpenDialog': return this.service.showOpenDialog(arg[0], arg[1]);
+			case 'reloadWindow': return this.service.reloadWindow(arg[0], arg[1]);
 			case 'openDevTools': return this.service.openDevTools(arg);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
 			case 'closeWorkspace': return this.service.closeWorkspace(arg);
@@ -136,6 +144,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'showItemInFolder': return this.service.showItemInFolder(arg);
 			case 'openExternal': return this.service.openExternal(arg);
 			case 'startCrashReporter': return this.service.startCrashReporter(arg);
+			case 'openAboutDialog': return this.service.openAboutDialog();
 		}
 		return undefined;
 	}
@@ -172,8 +181,20 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('pickWorkspaceAndOpen', options);
 	}
 
-	reloadWindow(windowId: number): TPromise<void> {
-		return this.channel.call('reloadWindow', windowId);
+	showMessageBox(windowId: number, options: MessageBoxOptions): TPromise<IMessageBoxResult> {
+		return this.channel.call('showMessageBox', [windowId, options]);
+	}
+
+	showSaveDialog(windowId: number, options: SaveDialogOptions): TPromise<string> {
+		return this.channel.call('showSaveDialog', [windowId, options]);
+	}
+
+	showOpenDialog(windowId: number, options: OpenDialogOptions): TPromise<string[]> {
+		return this.channel.call('showOpenDialog', [windowId, options]);
+	}
+
+	reloadWindow(windowId: number, args?: ParsedArgs): TPromise<void> {
+		return this.channel.call('reloadWindow', [windowId, args]);
 	}
 
 	openDevTools(windowId: number): TPromise<void> {
@@ -326,5 +347,9 @@ export class WindowsChannelClient implements IWindowsService {
 
 	updateTouchBar(windowId: number, items: ICommandAction[][]): TPromise<void> {
 		return this.channel.call('updateTouchBar', [windowId, items]);
+	}
+
+	openAboutDialog(): TPromise<void> {
+		return this.channel.call('openAboutDialog');
 	}
 }

@@ -8,12 +8,11 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ServicesAccessor, registerEditorAction, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
+import { ServicesAccessor, registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, CONTEXT_DEBUG_STATE, State, REPL_ID, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, CONTEXT_DEBUG_STATE, State, REPL_ID, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext } from 'vs/workbench/parts/debug/common/debug';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 class ToggleBreakpointAction extends EditorAction {
@@ -24,7 +23,7 @@ class ToggleBreakpointAction extends EditorAction {
 			alias: 'Debug: Toggle Breakpoint',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyCode.F9
 			}
 		});
@@ -49,63 +48,6 @@ class ToggleBreakpointAction extends EditorAction {
 	}
 }
 
-function addColumnBreakpoint(accessor: ServicesAccessor, editor: ICodeEditor, remove: boolean): TPromise<any> {
-	const debugService = accessor.get(IDebugService);
-
-	const position = editor.getPosition();
-	const modelUri = editor.getModel().uri;
-	const bp = debugService.getModel().getBreakpoints()
-		.filter(bp => bp.lineNumber === position.lineNumber && bp.column === position.column && bp.uri.toString() === modelUri.toString()).pop();
-
-	if (bp) {
-		return remove ? debugService.removeBreakpoints(bp.getId()) : TPromise.as(null);
-	}
-	if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-		return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column }]);
-	}
-
-	return TPromise.as(null);
-}
-
-class ToggleColumnBreakpointAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.debug.action.toggleColumnBreakpoint',
-			label: nls.localize('columnBreakpointAction', "Debug: Column Breakpoint"),
-			alias: 'Debug: Column Breakpoint',
-			precondition: null,
-			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
-				primary: KeyMod.Shift | KeyCode.F9
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<any> {
-		return addColumnBreakpoint(accessor, editor, true);
-	}
-}
-
-// TODO@Isidor merge two column breakpoints actions together
-class ToggleColumnBreakpointContextMenuAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.debug.action.toggleColumnBreakpointContextMenu',
-			label: nls.localize('columnBreakpoint', "Add Column Breakpoint"),
-			alias: 'Toggle Column Breakpoint',
-			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, EditorContextKeys.writable),
-			menuOpts: {
-				group: 'debug',
-				order: 1
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<any> {
-		return addColumnBreakpoint(accessor, editor, false);
-	}
-}
-
 class ConditionalBreakpointAction extends EditorAction {
 
 	constructor() {
@@ -127,6 +69,26 @@ class ConditionalBreakpointAction extends EditorAction {
 	}
 }
 
+class LogPointAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.debug.action.toggleLogPoint',
+			label: nls.localize('logPointEditorAction', "Debug: Add Log Point..."),
+			alias: 'Debug: Add Log Point...',
+			precondition: null
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const debugService = accessor.get(IDebugService);
+
+		const { lineNumber, column } = editor.getPosition();
+		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
+			editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.LOG_MESSAGE);
+		}
+	}
+}
 
 class RunToCursorAction extends EditorAction {
 
@@ -229,7 +191,7 @@ class ShowDebugHoverAction extends EditorAction {
 			alias: 'Debug: Show Hover',
 			precondition: CONTEXT_IN_DEBUG_MODE,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
 			}
 		});
@@ -247,33 +209,10 @@ class ShowDebugHoverAction extends EditorAction {
 	}
 }
 
-class CloseBreakpointWidgetCommand extends EditorCommand {
-
-	constructor() {
-		super({
-			id: 'closeBreakpointWidget',
-			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE,
-			kbOpts: {
-				weight: KeybindingsRegistry.WEIGHT.editorContrib(8),
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyCode.Escape,
-				secondary: [KeyMod.Shift | KeyCode.Escape]
-			}
-		});
-	}
-
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		return editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).closeBreakpointWidget();
-	}
-}
-
 registerEditorAction(ToggleBreakpointAction);
-registerEditorAction(ToggleColumnBreakpointAction);
-registerEditorAction(ToggleColumnBreakpointContextMenuAction);
 registerEditorAction(ConditionalBreakpointAction);
+registerEditorAction(LogPointAction);
 registerEditorAction(RunToCursorAction);
 registerEditorAction(SelectionToReplAction);
 registerEditorAction(SelectionToWatchExpressionsAction);
 registerEditorAction(ShowDebugHoverAction);
-
-registerEditorCommand(new CloseBreakpointWidgetCommand());

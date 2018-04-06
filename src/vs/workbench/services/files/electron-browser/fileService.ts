@@ -4,36 +4,41 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import paths = require('vs/base/common/paths');
-import encoding = require('vs/base/node/encoding');
-import errors = require('vs/base/common/errors');
+import * as paths from 'vs/base/common/paths';
+import * as encoding from 'vs/base/node/encoding';
+import * as errors from 'vs/base/common/errors';
 import uri from 'vs/base/common/uri';
-import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IResolveFileResult, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent, ICreateFileOptions } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IResolveFileResult, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent, ICreateFileOptions, ITextSnapshot } from 'vs/platform/files/common/files';
 import { FileService as NodeFileService, IFileServiceOptions, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Action } from 'vs/base/common/actions';
-import { IMessageService, IMessageWithAction, Severity, CloseAction } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import Event, { Emitter } from 'vs/base/common/event';
-
+import { Event, Emitter } from 'vs/base/common/event';
 import { shell } from 'electron';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import product from 'vs/platform/node/product';
+import { Schemas } from 'vs/base/common/network';
+import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
+import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 
 export class FileService implements IFileService {
 
 	public _serviceBrand: any;
 
 	// If we run with .NET framework < 4.5, we need to detect this error to inform the user
-	private static NET_VERSION_ERROR = 'System.MissingMethodException';
-	private static NET_VERSION_ERROR_IGNORE_KEY = 'ignoreNetVersionError';
+	private static readonly NET_VERSION_ERROR = 'System.MissingMethodException';
+	private static readonly NET_VERSION_ERROR_IGNORE_KEY = 'ignoreNetVersionError';
 
-	private raw: IFileService;
+	private static readonly ENOSPC_ERROR = 'ENOSPC';
+	private static readonly ENOSPC_ERROR_IGNORE_KEY = 'ignoreEnospcError';
+
+	private raw: NodeFileService;
 
 	private toUnbind: IDisposable[];
 
@@ -45,7 +50,7 @@ export class FileService implements IFileService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IStorageService private storageService: IStorageService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
 	) {
@@ -70,11 +75,16 @@ export class FileService implements IFileService {
 			encodingOverride: this.getEncodingOverrides(),
 			watcherIgnoredPatterns,
 			verboseLogging: environmentService.verbose,
-			useExperimentalFileWatcher: configuration.files.useExperimentalFileWatcher
+			useExperimentalFileWatcher: configuration.files.useExperimentalFileWatcher,
+			elevationSupport: {
+				cliPath: this.environmentService.cliPath,
+				promptTitle: this.environmentService.appNameLong,
+				promptIcnsPath: (isMacintosh && this.environmentService.isBuilt) ? paths.join(paths.dirname(this.environmentService.appRoot), `${product.nameShort}.icns`) : void 0
+			}
 		};
 
 		// create service
-		this.raw = new NodeFileService(contextService, textResourceConfigurationService, configurationService, fileServiceConfig);
+		this.raw = new NodeFileService(contextService, environmentService, textResourceConfigurationService, configurationService, lifecycleService, fileServiceConfig);
 
 		// Listeners
 		this.registerListeners();
@@ -88,27 +98,47 @@ export class FileService implements IFileService {
 		return this._onAfterOperation.event;
 	}
 
-	private onFileServiceError(msg: string): void {
+	private onFileServiceError(error: string | Error): void {
+		const msg = error ? error.toString() : void 0;
+		if (!msg) {
+			return;
+		}
+
+		// Forward to unexpected error handler
 		errors.onUnexpectedError(msg);
 
-		// Detect if we run < .NET Framework 4.5
-		if (typeof msg === 'string' && msg.indexOf(FileService.NET_VERSION_ERROR) >= 0 && !this.storageService.getBoolean(FileService.NET_VERSION_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
-			this.messageService.show(Severity.Warning, <IMessageWithAction>{
-				message: nls.localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."),
-				actions: [
-					new Action('install.net', nls.localize('installNet', "Download .NET Framework 4.5"), null, true, () => {
-						window.open('https://go.microsoft.com/fwlink/?LinkId=786533');
+		// Detect if we run < .NET Framework 4.5 (TODO@ben remove with new watcher impl)
+		if (msg.indexOf(FileService.NET_VERSION_ERROR) >= 0 && !this.storageService.getBoolean(FileService.NET_VERSION_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
+			this.notificationService.prompt(
+				Severity.Warning,
+				nls.localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."),
+				[{
+					label: nls.localize('installNet', "Download .NET Framework 4.5"),
+					run: () => window.open('https://go.microsoft.com/fwlink/?LinkId=786533')
+				},
+				{
+					label: nls.localize('neverShowAgain', "Don't Show Again"),
+					isSecondary: true,
+					run: () => this.storageService.store(FileService.NET_VERSION_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE)
+				}]
+			);
+		}
 
-						return TPromise.as(true);
-					}),
-					new Action('net.error.ignore', nls.localize('neverShowAgain', "Don't Show Again"), '', true, () => {
-						this.storageService.store(FileService.NET_VERSION_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE);
-
-						return TPromise.as(null);
-					}),
-					CloseAction
-				]
-			});
+		// Detect if we run into ENOSPC issues
+		if (msg.indexOf(FileService.ENOSPC_ERROR) >= 0 && !this.storageService.getBoolean(FileService.ENOSPC_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
+			this.notificationService.prompt(
+				Severity.Warning,
+				nls.localize('enospcError', "{0} is unable to watch for file changes in this large workspace. Please follow the instructions link to resolve this issue.", product.nameLong),
+				[{
+					label: nls.localize('learnMore', "Instructions"),
+					run: () => window.open('https://go.microsoft.com/fwlink/?linkid=867693')
+				},
+				{
+					label: nls.localize('neverShowAgain', "Don't Show Again"),
+					isSecondary: true,
+					run: () => this.storageService.store(FileService.ENOSPC_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE)
+				}]
+			);
 		}
 	}
 
@@ -134,9 +164,16 @@ export class FileService implements IFileService {
 
 	private getEncodingOverrides(): IEncodingOverride[] {
 		const encodingOverride: IEncodingOverride[] = [];
-		encodingOverride.push({ resource: uri.file(this.environmentService.appSettingsHome), encoding: encoding.UTF8 });
+
+		// Global settings
+		encodingOverride.push({ parent: uri.file(this.environmentService.appSettingsHome), encoding: encoding.UTF8 });
+
+		// Workspace files
+		encodingOverride.push({ extension: WORKSPACE_EXTENSION, encoding: encoding.UTF8 });
+
+		// Folder Settings
 		this.contextService.getWorkspace().folders.forEach(folder => {
-			encodingOverride.push({ resource: uri.file(paths.join(folder.uri.fsPath, '.vscode')), encoding: encoding.UTF8 });
+			encodingOverride.push({ parent: uri.file(paths.join(folder.uri.fsPath, '.vscode')), encoding: encoding.UTF8 });
 		});
 
 		return encodingOverride;
@@ -172,7 +209,7 @@ export class FileService implements IFileService {
 		return this.raw.resolveStreamContent(resource, options);
 	}
 
-	public updateContent(resource: uri, value: string, options?: IUpdateContentOptions): TPromise<IFileStat> {
+	public updateContent(resource: uri, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat> {
 		return this.raw.updateContent(resource, value, options);
 	}
 
@@ -212,7 +249,7 @@ export class FileService implements IFileService {
 		const absolutePath = resource.fsPath;
 		const result = shell.moveItemToTrash(absolutePath);
 		if (!result) {
-			return TPromise.wrapError<void>(new Error(nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
+			return TPromise.wrapError<void>(new Error(isWindows ? nls.localize('binFailed', "Failed to move '{0}' to the recycle bin", paths.basename(absolutePath)) : nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
 		}
 
 		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
@@ -234,7 +271,7 @@ export class FileService implements IFileService {
 			return;
 		}
 
-		if (resource.scheme !== 'file') {
+		if (resource.scheme !== Schemas.file) {
 			return; // only support files
 		}
 

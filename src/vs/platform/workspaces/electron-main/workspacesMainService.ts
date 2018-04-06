@@ -11,10 +11,10 @@ import { isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { extname, join, dirname, isAbsolute, resolve } from 'path';
 import { mkdirp, writeFile, readFile } from 'vs/base/node/pfs';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync } from 'fs';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { delSync, readdirSync } from 'vs/base/node/extfs';
-import Event, { Emitter } from 'vs/base/common/event';
+import { delSync, readdirSync, writeFileAndFlushSync } from 'vs/base/node/extfs';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual } from 'vs/base/common/paths';
 import { coalesce } from 'vs/base/common/arrays';
@@ -25,6 +25,7 @@ import { applyEdit } from 'vs/base/common/jsonFormatter';
 import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
 import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IStoredWorkspace {
 	folders: IStoredWorkspaceFolder[];
@@ -36,8 +37,8 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 	protected workspacesHome: string;
 
-	private _onWorkspaceSaved: Emitter<IWorkspaceSavedEvent>;
-	private _onUntitledWorkspaceDeleted: Emitter<IWorkspaceIdentifier>;
+	private readonly _onWorkspaceSaved: Emitter<IWorkspaceSavedEvent>;
+	private readonly _onUntitledWorkspaceDeleted: Emitter<IWorkspaceIdentifier>;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -55,14 +56,6 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 	public get onUntitledWorkspaceDeleted(): Event<IWorkspaceIdentifier> {
 		return this._onUntitledWorkspaceDeleted.event;
-	}
-
-	public resolveWorkspace(path: string): TPromise<IResolvedWorkspace> {
-		if (!this.isWorkspacePath(path)) {
-			return TPromise.as(null); // does not look like a valid workspace config file
-		}
-
-		return readFile(path).then(contents => this.doResolveWorkspace(path, contents.toString()));
 	}
 
 	public resolveWorkspaceSync(path: string): IResolvedWorkspace {
@@ -94,7 +87,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 				folders: toWorkspaceFolders(workspace.folders, URI.file(dirname(path)))
 			};
 		} catch (error) {
-			this.logService.log(error.toString());
+			this.logService.warn(error.toString());
 		}
 
 		return null;
@@ -144,7 +137,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 		mkdirSync(configParent);
 
-		writeFileSync(workspace.configPath, JSON.stringify(storedWorkspace, null, '\t'));
+		writeFileAndFlushSync(workspace.configPath, JSON.stringify(storedWorkspace, null, '\t'));
 
 		return workspace;
 	}
@@ -160,7 +153,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 				let storedWorkspace: IStoredWorkspaceFolder;
 
 				// File URI
-				if (folderResource.scheme === 'file') {
+				if (folderResource.scheme === Schemas.file) {
 					storedWorkspace = { path: massageFolderPathForWorkspace(folderResource.fsPath, untitledWorkspaceConfigFolder, []) };
 				}
 
@@ -270,7 +263,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		try {
 			delSync(dirname(configPath));
 		} catch (error) {
-			this.logService.log(`Unable to delete untitled workspace ${configPath} (${error}).`);
+			this.logService.warn(`Unable to delete untitled workspace ${configPath} (${error}).`);
 		}
 	}
 
@@ -279,7 +272,9 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		try {
 			untitledWorkspacePaths = readdirSync(this.workspacesHome).map(folder => join(this.workspacesHome, folder, UNTITLED_WORKSPACE_NAME));
 		} catch (error) {
-			this.logService.log(`Unable to read folders in ${this.workspacesHome} (${error}).`);
+			if (error && error.code !== 'ENOENT') {
+				this.logService.warn(`Unable to read folders in ${this.workspacesHome} (${error}).`);
+			}
 		}
 
 		const untitledWorkspaces: IWorkspaceIdentifier[] = coalesce(untitledWorkspacePaths.map(untitledWorkspacePath => {

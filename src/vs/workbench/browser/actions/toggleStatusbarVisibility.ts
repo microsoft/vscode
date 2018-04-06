@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -15,10 +15,10 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 
 export class ToggleStatusbarVisibilityAction extends Action {
 
-	public static ID = 'workbench.action.toggleStatusbarVisibility';
-	public static LABEL = nls.localize('toggleStatusbar', "Toggle Status Bar Visibility");
+	public static readonly ID = 'workbench.action.toggleStatusbarVisibility';
+	public static readonly LABEL = nls.localize('toggleStatusbar', "Toggle Status Bar Visibility");
 
-	private static statusbarVisibleKey = 'workbench.statusBar.visible';
+	private static readonly statusbarVisibleKey = 'workbench.statusBar.visible';
 
 	constructor(
 		id: string,

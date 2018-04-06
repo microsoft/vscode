@@ -26,13 +26,27 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 
 export class ModesHoverController implements editorCommon.IEditorContribution {
 
-	private static ID = 'editor.contrib.hover';
+	private static readonly ID = 'editor.contrib.hover';
 
 	private _editor: ICodeEditor;
 	private _toUnhook: IDisposable[];
 
 	private _contentWidget: ModesContentHoverWidget;
 	private _glyphWidget: ModesGlyphHoverWidget;
+
+	get contentWidget(): ModesContentHoverWidget {
+		if (!this._contentWidget) {
+			this._createHoverWidget();
+		}
+		return this._contentWidget;
+	}
+
+	get glyphWidget(): ModesGlyphHoverWidget {
+		if (!this._glyphWidget) {
+			this._createHoverWidget();
+		}
+		return this._glyphWidget;
+	}
 
 	private _isMouseDown: boolean;
 	private _hoverClicked: boolean;
@@ -42,8 +56,8 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 	}
 
 	constructor(editor: ICodeEditor,
-		@IOpenerService openerService: IOpenerService,
-		@IModeService modeService: IModeService
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IModeService private readonly _modeService: IModeService
 	) {
 		this._editor = editor;
 
@@ -63,15 +77,12 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 					this._hideWidgets();
 				}
 			}));
-			const renderer = new MarkdownRenderer(editor, modeService, openerService);
-			this._contentWidget = new ModesContentHoverWidget(editor, renderer);
-			this._glyphWidget = new ModesGlyphHoverWidget(editor, renderer);
 		}
 	}
 
 	private _onModelDecorationsChanged(): void {
-		this._contentWidget.onModelDecorationsChanged();
-		this._glyphWidget.onModelDecorationsChanged();
+		this.contentWidget.onModelDecorationsChanged();
+		this.glyphWidget.onModelDecorationsChanged();
 	}
 
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
@@ -105,7 +116,7 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 		var targetType = mouseEvent.target.type;
 		var stopKey = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
 
-		if (this._isMouseDown && this._hoverClicked && this._contentWidget.isColorPickerVisible()) {
+		if (this._isMouseDown && this._hoverClicked && this.contentWidget.isColorPickerVisible()) {
 			return;
 		}
 
@@ -120,11 +131,11 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 		}
 
 		if (this._editor.getConfiguration().contribInfo.hover && targetType === MouseTargetType.CONTENT_TEXT) {
-			this._glyphWidget.hide();
-			this._contentWidget.startShowingAt(mouseEvent.target.range, false);
+			this.glyphWidget.hide();
+			this.contentWidget.startShowingAt(mouseEvent.target.range, false);
 		} else if (targetType === MouseTargetType.GUTTER_GLYPH_MARGIN) {
-			this._contentWidget.hide();
-			this._glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
+			this.contentWidget.hide();
+			this.glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
 		} else {
 			this._hideWidgets();
 		}
@@ -138,7 +149,7 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
-		if (this._isMouseDown && this._hoverClicked && this._contentWidget.isColorPickerVisible()) {
+		if (!this._contentWidget || (this._isMouseDown && this._hoverClicked && this._contentWidget.isColorPickerVisible())) {
 			return;
 		}
 
@@ -146,8 +157,14 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 		this._contentWidget.hide();
 	}
 
+	private _createHoverWidget() {
+		const renderer = new MarkdownRenderer(this._editor, this._modeService, this._openerService);
+		this._contentWidget = new ModesContentHoverWidget(this._editor, renderer);
+		this._glyphWidget = new ModesGlyphHoverWidget(this._editor, renderer);
+	}
+
 	public showContentHover(range: Range, focus: boolean): void {
-		this._contentWidget.startShowingAt(range, focus);
+		this.contentWidget.startShowingAt(range, focus);
 	}
 
 	public getId(): string {
@@ -176,7 +193,7 @@ class ShowHoverAction extends EditorAction {
 			alias: 'Show Hover',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
 			}
 		});

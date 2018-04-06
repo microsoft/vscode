@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 
 import * as types from 'vs/base/common/types';
 import * as Paths from 'path';
-import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionData, IThemeExtensionPoint } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
 
 let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('iconThemes', [], {
@@ -41,11 +41,11 @@ let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensio
 export class FileIconThemeStore {
 
 	private knownIconThemes: FileIconThemeData[];
-	private onDidChangeEmitter: Emitter<FileIconThemeData[]>;
+	private readonly onDidChangeEmitter: Emitter<FileIconThemeData[]>;
 
 	public get onDidChange(): Event<FileIconThemeData[]> { return this.onDidChangeEmitter.event; }
 
-	constructor( @IExtensionService private extensionService: IExtensionService) {
+	constructor(@IExtensionService private extensionService: IExtensionService) {
 		this.knownIconThemes = [];
 		this.onDidChangeEmitter = new Emitter<FileIconThemeData[]>();
 		this.initialize();
@@ -129,7 +129,7 @@ export class FileIconThemeStore {
 	}
 
 	public getFileIconThemes(): TPromise<FileIconThemeData[]> {
-		return this.extensionService.onReady().then(isReady => {
+		return this.extensionService.whenInstalledExtensionsRegistered().then(isReady => {
 			return this.knownIconThemes;
 		});
 	}

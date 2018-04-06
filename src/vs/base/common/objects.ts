@@ -7,7 +7,7 @@
 
 import { isObject, isUndefinedOrNull, isArray } from 'vs/base/common/types';
 
-export function clone<T>(obj: T): T {
+export function deepClone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
 		return obj;
 	}
@@ -17,21 +17,6 @@ export function clone<T>(obj: T): T {
 	}
 	const result: any = Array.isArray(obj) ? [] : {};
 	Object.keys(obj).forEach((key: keyof T) => {
-		if (obj[key] && typeof obj[key] === 'object') {
-			result[key] = clone(obj[key]);
-		} else {
-			result[key] = obj[key];
-		}
-	});
-	return result;
-}
-
-export function deepClone<T>(obj: T): T {
-	if (!obj || typeof obj !== 'object') {
-		return obj;
-	}
-	const result: any = Array.isArray(obj) ? [] : {};
-	Object.getOwnPropertyNames(obj).forEach((key: keyof T) => {
 		if (obj[key] && typeof obj[key] === 'object') {
 			result[key] = deepClone(obj[key]);
 		} else {
@@ -135,10 +120,6 @@ export function assign(destination: any, ...sources: any[]): any {
 	return destination;
 }
 
-export function toObject<T>(arr: T[], keyMap: (t: T) => string): { [key: string]: T } {
-	return arr.reduce((o, d) => assign(o, { [keyMap(d)]: d }), Object.create(null));
-}
-
 export function equals(one: any, other: any): boolean {
 	if (one === other) {
 		return true;
@@ -192,12 +173,6 @@ export function equals(one: any, other: any): boolean {
 	return true;
 }
 
-export function ensureProperty(obj: any, property: string, defaultValue: any) {
-	if (typeof obj[property] === 'undefined') {
-		obj[property] = defaultValue;
-	}
-}
-
 export function arrayToHash(array: any[]) {
 	const result: any = {};
 	for (let i = 0; i < array.length; ++i) {
@@ -224,34 +199,6 @@ export function createKeywordMatcher(arr: string[], caseInsensitive: boolean = f
 			return hash[word] !== undefined && hash.hasOwnProperty(word);
 		};
 	}
-}
-
-/**
- * Started from TypeScript's __extends function to make a type a subclass of a specific class.
- * Modified to work with properties already defined on the derivedClass, since we can't get TS
- * to call this method before the constructor definition.
- */
-export function derive(baseClass: any, derivedClass: any): void {
-	for (let prop in baseClass) {
-		if (baseClass.hasOwnProperty(prop)) {
-			derivedClass[prop] = baseClass[prop];
-		}
-	}
-
-	derivedClass = derivedClass || function () { };
-	const basePrototype = baseClass.prototype;
-	const derivedPrototype = derivedClass.prototype;
-	derivedClass.prototype = Object.create(basePrototype);
-
-	for (let prop in derivedPrototype) {
-		if (derivedPrototype.hasOwnProperty(prop)) {
-			// handle getters and setters properly
-			Object.defineProperty(derivedClass.prototype, prop, Object.getOwnPropertyDescriptor(derivedPrototype, prop));
-		}
-	}
-
-	// Cast to any due to Bug 16188:PropertyDescriptor set and get function should be optional.
-	Object.defineProperty(derivedClass.prototype, 'constructor', { value: derivedClass, writable: true, configurable: true, enumerable: true });
 }
 
 /**

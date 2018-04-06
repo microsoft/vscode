@@ -6,7 +6,7 @@
 'use strict';
 
 import 'mocha';
-import { GitStatusParser } from '../git';
+import { GitStatusParser, parseGitmodules } from '../git';
 import * as assert from 'assert';
 
 suite('git', () => {
@@ -132,6 +132,46 @@ suite('git', () => {
 				{ path: 'file2.txt', rename: undefined, x: '?', y: '?' },
 				{ path: 'file.txt', rename: 'newfile.txt', x: 'R', y: ' ' },
 				{ path: 'file3.txt', rename: undefined, x: '?', y: '?' }
+			]);
+		});
+	});
+
+	suite('parseGitmodules', () => {
+		test('empty', () => {
+			assert.deepEqual(parseGitmodules(''), []);
+		});
+
+		test('sample', () => {
+			const sample = `[submodule "deps/spdlog"]
+	path = deps/spdlog
+	url = https://github.com/gabime/spdlog.git
+`;
+
+			assert.deepEqual(parseGitmodules(sample), [
+				{ name: 'deps/spdlog', path: 'deps/spdlog', url: 'https://github.com/gabime/spdlog.git' }
+			]);
+		});
+
+		test('big', () => {
+			const sample = `[submodule "deps/spdlog"]
+	path = deps/spdlog
+	url = https://github.com/gabime/spdlog.git
+[submodule "deps/spdlog2"]
+	path = deps/spdlog2
+	url = https://github.com/gabime/spdlog.git
+[submodule "deps/spdlog3"]
+	path = deps/spdlog3
+	url = https://github.com/gabime/spdlog.git
+[submodule "deps/spdlog4"]
+	path = deps/spdlog4
+	url = https://github.com/gabime/spdlog4.git
+`;
+
+			assert.deepEqual(parseGitmodules(sample), [
+				{ name: 'deps/spdlog', path: 'deps/spdlog', url: 'https://github.com/gabime/spdlog.git' },
+				{ name: 'deps/spdlog2', path: 'deps/spdlog2', url: 'https://github.com/gabime/spdlog.git' },
+				{ name: 'deps/spdlog3', path: 'deps/spdlog3', url: 'https://github.com/gabime/spdlog.git' },
+				{ name: 'deps/spdlog4', path: 'deps/spdlog4', url: 'https://github.com/gabime/spdlog4.git' }
 			]);
 		});
 	});

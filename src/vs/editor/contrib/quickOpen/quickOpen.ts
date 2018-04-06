@@ -9,13 +9,13 @@ import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/error
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { SymbolInformation, DocumentSymbolProviderRegistry, IOutline } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { asWinJsPromise } from 'vs/base/common/async';
 
-export function getDocumentSymbols(model: IModel): TPromise<IOutline> {
+export function getDocumentSymbols(model: ITextModel): TPromise<IOutline> {
 
 	let entries: SymbolInformation[] = [];
 

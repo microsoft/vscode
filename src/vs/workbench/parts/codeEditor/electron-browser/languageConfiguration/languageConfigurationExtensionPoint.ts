@@ -344,6 +344,7 @@ export class LanguageConfigurationFileHandler {
 
 const schemaId = 'vscode://schemas/language-configuration';
 const schema: IJSONSchema = {
+	allowComments: true,
 	default: {
 		comments: {
 			blockComment: ['/*', '*/'],
@@ -580,5 +581,5 @@ const schema: IJSONSchema = {
 
 	}
 };
-let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
+let schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);

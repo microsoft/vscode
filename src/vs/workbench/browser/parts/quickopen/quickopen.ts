@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -75,8 +75,8 @@ export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHan
 
 export class QuickOpenNavigateNextAction extends BaseQuickOpenNavigateAction {
 
-	public static ID = 'workbench.action.quickOpenNavigateNext';
-	public static LABEL = nls.localize('quickNavigateNext', "Navigate Next in Quick Open");
+	public static readonly ID = 'workbench.action.quickOpenNavigateNext';
+	public static readonly LABEL = nls.localize('quickNavigateNext', "Navigate Next in Quick Open");
 
 	constructor(
 		id: string,
@@ -90,8 +90,8 @@ export class QuickOpenNavigateNextAction extends BaseQuickOpenNavigateAction {
 
 export class QuickOpenNavigatePreviousAction extends BaseQuickOpenNavigateAction {
 
-	public static ID = 'workbench.action.quickOpenNavigatePrevious';
-	public static LABEL = nls.localize('quickNavigatePrevious', "Navigate Previous in Quick Open");
+	public static readonly ID = 'workbench.action.quickOpenNavigatePrevious';
+	public static readonly LABEL = nls.localize('quickNavigatePrevious', "Navigate Previous in Quick Open");
 
 	constructor(
 		id: string,
@@ -105,8 +105,8 @@ export class QuickOpenNavigatePreviousAction extends BaseQuickOpenNavigateAction
 
 export class QuickOpenSelectNextAction extends BaseQuickOpenNavigateAction {
 
-	public static ID = 'workbench.action.quickOpenSelectNext';
-	public static LABEL = nls.localize('quickSelectNext', "Select Next in Quick Open");
+	public static readonly ID = 'workbench.action.quickOpenSelectNext';
+	public static readonly LABEL = nls.localize('quickSelectNext', "Select Next in Quick Open");
 
 	constructor(
 		id: string,
@@ -120,8 +120,8 @@ export class QuickOpenSelectNextAction extends BaseQuickOpenNavigateAction {
 
 export class QuickOpenSelectPreviousAction extends BaseQuickOpenNavigateAction {
 
-	public static ID = 'workbench.action.quickOpenSelectPrevious';
-	public static LABEL = nls.localize('quickSelectPrevious', "Select Previous in Quick Open");
+	public static readonly ID = 'workbench.action.quickOpenSelectPrevious';
+	public static readonly LABEL = nls.localize('quickSelectPrevious', "Select Previous in Quick Open");
 
 	constructor(
 		id: string,

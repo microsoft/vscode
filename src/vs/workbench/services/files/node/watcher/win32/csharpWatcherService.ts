@@ -5,18 +5,18 @@
 
 'use strict';
 
-import cp = require('child_process');
+import * as cp from 'child_process';
 
 import { FileChangeType } from 'vs/platform/files/common/files';
-import decoder = require('vs/base/node/decoder');
-import glob = require('vs/base/common/glob');
+import * as decoder from 'vs/base/node/decoder';
+import * as glob from 'vs/base/common/glob';
 import uri from 'vs/base/common/uri';
 
 import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 
 export class OutOfProcessWin32FolderWatcher {
 
-	private static MAX_RESTARTS = 5;
+	private static readonly MAX_RESTARTS = 5;
 
 	private static changeTypeMap: FileChangeType[] = [FileChangeType.UPDATED, FileChangeType.ADDED, FileChangeType.DELETED];
 

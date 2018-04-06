@@ -9,7 +9,7 @@ import { Property, Rule } from 'EmmetNode';
 
 const vendorPrefixes = ['-webkit-', '-moz-', '-ms-', '-o-', ''];
 
-export function reflectCssValue(): Thenable<boolean> {
+export function reflectCssValue(): Thenable<boolean> | undefined {
 	let editor = window.activeTextEditor;
 	if (!editor) {
 		window.showInformationMessage('No editor is active.');

@@ -18,8 +18,10 @@ import { Choice } from 'vs/editor/contrib/snippet/snippetParser';
 import { repeat } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ILogService } from 'vs/platform/log/common/log';
 
-export class SnippetController2 {
+export class SnippetController2 implements IEditorContribution {
 
 	static get(editor: ICodeEditor): SnippetController2 {
 		return editor.getContribution<SnippetController2>('snippetController2');
@@ -40,6 +42,7 @@ export class SnippetController2 {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@ILogService private readonly _logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this._inSnippet = SnippetController2.InSnippetMode.bindTo(contextKeyService);
@@ -59,6 +62,26 @@ export class SnippetController2 {
 	}
 
 	insert(
+		template: string,
+		overwriteBefore: number = 0, overwriteAfter: number = 0,
+		undoStopBefore: boolean = true, undoStopAfter: boolean = true
+	): void {
+		// this is here to find out more about the yet-not-understood
+		// error that sometimes happens when we fail to inserted a nested
+		// snippet
+		try {
+			this._doInsert(template, overwriteBefore, overwriteAfter, undoStopBefore, undoStopAfter);
+
+		} catch (e) {
+			this.cancel();
+			this._logService.error(e);
+			this._logService.error('snippet_error');
+			this._logService.error('insert_template=', template);
+			this._logService.error('existing_template=', this._session ? this._session._logInfo() : '<no_session>');
+		}
+	}
+
+	private _doInsert(
 		template: string,
 		overwriteBefore: number = 0, overwriteAfter: number = 0,
 		undoStopBefore: boolean = true, undoStopAfter: boolean = true
@@ -193,7 +216,7 @@ registerEditorCommand(new CommandCtor({
 	handler: ctrl => ctrl.next(),
 	kbOpts: {
 		weight: KeybindingsRegistry.WEIGHT.editorContrib(30),
-		kbExpr: EditorContextKeys.textFocus,
+		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyCode.Tab
 	}
 }));
@@ -203,7 +226,7 @@ registerEditorCommand(new CommandCtor({
 	handler: ctrl => ctrl.prev(),
 	kbOpts: {
 		weight: KeybindingsRegistry.WEIGHT.editorContrib(30),
-		kbExpr: EditorContextKeys.textFocus,
+		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyMod.Shift | KeyCode.Tab
 	}
 }));
@@ -213,7 +236,7 @@ registerEditorCommand(new CommandCtor({
 	handler: ctrl => ctrl.cancel(),
 	kbOpts: {
 		weight: KeybindingsRegistry.WEIGHT.editorContrib(30),
-		kbExpr: EditorContextKeys.textFocus,
+		kbExpr: EditorContextKeys.editorTextFocus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}

@@ -5,12 +5,12 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
-import { IModeLookupResult, IModeService } from 'vs/editor/common/services/modeService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export class ModeServiceImpl implements IModeService {
 	public _serviceBrand: any;
@@ -64,7 +64,7 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	public getModeIdByFilenameOrFirstLine(filename: string, firstLine?: string): string {
-		var modeIds = this._registry.getModeIdsFromFilenameOrFirstLine(filename, firstLine);
+		const modeIds = this._registry.getModeIdsFromFilenameOrFirstLine(filename, firstLine);
 
 		if (modeIds.length > 0) {
 			return modeIds[0];
@@ -74,7 +74,7 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string {
-		var modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
+		const modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
 
 		if (modeIds.length > 0) {
 			return modeIds[0];
@@ -93,27 +93,11 @@ export class ModeServiceImpl implements IModeService {
 
 	// --- instantiation
 
-	public lookup(commaSeparatedMimetypesOrCommaSeparatedIds: string): IModeLookupResult[] {
-		var r: IModeLookupResult[] = [];
-		var modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
-
-		for (var i = 0; i < modeIds.length; i++) {
-			var modeId = modeIds[i];
-
-			r.push({
-				modeId: modeId,
-				isInstantiated: this._instantiatedModes.hasOwnProperty(modeId)
-			});
-		}
-
-		return r;
-	}
-
 	public getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): IMode {
-		var modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
+		const modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
 
-		var isPlainText = false;
-		for (var i = 0; i < modeIds.length; i++) {
+		let isPlainText = false;
+		for (let i = 0; i < modeIds.length; i++) {
 			if (this._instantiatedModes.hasOwnProperty(modeIds[i])) {
 				return this._instantiatedModes[modeIds[i]];
 			}
@@ -122,7 +106,7 @@ export class ModeServiceImpl implements IModeService {
 
 		if (isPlainText) {
 			// Try to do it synchronously
-			var r: IMode = null;
+			let r: IMode = null;
 			this.getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds).then((mode) => {
 				r = mode;
 			}).done(null, onUnexpectedError);
@@ -133,7 +117,7 @@ export class ModeServiceImpl implements IModeService {
 
 	public getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<IMode> {
 		return this._onReady().then(() => {
-			var modeId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
+			const modeId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
 			// Fall back to plain text if no mode was found
 			return this._getOrCreateMode(modeId || 'plaintext');
 		});
@@ -141,14 +125,14 @@ export class ModeServiceImpl implements IModeService {
 
 	public getOrCreateModeByLanguageName(languageName: string): TPromise<IMode> {
 		return this._onReady().then(() => {
-			var modeId = this._getModeIdByLanguageName(languageName);
+			const modeId = this._getModeIdByLanguageName(languageName);
 			// Fall back to plain text if no mode was found
 			return this._getOrCreateMode(modeId || 'plaintext');
 		});
 	}
 
 	private _getModeIdByLanguageName(languageName: string): string {
-		var modeIds = this._registry.getModeIdsFromLanguageName(languageName);
+		const modeIds = this._registry.getModeIdsFromLanguageName(languageName);
 
 		if (modeIds.length > 0) {
 			return modeIds[0];
@@ -159,7 +143,7 @@ export class ModeServiceImpl implements IModeService {
 
 	public getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?: string): TPromise<IMode> {
 		return this._onReady().then(() => {
-			var modeId = this.getModeIdByFilenameOrFirstLine(filename, firstLine);
+			const modeId = this.getModeIdByFilenameOrFirstLine(filename, firstLine);
 			// Fall back to plain text if no mode was found
 			return this._getOrCreateMode(modeId || 'plaintext');
 		});

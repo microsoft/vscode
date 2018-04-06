@@ -36,14 +36,8 @@ import { Token } from 'vs/editor/common/core/token';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { IMessageService } from 'vs/platform/message/common/message';
-
-/**
- * @internal
- */
-export function setupServices(overrides: IEditorOverrideServices): any {
-	return StaticServices.init(overrides);
-}
+import { ITextModel, OverviewRulerLane, EndOfLinePreference, DefaultEndOfLine, EndOfLineSequence, TrackedRangeStickiness, TextModelResolvedOptions, FindMatch } from 'vs/editor/common/model';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
 	let services = new DynamicStandaloneServices(domElement, override);
@@ -129,14 +123,12 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			services.get(IEditorWorkerService),
 			services.get(ICodeEditorService),
 			services.get(IStandaloneThemeService),
-			services.get(IMessageService)
+			services.get(INotificationService)
 		);
 	});
 }
 
 export interface IDiffNavigator {
-	revealFirst: boolean;
-
 	canNavigate(): boolean;
 	next(): void;
 	previous(): void;
@@ -153,7 +145,7 @@ export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: ID
 	return new DiffNavigator(diffEditor, opts);
 }
 
-function doCreateModel(value: string, mode: TPromise<modes.IMode>, uri?: URI): editorCommon.IModel {
+function doCreateModel(value: string, mode: TPromise<modes.IMode>, uri?: URI): ITextModel {
 	return StaticServices.modelService.get().createModel(value, mode, uri);
 }
 
@@ -161,7 +153,7 @@ function doCreateModel(value: string, mode: TPromise<modes.IMode>, uri?: URI): e
  * Create a new editor model.
  * You can specify the language that should be set for this model or let the language be inferred from the `uri`.
  */
-export function createModel(value: string, language?: string, uri?: URI): editorCommon.IModel {
+export function createModel(value: string, language?: string, uri?: URI): ITextModel {
 	value = value || '';
 
 	if (!language) {
@@ -181,14 +173,14 @@ export function createModel(value: string, language?: string, uri?: URI): editor
 /**
  * Change the language for a model.
  */
-export function setModelLanguage(model: editorCommon.IModel, language: string): void {
+export function setModelLanguage(model: ITextModel, language: string): void {
 	StaticServices.modelService.get().setMode(model, StaticServices.modeService.get().getOrCreateMode(language));
 }
 
 /**
  * Set the markers for a model.
  */
-export function setModelMarkers(model: editorCommon.IModel, owner: string, markers: IMarkerData[]): void {
+export function setModelMarkers(model: ITextModel, owner: string, markers: IMarkerData[]): void {
 	if (model) {
 		StaticServices.markerService.get().changeOne(owner, model.uri, markers);
 	}
@@ -206,14 +198,14 @@ export function getModelMarkers(filter: { owner?: string, resource?: URI, take?:
 /**
  * Get the model that has `uri` if it exists.
  */
-export function getModel(uri: URI): editorCommon.IModel {
+export function getModel(uri: URI): ITextModel {
 	return StaticServices.modelService.get().getModel(uri);
 }
 
 /**
  * Get all the created models.
  */
-export function getModels(): editorCommon.IModel[] {
+export function getModels(): ITextModel[] {
 	return StaticServices.modelService.get().getModels();
 }
 
@@ -221,7 +213,7 @@ export function getModels(): editorCommon.IModel[] {
  * Emitted when a model is created.
  * @event
  */
-export function onDidCreateModel(listener: (model: editorCommon.IModel) => void): IDisposable {
+export function onDidCreateModel(listener: (model: ITextModel) => void): IDisposable {
 	return StaticServices.modelService.get().onModelAdded(listener);
 }
 
@@ -229,7 +221,7 @@ export function onDidCreateModel(listener: (model: editorCommon.IModel) => void)
  * Emitted right before a model is disposed.
  * @event
  */
-export function onWillDisposeModel(listener: (model: editorCommon.IModel) => void): IDisposable {
+export function onWillDisposeModel(listener: (model: ITextModel) => void): IDisposable {
 	return StaticServices.modelService.get().onModelRemoved(listener);
 }
 
@@ -237,7 +229,7 @@ export function onWillDisposeModel(listener: (model: editorCommon.IModel) => voi
  * Emitted when a different language is set to a model.
  * @event
  */
-export function onDidChangeModelLanguage(listener: (e: { readonly model: editorCommon.IModel; readonly oldLanguage: string; }) => void): IDisposable {
+export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextModel; readonly oldLanguage: string; }) => void): IDisposable {
 	return StaticServices.modelService.get().onModelModeChanged((e) => {
 		listener({
 			model: e.model,
@@ -271,7 +263,7 @@ export function colorize(text: string, languageId: string, options: IColorizerOp
 /**
  * Colorize a line in a model.
  */
-export function colorizeModelLine(model: editorCommon.IModel, lineNumber: number, tabSize: number = 4): string {
+export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize: number = 4): string {
 	return Colorizer.colorizeModelLine(model, lineNumber, tabSize);
 }
 
@@ -340,6 +332,21 @@ enum ScrollType {
 
 /**
  * @internal
+ * --------------------------------------------
+ * This is repeated here so it can be exported
+ * because TS inlines const enums
+ * --------------------------------------------
+ */
+enum RenderLineNumbersType {
+	Off = 0,
+	On = 1,
+	Relative = 2,
+	Interval = 3,
+	Custom = 4
+}
+
+/**
+ * @internal
  */
 export function createMonacoEditorAPI(): typeof monaco.editor {
 	return {
@@ -371,11 +378,11 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		// enums
 		ScrollbarVisibility: ScrollbarVisibility,
 		WrappingIndent: editorOptions.WrappingIndent,
-		OverviewRulerLane: editorCommon.OverviewRulerLane,
-		EndOfLinePreference: editorCommon.EndOfLinePreference,
-		DefaultEndOfLine: editorCommon.DefaultEndOfLine,
-		EndOfLineSequence: editorCommon.EndOfLineSequence,
-		TrackedRangeStickiness: editorCommon.TrackedRangeStickiness,
+		OverviewRulerLane: OverviewRulerLane,
+		EndOfLinePreference: EndOfLinePreference,
+		DefaultEndOfLine: DefaultEndOfLine,
+		EndOfLineSequence: EndOfLineSequence,
+		TrackedRangeStickiness: TrackedRangeStickiness,
 		CursorChangeReason: CursorChangeReason,
 		MouseTargetType: MouseTargetType,
 		TextEditorCursorStyle: editorOptions.TextEditorCursorStyle,
@@ -384,13 +391,14 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		OverlayWidgetPositionPreference: OverlayWidgetPositionPreference,
 		RenderMinimap: editorOptions.RenderMinimap,
 		ScrollType: <any>ScrollType,
+		RenderLineNumbersType: <any>RenderLineNumbersType,
 
 		// classes
 		InternalEditorOptions: <any>editorOptions.InternalEditorOptions,
 		BareFontInfo: <any>BareFontInfo,
 		FontInfo: <any>FontInfo,
-		TextModelResolvedOptions: <any>editorCommon.TextModelResolvedOptions,
-		FindMatch: <any>editorCommon.FindMatch,
+		TextModelResolvedOptions: <any>TextModelResolvedOptions,
+		FindMatch: <any>FindMatch,
 
 		// vars
 		EditorType: editorCommon.EditorType

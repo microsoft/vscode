@@ -13,7 +13,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { registerEditorContribution, IActionOptions, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Range } from 'vs/editor/common/core/range';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export interface IQuickOpenControllerOpts {
 	inputAriaLabel: string;
@@ -21,9 +22,9 @@ export interface IQuickOpenControllerOpts {
 	getAutoFocus(searchValue: string): IAutoFocus;
 }
 
-export class QuickOpenController implements editorCommon.IEditorContribution {
+export class QuickOpenController implements editorCommon.IEditorContribution, IDecorator {
 
-	private static ID = 'editor.controller.quickOpenController';
+	private static readonly ID = 'editor.controller.quickOpenController';
 
 	public static get(editor: ICodeEditor): QuickOpenController {
 		return editor.getContribution<QuickOpenController>(QuickOpenController.ID);
@@ -93,37 +94,33 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 		this.widget.show('');
 	}
 
-	private static _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
+	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
 		className: 'rangeHighlight',
 		isWholeLine: true
 	});
 
 	public decorateLine(range: Range, editor: ICodeEditor): void {
-		editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
-			const oldDecorations: string[] = [];
-			if (this.rangeHighlightDecorationId) {
-				oldDecorations.push(this.rangeHighlightDecorationId);
-				this.rangeHighlightDecorationId = null;
+		const oldDecorations: string[] = [];
+		if (this.rangeHighlightDecorationId) {
+			oldDecorations.push(this.rangeHighlightDecorationId);
+			this.rangeHighlightDecorationId = null;
+		}
+
+		const newDecorations: IModelDeltaDecoration[] = [
+			{
+				range: range,
+				options: QuickOpenController._RANGE_HIGHLIGHT_DECORATION
 			}
+		];
 
-			const newDecorations: editorCommon.IModelDeltaDecoration[] = [
-				{
-					range: range,
-					options: QuickOpenController._RANGE_HIGHLIGHT_DECORATION
-				}
-			];
-
-			const decorations = changeAccessor.deltaDecorations(oldDecorations, newDecorations);
-			this.rangeHighlightDecorationId = decorations[0];
-		});
+		const decorations = editor.deltaDecorations(oldDecorations, newDecorations);
+		this.rangeHighlightDecorationId = decorations[0];
 	}
 
 	public clearDecorations(): void {
 		if (this.rangeHighlightDecorationId) {
-			this.editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
-				changeAccessor.deltaDecorations([this.rangeHighlightDecorationId], []);
-				this.rangeHighlightDecorationId = null;
-			});
+			this.editor.deltaDecorations([this.rangeHighlightDecorationId], []);
+			this.rangeHighlightDecorationId = null;
 		}
 	}
 }

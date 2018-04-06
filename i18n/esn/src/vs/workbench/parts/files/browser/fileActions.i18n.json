@@ -69,5 +69,7 @@
 	"invalidFileNameError": "El nombre **{0}** no es válido para el archivo o la carpeta. Elija un nombre diferente.",
 	"filePathTooLongError": "El nombre **{0}** da como resultado una ruta de acceso demasiado larga. Elija un nombre más corto.",
 	"compareWithSaved": "Comparar el archivo activo con el guardado",
-	"modifiedLabel": "{0} (en disco) ↔ {1}"
+	"modifiedLabel": "{0} (en disco) ↔ {1}",
+	"compareWithClipboard": "Comparar archivo activo con portapapeles",
+	"clipboardComparisonLabel": "Portapapeles ↔ {0}"
 }

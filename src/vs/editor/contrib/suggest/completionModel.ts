@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { fuzzyScore } from 'vs/base/common/filters';
+import { fuzzyScore, fuzzyScoreGracefulAggressive, skipScore } from 'vs/base/common/filters';
 import { ISuggestSupport, ISuggestResult } from 'vs/editor/common/modes';
 import { ISuggestionItem, SnippetConfig } from './suggest';
 import { isDisposable } from 'vs/base/common/lifecycle';
@@ -14,14 +14,15 @@ export interface ICompletionItem extends ISuggestionItem {
 	matches?: number[];
 	score?: number;
 	idx?: number;
+	word?: string;
 }
 
 
 /* __GDPR__FRAGMENT__
 	"ICompletionStats" : {
-		"suggestionCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"snippetCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"textCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		"suggestionCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"snippetCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"textCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 	}
 */
 // __GDPR__TODO__: This is a dynamically extensible structure which can not be declared statically.
@@ -37,13 +38,20 @@ export class LineContext {
 	characterCountDelta: number;
 }
 
+const enum Refilter {
+	Nothing = 0,
+	All = 1,
+	Incr = 2
+}
+
 export class CompletionModel {
 
 	private readonly _column: number;
-	private readonly _items: ISuggestionItem[];
+	private readonly _items: ICompletionItem[];
 	private readonly _snippetCompareFn = CompletionModel._compareCompletionItems;
 
 	private _lineContext: LineContext;
+	private _refilterKind: Refilter;
 	private _filteredItems: ICompletionItem[];
 	private _isIncomplete: boolean;
 	private _stats: ICompletionStats;
@@ -51,6 +59,7 @@ export class CompletionModel {
 	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext, snippetConfig?: SnippetConfig) {
 		this._items = items;
 		this._column = column;
+		this._refilterKind = Refilter.All;
 		this._lineContext = lineContext;
 
 		if (snippetConfig === 'top') {
@@ -78,10 +87,10 @@ export class CompletionModel {
 
 	set lineContext(value: LineContext) {
 		if (this._lineContext.leadingLineContent !== value.leadingLineContent
-			|| this._lineContext.characterCountDelta !== value.characterCountDelta) {
-
+			|| this._lineContext.characterCountDelta !== value.characterCountDelta
+		) {
+			this._refilterKind = this._lineContext.characterCountDelta < value.characterCountDelta && this._filteredItems ? Refilter.Incr : Refilter.All;
 			this._lineContext = value;
-			this._filteredItems = undefined;
 		}
 	}
 
@@ -116,22 +125,30 @@ export class CompletionModel {
 	}
 
 	private _ensureCachedState(): void {
-		if (!this._filteredItems) {
+		if (this._refilterKind !== Refilter.Nothing) {
 			this._createCachedState();
 		}
 	}
 
 	private _createCachedState(): void {
-		this._filteredItems = [];
+
 		this._isIncomplete = false;
 		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0 };
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
 		let word = '';
 
-		for (let i = 0; i < this._items.length; i++) {
+		// incrementally filter less
+		const source = this._refilterKind === Refilter.All ? this._items : this._filteredItems;
+		const target: typeof source = [];
 
-			const item = <ICompletionItem>this._items[i];
+		// picks a score function based on the number of
+		// items that we have to score/filter
+		const scoreFn = source.length > 2000 ? fuzzyScore : fuzzyScoreGracefulAggressive;
+
+		for (let i = 0; i < source.length; i++) {
+
+			const item = source[i];
 			const { suggestion, container } = item;
 
 			// collect those supports that signaled having
@@ -140,11 +157,15 @@ export class CompletionModel {
 
 			// 'word' is that remainder of the current line that we
 			// filter and score against. In theory each suggestion uses a
-			// differnet word, but in practice not - that's why we cache
+			// different word, but in practice not - that's why we cache
 			const wordLen = suggestion.overwriteBefore + characterCountDelta - (item.position.column - this._column);
 			if (word.length !== wordLen) {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
 			}
+
+			// remember the word against which this item was
+			// scored
+			item.word = word;
 
 			if (wordLen === 0) {
 				// when there is nothing to score against, don't
@@ -153,25 +174,23 @@ export class CompletionModel {
 				// use a score of `-100` because that is out of the
 				// bound of values `fuzzyScore` will return
 				item.score = -100;
+				item.matches = undefined;
 
 			} else if (typeof suggestion.filterText === 'string') {
 				// when there is a `filterText` it must match the `word`.
 				// if it matches we check with the label to compute highlights
 				// and if that doesn't yield a result we have no highlights,
 				// despite having the match
-				let match = fuzzyScore(word, suggestion.filterText, suggestion.overwriteBefore);
+				let match = scoreFn(word, suggestion.filterText, suggestion.overwriteBefore);
 				if (!match) {
 					continue;
 				}
 				item.score = match[0];
-				item.matches = [];
-				match = fuzzyScore(word, suggestion.label, suggestion.overwriteBefore);
-				if (match) {
-					item.matches = match[1];
-				}
+				item.matches = skipScore(word, suggestion.label)[1];
+
 			} else {
 				// by default match `word` against the `label`
-				let match = fuzzyScore(word, suggestion.label, suggestion.overwriteBefore);
+				let match = scoreFn(word, suggestion.label, suggestion.overwriteBefore);
 				if (match) {
 					item.score = match[0];
 					item.matches = match[1];
@@ -182,7 +201,7 @@ export class CompletionModel {
 
 			item.idx = i;
 
-			this._filteredItems.push(item);
+			target.push(item);
 
 			// update stats
 			this._stats.suggestionCount++;
@@ -192,7 +211,8 @@ export class CompletionModel {
 			}
 		}
 
-		this._filteredItems.sort(this._snippetCompareFn);
+		this._filteredItems = target.sort(this._snippetCompareFn);
+		this._refilterKind = Refilter.Nothing;
 	}
 
 	private static _compareCompletionItems(a: ICompletionItem, b: ICompletionItem): number {

@@ -11,9 +11,8 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as types from 'vs/workbench/api/node/extHostTypes';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import { Model as EditorModel } from 'vs/editor/common/model/model';
-import { TestThreadService } from './testThreadService';
+import { TextModel as EditorModel } from 'vs/editor/common/model/textModel';
+import { TestRPCProtocol } from './testRPCProtocol';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -31,10 +30,15 @@ import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.proto
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import 'vs/workbench/parts/search/browser/search.contribution';
+import 'vs/workbench/parts/search/electron-browser/search.contribution';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { ITextModel } from 'vs/editor/common/model';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { generateUuid } from 'vs/base/common/uuid';
+import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 
 const defaultSelector = { scheme: 'far' };
-const model: EditorCommon.IModel = EditorModel.createFromString(
+const model: ITextModel = EditorModel.createFromString(
 	[
 		'This is the first line',
 		'This is the second line',
@@ -44,16 +48,18 @@ const model: EditorCommon.IModel = EditorModel.createFromString(
 	undefined,
 	URI.parse('far://testing/file.b'));
 
-let threadService: TestThreadService;
+let rpcProtocol: TestRPCProtocol;
 let extHost: ExtHostLanguageFeatures;
 let mainThread: MainThreadLanguageFeatures;
 let commands: ExtHostCommands;
+let task: ExtHostTask;
+let workspace: ExtHostWorkspace;
 let disposables: vscode.Disposable[] = [];
 let originalErrorHandler: (e: any) => any;
 
 suite('ExtHostLanguageFeatureCommands', function () {
 
-	suiteSetup((done) => {
+	suiteSetup(() => {
 
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
@@ -62,7 +68,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		let inst: IInstantiationService;
 		{
 			let instantiationService = new TestInstantiationService();
-			threadService = new TestThreadService();
+			rpcProtocol = new TestRPCProtocol();
 			instantiationService.stub(IHeapService, {
 				_serviceBrand: undefined,
 				trackRecursive(args) {
@@ -97,36 +103,38 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			inst = instantiationService;
 		}
 
-		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(threadService);
+		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol);
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
 				versionId: model.getVersionId(),
 				modeId: model.getLanguageIdentifier().language,
-				url: model.uri,
+				uri: model.uri,
 				lines: model.getValue().split(model.getEOL()),
 				EOL: model.getEOL(),
 			}]
 		});
-		const extHostDocuments = new ExtHostDocuments(threadService, extHostDocumentsAndEditors);
-		threadService.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
+		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
+		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
 		const heapService = new ExtHostHeapService();
 
-		commands = new ExtHostCommands(threadService, heapService);
-		threadService.set(ExtHostContext.ExtHostCommands, commands);
-		threadService.setTestInstance(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, threadService));
-		ExtHostApiCommands.register(commands);
+		commands = new ExtHostCommands(rpcProtocol, heapService, new NullLogService());
+		workspace = new ExtHostWorkspace(rpcProtocol, { id: generateUuid(), name: 'Test', folders: [] }, new NullLogService());
+		task = new ExtHostTask(rpcProtocol, workspace);
+		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
+		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
+		ExtHostApiCommands.register(commands, task);
 
-		const diagnostics = new ExtHostDiagnostics(threadService);
-		threadService.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
+		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
+		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, heapService, diagnostics);
-		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, extHostDocuments, commands, heapService, diagnostics);
+		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
-		mainThread = <MainThreadLanguageFeatures>threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, threadService));
+		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
 
-		threadService.sync().then(done, done);
+		return rpcProtocol.sync();
 	});
 
 	suiteTeardown(() => {
@@ -135,17 +143,16 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		mainThread.dispose();
 	});
 
-	teardown(function (done) {
+	teardown(function () {
 		while (disposables.length) {
 			disposables.pop().dispose();
 		}
-		threadService.sync()
-			.then(() => done(), err => done(err));
+		return rpcProtocol.sync();
 	});
 
 	// --- workspace symbols
 
-	test('WorkspaceSymbols, invalid arguments', function (done) {
+	test('WorkspaceSymbols, invalid arguments', function () {
 		let promises = [
 			commands.executeCommand('vscode.executeWorkspaceSymbolProvider'),
 			commands.executeCommand('vscode.executeWorkspaceSymbolProvider', null),
@@ -153,16 +160,12 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			commands.executeCommand('vscode.executeWorkspaceSymbolProvider', true)
 		];
 
-		// threadService.sync().then(() => {
-		TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
+		return TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
 			assert.equal(err.length, 4);
-			done();
-			return [];
 		});
-		// });
 	});
 
-	test('WorkspaceSymbols, back and forth', function (done) {
+	test('WorkspaceSymbols, back and forth', function () {
 
 		disposables.push(extHost.registerWorkspaceSymbolProvider(<vscode.WorkspaceSymbolProvider>{
 			provideWorkspaceSymbols(query): any {
@@ -181,8 +184,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}));
 
-		threadService.sync().then(() => {
-			commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', 'testing').then(value => {
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', 'testing').then(value => {
 
 				for (let info of value) {
 					assert.ok(info instanceof types.SymbolInformation);
@@ -190,15 +193,30 @@ suite('ExtHostLanguageFeatureCommands', function () {
 					assert.equal(info.kind, types.SymbolKind.Array);
 				}
 				assert.equal(value.length, 3);
-				done();
-			}, done);
-		}, done);
+			});
+		});
 	});
 
+	test('executeWorkspaceSymbolProvider should accept empty string, #39522', async function () {
+
+		disposables.push(extHost.registerWorkspaceSymbolProvider({
+			provideWorkspaceSymbols(query) {
+				return [new types.SymbolInformation('hello', types.SymbolKind.Array, new types.Range(0, 0, 0, 0), URI.parse('foo:bar'))];
+			}
+		}));
+
+		await rpcProtocol.sync();
+		let symbols = await commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', '');
+		assert.equal(symbols.length, 1);
+
+		await rpcProtocol.sync();
+		symbols = await commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', '*');
+		assert.equal(symbols.length, 1);
+	});
 
 	// --- definition
 
-	test('Definition, invalid arguments', function (done) {
+	test('Definition, invalid arguments', function () {
 		let promises = [
 			commands.executeCommand('vscode.executeDefinitionProvider'),
 			commands.executeCommand('vscode.executeDefinitionProvider', null),
@@ -206,13 +224,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			commands.executeCommand('vscode.executeDefinitionProvider', true, false)
 		];
 
-		// threadService.sync().then(() => {
-		TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
+		return TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
 			assert.equal(err.length, 4);
-			done();
-			return [];
 		});
-		// });
 	});
 
 	test('Definition, back and forth', function () {
@@ -232,10 +246,53 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.Location[]>('vscode.executeDefinitionProvider', model.uri, new types.Position(0, 0)).then(values => {
 				assert.equal(values.length, 4);
 				for (let v of values) {
+					assert.ok(v.uri instanceof URI);
+					assert.ok(v.range instanceof types.Range);
+				}
+			});
+		});
+	});
+
+	// --- type definition
+
+	test('Type Definition, invalid arguments', function () {
+		const promises = [
+			commands.executeCommand('vscode.executeTypeDefinitionProvider'),
+			commands.executeCommand('vscode.executeTypeDefinitionProvider', null),
+			commands.executeCommand('vscode.executeTypeDefinitionProvider', undefined),
+			commands.executeCommand('vscode.executeTypeDefinitionProvider', true, false)
+		];
+
+		return TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
+			assert.equal(err.length, 4);
+		});
+	});
+
+	test('Type Definition, back and forth', function () {
+
+		disposables.push(extHost.registerTypeDefinitionProvider(defaultSelector, <vscode.TypeDefinitionProvider>{
+			provideTypeDefinition(doc: any): any {
+				return new types.Location(doc.uri, new types.Range(0, 0, 0, 0));
+			}
+		}));
+		disposables.push(extHost.registerTypeDefinitionProvider(defaultSelector, <vscode.TypeDefinitionProvider>{
+			provideTypeDefinition(doc: any): any {
+				return [
+					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+				];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.Location[]>('vscode.executeTypeDefinitionProvider', model.uri, new types.Position(0, 0)).then(values => {
+				assert.equal(values.length, 4);
+				for (const v of values) {
 					assert.ok(v.uri instanceof URI);
 					assert.ok(v.range instanceof types.Range);
 				}
@@ -268,7 +325,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	// --- outline
 
-	test('Outline, back and forth', function (done) {
+	test('Outline, back and forth', function () {
 		disposables.push(extHost.registerDocumentSymbolProvider(defaultSelector, <vscode.DocumentSymbolProvider>{
 			provideDocumentSymbols(): any {
 				return [
@@ -278,15 +335,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}));
 
-		threadService.sync().then(() => {
-			commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
 				assert.equal(values.length, 2);
 				let [first, second] = values;
 				assert.equal(first.name, 'testing2');
 				assert.equal(second.name, 'testing1');
-				done();
-			}, done);
-		}, done);
+			});
+		});
 	});
 
 	// --- suggest
@@ -308,7 +364,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}, []));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', model.uri, new types.Position(0, 4)).then(list => {
 
 				assert.ok(list instanceof types.CompletionList);
@@ -349,7 +405,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
-	test('Suggest, return CompletionList !array', function (done) {
+	test('Suggest, return CompletionList !array', function () {
 		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
 				let a = new types.CompletionItem('item1');
@@ -358,11 +414,10 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}, []));
 
-		threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', model.uri, new types.Position(0, 4)).then(list => {
 				assert.ok(list instanceof types.CompletionList);
 				assert.equal(list.isIncomplete, true);
-				done();
 			});
 		});
 	});
@@ -376,13 +431,42 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.Command[]>('vscode.executeCodeActionProvider', model.uri, new types.Range(0, 0, 1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
 				assert.equal(first.title, 'Title');
 				assert.equal(first.command, 'testing');
 				assert.deepEqual(first.arguments, [1, 2, true]);
+			});
+		});
+	});
+
+	test('vscode.executeCodeActionProvider results seem to be missing their `command` property #45124', function () {
+		disposables.push(extHost.registerCodeActionProvider(defaultSelector, {
+			provideCodeActions(document, range): vscode.CodeAction[] {
+				return [{
+					command: {
+						arguments: [document, range],
+						command: 'command',
+						title: 'command_title',
+					},
+					kind: types.CodeActionKind.Empty.append('foo'),
+					title: 'title',
+				}];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, new types.Range(0, 0, 1, 1)).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+				assert.ok(first.command);
+				assert.equal(first.command.command, 'command');
+				assert.equal(first.command.title, 'command_title');
+				assert.equal(first.kind.value, 'foo');
+				assert.equal(first.title, 'title');
+
 			});
 		});
 	});
@@ -403,7 +487,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', model.uri).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
@@ -425,7 +509,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', model.uri).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
@@ -435,6 +519,57 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.equal(first.range.start.character, 0);
 				assert.equal(first.range.end.line, 0);
 				assert.equal(first.range.end.character, 20);
+			});
+		});
+	});
+
+
+	test('Color provider', function () {
+
+		disposables.push(extHost.registerColorProvider(defaultSelector, <vscode.DocumentColorProvider>{
+			provideDocumentColors(): vscode.ColorInformation[] {
+				return [new types.ColorInformation(new types.Range(0, 0, 0, 20), new types.Color(0.1, 0.2, 0.3, 0.4))];
+			},
+			provideColorPresentations(color: vscode.Color, context: { range: vscode.Range, document: vscode.TextDocument }): vscode.ColorPresentation[] {
+				const cp = new types.ColorPresentation('#ABC');
+				cp.textEdit = types.TextEdit.replace(new types.Range(1, 0, 1, 20), '#ABC');
+				cp.additionalTextEdits = [types.TextEdit.insert(new types.Position(2, 20), '*')];
+				return [cp];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.ColorInformation[]>('vscode.executeDocumentColorProvider', model.uri).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+
+				assert.equal(first.color.red, 0.1);
+				assert.equal(first.color.green, 0.2);
+				assert.equal(first.color.blue, 0.3);
+				assert.equal(first.color.alpha, 0.4);
+				assert.equal(first.range.start.line, 0);
+				assert.equal(first.range.start.character, 0);
+				assert.equal(first.range.end.line, 0);
+				assert.equal(first.range.end.character, 20);
+			});
+		}).then(() => {
+			const color = new types.Color(0.5, 0.6, 0.7, 0.8);
+			const range = new types.Range(0, 0, 0, 20);
+			return commands.executeCommand<vscode.ColorPresentation[]>('vscode.executeColorPresentationProvider', color, { uri: model.uri, range }).then(value => {
+				assert.equal(value.length, 1);
+				let [first] = value;
+
+				assert.equal(first.label, '#ABC');
+				assert.equal(first.textEdit.newText, '#ABC');
+				assert.equal(first.textEdit.range.start.line, 1);
+				assert.equal(first.textEdit.range.start.character, 0);
+				assert.equal(first.textEdit.range.end.line, 1);
+				assert.equal(first.textEdit.range.end.character, 20);
+				assert.equal(first.additionalTextEdits.length, 1);
+				assert.equal(first.additionalTextEdits[0].range.start.line, 2);
+				assert.equal(first.additionalTextEdits[0].range.start.character, 20);
+				assert.equal(first.additionalTextEdits[0].range.end.line, 2);
+				assert.equal(first.additionalTextEdits[0].range.end.character, 20);
 			});
 		});
 	});

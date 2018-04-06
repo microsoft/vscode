@@ -7,20 +7,19 @@
 
 import 'vs/css!./codelensWidget';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
 import { format, escape } from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeLensSymbol, Command } from 'vs/editor/common/modes';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ICodeLensData } from './codelens';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { editorCodeLensForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IModelDeltaDecoration, IModelDecorationsChangeAccessor, ITextModel } from 'vs/editor/common/model';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 class CodeLensViewZone implements editorBrowser.IViewZone {
 
@@ -65,8 +64,6 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 	private readonly _disposables: IDisposable[] = [];
 	private readonly _editor: editorBrowser.ICodeEditor;
 
-	// @ts-ignore TODO@Joh unused property
-	private _symbolRange: Range;
 	private _widgetPosition: editorBrowser.IContentWidgetPosition;
 	private _commands: { [id: string]: Command } = Object.create(null);
 
@@ -74,7 +71,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		editor: editorBrowser.ICodeEditor,
 		symbolRange: Range,
 		commandService: ICommandService,
-		messageService: IMessageService
+		notificationService: INotificationService
 	) {
 
 		this._id = 'codeLensWidget' + (++CodeLensContentWidget._idPool);
@@ -97,7 +94,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 				if (command) {
 					editor.focus();
 					commandService.executeCommand(command.id, ...command.arguments).done(undefined, err => {
-						messageService.show(Severity.Error, err);
+						notificationService.error(err);
 					});
 				}
 			}
@@ -108,7 +105,6 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 
 	dispose(): void {
 		dispose(this._disposables);
-		this._symbolRange = null;
 	}
 
 	private _updateHeight(): void {
@@ -160,8 +156,6 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 	}
 
 	setSymbolRange(range: Range): void {
-		this._symbolRange = range;
-
 		const lineNumber = range.startLineNumber;
 		const column = this._editor.getModel().getLineFirstNonWhitespaceColumn(lineNumber);
 		this._widgetPosition = {
@@ -186,7 +180,7 @@ export interface IDecorationIdCallback {
 export class CodeLensHelper {
 
 	private _removeDecorations: string[];
-	private _addDecorations: editorCommon.IModelDeltaDecoration[];
+	private _addDecorations: IModelDeltaDecoration[];
 	private _addDecorationsCallbacks: IDecorationIdCallback[];
 
 	constructor() {
@@ -195,7 +189,7 @@ export class CodeLensHelper {
 		this._addDecorationsCallbacks = [];
 	}
 
-	addDecoration(decoration: editorCommon.IModelDeltaDecoration, callback: IDecorationIdCallback): void {
+	addDecoration(decoration: IModelDeltaDecoration, callback: IDecorationIdCallback): void {
 		this._addDecorations.push(decoration);
 		this._addDecorationsCallbacks.push(callback);
 	}
@@ -204,7 +198,7 @@ export class CodeLensHelper {
 		this._removeDecorations.push(decorationId);
 	}
 
-	commit(changeAccessor: editorCommon.IModelDecorationsChangeAccessor): void {
+	commit(changeAccessor: IModelDecorationsChangeAccessor): void {
 		var resultingDecorations = changeAccessor.deltaDecorations(this._removeDecorations, this._addDecorations);
 		for (let i = 0, len = resultingDecorations.length; i < len; i++) {
 			this._addDecorationsCallbacks[i](resultingDecorations[i]);
@@ -226,7 +220,7 @@ export class CodeLens {
 		editor: editorBrowser.ICodeEditor,
 		helper: CodeLensHelper,
 		viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor,
-		commandService: ICommandService, messageService: IMessageService,
+		commandService: ICommandService, notificationService: INotificationService,
 		updateCallabck: Function
 	) {
 		this._editor = editor;
@@ -249,7 +243,7 @@ export class CodeLens {
 			}
 		});
 
-		this._contentWidget = new CodeLensContentWidget(editor, range, commandService, messageService);
+		this._contentWidget = new CodeLensContentWidget(editor, range, commandService, notificationService);
 		this._viewZone = new CodeLensViewZone(range.startLineNumber - 1, updateCallabck);
 
 		this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);
@@ -290,7 +284,7 @@ export class CodeLens {
 		});
 	}
 
-	computeIfNecessary(model: editorCommon.IModel): ICodeLensData[] {
+	computeIfNecessary(model: ITextModel): ICodeLensData[] {
 		this._contentWidget.updateVisibility(); // trigger the fade in
 		if (!this._contentWidget.isVisible()) {
 			return null;

@@ -5,10 +5,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import Event, { Emitter, fromEventEmitter, debounceEvent, EventBufferer, once, fromPromise, stopwatch, buffer, echo, EventMultiplexer } from 'vs/base/common/event';
+import { Event, Emitter, debounceEvent, EventBufferer, once, fromPromise, stopwatch, buffer, echo, EventMultiplexer, latch } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
-import Errors = require('vs/base/common/errors');
+import * as Errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 namespace Samples {
@@ -38,21 +37,6 @@ namespace Samples {
 		}
 
 	}
-
-	// what: like before but expose an existing event emitter as typed events
-	export class Document3b /*extends EventEmitter*/ {
-
-		private static _didChange = 'this_is_hidden_from_consumers';
-
-		private _eventBus = new EventEmitter();
-
-		onDidChange = fromEventEmitter<string>(this._eventBus, Document3b._didChange);
-
-		setText(value: string) {
-			//...
-			this._eventBus.emit(Document3b._didChange, value);
-		}
-	}
 }
 
 suite('Event', function () {
@@ -78,44 +62,10 @@ suite('Event', function () {
 	});
 
 
-	test('wrap legacy EventEmitter', function () {
-
-		let doc = new Samples.Document3b();
-		let subscription = doc.onDidChange(counter.onEvent, counter);
-		doc.setText('far');
-		doc.setText('boo');
-
-		// unhook listener
-		subscription.dispose();
-		doc.setText('boo');
-		assert.equal(counter.count, 2);
-	});
-
 	test('Emitter, bucket', function () {
 
 		let bucket: IDisposable[] = [];
 		let doc = new Samples.Document3();
-		let subscription = doc.onDidChange(counter.onEvent, counter, bucket);
-
-		doc.setText('far');
-		doc.setText('boo');
-
-		// unhook listener
-		while (bucket.length) {
-			bucket.pop().dispose();
-		}
-
-		// noop
-		subscription.dispose();
-
-		doc.setText('boo');
-		assert.equal(counter.count, 2);
-	});
-
-	test('wrapEventEmitter, bucket', function () {
-
-		let bucket: IDisposable[] = [];
-		let doc = new Samples.Document3b();
 		let subscription = doc.onDidChange(counter.onEvent, counter, bucket);
 
 		doc.setText('far');
@@ -233,7 +183,7 @@ suite('Event', function () {
 		doc.setText('3');
 	});
 
-	test('Debounce Event - leading', function (done: () => void) {
+	test('Debounce Event - leading', function () {
 		const emitter = new Emitter<void>();
 		let debounced = debounceEvent(emitter.event, (l, e) => e, 0, /*leading=*/true);
 
@@ -244,13 +194,13 @@ suite('Event', function () {
 
 		// If the source event is fired once, the debounced (on the leading edge) event should be fired only once
 		emitter.fire();
-		setTimeout(() => {
+
+		return TPromise.timeout(1).then(() => {
 			assert.equal(calls, 1);
-			done();
 		});
 	});
 
-	test('Debounce Event - leading', function (done: () => void) {
+	test('Debounce Event - leading', function () {
 		const emitter = new Emitter<void>();
 		let debounced = debounceEvent(emitter.event, (l, e) => e, 0, /*leading=*/true);
 
@@ -263,10 +213,28 @@ suite('Event', function () {
 		emitter.fire();
 		emitter.fire();
 		emitter.fire();
-		setTimeout(() => {
+		return TPromise.timeout(1).then(() => {
 			assert.equal(calls, 2);
-			done();
 		});
+	});
+
+	test('Emitter - In Order Delivery', function () {
+		const a = new Emitter<string>();
+		const listener2Events: string[] = [];
+		a.event(function listener1(event) {
+			if (event === 'e1') {
+				a.fire('e2');
+				// assert that all events are delivered at this point
+				assert.deepEqual(listener2Events, ['e1', 'e2']);
+			}
+		});
+		a.event(function listener2(event) {
+			listener2Events.push(event);
+		});
+		a.fire('e1');
+
+		// assert that all events are delivered in order
+		assert.deepEqual(listener2Events, ['e1', 'e2']);
 	});
 });
 
@@ -682,5 +650,41 @@ suite('Event utils', () => {
 			e1.fire(5);
 			assert.deepEqual(result, [1, 2, 3, 4, 5]);
 		});
+	});
+
+	test('latch', function () {
+		const emitter = new Emitter<number>();
+		const event = latch(emitter.event);
+
+		const result: number[] = [];
+		const listener = event(num => result.push(num));
+
+		assert.deepEqual(result, []);
+
+		emitter.fire(1);
+		assert.deepEqual(result, [1]);
+
+		emitter.fire(2);
+		assert.deepEqual(result, [1, 2]);
+
+		emitter.fire(2);
+		assert.deepEqual(result, [1, 2]);
+
+		emitter.fire(1);
+		assert.deepEqual(result, [1, 2, 1]);
+
+		emitter.fire(1);
+		assert.deepEqual(result, [1, 2, 1]);
+
+		emitter.fire(3);
+		assert.deepEqual(result, [1, 2, 1, 3]);
+
+		emitter.fire(3);
+		assert.deepEqual(result, [1, 2, 1, 3]);
+
+		emitter.fire(3);
+		assert.deepEqual(result, [1, 2, 1, 3]);
+
+		listener.dispose();
 	});
 });

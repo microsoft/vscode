@@ -18,10 +18,10 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as 
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OpenRecentAction } from 'vs/workbench/electron-browser/actions';
-import { GlobalNewUntitledFileAction } from 'vs/workbench/parts/files/browser/fileActions';
+import { GlobalNewUntitledFileAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { OpenFolderAction, OpenFileFolderAction, OpenFileAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
-import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
+import { Parts, IPartService, IDimension } from 'vs/workbench/services/part/common/partService';
 import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { FindInFilesActionId } from 'vs/workbench/parts/search/common/constants';
 import { ToggleTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
@@ -118,12 +118,10 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		this.workbenchState = contextService.getWorkbenchState();
 
 		lifecycleService.onShutdown(this.dispose, this);
-		lifecycleService.when(LifecyclePhase.Running).then(() => {
-			this.enabled = this.configurationService.getValue<boolean>(WORKBENCH_TIPS_ENABLED_KEY);
-			if (this.enabled) {
-				this.create();
-			}
-		});
+		this.enabled = this.configurationService.getValue<boolean>(WORKBENCH_TIPS_ENABLED_KEY);
+		if (this.enabled) {
+			this.create();
+		}
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(WORKBENCH_TIPS_ENABLED_KEY)) {
 				const enabled = this.configurationService.getValue<boolean>(WORKBENCH_TIPS_ENABLED_KEY);
@@ -145,10 +143,6 @@ export class WatermarkContribution implements IWorkbenchContribution {
 				this.recreate();
 			}
 		}));
-	}
-
-	public getId() {
-		return 'vs.watermark';
 	}
 
 	private create(): void {
@@ -182,15 +176,12 @@ export class WatermarkContribution implements IWorkbenchContribution {
 				});
 			});
 		};
-		const layout = () => {
-			const { height } = container.getBoundingClientRect();
-			container.classList[height <= 478 ? 'add' : 'remove']('max-height-478px');
-		};
 		update();
 		this.watermark.build(container.firstElementChild as HTMLElement, 0);
-		layout();
 		this.toDispose.push(this.keybindingService.onDidUpdateKeybindings(update));
-		this.toDispose.push(this.partService.onEditorLayout(layout));
+		this.toDispose.push(this.partService.onEditorLayout(({ height }: IDimension) => {
+			container.classList[height <= 478 ? 'add' : 'remove']('max-height-478px');
+		}));
 	}
 
 	private destroy(): void {
@@ -212,7 +203,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WatermarkContribution);
+	.registerWorkbenchContribution(WatermarkContribution, LifecyclePhase.Running);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({

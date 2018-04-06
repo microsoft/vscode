@@ -10,7 +10,7 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 
 export class CommentMode extends MockMode {
-	private static _id = new LanguageIdentifier('commentMode', 3);
+	private static readonly _id = new LanguageIdentifier('commentMode', 3);
 
 	constructor(commentsConfig: CommentRule) {
 		super(CommentMode._id);

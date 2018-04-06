@@ -9,7 +9,8 @@ import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCommand';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { ICommand, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ICommand } from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { Range } from 'vs/editor/common/core/range';
@@ -57,7 +58,7 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 			alias: 'Copy Line Up',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow }
 			}
@@ -73,7 +74,7 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 			alias: 'Copy Line Down',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow }
 			}
@@ -116,7 +117,7 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 			alias: 'Move Line Up',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyCode.UpArrow,
 				linux: { primary: KeyMod.Alt | KeyCode.UpArrow }
 			}
@@ -132,7 +133,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 			alias: 'Move Line Down',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyCode.DownArrow,
 				linux: { primary: KeyMod.Alt | KeyCode.DownArrow }
 			}
@@ -140,7 +141,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 	}
 }
 
-abstract class AbstractSortLinesAction extends EditorAction {
+export abstract class AbstractSortLinesAction extends EditorAction {
 	private descending: boolean;
 
 	constructor(descending: boolean, opts: IActionOptions) {
@@ -149,20 +150,27 @@ abstract class AbstractSortLinesAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const selections = editor.getSelections();
 
-		if (!SortLinesCommand.canRun(editor.getModel(), editor.getSelection(), this.descending)) {
-			return;
+		for (let i = 0, len = selections.length; i < len; i++) {
+			const selection = selections[i];
+			if (!SortLinesCommand.canRun(editor.getModel(), selection, this.descending)) {
+				return;
+			}
 		}
 
-		var command = new SortLinesCommand(editor.getSelection(), this.descending);
+		let commands: ICommand[] = [];
+		for (let i = 0, len = selections.length; i < len; i++) {
+			commands[i] = new SortLinesCommand(selections[i], this.descending);
+		}
 
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, [command]);
+		editor.executeCommands(this.id, commands);
 		editor.pushUndoStop();
 	}
 }
 
-class SortLinesAscendingAction extends AbstractSortLinesAction {
+export class SortLinesAscendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.sortLinesAscending',
@@ -173,7 +181,7 @@ class SortLinesAscendingAction extends AbstractSortLinesAction {
 	}
 }
 
-class SortLinesDescendingAction extends AbstractSortLinesAction {
+export class SortLinesDescendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.sortLinesDescending',
@@ -186,7 +194,7 @@ class SortLinesDescendingAction extends AbstractSortLinesAction {
 
 export class TrimTrailingWhitespaceAction extends EditorAction {
 
-	public static ID = 'editor.action.trimTrailingWhitespace';
+	public static readonly ID = 'editor.action.trimTrailingWhitespace';
 
 	constructor() {
 		super({
@@ -195,7 +203,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 			alias: 'Trim Trailing Whitespace',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X)
 			}
 		});
@@ -278,7 +286,7 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 			alias: 'Delete Line',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K
 			}
 		});
@@ -307,7 +315,7 @@ export class IndentLinesAction extends EditorAction {
 			alias: 'Indent Line',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET
 			}
 		});
@@ -328,7 +336,7 @@ class OutdentLinesAction extends EditorAction {
 			alias: 'Outdent Line',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET
 			}
 		});
@@ -347,7 +355,7 @@ export class InsertLineBeforeAction extends EditorAction {
 			alias: 'Insert Line Above',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
 			}
 		});
@@ -367,7 +375,7 @@ export class InsertLineAfterAction extends EditorAction {
 			alias: 'Insert Line Below',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter
 			}
 		});
@@ -426,7 +434,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 			alias: 'Delete All Left',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: null,
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace }
 			}
@@ -479,7 +487,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 			alias: 'Delete All Right',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: null,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] }
 			}
@@ -536,7 +544,7 @@ export class JoinLinesAction extends EditorAction {
 			alias: 'Join Lines',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: 0,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_J }
 			}

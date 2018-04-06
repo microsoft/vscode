@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import objects = require('vs/base/common/objects');
+import * as objects from 'vs/base/common/objects';
 
 let check = (one: any, other: any, msg: string) => {
 	assert(objects.equals(one, other), msg);
@@ -136,42 +136,6 @@ suite('Objects', () => {
 			],
 			d: [1, '[Circular]', '[Circular]']
 		});
-	});
-
-	test('derive', function () {
-
-		let someValue = 2;
-
-		function Base(): void {
-			//example
-		}
-		(<any>Base).favoriteColor = 'blue';
-		Base.prototype.test = function () { return 42; };
-
-		function Child(): void {
-			//example
-		}
-		Child.prototype.test2 = function () { return 43; };
-		Object.defineProperty(Child.prototype, 'getter', {
-			get: function () { return someValue; },
-			enumerable: true,
-			configurable: true
-		});
-
-		objects.derive(Base, Child);
-
-		let base = new Base();
-		let child = new Child();
-
-		assert(base instanceof Base);
-		assert(child instanceof Child);
-
-		assert.strictEqual(base.test, child.test);
-		assert.strictEqual(base.test(), 42);
-		assert.strictEqual(child.test2(), 43);
-		assert.strictEqual((<any>Child).favoriteColor, 'blue');
-		someValue = 4;
-		assert.strictEqual(child.getter, 4);
 	});
 
 	test('distinct', function () {

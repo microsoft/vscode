@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 
 suite('Strings', () => {
 	test('equalsIgnoreCase', function () {
@@ -21,29 +21,29 @@ suite('Strings', () => {
 	});
 
 	test('beginsWithIgnoreCase', function () {
-		assert(strings.beginsWithIgnoreCase('', ''));
-		assert(!strings.beginsWithIgnoreCase('', '1'));
-		assert(strings.beginsWithIgnoreCase('1', ''));
+		assert(strings.startsWithIgnoreCase('', ''));
+		assert(!strings.startsWithIgnoreCase('', '1'));
+		assert(strings.startsWithIgnoreCase('1', ''));
 
-		assert(strings.beginsWithIgnoreCase('a', 'a'));
-		assert(strings.beginsWithIgnoreCase('abc', 'Abc'));
-		assert(strings.beginsWithIgnoreCase('abc', 'ABC'));
-		assert(strings.beginsWithIgnoreCase('Höhenmeter', 'HÖhenmeter'));
-		assert(strings.beginsWithIgnoreCase('ÖL', 'Öl'));
+		assert(strings.startsWithIgnoreCase('a', 'a'));
+		assert(strings.startsWithIgnoreCase('abc', 'Abc'));
+		assert(strings.startsWithIgnoreCase('abc', 'ABC'));
+		assert(strings.startsWithIgnoreCase('Höhenmeter', 'HÖhenmeter'));
+		assert(strings.startsWithIgnoreCase('ÖL', 'Öl'));
 
-		assert(strings.beginsWithIgnoreCase('alles klar', 'a'));
-		assert(strings.beginsWithIgnoreCase('alles klar', 'A'));
-		assert(strings.beginsWithIgnoreCase('alles klar', 'alles k'));
-		assert(strings.beginsWithIgnoreCase('alles klar', 'alles K'));
-		assert(strings.beginsWithIgnoreCase('alles klar', 'ALLES K'));
-		assert(strings.beginsWithIgnoreCase('alles klar', 'alles klar'));
-		assert(strings.beginsWithIgnoreCase('alles klar', 'ALLES KLAR'));
+		assert(strings.startsWithIgnoreCase('alles klar', 'a'));
+		assert(strings.startsWithIgnoreCase('alles klar', 'A'));
+		assert(strings.startsWithIgnoreCase('alles klar', 'alles k'));
+		assert(strings.startsWithIgnoreCase('alles klar', 'alles K'));
+		assert(strings.startsWithIgnoreCase('alles klar', 'ALLES K'));
+		assert(strings.startsWithIgnoreCase('alles klar', 'alles klar'));
+		assert(strings.startsWithIgnoreCase('alles klar', 'ALLES KLAR'));
 
-		assert(!strings.beginsWithIgnoreCase('alles klar', ' ALLES K'));
-		assert(!strings.beginsWithIgnoreCase('alles klar', 'ALLES K '));
-		assert(!strings.beginsWithIgnoreCase('alles klar', 'öALLES K '));
-		assert(!strings.beginsWithIgnoreCase('alles klar', ' '));
-		assert(!strings.beginsWithIgnoreCase('alles klar', 'ö'));
+		assert(!strings.startsWithIgnoreCase('alles klar', ' ALLES K'));
+		assert(!strings.startsWithIgnoreCase('alles klar', 'ALLES K '));
+		assert(!strings.startsWithIgnoreCase('alles klar', 'öALLES K '));
+		assert(!strings.startsWithIgnoreCase('alles klar', ' '));
+		assert(!strings.startsWithIgnoreCase('alles klar', 'ö'));
 	});
 
 	test('compareIgnoreCase', function () {
@@ -103,29 +103,6 @@ suite('Strings', () => {
 		assert.equal(strings.overlap('full', 'full'), 4);
 		assert.equal(strings.overlap('full', 'fulloverlap'), 4);
 	});
-
-	test('computeLineStarts', function () {
-		function assertLineStart(text: string, ...offsets: number[]): void {
-			const actual = strings.computeLineStarts(text);
-			assert.equal(actual.length, offsets.length);
-			if (actual.length !== offsets.length) {
-				return;
-			}
-			while (offsets.length > 0) {
-				assert.equal(actual.pop(), offsets.pop());
-			}
-		}
-
-		assertLineStart('', 0);
-		assertLineStart('farboo', 0);
-		assertLineStart('far\nboo', 0, 4);
-		assertLineStart('far\rboo', 0, 4);
-		assertLineStart('far\r\nboo', 0, 5);
-		assertLineStart('far\n\rboo', 0, 4, 5);
-		assertLineStart('far\n \rboo', 0, 4, 6);
-		assertLineStart('far\nboo\nfar', 0, 4, 8);
-	});
-
 	test('lcut', () => {
 		assert.strictEqual(strings.lcut('foo bar', 0), '');
 		assert.strictEqual(strings.lcut('foo bar', 1), 'bar');
@@ -216,13 +193,6 @@ suite('Strings', () => {
 		assert.strictEqual('bar  '.trim(), 'bar');
 		assert.strictEqual('   '.trim(), '');
 		assert.strictEqual(' 	  '.trim(), '');
-	});
-
-	test('appendWithLimit', function () {
-		assert.strictEqual(strings.appendWithLimit('ab', 'cd', 100), 'abcd');
-		assert.strictEqual(strings.appendWithLimit('ab', 'cd', 2), '...cd');
-		assert.strictEqual(strings.appendWithLimit('ab', 'cdefgh', 4), '...efgh');
-		assert.strictEqual(strings.appendWithLimit('abcdef', 'ghijk', 7), '...efghijk');
 	});
 
 	test('repeat', () => {
@@ -377,5 +347,38 @@ suite('Strings', () => {
 		assert.equal(strings.stripUTF8BOM('foobar' + strings.UTF8_BOM_CHARACTER), 'foobar' + strings.UTF8_BOM_CHARACTER);
 		assert.equal(strings.stripUTF8BOM('abc'), 'abc');
 		assert.equal(strings.stripUTF8BOM(''), '');
+	});
+
+	test('containsUppercaseCharacter', () => {
+		[
+			[null, false],
+			['', false],
+			['foo', false],
+			['föö', false],
+			['ناك', false],
+			['מבוססת', false],
+			['😀', false],
+			['(#@()*&%()@*#&09827340982374}{:">?></\'\\~`', false],
+
+			['Foo', true],
+			['FOO', true],
+			['FöÖ', true],
+			['FöÖ', true],
+			['\\Foo', true],
+		].forEach(([str, result]) => {
+			assert.equal(strings.containsUppercaseCharacter(<string>str), result, `Wrong result for ${str}`);
+		});
+	});
+
+	test('containsUppercaseCharacter (ignoreEscapedChars)', () => {
+		[
+			['\\Woo', false],
+			['f\\S\\S', false],
+			['foo', false],
+
+			['Foo', true],
+		].forEach(([str, result]) => {
+			assert.equal(strings.containsUppercaseCharacter(<string>str, true), result, `Wrong result for ${str}`);
+		});
 	});
 });

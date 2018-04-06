@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
+import URI from 'vs/base/common/uri';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { MainThreadDiaglogsShape, MainContext, IExtHostContext, MainThreadDialogOpenOptions, MainThreadDialogSaveOptions } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -25,29 +25,27 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 		//
 	}
 
-	$showOpenDialog(options: MainThreadDialogOpenOptions): TPromise<string[]> {
+	$showOpenDialog(options: MainThreadDialogOpenOptions): Promise<string[]> {
 		// TODO@joh what about remote dev setup?
 		if (options.defaultUri && options.defaultUri.scheme !== 'file') {
-			return TPromise.wrapError(new Error('Not supported - Open-dialogs can only be opened on `file`-uris.'));
+			return Promise.reject(new Error('Not supported - Open-dialogs can only be opened on `file`-uris.'));
 		}
-		return new TPromise<string[]>(resolve => {
+		return new Promise<string[]>(resolve => {
 			this._windowService.showOpenDialog(
-				MainThreadDialogs._convertOpenOptions(options),
-				filenames => resolve(isFalsyOrEmpty(filenames) ? undefined : filenames)
-			);
+				MainThreadDialogs._convertOpenOptions(options)
+			).then(filenames => resolve(isFalsyOrEmpty(filenames) ? undefined : filenames));
 		});
 	}
 
-	$showSaveDialog(options: MainThreadDialogSaveOptions): TPromise<string> {
+	$showSaveDialog(options: MainThreadDialogSaveOptions): Promise<string> {
 		// TODO@joh what about remote dev setup?
 		if (options.defaultUri && options.defaultUri.scheme !== 'file') {
-			return TPromise.wrapError(new Error('Not supported - Save-dialogs can only be opened on `file`-uris.'));
+			return Promise.reject(new Error('Not supported - Save-dialogs can only be opened on `file`-uris.'));
 		}
-		return new TPromise<string>(resolve => {
+		return new Promise<string>(resolve => {
 			this._windowService.showSaveDialog(
-				MainThreadDialogs._convertSaveOptions(options),
-				filename => resolve(!filename ? undefined : filename)
-			);
+				MainThreadDialogs._convertSaveOptions(options)
+			).then(filename => resolve(!filename ? undefined : filename));
 		});
 	}
 
@@ -59,7 +57,7 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 			result.buttonLabel = options.openLabel;
 		}
 		if (options.defaultUri) {
-			result.defaultPath = options.defaultUri.fsPath;
+			result.defaultPath = URI.revive(options.defaultUri).fsPath;
 		}
 		if (!options.canSelectFiles && !options.canSelectFolders) {
 			options.canSelectFiles = true;
@@ -85,7 +83,7 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 
 		};
 		if (options.defaultUri) {
-			result.defaultPath = options.defaultUri.fsPath;
+			result.defaultPath = URI.revive(options.defaultUri).fsPath;
 		}
 		if (options.saveLabel) {
 			result.buttonLabel = options.saveLabel;

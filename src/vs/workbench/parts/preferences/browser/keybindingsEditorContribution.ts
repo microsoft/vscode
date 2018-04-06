@@ -28,6 +28,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { WindowsNativeResolvedKeybinding } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { overviewRulerInfo, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
+import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
@@ -36,7 +37,7 @@ const INTERESTING_FILE = /keybindings\.json$/;
 
 export class DefineKeybindingController extends Disposable implements editorCommon.IEditorContribution {
 
-	private static ID = 'editor.contrib.defineKeybinding';
+	private static readonly ID = 'editor.contrib.defineKeybinding';
 
 	public static get(editor: ICodeEditor): DefineKeybindingController {
 		return editor.getContribution<DefineKeybindingController>(DefineKeybindingController.ID);
@@ -47,7 +48,7 @@ export class DefineKeybindingController extends Disposable implements editorComm
 
 	constructor(
 		private _editor: ICodeEditor,
-		@IInstantiationService private _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -124,7 +125,7 @@ export class KeybindingWidgetRenderer extends Disposable {
 
 	constructor(
 		private _editor: ICodeEditor,
-		@IInstantiationService private _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this._launchWidget = this._register(this._instantiationService.createInstance(FloatingClickWidget, this._editor, NLS_LAUNCH_MESSAGE, DefineKeybindingCommand.ID));
@@ -170,7 +171,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 
 	constructor(
 		private _editor: ICodeEditor,
-		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -191,7 +192,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 	private _updateDecorationsNow(): void {
 		const model = this._editor.getModel();
 
-		let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
+		let newDecorations: IModelDeltaDecoration[] = [];
 
 		const root = parseTree(model.getValue());
 		if (root && Array.isArray(root.children)) {
@@ -207,7 +208,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		this._dec = this._editor.deltaDecorations(this._dec, newDecorations);
 	}
 
-	private _getDecorationForEntry(model: editorCommon.IModel, entry: Node): editorCommon.IModelDeltaDecoration {
+	private _getDecorationForEntry(model: ITextModel, entry: Node): IModelDeltaDecoration {
 		if (!Array.isArray(entry.children)) {
 			return null;
 		}
@@ -288,7 +289,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		return false;
 	}
 
-	private _createDecoration(isError: boolean, uiLabel: string, usLabel: string, model: editorCommon.IModel, keyNode: Node): editorCommon.IModelDeltaDecoration {
+	private _createDecoration(isError: boolean, uiLabel: string, usLabel: string, model: ITextModel, keyNode: Node): IModelDeltaDecoration {
 		let msg: MarkdownString;
 		let className: string;
 		let beforeContentClassName: string;
@@ -339,14 +340,14 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		return {
 			range: range,
 			options: {
-				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				className: className,
 				beforeContentClassName: beforeContentClassName,
 				hoverMessage: msg,
 				overviewRuler: {
 					color: overviewRulerColor,
 					darkColor: overviewRulerColor,
-					position: editorCommon.OverviewRulerLane.Right
+					position: OverviewRulerLane.Right
 				}
 			}
 		};
@@ -356,14 +357,14 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 
 class DefineKeybindingCommand extends EditorCommand {
 
-	static ID = 'editor.action.defineKeybinding';
+	static readonly ID = 'editor.action.defineKeybinding';
 
 	constructor() {
 		super({
 			id: DefineKeybindingCommand.ID,
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.languageId.isEqualTo('json')),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.languageId.isEqualTo('jsonc')),
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)
 			}
 		});

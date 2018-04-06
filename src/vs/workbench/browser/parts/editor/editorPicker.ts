@@ -6,10 +6,10 @@
 
 import 'vs/css!./media/editorpicker';
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import errors = require('vs/base/common/errors');
-import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import * as errors from 'vs/base/common/errors';
+import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IAutoFocus, Mode, IEntryRunContext, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup, QuickOpenItemAccessor } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -39,7 +39,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		this.stacks = editorGroupService.getStacksModel();
 	}
 
-	public getLabelOptions(): IIconLabelOptions {
+	public getLabelOptions(): IIconLabelValueOptions {
 		return {
 			extraClasses: getIconClasses(this.modelService, this.modeService, this.getResource()),
 			italic: this._group.isPreview(this.editor)

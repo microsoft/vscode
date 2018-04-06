@@ -9,12 +9,12 @@ import * as fs from 'fs';
 import * as crypto from 'crypto';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IIntegrityService, IntegrityTestResult, ChecksumPair } from 'vs/platform/integrity/common/integrity';
-import { IMessageService } from 'vs/platform/message/common/message';
 import product from 'vs/platform/node/product';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
-import { Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 interface IStorageData {
 	dontShowPrompt: boolean;
@@ -22,7 +22,7 @@ interface IStorageData {
 }
 
 class IntegrityStorage {
-	private static KEY = 'integrityService';
+	private static readonly KEY = 'integrityService';
 
 	private _storageService: IStorageService;
 	private _value: IStorageData;
@@ -58,15 +58,14 @@ export class IntegrityServiceImpl implements IIntegrityService {
 
 	public _serviceBrand: any;
 
-	private _messageService: IMessageService;
 	private _storage: IntegrityStorage;
-	private _isPurePromise: TPromise<IntegrityTestResult>;
+	private _isPurePromise: Thenable<IntegrityTestResult>;
 
 	constructor(
-		@IMessageService messageService: IMessageService,
-		@IStorageService storageService: IStorageService
+		@INotificationService private notificationService: INotificationService,
+		@IStorageService storageService: IStorageService,
+		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
-		this._messageService = messageService;
 		this._storage = new IntegrityStorage(storageService);
 
 		this._isPurePromise = this._isPure();
@@ -83,55 +82,34 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	private _prompt(): void {
 		const storedData = this._storage.get();
 		if (storedData && storedData.dontShowPrompt && storedData.commit === product.commit) {
-			// Do not prompt
-			return;
+			return; // Do not prompt
 		}
-		const okAction = new Action(
-			'integrity.ok',
-			nls.localize('integrity.ok', "OK"),
-			null,
-			true,
-			() => TPromise.as(true)
-		);
-		const dontShowAgainAction = new Action(
-			'integrity.dontShowAgain',
-			nls.localize('integrity.dontShowAgain', "Don't show again"),
-			null,
-			true,
-			() => {
-				this._storage.set({
-					dontShowPrompt: true,
-					commit: product.commit
-				});
-				return TPromise.as(true);
-			}
-		);
-		const moreInfoAction = new Action(
-			'integrity.moreInfo',
-			nls.localize('integrity.moreInfo', "More information"),
-			null,
-			true,
-			() => {
-				const uri = URI.parse(product.checksumFailMoreInfoUrl);
-				window.open(uri.toString(true));
-				return TPromise.as(true);
-			}
-		);
 
-		this._messageService.show(Severity.Warning, {
-			message: nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", product.nameShort),
-			actions: [okAction, moreInfoAction, dontShowAgainAction]
-		});
+		this.notificationService.prompt(
+			Severity.Warning,
+			nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", product.nameShort),
+			[
+				{
+					label: nls.localize('integrity.moreInformation', "More Information"),
+					run: () => window.open(URI.parse(product.checksumFailMoreInfoUrl).toString(true))
+				},
+				{
+					label: nls.localize('integrity.dontShowAgain', "Don't Show Again"),
+					isSecondary: true,
+					run: () => this._storage.set({ dontShowPrompt: true, commit: product.commit })
+				}
+			]
+		);
 	}
 
-	public isPure(): TPromise<IntegrityTestResult> {
+	public isPure(): Thenable<IntegrityTestResult> {
 		return this._isPurePromise;
 	}
 
-	private _isPure(): TPromise<IntegrityTestResult> {
+	private _isPure(): Thenable<IntegrityTestResult> {
 		const expectedChecksums = product.checksums || {};
 
-		return TPromise.timeout(10000).then(() => {
+		return this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
 			let asyncResults: TPromise<ChecksumPair>[] = Object.keys(expectedChecksums).map((filename) => {
 				return this._resolve(filename, expectedChecksums[filename]);
 			});

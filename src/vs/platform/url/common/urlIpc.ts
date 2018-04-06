@@ -6,61 +6,65 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel, eventToCall, eventFromCall, Serializer, Deserializer } from 'vs/base/parts/ipc/common/ipc';
-import { IURLService } from './url';
-import Event, { filterEvent } from 'vs/base/common/event';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IURLHandler, IURLService } from './url';
 import URI from 'vs/base/common/uri';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
-const URISerializer: Serializer<URI, any> = uri => uri.toJSON();
-const URIDeserializer: Deserializer<URI, any> = raw => URI.revive(raw);
-
-export interface IURLChannel extends IChannel {
-	call(command: 'event:onOpenURL'): TPromise<void>;
+export interface IURLServiceChannel extends IChannel {
+	call(command: 'open', url: string): TPromise<boolean>;
 	call(command: string, arg?: any): TPromise<any>;
 }
 
-export class URLChannel implements IURLChannel {
+export class URLServiceChannel implements IURLServiceChannel {
 
-	private focusedWindowId: number;
-
-	constructor(
-		private service: IURLService,
-		@IWindowsService windowsService: IWindowsService
-	) {
-		windowsService.onWindowFocus(id => this.focusedWindowId = id);
-	}
+	constructor(private service: IURLService) { }
 
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
-			case 'event:onOpenURL': return eventToCall(filterEvent(this.service.onOpenURL, () => this.isWindowFocused(arg)), URISerializer);
+			case 'open': return this.service.open(URI.revive(arg));
 		}
 		return undefined;
 	}
-
-	/**
-	 * We only want the focused window to get pinged with the onOpenUrl event.
-	 * The idea here is to filter the onOpenUrl event with the knowledge of which
-	 * was the last window to be focused. When first listening to the event,
-	 * each client sends its window ID via the arguments to `call(...)`.
-	 * When the event fires, the server has enough knowledge to filter the event
-	 * and fire it only to the focused window.
-	 */
-	private isWindowFocused(windowID: number): boolean {
-		return this.focusedWindowId === windowID;
-	}
 }
 
-export class URLChannelClient implements IURLService {
+export class URLServiceChannelClient implements IURLService {
 
 	_serviceBrand: any;
 
-	constructor(private channel: IChannel, private windowID: number) { }
+	constructor(private channel: IChannel) { }
 
-	private _onOpenURL = eventFromCall<URI>(this.channel, 'event:onOpenURL', this.windowID, URIDeserializer);
-	get onOpenURL(): Event<URI> { return this._onOpenURL; }
+	open(url: URI): TPromise<boolean, any> {
+		return this.channel.call('open', url.toJSON());
+	}
 
-	open(url: string): void {
-		return; // not implemented
+	registerHandler(handler: IURLHandler): IDisposable {
+		throw new Error('Not implemented.');
+	}
+}
+
+export interface IURLHandlerChannel extends IChannel {
+	call(command: 'handleURL', arg: any): TPromise<boolean>;
+	call(command: string, arg?: any): TPromise<any>;
+}
+
+export class URLHandlerChannel implements IURLHandlerChannel {
+
+	constructor(private handler: IURLHandler) { }
+
+	call(command: string, arg?: any): TPromise<any> {
+		switch (command) {
+			case 'handleURL': return this.handler.handleURL(URI.revive(arg));
+		}
+		return undefined;
+	}
+}
+
+export class URLHandlerChannelClient implements IURLHandler {
+
+	constructor(private channel: IChannel) { }
+
+	handleURL(uri: URI): TPromise<boolean> {
+		return this.channel.call('handleURL', uri.toJSON());
 	}
 }

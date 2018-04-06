@@ -5,8 +5,7 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
-import Event, { fromEventEmitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { basename, dirname } from 'vs/base/common/paths';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
@@ -19,13 +18,14 @@ import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/r
 import { Position } from 'vs/editor/common/core/position';
 
 export class OneReference {
-
 	private _id: string;
+	private _onRefChanged = new Emitter<this>();
+
+	readonly onRefChanged: Event<this> = this._onRefChanged.event;
 
 	constructor(
 		private _parent: FileReferences,
-		private _range: IRange,
-		private _eventBus: EventEmitter
+		private _range: IRange
 	) {
 		this._id = defaultGenerator.nextId();
 	}
@@ -60,7 +60,7 @@ export class OneReference {
 
 	public set range(value: IRange) {
 		this._range = value;
-		this._eventBus.emit('ref/changed', this);
+		this._onRefChanged.fire(this);
 	}
 
 	public getAriaMessage(): string {
@@ -197,14 +197,15 @@ export class FileReferences implements IDisposable {
 
 export class ReferencesModel implements IDisposable {
 
+	private readonly _disposables: IDisposable[];
 	private _groups: FileReferences[] = [];
 	private _references: OneReference[] = [];
-	private _eventBus = new EventEmitter();
+	private _onDidChangeReferenceRange = new Emitter<OneReference>();
 
-	onDidChangeReferenceRange: Event<OneReference> = fromEventEmitter<OneReference>(this._eventBus, 'ref/changed');
+	onDidChangeReferenceRange: Event<OneReference> = this._onDidChangeReferenceRange.event;
 
 	constructor(references: Location[]) {
-
+		this._disposables = [];
 		// grouping and sorting
 		references.sort(ReferencesModel._compareReferences);
 
@@ -220,7 +221,8 @@ export class ReferencesModel implements IDisposable {
 			if (current.children.length === 0
 				|| !Range.equalsRange(ref.range, current.children[current.children.length - 1].range)) {
 
-				let oneRef = new OneReference(current, ref.range, this._eventBus);
+				let oneRef = new OneReference(current, ref.range);
+				this._disposables.push(oneRef.onRefChanged((e) => this._onDidChangeReferenceRange.fire(e)));
 				this._references.push(oneRef);
 				current.children.push(oneRef);
 			}
@@ -251,20 +253,32 @@ export class ReferencesModel implements IDisposable {
 		}
 	}
 
-	public nextReference(reference: OneReference): OneReference {
+	public nextOrPreviousReference(reference: OneReference, next: boolean): OneReference {
 
-		var idx = reference.parent.children.indexOf(reference),
-			len = reference.parent.children.length,
-			totalLength = reference.parent.parent.groups.length;
+		let { parent } = reference;
 
-		if (idx + 1 < len || totalLength === 1) {
-			return reference.parent.children[(idx + 1) % len];
+		let idx = parent.children.indexOf(reference);
+		let childCount = parent.children.length;
+		let groupCount = parent.parent.groups.length;
+
+		if (groupCount === 1 || next && idx + 1 < childCount || !next && idx > 0) {
+			// cycling within one file
+			if (next) {
+				idx = (idx + 1) % childCount;
+			} else {
+				idx = (idx + childCount - 1) % childCount;
+			}
+			return parent.children[idx];
 		}
 
-		idx = reference.parent.parent.groups.indexOf(reference.parent);
-		idx = (idx + 1) % totalLength;
-
-		return reference.parent.parent.groups[idx].children[0];
+		idx = parent.parent.groups.indexOf(parent);
+		if (next) {
+			idx = (idx + 1) % groupCount;
+			return parent.parent.groups[idx].children[0];
+		} else {
+			idx = (idx + groupCount - 1) % groupCount;
+			return parent.parent.groups[idx].children[parent.parent.groups[idx].children.length - 1];
+		}
 	}
 
 	public nearestReference(resource: URI, position: Position): OneReference {
@@ -297,6 +311,8 @@ export class ReferencesModel implements IDisposable {
 
 	dispose(): void {
 		this._groups = dispose(this._groups);
+		dispose(this._disposables);
+		this._disposables.length = 0;
 	}
 
 	private static _compareReferences(a: Location, b: Location): number {

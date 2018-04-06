@@ -51,6 +51,33 @@ suite('Polyfill Promise', function () {
 		});
 	});
 
+	test('sync-then, NativePromise', function () {
+		const actual: string[] = [];
+		const promise = Promise.resolve(123).then(() => actual.push('inThen'));
+		actual.push('afterThen');
+		return promise.then(() => {
+			assert.deepEqual(actual, ['afterThen', 'inThen']);
+		});
+	});
+
+	test('sync-then, WinJSPromise', function () {
+		const actual: string[] = [];
+		const promise = WinJSPromise.as(123).then(() => actual.push('inThen'));
+		actual.push('afterThen');
+		return promise.then(() => {
+			assert.deepEqual(actual, ['inThen', 'afterThen']);
+		});
+	});
+
+	test('sync-then, PolyfillPromise', function () {
+		const actual: string[] = [];
+		const promise = PolyfillPromise.resolve(123).then(() => actual.push('inThen'));
+		actual.push('afterThen');
+		return promise.then(() => {
+			assert.deepEqual(actual, ['afterThen', 'inThen']);
+		});
+	});
+
 	test('PolyfillPromise, executor has two params', function () {
 		return new PolyfillPromise(function () {
 			assert.equal(arguments.length, 2);

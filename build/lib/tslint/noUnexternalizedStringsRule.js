@@ -136,16 +136,24 @@ var NoUnexternalizedStringsRuleWalker = /** @class */ (function (_super) {
                 }
             }
         }
-        var messageArg = callInfo.argIndex === this.messageIndex
-            ? callInfo.callExpression.arguments[this.messageIndex]
-            : null;
-        if (messageArg && messageArg !== node) {
+        var messageArg = callInfo.callExpression.arguments[this.messageIndex];
+        if (messageArg && messageArg.kind !== ts.SyntaxKind.StringLiteral) {
             this.addFailure(this.createFailure(messageArg.getStart(), messageArg.getWidth(), "Message argument to '" + callInfo.callExpression.expression.getText() + "' must be a string literal."));
             return;
         }
     };
     NoUnexternalizedStringsRuleWalker.prototype.recordKey = function (keyNode, messageNode) {
         var text = keyNode.getText();
+        // We have an empty key
+        if (text.match(/(['"]) *\1/)) {
+            if (messageNode) {
+                this.addFailureAtNode(keyNode, "Key is empty for message: " + messageNode.getText());
+            }
+            else {
+                this.addFailureAtNode(keyNode, "Key is empty.");
+            }
+            return;
+        }
         var occurrences = this.usedKeys[text];
         if (!occurrences) {
             occurrences = [];

@@ -12,7 +12,9 @@
 		"noImplicitReturns": true,
 		"noUnusedLocals": true,
 		"noImplicitThis": true,
+		"alwaysStrict": true,
 		"baseUrl": ".",
+		"outDir": "../out",
 		"typeRoots": [
 			"typings"
 		]

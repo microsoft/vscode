@@ -58,8 +58,13 @@ class Settings {
 		this.themeType = theme.type;
 
 		const minimapEnabled = config.editor.viewInfo.minimap.enabled;
+		const minimapSide = config.editor.viewInfo.minimap.side;
 		const backgroundColor = (minimapEnabled ? TokenizationRegistry.getDefaultBackground() : null);
-		this.backgroundColor = (backgroundColor ? Color.Format.CSS.formatHex(backgroundColor) : null);
+		if (backgroundColor === null || minimapSide === 'left') {
+			this.backgroundColor = null;
+		} else {
+			this.backgroundColor = Color.Format.CSS.formatHex(backgroundColor);
+		}
 
 		const position = config.editor.layoutInfo.overviewRuler;
 		this.top = position.top;
@@ -207,6 +212,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		this._domNode.setClassName('decorationsOverviewRuler');
 		this._domNode.setPosition('absolute');
 		this._domNode.setLayerHinting(true);
+		this._domNode.setAttribute('aria-hidden', 'true');
 
 		this._settings = null;
 		this._updateSettings(false);
@@ -258,6 +264,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		for (let i = 0, len = e.selections.length; i < len; i++) {
 			this._cursorPositions[i] = e.selections[i].getPosition();
 		}
+		this._cursorPositions.sort(Position.compare);
 		return true;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
@@ -418,4 +425,3 @@ export class DecorationsOverviewRuler extends ViewPart {
 		}
 	}
 }
-

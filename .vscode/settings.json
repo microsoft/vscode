@@ -1,6 +1,5 @@
 {
 	"editor.insertSpaces": false,
-	"files.eol": "\n",
 	"files.trimTrailingWhitespace": true,
 	"files.exclude": {
 		".git": true,
@@ -9,6 +8,9 @@
 		"build/**/*.js": {
 			"when": "$(basename).ts"
 		}
+	},
+	"files.associations": {
+		"OSSREADME.json": "jsonc"
 	},
 	"search.exclude": {
 		"**/node_modules": true,
@@ -34,5 +36,8 @@
 				"command": "${workspaceFolder}\\scripts\\test.bat --coverage --run ${file}"
 			}
 		}
-	]
+	],
+	"typescript.tsdk": "node_modules/typescript/lib",
+	"npm.exclude": "**/extensions/**",
+	"emmet.excludeLanguages": []
 }

@@ -12,21 +12,21 @@ export interface LanguageFilter {
 	language?: string;
 	scheme?: string;
 	pattern?: string | IRelativePattern;
+	/**
+	 * This provider is implemented in the UI thread.
+	 */
+	hasAccessToAllModels?: boolean;
 }
 
 export type LanguageSelector = string | LanguageFilter | (string | LanguageFilter)[];
 
-export default function matches(selection: LanguageSelector, uri: URI, language: string): boolean {
-	return score(selection, uri, language) > 0;
-}
-
-export function score(selector: LanguageSelector, candidateUri: URI, candidateLanguage: string): number {
+export function score(selector: LanguageSelector, candidateUri: URI, candidateLanguage: string, candidateIsSynchronized: boolean): number {
 
 	if (Array.isArray(selector)) {
 		// array -> take max individual value
 		let ret = 0;
 		for (const filter of selector) {
-			const value = score(filter, candidateUri, candidateLanguage);
+			const value = score(filter, candidateUri, candidateLanguage, candidateIsSynchronized);
 			if (value === 10) {
 				return value; // already at the highest
 			}
@@ -37,6 +37,11 @@ export function score(selector: LanguageSelector, candidateUri: URI, candidateLa
 		return ret;
 
 	} else if (typeof selector === 'string') {
+
+		if (!candidateIsSynchronized) {
+			return 0;
+		}
+
 		// short-hand notion, desugars to
 		// 'fooLang' -> [{ language: 'fooLang', scheme: 'file' }, { language: 'fooLang', scheme: 'untitled' }]
 		// '*' -> { language: '*', scheme: '*' }
@@ -50,7 +55,11 @@ export function score(selector: LanguageSelector, candidateUri: URI, candidateLa
 
 	} else if (selector) {
 		// filter -> select accordingly, use defaults for scheme
-		const { language, pattern, scheme } = selector;
+		const { language, pattern, scheme, hasAccessToAllModels } = selector;
+
+		if (!candidateIsSynchronized && !hasAccessToAllModels) {
+			return 0;
+		}
 
 		let ret = 0;
 

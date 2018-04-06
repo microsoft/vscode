@@ -49,7 +49,7 @@ export class ViewCursors extends ViewPart {
 		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
 		this._selectionIsEmpty = true;
 
-		this._primaryCursor = new ViewCursor(this._context, false);
+		this._primaryCursor = new ViewCursor(this._context);
 		this._secondaryCursors = [];
 		this._renderData = [];
 
@@ -101,15 +101,15 @@ export class ViewCursors extends ViewPart {
 		}
 		return true;
 	}
-	private _onCursorPositionChanged(position: Position, secondaryPositions: Position[], isInEditableRange: boolean): void {
-		this._primaryCursor.onCursorPositionChanged(position, isInEditableRange);
+	private _onCursorPositionChanged(position: Position, secondaryPositions: Position[]): void {
+		this._primaryCursor.onCursorPositionChanged(position);
 		this._updateBlinking();
 
 		if (this._secondaryCursors.length < secondaryPositions.length) {
 			// Create new cursors
 			let addCnt = secondaryPositions.length - this._secondaryCursors.length;
 			for (let i = 0; i < addCnt; i++) {
-				let newCursor = new ViewCursor(this._context, true);
+				let newCursor = new ViewCursor(this._context);
 				this._domNode.domNode.insertBefore(newCursor.getDomNode().domNode, this._primaryCursor.getDomNode().domNode.nextSibling);
 				this._secondaryCursors.push(newCursor);
 			}
@@ -123,7 +123,7 @@ export class ViewCursors extends ViewPart {
 		}
 
 		for (let i = 0; i < secondaryPositions.length; i++) {
-			this._secondaryCursors[i].onCursorPositionChanged(secondaryPositions[i], isInEditableRange);
+			this._secondaryCursors[i].onCursorPositionChanged(secondaryPositions[i]);
 		}
 
 	}
@@ -132,7 +132,7 @@ export class ViewCursors extends ViewPart {
 		for (let i = 0, len = e.selections.length; i < len; i++) {
 			positions[i] = e.selections[i].getPosition();
 		}
-		this._onCursorPositionChanged(positions[0], positions.slice(1), e.isInEditableRange);
+		this._onCursorPositionChanged(positions[0], positions.slice(1));
 
 		const selectionIsEmpty = e.selections[0].isEmpty();
 		if (this._selectionIsEmpty !== selectionIsEmpty) {
@@ -192,17 +192,13 @@ export class ViewCursors extends ViewPart {
 
 	// --- end event handlers
 
-	public getPosition(): Position {
-		return this._primaryCursor.getPosition();
-	}
-
 	// ---- blinking logic
 
 	private _getCursorBlinking(): TextEditorCursorBlinkingStyle {
 		if (!this._editorHasFocus) {
 			return TextEditorCursorBlinkingStyle.Hidden;
 		}
-		if (this._readOnly || !this._primaryCursor.getIsInEditableRange()) {
+		if (this._readOnly) {
 			return TextEditorCursorBlinkingStyle.Solid;
 		}
 		return this._cursorBlinking;

@@ -8,10 +8,10 @@ import { parseDocument, validate, getNode } from './util';
 import { HtmlNode } from 'EmmetNode';
 
 export function removeTag() {
-	let editor = vscode.window.activeTextEditor;
-	if (!validate(false)) {
+	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
 	}
+	const editor = vscode.window.activeTextEditor;
 
 	let rootNode = <HtmlNode>parseDocument(editor.document);
 	if (!rootNode) {
@@ -19,11 +19,12 @@ export function removeTag() {
 	}
 
 	let indentInSpaces = '';
-	for (let i = 0; i < editor.options.tabSize; i++) {
+	const tabSize: number = editor.options.tabSize ? +editor.options.tabSize : 0;
+	for (let i = 0; i < tabSize || 0; i++) {
 		indentInSpaces += ' ';
 	}
 
-	let rangesToRemove = [];
+	let rangesToRemove: vscode.Range[] = [];
 	editor.selections.reverse().forEach(selection => {
 		rangesToRemove = rangesToRemove.concat(getRangeToRemove(editor, rootNode, selection, indentInSpaces));
 	});
@@ -43,7 +44,7 @@ function getRangeToRemove(editor: vscode.TextEditor, rootNode: HtmlNode, selecti
 	}
 
 	let openRange = new vscode.Range(nodeToUpdate.open.start, nodeToUpdate.open.end);
-	let closeRange = null;
+	let closeRange: vscode.Range | null = null;
 	if (nodeToUpdate.close) {
 		closeRange = new vscode.Range(nodeToUpdate.close.start, nodeToUpdate.close.end);
 	}

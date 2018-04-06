@@ -6,8 +6,8 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 suite('Editor Model - Model Edit Operation', () => {
 	var LINE1 = 'My First Line';
@@ -16,7 +16,7 @@ suite('Editor Model - Model Edit Operation', () => {
 	var LINE4 = '';
 	var LINE5 = '1';
 
-	var model: Model;
+	var model: TextModel;
 
 	setup(() => {
 		var text =
@@ -25,7 +25,7 @@ suite('Editor Model - Model Edit Operation', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		model = Model.createFromString(text);
+		model = TextModel.createFromString(text);
 	});
 
 	teardown(() => {
@@ -42,10 +42,7 @@ suite('Editor Model - Model Edit Operation', () => {
 		);
 
 		return {
-			identifier: {
-				major: 0,
-				minor: 0
-			},
+			identifier: null,
 			range: range,
 			text: text,
 			forceMoveMarkers: false
@@ -71,7 +68,16 @@ suite('Editor Model - Model Edit Operation', () => {
 		assert.equal(model.getLineContent(4), LINE4);
 		assert.equal(model.getLineContent(5), LINE5);
 
-		assert.deepEqual(originalOp, editOp);
+		const simplifyEdit = (edit: IIdentifiedSingleEditOperation) => {
+			return {
+				identifier: edit.identifier,
+				range: edit.range,
+				text: edit.text,
+				forceMoveMarkers: edit.forceMoveMarkers,
+				isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit
+			};
+		};
+		assert.deepEqual(originalOp.map(simplifyEdit), editOp.map(simplifyEdit));
 	}
 
 	test('Insert inline', () => {

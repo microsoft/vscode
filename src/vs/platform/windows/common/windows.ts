@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -15,6 +15,8 @@ import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { PerformanceEntry } from 'vs/base/common/performance';
+import { LogLevel } from 'vs/platform/log/common/log';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -98,11 +100,16 @@ export interface IWindowsService {
 	onWindowFocus: Event<number>;
 	onWindowBlur: Event<number>;
 
+	// Dialogs
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
-	reloadWindow(windowId: number): TPromise<void>;
+	showMessageBox(windowId: number, options: MessageBoxOptions): TPromise<IMessageBoxResult>;
+	showSaveDialog(windowId: number, options: SaveDialogOptions): TPromise<string>;
+	showOpenDialog(windowId: number, options: OpenDialogOptions): TPromise<string[]>;
+
+	reloadWindow(windowId: number, args?: ParsedArgs): TPromise<void>;
 	openDevTools(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
@@ -154,6 +161,8 @@ export interface IWindowsService {
 
 	// TODO: this is a bit backwards
 	startCrashReporter(config: CrashReporterStartOptions): TPromise<void>;
+
+	openAboutDialog(): TPromise<void>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
@@ -169,12 +178,13 @@ export interface IWindowService {
 
 	onDidChangeFocus: Event<boolean>;
 
+	getConfiguration(): IWindowConfiguration;
 	getCurrentWindowId(): number;
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
-	reloadWindow(): TPromise<void>;
+	reloadWindow(args?: ParsedArgs): TPromise<void>;
 	openDevTools(): TPromise<void>;
 	toggleDevTools(): TPromise<void>;
 	closeWorkspace(): TPromise<void>;
@@ -188,15 +198,11 @@ export interface IWindowService {
 	closeWindow(): TPromise<void>;
 	isFocused(): TPromise<boolean>;
 	setDocumentEdited(flag: boolean): TPromise<void>;
-	isMaximized(): TPromise<boolean>;
-	maximizeWindow(): TPromise<void>;
-	unmaximizeWindow(): TPromise<void>;
 	onWindowTitleDoubleClick(): TPromise<void>;
 	show(): TPromise<void>;
-	showMessageBoxSync(options: MessageBoxOptions): number;
 	showMessageBox(options: MessageBoxOptions): TPromise<IMessageBoxResult>;
-	showSaveDialog(options: SaveDialogOptions, callback?: (fileName: string) => void): string;
-	showOpenDialog(options: OpenDialogOptions, callback?: (fileNames: string[]) => void): string[];
+	showSaveDialog(options: SaveDialogOptions): TPromise<string>;
+	showOpenDialog(options: OpenDialogOptions): TPromise<string[]>;
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';
@@ -208,8 +214,8 @@ export interface IWindowsConfiguration {
 export interface IWindowSettings {
 	openFilesInNewWindow: 'on' | 'off' | 'default';
 	openFoldersInNewWindow: 'on' | 'off' | 'default';
+	openWithoutArgumentsInNewWindow: 'on' | 'off';
 	restoreWindows: 'all' | 'folders' | 'one' | 'none';
-	reopenFolders: 'all' | 'one' | 'none'; // TODO@Ben deprecated
 	restoreFullscreen: boolean;
 	zoomLevel: number;
 	titleBarStyle: 'native' | 'custom';
@@ -219,6 +225,8 @@ export interface IWindowSettings {
 	nativeTabs: boolean;
 	enableMenuBarMnemonics: boolean;
 	closeWhenEmpty: boolean;
+	smoothScrollingWorkaround: boolean;
+	clickThroughInactive: boolean;
 }
 
 export enum OpenContext {
@@ -287,6 +295,7 @@ export interface IOpenFileRequest {
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
 	filesToWait?: IPathsToWaitFor;
+	termProgram?: string;
 }
 
 export interface IAddFoldersRequest {
@@ -294,6 +303,10 @@ export interface IAddFoldersRequest {
 }
 
 export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
+	machineId: string;
+	windowId: number;
+	logLevel: LogLevel;
+
 	appRoot: string;
 	execPath: string;
 	isInitialStartup?: boolean;
@@ -322,4 +335,27 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 export interface IRunActionInWindowRequest {
 	id: string;
 	from: 'menu' | 'touchbar' | 'mouse';
+}
+
+export class ActiveWindowManager implements IDisposable {
+
+	private disposables: IDisposable[] = [];
+	private _activeWindowId: number;
+
+	constructor(@IWindowsService windowsService: IWindowsService) {
+		windowsService.onWindowOpen(this.setActiveWindow, this, this.disposables);
+		windowsService.onWindowFocus(this.setActiveWindow, this, this.disposables);
+	}
+
+	private setActiveWindow(windowId: number) {
+		this._activeWindowId = windowId;
+	}
+
+	get activeClientId(): string {
+		return `window:${this._activeWindowId}`;
+	}
+
+	dispose() {
+		this.disposables = dispose(this.disposables);
+	}
 }

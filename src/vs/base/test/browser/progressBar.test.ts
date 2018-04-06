@@ -6,7 +6,6 @@
 
 import * as assert from 'assert';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { Builder } from 'vs/base/browser/builder';
 
 suite('ProgressBar', () => {
 	let fixture: HTMLElement;
@@ -21,10 +20,7 @@ suite('ProgressBar', () => {
 	});
 
 	test('Progress Bar', function () {
-		const b = new Builder(fixture);
-
-		const bar = new ProgressBar(b);
-		assert(bar.getContainer());
+		const bar = new ProgressBar(fixture);
 		assert(bar.infinite());
 		assert(bar.total(100));
 		assert(bar.worked(50));

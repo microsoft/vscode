@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { basename, dirname, join } from 'vs/base/common/paths';
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
@@ -92,7 +92,6 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 
 	createWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier;
 
-	resolveWorkspace(path: string): TPromise<IResolvedWorkspace>;
 	resolveWorkspaceSync(path: string): IResolvedWorkspace;
 
 	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean;

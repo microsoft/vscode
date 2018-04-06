@@ -20,6 +20,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -124,7 +125,7 @@ class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 		this._modelService = modelService;
 	}
 
-	provideCompletionItems(model: editorCommon.IModel, position: Position): TPromise<modes.ISuggestResult> {
+	provideCompletionItems(model: ITextModel, position: Position): TPromise<modes.ISuggestResult> {
 		const { wordBasedSuggestions } = this._configurationService.getValue<IEditorOptions>(model.uri, position, 'editor');
 		if (!wordBasedSuggestions) {
 			return undefined;
@@ -350,7 +351,7 @@ export class EditorWorkerClient extends Disposable {
 				));
 			} catch (err) {
 				logOnceWebWorkerWarning(err);
-				this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl());
+				this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl(null));
 			}
 		}
 		return this._worker;
@@ -359,7 +360,7 @@ export class EditorWorkerClient extends Disposable {
 	protected _getProxy(): TPromise<EditorSimpleWorkerImpl> {
 		return new ShallowCancelThenPromise(this._getOrCreateWorker().getProxyObject().then(null, (err) => {
 			logOnceWebWorkerWarning(err);
-			this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl());
+			this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl(null));
 			return this._getOrCreateWorker().getProxyObject();
 		}));
 	}

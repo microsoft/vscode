@@ -45,7 +45,8 @@ export class MainThreadOutputService implements MainThreadOutputServiceShape {
 	}
 
 	public $reveal(channelId: string, label: string, preserveFocus: boolean): TPromise<void> {
-		this._getChannel(channelId, label).show(preserveFocus);
+		const channel = this._getChannel(channelId, label);
+		this._outputService.showChannel(channel.id, preserveFocus);
 		return undefined;
 	}
 

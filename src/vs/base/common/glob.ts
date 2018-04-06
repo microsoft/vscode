@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import arrays = require('vs/base/common/arrays');
-import objects = require('vs/base/common/objects');
-import strings = require('vs/base/common/strings');
-import paths = require('vs/base/common/paths');
-import { BoundedMap } from 'vs/base/common/map';
+import * as arrays from 'vs/base/common/arrays';
+import * as strings from 'vs/base/common/strings';
+import * as paths from 'vs/base/common/paths';
+import { LRUCache } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -19,14 +18,11 @@ export interface IExpression {
 export interface IRelativePattern {
 	base: string;
 	pattern: string;
+	pathToRelative(from: string, to: string): string;
 }
 
 export function getEmptyExpression(): IExpression {
 	return Object.create(null);
-}
-
-export function mergeExpressions(...expressions: IExpression[]): IExpression {
-	return objects.assign(getEmptyExpression(), ...expressions.filter(expr => !!expr));
 }
 
 export interface SiblingClause {
@@ -224,8 +220,12 @@ function parseRegExp(pattern: string): string {
 				}
 			}
 
-			// Tail: Add the slash we had split on if there is more to come and the next one is not a globstar
-			if (index < segments.length - 1 && segments[index + 1] !== GLOBSTAR) {
+			// Tail: Add the slash we had split on if there is more to come and the remaining pattern is not a globstar
+			// For example if pattern: some/**/*.js we want the "/" after some to be included in the RegEx to prevent
+			// a folder called "something" to match as well.
+			// However, if pattern: some/**, we tolerate that we also match on "something" because our globstar behaviour
+			// is to match 0-N segments.
+			if (index < segments.length - 1 && (segments[index + 1] !== GLOBSTAR || index + 2 < segments.length)) {
 				regEx += PATH_REGEX;
 			}
 
@@ -272,7 +272,7 @@ interface ParsedExpressionPattern {
 	allPaths?: string[];
 }
 
-const CACHE = new BoundedMap<ParsedStringPattern>(10000); // bounded to 10000 elements
+const CACHE = new LRUCache<string, ParsedStringPattern>(10000); // bounded to 10000 elements
 
 const FALSE = function () {
 	return false;
@@ -343,7 +343,7 @@ function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | 
 			return null;
 		}
 
-		return parsedPattern(paths.relative(arg2.base, path), basename);
+		return parsedPattern(paths.normalize(arg2.pathToRelative(arg2.base, path)), basename);
 	};
 }
 
@@ -482,10 +482,10 @@ export function parse(arg1: string | IExpression | IRelativePattern, options: IG
 	return parsedExpression(<IExpression>arg1, options);
 }
 
-function isRelativePattern(obj: any): obj is IRelativePattern {
+export function isRelativePattern(obj: any): obj is IRelativePattern {
 	const rp = obj as IRelativePattern;
 
-	return typeof rp.base === 'string' && typeof rp.pattern === 'string';
+	return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string' && typeof rp.pathToRelative === 'function';
 }
 
 /**

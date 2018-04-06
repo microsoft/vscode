@@ -7,14 +7,132 @@
 import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
-import { Handler, IModel, DefaultEndOfLine } from 'vs/editor/common/editorCommon';
+import { Handler } from 'vs/editor/common/editorCommon';
+import { ITextModel, DefaultEndOfLine } from 'vs/editor/common/model';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction, InsertLineBeforeAction, InsertLineAfterAction, IndentLinesAction } from 'vs/editor/contrib/linesOperations/linesOperations';
+import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction, InsertLineBeforeAction, InsertLineAfterAction, IndentLinesAction, SortLinesAscendingAction, SortLinesDescendingAction } from 'vs/editor/contrib/linesOperations/linesOperations';
 import { Cursor } from 'vs/editor/common/controller/cursor';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 
 suite('Editor Contrib - Line Operations', () => {
+	suite('SortLinesAscendingAction', () => {
+		test('should sort selected lines in ascending order', function () {
+			withTestCodeEditor(
+				[
+					'omicron',
+					'beta',
+					'alpha'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let sortLinesAscendingAction = new SortLinesAscendingAction();
+
+					editor.setSelection(new Selection(1, 1, 3, 5));
+					sortLinesAscendingAction.run(null, editor);
+					assert.deepEqual(model.getLinesContent(), [
+						'alpha',
+						'beta',
+						'omicron'
+					]);
+					assert.deepEqual(editor.getSelection().toString(), new Selection(1, 1, 3, 7).toString());
+				});
+		});
+
+		test('should sort multiple selections in ascending order', function () {
+			withTestCodeEditor(
+				[
+					'omicron',
+					'beta',
+					'alpha',
+					'',
+					'omicron',
+					'beta',
+					'alpha'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let sortLinesAscendingAction = new SortLinesAscendingAction();
+
+					editor.setSelections([new Selection(1, 1, 3, 5), new Selection(5, 1, 7, 5)]);
+					sortLinesAscendingAction.run(null, editor);
+					assert.deepEqual(model.getLinesContent(), [
+						'alpha',
+						'beta',
+						'omicron',
+						'',
+						'alpha',
+						'beta',
+						'omicron'
+					]);
+					let expectedSelections = [
+						new Selection(1, 1, 3, 7),
+						new Selection(5, 1, 7, 7)
+					];
+					editor.getSelections().forEach((actualSelection, index) => {
+						assert.deepEqual(actualSelection.toString(), expectedSelections[index].toString());
+					});
+				});
+		});
+	});
+
+	suite('SortLinesDescendingAction', () => {
+		test('should sort selected lines in descending order', function () {
+			withTestCodeEditor(
+				[
+					'alpha',
+					'beta',
+					'omicron'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let sortLinesDescendingAction = new SortLinesDescendingAction();
+
+					editor.setSelection(new Selection(1, 1, 3, 7));
+					sortLinesDescendingAction.run(null, editor);
+					assert.deepEqual(model.getLinesContent(), [
+						'omicron',
+						'beta',
+						'alpha'
+					]);
+					assert.deepEqual(editor.getSelection().toString(), new Selection(1, 1, 3, 5).toString());
+				});
+		});
+
+		test('should sort multiple selections in descending order', function () {
+			withTestCodeEditor(
+				[
+					'alpha',
+					'beta',
+					'omicron',
+					'',
+					'alpha',
+					'beta',
+					'omicron'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let sortLinesDescendingAction = new SortLinesDescendingAction();
+
+					editor.setSelections([new Selection(1, 1, 3, 7), new Selection(5, 1, 7, 7)]);
+					sortLinesDescendingAction.run(null, editor);
+					assert.deepEqual(model.getLinesContent(), [
+						'omicron',
+						'beta',
+						'alpha',
+						'',
+						'omicron',
+						'beta',
+						'alpha'
+					]);
+					let expectedSelections = [
+						new Selection(1, 1, 3, 5),
+						new Selection(5, 1, 7, 5)
+					];
+					editor.getSelections().forEach((actualSelection, index) => {
+						assert.deepEqual(actualSelection.toString(), expectedSelections[index].toString());
+					});
+				});
+		});
+	});
+
+
 	suite('DeleteAllLeftAction', () => {
 		test('should delete to the left of the cursor', function () {
 			withTestCodeEditor(
@@ -545,7 +663,7 @@ suite('Editor Contrib - Line Operations', () => {
 	});
 
 	test('InsertLineBeforeAction', function () {
-		function testInsertLineBefore(lineNumber: number, column: number, callback: (model: IModel, cursor: Cursor) => void): void {
+		function testInsertLineBefore(lineNumber: number, column: number, callback: (model: ITextModel, cursor: Cursor) => void): void {
 			const TEXT = [
 				'First line',
 				'Second line',
@@ -586,7 +704,7 @@ suite('Editor Contrib - Line Operations', () => {
 	});
 
 	test('InsertLineAfterAction', () => {
-		function testInsertLineAfter(lineNumber: number, column: number, callback: (model: IModel, cursor: Cursor) => void): void {
+		function testInsertLineAfter(lineNumber: number, column: number, callback: (model: ITextModel, cursor: Cursor) => void): void {
 			const TEXT = [
 				'First line',
 				'Second line',
@@ -628,11 +746,12 @@ suite('Editor Contrib - Line Operations', () => {
 
 	test('Bug 18276:[editor] Indentation broken when selection is empty', () => {
 
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'function baz() {'
 			].join('\n'),
 			{
+				isForSimpleWidget: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,

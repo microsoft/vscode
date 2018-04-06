@@ -8,16 +8,22 @@
 import * as DOM from 'vs/base/browser/dom';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { escape } from 'vs/base/common/strings';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { removeMarkdownEscapes, IMarkdownString } from 'vs/base/common/htmlContent';
-import { marked } from 'vs/base/common/marked/marked';
+import { marked, MarkedOptions } from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IDisposable } from 'vs/base/common/lifecycle';
+
+export interface IContentActionHandler {
+	callback: (content: string, event?: IMouseEvent) => void;
+	disposeables: IDisposable[];
+}
 
 export interface RenderOptions {
 	className?: string;
 	inline?: boolean;
-	actionCallback?: (content: string, event?: IMouseEvent) => void;
-	codeBlockRenderer?: (modeId: string, value: string) => string | TPromise<string>;
+	actionHandler?: IContentActionHandler;
+	codeBlockRenderer?: (modeId: string, value: string) => Thenable<string>;
+	codeBlockRenderCallback?: () => void;
 }
 
 function createElement(options: RenderOptions): HTMLElement {
@@ -37,15 +43,12 @@ export function renderText(text: string, options: RenderOptions = {}): HTMLEleme
 
 export function renderFormattedText(formattedText: string, options: RenderOptions = {}): HTMLElement {
 	const element = createElement(options);
-	_renderFormattedText(element, parseFormattedText(formattedText), options.actionCallback);
+	_renderFormattedText(element, parseFormattedText(formattedText), options.actionHandler);
 	return element;
 }
 
 /**
  * Create html nodes for the given content element.
- *
- * @param content a html element description
- * @param actionCallback a callback function for any action links in the string. Argument is the zero-based index of the clicked action.
  */
 export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions = {}): HTMLElement {
 	const element = createElement(options);
@@ -53,7 +56,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 	// signal to code-block render that the
 	// element has been created
 	let signalInnerHTML: Function;
-	const withInnerHTML = new TPromise(c => signalInnerHTML = c);
+	const withInnerHTML = new Promise(c => signalInnerHTML = c);
 
 	const renderer = new marked.Renderer();
 	renderer.image = (href: string, title: string, text: string) => {
@@ -108,7 +111,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 			return text;
 
 		} else {
-			return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`;
+			return `<a href="#" data-href="${href}" title="${title || href}">${text}</a>`;
 		}
 	};
 	renderer.paragraph = (text): string => {
@@ -118,32 +121,29 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 	if (options.codeBlockRenderer) {
 		renderer.code = (code, lang) => {
 			const value = options.codeBlockRenderer(lang, code);
-			if (typeof value === 'string') {
-				return value;
+			// when code-block rendering is async we return sync
+			// but update the node with the real result later.
+			const id = defaultGenerator.nextId();
+			const promise = Promise.all([value, withInnerHTML]).then(values => {
+				const strValue = values[0];
+				const span = element.querySelector(`div[data-code="${id}"]`);
+				if (span) {
+					span.innerHTML = strValue;
+				}
+			}).catch(err => {
+				// ignore
+			});
+
+			if (options.codeBlockRenderCallback) {
+				promise.then(options.codeBlockRenderCallback);
 			}
 
-			if (TPromise.is(value)) {
-				// when code-block rendering is async we return sync
-				// but update the node with the real result later.
-				const id = defaultGenerator.nextId();
-				TPromise.join([value, withInnerHTML]).done(values => {
-					const strValue = values[0] as string;
-					const span = element.querySelector(`div[data-code="${id}"]`);
-					if (span) {
-						span.innerHTML = strValue;
-					}
-				}, err => {
-					// ignore
-				});
-				return `<div class="code" data-code="${id}">${escape(code)}</div>`;
-			}
-
-			return code;
+			return `<div class="code" data-code="${id}">${escape(code)}</div>`;
 		};
 	}
 
-	if (options.actionCallback) {
-		DOM.addStandardDisposableListener(element, 'click', event => {
+	if (options.actionHandler) {
+		options.actionHandler.disposeables.push(DOM.addStandardDisposableListener(element, 'click', event => {
 			let target = event.target;
 			if (target.tagName !== 'A') {
 				target = target.parentElement;
@@ -154,15 +154,17 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 
 			const href = target.dataset['href'];
 			if (href) {
-				options.actionCallback(href, event);
+				options.actionHandler.callback(href, event);
 			}
-		});
+		}));
 	}
 
-	element.innerHTML = marked(markdown.value, {
+	const markedOptions: MarkedOptions = {
 		sanitize: true,
 		renderer
-	});
+	};
+
+	element.innerHTML = marked(markdown.value, markedOptions);
 	signalInnerHTML();
 
 	return element;
@@ -216,7 +218,7 @@ interface IFormatParseTree {
 	children?: IFormatParseTree[];
 }
 
-function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionCallback?: (content: string, event?: IMouseEvent) => void) {
+function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionHandler?: IContentActionHandler) {
 	let child: Node;
 
 	if (treeNode.type === FormatType.Text) {
@@ -228,12 +230,12 @@ function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionC
 	else if (treeNode.type === FormatType.Italics) {
 		child = document.createElement('i');
 	}
-	else if (treeNode.type === FormatType.Action) {
+	else if (treeNode.type === FormatType.Action && actionHandler) {
 		const a = document.createElement('a');
 		a.href = '#';
-		DOM.addStandardDisposableListener(a, 'click', (event) => {
-			actionCallback(String(treeNode.index), event);
-		});
+		actionHandler.disposeables.push(DOM.addStandardDisposableListener(a, 'click', (event) => {
+			actionHandler.callback(String(treeNode.index), event);
+		}));
 
 		child = a;
 	}
@@ -250,7 +252,7 @@ function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionC
 
 	if (Array.isArray(treeNode.children)) {
 		treeNode.children.forEach((nodeChild) => {
-			_renderFormattedText(child, nodeChild, actionCallback);
+			_renderFormattedText(child, nodeChild, actionHandler);
 		});
 	}
 }

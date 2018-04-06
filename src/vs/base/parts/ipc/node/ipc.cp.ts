@@ -7,7 +7,7 @@ import { ChildProcess, fork } from 'child_process';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
-import { clone, assign } from 'vs/base/common/objects';
+import { deepClone, assign } from 'vs/base/common/objects';
 import { Emitter, fromNodeEventEmitter } from 'vs/base/common/event';
 import { createQueuedSender } from 'vs/base/node/processes';
 import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -127,7 +127,7 @@ export class Client implements IChannelClient, IDisposable {
 			const args = this.options && this.options.args ? this.options.args : [];
 			const forkOpts = Object.create(null);
 
-			forkOpts.env = assign(clone(process.env), { 'VSCODE_PARENT_PID': String(process.pid) });
+			forkOpts.env = assign(deepClone(process.env), { 'VSCODE_PARENT_PID': String(process.pid) });
 
 			if (this.options && this.options.env) {
 				forkOpts.env = assign(forkOpts.env, this.options.env);

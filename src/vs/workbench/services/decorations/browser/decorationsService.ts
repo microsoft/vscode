@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import Event, { Emitter, debounceEvent, anyEvent } from 'vs/base/common/event';
+import { Event, Emitter, debounceEvent, anyEvent } from 'vs/base/common/event';
 import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -245,9 +245,14 @@ class DecorationProviderWrapper {
 
 			} else {
 				// selective changes -> drop for resource, fetch again, send event
+				// perf: the map stores thenables, decorations, or `null`-markers.
+				// we make us of that and ignore all uris in which we have never
+				// been interested.
 				for (const uri of uris) {
-					this.data.delete(uri.toString());
-					this._fetchData(uri);
+					const value = this.data.get(uri.toString());
+					if (value !== undefined) {
+						this._fetchData(uri);
+					}
 				}
 			}
 		});
@@ -314,8 +319,11 @@ class DecorationProviderWrapper {
 
 	private _keepItem(uri: URI, data: IDecorationData): IDecorationData {
 		let deco = data ? data : null;
-		this.data.set(uri.toString(), deco);
-		this._uriEmitter.fire(uri);
+		let old = this.data.set(uri.toString(), deco);
+		if (deco || old) {
+			// only fire event when something changed
+			this._uriEmitter.fire(uri);
+		}
 		return deco;
 	}
 }
@@ -361,6 +369,8 @@ export class FileDecorationsService implements IDecorationsService {
 
 	dispose(): void {
 		dispose(this._disposables);
+		dispose(this._onDidChangeDecorations);
+		dispose(this._onDidChangeDecorationsDelayed);
 	}
 
 	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable {

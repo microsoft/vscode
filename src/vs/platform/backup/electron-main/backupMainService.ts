@@ -309,7 +309,7 @@ export class BackupMainService implements IBackupMainService {
 				fs.mkdirSync(this.backupHome);
 			}
 
-			fs.writeFileSync(this.workspacesJsonPath, JSON.stringify(this.backups));
+			extfs.writeFileAndFlushSync(this.workspacesJsonPath, JSON.stringify(this.backups));
 		} catch (ex) {
 			this.logService.error(`Backup: Could not save workspaces.json: ${ex.toString()}`);
 		}

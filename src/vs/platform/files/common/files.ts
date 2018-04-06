@@ -5,17 +5,17 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
-import glob = require('vs/base/common/glob');
-import events = require('vs/base/common/events');
+import * as glob from 'vs/base/common/glob';
 import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import Event from 'vs/base/common/event';
-import { beginsWithIgnoreCase } from 'vs/base/common/strings';
+import { Event } from 'vs/base/common/event';
+import { startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -84,7 +84,7 @@ export interface IFileService {
 	/**
 	 * Updates the content replacing its previous value.
 	 */
-	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat>;
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat>;
 
 	/**
 	 * Moves the file to a new path identified by the resource.
@@ -245,12 +245,11 @@ export interface IFileChange {
 	resource: URI;
 }
 
-export class FileChangesEvent extends events.Event {
+export class FileChangesEvent {
+
 	private _changes: IFileChange[];
 
 	constructor(changes: IFileChange[]) {
-		super();
-
 		this._changes = changes;
 	}
 
@@ -349,29 +348,10 @@ export function isParent(path: string, candidate: string, ignoreCase?: boolean):
 	}
 
 	if (ignoreCase) {
-		return beginsWithIgnoreCase(path, candidate);
+		return startsWithIgnoreCase(path, candidate);
 	}
 
 	return path.indexOf(candidate) === 0;
-}
-
-
-
-export function indexOf(path: string, candidate: string, ignoreCase?: boolean): number {
-	if (candidate.length > path.length) {
-		return -1;
-	}
-
-	if (path === candidate) {
-		return 0;
-	}
-
-	if (ignoreCase) {
-		path = path.toLowerCase();
-		candidate = candidate.toLowerCase();
-	}
-
-	return path.indexOf(candidate);
 }
 
 export interface IBaseStat {
@@ -412,10 +392,9 @@ export interface IFileStat extends IBaseStat {
 	isDirectory: boolean;
 
 	/**
-	 * Return {{true}} when this is a directory
-	 * that is not empty.
+	 * The resource is a symbolic link.
 	 */
-	hasChildren: boolean;
+	isSymbolicLink?: boolean;
 
 	/**
 	 * The children of the file stat or undefined if none.
@@ -449,6 +428,14 @@ export interface IContent extends IBaseStat {
 	encoding: string;
 }
 
+// this should eventually replace IContent such
+// that we have a clear separation between content
+// and metadata (TODO@Joh, TODO@Ben)
+export interface IContentData {
+	encoding: string;
+	stream: IStringStream;
+}
+
 /**
  * A Stream emitting strings.
  */
@@ -457,6 +444,28 @@ export interface IStringStream {
 	on(event: 'error', callback: (err: any) => void): void;
 	on(event: 'end', callback: () => void): void;
 	on(event: string, callback: any): void;
+}
+
+/**
+ * Text snapshot that works like an iterator.
+ * Will try to return chunks of roughly ~64KB size.
+ * Will return null when finished.
+ */
+export interface ITextSnapshot {
+	read(): string;
+}
+
+/**
+ * Helper method to convert a snapshot into its full string form.
+ */
+export function snapshotToString(snapshot: ITextSnapshot): string {
+	const chunks: string[] = [];
+	let chunk: string;
+	while (typeof (chunk = snapshot.read()) === 'string') {
+		chunks.push(chunk);
+	}
+
+	return chunks.join('');
 }
 
 /**
@@ -484,9 +493,10 @@ export interface IResolveContentOptions {
 	acceptTextOnly?: boolean;
 
 	/**
-	 * The optional etag parameter allows to return a 304 (Not Modified) if the etag matches
-	 * with the remote resource. It is the task of the caller to makes sure to handle this
-	 * error case from the promise.
+	 * The optional etag parameter allows to return early from resolving the resource if
+	 * the contents on disk match the etag. This prevents accumulated reading of resources
+	 * that have been read already with the same etag.
+	 * It is the task of the caller to makes sure to handle this error case from the promise.
 	 */
 	etag?: string;
 
@@ -500,6 +510,12 @@ export interface IResolveContentOptions {
 	 * The optional guessEncoding parameter allows to guess encoding from content of the file.
 	 */
 	autoGuessEncoding?: boolean;
+
+	/**
+	 * Is an integer specifying where to begin reading from in the file. If position is null,
+	 * data will be read from the current file position.
+	 */
+	position?: number;
 }
 
 export interface IUpdateContentOptions {
@@ -518,6 +534,12 @@ export interface IUpdateContentOptions {
 	 * Whether to overwrite a file even if it is readonly.
 	 */
 	overwriteReadonly?: boolean;
+
+	/**
+	 * Wether to write to the file as elevated (admin) user. When setting this option a prompt will
+	 * ask the user to authenticate as super user.
+	 */
+	writeElevated?: boolean;
 
 	/**
 	 * The last known modification time of the file. This can be used to prevent dirty writes.
@@ -550,8 +572,12 @@ export interface IImportResult {
 }
 
 export class FileOperationError extends Error {
-	constructor(message: string, public fileOperationResult: FileOperationResult) {
+	constructor(message: string, public fileOperationResult: FileOperationResult, public options?: IResolveContentOptions & IUpdateContentOptions & ICreateFileOptions) {
 		super(message);
+	}
+
+	static isFileOperationError(obj: any): obj is FileOperationError {
+		return obj instanceof Error && !isUndefinedOrNull((obj as FileOperationError).fileOperationResult);
 	}
 }
 
@@ -563,15 +589,11 @@ export enum FileOperationResult {
 	FILE_MODIFIED_SINCE,
 	FILE_MOVE_CONFLICT,
 	FILE_READ_ONLY,
+	FILE_PERMISSION_DENIED,
 	FILE_TOO_LARGE,
-	FILE_INVALID_PATH
+	FILE_INVALID_PATH,
+	FILE_EXCEED_MEMORY_LIMIT
 }
-
-// See https://github.com/Microsoft/vscode/issues/30180
-const WIN32_MAX_FILE_SIZE = 300 * 1024 * 1024; // 300 MB
-const GENERAL_MAX_FILE_SIZE = 16 * 1024 * 1024 * 1024; // 16 GB
-
-export const MAX_FILE_SIZE = (typeof process === 'object' ? (process.arch === 'ia32' ? WIN32_MAX_FILE_SIZE : GENERAL_MAX_FILE_SIZE) : WIN32_MAX_FILE_SIZE);
 
 export const AutoSaveConfiguration = {
 	OFF: 'off',

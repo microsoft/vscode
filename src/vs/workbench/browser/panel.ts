@@ -36,13 +36,6 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	}
 
 	/**
-	 * Returns the panel descriptor for the given id or null if none.
-	 */
-	public getPanel(id: string): PanelDescriptor {
-		return this.getComposite(id) as PanelDescriptor;
-	}
-
-	/**
 	 * Returns an array of registered panels known to the platform.
 	 */
 	public getPanels(): PanelDescriptor[] {
@@ -102,7 +95,7 @@ export abstract class TogglePanelAction extends Action {
 		const activePanel = this.panelService.getActivePanel();
 		const activeElement = document.activeElement;
 
-		return activePanel && activeElement && DOM.isAncestor(activeElement, (<Panel>activePanel).getContainer().getHTMLElement());
+		return activePanel && activeElement && DOM.isAncestor(activeElement, (<Panel>activePanel).getContainer());
 	}
 }
 

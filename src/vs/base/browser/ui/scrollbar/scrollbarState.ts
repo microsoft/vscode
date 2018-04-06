@@ -189,10 +189,6 @@ export class ScrollbarState {
 		return this._computedSliderPosition;
 	}
 
-	public getSliderCenter(): number {
-		return (this._computedSliderPosition + this._computedSliderSize / 2);
-	}
-
 	/**
 	 * Compute a desired `scrollPosition` such that `offset` ends up in the center of the slider.
 	 * `offset` is based on the same coordinate system as the `sliderPosition`.

@@ -7,13 +7,11 @@
 
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { stringify } from 'vs/base/common/marshalling';
 import * as objects from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { findFreePort } from 'vs/base/node/ports';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -25,9 +23,9 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { createServer, Server, Socket } from 'net';
-import Event, { Emitter, debounceEvent, mapEvent, anyEvent, fromNodeEventEmitter } from 'vs/base/common/event';
+import { Event, Emitter, debounceEvent, mapEvent, anyEvent, fromNodeEventEmitter } from 'vs/base/common/event';
 import { IInitData, IWorkspaceData, IConfigurationInitData } from 'vs/workbench/api/node/extHost.protocol';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
 import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-browser/broadcastService';
@@ -36,10 +34,12 @@ import { EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_C
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
 import { getScopes } from 'vs/platform/configuration/common/configurationRegistry';
+import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 export class ExtensionHostProcessWorker {
 
-	private _onCrashed: Emitter<[number, string]> = new Emitter<[number, string]>();
+	private readonly _onCrashed: Emitter<[number, string]> = new Emitter<[number, string]>();
 	public readonly onCrashed: Event<[number, string]> = this._onCrashed.event;
 
 	private readonly _toDispose: IDisposable[];
@@ -55,6 +55,7 @@ export class ExtensionHostProcessWorker {
 
 	// Resources, in order they get acquired/created when .start() is called:
 	private _namedPipeServer: Server;
+	private _inspectPort: number;
 	private _extensionHostProcess: ChildProcess;
 	private _extensionHostConnection: Socket;
 	private _messageProtocol: TPromise<IMessagePassingProtocol>;
@@ -62,7 +63,7 @@ export class ExtensionHostProcessWorker {
 	constructor(
 		/* intentionally not injected */private readonly _extensionService: IExtensionService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@IMessageService private readonly _messageService: IMessageService,
+		@INotificationService private readonly _notificationService: INotificationService,
 		@IWindowsService private readonly _windowsService: IWindowsService,
 		@IWindowService private readonly _windowService: IWindowService,
 		@IBroadcastService private readonly _broadcastService: IBroadcastService,
@@ -70,7 +71,8 @@ export class ExtensionHostProcessWorker {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IWorkspaceConfigurationService private readonly _configurationService: IWorkspaceConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ICrashReporterService private readonly _crashReporterService: ICrashReporterService
+		@ICrashReporterService private readonly _crashReporterService: ICrashReporterService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		this._isExtensionDevHost = this._environmentService.isExtensionDevelopment;
@@ -130,20 +132,17 @@ export class ExtensionHostProcessWorker {
 		}
 
 		if (!this._messageProtocol) {
-			this._messageProtocol = TPromise.join<any>([this._tryListenOnPipe(), this._tryFindDebugPort()]).then((data: [string, number]) => {
+			this._messageProtocol = TPromise.join([this._tryListenOnPipe(), this._tryFindDebugPort()]).then(data => {
 				const pipeName = data[0];
-				// The port will be 0 if there's no need to debug or if a free port was not found
-				const port = data[1];
+				const portData = data[1];
 
 				const opts = {
-					env: objects.mixin(objects.clone(process.env), {
+					env: objects.mixin(objects.deepClone(process.env), {
 						AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
 						PIPE_LOGGING: 'true',
 						VERBOSE_LOGGING: true,
-						VSCODE_WINDOW_ID: String(this._windowService.getCurrentWindowId()),
 						VSCODE_IPC_HOOK_EXTHOST: pipeName,
 						VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
-						ELECTRON_NO_ASAR: '1',
 						VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || product.quality !== 'stable' || this._environmentService.verbose)
 					}),
 					// We only detach the extension host on windows. Linux and Mac orphan by default
@@ -151,11 +150,21 @@ export class ExtensionHostProcessWorker {
 					// We detach because we have noticed that when the renderer exits, its child processes
 					// (i.e. extension host) are taken down in a brutal fashion by the OS
 					detached: !!isWindows,
-					execArgv: port
-						? ['--nolazy', (this._isExtensionDevDebugBrk ? '--inspect-brk=' : '--inspect=') + port]
-						: undefined,
+					execArgv: <string[]>undefined,
 					silent: true
 				};
+
+				if (portData.actual) {
+					opts.execArgv = [
+						'--nolazy',
+						(this._isExtensionDevDebugBrk ? '--inspect-brk=' : '--inspect=') + portData.actual
+					];
+					if (!portData.expected) {
+						// No one asked for 'inspect' or 'inspect-brk', only us. We add another
+						// option such that the extension host can manipulate the execArgv array
+						opts.env.VSCODE_PREVENT_FOREIGN_INSPECT = true;
+					}
+				}
 
 				const crashReporterOptions = this._crashReporterService.getChildProcessStartOptions('extensionHost');
 				if (crashReporterOptions) {
@@ -207,15 +216,16 @@ export class ExtensionHostProcessWorker {
 				this._extensionHostProcess.on('exit', (code: number, signal: string) => this._onExtHostProcessExit(code, signal));
 
 				// Notify debugger that we are ready to attach to the process if we run a development extension
-				if (this._isExtensionDevHost && port) {
+				if (this._isExtensionDevHost && portData.actual) {
 					this._broadcastService.broadcast({
 						channel: EXTENSION_ATTACH_BROADCAST_CHANNEL,
 						payload: {
 							debugId: this._environmentService.debugExtensionHost.debugId,
-							port
+							port: portData.actual
 						}
 					});
 				}
+				this._inspectPort = portData.actual;
 
 				// Help in case we fail to start it
 				let startupTimeoutHandle: number;
@@ -225,7 +235,12 @@ export class ExtensionHostProcessWorker {
 							? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
 							: nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
 
-						this._messageService.show(Severity.Warning, msg);
+						this._notificationService.prompt(Severity.Warning, msg,
+							[{
+								label: nls.localize('reloadWindow', "Reload Window"),
+								run: () => this._windowService.reloadWindow()
+							}]
+						);
 					}, 10000);
 				}
 
@@ -259,26 +274,29 @@ export class ExtensionHostProcessWorker {
 	/**
 	 * Find a free port if extension host debugging is enabled.
 	 */
-	private _tryFindDebugPort(): TPromise<number> {
-		const extensionHostPort = this._environmentService.debugExtensionHost.port;
-		if (typeof extensionHostPort !== 'number') {
-			return TPromise.wrap<number>(0);
+	private _tryFindDebugPort(): TPromise<{ expected: number; actual: number }> {
+		let expected: number;
+		let startPort = 9333;
+		if (typeof this._environmentService.debugExtensionHost.port === 'number') {
+			startPort = expected = this._environmentService.debugExtensionHost.port;
+		} else {
+			return TPromise.as({ expected: undefined, actual: 0 });
 		}
-		return new TPromise<number>((c, e) => {
-			findFreePort(extensionHostPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */, (port) => {
+		return new TPromise((c, e) => {
+			return findFreePort(startPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */).then(port => {
 				if (!port) {
 					console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color: black');
-					return c(void 0);
-				}
-				if (port !== extensionHostPort) {
-					console.warn(`%c[Extension Host] %cProvided debugging port ${extensionHostPort} is not free, using ${port} instead.`, 'color: blue', 'color: black');
-				}
-				if (this._isExtensionDevDebugBrk) {
-					console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color: black');
 				} else {
-					console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color: black');
+					if (expected && port !== expected) {
+						console.warn(`%c[Extension Host] %cProvided debugging port ${expected} is not free, using ${port} instead.`, 'color: blue', 'color: black');
+					}
+					if (this._isExtensionDevDebugBrk) {
+						console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color: black');
+					} else {
+						console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color: black');
+					}
 				}
-				return c(port);
+				return c({ expected, actual: port });
 			});
 		});
 	}
@@ -317,7 +335,7 @@ export class ExtensionHostProcessWorker {
 
 					if (msg === 'ready') {
 						// 1) Extension Host is ready to receive messages, initialize it
-						this._createExtHostInitData().then(data => protocol.send(stringify(data)));
+						this._createExtHostInitData().then(data => protocol.send(JSON.stringify(data)));
 						return;
 					}
 
@@ -344,7 +362,7 @@ export class ExtensionHostProcessWorker {
 
 	private _createExtHostInitData(): TPromise<IInitData> {
 		return TPromise.join<any>([this._telemetryService.getTelemetryInfo(), this._extensionService.getExtensions()]).then(([telemetryInfo, extensionDescriptions]) => {
-			const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: [] };
+			const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: {} };
 			const r: IInitData = {
 				parentPid: process.pid,
 				environment: {
@@ -352,7 +370,6 @@ export class ExtensionHostProcessWorker {
 					appRoot: this._environmentService.appRoot,
 					appSettingsHome: this._environmentService.appSettingsHome,
 					disableExtensions: this._environmentService.disableExtensions,
-					userExtensionsHome: this._environmentService.extensionsPath,
 					extensionDevelopmentPath: this._environmentService.extensionDevelopmentPath,
 					extensionTestsPath: this._environmentService.extensionTestsPath,
 					// globally disable proposed api when built and not insiders developing extensions
@@ -362,8 +379,11 @@ export class ExtensionHostProcessWorker {
 				workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : <IWorkspaceData>this._contextService.getWorkspace(),
 				extensions: extensionDescriptions,
 				// Send configurations scopes only in development mode.
-				configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes(this._configurationService.keys().default) } : configurationData,
-				telemetryInfo
+				configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes() } : configurationData,
+				telemetryInfo,
+				windowId: this._windowService.getCurrentWindowId(),
+				logLevel: this._logService.getLevel(),
+				logsPath: this._environmentService.logsPath
 			};
 			return r;
 		});
@@ -401,7 +421,7 @@ export class ExtensionHostProcessWorker {
 
 		this._lastExtensionHostError = errorMessage;
 
-		this._messageService.show(Severity.Error, nls.localize('extensionHostProcess.error', "Error from the extension host: {0}", errorMessage));
+		this._notificationService.error(nls.localize('extensionHostProcess.error', "Error from the extension host: {0}", errorMessage));
 	}
 
 	private _onExtHostProcessExit(code: number, signal: string): void {
@@ -424,6 +444,10 @@ export class ExtensionHostProcessWorker {
 		else {
 			ipc.send('vscode:exit', code);
 		}
+	}
+
+	public getInspectPort(): number {
+		return this._inspectPort;
 	}
 
 	public terminate(): void {

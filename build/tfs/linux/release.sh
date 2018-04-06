@@ -12,10 +12,6 @@ step "Build RPM package" \
 # step "Build snap package" \
 # 	npm run gulp -- "vscode-linux-$ARCH-build-snap"
 
-(cd $BUILD_SOURCESDIRECTORY/build/tfs/common && \
-	step "Install build dependencies" \
-	npm install --unsafe-perm)
-
 # Variables
 PLATFORM_LINUX="linux-$ARCH"
 PLATFORM_DEB="linux-deb-$ARCH"
@@ -64,31 +60,20 @@ elif [ "$IS_FROZEN" = "true" ]; then
 else
 	if [ "$BUILD_SOURCEBRANCH" = "master" ] || [ "$BUILD_SOURCEBRANCH" = "refs/heads/master" ]; then
 		if [[ $BUILD_QUEUEDBY = *"Project Collection Service Accounts"* || $BUILD_QUEUEDBY = *"Microsoft.VisualStudio.Services.TFS"* ]]; then
-			# Get necessary information
-			pushd $REPO && COMMIT_HASH=$(git rev-parse HEAD) && popd
-			PACKAGE_NAME="$(ls $REPO/.build/linux/deb/$DEB_ARCH/deb/ | sed -e 's/_.*//g')"
-			DEB_URL="https://az764295.vo.msecnd.net/$VSCODE_QUALITY/$COMMIT_HASH/$DEB_FILENAME"
-			RPM_URL="https://az764295.vo.msecnd.net/$VSCODE_QUALITY/$COMMIT_HASH/$RPM_FILENAME"
-			PACKAGE_VERSION="$(ls $REPO/.build/linux/deb/$DEB_ARCH/deb/ | sed -e 's/code-[a-z]*_//g' -e 's/\_.*$//g')"
 			# Write config files needed by API, use eval to force environment variable expansion
 			DIRNAME=$(dirname $(readlink -f $0))
 			pushd $DIRNAME
 			# Submit to apt repo
 			if [ "$DEB_ARCH" = "amd64" ]; then
 				eval echo '{ \"server\": \"azure-apt-cat.cloudapp.net\", \"protocol\": \"https\", \"port\": \"443\", \"repositoryId\": \"58a4adf642421134a1a48d1a\", \"username\": \"$LINUX_REPO_USERNAME\", \"password\": \"$LINUX_REPO_PASSWORD\" }' > apt-config.json
-				eval echo '{ \"name\": \"$PACKAGE_NAME\", \"version\": \"$PACKAGE_VERSION\", \"repositoryId\": \"58a4adf642421134a1a48d1a\", \"sourceUrl\": \"$DEB_URL\" }' > apt-addpkg.json
-				echo "Submitting apt-addpkg.json:"
-				cat apt-addpkg.json
 
 				step "Publish to repositories" \
-					./repoapi_client.sh -config apt-config.json -addpkg apt-addpkg.json
+					./repoapi_client.sh -config apt-config.json -addfile $DEB_PATH
 			fi
 			# Submit to yum repo (disabled as it's manual until signing is automated)
 			# eval echo '{ \"server\": \"azure-apt-cat.cloudapp.net\", \"protocol\": \"https\", \"port\": \"443\", \"repositoryId\": \"58a4ae3542421134a1a48d1b\", \"username\": \"$LINUX_REPO_USERNAME\", \"password\": \"$LINUX_REPO_PASSWORD\" }' > yum-config.json
-			# eval echo '{ \"name\": \"$PACKAGE_NAME\", \"version\": \"$PACKAGE_VERSION\", \"repositoryId\": \"58a4ae3542421134a1a48d1b\", \"sourceUrl\": \"$RPM_URL\" }' > yum-addpkg.json
-			# echo "Submitting yum-addpkg.json:"
-			# cat yum-addpkg.json
-			# ./repoapi_client.sh -config yum-config.json -addpkg yum-addpkg.json
+
+			# ./repoapi_client.sh -config yum-config.json -addfile $RPM_PATH
 			popd
 			echo "To check repo publish status run ./repoapi_client.sh -config config.json -check <id>"
 		fi

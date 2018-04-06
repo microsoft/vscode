@@ -28,7 +28,7 @@ export interface IPosition {
 
 export class ContextMenuController implements IEditorContribution {
 
-	private static ID = 'editor.contrib.contextmenu';
+	private static readonly ID = 'editor.contrib.contextmenu';
 
 	public static get(editor: ICodeEditor): ContextMenuController {
 		return editor.getContribution<ContextMenuController>(ContextMenuController.ID);
@@ -40,11 +40,11 @@ export class ContextMenuController implements IEditorContribution {
 
 	constructor(
 		editor: ICodeEditor,
-		@IContextMenuService private _contextMenuService: IContextMenuService,
-		@IContextViewService private _contextViewService: IContextViewService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IKeybindingService private _keybindingService: IKeybindingService,
-		@IMenuService private _menuService: IMenuService
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IMenuService private readonly _menuService: IMenuService
 	) {
 		this._editor = editor;
 
@@ -224,7 +224,7 @@ class ShowContextMenu extends EditorAction {
 			alias: 'Show Editor Context Menu',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.Shift | KeyCode.F10
 			}
 		});

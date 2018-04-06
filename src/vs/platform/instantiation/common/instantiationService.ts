@@ -77,7 +77,7 @@ export class InstantiationService implements IInstantiationService {
 	private _createInstance<T>(desc: SyncDescriptor<T>, args: any[]): T {
 
 		// arguments given by createInstance-call and/or the descriptor
-		let staticArgs = desc.staticArguments().concat(args);
+		let staticArgs = desc.staticArguments.concat(args);
 
 		// arguments defined by service decorators
 		let serviceDependencies = _util.getServiceDependencies(desc.ctor).sort((a, b) => a.index - b.index);
@@ -117,9 +117,7 @@ export class InstantiationService implements IInstantiationService {
 		argArray.push(...staticArgs);
 		argArray.push(...serviceArgs);
 
-		const instance = create.apply(null, argArray);
-		desc._validate(instance);
-		return <T>instance;
+		return <T>create.apply(null, argArray);
 	}
 
 	private _getOrCreateServiceInstance<T>(id: ServiceIdentifier<T>): T {

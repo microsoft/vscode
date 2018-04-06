@@ -5,11 +5,24 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Build, Builder, MultiBuilder, Binding, Dimension, Position, Box, $ } from 'vs/base/browser/builder';
+import { Builder, MultiBuilder, $, bindElement, withElement, setPropertyOnElement, getPropertyFromElement } from 'vs/base/browser/builder';
 import * as Types from 'vs/base/common/types';
 import * as DomUtils from 'vs/base/browser/dom';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { timeout } from 'vs/base/common/async';
+
+function withElementById(id: string, offdom?: boolean): Builder {
+	let element = document.getElementById(id);
+	if (element) {
+		return new Builder(element, offdom);
+	}
+
+	return null;
+}
+
+const Build = {
+	withElementById: withElementById
+};
 
 let withElementsBySelector = function (selector: string, offdom: boolean = false) {
 	let elements = window.document.querySelectorAll(selector);
@@ -30,6 +43,17 @@ let withBuilder = function (builder: Builder, offdom: boolean) {
 	return new Builder(builder.getHTMLElement(), offdom);
 };
 
+function select(builder: Builder, selector: string, offdom?: boolean): MultiBuilder {
+	let elements = builder.getHTMLElement().querySelectorAll(selector);
+
+	let builders: Builder[] = [];
+	for (let i = 0; i < elements.length; i++) {
+		builders.push(withElement(<HTMLElement>elements.item(i), offdom));
+	}
+
+	return new MultiBuilder(builders);
+}
+
 suite('Builder', () => {
 	let fixture: HTMLElement;
 	let fixtureId = 'builder-fixture';
@@ -44,19 +68,6 @@ suite('Builder', () => {
 		document.body.removeChild(fixture);
 	});
 
-	test('Dimension.substract()', function () {
-		let d1 = new Dimension(200, 100);
-		let d2 = new Box(10, 20, 30, 40);
-
-		assert.deepEqual(d1.substract(d2), new Dimension(140, 60));
-	});
-
-	test('Position', function () {
-		let p = new Position(200, 100);
-		assert.strictEqual(p.x, 200);
-		assert.strictEqual(p.y, 100);
-	});
-
 	test('Binding', function () {
 		let b = Build.withElementById(fixtureId, false);
 		let element = b.getHTMLElement();
@@ -64,34 +75,17 @@ suite('Builder', () => {
 		assert(element);
 
 		// Properties
-		Binding.setPropertyOnElement(element, 'foo', 'bar');
-		assert.strictEqual(Binding.getPropertyFromElement(element, 'foo'), 'bar');
+		setPropertyOnElement(element, 'foo', 'bar');
+		assert.strictEqual(getPropertyFromElement(element, 'foo'), 'bar');
 
-		Binding.setPropertyOnElement(element, 'foo', { foo: 'bar' });
-		assert.deepEqual(Binding.getPropertyFromElement(element, 'foo'), { foo: 'bar' });
+		setPropertyOnElement(element, 'foo', { foo: 'bar' });
+		assert.deepEqual(getPropertyFromElement(element, 'foo'), { foo: 'bar' });
 
-		Binding.removePropertyFromElement(element, 'foo');
+		setPropertyOnElement(element, 'bar', 'bar');
+		assert.strictEqual(getPropertyFromElement(element, 'bar'), 'bar');
 
-		Binding.setPropertyOnElement(element, 'bar', 'bar');
-		assert.strictEqual(Binding.getPropertyFromElement(element, 'bar'), 'bar');
-
-		Binding.setPropertyOnElement(element, 'bar', { foo: 'bar' });
-		assert.deepEqual(Binding.getPropertyFromElement(element, 'bar'), { foo: 'bar' });
-
-		Binding.removePropertyFromElement(element, 'bar');
-
-		assert(!Binding.getPropertyFromElement(element, 'foo'));
-		assert(!Binding.getPropertyFromElement(element, 'bar'));
-
-		// Binding
-		Binding.bindElement(element, 'bar');
-		assert.strictEqual(Binding.getBindingFromElement(element), 'bar');
-
-		Binding.bindElement(element, { foo: 'bar' });
-		assert.deepEqual(Binding.getBindingFromElement(element), { foo: 'bar' });
-
-		Binding.unbindElement(element);
-		assert(!Binding.getBindingFromElement(element));
+		setPropertyOnElement(element, 'bar', { foo: 'bar' });
+		assert.deepEqual(getPropertyFromElement(element, 'bar'), { foo: 'bar' });
 	});
 
 	test('Select', function () {
@@ -103,7 +97,6 @@ suite('Builder', () => {
 		assert(allDivs);
 		assert(allDivs.length >= 1);
 		assert(Types.isFunction(allDivs.push));
-		assert(Types.isFunction(allDivs.pop));
 		assert(allDivs instanceof MultiBuilder);
 
 		for (let key in b) {
@@ -117,7 +110,6 @@ suite('Builder', () => {
 		assert(noElement);
 		assert(noElement.length === 0);
 		assert(Types.isFunction(noElement.push));
-		assert(Types.isFunction(noElement.pop));
 		assert(noElement instanceof MultiBuilder);
 
 		for (let key in b) {
@@ -267,7 +259,7 @@ suite('Builder', () => {
 		b.build(Build.withElementById(fixtureId), 0);
 
 		b = Build.withElementById(fixtureId);
-		let divs = b.select('div');
+		let divs = select(b, 'div');
 		assert.strictEqual(divs.length, 4);
 
 		let ids = divs.attr('id');
@@ -282,7 +274,7 @@ suite('Builder', () => {
 		b.build(Build.withElementById(fixtureId), 2);
 
 		b = Build.withElementById(fixtureId);
-		divs = b.select('div');
+		divs = select(b, 'div');
 		assert.strictEqual(divs.length, 5);
 
 		ids = divs.attr('id');
@@ -304,8 +296,6 @@ suite('Builder', () => {
 		divBuilder.span({
 			innerHtml: 'see man'
 		});
-
-		assert.strictEqual(divBuilder.parent().attr('id'), 'foobar');
 	});
 
 	test('Builder.clone()', function () {
@@ -323,62 +313,6 @@ suite('Builder', () => {
 		assert(multiClone);
 	});
 
-	test('Builder.and() with 2 Builders', function () {
-		let b = Build.withElementById(fixtureId);
-
-		let otherB = Build.withElementById(fixtureId);
-
-		let bAndB = b.and(otherB);
-
-		assert.strictEqual(bAndB.length, 2);
-
-		assert.deepEqual(bAndB.attr('id'), [fixtureId, fixtureId]);
-	});
-
-	test('Builder.and() with HTMLElement', function () {
-		let b = Build.withElementById(fixtureId);
-
-		let otherB = Build.withElementById(fixtureId);
-
-		let bAndB = b.and(otherB.getHTMLElement());
-
-		assert.strictEqual(bAndB.length, 2);
-
-		assert.deepEqual(bAndB.attr('id'), [fixtureId, fixtureId]);
-	});
-
-	test('Builder.and() with MultiBuilder', function () {
-		let b = Build.withElementById(fixtureId);
-
-		let allDivs = withElementsBySelector('div');
-
-		let bAndB = b.and(allDivs);
-
-		assert.strictEqual(bAndB.length, 1 + allDivs.length);
-	});
-
-	test('Builder.and() with two MultiBuilders', function () {
-		let allDivs = withElementsBySelector('div');
-		let allDivsCount = allDivs.length;
-
-		let otherAllDivs = withElementsBySelector('div');
-
-		let allDivsAndAllDivs = allDivs.and(otherAllDivs);
-
-		assert.strictEqual(allDivsAndAllDivs.length, allDivsCount * 2);
-		assert.strictEqual(allDivs.length, allDivsCount * 2);
-	});
-
-	test('Builder.and() with MultiBuilder and HTMLElement', function () {
-		let allDivs = withElementsBySelector('div');
-		let len = allDivs.length;
-
-		let allDivsFixture = allDivs.and(Build.withElementById(fixtureId).getHTMLElement());
-
-		assert.strictEqual(allDivsFixture.length, len + 1);
-		assert.strictEqual(allDivs.length, len + 1);
-	});
-
 	test('Builder Multibuilder fn call that returns Multibuilder', function () {
 		let b = Build.withElementById(fixtureId);
 		b.div(function (div: Builder) {
@@ -393,10 +327,8 @@ suite('Builder', () => {
 			div.span();
 		});
 
-		let multiBuilder = Build.withElementById(fixtureId).select('div');
+		let multiBuilder = select(Build.withElementById(fixtureId), 'div');
 		assert(multiBuilder.length === 3);
-
-		assert(multiBuilder.select('span').length === 3);
 	});
 
 	test('Builder.p() and other elements', function () {
@@ -437,8 +369,8 @@ suite('Builder', () => {
 			assert.strictEqual('p', div.getHTMLElement().nodeName.toLowerCase());
 		});
 
-		assert.strictEqual(Build.withElementById(fixtureId).select('div').length, 1);
-		assert.strictEqual(Build.withElementById(fixtureId).select('*').length, 7);
+		assert.strictEqual(select(Build.withElementById(fixtureId), 'div').length, 1);
+		assert.strictEqual(select(Build.withElementById(fixtureId), '*').length, 7);
 
 		assert.strictEqual(Build.withElementById('builderspan').getHTMLElement().innerHTML, 'Foo Bar');
 		assert.strictEqual(Build.withElementById('builderimg').attr('src'), '#');
@@ -446,7 +378,6 @@ suite('Builder', () => {
 
 		// Assert HTML through DOM
 		let root = document.getElementById(fixtureId);
-		assert.strictEqual(b.parent().getHTMLElement(), root);
 		assert.strictEqual(root.childNodes.length, 1);
 
 		let div = root.childNodes[0];
@@ -509,8 +440,8 @@ suite('Builder', () => {
 			});
 		});
 
-		assert.strictEqual(Build.withElementById(fixtureId).select('div').length, 1);
-		assert.strictEqual(Build.withElementById(fixtureId).select('*').length, 7);
+		assert.strictEqual(select(Build.withElementById(fixtureId), 'div').length, 1);
+		assert.strictEqual(select(Build.withElementById(fixtureId), '*').length, 7);
 
 		assert.strictEqual(Build.withElementById('builderspan').getHTMLElement().innerHTML, 'Foo Bar');
 		assert.strictEqual(Build.withElementById('builderimg').attr('src'), '#');
@@ -606,36 +537,21 @@ suite('Builder', () => {
 		b.div();
 
 		b.id('foobar');
-		b.src('foobar');
-		b.href('foobar');
 		b.title('foobar');
-		b.name('foobar');
 		b.type('foobar');
 		b.value('foobar');
-		b.alt('foobar');
-		b.draggable(true);
 		b.tabindex(0);
 
 		assert.strictEqual(b.attr('id'), 'foobar');
-		assert.strictEqual(b.attr('src'), 'foobar');
-		assert.strictEqual(b.attr('href'), 'foobar');
 		assert.strictEqual(b.attr('title'), 'foobar');
-		assert.strictEqual(b.attr('name'), 'foobar');
 		assert.strictEqual(b.attr('type'), 'foobar');
 		assert.strictEqual(b.attr('value'), 'foobar');
-		assert.strictEqual(b.attr('alt'), 'foobar');
-		assert.strictEqual(b.attr('draggable'), 'true');
 		assert.strictEqual(b.attr('tabindex'), '0');
 
 		assert.strictEqual(b.getHTMLElement().getAttribute('id'), 'foobar');
-		assert.strictEqual(b.getHTMLElement().getAttribute('src'), 'foobar');
-		assert.strictEqual(b.getHTMLElement().getAttribute('href'), 'foobar');
 		assert.strictEqual(b.getHTMLElement().getAttribute('title'), 'foobar');
-		assert.strictEqual(b.getHTMLElement().getAttribute('name'), 'foobar');
 		assert.strictEqual(b.getHTMLElement().getAttribute('type'), 'foobar');
 		assert.strictEqual(b.getHTMLElement().getAttribute('value'), 'foobar');
-		assert.strictEqual(b.getHTMLElement().getAttribute('alt'), 'foobar');
-		assert.strictEqual(b.getHTMLElement().getAttribute('draggable'), 'true');
 		assert.strictEqual(b.getHTMLElement().getAttribute('tabindex'), '0');
 	});
 
@@ -668,35 +584,6 @@ suite('Builder', () => {
 		assert(!b.hasClass('barfoo'));
 		assert(!b.hasClass('foobar'));
 		assert(!b.getHTMLElement().className);
-
-		b.addClass('foobar');
-		b.swapClass('foobar', 'barfoo');
-		assert(b.hasClass('barfoo'));
-		b.swapClass('foobar', 'barfoo');
-		assert(b.hasClass('foobar'));
-
-		b.toggleClass('foobar');
-		assert(!b.hasClass('foobar'));
-
-		b.toggleClass('barfoo');
-		assert(b.hasClass('barfoo'));
-
-		b.setClass('helloworld');
-		assert(!b.hasClass('barfoo'));
-		assert(b.hasClass('helloworld'));
-		b.setClass('');
-		assert(!b.hasClass('helloworld'));
-	});
-
-	test('Builder.color() and .background()', function () {
-		let b = Build.withElementById(fixtureId);
-		b.div();
-
-		b.color('red').background('blue');
-
-		assert.strictEqual(b.style('color'), 'red');
-		assert.strictEqual(b.style('background-color'), 'blue');
-		assert(b.getComputedStyle());
 	});
 
 	test('Builder.padding() and .margin()', function () {
@@ -738,53 +625,6 @@ suite('Builder', () => {
 
 		assert.strictEqual(b.style('width'), '100px');
 		assert.strictEqual(b.style('height'), '200px');
-
-		b.minSize(300, 400);
-		b.maxSize(500, 600);
-
-		assert.strictEqual(b.style('minWidth'), '300px');
-		assert.strictEqual(b.style('minHeight'), '400px');
-		assert.strictEqual(b.style('maxWidth'), '500px');
-		assert.strictEqual(b.style('maxHeight'), '600px');
-	});
-
-	test('Builder.float() and .clear()', function () {
-		let b = Build.withElementById(fixtureId);
-		b.div();
-
-		b.float('left');
-		b.clear('right');
-
-		assert.strictEqual(b.style('float'), 'left');
-		assert.strictEqual(b.style('clear'), 'right');
-	});
-
-	test('Builder.normal(), .italic(), .bold() and underline()', function () {
-		let b = Build.withElementById(fixtureId);
-		b.div();
-
-		b.italic().underline().bold();
-
-		assert(b.style('font-weight') === 'bold' || b.style('font-weight') === '700'); // For Opera
-		assert.strictEqual(b.style('text-decoration'), 'underline');
-		assert.strictEqual(b.style('font-style'), 'italic');
-
-		b.normal();
-
-		assert(b.style('font-weight') === 'normal' || b.style('font-weight') === '400'); // For Opera
-		assert(b.style('text-decoration') === 'none' || b.style('text-decoration') === 'initial');
-		assert.strictEqual(b.style('font-style'), 'normal');
-	});
-
-	test('Builder.display() and .overflow()', function () {
-		let b = Build.withElementById(fixtureId);
-		b.div();
-
-		b.display('inline');
-		b.overflow('hidden');
-
-		assert.strictEqual(b.style('display'), 'inline');
-		assert.strictEqual(b.style('overflow'), 'hidden');
 	});
 
 	test('Builder.show() and .hide()', function () {
@@ -792,89 +632,40 @@ suite('Builder', () => {
 		b.div();
 
 		b.show();
-		assert(!b.hasClass('builder-hidden'));
+		assert(!b.hasClass('monaco-builder-hidden'));
 		assert(!b.isHidden());
-		b.toggleVisibility();
-		assert(!b.isHidden());
-		assert(b.hasClass('builder-visible'));
-		b.toggleVisibility();
 		b.hide();
-		assert(b.hasClass('builder-hidden'));
+		assert(b.isHidden());
+		b.show();
+		b.hide();
+		assert(b.hasClass('monaco-builder-hidden'));
 		assert(b.isHidden());
 	});
 
-	test('Builder.showDelayed()', function (done) {
+	test('Builder.showDelayed()', function () {
 		let b = Build.withElementById(fixtureId);
 		b.div().hide();
 
 		b.showDelayed(20);
-		assert(b.hasClass('builder-hidden'));
+		assert(b.hasClass('monaco-builder-hidden'));
 
-		TPromise.timeout(30).then(() => {
-			assert(!b.hasClass('builder-hidden'));
-			done();
+		return timeout(30).then(() => {
+			assert(!b.hasClass('monaco-builder-hidden'));
 		});
 	});
 
-	test('Builder.showDelayed() but interrupted', function (done) {
+	test('Builder.showDelayed() but interrupted', function () {
 		let b = Build.withElementById(fixtureId);
 		b.div().hide();
 
 		b.showDelayed(20);
-		assert(b.hasClass('builder-hidden'));
+		assert(b.hasClass('monaco-builder-hidden'));
 
 		b.hide(); // Should cancel the visibility promise
 
-		TPromise.timeout(30).then(() => {
-			assert(b.hasClass('builder-hidden'));
-			done();
+		return timeout(30).then(() => {
+			assert(b.hasClass('monaco-builder-hidden'));
 		});
-	});
-
-	test('Builder.border(), .borderTop(), .borderBottom(), .borderLeft(), .borderRight()', function () {
-		let b = Build.withElementById(fixtureId);
-		b.div();
-
-		b.border('1px solid red');
-
-		assert.strictEqual(b.style('border-width'), '1px');
-		assert.strictEqual(b.style('border-color'), 'red');
-		assert.strictEqual(b.style('border-style'), 'solid');
-
-		b.borderTop('2px dotted yellow');
-
-		assert.strictEqual(b.style('border-top-width'), '2px');
-		assert.strictEqual(b.style('border-top-color'), 'yellow');
-		assert.strictEqual(b.style('border-top-style'), 'dotted');
-
-		b.borderRight('3px dashed green');
-
-		assert.strictEqual(b.style('border-right-width'), '3px');
-		assert.strictEqual(b.style('border-right-color'), 'green');
-		assert.strictEqual(b.style('border-right-style'), 'dashed');
-
-		b.borderBottom('4px solid blue');
-
-		assert.strictEqual(b.style('border-bottom-width'), '4px');
-		assert.strictEqual(b.style('border-bottom-color'), 'blue');
-		assert.strictEqual(b.style('border-bottom-style'), 'solid');
-
-		b.borderLeft('5px dashed white');
-
-		assert.strictEqual(b.style('border-left-width'), '5px');
-		assert.strictEqual(b.style('border-left-color'), 'white');
-		assert.strictEqual(b.style('border-left-style'), 'dashed');
-	});
-
-	test('Builder.textAlign() and .verticalAlign()', function () {
-		let b = Build.withElementById(fixtureId);
-		b.div();
-
-		b.textAlign('center');
-		b.verticalAlign('top');
-
-		assert.strictEqual(b.style('textAlign'), 'center');
-		assert.strictEqual(b.style('verticalAlign'), 'top');
 	});
 
 	test('Builder.innerHtml()', function () {
@@ -899,30 +690,6 @@ suite('Builder', () => {
 		assert.strictEqual(b.getHTMLElement().innerHTML, 'Foo Bar');
 	});
 
-	test('Builder.parent(), .children(), .removeChild() and isEmpty()', function () {
-		let b = Build.withElementById(fixtureId);
-		b.empty();
-
-		assert(b.isEmpty());
-		assert.strictEqual(b.parent().getHTMLElement(), b.getHTMLElement().parentNode);
-		assert(b.children().length === 0);
-
-		let divB;
-		b.div(function (div: Builder) {
-			divB = div.clone();
-			div.span();
-		});
-		b.span();
-
-		b = Build.withElementById(fixtureId);
-		assert(!b.isEmpty());
-		assert.strictEqual(b.parent().getHTMLElement(), b.getHTMLElement().parentNode);
-		assert.equal(b.children().length, 2);
-
-		b.removeChild(divB);
-		assert.equal(b.children().length, 1);
-	});
-
 	test('Build Client Area', function () {
 
 		// Global
@@ -937,49 +704,6 @@ suite('Builder', () => {
 		// assert(dimensions.height >= 0);
 	});
 
-	// test('Builder.select() and .matches()', function () {
-	// 	let b = Build.withElementById(fixtureId);
-
-	// 	assert(b.matches('#' + fixtureId));
-
-	// 	let divs = withElementsBySelector('div');
-	// 	for (let i = 0; i < divs.length; i++) {
-	// 		assert (divs.item(i).matches('div'));
-	// 	}
-
-	// 	assert(b.select('div').length === 0);
-
-	// 	b.clone().div();
-
-	// 	assert(b.select('div').length === 1);
-	// });
-
-	test('Builder.select() and .matches()', function () {
-		let b = Build.withElementById(fixtureId);
-
-		assert(b.getTotalSize());
-		assert(b.getContentSize());
-	});
-
-	test('Builder.preventDefault()', function () {
-		let b = Build.withElementById(fixtureId);
-		b.element('input', {
-			type: 'button'
-		});
-
-		b.preventDefault(DomUtils.EventType.CLICK, true);
-
-		b.once(DomUtils.EventType.CLICK, function (e) {
-			if (e.defaultPrevented) {
-				assert.strictEqual(e.defaultPrevented, true);
-			} else if (e.cancelBubble) {
-				assert.strictEqual(e.cancelBubble, true);
-			}
-		});
-
-		b.domClick();
-	});
-
 	test('Builder.once()', function () {
 		let b = Build.withElementById(fixtureId);
 		b.element('input', {
@@ -992,8 +716,8 @@ suite('Builder', () => {
 			assert(counter <= 1);
 		});
 
-		b.domClick();
-		b.domClick();
+		b.getHTMLElement().click();
+		b.getHTMLElement().click();
 	});
 
 	test('Builder.once() with capture', function () {
@@ -1008,8 +732,8 @@ suite('Builder', () => {
 			assert(counter <= 1);
 		}, null, true);
 
-		b.domClick();
-		b.domClick();
+		b.getHTMLElement().click();
+		b.getHTMLElement().click();
 	});
 
 	test('Builder.on() and .off()', function () {
@@ -1026,12 +750,12 @@ suite('Builder', () => {
 
 		assert(listeners.length === 1);
 
-		b.domClick();
+		b.getHTMLElement().click();
 		b.off(DomUtils.EventType.BLUR);
-		b.domClick();
+		b.getHTMLElement().click();
 		b.off(DomUtils.EventType.CLICK);
-		b.domClick();
-		b.domClick();
+		b.getHTMLElement().click();
+		b.getHTMLElement().click();
 
 		assert.equal(counter, 2);
 	});
@@ -1050,16 +774,16 @@ suite('Builder', () => {
 
 		assert(listeners.length === 1);
 
-		b.domClick();
+		b.getHTMLElement().click();
 		b.off(DomUtils.EventType.BLUR);
-		b.domClick();
+		b.getHTMLElement().click();
 		b.off(DomUtils.EventType.BLUR, true);
-		b.domClick();
+		b.getHTMLElement().click();
 		b.off(DomUtils.EventType.CLICK);
-		b.domClick();
+		b.getHTMLElement().click();
 		b.off(DomUtils.EventType.CLICK, true);
-		b.domClick();
-		b.domClick();
+		b.getHTMLElement().click();
+		b.getHTMLElement().click();
 		assert(counter === 4);
 	});
 
@@ -1077,7 +801,7 @@ suite('Builder', () => {
 		let counter7 = 0;
 
 		b.div(function (div: Builder) {
-			div.bind('Foo Bar');
+			bindElement(div.getHTMLElement(), 'Foo Bar');
 			div.setProperty('Foo', 'Bar');
 			bindings.push(div.clone());
 
@@ -1090,7 +814,7 @@ suite('Builder', () => {
 			inputs.push(div.clone());
 
 			div.p(function (p: Builder) {
-				p.bind('Foo Bar');
+				bindElement(p.getHTMLElement(), 'Foo Bar');
 				p.setProperty('Foo', 'Bar');
 				bindings.push(p.clone());
 
@@ -1103,7 +827,7 @@ suite('Builder', () => {
 				inputs.push(p.clone());
 
 				p.ul(function (ul: Builder) {
-					ul.bind('Foo Bar');
+					bindElement(ul.getHTMLElement(), 'Foo Bar');
 					ul.setProperty('Foo', 'Bar');
 					bindings.push(ul.clone());
 
@@ -1116,7 +840,7 @@ suite('Builder', () => {
 					inputs.push(ul.clone());
 
 					ul.li(function (li: Builder) {
-						li.bind('Foo Bar');
+						bindElement(li.getHTMLElement(), 'Foo Bar');
 						li.setProperty('Foo', 'Bar');
 						bindings.push(li.clone());
 
@@ -1132,7 +856,7 @@ suite('Builder', () => {
 							id: 'builderspan',
 							innerHtml: 'Foo Bar'
 						}, function (span) {
-							span.bind('Foo Bar');
+							bindElement(span.getHTMLElement(), 'Foo Bar');
 							span.setProperty('Foo', 'Bar');
 							bindings.push(span.clone());
 
@@ -1149,7 +873,7 @@ suite('Builder', () => {
 							id: 'builderimg',
 							src: '#'
 						}, function (img) {
-							img.bind('Foo Bar');
+							bindElement(img.getHTMLElement(), 'Foo Bar');
 							img.setProperty('Foo', 'Bar');
 							bindings.push(img.clone());
 
@@ -1167,7 +891,7 @@ suite('Builder', () => {
 							href: '#',
 							innerHtml: 'Link'
 						}, function (a) {
-							a.bind('Foo Bar');
+							bindElement(a.getHTMLElement(), 'Foo Bar');
 							a.setProperty('Foo', 'Bar');
 							bindings.push(a.clone());
 
@@ -1185,23 +909,21 @@ suite('Builder', () => {
 		});
 
 		inputs.forEach(function (input) {
-			input.domClick();
+			input.getHTMLElement().click();
 		});
 
 		for (let i = 0; i < bindings.length; i++) {
-			assert(bindings[i].getBinding());
 			assert(bindings[i].getProperty('Foo'));
 		}
 
 		Build.withElementById(fixtureId).empty();
-		assert(Build.withElementById(fixtureId).select('*').length === 0);
+		assert(select(Build.withElementById(fixtureId), '*').length === 0);
 
 		inputs.forEach(function (input) {
-			input.domClick();
+			input.getHTMLElement().click();
 		});
 
 		for (let i = 0; i < bindings.length; i++) {
-			assert(!bindings[i].getBinding());
 			assert(!bindings[i].getProperty('Foo'));
 		}
 
@@ -1264,7 +986,7 @@ suite('Builder', () => {
 		let counter7 = 0;
 
 		b.div(function (div: Builder) {
-			div.bind('Foo Bar');
+			bindElement(div.getHTMLElement(), 'Foo Bar');
 			div.setProperty('Foo', 'Bar');
 			bindings.push(div.clone());
 
@@ -1277,7 +999,7 @@ suite('Builder', () => {
 			inputs.push(div.clone());
 
 			div.p(function (p: Builder) {
-				p.bind('Foo Bar');
+				bindElement(p.getHTMLElement(), 'Foo Bar');
 				p.setProperty('Foo', 'Bar');
 				bindings.push(p.clone());
 
@@ -1290,7 +1012,7 @@ suite('Builder', () => {
 				inputs.push(p.clone());
 
 				p.ul(function (ul: Builder) {
-					ul.bind('Foo Bar');
+					bindElement(ul.getHTMLElement(), 'Foo Bar');
 					ul.setProperty('Foo', 'Bar');
 					bindings.push(ul.clone());
 
@@ -1303,7 +1025,7 @@ suite('Builder', () => {
 					inputs.push(ul.clone());
 
 					ul.li(function (li: Builder) {
-						li.bind('Foo Bar');
+						bindElement(li.getHTMLElement(), 'Foo Bar');
 						li.setProperty('Foo', 'Bar');
 						bindings.push(li.clone());
 
@@ -1319,7 +1041,7 @@ suite('Builder', () => {
 							id: 'builderspan',
 							innerHtml: 'Foo Bar'
 						}, function (span) {
-							span.bind('Foo Bar');
+							bindElement(span.getHTMLElement(), 'Foo Bar');
 							span.setProperty('Foo', 'Bar');
 							bindings.push(span.clone());
 
@@ -1336,7 +1058,7 @@ suite('Builder', () => {
 							id: 'builderimg',
 							src: '#'
 						}, function (img) {
-							img.bind('Foo Bar');
+							bindElement(img.getHTMLElement(), 'Foo Bar');
 							img.setProperty('Foo', 'Bar');
 							bindings.push(img.clone());
 
@@ -1354,7 +1076,7 @@ suite('Builder', () => {
 							href: '#',
 							innerHtml: 'Link'
 						}, function (a) {
-							a.bind('Foo Bar');
+							bindElement(a.getHTMLElement(), 'Foo Bar');
 							a.setProperty('Foo', 'Bar');
 							bindings.push(a.clone());
 
@@ -1372,23 +1094,21 @@ suite('Builder', () => {
 		});
 
 		inputs.forEach(function (input) {
-			input.domClick();
+			input.getHTMLElement().click();
 		});
 
 		for (let i = 0; i < bindings.length; i++) {
-			assert(bindings[i].getBinding());
 			assert(bindings[i].getProperty('Foo'));
 		}
 
-		Build.withElementById(fixtureId).select('div').destroy();
-		assert(Build.withElementById(fixtureId).select('*').length === 0);
+		select(Build.withElementById(fixtureId), 'div').destroy();
+		assert(select(Build.withElementById(fixtureId), '*').length === 0);
 
 		inputs.forEach(function (input) {
-			input.domClick();
+			input.getHTMLElement().click();
 		});
 
 		for (let i = 0; i < bindings.length; i++) {
-			assert(!bindings[i].getBinding());
 			assert(!bindings[i].getProperty('Foo'));
 		}
 
@@ -1437,92 +1157,6 @@ suite('Builder', () => {
 		} finally {
 			(DomUtils as any).addDisposableListener = old;
 		}
-	});
-
-	test('Builder.empty() MultiBuilder', function () {
-		let b = Build.withElementById(fixtureId);
-		let inputs: Builder[] = [];
-
-		let firstCounter = 0;
-		b.div(function (div: Builder) {
-			div.element('input', {
-				type: 'button'
-			}).on(DomUtils.EventType.CLICK, function () {
-				firstCounter++;
-			});
-
-			inputs.push(div.clone());
-		});
-
-		let secondCounter = 0;
-		b.div(function (div: Builder) {
-			div.element('input', {
-				type: 'button'
-			}).on(DomUtils.EventType.CLICK, function () {
-				secondCounter++;
-			});
-
-			inputs.push(div.clone());
-		});
-
-		let thirdCounter = 0;
-		b.div(function (div: Builder) {
-			div.element('input', {
-				type: 'button'
-			}).on(DomUtils.EventType.CLICK, function () {
-				thirdCounter++;
-			});
-
-			inputs.push(div.clone());
-		});
-
-		Build.withElementById(fixtureId).select('div > input').domClick();
-
-		Build.withElementById(fixtureId).select('div').empty();
-
-		inputs.forEach(function (input) {
-			input.domClick();
-		});
-
-		assert.equal(firstCounter, 1);
-		assert.equal(secondCounter, 1);
-		assert.equal(thirdCounter, 1);
-	});
-
-	test('Builder .domFocus(), .domBlur(), .hasFocus()', function () {
-		let b = Build.withElementById(fixtureId);
-
-		b.element('input', { type: 'text' });
-		assert(!b.hasFocus());
-		b.domFocus().domSelect();
-		assert(b.hasFocus());
-		b.domBlur();
-		assert(!b.hasFocus());
-	});
-
-	test('Builder misc', function () {
-		let b = Build.withElementById(fixtureId);
-		b.div();
-
-		b.on([DomUtils.EventType.CLICK, DomUtils.EventType.MOUSE_DOWN, DomUtils.EventType.MOUSE_UP], function (e, b) {
-		});
-		b.off([DomUtils.EventType.CLICK, DomUtils.EventType.MOUSE_DOWN, DomUtils.EventType.MOUSE_UP]);
-
-		b.once([DomUtils.EventType.CLICK, DomUtils.EventType.MOUSE_DOWN, DomUtils.EventType.MOUSE_UP], function (e, b) {
-		});
-		b.off([DomUtils.EventType.CLICK, DomUtils.EventType.MOUSE_DOWN, DomUtils.EventType.MOUSE_UP]);
-
-		b.preventDefault(DomUtils.EventType.CLICK, true);
-
-		b.bind('foo');
-		assert.strictEqual(b.getBinding(), 'foo');
-		b.unbind();
-		assert(!b.getBinding());
-
-		b.setProperty('foo', 'bar');
-		assert.strictEqual(b.getProperty('foo'), 'bar');
-		b.removeProperty('foo');
-		assert(!b.getProperty('foo'));
 	});
 
 	test('Builder.offDOM()', function () {

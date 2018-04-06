@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { EventEmitter } from 'vs/base/common/eventEmitter';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 
@@ -56,9 +56,6 @@ function effectiveOptionValue(override: FindOptionOverride, value: boolean): boo
 }
 
 export class FindReplaceState implements IDisposable {
-
-	private static _CHANGED_EVENT = 'changed';
-
 	private _searchString: string;
 	private _replaceString: string;
 	private _isRevealed: boolean;
@@ -73,7 +70,7 @@ export class FindReplaceState implements IDisposable {
 	private _matchesPosition: number;
 	private _matchesCount: number;
 	private _currentMatch: Range;
-	private _eventEmitter: EventEmitter;
+	private readonly _onFindReplaceStateChange: Emitter<FindReplaceStateChangedEvent>;
 
 	public get searchString(): string { return this._searchString; }
 	public get replaceString(): string { return this._replaceString; }
@@ -82,10 +79,16 @@ export class FindReplaceState implements IDisposable {
 	public get isRegex(): boolean { return effectiveOptionValue(this._isRegexOverride, this._isRegex); }
 	public get wholeWord(): boolean { return effectiveOptionValue(this._wholeWordOverride, this._wholeWord); }
 	public get matchCase(): boolean { return effectiveOptionValue(this._matchCaseOverride, this._matchCase); }
+
+	public get actualIsRegex(): boolean { return this._isRegex; }
+	public get actualWholeWord(): boolean { return this._wholeWord; }
+	public get actualMatchCase(): boolean { return this._matchCase; }
+
 	public get searchScope(): Range { return this._searchScope; }
 	public get matchesPosition(): number { return this._matchesPosition; }
 	public get matchesCount(): number { return this._matchesCount; }
 	public get currentMatch(): Range { return this._currentMatch; }
+	public get onFindReplaceStateChange(): Event<FindReplaceStateChangedEvent> { return this._onFindReplaceStateChange.event; }
 
 	constructor() {
 		this._searchString = '';
@@ -102,15 +105,10 @@ export class FindReplaceState implements IDisposable {
 		this._matchesPosition = 0;
 		this._matchesCount = 0;
 		this._currentMatch = null;
-		this._eventEmitter = new EventEmitter();
+		this._onFindReplaceStateChange = new Emitter<FindReplaceStateChangedEvent>();
 	}
 
 	public dispose(): void {
-		this._eventEmitter.dispose();
-	}
-
-	public addChangeListener(listener: (e: FindReplaceStateChangedEvent) => void): IDisposable {
-		return this._eventEmitter.addListener(FindReplaceState._CHANGED_EVENT, listener);
 	}
 
 	public changeMatchInfo(matchesPosition: number, matchesCount: number, currentMatch: Range): void {
@@ -158,7 +156,7 @@ export class FindReplaceState implements IDisposable {
 		}
 
 		if (somethingChanged) {
-			this._eventEmitter.emit(FindReplaceState._CHANGED_EVENT, changeEvent);
+			this._onFindReplaceStateChange.fire(changeEvent);
 		}
 	}
 
@@ -248,7 +246,7 @@ export class FindReplaceState implements IDisposable {
 		}
 
 		if (somethingChanged) {
-			this._eventEmitter.emit(FindReplaceState._CHANGED_EVENT, changeEvent);
+			this._onFindReplaceStateChange.fire(changeEvent);
 		}
 	}
 }

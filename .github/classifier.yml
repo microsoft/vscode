@@ -3,26 +3,54 @@
     alwaysRequireAssignee: false,
     labelsRequiringAssignee: [ feature-request ],
     autoAssignees: {
-        accessibility: [],
-        api: [],
-        css-less-sass: [],
-        debug: [ weinand ],
+        api: {
+            assignees: [ jrieken ],
+            assignLabel: false
+        },
+        color-picker: [],
+        css-less-sass: [ aeschli ],
+        debug: {
+            assignees: [ weinand ],
+            assignLabel: false
+        },
+        diff-editor: [],
         editor: [],
+        editor-1000-limit: [],
+        editor-autoclosing: [],
+        editor-autoindent: [],
         editor-brackets: [],
         editor-clipboard: [],
-        editor-colors: [],
+        editor-columnselect: [],
         editor-contrib: [],
         editor-core: [],
         editor-find-widget: [],
         editor-folding: [],
         editor-ime: [],
-        editor-indentation: [],
         editor-input: [],
         editor-minimap: [],
         editor-multicursor: [],
+        editor-smooth: [],
         editor-wrapping: [],
         emmet: [ ramya-rao-a ],
         error-list: [],
+        extensions: [],
+        file-encoding: {
+            assignees: [],
+            assignLabel: false
+        },
+        file-io: {
+            assignees: [],
+            assignLabel: false
+        },
+        file-watcher: {
+            assignees: [],
+            assignLabel: false
+        },
+        file-explorer: {
+            assignees: [ isidorn ],
+            assignLabel: false
+        },
+        format: [],
         git: [ joaomoreno ],
         hot-exit: [ Tyriar ],
         html: [ aeschli ],
@@ -31,15 +59,88 @@
         integrated-terminal: [ Tyriar ],
         javascript: [ mjbvz ],
         json: [],
+        keybindings: [],
+        keyboard-layout: [],
         languages basic: [],
         markdown: [ mjbvz ],
         merge-conflict: [ chrmarti ],
+        multi-root: {
+            assignees: [],
+            assignLabel: false
+        },
         perf-profile: [],
         php: [ roblourens ],
+        proxy: [],
+        remote: {
+            assignees: [ jrieken ],
+            assignLabel: false
+        },
+        scm: [],
         search: [ roblourens ],
-        snippets: [ jrieken ],
+        snippets: {
+            assignees: [ jrieken ],
+            assignLabel: false
+        },
         tasks: [ dbaeumer ],
+        telemetry: [],
+        themes: [],
         typescript: [ mjbvz ],
-        workbench: [ bpasero ]
+        workbench: {
+            assignees: [],
+            assignLabel: false
+        },
+        workbench-dnd: {
+            assignees: [],
+            assignLabel: false
+        },
+        workbench-editors: {
+            assignees: [],
+            assignLabel: false
+        },
+        workbench-electron: {
+            assignees: [],
+            assignLabel: false
+        },
+        workbench-feedback: {
+            assignees: [],
+            assignLabel: false
+        },
+        workbench-history: {
+            assignees: [],
+            assignLabel: false
+        },
+        workbench-layout: {
+            assignees: [],
+            assignLabel: false
+        },
+        workbench-menu: {
+            assignees: [],
+            assignLabel: false
+        },
+        workbench-notifications: {
+            assignees: [],
+            assignLabel: false
+        },
+        workbench-state: {
+            assignees: [],
+            assignLabel: false
+        },
+        workbench-status: {
+            assignees: [],
+            assignLabel: false
+        },
+        workbench-tabs: {
+            assignees: [],
+            assignLabel: false
+        },
+        workbench-title: {
+            assignees: [],
+            assignLabel: false
+        },
+        workbench-touchbar: {
+            assignees: [],
+            assignLabel: false
+        },
+        workbench-welcome: [ chrmarti ]
     }
 }

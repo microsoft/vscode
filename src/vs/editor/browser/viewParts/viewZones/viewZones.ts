@@ -22,10 +22,6 @@ export interface IMyViewZone {
 	marginDomNode: FastDomNode<HTMLElement>;
 }
 
-export interface IMyRenderData {
-	data: IViewWhitespaceViewportData[];
-}
-
 interface IComputedViewZoneProps {
 	afterViewLineNumber: number;
 	heightInPx: number;

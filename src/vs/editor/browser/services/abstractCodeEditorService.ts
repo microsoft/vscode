@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
-import { IDecorationRenderOptions, IModelDecorationOptions, IModel } from 'vs/editor/common/editorCommon';
+import { Event, Emitter } from 'vs/base/common/event';
+import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
+import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 
@@ -13,12 +14,12 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 
 	_serviceBrand: any;
 
-	private _onCodeEditorAdd: Emitter<ICodeEditor>;
-	private _onCodeEditorRemove: Emitter<ICodeEditor>;
+	private readonly _onCodeEditorAdd: Emitter<ICodeEditor>;
+	private readonly _onCodeEditorRemove: Emitter<ICodeEditor>;
 	private _codeEditors: { [editorId: string]: ICodeEditor; };
 
-	private _onDiffEditorAdd: Emitter<IDiffEditor>;
-	private _onDiffEditorRemove: Emitter<IDiffEditor>;
+	private readonly _onDiffEditorAdd: Emitter<IDiffEditor>;
+	private readonly _onDiffEditorRemove: Emitter<IDiffEditor>;
 	private _diffEditors: { [editorId: string]: IDiffEditor; };
 
 	constructor() {
@@ -49,10 +50,6 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 		return this._onCodeEditorRemove.event;
 	}
 
-	getCodeEditor(editorId: string): ICodeEditor {
-		return this._codeEditors[editorId] || null;
-	}
-
 	listCodeEditors(): ICodeEditor[] {
 		return Object.keys(this._codeEditors).map(id => this._codeEditors[id]);
 	}
@@ -74,10 +71,6 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 
 	get onDiffEditorRemove(): Event<IDiffEditor> {
 		return this._onDiffEditorRemove.event;
-	}
-
-	getDiffEditor(editorId: string): IDiffEditor {
-		return this._diffEditors[editorId] || null;
 	}
 
 	listDiffEditors(): IDiffEditor[] {
@@ -110,7 +103,7 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 
 	private _transientWatchers: { [uri: string]: ModelTransientSettingWatcher; } = {};
 
-	public setTransientModelProperty(model: IModel, key: string, value: any): void {
+	public setTransientModelProperty(model: ITextModel, key: string, value: any): void {
 		const uri = model.uri.toString();
 
 		let w: ModelTransientSettingWatcher;
@@ -124,7 +117,7 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 		w.set(key, value);
 	}
 
-	public getTransientModelProperty(model: IModel, key: string): any {
+	public getTransientModelProperty(model: ITextModel, key: string): any {
 		const uri = model.uri.toString();
 
 		if (!this._transientWatchers.hasOwnProperty(uri)) {
@@ -143,7 +136,7 @@ export class ModelTransientSettingWatcher {
 	public readonly uri: string;
 	private readonly _values: { [key: string]: any; };
 
-	constructor(uri: string, model: IModel, owner: AbstractCodeEditorService) {
+	constructor(uri: string, model: ITextModel, owner: AbstractCodeEditorService) {
 		this.uri = uri;
 		this._values = {};
 		model.onWillDispose(() => owner._removeWatcher(this));

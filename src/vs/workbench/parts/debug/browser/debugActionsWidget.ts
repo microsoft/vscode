@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!vs/workbench/parts/debug/browser/media/debugActionsWidget';
+import 'vs/css!./media/debugActionsWidget';
 import * as errors from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import * as browser from 'vs/base/browser/browser';
-import severity from 'vs/base/common/severity';
-import * as builder from 'vs/base/browser/builder';
+import { $, Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction } from 'vs/base/common/actions';
-import { EventType } from 'vs/base/common/events';
+import { IAction, IRunEvent } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugConfiguration, IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
 import { AbstractDebugAction, PauseAction, ContinueAction, StepBackAction, ReverseContinueAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction, FocusProcessAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { FocusProcessActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Themable } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerColor, contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
-const $ = builder.$;
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
 
 export const debugToolBarBackground = registerColor('debugToolBar.background', {
@@ -38,28 +38,35 @@ export const debugToolBarBackground = registerColor('debugToolBar.background', {
 	light: '#F3F3F3',
 	hc: '#000000'
 }, localize('debugToolBarBackground', "Debug toolbar background color."));
+export const debugToolBarBorder = registerColor('debugToolBar.border', {
+	dark: null,
+	light: null,
+	hc: null
+}, localize('debugToolBarBorder', "Debug toolbar border color."));
 
 export class DebugActionsWidget extends Themable implements IWorkbenchContribution {
-	private static ID = 'debug.actionsWidget';
 
-	private $el: builder.Builder;
-	private dragArea: builder.Builder;
+	private $el: Builder;
+	private dragArea: Builder;
 	private actionBar: ActionBar;
 	private allActions: AbstractDebugAction[];
 	private activeActions: AbstractDebugAction[];
+	private updateScheduler: RunOnceScheduler;
 
 	private isVisible: boolean;
 	private isBuilt: boolean;
 
 	constructor(
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(themeService);
 
@@ -71,16 +78,31 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		this.$el.append(actionBarContainter);
 
 		this.activeActions = [];
-		this.actionBar = new ActionBar(actionBarContainter, {
+		this.actionBar = new ActionBar(actionBarContainter.getHTMLElement(), {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action: IAction) => {
 				if (action.id === FocusProcessAction.ID) {
-					return this.instantiationService.createInstance(FocusProcessActionItem, action);
+					return new FocusProcessActionItem(action, this.debugService, this.themeService, contextViewService);
 				}
 
 				return null;
 			}
 		});
+
+		this.updateScheduler = new RunOnceScheduler(() => {
+			const state = this.debugService.state;
+			if (state === State.Inactive || state === State.Initializing || this.configurationService.getValue<IDebugConfiguration>('debug').hideActionBar) {
+				return this.hide();
+			}
+
+			const actions = this.getActions();
+			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id)) {
+				this.actionBar.clear();
+				this.actionBar.push(actions, { icon: true, label: false });
+				this.activeActions = actions;
+			}
+			this.show();
+		}, 20);
 
 		this.updateStyles();
 
@@ -92,12 +114,13 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.debugService.onDidChangeState(state => this.update(state)));
+		this.toUnbind.push(this.debugService.onDidChangeState(() => this.updateScheduler.schedule()));
+		this.toUnbind.push(this.debugService.getViewModel().onDidFocusProcess(() => this.updateScheduler.schedule()));
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onDidConfigurationChange(e)));
-		this.toUnbind.push(this.actionBar.actionRunner.addListener(EventType.RUN, (e: any) => {
+		this.toUnbind.push(this.actionBar.actionRunner.onDidRun((e: IRunEvent) => {
 			// check for error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
-				this.messageService.show(severity.Error, e.error);
+				this.notificationService.error(e.error);
 			}
 
 			// log in telemetry
@@ -147,12 +170,6 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	private storePosition(): void {
 		const position = parseFloat(this.$el.getComputedStyle().left) / window.innerWidth;
 		this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, position, StorageScope.WORKSPACE);
-		/* __GDPR__
-			"debug.actionswidgetposition" : {
-				"position" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog(DEBUG_ACTIONS_WIDGET_POSITION_KEY, { position });
 	}
 
 	protected updateStyles(): void {
@@ -165,9 +182,16 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			this.$el.style('box-shadow', widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null);
 
 			const contrastBorderColor = this.getColor(contrastBorder);
-			this.$el.style('border-style', contrastBorderColor ? 'solid' : null);
-			this.$el.style('border-width', contrastBorderColor ? '1px' : null);
-			this.$el.style('border-color', contrastBorderColor);
+			const borderColor = this.getColor(debugToolBarBorder);
+
+			if (contrastBorderColor) {
+				this.$el.style('border', `1px solid ${contrastBorderColor}`);
+			} else {
+				this.$el.style({
+					'border': borderColor ? `solid ${borderColor}` : 'none',
+					'border-width': '1px 0'
+				});
+			}
 		}
 	}
 
@@ -191,28 +215,10 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		this.$el.style('left', `${x}px`);
 	}
 
-	public getId(): string {
-		return DebugActionsWidget.ID;
-	}
-
 	private onDidConfigurationChange(event: IConfigurationChangeEvent): void {
 		if (event.affectsConfiguration('debug.hideActionBar')) {
-			this.update(this.debugService.state);
+			this.updateScheduler.schedule();
 		}
-	}
-
-	private update(state: State): void {
-		if (state === State.Inactive || state === State.Initializing || this.configurationService.getValue<IDebugConfiguration>('debug').hideActionBar) {
-			return this.hide();
-		}
-
-		const actions = this.getActions();
-		if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id)) {
-			this.actionBar.clear();
-			this.actionBar.push(actions, { icon: true, label: false });
-			this.activeActions = actions;
-		}
-		this.show();
 	}
 
 	private show(): void {
@@ -221,7 +227,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		}
 		if (!this.isBuilt) {
 			this.isBuilt = true;
-			this.$el.build(builder.withElementById(this.partService.getWorkbenchElementId()).getHTMLElement());
+			this.$el.build(document.getElementById(this.partService.getWorkbenchElementId()));
 		}
 
 		this.isVisible = true;
@@ -237,17 +243,17 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	private getActions(): AbstractDebugAction[] {
 		if (!this.allActions) {
 			this.allActions = [];
-			this.allActions.push(this.instantiationService.createInstance(ContinueAction, ContinueAction.ID, ContinueAction.LABEL));
-			this.allActions.push(this.instantiationService.createInstance(PauseAction, PauseAction.ID, PauseAction.LABEL));
-			this.allActions.push(this.instantiationService.createInstance(StopAction, StopAction.ID, StopAction.LABEL));
-			this.allActions.push(this.instantiationService.createInstance(DisconnectAction, DisconnectAction.ID, DisconnectAction.LABEL));
-			this.allActions.push(this.instantiationService.createInstance(StepOverAction, StepOverAction.ID, StepOverAction.LABEL));
-			this.allActions.push(this.instantiationService.createInstance(StepIntoAction, StepIntoAction.ID, StepIntoAction.LABEL));
-			this.allActions.push(this.instantiationService.createInstance(StepOutAction, StepOutAction.ID, StepOutAction.LABEL));
-			this.allActions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
-			this.allActions.push(this.instantiationService.createInstance(StepBackAction, StepBackAction.ID, StepBackAction.LABEL));
-			this.allActions.push(this.instantiationService.createInstance(ReverseContinueAction, ReverseContinueAction.ID, ReverseContinueAction.LABEL));
-			this.allActions.push(this.instantiationService.createInstance(FocusProcessAction, FocusProcessAction.ID, FocusProcessAction.LABEL));
+			this.allActions.push(new ContinueAction(ContinueAction.ID, ContinueAction.LABEL, this.debugService, this.keybindingService));
+			this.allActions.push(new PauseAction(PauseAction.ID, PauseAction.LABEL, this.debugService, this.keybindingService));
+			this.allActions.push(new StopAction(StopAction.ID, StopAction.LABEL, this.debugService, this.keybindingService));
+			this.allActions.push(new DisconnectAction(DisconnectAction.ID, DisconnectAction.LABEL, this.debugService, this.keybindingService));
+			this.allActions.push(new StepOverAction(StepOverAction.ID, StepOverAction.LABEL, this.debugService, this.keybindingService));
+			this.allActions.push(new StepIntoAction(StepIntoAction.ID, StepIntoAction.LABEL, this.debugService, this.keybindingService));
+			this.allActions.push(new StepOutAction(StepOutAction.ID, StepOutAction.LABEL, this.debugService, this.keybindingService));
+			this.allActions.push(new RestartAction(RestartAction.ID, RestartAction.LABEL, this.debugService, this.keybindingService));
+			this.allActions.push(new StepBackAction(StepBackAction.ID, StepBackAction.LABEL, this.debugService, this.keybindingService));
+			this.allActions.push(new ReverseContinueAction(ReverseContinueAction.ID, ReverseContinueAction.LABEL, this.debugService, this.keybindingService));
+			this.allActions.push(new FocusProcessAction(FocusProcessAction.ID, FocusProcessAction.LABEL, this.debugService, this.keybindingService, this.editorService));
 			this.allActions.forEach(a => {
 				this.toUnbind.push(a);
 			});

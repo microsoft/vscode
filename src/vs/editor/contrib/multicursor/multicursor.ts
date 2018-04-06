@@ -8,18 +8,19 @@ import * as nls from 'vs/nls';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { ScrollType, IEditorContribution, FindMatch, TrackedRangeStickiness, OverviewRulerLane, IModel } from 'vs/editor/common/editorCommon';
+import { ScrollType, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { FindMatch, TrackedRangeStickiness, OverviewRulerLane, ITextModel } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { CursorMoveCommands } from 'vs/editor/common/controller/cursorMoveCommands';
-import { CursorState, RevealTarget } from 'vs/editor/common/controller/cursorCommon';
+import { RevealTarget } from 'vs/editor/common/controller/cursorCommon';
 import { Constants } from 'vs/editor/common/core/uint';
 import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { CommonFindController } from 'vs/editor/contrib/find/findController';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { INewFindReplaceState, FindOptionOverride } from 'vs/editor/contrib/find/findState';
@@ -33,7 +34,7 @@ export class InsertCursorAbove extends EditorAction {
 			alias: 'Add Cursor Above',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
 				linux: {
 					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
@@ -55,10 +56,7 @@ export class InsertCursorAbove extends EditorAction {
 		cursors.setStates(
 			args.source,
 			CursorChangeReason.Explicit,
-			CursorState.ensureInEditableRange(
-				context,
-				CursorMoveCommands.addCursorUp(context, cursors.getAll())
-			)
+			CursorMoveCommands.addCursorUp(context, cursors.getAll())
 		);
 		cursors.reveal(true, RevealTarget.TopMost, ScrollType.Smooth);
 	}
@@ -72,7 +70,7 @@ export class InsertCursorBelow extends EditorAction {
 			alias: 'Add Cursor Below',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
 				linux: {
 					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
@@ -94,10 +92,7 @@ export class InsertCursorBelow extends EditorAction {
 		cursors.setStates(
 			args.source,
 			CursorChangeReason.Explicit,
-			CursorState.ensureInEditableRange(
-				context,
-				CursorMoveCommands.addCursorDown(context, cursors.getAll())
-			)
+			CursorMoveCommands.addCursorDown(context, cursors.getAll())
 		);
 		cursors.reveal(true, RevealTarget.BottomMost, ScrollType.Smooth);
 	}
@@ -112,7 +107,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 			alias: 'Add Cursors to Line Ends',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I
 			}
 		});
@@ -303,7 +298,7 @@ export class MultiCursorSession {
 
 export class MultiCursorSelectionController extends Disposable implements IEditorContribution {
 
-	private static ID = 'editor.contrib.multiCursorController';
+	private static readonly ID = 'editor.contrib.multiCursorController';
 
 	private readonly _editor: ICodeEditor;
 	private _ignoreSelectionChange: boolean;
@@ -359,7 +354,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 				this._editor.onDidBlurEditorText(() => {
 					this._endSession();
 				}),
-				findController.getState().addChangeListener((e) => {
+				findController.getState().onFindReplaceStateChange((e) => {
 					if (e.matchCase || e.wholeWord) {
 						this._endSession();
 					}
@@ -387,7 +382,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		this._ignoreSelectionChange = false;
 	}
 
-	private _expandEmptyToWord(model: IModel, selection: Selection): Selection {
+	private _expandEmptyToWord(model: ITextModel, selection: Selection): Selection {
 		if (!selection.isEmpty()) {
 			return selection;
 		}
@@ -468,7 +463,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		// - and the search widget is visible
 		// - and the search string is non-empty
 		// - and we're searching for a regex
-		if (!this._editor.isFocused() && findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
+		if (findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
 
 			matches = this._editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getConfiguration().wordSeparators : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 
@@ -608,7 +603,7 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 			alias: 'Change All Occurrences',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F2
 			},
 			menuOpts: {
@@ -654,7 +649,7 @@ class SelectionHighlighterState {
 }
 
 export class SelectionHighlighter extends Disposable implements IEditorContribution {
-	private static ID = 'editor.contrib.selectionHighlighter';
+	private static readonly ID = 'editor.contrib.selectionHighlighter';
 
 	private editor: ICodeEditor;
 	private _isEnabled: boolean;
@@ -699,7 +694,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this._register(editor.onDidChangeModel((e) => {
 			this._setState(null);
 		}));
-		this._register(CommonFindController.get(editor).getState().addChangeListener((e) => {
+		this._register(CommonFindController.get(editor).getState().onFindReplaceStateChange((e) => {
 			this._update();
 		}));
 	}
@@ -808,13 +803,16 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this.state = state;
 
 		if (!this.state) {
-			if (this.decorations.length > 0) {
-				this.decorations = this.editor.deltaDecorations(this.decorations, []);
-			}
+			this.decorations = this.editor.deltaDecorations(this.decorations, []);
 			return;
 		}
 
 		const model = this.editor.getModel();
+		if (model.isTooLargeForTokenization()) {
+			// the file is too large, so searching word under cursor in the whole document takes is blocking the UI.
+			return;
+		}
+
 		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model);
 
 		let allMatches = model.findMatches(this.state.searchText, true, false, this.state.matchCase, this.state.wordSeparators, false).map(m => m.range);
@@ -860,7 +858,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this.decorations = this.editor.deltaDecorations(this.decorations, decorations);
 	}
 
-	private static _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
+	private static readonly _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 		overviewRuler: {
@@ -870,7 +868,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		}
 	});
 
-	private static _SELECTION_HIGHLIGHT = ModelDecorationOptions.register({
+	private static readonly _SELECTION_HIGHLIGHT = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 	});
@@ -881,7 +879,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	}
 }
 
-function modelRangesContainSameText(model: IModel, ranges: Range[], matchCase: boolean): boolean {
+function modelRangesContainSameText(model: ITextModel, ranges: Range[], matchCase: boolean): boolean {
 	const selectedText = getValueInRange(model, ranges[0], !matchCase);
 	for (let i = 1, len = ranges.length; i < len; i++) {
 		const range = ranges[i];
@@ -896,7 +894,7 @@ function modelRangesContainSameText(model: IModel, ranges: Range[], matchCase: b
 	return true;
 }
 
-function getValueInRange(model: IModel, range: Range, toLowerCase: boolean): string {
+function getValueInRange(model: ITextModel, range: Range, toLowerCase: boolean): string {
 	const text = model.getValueInRange(range);
 	return (toLowerCase ? text.toLowerCase() : text);
 }

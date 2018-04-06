@@ -11,7 +11,7 @@ import * as UUID from 'vs/base/common/uuid';
 
 import * as Platform from 'vs/base/common/platform';
 import { ValidationStatus } from 'vs/base/common/parsers';
-import { ProblemMatcher, FileLocationKind, ProblemPattern, ApplyToKind } from 'vs/platform/markers/common/problemMatcher';
+import { ProblemMatcher, FileLocationKind, ProblemPattern, ApplyToKind } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import * as Tasks from 'vs/workbench/parts/tasks/common/tasks';
@@ -53,11 +53,6 @@ class ProblemReporter implements IProblemReporter {
 	private log(message: string): void {
 		this.receivedMessage = true;
 		this.lastMessage = message;
-	}
-
-	public clearOutput(): void {
-		this.receivedMessage = false;
-		this.lastMessage = undefined;
 	}
 }
 
@@ -240,7 +235,7 @@ class CustomTaskBuilder {
 
 class ProblemMatcherBuilder {
 
-	public static DEFAULT_UUID = UUID.generateUuid();
+	public static readonly DEFAULT_UUID = UUID.generateUuid();
 
 	public result: ProblemMatcher;
 

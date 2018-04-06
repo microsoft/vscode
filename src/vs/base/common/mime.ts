@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import paths = require('vs/base/common/paths');
-import types = require('vs/base/common/types');
-import strings = require('vs/base/common/strings');
+import * as paths from 'vs/base/common/paths';
+import * as strings from 'vs/base/common/strings';
 import { match } from 'vs/base/common/glob';
 
 export const MIME_TEXT = 'text/plain';
@@ -113,23 +112,23 @@ export function guessMimeTypes(path: string, firstLine?: string): string[] {
 	}
 
 	path = path.toLowerCase();
-	let filename = paths.basename(path);
+	const filename = paths.basename(path);
 
 	// 1.) User configured mappings have highest priority
-	let configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
+	const configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
 	if (configuredMime) {
 		return [configuredMime, MIME_TEXT];
 	}
 
 	// 2.) Registered mappings have middle priority
-	let registeredMime = guessMimeTypeByPath(path, filename, nonUserRegisteredAssociations);
+	const registeredMime = guessMimeTypeByPath(path, filename, nonUserRegisteredAssociations);
 	if (registeredMime) {
 		return [registeredMime, MIME_TEXT];
 	}
 
 	// 3.) Firstline has lowest priority
 	if (firstLine) {
-		let firstlineMime = guessMimeTypeByFirstline(firstLine);
+		const firstlineMime = guessMimeTypeByFirstline(firstLine);
 		if (firstlineMime) {
 			return [firstlineMime, MIME_TEXT];
 		}
@@ -146,7 +145,7 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 	// We want to prioritize associations based on the order they are registered so that the last registered
 	// association wins over all other. This is for https://github.com/Microsoft/vscode/issues/20074
 	for (let i = associations.length - 1; i >= 0; i--) {
-		let association = associations[i];
+		const association = associations[i];
 
 		// First exact name match
 		if (filename === association.filenameLowercase) {
@@ -157,7 +156,7 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 		// Longest pattern match
 		if (association.filepattern) {
 			if (!patternMatch || association.filepattern.length > patternMatch.filepattern.length) {
-				let target = association.filepatternOnPath ? path : filename; // match on full path if pattern contains path separator
+				const target = association.filepatternOnPath ? path : filename; // match on full path if pattern contains path separator
 				if (match(association.filepatternLowercase, target)) {
 					patternMatch = association;
 				}
@@ -199,12 +198,12 @@ function guessMimeTypeByFirstline(firstLine: string): string {
 
 	if (firstLine.length > 0) {
 		for (let i = 0; i < registeredAssociations.length; ++i) {
-			let association = registeredAssociations[i];
+			const association = registeredAssociations[i];
 			if (!association.firstline) {
 				continue;
 			}
 
-			let matches = firstLine.match(association.firstline);
+			const matches = firstLine.match(association.firstline);
 			if (matches && matches.length > 0) {
 				return association.mime;
 			}
@@ -212,23 +211,6 @@ function guessMimeTypeByFirstline(firstLine: string): string {
 	}
 
 	return null;
-}
-
-export function isBinaryMime(mimes: string): boolean;
-export function isBinaryMime(mimes: string[]): boolean;
-export function isBinaryMime(mimes: any): boolean {
-	if (!mimes) {
-		return false;
-	}
-
-	let mimeVals: string[];
-	if (types.isArray(mimes)) {
-		mimeVals = (<string[]>mimes);
-	} else {
-		mimeVals = (<string>mimes).split(',').map((mime) => mime.trim());
-	}
-
-	return mimeVals.indexOf(MIME_BINARY) >= 0;
 }
 
 export function isUnspecific(mime: string[] | string): boolean {
@@ -245,7 +227,7 @@ export function isUnspecific(mime: string[] | string): boolean {
 
 export function suggestFilename(langId: string, prefix: string): string {
 	for (let i = 0; i < registeredAssociations.length; i++) {
-		let association = registeredAssociations[i];
+		const association = registeredAssociations[i];
 		if (association.userConfigured) {
 			continue; // only support registered ones
 		}

@@ -7,8 +7,8 @@
 
 import * as nativeKeymap from 'native-keymap';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IStorageService } from 'vs/platform/storage/node/storage';
-import Event, { Emitter, once } from 'vs/base/common/event';
+import { IStateService } from 'vs/platform/state/common/state';
+import { Event, Emitter, once } from 'vs/base/common/event';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -20,7 +20,7 @@ export class KeyboardLayoutMonitor {
 
 	public static readonly INSTANCE = new KeyboardLayoutMonitor();
 
-	private _emitter: Emitter<void>;
+	private readonly _emitter: Emitter<void>;
 	private _registered: boolean;
 
 	private constructor() {
@@ -48,7 +48,7 @@ export interface IKeybinding {
 
 export class KeybindingsResolver {
 
-	private static lastKnownKeybindingsMapStorageKey = 'lastKnownKeybindings';
+	private static readonly lastKnownKeybindingsMapStorageKey = 'lastKnownKeybindings';
 
 	private commandIds: Set<string>;
 	private keybindings: { [commandId: string]: IKeybinding };
@@ -58,13 +58,13 @@ export class KeybindingsResolver {
 	onKeybindingsChanged: Event<void> = this._onKeybindingsChanged.event;
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
+		@IStateService private stateService: IStateService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWindowsMainService private windowsService: IWindowsMainService,
+		@IWindowsMainService private windowsMainService: IWindowsMainService,
 		@ILogService private logService: ILogService
 	) {
 		this.commandIds = new Set<string>();
-		this.keybindings = this.storageService.getItem<{ [id: string]: string; }>(KeybindingsResolver.lastKnownKeybindingsMapStorageKey) || Object.create(null);
+		this.keybindings = this.stateService.getItem<{ [id: string]: string; }>(KeybindingsResolver.lastKnownKeybindingsMapStorageKey) || Object.create(null);
 		this.keybindingsWatcher = new ConfigWatcher<IUserFriendlyKeybinding[]>(environmentService.appKeybindingsPath, { changeBufferDelay: 100, onError: error => this.logService.error(error) });
 
 		this.registerListeners();
@@ -102,24 +102,24 @@ export class KeybindingsResolver {
 
 			if (keybindingsChanged) {
 				this.keybindings = resolvedKeybindings;
-				this.storageService.setItem(KeybindingsResolver.lastKnownKeybindingsMapStorageKey, this.keybindings); // keep to restore instantly after restart
+				this.stateService.setItem(KeybindingsResolver.lastKnownKeybindingsMapStorageKey, this.keybindings); // keep to restore instantly after restart
 
 				this._onKeybindingsChanged.fire();
 			}
 		});
 
 		// Resolve keybindings when any first window is loaded
-		const onceOnWindowReady = once(this.windowsService.onWindowReady);
+		const onceOnWindowReady = once(this.windowsMainService.onWindowReady);
 		onceOnWindowReady(win => this.resolveKeybindings(win));
 
 		// Resolve keybindings again when keybindings.json changes
 		this.keybindingsWatcher.onDidUpdateConfiguration(() => this.resolveKeybindings());
 
 		// Resolve keybindings when window reloads because an installed extension could have an impact
-		this.windowsService.onWindowReload(() => this.resolveKeybindings());
+		this.windowsMainService.onWindowReload(() => this.resolveKeybindings());
 	}
 
-	private resolveKeybindings(win = this.windowsService.getLastActiveWindow()): void {
+	private resolveKeybindings(win = this.windowsMainService.getLastActiveWindow()): void {
 		if (this.commandIds.size && win) {
 			const commandIds: string[] = [];
 			this.commandIds.forEach(id => commandIds.push(id));

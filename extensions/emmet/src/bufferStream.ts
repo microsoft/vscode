@@ -17,27 +17,30 @@ export class DocumentStreamReader {
 	private document: TextDocument;
 	private start: Position;
 	private _eof: Position;
+	private _sof: Position;
 	public pos: Position;
 	private _eol: string;
 
-	/**
-	 * @param  {TextDocument} buffer
-	 * @param  {Position}      pos
-	 * @param  {Range}        limit
-	 */
 	constructor(document: TextDocument, pos?: Position, limit?: Range) {
 
 		this.document = document;
 		this.start = this.pos = pos ? pos : new Position(0, 0);
+		this._sof = limit ? limit.start : new Position(0, 0);
 		this._eof = limit ? limit.end : new Position(this.document.lineCount - 1, this._lineLength(this.document.lineCount - 1));
 		this._eol = this.document.eol === EndOfLine.LF ? '\n' : '\r\n';
 	}
 
 	/**
-	 * Returns true only if the stream is at the end of the file.
-	 * @returns {Boolean}
+	 * Returns true only if the stream is at the start of the file.
 	 */
-	eof() {
+	sof(): boolean {
+		return this.pos.isBeforeOrEqual(this._sof);
+	}
+
+	/**
+	 * Returns true only if the stream is at the end of the file.
+	 */
+	eof(): boolean {
 		return this.pos.isAfterOrEqual(this._eof);
 	}
 

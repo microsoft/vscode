@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDecorationRenderOptions, IModelDecorationOptions, IModel } from 'vs/editor/common/editorCommon';
+import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
+import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { ICodeEditor, IDiffEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 
@@ -23,12 +24,10 @@ export interface ICodeEditorService {
 
 	addCodeEditor(editor: ICodeEditor): void;
 	removeCodeEditor(editor: ICodeEditor): void;
-	getCodeEditor(editorId: string): ICodeEditor;
 	listCodeEditors(): ICodeEditor[];
 
 	addDiffEditor(editor: IDiffEditor): void;
 	removeDiffEditor(editor: IDiffEditor): void;
-	getDiffEditor(editorId: string): IDiffEditor;
 	listDiffEditors(): IDiffEditor[];
 
 	/**
@@ -40,8 +39,8 @@ export interface ICodeEditorService {
 	removeDecorationType(key: string): void;
 	resolveDecorationOptions(typeKey: string, writable: boolean): IModelDecorationOptions;
 
-	setTransientModelProperty(model: IModel, key: string, value: any): void;
-	getTransientModelProperty(model: IModel, key: string): any;
+	setTransientModelProperty(model: ITextModel, key: string, value: any): void;
+	getTransientModelProperty(model: ITextModel, key: string): any;
 }
 
 /**

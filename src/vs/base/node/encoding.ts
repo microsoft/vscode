@@ -5,9 +5,11 @@
 
 'use strict';
 
-import stream = require('vs/base/node/stream');
-import iconv = require('iconv-lite');
+import * as stream from 'vs/base/node/stream';
+import * as iconv from 'iconv-lite';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { exec } from 'child_process';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -26,11 +28,11 @@ export function bomLength(encoding: string): number {
 	return 0;
 }
 
-export function decode(buffer: NodeBuffer, encoding: string, options?: any): string {
-	return iconv.decode(buffer, toNodeEncoding(encoding), options);
+export function decode(buffer: NodeBuffer, encoding: string): string {
+	return iconv.decode(buffer, toNodeEncoding(encoding));
 }
 
-export function encode(content: string, encoding: string, options?: any): NodeBuffer {
+export function encode(content: string | NodeBuffer, encoding: string, options?: { addBOM?: boolean }): NodeBuffer {
 	return iconv.encode(content, toNodeEncoding(encoding), options);
 }
 
@@ -42,8 +44,8 @@ export function decodeStream(encoding: string): NodeJS.ReadWriteStream {
 	return iconv.decodeStream(toNodeEncoding(encoding));
 }
 
-export function encodeStream(encoding: string): NodeJS.ReadWriteStream {
-	return iconv.encodeStream(toNodeEncoding(encoding));
+export function encodeStream(encoding: string, options?: { addBOM?: boolean }): NodeJS.ReadWriteStream {
+	return iconv.encodeStream(toNodeEncoding(encoding), options);
 }
 
 function toNodeEncoding(enc: string): string {
@@ -168,4 +170,184 @@ export function toCanonicalName(enc: string): string {
 
 			return enc;
 	}
+}
+
+const ZERO_BYTE_DETECTION_BUFFER_MAX_LEN = 512; // number of bytes to look at to decide about a file being binary or not
+const NO_GUESS_BUFFER_MAX_LEN = 512; 			// when not auto guessing the encoding, small number of bytes are enough
+const AUTO_GUESS_BUFFER_MAX_LEN = 512 * 8; 		// with auto guessing we want a lot more content to be read for guessing
+
+export function maxEncodingDetectionBufferLen(arg1?: DetectEncodingOption | boolean): number {
+	let autoGuessEncoding: boolean;
+	if (typeof arg1 === 'boolean') {
+		autoGuessEncoding = arg1;
+	} else {
+		autoGuessEncoding = arg1 && arg1.autoGuessEncoding;
+	}
+
+	return autoGuessEncoding ? AUTO_GUESS_BUFFER_MAX_LEN : NO_GUESS_BUFFER_MAX_LEN;
+}
+
+export interface IDetectedEncodingResult {
+	encoding: string;
+	seemsBinary: boolean;
+}
+
+export interface DetectEncodingOption {
+	autoGuessEncoding?: boolean;
+}
+
+export function detectEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: false): IDetectedEncodingResult;
+export function detectEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: boolean): TPromise<IDetectedEncodingResult>;
+export function detectEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResult, autoGuessEncoding?: boolean): TPromise<IDetectedEncodingResult> | IDetectedEncodingResult {
+
+	// Always first check for BOM to find out about encoding
+	let encoding = detectEncodingByBOMFromBuffer(buffer, bytesRead);
+
+	// Detect 0 bytes to see if file is binary or UTF-16 LE/BE
+	// unless we already know that this file has a UTF-16 encoding
+	let seemsBinary = false;
+	if (encoding !== UTF16be && encoding !== UTF16le) {
+		let couldBeUTF16LE = true; // e.g. 0xAA 0x00
+		let couldBeUTF16BE = true; // e.g. 0x00 0xAA
+		let containsZeroByte = false;
+
+		// This is a simplified guess to detect UTF-16 BE or LE by just checking if
+		// the first 512 bytes have the 0-byte at a specific location. For UTF-16 LE
+		// this would be the odd byte index and for UTF-16 BE the even one.
+		// Note: this can produce false positives (a binary file that uses a 2-byte
+		// encoding of the same format as UTF-16) and false negatives (a UTF-16 file
+		// that is using 4 bytes to encode a character).
+		for (let i = 0; i < bytesRead && i < ZERO_BYTE_DETECTION_BUFFER_MAX_LEN; i++) {
+			const isEndian = (i % 2 === 1); // assume 2-byte sequences typical for UTF-16
+			const isZeroByte = (buffer.readInt8(i) === 0);
+
+			if (isZeroByte) {
+				containsZeroByte = true;
+			}
+
+			// UTF-16 LE: expect e.g. 0xAA 0x00
+			if (couldBeUTF16LE && (isEndian && !isZeroByte || !isEndian && isZeroByte)) {
+				couldBeUTF16LE = false;
+			}
+
+			// UTF-16 BE: expect e.g. 0x00 0xAA
+			if (couldBeUTF16BE && (isEndian && isZeroByte || !isEndian && !isZeroByte)) {
+				couldBeUTF16BE = false;
+			}
+
+			// Return if this is neither UTF16-LE nor UTF16-BE and thus treat as binary
+			if (isZeroByte && !couldBeUTF16LE && !couldBeUTF16BE) {
+				break;
+			}
+		}
+
+		// Handle case of 0-byte included
+		if (containsZeroByte) {
+			if (couldBeUTF16LE) {
+				encoding = UTF16le;
+			} else if (couldBeUTF16BE) {
+				encoding = UTF16be;
+			} else {
+				seemsBinary = true;
+			}
+		}
+	}
+
+	// Auto guess encoding if configured
+	if (autoGuessEncoding && !seemsBinary && !encoding) {
+		return guessEncodingByBuffer(buffer.slice(0, bytesRead)).then(encoding => {
+			return {
+				seemsBinary: false,
+				encoding
+			};
+		});
+	}
+
+	return { seemsBinary, encoding };
+}
+
+// https://ss64.com/nt/chcp.html
+const windowsTerminalEncodings = {
+	'437': 'cp437', // United States
+	'850': 'cp850', // Multilingual(Latin I)
+	'852': 'cp852', // Slavic(Latin II)
+	'855': 'cp855', // Cyrillic(Russian)
+	'857': 'cp857', // Turkish
+	'860': 'cp860', // Portuguese
+	'861': 'cp861', // Icelandic
+	'863': 'cp863', // Canadian - French
+	'865': 'cp865', // Nordic
+	'866': 'cp866', // Russian
+	'869': 'cp869', // Modern Greek
+	'936': 'cp936', // Simplified Chinese
+	'1252': 'cp1252' // West European Latin
+};
+
+export function resolveTerminalEncoding(verbose?: boolean): TPromise<string> {
+	let rawEncodingPromise: TPromise<string>;
+
+	// Support a global environment variable to win over other mechanics
+	const cliEncodingEnv = process.env['VSCODE_CLI_ENCODING'];
+	if (cliEncodingEnv) {
+		if (verbose) {
+			console.log(`Found VSCODE_CLI_ENCODING variable: ${cliEncodingEnv}`);
+		}
+
+		rawEncodingPromise = TPromise.as(cliEncodingEnv);
+	}
+
+	// Linux/Mac: use "locale charmap" command
+	else if (isLinux || isMacintosh) {
+		rawEncodingPromise = new TPromise<string>(c => {
+			if (verbose) {
+				console.log('Running "locale charmap" to detect terminal encoding...');
+			}
+
+			exec('locale charmap', (err, stdout, stderr) => c(stdout));
+		});
+	}
+
+	// Windows: educated guess
+	else {
+		rawEncodingPromise = new TPromise<string>(c => {
+			if (verbose) {
+				console.log('Running "chcp" to detect terminal encoding...');
+			}
+
+			exec('chcp', (err, stdout, stderr) => {
+				if (stdout) {
+					const windowsTerminalEncodingKeys = Object.keys(windowsTerminalEncodings);
+					for (let i = 0; i < windowsTerminalEncodingKeys.length; i++) {
+						const key = windowsTerminalEncodingKeys[i];
+						if (stdout.indexOf(key) >= 0) {
+							return c(windowsTerminalEncodings[key]);
+						}
+					}
+				}
+
+				return c(void 0);
+			});
+		});
+	}
+
+	return rawEncodingPromise.then(rawEncoding => {
+		if (verbose) {
+			console.log(`Detected raw terminal encoding: ${rawEncoding}`);
+		}
+
+		if (!rawEncoding || rawEncoding.toLowerCase() === 'utf-8' || rawEncoding.toLowerCase() === UTF8) {
+			return UTF8;
+		}
+
+		const iconvEncoding = toIconvLiteEncoding(rawEncoding);
+		if (iconv.encodingExists(iconvEncoding)) {
+			return iconvEncoding;
+		}
+
+		if (verbose) {
+			console.log('Unsupported terminal encoding, falling back to UTF-8.');
+		}
+
+		return UTF8;
+	});
 }

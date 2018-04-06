@@ -123,7 +123,7 @@ suite('Editor Contrib - Sort Lines Command', () => {
 		);
 	});
 
-	test('sorting first 4 lines desscending', function () {
+	test('sorting first 4 lines descending', function () {
 		testSortLinesDescendingCommand(
 			[
 				'first',

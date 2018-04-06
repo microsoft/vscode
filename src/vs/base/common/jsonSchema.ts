@@ -55,6 +55,7 @@ export interface IJSONSchema {
 	markdownEnumDescriptions?: string[]; // VSCode extension
 	markdownDescription?: string; // VSCode extension
 	doNotSuggest?: boolean; // VSCode extension
+	allowComments?: boolean; // VSCode extension
 }
 
 export interface IJSONSchemaMap {

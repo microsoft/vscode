@@ -6,7 +6,7 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 import * as strings from 'vs/base/common/strings';
 
 export interface ITextAreaWrapper {
@@ -31,7 +31,7 @@ export interface ITypeData {
 
 export class TextAreaState {
 
-	public static EMPTY = new TextAreaState('', 0, 0, null, null);
+	public static readonly EMPTY = new TextAreaState('', 0, 0, null, null);
 
 	public readonly value: string;
 	public readonly selectionStart: number;
@@ -47,24 +47,11 @@ export class TextAreaState {
 		this.selectionEndPosition = selectionEndPosition;
 	}
 
-	public equals(other: TextAreaState): boolean {
-		if (other instanceof TextAreaState) {
-			return (
-				this.value === other.value
-				&& this.selectionStart === other.selectionStart
-				&& this.selectionEnd === other.selectionEnd
-				&& Position.equals(this.selectionStartPosition, other.selectionStartPosition)
-				&& Position.equals(this.selectionEndPosition, other.selectionEndPosition)
-			);
-		}
-		return false;
-	}
-
 	public toString(): string {
 		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ']';
 	}
 
-	public readFromTextArea(textArea: ITextAreaWrapper): TextAreaState {
+	public static readFromTextArea(textArea: ITextAreaWrapper): TextAreaState {
 		return new TextAreaState(textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), null, null);
 	}
 
@@ -73,7 +60,7 @@ export class TextAreaState {
 	}
 
 	public writeToTextArea(reason: string, textArea: ITextAreaWrapper, select: boolean): void {
-		// console.log(Date.now() + ': applyToTextArea ' + reason + ': ' + this.toString());
+		// console.log(Date.now() + ': writeToTextArea ' + reason + ': ' + this.toString());
 		textArea.setValue(reason, this.value);
 		if (select) {
 			textArea.setSelectionRange(reason, this.selectionStart, this.selectionEnd);
@@ -110,7 +97,7 @@ export class TextAreaState {
 		return new TextAreaState(text, 0, text.length, null, null);
 	}
 
-	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, couldBeEmojiInput: boolean): ITypeData {
+	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, couldBeEmojiInput: boolean, couldBeTypingAtOffset0: boolean): ITypeData {
 		if (!previousState) {
 			// This is the EMPTY state
 			return {
@@ -129,6 +116,18 @@ export class TextAreaState {
 		let currentValue = currentState.value;
 		let currentSelectionStart = currentState.selectionStart;
 		let currentSelectionEnd = currentState.selectionEnd;
+
+		if (couldBeTypingAtOffset0 && previousValue.length > 0 && previousSelectionStart === previousSelectionEnd && currentSelectionStart === currentSelectionEnd) {
+			// See https://github.com/Microsoft/vscode/issues/42251
+			// where typing always happens at offset 0 in the textarea
+			// when using a custom title area in OSX and moving the window
+			if (strings.endsWith(currentValue, previousValue)) {
+				// Looks like something was typed at offset 0
+				// ==> pretend we placed the cursor at offset 0 to begin with...
+				previousSelectionStart = 0;
+				previousSelectionEnd = 0;
+			}
+		}
 
 		// Strip the previous suffix from the value (without interfering with the current selection)
 		const previousSuffix = previousValue.substring(previousSelectionEnd);
@@ -228,7 +227,7 @@ export class TextAreaState {
 }
 
 export class PagedScreenReaderStrategy {
-	private static _LINES_PER_PAGE = 10;
+	private static readonly _LINES_PER_PAGE = 10;
 
 	private static _getPageOfLine(lineNumber: number): number {
 		return Math.floor((lineNumber - 1) / PagedScreenReaderStrategy._LINES_PER_PAGE);

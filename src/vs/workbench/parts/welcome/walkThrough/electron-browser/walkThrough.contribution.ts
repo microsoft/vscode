@@ -20,6 +20,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorRegistry, Extensions as EditorExtensions, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(new EditorDescriptor(
@@ -27,29 +28,29 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 		WalkThroughPart.ID,
 		localize('walkThrough.editor.label', "Interactive Playground"),
 	),
-	[new SyncDescriptor(WalkThroughInput)]);
+		[new SyncDescriptor(WalkThroughInput)]);
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 	.registerWorkbenchAction(
-	new SyncActionDescriptor(EditorWalkThroughAction, EditorWalkThroughAction.ID, EditorWalkThroughAction.LABEL),
-	'Help: Interactive Playground', localize('help', "Help"));
+		new SyncActionDescriptor(EditorWalkThroughAction, EditorWalkThroughAction.ID, EditorWalkThroughAction.LABEL),
+		'Help: Interactive Playground', localize('help', "Help"));
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(EditorWalkThroughInputFactory.ID, EditorWalkThroughInputFactory);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WalkThroughContentProvider);
+	.registerWorkbenchContribution(WalkThroughContentProvider, LifecyclePhase.Starting);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WalkThroughSnippetContentProvider);
+	.registerWorkbenchContribution(WalkThroughSnippetContentProvider, LifecyclePhase.Starting);
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(WalkThroughArrowUpAction, WalkThroughArrowUpAction.ID, WalkThroughArrowUpAction.LABEL, { primary: KeyCode.UpArrow }, ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.textFocus.toNegated())), 'Interactive Playground: Scroll Up (Line)', localize('interactivePlayground', "Interactive Playground"));
+	.registerWorkbenchAction(new SyncActionDescriptor(WalkThroughArrowUpAction, WalkThroughArrowUpAction.ID, WalkThroughArrowUpAction.LABEL, { primary: KeyCode.UpArrow }, ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated())), 'Interactive Playground: Scroll Up (Line)', localize('interactivePlayground', "Interactive Playground"));
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(WalkThroughArrowDownAction, WalkThroughArrowDownAction.ID, WalkThroughArrowDownAction.LABEL, { primary: KeyCode.DownArrow }, ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.textFocus.toNegated())), 'Interactive Playground: Scroll Down (Line)', localize('interactivePlayground', "Interactive Playground"));
+	.registerWorkbenchAction(new SyncActionDescriptor(WalkThroughArrowDownAction, WalkThroughArrowDownAction.ID, WalkThroughArrowDownAction.LABEL, { primary: KeyCode.DownArrow }, ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated())), 'Interactive Playground: Scroll Down (Line)', localize('interactivePlayground', "Interactive Playground"));
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(WalkThroughPageUpAction, WalkThroughPageUpAction.ID, WalkThroughPageUpAction.LABEL, { primary: KeyCode.PageUp }, ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.textFocus.toNegated())), 'Interactive Playground: Scroll Up (Page)', localize('interactivePlayground', "Interactive Playground"));
+	.registerWorkbenchAction(new SyncActionDescriptor(WalkThroughPageUpAction, WalkThroughPageUpAction.ID, WalkThroughPageUpAction.LABEL, { primary: KeyCode.PageUp }, ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated())), 'Interactive Playground: Scroll Up (Page)', localize('interactivePlayground', "Interactive Playground"));
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(WalkThroughPageDownAction, WalkThroughPageDownAction.ID, WalkThroughPageDownAction.LABEL, { primary: KeyCode.PageDown }, ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.textFocus.toNegated())), 'Interactive Playground: Scroll Down (Page)', localize('interactivePlayground', "Interactive Playground"));
+	.registerWorkbenchAction(new SyncActionDescriptor(WalkThroughPageDownAction, WalkThroughPageDownAction.ID, WalkThroughPageDownAction.LABEL, { primary: KeyCode.PageDown }, ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated())), 'Interactive Playground: Scroll Down (Page)', localize('interactivePlayground', "Interactive Playground"));

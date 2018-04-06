@@ -568,7 +568,7 @@ export class SnippetParser {
 			if (marker instanceof Placeholder) {
 				placeholderCount += 1;
 				if (marker.isFinalTabstop) {
-					placeholderDefaultValues.set(0);
+					placeholderDefaultValues.set(0, undefined);
 				} else if (!placeholderDefaultValues.has(marker.index) && marker.children.length > 0) {
 					placeholderDefaultValues.set(marker.index, marker.children);
 				} else {
@@ -861,6 +861,14 @@ export class SnippetParser {
 			if (this._accept(TokenType.Forwardslash)) {
 				break;
 			}
+
+			let escaped: string;
+			if (escaped = this._accept(TokenType.Backslash, true)) {
+				escaped = this._accept(TokenType.Forwardslash, true) || escaped;
+				transform.appendChild(new Text(escaped));
+				continue;
+			}
+
 			if (this._parseFormatString(transform) || this._parseAnything(transform)) {
 				continue;
 			}

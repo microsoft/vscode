@@ -16,7 +16,6 @@
 	"exclude.boolean": "El patrón global con el que se harán coincidir las rutas de acceso de los archivos. Establézcalo en true o false para habilitarlo o deshabilitarlo.",
 	"exclude.when": "Comprobación adicional de los elementos del mismo nivel de un archivo coincidente. Use $(nombreBase) como variable para el nombre de archivo que coincide.",
 	"useRipgrep": "Controla si se utiliza ripgrep en la búsqueda de texto y ficheros",
-	"useIgnoreFilesByDefault": "Controla si se utilizan los archivos .gitignore e .ignore de forma predeterminada al buscar en una nueva área de trabajo.",
 	"useIgnoreFiles": "Controla si se utilizan los archivos .gitignore e .ignore al buscar archivos.",
 	"search.quickOpen.includeSymbols": "Configurar para incluir los resultados de una búsqueda global de símbolos en los resultados de archivos de Quick Open.",
 	"search.followSymlinks": "Controla si va a seguir enlaces simbólicos durante la búsqueda."

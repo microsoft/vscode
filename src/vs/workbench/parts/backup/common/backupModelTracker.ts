@@ -6,7 +6,7 @@
 'use strict';
 
 import Uri from 'vs/base/common/uri';
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextFileService, TextFileModelChangeEvent, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
@@ -72,14 +72,14 @@ export class BackupModelTracker implements IWorkbenchContribution {
 			// Do not backup when auto save after delay is configured
 			if (!this.configuredAutoSaveAfterDelay) {
 				const model = this.textFileService.models.get(event.resource);
-				this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId()).done(null, errors.onUnexpectedError);
+				this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId()).done(null, errors.onUnexpectedError);
 			}
 		}
 	}
 
 	private onUntitledModelChanged(resource: Uri): void {
 		if (this.untitledEditorService.isDirty(resource)) {
-			this.untitledEditorService.loadOrCreate({ resource }).then(model => this.backupFileService.backupResource(resource, model.getValue(), model.getVersionId())).done(null, errors.onUnexpectedError);
+			this.untitledEditorService.loadOrCreate({ resource }).then(model => this.backupFileService.backupResource(resource, model.createSnapshot(), model.getVersionId())).done(null, errors.onUnexpectedError);
 		} else {
 			this.discardBackup(resource);
 		}
@@ -91,9 +91,5 @@ export class BackupModelTracker implements IWorkbenchContribution {
 
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
-	}
-
-	public getId(): string {
-		return 'vs.backup.backupModelTracker';
 	}
 }

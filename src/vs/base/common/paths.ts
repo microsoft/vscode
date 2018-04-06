@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { fill } from 'vs/base/common/arrays';
-import { rtrim, beginsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
+import { isWindows } from 'vs/base/common/platform';
+import { startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 
 /**
@@ -18,35 +17,6 @@ export const sep = '/';
  * The native path separator depending on the OS.
  */
 export const nativeSep = isWindows ? '\\' : '/';
-
-export function relative(from: string, to: string): string {
-	// ignore trailing slashes
-	const originalNormalizedFrom = rtrim(normalize(from), sep);
-	const originalNormalizedTo = rtrim(normalize(to), sep);
-
-	// we're assuming here that any non=linux OS is case insensitive
-	// so we must compare each part in its lowercase form
-	const normalizedFrom = isLinux ? originalNormalizedFrom : originalNormalizedFrom.toLowerCase();
-	const normalizedTo = isLinux ? originalNormalizedTo : originalNormalizedTo.toLowerCase();
-
-	const fromParts = normalizedFrom.split(sep);
-	const toParts = normalizedTo.split(sep);
-
-	let i = 0, max = Math.min(fromParts.length, toParts.length);
-
-	for (; i < max; i++) {
-		if (fromParts[i] !== toParts[i]) {
-			break;
-		}
-	}
-
-	const result = [
-		...fill(fromParts.length - i, () => '..'),
-		...originalNormalizedTo.split(sep).slice(i)
-	];
-
-	return result.join(sep);
-}
 
 /**
  * @returns the directory name of a path.
@@ -370,7 +340,7 @@ export function isEqualOrParent(path: string, candidate: string, ignoreCase?: bo
 	}
 
 	if (ignoreCase) {
-		const beginsWith = beginsWithIgnoreCase(path, candidate);
+		const beginsWith = startsWithIgnoreCase(path, candidate);
 		if (!beginsWith) {
 			return false;
 		}

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import fs = require('fs');
-import path = require('path');
+import * as fs from 'fs';
+import * as path from 'path';
 
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
@@ -16,25 +16,28 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as TPath from 'vs/base/common/paths';
 
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from 'vs/platform/markers/common/problemMatcher';
+import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from 'vs/workbench/parts/tasks/common/problemMatcher';
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
-import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
-import { Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind } from 'vs/workbench/parts/tasks/common/tasks';
+import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind } from 'vs/workbench/parts/tasks/common/problemCollectors';
+import {
+	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind,
+	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString
+} from 'vs/workbench/parts/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
-	TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType, TaskTerminateResponse
+	TelemetryEvent, Triggers, TaskTerminateResponse
 } from 'vs/workbench/parts/tasks/common/taskSystem';
 
 interface TerminalData {
@@ -48,9 +51,45 @@ interface ActiveTerminalData {
 	promise: TPromise<ITaskSummary>;
 }
 
-export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
+export class TerminalTaskSystem implements ITaskSystem {
 
 	public static TelemetryEventName: string = 'taskService';
+
+	private static shellQuotes: IStringDictionary<ShellQuotingOptions> = {
+		'cmd': {
+			strong: '"'
+		},
+		'powershell': {
+			escape: {
+				escapeChar: '`',
+				charsToEscape: ' "\'()'
+			},
+			strong: '\'',
+			weak: '"'
+		},
+		'bash': {
+			escape: {
+				escapeChar: '\\',
+				charsToEscape: ' "\''
+			},
+			strong: '\'',
+			weak: '"'
+		},
+		'zsh': {
+			escape: {
+				escapeChar: '\\',
+				charsToEscape: ' "\''
+			},
+			strong: '\'',
+			weak: '"'
+		}
+	};
+
+	private static osShellQuotes: IStringDictionary<ShellQuotingOptions> = {
+		'linux': TerminalTaskSystem.shellQuotes['bash'],
+		'darwin': TerminalTaskSystem.shellQuotes['bash'],
+		'win32': TerminalTaskSystem.shellQuotes['powershell']
+	};
 
 	private outputChannel: IOutputChannel;
 	private activeTasks: IStringDictionary<ActiveTerminalData>;
@@ -58,19 +97,26 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	private idleTaskTerminals: LinkedMap<string, string>;
 	private sameTaskTerminals: IStringDictionary<string>;
 
+	private readonly _onDidStateChange: Emitter<TaskEvent>;
+
 	constructor(private terminalService: ITerminalService, private outputService: IOutputService,
 		private markerService: IMarkerService, private modelService: IModelService,
 		private configurationResolverService: IConfigurationResolverService,
 		private telemetryService: ITelemetryService,
 		private contextService: IWorkspaceContextService,
 		outputChannelId: string) {
-		super();
 
 		this.outputChannel = this.outputService.getChannel(outputChannelId);
 		this.activeTasks = Object.create(null);
 		this.terminals = Object.create(null);
 		this.idleTaskTerminals = new LinkedMap<string, string>();
 		this.sameTaskTerminals = Object.create(null);
+
+		this._onDidStateChange = new Emitter();
+	}
+
+	public get onDidStateChange(): Event<TaskEvent> {
+		return this._onDidStateChange.event;
 	}
 
 	public log(value: string): void {
@@ -78,7 +124,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	protected showOutput(): void {
-		this.outputChannel.show(true);
+		this.outputService.showChannel(this.outputChannel.id, true);
 	}
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
@@ -152,8 +198,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				let task = activeTerminal.task;
 				try {
 					onExit.dispose();
-					let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group, __task: task };
-					this.emit(TaskSystemEvents.Terminated, event);
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Terminated, task));
 				} catch (error) {
 					// Do nothing.
 				}
@@ -173,8 +218,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					let task = terminalData.task;
 					try {
 						onExit.dispose();
-						let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group, __task: task };
-						this.emit(TaskSystemEvents.Terminated, event);
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Terminated, task));
 					} catch (error) {
 						// Do nothing.
 					}
@@ -237,19 +281,20 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				const problemMatchers = this.resolveMatchers(task, task.problemMatchers);
 				let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService);
 				let toUnbind: IDisposable[] = [];
-				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.Watching, group: task.group, __task: task };
 				let eventCounter: number = 0;
-				toUnbind.push(watchingProblemMatcher.addListener(ProblemCollectorEvents.WatchingBeginDetected, () => {
-					eventCounter++;
-					this.emit(TaskSystemEvents.Active, event);
-				}));
-				toUnbind.push(watchingProblemMatcher.addListener(ProblemCollectorEvents.WatchingEndDetected, () => {
-					eventCounter--;
-					this.emit(TaskSystemEvents.Inactive, event);
+				toUnbind.push(watchingProblemMatcher.onDidStateChange((event) => {
+					if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
+						eventCounter++;
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
+					} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
+						eventCounter--;
+						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
+					}
 				}));
 				watchingProblemMatcher.aboutToStart();
 				let delayer: Async.Delayer<any> = undefined;
 				[terminal, executedCommand] = this.createTerminal(task);
+				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onLineData((line) => {
 					watchingProblemMatcher.processLine(line);
@@ -266,21 +311,23 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					onExit.dispose();
 					let key = Task.getMapKey(task);
 					delete this.activeTasks[key];
-					this.emit(TaskSystemEvents.Changed);
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Changed));
 					switch (task.command.presentation.panel) {
 						case PanelKind.Dedicated:
 							this.sameTaskTerminals[key] = terminal.id.toString();
 							break;
 						case PanelKind.Shared:
-							this.idleTaskTerminals.set(key, terminal.id.toString(), Touch.First);
+							this.idleTaskTerminals.set(key, terminal.id.toString(), Touch.AsOld);
 							break;
 					}
+					watchingProblemMatcher.done();
 					watchingProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
 					toUnbind = dispose(toUnbind);
 					toUnbind = null;
 					for (let i = 0; i < eventCounter; i++) {
-						this.emit(TaskSystemEvents.Inactive, event);
+						let event = TaskEvent.create(TaskEventKind.Inactive, task);
+						this._onDidStateChange.fire(event);
 					}
 					eventCounter = 0;
 					let reveal = task.command.presentation.reveal;
@@ -288,14 +335,15 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 						this.terminalService.setActiveInstance(terminal);
 						this.terminalService.showPanel(false);
 					}
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 					resolve({ exitCode });
 				});
 			});
 		} else {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
 				[terminal, executedCommand] = this.createTerminal(task);
-				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group, __task: task };
-				this.emit(TaskSystemEvents.Active, event);
+				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
+				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 				let problemMatchers = this.resolveMatchers(task, task.problemMatchers);
 				let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService);
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
@@ -307,19 +355,20 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					onExit.dispose();
 					let key = Task.getMapKey(task);
 					delete this.activeTasks[key];
-					this.emit(TaskSystemEvents.Changed);
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Changed));
 					switch (task.command.presentation.panel) {
 						case PanelKind.Dedicated:
 							this.sameTaskTerminals[key] = terminal.id.toString();
 							break;
 						case PanelKind.Shared:
-							this.idleTaskTerminals.set(key, terminal.id.toString(), Touch.First);
+							this.idleTaskTerminals.set(key, terminal.id.toString(), Touch.AsOld);
 							break;
 					}
 					startStopProblemMatcher.done();
 					startStopProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
-					this.emit(TaskSystemEvents.Inactive, event);
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Inactive, task));
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 					// See https://github.com/Microsoft/vscode/issues/31965
 					if (exitCode === 0 && startStopProblemMatcher.numberOfMatches > 0) {
 						exitCode = 1;
@@ -331,12 +380,12 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		if (!terminal) {
 			return TPromise.wrapError<ITaskSummary>(new Error(`Failed to create terminal for task ${task._label}`));
 		}
-		this.terminalService.setActiveInstance(terminal);
 		if (task.command.presentation.reveal === RevealKind.Always || (task.command.presentation.reveal === RevealKind.Silent && task.problemMatchers.length === 0)) {
+			this.terminalService.setActiveInstance(terminal);
 			this.terminalService.showPanel(task.command.presentation.focus);
 		}
 		this.activeTasks[Task.getMapKey(task)] = { terminal, task, promise };
-		this.emit(TaskSystemEvents.Changed);
+		this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Changed));
 		return promise.then((summary) => {
 			try {
 				let telemetryEvent: TelemetryEvent = {
@@ -384,6 +433,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	private createTerminal(task: CustomTask | ContributedTask): [ITerminalInstance, string] {
 		let options = this.resolveOptions(task, task.command.options);
 		let { command, args } = this.resolveCommandAndArgs(task);
+		let commandExecutable = CommandString.value(command);
 		let workspaceFolder = Task.getWorkspaceFolder(task);
 		let needsFolderQualification = workspaceFolder && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', needsFolderQualification ? Task.getQualifiedLabel(task) : task.name);
@@ -417,16 +467,16 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			}
 			let shellArgs = <string[]>shellLaunchConfig.args.slice(0);
 			let toAdd: string[] = [];
-			let commandLine = args && args.length > 0 ? `${command} ${args.join(' ')}` : `${command}`;
+			let commandLine = this.buildShellCommandLine(shellLaunchConfig.executable, shellOptions, command, args);
 			let windowsShellArgs: boolean = false;
 			if (Platform.isWindows) {
 				windowsShellArgs = true;
 				let basename = path.basename(shellLaunchConfig.executable).toLowerCase();
-				if (basename === 'powershell.exe') {
+				if (basename === 'powershell.exe' || basename === 'pwsh.exe') {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
 					}
-				} else if (basename === 'bash.exe') {
+				} else if (basename === 'bash.exe' || basename === 'zsh.exe') {
 					windowsShellArgs = false;
 					if (!shellSpecified) {
 						toAdd.push('-c');
@@ -459,11 +509,13 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			let cwd = options && options.cwd ? options.cwd : process.cwd();
 			// On Windows executed process must be described absolute. Since we allowed command without an
 			// absolute path (e.g. "command": "node") we need to find the executable in the CWD or PATH.
-			let executable = Platform.isWindows && !isShellCommand ? this.findExecutable(command, cwd) : command;
+			let executable = Platform.isWindows && !isShellCommand ? this.findExecutable(commandExecutable, cwd) : commandExecutable;
+
+			// When we have a process task there is no need to quote arguments. So we go ahead and take the string value.
 			shellLaunchConfig = {
 				name: terminalName,
 				executable: executable,
-				args,
+				args: args.map(a => Types.isString(a) ? a : a.value),
 				waitOnExit
 			};
 			if (task.command.presentation.echo) {
@@ -516,7 +568,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 		if (terminalToReuse) {
 			terminalToReuse.terminal.reuseTerminal(shellLaunchConfig);
-			return [terminalToReuse.terminal, command];
+			return [terminalToReuse.terminal, commandExecutable];
 		}
 
 		const result = this.terminalService.createInstance(shellLaunchConfig);
@@ -530,14 +582,109 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			}
 		});
 		this.terminals[terminalKey] = { terminal: result, lastTask: taskKey };
-		return [result, command];
+		return [result, commandExecutable];
 	}
 
-	private resolveCommandAndArgs(task: CustomTask | ContributedTask): { command: string, args: string[] } {
+	private buildShellCommandLine(shellExecutable: string, shellOptions: ShellConfiguration, command: CommandString, args: CommandString[]): string {
+		// If we have no args and the command is a string then use the
+		// command to stay backwards compatible with the old command line
+		// model.
+		if ((!args || args.length === 0) && Types.isString(command)) {
+			return command;
+		}
+		let basename = path.parse(shellExecutable).name.toLowerCase();
+		let shellQuoteOptions = this.getOuotingOptions(basename, shellOptions);
+
+		function needsQuotes(value: string): boolean {
+			if (value.length >= 2) {
+				let first = value[0] === shellQuoteOptions.strong ? shellQuoteOptions.strong : value[0] === shellQuoteOptions.weak ? shellQuoteOptions.weak : undefined;
+				if (first === value[value.length - 1]) {
+					return false;
+				}
+			}
+			for (let i = 0; i < value.length; i++) {
+				if (value[i] === ' ' && value[i - 1] !== shellQuoteOptions.escape) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		function quote(value: string, kind: ShellQuoting): [string, boolean] {
+			if (kind === ShellQuoting.Strong && shellQuoteOptions.strong) {
+				return [shellQuoteOptions.strong + value + shellQuoteOptions.strong, true];
+			} else if (kind === ShellQuoting.Weak && shellQuoteOptions.weak) {
+				return [shellQuoteOptions.weak + value + shellQuoteOptions.weak, true];
+			} else if (kind === ShellQuoting.Escape && shellQuoteOptions.escape) {
+				if (Types.isString(shellQuoteOptions.escape)) {
+					return [value.replace(/ /g, shellQuoteOptions.escape + ' '), true];
+				} else {
+					let buffer: string[] = [];
+					for (let ch of shellQuoteOptions.escape.charsToEscape) {
+						buffer.push(`\\${ch}`);
+					}
+					let regexp: RegExp = new RegExp('[' + buffer.join(',') + ']', 'g');
+					let escapeChar = shellQuoteOptions.escape.escapeChar;
+					return [value.replace(regexp, (match) => escapeChar + match), true];
+				}
+			}
+			return [value, false];
+		}
+
+		function quoteIfNecessary(value: CommandString): [string, boolean] {
+			if (Types.isString(value)) {
+				if (needsQuotes(value)) {
+					return quote(value, ShellQuoting.Strong);
+				} else {
+					return [value, false];
+				}
+			} else {
+				return quote(value.value, value.quoting);
+			}
+		}
+
+		let result: string[] = [];
+		let commandQuoted = false;
+		let argQuoted = false;
+		let value: string;
+		let quoted: boolean;
+		[value, quoted] = quoteIfNecessary(command);
+		result.push(value);
+		commandQuoted = quoted;
+		for (let arg of args) {
+			[value, quoted] = quoteIfNecessary(arg);
+			result.push(value);
+			argQuoted = argQuoted || quoted;
+		}
+
+		let commandLine = result.join(' ');
+		// There are special rules quoted command line in cmd.exe
+		if (Platform.isWindows) {
+			if (basename === 'cmd' && commandQuoted && argQuoted) {
+				commandLine = '"' + commandLine + '"';
+			} else if (basename === 'powershell' && commandQuoted) {
+				commandLine = '& ' + commandLine;
+			}
+		}
+
+		if (basename === 'cmd' && Platform.isWindows && commandQuoted && argQuoted) {
+			commandLine = '"' + commandLine + '"';
+		}
+		return commandLine;
+	}
+
+	private getOuotingOptions(shellBasename: string, shellOptions: ShellConfiguration): ShellQuotingOptions {
+		if (shellOptions && shellOptions.quoting) {
+			return shellOptions.quoting;
+		}
+		return TerminalTaskSystem.shellQuotes[shellBasename] || TerminalTaskSystem.osShellQuotes[process.platform];
+	}
+
+	private resolveCommandAndArgs(task: CustomTask | ContributedTask): { command: CommandString, args: CommandString[] } {
 		// First we need to use the command args:
-		let args: string[] = task.command.args ? task.command.args.slice() : [];
+		let args: CommandString[] = task.command.args ? task.command.args.slice() : [];
 		args = this.resolveVariables(task, args);
-		let command: string = this.resolveVariable(task, task.command.name);
+		let command: CommandString = this.resolveVariable(task, task.command.name);
 		return { command, args };
 	}
 
@@ -548,8 +695,9 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 		let dir = path.dirname(command);
 		if (dir !== '.') {
-			// We have a directory. So leave the command as is.
-			return command;
+			// We have a directory. Make the path absolute
+			// to the current working directory
+			return path.join(cwd, command);
 		}
 		// We have a simple file name. We get the path variable from the env
 		// and try to find the executable on the path.
@@ -577,10 +725,12 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				return withExtension;
 			}
 		}
-		return command;
+		return path.join(cwd, command);
 	}
 
-	private resolveVariables(task: CustomTask | ContributedTask, value: string[]): string[] {
+	private resolveVariables(task: CustomTask | ContributedTask, value: string[]): string[];
+	private resolveVariables(task: CustomTask | ContributedTask, value: CommandString[]): CommandString[];
+	private resolveVariables(task: CustomTask | ContributedTask, value: CommandString[]): CommandString[] {
 		return value.map(s => this.resolveVariable(task, s));
 	}
 
@@ -607,7 +757,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			if (!matcher.filePrefix) {
 				result.push(matcher);
 			} else {
-				let copy = Objects.clone(matcher);
+				let copy = Objects.deepClone(matcher);
 				copy.filePrefix = this.resolveVariable(task, copy.filePrefix);
 				result.push(copy);
 			}
@@ -615,9 +765,18 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		return result;
 	}
 
-	private resolveVariable(task: CustomTask | ContributedTask, value: string): string {
+	private resolveVariable(task: CustomTask | ContributedTask, value: string): string;
+	private resolveVariable(task: CustomTask | ContributedTask, value: CommandString): CommandString;
+	private resolveVariable(task: CustomTask | ContributedTask, value: CommandString): CommandString {
 		// TODO@Dirk Task.getWorkspaceFolder should return a WorkspaceFolder that is defined in workspace.ts
-		return this.configurationResolverService.resolve(<any>Task.getWorkspaceFolder(task), value);
+		if (Types.isString(value)) {
+			return this.configurationResolverService.resolve(<any>Task.getWorkspaceFolder(task), value);
+		} else {
+			return {
+				value: this.configurationResolverService.resolve(<any>Task.getWorkspaceFolder(task), value.value),
+				quoting: value.quoting
+			};
+		}
 	}
 
 	private resolveOptions(task: CustomTask | ContributedTask, options: CommandOptions): CommandOptions {
@@ -668,21 +827,6 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 		*/
 		return result;
-	}
-
-	private static doubleQuotes = /^[^"].* .*[^"]$/;
-	protected ensureDoubleQuotes(value: string) {
-		if (TerminalTaskSystem.doubleQuotes.test(value)) {
-			return {
-				value: '"' + value + '"',
-				quoted: true
-			};
-		} else {
-			return {
-				value: value,
-				quoted: value.length > 0 && value[0] === '"' && value[value.length - 1] === '"'
-			};
-		}
 	}
 
 	private static WellKnowCommands: IStringDictionary<boolean> = {

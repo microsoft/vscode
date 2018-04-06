@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel, DefaultEndOfLine } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { MainThreadDocumentContentProvidersShape, ExtHostContext, ExtHostDocumentContentProvidersShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { ITextSource } from 'vs/editor/common/model/textSource';
+import { createTextBuffer } from 'vs/editor/common/model/textModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -31,7 +31,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostDocumentContentProviders);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentContentProviders);
 	}
 
 	public dispose(): void {
@@ -42,7 +42,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 
 	$registerTextContentProvider(handle: number, scheme: string): void {
 		this._resourceContentProvider[handle] = this._textModelResolverService.registerTextModelContentProvider(scheme, {
-			provideTextContent: (uri: URI): TPromise<IModel> => {
+			provideTextContent: (uri: URI): TPromise<ITextModel> => {
 				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
 					if (typeof value === 'string') {
 						const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
@@ -63,23 +63,16 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 		}
 	}
 
-	$onVirtualDocumentChange(uri: URI, value: ITextSource): void {
-		const model = this._modelService.getModel(uri);
+	$onVirtualDocumentChange(uri: UriComponents, value: string): void {
+		const model = this._modelService.getModel(URI.revive(uri));
 		if (!model) {
 			return;
 		}
 
-		const raw: ITextSource = {
-			lines: value.lines,
-			length: value.length,
-			BOM: value.BOM,
-			EOL: value.EOL,
-			containsRTL: value.containsRTL,
-			isBasicASCII: value.isBasicASCII,
-		};
+		const textBuffer = createTextBuffer(value, DefaultEndOfLine.CRLF);
 
-		if (!model.equals(raw)) {
-			model.setValueFromTextSource(raw);
+		if (!model.equalsTextBuffer(textBuffer)) {
+			model.setValueFromTextBuffer(textBuffer);
 		}
 	}
 }

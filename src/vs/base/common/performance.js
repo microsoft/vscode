@@ -10,7 +10,7 @@
 // This module can be loaded in an amd and commonjs-context.
 // Because we want both instances to use the same perf-data
 // we store them globally
-global._performanceEntries = global._performanceEntries || [];
+// stores data as 'type','name','startTime','duration'
 
 if (typeof define !== "function" && typeof module === "object" && typeof module.exports === "object") {
 	// this is commonjs, fake amd
@@ -22,45 +22,77 @@ if (typeof define !== "function" && typeof module === "object" && typeof module.
 
 define([], function () {
 
+	var _global = this;
+	if (typeof global !== 'undefined') {
+		_global = global;
+	}
+	_global._performanceEntries = _global._performanceEntries || [];
+
 	// const _now = global.performance && performance.now ? performance.now : Date.now
 	const _now = Date.now;
-
-	class PerformanceEntry {
-		constructor(type, name, startTime, duration) {
-			this.type = type;
-			this.name = name;
-			this.startTime = startTime;
-			this.duration = duration;
-		}
-	}
-
-	function _getEntry(type, name) {
-		for (let i = global._performanceEntries.length - 1; i >= 0; i--) {
-			if (
-				(type === undefined || global._performanceEntries[i].type === type) &&
-				(name === undefined || global._performanceEntries[i].name === name)
-			) {
-				return global._performanceEntries[i];
-			}
-		}
-	}
 
 	function importEntries(entries) {
 		global._performanceEntries.splice(0, 0, ...entries);
 	}
 
+	function exportEntries() {
+		return global._performanceEntries.slice(0);
+	}
+
 	function getEntries(type, name) {
-		return global._performanceEntries.filter(entry => {
-			return (type === undefined || entry.type === type) &&
-				(name === undefined || entry.name === name);
-		}).sort((a, b) => {
+		const result = [];
+		const entries = global._performanceEntries;
+		for (let i = 0; i < entries.length; i += 4) {
+			if (entries[i] === type && (name === void 0 || entries[i + 1] === name)) {
+				result.push({
+					type: entries[i],
+					name: entries[i + 1],
+					startTime: entries[i + 2],
+					duration: entries[i + 3],
+				});
+			}
+		}
+
+		return result.sort((a, b) => {
 			return a.startTime - b.startTime;
 		});
 	}
 
+	function getEntry(type, name) {
+		const entries = global._performanceEntries;
+		for (let i = 0; i < entries.length; i += 4) {
+			if (entries[i] === type && entries[i + 1] === name) {
+				return {
+					type: entries[i],
+					name: entries[i + 1],
+					startTime: entries[i + 2],
+					duration: entries[i + 3],
+				};
+			}
+		}
+	}
+
+	function getDuration(from, to) {
+		const entries = global._performanceEntries;
+		let name = from;
+		let startTime = 0;
+		for (let i = 0; i < entries.length; i += 4) {
+			if (entries[i + 1] === name) {
+				if (name === from) {
+					// found `from` (start of interval)
+					name = to;
+					startTime = entries[i + 2];
+				} else {
+					// from `to` (end of interval)
+					return entries[i + 2] - startTime;
+				}
+			}
+		}
+		return 0;
+	}
+
 	function mark(name) {
-		const entry = new PerformanceEntry('mark', name, _now(), 0);
-		global._performanceEntries.push(entry);
+		global._performanceEntries.push('mark', name, _now(), 0);
 		if (typeof console.timeStamp === 'function') {
 			console.timeStamp(name);
 		}
@@ -81,17 +113,27 @@ define([], function () {
 		if (!from) {
 			startTime = now;
 		} else {
-			startTime = _getEntry(undefined, from).startTime;
+			startTime = _getLastStartTime(from);
 		}
 
 		if (!to) {
 			duration = now - startTime;
 		} else {
-			duration = _getEntry(undefined, to).startTime - startTime;
+			duration = _getLastStartTime(to) - startTime;
 		}
 
-		const entry = new PerformanceEntry('measure', name, startTime, duration);
-		global._performanceEntries.push(entry);
+		global._performanceEntries.push('measure', name, startTime, duration);
+	}
+
+	function _getLastStartTime(name) {
+		const entries = global._performanceEntries;
+		for (let i = entries.length - 1; i >= 0; i -= 4) {
+			if (entries[i - 2] === name) {
+				return entries[i - 1];
+			}
+		}
+
+		throw new Error(name + ' not found');
 	}
 
 	var exports = {
@@ -99,7 +141,10 @@ define([], function () {
 		measure: measure,
 		time: time,
 		getEntries: getEntries,
-		importEntries: importEntries
+		getEntry: getEntry,
+		getDuration: getDuration,
+		importEntries: importEntries,
+		exportEntries: exportEntries
 	};
 
 	return exports;

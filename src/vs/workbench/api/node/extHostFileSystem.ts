@@ -4,29 +4,77 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystemShape } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { IStat } from 'vs/platform/files/common/files';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { asWinJsPromise } from 'vs/base/common/async';
+import { IPatternInfo } from 'vs/platform/search/common/search';
+import { values } from 'vs/base/common/map';
+import { Range } from 'vs/workbench/api/node/extHostTypes';
+import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
+import { IProgress } from 'vs/platform/progress/common/progress';
+
+class FsLinkProvider implements vscode.DocumentLinkProvider {
+
+	private _schemes = new Set<string>();
+	private _regex: RegExp;
+
+	add(scheme: string): void {
+		this._regex = undefined;
+		this._schemes.add(scheme);
+	}
+
+	delete(scheme: string): void {
+		if (this._schemes.delete(scheme)) {
+			this._regex = undefined;
+		}
+	}
+
+	provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.ProviderResult<vscode.DocumentLink[]> {
+		if (this._schemes.size === 0) {
+			return undefined;
+		}
+		if (!this._regex) {
+			this._regex = new RegExp(`(${(values(this._schemes).join('|'))}):[^\\s]+`, 'gi');
+		}
+		let result: vscode.DocumentLink[] = [];
+		let max = Math.min(document.lineCount, 2500);
+		for (let line = 0; line < max; line++) {
+			this._regex.lastIndex = 0;
+			let textLine = document.lineAt(line);
+			let m: RegExpMatchArray;
+			while (m = this._regex.exec(textLine.text)) {
+				const target = URI.parse(m[0]);
+				const range = new Range(line, this._regex.lastIndex - m[0].length, line, this._regex.lastIndex);
+				result.push({ target, range });
+			}
+		}
+		return result;
+	}
+}
 
 export class ExtHostFileSystem implements ExtHostFileSystemShape {
 
 	private readonly _proxy: MainThreadFileSystemShape;
-	private readonly _provider = new Map<number, vscode.FileSystemProvider>();
+	private readonly _fsProvider = new Map<number, vscode.FileSystemProvider>();
+	private readonly _searchProvider = new Map<number, vscode.SearchProvider>();
+	private readonly _linkProvider = new FsLinkProvider();
+
 	private _handlePool: number = 0;
 
-	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.get(MainContext.MainThreadFileSystem);
+	constructor(mainContext: IMainContext, extHostLanguageFeatures: ExtHostLanguageFeatures) {
+		this._proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
+		extHostLanguageFeatures.registerDocumentLinkProvider('*', this._linkProvider);
 	}
 
 	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider) {
 		const handle = this._handlePool++;
-		this._provider.set(handle, provider);
+		this._linkProvider.add(scheme);
+		this._fsProvider.set(handle, provider);
 		this._proxy.$registerFileSystemProvider(handle, scheme);
-		this._proxy.$onDidAddFileSystemRoot(<any>provider.root);
 		let reg: IDisposable;
 		if (provider.onDidChange) {
 			reg = provider.onDidChange(event => this._proxy.$onFileSystemChange(handle, <any>event));
@@ -36,50 +84,87 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 				if (reg) {
 					reg.dispose();
 				}
-				this._provider.delete(handle);
-				this._proxy.$unregisterFileSystemProvider(handle);
+				this._linkProvider.delete(scheme);
+				this._fsProvider.delete(handle);
+				this._proxy.$unregisterProvider(handle);
 			}
 		};
 	}
 
-	$utimes(handle: number, resource: URI, mtime: number, atime: number): TPromise<IStat, any> {
-		return asWinJsPromise(token => this._provider.get(handle).utimes(resource, mtime, atime));
-	}
-	$stat(handle: number, resource: URI): TPromise<IStat, any> {
-		return asWinJsPromise(token => this._provider.get(handle).stat(resource));
-	}
-	$read(handle: number, offset: number, count: number, resource: URI): TPromise<number> {
-		const progress = {
-			report: chunk => {
-				this._proxy.$reportFileChunk(handle, resource, [].slice.call(chunk));
+	registerSearchProvider(scheme: string, provider: vscode.SearchProvider) {
+		const handle = this._handlePool++;
+		this._searchProvider.set(handle, provider);
+		this._proxy.$registerSearchProvider(handle, scheme);
+		return {
+			dispose: () => {
+				this._searchProvider.delete(handle);
+				this._proxy.$unregisterProvider(handle);
 			}
 		};
-		return asWinJsPromise(token => this._provider.get(handle).read(resource, offset, count, progress));
 	}
-	$write(handle: number, resource: URI, content: number[]): TPromise<void, any> {
-		return asWinJsPromise(token => this._provider.get(handle).write(resource, Buffer.from(content)));
+
+	$utimes(handle: number, resource: UriComponents, mtime: number, atime: number): TPromise<IStat, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).utimes(URI.revive(resource), mtime, atime));
 	}
-	$unlink(handle: number, resource: URI): TPromise<void, any> {
-		return asWinJsPromise(token => this._provider.get(handle).unlink(resource));
+	$stat(handle: number, resource: UriComponents): TPromise<IStat, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).stat(URI.revive(resource)));
 	}
-	$move(handle: number, resource: URI, target: URI): TPromise<IStat, any> {
-		return asWinJsPromise(token => this._provider.get(handle).move(resource, target));
+	$read(handle: number, session: number, offset: number, count: number, resource: UriComponents): TPromise<number> {
+		const progress: IProgress<Uint8Array> = {
+			report: chunk => {
+				let base64Chunk = Buffer.isBuffer(chunk)
+					? chunk.toString('base64')
+					: Buffer.from(chunk.buffer).toString('base64');
+
+				this._proxy.$reportFileChunk(handle, session, base64Chunk);
+			}
+		};
+		return asWinJsPromise(token => this._fsProvider.get(handle).read(URI.revive(resource), offset, count, progress));
 	}
-	$mkdir(handle: number, resource: URI): TPromise<IStat, any> {
-		return asWinJsPromise(token => this._provider.get(handle).mkdir(resource));
+	$write(handle: number, resource: UriComponents, base64Content: string): TPromise<void, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).write(URI.revive(resource), Buffer.from(base64Content, 'base64')));
 	}
-	$readdir(handle: number, resource: URI): TPromise<[URI, IStat][], any> {
-		return asWinJsPromise(token => this._provider.get(handle).readdir(resource));
+	$unlink(handle: number, resource: UriComponents): TPromise<void, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).unlink(URI.revive(resource)));
 	}
-	$rmdir(handle: number, resource: URI): TPromise<void, any> {
-		return asWinJsPromise(token => this._provider.get(handle).rmdir(resource));
+	$move(handle: number, resource: UriComponents, target: UriComponents): TPromise<IStat, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).move(URI.revive(resource), URI.revive(target)));
 	}
-	$fileFiles(handle: number, session: number, query: string): TPromise<void> {
-		const provider = this._provider.get(handle);
-		if (!provider.findFiles) {
+	$mkdir(handle: number, resource: UriComponents): TPromise<IStat, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).mkdir(URI.revive(resource)));
+	}
+	$readdir(handle: number, resource: UriComponents): TPromise<[UriComponents, IStat][], any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).readdir(URI.revive(resource)));
+	}
+	$rmdir(handle: number, resource: UriComponents): TPromise<void, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).rmdir(URI.revive(resource)));
+	}
+	$provideFileSearchResults(handle: number, session: number, query: string): TPromise<void> {
+		const provider = this._searchProvider.get(handle);
+		if (!provider.provideFileSearchResults) {
 			return TPromise.as(undefined);
 		}
-		const progress = { report: (uri) => this._proxy.$handleSearchProgress(handle, session, uri) };
-		return asWinJsPromise(token => provider.findFiles(query, progress, token));
+		const progress = {
+			report: (uri) => {
+				this._proxy.$handleFindMatch(handle, session, uri);
+			}
+		};
+		return asWinJsPromise(token => provider.provideFileSearchResults(query, progress, token));
+	}
+	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, options: { includes: string[], excludes: string[] }): TPromise<void> {
+		const provider = this._searchProvider.get(handle);
+		if (!provider.provideTextSearchResults) {
+			return TPromise.as(undefined);
+		}
+		const progress = {
+			report: (data: vscode.TextSearchResult) => {
+				this._proxy.$handleFindMatch(handle, session, [data.uri, {
+					lineNumber: data.range.start.line,
+					preview: data.preview.leading + data.preview.matching + data.preview.trailing,
+					offsetAndLengths: [[data.preview.leading.length, data.preview.matching.length]]
+				}]);
+			}
+		};
+		return asWinJsPromise(token => provider.provideTextSearchResults(pattern, options, progress, token));
 	}
 }

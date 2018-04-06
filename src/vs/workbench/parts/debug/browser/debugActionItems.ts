@@ -12,7 +12,6 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
@@ -20,12 +19,14 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
 const $ = dom.$;
 
-export class StartDebugActionItem extends EventEmitter implements IActionItem {
+export class StartDebugActionItem implements IActionItem {
 
-	private static SEPARATOR = '─────────';
+	private static readonly SEPARATOR = '─────────';
 
 	public actionRunner: IActionRunner;
 	private container: HTMLElement;
@@ -41,11 +42,12 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		@IDebugService private debugService: IDebugService,
 		@IThemeService private themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private commandService: ICommandService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IContextViewService contextViewService: IContextViewService,
 	) {
-		super();
 		this.toDispose = [];
-		this.selectBox = new SelectBox([], -1);
+		this.selectBox = new SelectBox([], -1, contextViewService);
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService, {
 			selectBackground: SIDE_BAR_BACKGROUND
 		}));
@@ -153,12 +155,13 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		this.options = [];
 		const manager = this.debugService.getConfigurationManager();
 		const launches = manager.getLaunches();
-		manager.getLaunches().forEach(launch =>
+		const inWorkspace = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
+		launches.forEach(launch =>
 			launch.getConfigurationNames().forEach(name => {
-				if (name === manager.selectedName && launch === manager.selectedLaunch) {
+				if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
 					this.selected = this.options.length;
 				}
-				const label = launches.length > 1 ? `${name} (${launch.workspace.name})` : name;
+				const label = inWorkspace ? `${name} (${launch.name})` : name;
 				this.options.push({ label, handler: () => { manager.selectConfiguration(launch, name); return true; } });
 			}));
 
@@ -168,11 +171,11 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		this.options.push({ label: StartDebugActionItem.SEPARATOR, handler: undefined });
 
 		const disabledIdx = this.options.length - 1;
-		launches.forEach(l => {
-			const label = launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.workspace.name) : nls.localize('addConfiguration', "Add Configuration...");
+		launches.filter(l => !l.hidden).forEach(l => {
+			const label = inWorkspace ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
 			this.options.push({
 				label, handler: () => {
-					this.commandService.executeCommand('debug.addConfiguration', l.workspace.uri.toString()).done(undefined, errors.onUnexpectedError);
+					this.commandService.executeCommand('debug.addConfiguration', l.uri.toString()).done(undefined, errors.onUnexpectedError);
 					return false;
 				}
 			});
@@ -186,9 +189,10 @@ export class FocusProcessActionItem extends SelectActionItem {
 	constructor(
 		action: IAction,
 		@IDebugService private debugService: IDebugService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, [], -1);
+		super(null, action, [], -1, contextViewService);
 
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 

@@ -12,10 +12,10 @@ const RENAME_INPUT = `${RENAME_BOX} .rename-input`;
 
 export class Editor {
 
-	private static VIEW_LINES = '.monaco-editor .view-lines';
-	private static LINE_NUMBERS = '.monaco-editor .margin .margin-view-overlays .line-numbers';
-	private static FOLDING_EXPANDED = '.monaco-editor .margin .margin-view-overlays>:nth-child(${INDEX}) .folding';
-	private static FOLDING_COLLAPSED = `${Editor.FOLDING_EXPANDED}.collapsed`;
+	private static readonly VIEW_LINES = '.monaco-editor .view-lines';
+	private static readonly LINE_NUMBERS = '.monaco-editor .margin .margin-view-overlays .line-numbers';
+	private static readonly FOLDING_EXPANDED = '.monaco-editor .margin .margin-view-overlays>:nth-child(${INDEX}) .folding';
+	private static readonly FOLDING_COLLAPSED = `${Editor.FOLDING_EXPANDED}.collapsed`;
 
 	constructor(private spectron: SpectronApplication) {
 	}

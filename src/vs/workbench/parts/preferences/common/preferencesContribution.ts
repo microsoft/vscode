@@ -8,12 +8,12 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IModel } from 'vs/editor/common/editorCommon';
-import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
+import { ITextModel } from 'vs/editor/common/model';
+import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IPreferencesService, FOLDER_SETTINGS_PATH, DEFAULT_SETTINGS_EDITOR_SETTING } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, FOLDER_SETTINGS_PATH, DEFAULT_SETTINGS_EDITOR_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { endsWith } from 'vs/base/common/strings';
@@ -103,14 +103,10 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		}
 	}
 
-	public getId(): string {
-		return 'vs.contentprovider';
-	}
-
 	private start(): void {
 
 		this.textModelResolverService.registerTextModelContentProvider('vscode', {
-			provideTextContent: (uri: URI): TPromise<IModel> => {
+			provideTextContent: (uri: URI): TPromise<ITextModel> => {
 				if (uri.scheme !== 'vscode') {
 					return null;
 				}
@@ -125,11 +121,11 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		});
 	}
 
-	private getSchemaModel(uri: URI): IModel {
+	private getSchemaModel(uri: URI): ITextModel {
 		let schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
 		if (schema) {
 			const modelContent = JSON.stringify(schema);
-			const mode = this.modeService.getOrCreateMode('json');
+			const mode = this.modeService.getOrCreateMode('jsonc');
 			const model = this.modelService.createModel(modelContent, mode, uri);
 
 			let disposables = [];

@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import * as collections from 'vs/base/common/collections';
+import * as strings from 'vs/base/common/strings';
 import * as glob from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
-import * as strings from 'vs/base/common/strings';
 import uri from 'vs/base/common/uri';
+import { untildify } from 'vs/base/common/labels';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IPatternInfo, IQueryOptions, IFolderQuery, ISearchQuery, QueryType, ISearchConfiguration, getExcludes, pathIncludedInQuery } from 'vs/platform/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface ISearchPathPattern {
 	searchPath: uri;
@@ -30,8 +32,9 @@ export class QueryBuilder {
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService) {
-	}
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService
+	) { }
 
 	public text(contentPattern: IPatternInfo, folderResources?: uri[], options?: IQueryOptions): ISearchQuery {
 		return this.query(QueryType.Text, contentPattern, folderResources, options);
@@ -41,7 +44,7 @@ export class QueryBuilder {
 		return this.query(QueryType.File, null, folderResources, options);
 	}
 
-	private query(type: QueryType, contentPattern: IPatternInfo, folderResources?: uri[], options: IQueryOptions = {}): ISearchQuery {
+	private query(type: QueryType, contentPattern?: IPatternInfo, folderResources?: uri[], options: IQueryOptions = {}): ISearchQuery {
 		let { searchPaths, pattern: includePattern } = this.parseSearchPaths(options.includePattern);
 		let excludePattern = this.parseExcludePattern(options.excludePattern);
 
@@ -67,6 +70,10 @@ export class QueryBuilder {
 		});
 
 		const ignoreSymlinks = !this.configurationService.getValue<ISearchConfiguration>().search.followSymlinks;
+
+		if (contentPattern) {
+			this.resolveSmartCaseToCaseSensitive(contentPattern);
+		}
 
 		const query = <ISearchQuery>{
 			type,
@@ -94,6 +101,22 @@ export class QueryBuilder {
 	}
 
 	/**
+	 * Fix the isCaseSensitive flag based on the query and the isSmartCase flag, for search providers that don't support smart case natively.
+	 */
+	private resolveSmartCaseToCaseSensitive(contentPattern: IPatternInfo): void {
+		if (contentPattern.isSmartCase) {
+			if (contentPattern.isRegExp) {
+				// Consider it case sensitive if it contains an unescaped capital letter
+				if (strings.containsUppercaseCharacter(contentPattern.pattern, true)) {
+					contentPattern.isCaseSensitive = true;
+				}
+			} else if (strings.containsUppercaseCharacter(contentPattern.pattern)) {
+				contentPattern.isCaseSensitive = true;
+			}
+		}
+	}
+
+	/**
 	 * Take the includePattern as seen in the search viewlet, and split into components that look like searchPaths, and
 	 * glob patterns. Glob patterns are expanded from 'foo/bar' to '{foo/bar/**, **\/foo/bar}.
 	 *
@@ -101,11 +124,12 @@ export class QueryBuilder {
 	 */
 	public parseSearchPaths(pattern: string): ISearchPathsResult {
 		const isSearchPath = (segment: string) => {
-			// A segment is a search path if it is an absolute path or starts with ./
-			return paths.isAbsolute(segment) || strings.startsWith(segment, './') || strings.startsWith(segment, '.\\');
+			// A segment is a search path if it is an absolute path or starts with ./, ../, .\, or ..\
+			return paths.isAbsolute(segment) || /^\.\.?[\/\\]/.test(segment);
 		};
 
-		const segments = splitGlobPattern(pattern);
+		const segments = splitGlobPattern(pattern)
+			.map(segment => untildify(segment, this.environmentService.userHome));
 		const groups = collections.groupBy(segments,
 			segment => isSearchPath(segment) ? 'searchPaths' : 'exprSegments');
 
@@ -134,7 +158,7 @@ export class QueryBuilder {
 	}
 
 	/**
-	 * Takes the input from the excludePattern as seen in the searchViewlet. Runs the same algorithm as parseSearchPaths,
+	 * Takes the input from the excludePattern as seen in the searchView. Runs the same algorithm as parseSearchPaths,
 	 * but the result is a single IExpression that encapsulates all the exclude patterns.
 	 */
 	public parseExcludePattern(pattern: string): glob.IExpression | undefined {
@@ -158,6 +182,28 @@ export class QueryBuilder {
 		return Object.keys(excludeExpression).length ? excludeExpression : undefined;
 	}
 
+	/**
+	 * A helper that splits positive and negative patterns from a string that combines both.
+	 */
+	public parseIncludeExcludePattern(pattern: string): { includePattern?: string, excludePattern?: string } {
+		const grouped = collections.groupBy(
+			splitGlobPattern(pattern),
+			s => strings.startsWith(s, '!') ? 'excludePattern' : 'includePattern');
+
+		const result = {};
+		if (grouped.includePattern) {
+			result['includePattern'] = grouped.includePattern.join(', ');
+		}
+
+		if (grouped.excludePattern) {
+			result['excludePattern'] = grouped.excludePattern
+				.map(s => strings.ltrim(s, '!'))
+				.join(', ');
+		}
+
+		return result;
+	}
+
 	private mergeExcludesFromFolderQueries(folderQueries: IFolderQuery[]): glob.IExpression | undefined {
 		const mergedExcludes = folderQueries.reduce((merged: glob.IExpression, fq: IFolderQuery) => {
 			if (fq.excludePattern) {
@@ -176,7 +222,7 @@ export class QueryBuilder {
 			.reduce((absExpr: glob.IExpression, key: string) => {
 				if (expr[key] && !paths.isAbsolute(key)) {
 					const absPattern = paths.join(root, key);
-					absExpr[absPattern] = true;
+					absExpr[absPattern] = expr[key];
 				}
 
 				return absExpr;

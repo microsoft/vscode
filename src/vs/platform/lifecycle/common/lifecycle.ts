@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
@@ -19,9 +19,16 @@ export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleSe
  * a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
  */
 export interface ShutdownEvent {
+
+	/**
+	 * Allows to veto the shutdown. The veto can be a long running operation.
+	 */
 	veto(value: boolean | TPromise<boolean>): void;
+
+	/**
+	 * The reason why Code is shutting down.
+	 */
 	reason: ShutdownReason;
-	payload?: object;
 }
 
 export enum ShutdownReason {
@@ -49,7 +56,7 @@ export enum LifecyclePhase {
 	Starting = 1,
 	Restoring = 2,
 	Running = 3,
-	ShuttingDown = 4
+	Eventually = 4
 }
 
 /**

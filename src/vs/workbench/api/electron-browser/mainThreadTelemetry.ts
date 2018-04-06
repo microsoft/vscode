@@ -11,7 +11,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 @extHostNamedCustomer(MainContext.MainThreadTelemetry)
 export class MainThreadTelemetry implements MainThreadTelemetryShape {
 
-	private static _name = 'pluginHostTelemetry';
+	private static readonly _name = 'pluginHostTelemetry';
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -25,11 +25,7 @@ export class MainThreadTelemetry implements MainThreadTelemetryShape {
 	}
 
 	$publicLog(eventName: string, data: any = Object.create(null)): void {
-		/* __GDPR__FRAGMENT__
-			"MainThreadData" : {
-				"pluginHostTelemetry" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
+		// __GDPR__COMMON__ "pluginHostTelemetry" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		data[MainThreadTelemetry._name] = true;
 		this._telemetryService.publicLog(eventName, data);
 	}

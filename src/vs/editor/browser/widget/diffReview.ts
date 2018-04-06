@@ -11,7 +11,7 @@ import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { renderViewLine2 as renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { Position } from 'vs/editor/common/core/position';
 import { ColorId, MetadataConsts, FontStyle } from 'vs/editor/common/modes';
@@ -28,6 +28,8 @@ import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -607,8 +609,8 @@ export class DiffReview extends Disposable {
 
 	private static _renderSection(
 		dest: HTMLElement, diffEntry: DiffEntry, modLine: number, width: number,
-		originalOpts: editorOptions.InternalEditorOptions, originalModel: editorCommon.IModel, originalModelOpts: editorCommon.TextModelResolvedOptions,
-		modifiedOpts: editorOptions.InternalEditorOptions, modifiedModel: editorCommon.IModel, modifiedModelOpts: editorCommon.TextModelResolvedOptions
+		originalOpts: editorOptions.InternalEditorOptions, originalModel: ITextModel, originalModelOpts: TextModelResolvedOptions,
+		modifiedOpts: editorOptions.InternalEditorOptions, modifiedModel: ITextModel, modifiedModelOpts: TextModelResolvedOptions
 	): void {
 
 		const type = diffEntry.getType();
@@ -722,7 +724,7 @@ export class DiffReview extends Disposable {
 		}
 	}
 
-	private static _renderLine(model: editorCommon.IModel, config: editorOptions.InternalEditorOptions, tabSize: number, lineNumber: number): string {
+	private static _renderLine(model: ITextModel, config: editorOptions.InternalEditorOptions, tabSize: number, lineNumber: number): string {
 		const lineContent = model.getLineContent(lineNumber);
 
 		const defaultMetadata = (
@@ -731,12 +733,21 @@ export class DiffReview extends Disposable {
 			| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
 		) >>> 0;
 
+		const tokens = new Uint32Array(2);
+		tokens[0] = lineContent.length;
+		tokens[1] = defaultMetadata;
+
+		const lineTokens = new LineTokens(tokens, lineContent);
+
+		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, model.mightContainNonBasicASCII());
+		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
 		const r = renderViewLine(new RenderLineInput(
 			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
 			lineContent,
-			model.mightContainRTL(),
+			isBasicASCII,
+			containsRTL,
 			0,
-			[new ViewLineToken(lineContent.length, defaultMetadata)],
+			lineTokens,
 			[],
 			tabSize,
 			config.fontInfo.spaceWidth,

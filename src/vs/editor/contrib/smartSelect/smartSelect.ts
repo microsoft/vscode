@@ -42,7 +42,7 @@ var ignoreSelection = false;
 
 class SmartSelectController implements IEditorContribution {
 
-	private static ID = 'editor.contrib.smartSelectController';
+	private static readonly ID = 'editor.contrib.smartSelectController';
 
 	public static get(editor: ICodeEditor): SmartSelectController {
 		return editor.getContribution<SmartSelectController>(SmartSelectController.ID);
@@ -171,7 +171,7 @@ class GrowSelectionAction extends AbstractSmartSelect {
 			alias: 'Expand Select',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow }
 			}
@@ -187,7 +187,7 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 			alias: 'Shrink Select',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow }
 			}

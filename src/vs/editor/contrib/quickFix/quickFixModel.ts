@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
+import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CodeActionProviderRegistry, CodeAction, Command } from 'vs/editor/common/modes';
+import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
 import { getCodeActions } from './quickFix';
+import { CodeActionTrigger } from './codeActionTrigger';
 import { Position } from 'vs/editor/common/core/position';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
@@ -36,26 +37,26 @@ export class QuickFixOracle {
 		this._disposables = dispose(this._disposables);
 	}
 
-	trigger(type: 'manual' | 'auto'): void {
+	trigger(trigger: CodeActionTrigger): void {
 		let rangeOrSelection = this._getRangeOfMarker() || this._getRangeOfSelectionUnlessWhitespaceEnclosed();
-		if (!rangeOrSelection && type === 'manual') {
+		if (!rangeOrSelection && trigger.type === 'manual') {
 			rangeOrSelection = this._editor.getSelection();
 		}
-		this._createEventAndSignalChange(type, rangeOrSelection);
+		this._createEventAndSignalChange(trigger, rangeOrSelection);
 	}
 
 	private _onMarkerChanges(resources: URI[]): void {
 		const { uri } = this._editor.getModel();
 		for (const resource of resources) {
 			if (resource.toString() === uri.toString()) {
-				this.trigger('auto');
+				this.trigger({ type: 'auto' });
 				return;
 			}
 		}
 	}
 
 	private _onCursorChange(): void {
-		this.trigger('auto');
+		this.trigger({ type: 'auto' });
 	}
 
 	private _getRangeOfMarker(): Range {
@@ -98,33 +99,24 @@ export class QuickFixOracle {
 		return selection;
 	}
 
-	private _createEventAndSignalChange(type: 'auto' | 'manual', rangeOrSelection: Range | Selection): void {
+	private _createEventAndSignalChange(trigger: CodeActionTrigger, rangeOrSelection: Range | Selection): void {
 		if (!rangeOrSelection) {
 			// cancel
 			this._signalChange({
-				type,
+				trigger,
 				range: undefined,
 				position: undefined,
-				fixes: undefined
+				fixes: undefined,
 			});
 		} else {
 			// actual
 			const model = this._editor.getModel();
 			const range = model.validateRange(rangeOrSelection);
 			const position = rangeOrSelection instanceof Selection ? rangeOrSelection.getPosition() : rangeOrSelection.getStartPosition();
-
-			const fixes = getCodeActions(model, range).then(actions =>
-				actions.map(action => {
-					if ('id' in action) {
-						// must be a command
-						const command = action as Command;
-						return { title: command.title, command: command } as CodeAction;
-					}
-					return action;
-				}));
+			const fixes = getCodeActions(model, range, trigger && trigger.kind);
 
 			this._signalChange({
-				type,
+				trigger,
 				range,
 				position,
 				fixes
@@ -134,7 +126,7 @@ export class QuickFixOracle {
 }
 
 export interface QuickFixComputeEvent {
-	type: 'auto' | 'manual';
+	trigger: CodeActionTrigger;
 	range: Range;
 	position: Position;
 	fixes: TPromise<CodeAction[]>;
@@ -181,13 +173,13 @@ export class QuickFixModel {
 			&& !this._editor.getConfiguration().readOnly) {
 
 			this._quickFixOracle = new QuickFixOracle(this._editor, this._markerService, p => this._onDidChangeFixes.fire(p));
-			this._quickFixOracle.trigger('auto');
+			this._quickFixOracle.trigger({ type: 'auto' });
 		}
 	}
 
-	trigger(type: 'auto' | 'manual'): void {
+	trigger(trigger: CodeActionTrigger): void {
 		if (this._quickFixOracle) {
-			this._quickFixOracle.trigger(type);
+			this._quickFixOracle.trigger(trigger);
 		}
 	}
 }

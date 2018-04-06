@@ -60,26 +60,26 @@ export class SettingsDocument {
 	private provideFilesAssociationsCompletionItems(location: Location, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[]> {
 		const completions: vscode.CompletionItem[] = [];
 
-		// Key
-		if (location.path.length === 1) {
-			completions.push(this.newSnippetCompletionItem({
-				label: localize('assocLabelFile', "Files with Extension"),
-				documentation: localize('assocDescriptionFile', "Map all files matching the glob pattern in their filename to the language with the given identifier."),
-				snippet: location.isAtPropertyKey ? '"*.${1:extension}": "${2:language}"' : '{ "*.${1:extension}": "${2:language}" }',
-				range
-			}));
+		if (location.path.length === 2) {
+			// Key
+			if (!location.isAtPropertyKey || location.path[1] === '') {
+				completions.push(this.newSnippetCompletionItem({
+					label: localize('assocLabelFile', "Files with Extension"),
+					documentation: localize('assocDescriptionFile', "Map all files matching the glob pattern in their filename to the language with the given identifier."),
+					snippet: location.isAtPropertyKey ? '"*.${1:extension}": "${2:language}"' : '{ "*.${1:extension}": "${2:language}" }',
+					range
+				}));
 
-			completions.push(this.newSnippetCompletionItem({
-				label: localize('assocLabelPath', "Files with Path"),
-				documentation: localize('assocDescriptionPath', "Map all files matching the absolute path glob pattern in their path to the language with the given identifier."),
-				snippet: location.isAtPropertyKey ? '"/${1:path to file}/*.${2:extension}": "${3:language}"' : '{ "/${1:path to file}/*.${2:extension}": "${3:language}" }',
-				range
-			}));
-		}
-
-		// Value
-		else if (location.path.length === 2 && !location.isAtPropertyKey) {
-			return this.provideLanguageCompletionItems(location, range);
+				completions.push(this.newSnippetCompletionItem({
+					label: localize('assocLabelPath', "Files with Path"),
+					documentation: localize('assocDescriptionPath', "Map all files matching the absolute path glob pattern in their path to the language with the given identifier."),
+					snippet: location.isAtPropertyKey ? '"/${1:path to file}/*.${2:extension}": "${3:language}"' : '{ "/${1:path to file}/*.${2:extension}": "${3:language}" }',
+					range
+				}));
+			} else {
+				// Value
+				return this.provideLanguageCompletionItems(location, range);
+			}
 		}
 
 		return Promise.resolve(completions);
@@ -151,18 +151,34 @@ export class SettingsDocument {
 
 	private provideLanguageCompletionItems(location: Location, range: vscode.Range, formatFunc: (string: string) => string = (l) => JSON.stringify(l)): vscode.ProviderResult<vscode.CompletionItem[]> {
 		return vscode.languages.getLanguages().then(languages => {
-			return languages.map(l => {
-				return this.newSimpleCompletionItem(formatFunc(l), range);
-			});
+			const completionItems = [];
+			const configuration = vscode.workspace.getConfiguration();
+			for (const language of languages) {
+				const inspect = configuration.inspect(`[${language}]`);
+				if (!inspect || !inspect.defaultValue) {
+					const item = new vscode.CompletionItem(formatFunc(language));
+					item.kind = vscode.CompletionItemKind.Property;
+					item.range = range;
+					completionItems.push(item);
+				}
+			}
+			return completionItems;
 		});
 	}
 
 	private provideLanguageOverridesCompletionItems(location: Location, position: vscode.Position): vscode.ProviderResult<vscode.CompletionItem[]> {
-		let range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
-		const text = this.document.getText(range);
 
 		if (location.path.length === 0) {
 
+			let range = this.document.getWordRangeAtPosition(position, /^\s*\[.*]?/) || new vscode.Range(position, position);
+			let text = this.document.getText(range);
+			if (text && text.trim().startsWith('[')) {
+				range = new vscode.Range(new vscode.Position(range.start.line, range.start.character + text.indexOf('[')), range.end);
+				return this.provideLanguageCompletionItems(location, range, language => `"[${language}]"`);
+			}
+
+			range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
+			text = this.document.getText(range);
 			let snippet = '"[${1:language}]": {\n\t"$0"\n}';
 
 			// Suggestion model word matching includes quotes,
@@ -184,6 +200,7 @@ export class SettingsDocument {
 		if (location.path.length === 1 && location.previousNode && typeof location.previousNode.value === 'string' && location.previousNode.value.startsWith('[')) {
 			// Suggestion model word matching includes closed sqaure bracket and ending quote
 			// Hence include them in the proposal to replace
+			let range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 			return this.provideLanguageCompletionItems(location, range, language => `"[${language}]"`);
 		}
 		return Promise.resolve([]);

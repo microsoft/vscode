@@ -6,23 +6,20 @@
 'use strict';
 
 import 'vs/css!./media/compositepart';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Dimension, Builder, $ } from 'vs/base/browser/builder';
-import events = require('vs/base/common/events');
-import strings = require('vs/base/common/strings');
+import { Builder, $ } from 'vs/base/browser/builder';
+import * as strings from 'vs/base/common/strings';
 import { Emitter } from 'vs/base/common/event';
-import types = require('vs/base/common/types');
-import errors = require('vs/base/common/errors');
-import * as DOM from 'vs/base/browser/dom';
+import * as types from 'vs/base/common/types';
+import * as errors from 'vs/base/common/errors';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { CONTEXT as ToolBarContext, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actions';
+import { prepareActions } from 'vs/workbench/browser/actions';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Part, IPartOptions } from 'vs/workbench/browser/part';
 import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
@@ -33,12 +30,13 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Dimension, EventType } from 'vs/base/browser/dom';
 
 export interface ICompositeTitleLabel {
 
@@ -71,7 +69,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	protected _onDidCompositeClose = new Emitter<IComposite>();
 
 	constructor(
-		private messageService: IMessageService,
+		private notificationService: INotificationService,
 		private storageService: IStorageService,
 		private telemetryService: ITelemetryService,
 		protected contextMenuService: IContextMenuService,
@@ -84,7 +82,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		private defaultCompositeId: string,
 		private nameForTelemetry: string,
 		private compositeCSSClass: string,
-		private actionContributionScope: string,
 		private titleForegroundColor: string,
 		id: string,
 		options: IPartOptions
@@ -226,8 +223,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			compositeContainer = $().div({
 				'class': ['composite', this.compositeCSSClass],
 				id: composite.getId()
-			}, (div: Builder) => {
-				createCompositePromise = composite.create(div).then(() => {
+			}, div => {
+				createCompositePromise = composite.create(div.getHTMLElement()).then(() => {
 					composite.updateStyles();
 				});
 			});
@@ -282,11 +279,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			}
 
 			// Action Run Handling
-			this.telemetryActionsListener = this.toolBar.actionRunner.addListener(events.EventType.RUN, (e: any) => {
+			this.telemetryActionsListener = this.toolBar.actionRunner.onDidRun(e => {
 
 				// Check for Error
 				if (e.error && !errors.isPromiseCanceledError(e.error)) {
-					this.messageService.show(Severity.Error, e.error);
+					this.notificationService.error(e.error);
 				}
 
 				// Log in telemetry
@@ -314,7 +311,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 					composite.layout(this.contentAreaSize);
 				}
 			});
-		}, (error: any) => this.onError(error));
+		}, error => this.onError(error));
 	}
 
 	protected onTitleAreaUpdate(compositeId: string): void {
@@ -364,11 +361,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		primaryActions.push(...this.getActions());
 		secondaryActions.push(...this.getSecondaryActions());
 
-		// From Contributions
-		const actionBarRegistry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
-		primaryActions.push(...actionBarRegistry.getActionBarActionsForContext(this.actionContributionScope, composite));
-		secondaryActions.push(...actionBarRegistry.getSecondaryActionBarActionsForContext(this.actionContributionScope, composite));
-
 		// Return fn to set into toolbar
 		return this.toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
 	}
@@ -399,7 +391,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			compositeContainer.hide();
 
 			// Clear any running Progress
-			this.progressBar.stop().getContainer().hide();
+			this.progressBar.stop().hide();
 
 			// Empty Actions
 			this.toolBar.setActions([])();
@@ -409,39 +401,39 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		});
 	}
 
-	public createTitleArea(parent: Builder): Builder {
+	public createTitleArea(parent: HTMLElement): HTMLElement {
 
 		// Title Area Container
 		const titleArea = $(parent).div({
 			'class': ['composite', 'title']
 		});
 
-		$(titleArea).on(DOM.EventType.CONTEXT_MENU, (e: MouseEvent) => this.onTitleAreaContextMenu(new StandardMouseEvent(e)));
+		$(titleArea).on(EventType.CONTEXT_MENU, (e: MouseEvent) => this.onTitleAreaContextMenu(new StandardMouseEvent(e)));
 
 		// Left Title Label
-		this.titleLabel = this.createTitleLabel(titleArea);
+		this.titleLabel = this.createTitleLabel(titleArea.getHTMLElement());
 
 		// Right Actions Container
 		$(titleArea).div({
 			'class': 'title-actions'
-		}, (div) => {
+		}, div => {
 
 			// Toolbar
 			this.toolBar = new ToolBar(div.getHTMLElement(), this.contextMenuService, {
-				actionItemProvider: (action: Action) => this.actionItemProvider(action),
+				actionItemProvider: action => this.actionItemProvider(action as Action),
 				orientation: ActionsOrientation.HORIZONTAL,
-				getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
+				getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id)
 			});
 		});
 
-		return titleArea;
+		return titleArea.getHTMLElement();
 	}
 
-	protected createTitleLabel(parent: Builder): ICompositeTitleLabel {
+	protected createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
 		let titleLabel: Builder;
 		$(parent).div({
 			'class': 'title-label'
-		}, (div) => {
+		}, div => {
 			titleLabel = div.span();
 		});
 
@@ -472,9 +464,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
 					getActions: () => TPromise.as(contextMenuActions),
-					getActionItem: (action: Action) => this.actionItemProvider(action),
+					getActionItem: action => this.actionItemProvider(action as Action),
 					actionRunner: this.activeComposite.getActionRunner(),
-					getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
+					getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id)
 				});
 			}
 		}
@@ -485,34 +477,27 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	private actionItemProvider(action: Action): IActionItem {
-		let actionItem: IActionItem;
 
 		// Check Active Composite
 		if (this.activeComposite) {
-			actionItem = this.activeComposite.getActionItem(action);
+			return this.activeComposite.getActionItem(action);
 		}
 
-		// Check Registry
-		if (!actionItem) {
-			const actionBarRegistry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
-			actionItem = actionBarRegistry.getActionItemForContext(this.actionContributionScope, ToolBarContext, action);
-		}
-
-		return actionItem;
+		return undefined;
 	}
 
-	public createContentArea(parent: Builder): Builder {
+	public createContentArea(parent: HTMLElement): HTMLElement {
 		return $(parent).div({
 			'class': 'content'
-		}, (div: Builder) => {
-			this.progressBar = new ProgressBar(div);
+		}, div => {
+			this.progressBar = new ProgressBar(div.getHTMLElement());
 			this.toUnbind.push(attachProgressBarStyler(this.progressBar, this.themeService));
-			this.progressBar.getContainer().hide();
-		});
+			this.progressBar.hide();
+		}).getHTMLElement();
 	}
 
 	private onError(error: any): void {
-		this.messageService.show(Severity.Error, types.isString(error) ? new Error(error) : error);
+		this.notificationService.error(types.isString(error) ? new Error(error) : error);
 	}
 
 	public getProgressIndicator(id: string): IProgressService {

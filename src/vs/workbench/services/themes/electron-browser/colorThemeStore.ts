@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 
 import * as types from 'vs/base/common/types';
 import * as Paths from 'path';
-import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IColorTheme, ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ColorThemeData } from 'vs/workbench/services/themes/electron-browser/colorThemeData';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 
 let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('themes', [], {
@@ -47,12 +47,12 @@ let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPo
 export class ColorThemeStore {
 
 	private extensionsColorThemes: ColorThemeData[];
-	private onDidChangeEmitter: Emitter<ColorThemeData[]>;
+	private readonly onDidChangeEmitter: Emitter<ColorThemeData[]>;
 
 	public get onDidChange(): Event<ColorThemeData[]> { return this.onDidChangeEmitter.event; }
 
-	constructor( @IExtensionService private extensionService: IExtensionService) {
-		this.extensionsColorThemes = [];
+	constructor(@IExtensionService private extensionService: IExtensionService, defaultTheme: ColorThemeData) {
+		this.extensionsColorThemes = [defaultTheme];
 		this.onDidChangeEmitter = new Emitter<ColorThemeData[]>();
 		this.initialize();
 	}
@@ -98,7 +98,11 @@ export class ColorThemeStore {
 				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
 			}
 			let themeData = ColorThemeData.fromExtensionTheme(theme, normalizedAbsolutePath, extensionData);
-			this.extensionsColorThemes.push(themeData);
+			if (themeData.id === this.extensionsColorThemes[0].id) {
+				this.extensionsColorThemes[0] = themeData;
+			} else {
+				this.extensionsColorThemes.push(themeData);
+			}
 		});
 	}
 
@@ -133,7 +137,7 @@ export class ColorThemeStore {
 	}
 
 	public getColorThemes(): TPromise<IColorTheme[]> {
-		return this.extensionService.onReady().then(isReady => {
+		return this.extensionService.whenInstalledExtensionsRegistered().then(isReady => {
 			return this.extensionsColorThemes;
 		});
 	}

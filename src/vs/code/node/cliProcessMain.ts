@@ -7,7 +7,6 @@ import { localize } from 'vs/nls';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import * as path from 'path';
-import * as fs from 'fs';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
@@ -17,7 +16,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { EnvironmentService, getInstallSourcePath } from 'vs/platform/environment/node/environmentService';
+import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionManifest, IGalleryExtension, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService, validateLocalExtension } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
@@ -30,9 +29,15 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { mkdirp } from 'vs/base/node/pfs';
-import { IChoiceService } from 'vs/platform/message/common/message';
-import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
+import { mkdirp, writeFile } from 'vs/base/node/pfs';
+import { getBaseLabel } from 'vs/base/common/labels';
+import { IStateService } from 'vs/platform/state/common/state';
+import { StateService } from 'vs/platform/state/node/stateService';
+import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
+import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -76,10 +81,7 @@ class Main {
 	}
 
 	private setInstallSource(installSource: string): TPromise<any> {
-		return new TPromise<void>((c, e) => {
-			const path = getInstallSourcePath(this.environmentService.userDataPath);
-			fs.writeFile(path, installSource.slice(0, 30), 'utf8', err => err ? e(err) : c(null));
-		});
+		return writeFile(this.environmentService.installSourcePath, installSource.slice(0, 30));
 	}
 
 	private listExtensions(showVersions: boolean): TPromise<any> {
@@ -95,7 +97,14 @@ class Main {
 				const extension = path.isAbsolute(id) ? id : path.join(process.cwd(), id);
 
 				return this.extensionManagementService.install(extension).then(() => {
-					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed!", path.basename(extension)));
+					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed!", getBaseLabel(extension)));
+				}, error => {
+					if (isPromiseCanceledError(error)) {
+						console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", getBaseLabel(extension)));
+						return null;
+					} else {
+						return TPromise.wrapError(error);
+					}
 				});
 			});
 
@@ -134,7 +143,16 @@ class Main {
 							console.log(localize('installing', "Installing..."));
 
 							return this.extensionManagementService.installFromGallery(extension)
-								.then(() => console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version)));
+								.then(
+									() => console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version)),
+									error => {
+										if (isPromiseCanceledError(error)) {
+											console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", id));
+											return null;
+										} else {
+											return TPromise.wrapError(error);
+										}
+									});
 						});
 				});
 			});
@@ -176,22 +194,32 @@ const eventPrefix = 'monacoworkbench';
 
 export function main(argv: ParsedArgs): TPromise<void> {
 	const services = new ServiceCollection();
-	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, argv, process.execPath));
+
+	const environmentService = new EnvironmentService(argv, process.execPath);
+	const logService = createSpdLogService('cli', getLogLevel(environmentService), environmentService.logsPath);
+	process.once('exit', () => logService.dispose());
+
+	logService.info('main', argv);
+
+	services.set(IEnvironmentService, environmentService);
+	services.set(ILogService, logService);
+	services.set(IStateService, new SyncDescriptor(StateService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 
 	return instantiationService.invokeFunction(accessor => {
 		const envService = accessor.get(IEnvironmentService);
+		const stateService = accessor.get(IStateService);
 
 		return TPromise.join([envService.appSettingsHome, envService.extensionsPath].map(p => mkdirp(p))).then(() => {
-			const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSource } = envService;
+			const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSourcePath } = envService;
 
 			const services = new ServiceCollection();
 			services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 			services.set(IRequestService, new SyncDescriptor(RequestService));
 			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
-			services.set(IChoiceService, new SyncDescriptor(ChoiceCliService));
+			services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
 
 			if (isBuilt && !extensionDevelopmentPath && !envService.args['disable-telemetry'] && product.enableTelemetry) {
 				const appenders: AppInsightsAppender[] = [];
@@ -206,7 +234,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 
 				const config: ITelemetryServiceConfig = {
 					appender: combinedAppender(...appenders),
-					commonProperties: resolveCommonProperties(product.commit, pkg.version, installSource),
+					commonProperties: resolveCommonProperties(product.commit, pkg.version, stateService.getItem('telemetry.machineId'), installSourcePath),
 					piiPaths: [appRoot, extensionsPath]
 				};
 

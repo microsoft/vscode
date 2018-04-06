@@ -10,7 +10,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IMessageService } from 'vs/platform/message/common/message';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CodeLensProviderRegistry, ICodeLensSymbol } from 'vs/editor/common/modes';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
@@ -18,10 +17,12 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeLensData, getCodeLensData } from './codelens';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { CodeLens, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
+import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 
-	private static ID: string = 'css.editor.codeLens';
+	private static readonly ID: string = 'css.editor.codeLens';
 
 	private _isEnabled: boolean;
 
@@ -35,8 +36,8 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 	constructor(
 		private _editor: editorBrowser.ICodeEditor,
-		@ICommandService private _commandService: ICommandService,
-		@IMessageService private _messageService: IMessageService
+		@ICommandService private readonly _commandService: ICommandService,
+		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
 
@@ -129,12 +130,18 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._localToDispose.push(this._editor.onDidChangeModelContent((e) => {
 			this._editor.changeDecorations((changeAccessor) => {
 				this._editor.changeViewZones((viewAccessor) => {
-					const toDispose: CodeLens[] = [];
+					let toDispose: CodeLens[] = [];
+					let lastLensLineNumber: number = -1;
+
 					this._lenses.forEach((lens) => {
-						if (lens.isValid()) {
-							lens.update(viewAccessor);
-						} else {
+						if (!lens.isValid() || lastLensLineNumber === lens.getLineNumber()) {
+							// invalid -> lens collapsed, attach range doesn't exist anymore
+							// line_number -> lenses should never be on the same line
 							toDispose.push(lens);
+
+						} else {
+							lens.update(viewAccessor);
+							lastLensLineNumber = lens.getLineNumber();
 						}
 					});
 
@@ -178,7 +185,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		scheduler.schedule();
 	}
 
-	private _disposeAllLenses(decChangeAccessor: editorCommon.IModelDecorationsChangeAccessor, viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor): void {
+	private _disposeAllLenses(decChangeAccessor: IModelDecorationsChangeAccessor, viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor): void {
 		let helper = new CodeLensHelper();
 		this._lenses.forEach((lens) => lens.dispose(helper, viewZoneChangeAccessor));
 		if (decChangeAccessor) {
@@ -211,8 +218,14 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			}
 		}
 
-		const centeredRange = this._editor.getCenteredRangeInViewport();
-		const shouldRestoreCenteredRange = centeredRange && (groups.length !== this._lenses.length && this._editor.getScrollTop() !== 0);
+		const visibleRanges = this._editor.getVisibleRanges();
+		const visiblePosition = (visibleRanges.length > 0 ? visibleRanges[0].getStartPosition() : null);
+		let visiblePositionScrollDelta = 0;
+		if (visiblePosition) {
+			const visiblePositionScrollTop = this._editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
+			visiblePositionScrollDelta = this._editor.getScrollTop() - visiblePositionScrollTop;
+		}
+
 		this._editor.changeDecorations((changeAccessor) => {
 			this._editor.changeViewZones((accessor) => {
 
@@ -231,7 +244,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 						groupsIndex++;
 						codeLensIndex++;
 					} else {
-						this._lenses.splice(codeLensIndex, 0, new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._commandService, this._messageService, () => this._detectVisibleLenses.schedule()));
+						this._lenses.splice(codeLensIndex, 0, new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._commandService, this._notificationService, () => this._detectVisibleLenses.schedule()));
 						codeLensIndex++;
 						groupsIndex++;
 					}
@@ -245,15 +258,17 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 				// Create extra symbols
 				while (groupsIndex < groups.length) {
-					this._lenses.push(new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._commandService, this._messageService, () => this._detectVisibleLenses.schedule()));
+					this._lenses.push(new CodeLens(groups[groupsIndex], this._editor, helper, accessor, this._commandService, this._notificationService, () => this._detectVisibleLenses.schedule()));
 					groupsIndex++;
 				}
 
 				helper.commit(changeAccessor);
 			});
 		});
-		if (shouldRestoreCenteredRange) {
-			this._editor.revealRangeInCenter(centeredRange, editorCommon.ScrollType.Immediate);
+
+		if (visiblePosition) {
+			const visiblePositionScrollTop = this._editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
+			this._editor.setScrollTop(visiblePositionScrollTop + visiblePositionScrollDelta);
 		}
 	}
 

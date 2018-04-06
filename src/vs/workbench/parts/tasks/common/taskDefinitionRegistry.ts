@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as Types from 'vs/base/common/types';
 import * as Objects from 'vs/base/common/objects';
 
-import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 import * as Tasks from 'vs/workbench/parts/tasks/common/tasks';
 
@@ -78,7 +78,6 @@ const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Config
 export interface ITaskDefinitionRegistry {
 	onReady(): TPromise<void>;
 
-	exists(key: string): boolean;
 	get(key: string): Tasks.TaskDefinition;
 	all(): Tasks.TaskDefinition[];
 }
@@ -106,7 +105,7 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 				}
 				resolve(undefined);
 			});
-		});
+		}, () => { });
 	}
 
 	public onReady(): TPromise<void> {
@@ -115,10 +114,6 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 
 	public get(key: string): Tasks.TaskDefinition {
 		return this.taskTypes[key];
-	}
-
-	public exists(key: string): boolean {
-		return !!this.taskTypes[key];
 	}
 
 	public all(): Tasks.TaskDefinition[] {

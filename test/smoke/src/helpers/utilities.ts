@@ -6,35 +6,6 @@
 import * as fs from 'fs';
 import { dirname } from 'path';
 
-/**
- * Contains methods that are commonly used across test areas.
- */
-export class Util {
-	constructor() {
-		// noop
-	}
-
-	public removeFile(filePath: string): void {
-		try {
-			fs.unlinkSync(`${filePath}`);
-		} catch (e) {
-			if (e.code !== 'ENOENT') {
-				throw e;
-			}
-		}
-	}
-
-	public static removeFile(filePath: string): void {
-		try {
-			fs.unlinkSync(`${filePath}`);
-		} catch (e) {
-			if (e.code !== 'ENOENT') {
-				throw e;
-			}
-		}
-	}
-}
-
 export function nfcall<R>(fn: Function, ...args): Promise<R> {
 	return new Promise<R>((c, e) => fn(...args, (err, r) => err ? e(err) : c(r)));
 }

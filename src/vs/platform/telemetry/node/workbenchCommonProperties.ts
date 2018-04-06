@@ -3,22 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as uuid from 'vs/base/common/uuid';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { getMachineId } from 'vs/base/node/id';
-import { resolveCommonProperties, machineIdStorageKey } from '../node/commonProperties';
+import { resolveCommonProperties } from '../node/commonProperties';
 
-
-export function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string, version: string, source: string): TPromise<{ [name: string]: string }> {
-	return resolveCommonProperties(commit, version, source).then(result => {
-		// __GDPR__COMMON__ "common.version.shell" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+export function resolveWorkbenchCommonProperties(storageService: IStorageService, commit: string, version: string, machineId: string, installSourcePath: string): TPromise<{ [name: string]: string }> {
+	return resolveCommonProperties(commit, version, machineId, installSourcePath).then(result => {
+		// __GDPR__COMMON__ "common.version.shell" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 		result['common.version.shell'] = process.versions && (<any>process).versions['electron'];
-		// __GDPR__COMMON__ "common.version.renderer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		// __GDPR__COMMON__ "common.version.renderer" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 		result['common.version.renderer'] = process.versions && (<any>process).versions['chrome'];
-		// __GDPR__COMMON__ "common.osVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		result['common.osVersion'] = os.release();
 
 		const lastSessionDate = storageService.get('telemetry.lastSessionDate');
 		const firstSessionDate = storageService.get('telemetry.firstSessionDate') || new Date().toUTCString();
@@ -31,32 +26,16 @@ export function resolveWorkbenchCommonProperties(storageService: IStorageService
 		result['common.lastSessionDate'] = lastSessionDate;
 		// __GDPR__COMMON__ "common.isNewSession" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		result['common.isNewSession'] = !lastSessionDate ? '1' : '0';
+		// __GDPR__COMMON__ "common.instanceId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		result['common.instanceId'] = getOrCreateInstanceId(storageService);
 
-		const promises: TPromise<any>[] = [];
-		// __GDPR__COMMON__ "common.instanceId" : { "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
-		promises.push(getOrCreateInstanceId(storageService).then(value => result['common.instanceId'] = value));
-		// __GDPR__COMMON__ "common.machineId" : { "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
-		promises.push(getOrCreateMachineId(storageService).then(value => result['common.machineId'] = value));
-
-		return TPromise.join(promises).then(() => result);
-	});
-}
-
-function getOrCreateInstanceId(storageService: IStorageService): TPromise<string> {
-	let result = storageService.get('telemetry.instanceId') || uuid.generateUuid();
-	storageService.store('telemetry.instanceId', result);
-	return TPromise.as(result);
-}
-
-export function getOrCreateMachineId(storageService: IStorageService): TPromise<string> {
-	let result = storageService.get(machineIdStorageKey);
-
-	if (result) {
-		return TPromise.as(result);
-	}
-
-	return getMachineId().then(result => {
-		storageService.store(machineIdStorageKey, result);
 		return result;
 	});
+}
+
+function getOrCreateInstanceId(storageService: IStorageService): string {
+	const result = storageService.get('telemetry.instanceId') || uuid.generateUuid();
+	storageService.store('telemetry.instanceId', result);
+
+	return result;
 }

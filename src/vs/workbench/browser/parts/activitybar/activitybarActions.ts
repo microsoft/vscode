@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/activityaction';
-import DOM = require('vs/base/browser/dom');
+import * as DOM from 'vs/base/browser/dom';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
@@ -25,7 +25,7 @@ import { ActivityAction, ActivityActionItem, ICompositeBarColors } from 'vs/work
 
 export class ViewletActivityAction extends ActivityAction {
 
-	private static preventDoubleClickDelay = 300;
+	private static readonly preventDoubleClickDelay = 300;
 
 	private lastRun: number = 0;
 

@@ -18,7 +18,7 @@ import { DataUri } from 'vs/workbench/common/resources';
  */
 export class DataUriEditorInput extends EditorInput {
 
-	static ID: string = 'workbench.editors.dataUriEditorInput';
+	static readonly ID: string = 'workbench.editors.dataUriEditorInput';
 
 	private resource: URI;
 	private name: string;

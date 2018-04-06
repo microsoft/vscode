@@ -12,7 +12,6 @@ import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
-import * as dom from 'vs/base/browser/dom';
 import { Position } from 'vs/editor/common/core/position';
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
@@ -94,7 +93,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const tabSize = this._context.model.getTabSize();
 		const tabWidth = tabSize * this._spaceWidth;
 		const lineHeight = this._lineHeight;
-		const indentGuideWidth = dom.computeScreenAwareSize(1);
+		const indentGuideWidth = tabWidth;
 
 		const indents = this._context.model.getLinesIndentGuides(visibleStartLineNumber, visibleEndLineNumber);
 
@@ -122,7 +121,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		}
 		let lineIndex = lineNumber - startLineNumber;
 		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
-			throw new Error('Unexpected render request');
+			return '';
 		}
 		return this._renderResult[lineIndex];
 	}
@@ -131,6 +130,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 registerThemingParticipant((theme, collector) => {
 	let editorGuideColor = theme.getColor(editorIndentGuides);
 	if (editorGuideColor) {
-		collector.addRule(`.monaco-editor .lines-content .cigr { background-color: ${editorGuideColor}; }`);
+		collector.addRule(`.monaco-editor .lines-content .cigr { box-shadow: 1px 0 0 0 ${editorGuideColor} inset; }`);
 	}
 });

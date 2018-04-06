@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, nextTypoPermutation, fuzzyScoreGraceful, IMatch } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, IMatch, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
@@ -393,11 +393,11 @@ suite('Filters', () => {
 
 		// issue #17836
 		// assertTopScore(fuzzyScore, 'TEdit', 1, 'TextEditorDecorationType', 'TextEdit', 'TextEditor');
-		assertTopScore(fuzzyScore, 'p', 0, 'parse', 'posix', 'pafdsa', 'path', 'p');
+		assertTopScore(fuzzyScore, 'p', 4, 'parse', 'posix', 'pafdsa', 'path', 'p');
 		assertTopScore(fuzzyScore, 'pa', 0, 'parse', 'pafdsa', 'path');
 
 		// issue #14583
-		assertTopScore(fuzzyScore, 'log', 3, 'HTMLOptGroupElement', 'ScrollLogicalPosition', 'SVGFEMorphologyElement', 'log');
+		assertTopScore(fuzzyScore, 'log', 3, 'HTMLOptGroupElement', 'ScrollLogicalPosition', 'SVGFEMorphologyElement', 'log', 'logger');
 		assertTopScore(fuzzyScore, 'e', 2, 'AbstractWorker', 'ActiveXObject', 'else');
 
 		// issue #14446
@@ -415,6 +415,8 @@ suite('Filters', () => {
 		assertTopScore(fuzzyScore, 'is', 0, 'isValidViewletId', 'import statement');
 
 		assertTopScore(fuzzyScore, 'title', 1, 'files.trimTrailingWhitespace', 'window.title');
+
+		assertTopScore(fuzzyScore, 'const', 1, 'constructor', 'const', 'cuOnstrul');
 	});
 
 	test('Unexpected suggestion scoring, #28791', function () {
@@ -423,27 +425,21 @@ suite('Filters', () => {
 		assertTopScore(fuzzyScore, '_lineS', 0, '_lineS', '_lines');
 	});
 
-	test('nextTypoPermutation', function () {
-
-		function assertTypos(pattern: string, ...variants: string[]) {
-			let pos = 1;
-			for (const expected of variants) {
-				const actual = nextTypoPermutation(pattern, pos);
-				assert.equal(actual, expected);
-				pos += 1;
-			}
-			assert.equal(nextTypoPermutation(pattern, pos), undefined);
-		}
-
-		assertTypos('abc', 'acb');
-		assertTypos('foboar', 'fbooar', 'foobar', 'fobaor', 'fobora');
+	test('HTML closing tag proposal filtered out #38880', function () {
+		assertMatches('\t\t<', '\t\t</body>', '^\t^\t^</body>', (pattern, word) => fuzzyScore(pattern, word, 0));
+		assertMatches('\t\t<', '\t\t</body>', '\t\t^</body>', (pattern, word) => fuzzyScore(pattern, word, 3));
+		assertMatches('\t<', '\t</body>', '\t^</body>', (pattern, word) => fuzzyScore(pattern, word, 2));
 	});
 
 	test('fuzzyScoreGraceful', function () {
 
-		assertMatches('tkb', 'the_black_knight', '^the_^black_^knight', fuzzyScoreGraceful);
-		assertMatches('tkbk', 'the_black_knight', '^the_^blac^k_^knight', fuzzyScoreGraceful);
-		assertMatches('tkkb', 'the_black_knight', undefined, fuzzyScoreGraceful);
-		assertMatches('tkb', 'no_match', undefined, fuzzyScoreGraceful);
+		assertMatches('rlut', 'result', undefined, fuzzyScore);
+		assertMatches('rlut', 'result', '^res^u^l^t', fuzzyScoreGraceful);
+
+		assertMatches('cno', 'console', '^co^ns^ole', fuzzyScore);
+		assertMatches('cno', 'console', '^co^ns^ole', fuzzyScoreGraceful);
+		assertMatches('cno', 'console', '^c^o^nsole', fuzzyScoreGracefulAggressive);
+		assertMatches('cno', 'co_new', '^c^o_^new', fuzzyScoreGraceful);
+		assertMatches('cno', 'co_new', '^c^o_^new', fuzzyScoreGracefulAggressive);
 	});
 });

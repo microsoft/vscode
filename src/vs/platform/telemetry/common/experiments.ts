@@ -7,10 +7,10 @@
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { deepClone } from 'vs/base/common/objects';
 
 /* __GDPR__FRAGMENT__
 	"IExperiments" : {
-		"deployToAzureQuickLink" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	}
 */
 export interface IExperiments {
@@ -88,5 +88,5 @@ function splitRandom(random: number): [number, boolean] {
 }
 
 function getExperimentsOverrides(configurationService: IConfigurationService): IExperiments {
-	return configurationService.getValue<any>('experiments') || {};
+	return deepClone(configurationService.getValue<any>('experiments')) || {};
 }

@@ -6,7 +6,6 @@
 
 import { validateConstraint } from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
@@ -15,6 +14,8 @@ import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
 import * as vscode from 'vscode';
+import { ILogService } from 'vs/platform/log/common/log';
+import { revive } from 'vs/base/common/marshalling';
 
 interface CommandHandler {
 	callback: Function;
@@ -28,17 +29,21 @@ export interface ArgumentProcessor {
 
 export class ExtHostCommands implements ExtHostCommandsShape {
 
-	private _commands = new Map<string, CommandHandler>();
-	private _proxy: MainThreadCommandsShape;
-	private _converter: CommandsConverter;
-	private _argumentProcessors: ArgumentProcessor[] = [];
+	private readonly _commands = new Map<string, CommandHandler>();
+	private readonly _proxy: MainThreadCommandsShape;
+	private readonly _converter: CommandsConverter;
+	private readonly _logService: ILogService;
+	private readonly _argumentProcessors: ArgumentProcessor[];
 
 	constructor(
 		mainContext: IMainContext,
-		heapService: ExtHostHeapService
+		heapService: ExtHostHeapService,
+		logService: ILogService
 	) {
-		this._proxy = mainContext.get(MainContext.MainThreadCommands);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadCommands);
+		this._logService = logService;
 		this._converter = new CommandsConverter(this, heapService);
+		this._argumentProcessors = [{ processArgument(a) { return revive(a, 0); } }];
 	}
 
 	get converter(): CommandsConverter {
@@ -49,7 +54,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		this._argumentProcessors.push(processor);
 	}
 
-	registerCommand(id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription): extHostTypes.Disposable {
+	registerCommand(global: boolean, id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription): extHostTypes.Disposable {
+		this._logService.trace('ExtHostCommands#registerCommand', id);
 
 		if (!id.trim().length) {
 			throw new Error('invalid id');
@@ -60,21 +66,26 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 
 		this._commands.set(id, { callback, thisArg, description });
-		this._proxy.$registerCommand(id);
+		if (global) {
+			this._proxy.$registerCommand(id);
+		}
 
 		return new extHostTypes.Disposable(() => {
 			if (this._commands.delete(id)) {
-				this._proxy.$unregisterCommand(id);
+				if (global) {
+					this._proxy.$unregisterCommand(id);
+				}
 			}
 		});
 	}
 
 	executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
+		this._logService.trace('ExtHostCommands#executeCommand', id);
 
 		if (this._commands.has(id)) {
 			// we stay inside the extension host and support
 			// to pass any kind of parameters around
-			return this.$executeContributedCommand<T>(id, ...args);
+			return this._executeContributedCommand<T>(id, args);
 
 		} else {
 			// automagically convert some argument types
@@ -94,46 +105,43 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				}
 			});
 
-			return this._proxy.$executeCommand<T>(id, args);
+			return this._proxy.$executeCommand<T>(id, args).then(result => revive(result, 0));
 		}
-
 	}
 
-	$executeContributedCommand<T>(id: string, ...args: any[]): Thenable<T> {
-		let command = this._commands.get(id);
-		if (!command) {
-			return TPromise.wrapError<T>(new Error(`Contributed command '${id}' does not exist.`));
-		}
-
-		let { callback, thisArg, description } = command;
-
+	private _executeContributedCommand<T>(id: string, args: any[]): Thenable<T> {
+		let { callback, thisArg, description } = this._commands.get(id);
 		if (description) {
 			for (let i = 0; i < description.args.length; i++) {
 				try {
 					validateConstraint(args[i], description.args[i].constraint);
 				} catch (err) {
-					return TPromise.wrapError<T>(new Error(`Running the contributed command:'${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`));
+					return Promise.reject(new Error(`Running the contributed command:'${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`));
 				}
 			}
 		}
 
-		args = args.map(arg => this._argumentProcessors.reduce((r, p) => p.processArgument(r), arg));
-
 		try {
 			let result = callback.apply(thisArg, args);
-			return TPromise.as(result);
+			return Promise.resolve(result);
 		} catch (err) {
-			// console.log(err);
-			// try {
-			// 	console.log(toErrorMessage(err));
-			// } catch (err) {
-			// 	//
-			// }
-			return TPromise.wrapError<T>(new Error(`Running the contributed command:'${id}' failed.`));
+			this._logService.error(err, id);
+			return Promise.reject(new Error(`Running the contributed command:'${id}' failed.`));
+		}
+	}
+
+	$executeContributedCommand<T>(id: string, ...args: any[]): Thenable<T> {
+		if (!this._commands.has(id)) {
+			return Promise.reject(new Error(`Contributed command '${id}' does not exist.`));
+		} else {
+			args = args.map(arg => this._argumentProcessors.reduce((r, p) => p.processArgument(r), arg));
+			return this._executeContributedCommand(id, args);
 		}
 	}
 
 	getCommands(filterUnderscoreCommands: boolean = false): Thenable<string[]> {
+		this._logService.trace('ExtHostCommands#getCommands', filterUnderscoreCommands);
+
 		return this._proxy.$getCommands().then(result => {
 			if (filterUnderscoreCommands) {
 				result = result.filter(command => command[0] !== '_');
@@ -142,7 +150,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	$getContributedCommandHandlerDescriptions(): TPromise<{ [id: string]: string | ICommandHandlerDescription }> {
+	$getContributedCommandHandlerDescriptions(): Thenable<{ [id: string]: string | ICommandHandlerDescription }> {
 		const result: { [id: string]: string | ICommandHandlerDescription } = Object.create(null);
 		this._commands.forEach((command, id) => {
 			let { description } = command;
@@ -150,22 +158,23 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				result[id] = description;
 			}
 		});
-		return TPromise.as(result);
+		return Promise.resolve(result);
 	}
 }
 
 
 export class CommandsConverter {
 
+	private readonly _delegatingCommandId: string;
 	private _commands: ExtHostCommands;
 	private _heap: ExtHostHeapService;
 
 	// --- conversion between internal and api commands
 	constructor(commands: ExtHostCommands, heap: ExtHostHeapService) {
-
+		this._delegatingCommandId = `_internal_command_delegation_${Date.now()}`;
 		this._commands = commands;
 		this._heap = heap;
-		this._commands.registerCommand('_internal_command_delegation', this._executeConvertedCommand, this);
+		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
 	}
 
 	toInternal(command: vscode.Command): modes.Command {
@@ -186,7 +195,7 @@ export class CommandsConverter {
 			const id = this._heap.keep(command);
 			ObjectIdentifier.mixin(result, id);
 
-			result.id = '_internal_command_delegation';
+			result.id = this._delegatingCommandId;
 			result.arguments = [id];
 		}
 

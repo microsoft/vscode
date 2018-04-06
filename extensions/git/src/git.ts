@@ -9,13 +9,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
+import * as which from 'which';
 import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
 import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
 import { CancellationToken } from 'vscode';
+import { detectEncoding } from './encoding';
 
-const readfile = denodeify<string>(fs.readFile);
+const readfile = denodeify<string, string | null, string>(fs.readFile);
 
 export interface IGit {
 	path: string;
@@ -52,8 +54,13 @@ export interface Ref {
 	remote?: string;
 }
 
+export interface UpstreamRef {
+	remote: string;
+	name: string;
+}
+
 export interface Branch extends Ref {
-	upstream?: string;
+	upstream?: UpstreamRef;
 	ahead?: number;
 	behind?: number;
 }
@@ -124,14 +131,21 @@ function findSystemGitWin32(base: string, onLookup: (path: string) => void): Pro
 	return findSpecificGit(path.join(base, 'Git', 'cmd', 'git.exe'), onLookup);
 }
 
+function findGitWin32InPath(onLookup: (path: string) => void): Promise<IGit> {
+	const whichPromise = new Promise<string>((c, e) => which('git.exe', (err, path) => err ? e(err) : c(path)));
+	return whichPromise.then(path => findSpecificGit(path, onLookup));
+}
+
 function findGitWin32(onLookup: (path: string) => void): Promise<IGit> {
 	return findSystemGitWin32(process.env['ProgramW6432'] as string, onLookup)
 		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles(x86)'] as string, onLookup))
-		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles'] as string, onLookup));
+		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles'] as string, onLookup))
+		.then(void 0, () => findSystemGitWin32(path.join(process.env['LocalAppData'] as string, 'Programs'), onLookup))
+		.then(void 0, () => findGitWin32InPath(onLookup));
 }
 
 export function findGit(hint: string | undefined, onLookup: (path: string) => void): Promise<IGit> {
-	var first = hint ? findSpecificGit(hint, onLookup) : Promise.reject<IGit>(null);
+	const first = hint ? findSpecificGit(hint, onLookup) : Promise.reject<IGit>(null);
 
 	return first
 		.then(void 0, () => {
@@ -259,6 +273,7 @@ export class GitError {
 			this.message = data.error.message;
 		} else {
 			this.error = void 0;
+			this.message = '';
 		}
 
 		this.message = this.message || data.message || 'Git error';
@@ -317,7 +332,9 @@ export const GitErrorCodes = {
 	BranchAlreadyExists: 'BranchAlreadyExists',
 	NoLocalChanges: 'NoLocalChanges',
 	NoStashFound: 'NoStashFound',
-	LocalChangesOverwritten: 'LocalChangesOverwritten'
+	LocalChangesOverwritten: 'LocalChangesOverwritten',
+	NoUpstreamBranch: 'NoUpstreamBranch',
+	IsInSubmodule: 'IsInSubmodule'
 };
 
 function getGitErrorCode(stderr: string): string | undefined {
@@ -350,16 +367,14 @@ function getGitErrorCode(stderr: string): string | undefined {
 
 export class Git {
 
-	private gitPath: string;
-	private version: string;
+	readonly path: string;
 	private env: any;
 
 	private _onOutput = new EventEmitter();
 	get onOutput(): EventEmitter { return this._onOutput; }
 
 	constructor(options: IGitOptions) {
-		this.gitPath = options.gitPath;
-		this.version = options.version;
+		this.path = options.gitPath;
 		this.env = options.env || {};
 	}
 
@@ -433,7 +448,7 @@ export class Git {
 	}
 
 	spawn(args: string[], options: SpawnOptions = {}): cp.ChildProcess {
-		if (!this.gitPath) {
+		if (!this.path) {
 			throw new Error('git could not be found in the system.');
 		}
 
@@ -452,10 +467,10 @@ export class Git {
 		});
 
 		if (options.log !== false) {
-			this.log(`git ${args.join(' ')}\n`);
+			this.log(`> git ${args.join(' ')}\n`);
 		}
 
-		return cp.spawn(this.gitPath, args, options);
+		return cp.spawn(this.path, args, options);
 	}
 
 	private log(output: string): void {
@@ -534,6 +549,72 @@ export class GitStatusParser {
 	}
 }
 
+export interface Submodule {
+	name: string;
+	path: string;
+	url: string;
+}
+
+export function parseGitmodules(raw: string): Submodule[] {
+	const regex = /\r?\n/g;
+	let position = 0;
+	let match: RegExpExecArray | null = null;
+
+	const result: Submodule[] = [];
+	let submodule: Partial<Submodule> = {};
+
+	function parseLine(line: string): void {
+		const sectionMatch = /^\s*\[submodule "([^"]+)"\]\s*$/.exec(line);
+
+		if (sectionMatch) {
+			if (submodule.name && submodule.path && submodule.url) {
+				result.push(submodule as Submodule);
+			}
+
+			const name = sectionMatch[1];
+
+			if (name) {
+				submodule = { name };
+				return;
+			}
+		}
+
+		if (!submodule) {
+			return;
+		}
+
+		const propertyMatch = /^\s*(\w+) = (.*)$/.exec(line);
+
+		if (!propertyMatch) {
+			return;
+		}
+
+		const [, key, value] = propertyMatch;
+
+		switch (key) {
+			case 'path': submodule.path = value; break;
+			case 'url': submodule.url = value; break;
+		}
+	}
+
+	while (match = regex.exec(raw)) {
+		parseLine(raw.substring(position, match.index));
+		position = match.index + match[0].length;
+	}
+
+	parseLine(raw.substring(position));
+
+	if (submodule.name && submodule.path && submodule.url) {
+		result.push(submodule as Submodule);
+	}
+
+	return result;
+}
+
+export interface DiffOptions {
+	cached?: boolean;
+}
+
 export class Repository {
 
 	constructor(
@@ -579,9 +660,16 @@ export class Repository {
 		return result.stdout;
 	}
 
-	async bufferString(object: string, encoding: string = 'utf8'): Promise<string> {
+	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false): Promise<string> {
 		const stdout = await this.buffer(object);
-		return iconv.decode(stdout, iconv.encodingExists(encoding) ? encoding : 'utf8');
+
+		if (autoGuessEncoding) {
+			encoding = detectEncoding(stdout) || encoding;
+		}
+
+		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
+
+		return iconv.decode(stdout, encoding);
 	}
 
 	async buffer(object: string): Promise<Buffer> {
@@ -603,7 +691,7 @@ export class Repository {
 		return stdout;
 	}
 
-	async lstree(treeish: string, path: string): Promise<{ mode: number, object: string, size: number }> {
+	async lstree(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }> {
 		if (!treeish) { // index
 			const { stdout } = await this.run(['ls-files', '--stage', '--', path]);
 
@@ -617,7 +705,7 @@ export class Repository {
 			const catFile = await this.run(['cat-file', '-s', object]);
 			const size = parseInt(catFile.stdout);
 
-			return { mode: parseInt(mode), object, size };
+			return { mode, object, size };
 		}
 
 		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', path]);
@@ -629,7 +717,7 @@ export class Repository {
 		}
 
 		const [, mode, , object, size] = match;
-		return { mode: parseInt(mode), object, size: parseInt(size) };
+		return { mode, object, size: parseInt(size) };
 	}
 
 	async detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
@@ -672,6 +760,19 @@ export class Repository {
 		}
 	}
 
+	async diff(path: string, options: DiffOptions = {}): Promise<string> {
+		const args = ['diff'];
+
+		if (options.cached) {
+			args.push('--cached');
+		}
+
+		args.push('--', path);
+
+		const result = await this.run(args);
+		return result.stdout;
+	}
+
 	async add(paths: string[]): Promise<void> {
 		const args = ['add', '-A', '--'];
 
@@ -698,7 +799,16 @@ export class Repository {
 			});
 		}
 
-		await this.run(['update-index', '--cacheinfo', '100644', hash, path]);
+		let mode: string;
+
+		try {
+			const details = await this.lstree('HEAD', path);
+			mode = details.mode;
+		} catch (err) {
+			mode = '100644';
+		}
+
+		await this.run(['update-index', '--cacheinfo', mode, hash, path]);
 	}
 
 	async checkout(treeish: string, paths: string[]): Promise<void> {
@@ -945,6 +1055,8 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.PushRejected;
 			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
+			} else if (/^fatal: The current branch .* has no upstream branch/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoUpstreamBranch;
 			}
 
 			throw err;
@@ -977,7 +1089,7 @@ export class Repository {
 		try {
 			const args = ['stash', 'pop'];
 
-			if (typeof index === 'string') {
+			if (typeof index === 'number') {
 				args.push(`stash@{${index}}`);
 			}
 
@@ -1017,12 +1129,12 @@ export class Repository {
 			const onStdoutData = (raw: string) => {
 				parser.update(raw);
 
-				if (parser.status.length > 5000) {
+				if (parser.status.length > limit) {
 					child.removeListener('exit', onExit);
 					child.stdout.removeListener('data', onStdoutData);
 					child.kill();
 
-					c({ status: parser.status.slice(0, 5000), didHitLimit: true });
+					c({ status: parser.status.slice(0, limit), didHitLimit: true });
 				}
 			};
 
@@ -1059,7 +1171,7 @@ export class Repository {
 	}
 
 	async getRefs(): Promise<Ref[]> {
-		const result = await this.run(['for-each-ref', '--format', '%(refname) %(objectname)']);
+		const result = await this.run(['for-each-ref', '--format', '%(refname) %(objectname)', '--sort', '-committerdate']);
 
 		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;
@@ -1119,10 +1231,16 @@ export class Repository {
 		const commit = result.stdout.trim();
 
 		try {
-			const res2 = await this.run(['rev-parse', '--symbolic-full-name', '--abbrev-ref', name + '@{u}']);
-			const upstream = res2.stdout.trim();
+			const res2 = await this.run(['rev-parse', '--symbolic-full-name', name + '@{u}']);
+			const fullUpstream = res2.stdout.trim();
+			const match = /^refs\/remotes\/([^/]+)\/(.+)$/.exec(fullUpstream);
 
-			const res3 = await this.run(['rev-list', '--left-right', name + '...' + upstream]);
+			if (!match) {
+				throw new Error(`Could not parse upstream branch: ${fullUpstream}`);
+			}
+
+			const upstream = { remote: match[1], name: match[2] };
+			const res3 = await this.run(['rev-list', '--left-right', name + '...' + fullUpstream]);
 
 			let ahead = 0, behind = 0;
 			let i = 0;
@@ -1177,5 +1295,25 @@ export class Repository {
 		}
 
 		return { hash: match[1], message: match[2] };
+	}
+
+	async updateSubmodules(paths: string[]): Promise<void> {
+		const args = ['submodule', 'update', '--', ...paths];
+		await this.run(args);
+	}
+
+	async getSubmodules(): Promise<Submodule[]> {
+		const gitmodulesPath = path.join(this.root, '.gitmodules');
+
+		try {
+			const gitmodulesRaw = await readfile(gitmodulesPath, 'utf8');
+			return parseGitmodules(gitmodulesRaw);
+		} catch (err) {
+			if (/ENOENT/.test(err.message)) {
+				return [];
+			}
+
+			throw err;
+		}
 	}
 }

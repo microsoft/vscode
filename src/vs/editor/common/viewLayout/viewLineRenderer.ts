@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { CharCode } from 'vs/base/common/charCode';
 import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import * as strings from 'vs/base/common/strings';
 import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 
 export const enum RenderWhitespace {
 	None = 0,
@@ -35,9 +36,10 @@ export class RenderLineInput {
 
 	public readonly useMonospaceOptimizations: boolean;
 	public readonly lineContent: string;
-	public readonly mightContainRTL: boolean;
+	public readonly isBasicASCII: boolean;
+	public readonly containsRTL: boolean;
 	public readonly fauxIndentLength: number;
-	public readonly lineTokens: ViewLineToken[];
+	public readonly lineTokens: IViewLineTokens;
 	public readonly lineDecorations: LineDecoration[];
 	public readonly tabSize: number;
 	public readonly spaceWidth: number;
@@ -49,9 +51,10 @@ export class RenderLineInput {
 	constructor(
 		useMonospaceOptimizations: boolean,
 		lineContent: string,
-		mightContainRTL: boolean,
+		isBasicASCII: boolean,
+		containsRTL: boolean,
 		fauxIndentLength: number,
-		lineTokens: ViewLineToken[],
+		lineTokens: IViewLineTokens,
 		lineDecorations: LineDecoration[],
 		tabSize: number,
 		spaceWidth: number,
@@ -62,7 +65,8 @@ export class RenderLineInput {
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.lineContent = lineContent;
-		this.mightContainRTL = mightContainRTL;
+		this.isBasicASCII = isBasicASCII;
+		this.containsRTL = containsRTL;
 		this.fauxIndentLength = fauxIndentLength;
 		this.lineTokens = lineTokens;
 		this.lineDecorations = lineDecorations;
@@ -84,7 +88,8 @@ export class RenderLineInput {
 		return (
 			this.useMonospaceOptimizations === other.useMonospaceOptimizations
 			&& this.lineContent === other.lineContent
-			&& this.mightContainRTL === other.mightContainRTL
+			&& this.isBasicASCII === other.isBasicASCII
+			&& this.containsRTL === other.containsRTL
 			&& this.fauxIndentLength === other.fauxIndentLength
 			&& this.tabSize === other.tabSize
 			&& this.spaceWidth === other.spaceWidth
@@ -93,7 +98,7 @@ export class RenderLineInput {
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.fontLigatures === other.fontLigatures
 			&& LineDecoration.equalsArr(this.lineDecorations, other.lineDecorations)
-			&& ViewLineToken.equalsArr(this.lineTokens, other.lineTokens)
+			&& this.lineTokens.equals(other.lineTokens)
 		);
 	}
 }
@@ -243,14 +248,14 @@ export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): Rend
 			let classNames: string[] = [];
 			for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
 				const lineDecoration = input.lineDecorations[i];
-				if (lineDecoration.insertsBeforeOrAfter) {
-					classNames[i] = input.lineDecorations[i].className;
+				if (lineDecoration.type !== InlineDecorationType.Regular) {
+					classNames.push(input.lineDecorations[i].className);
 					containsForeignElements = true;
 				}
 			}
 
 			if (containsForeignElements) {
-				content = `<span><span class="${classNames.join(' ')}">\u00a0</span></span>`;
+				content = `<span><span class="${classNames.join(' ')}"></span></span>`;
 			}
 		}
 
@@ -322,18 +327,14 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	if (input.lineDecorations.length > 0) {
 		for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
 			const lineDecoration = input.lineDecorations[i];
-			if (lineDecoration.insertsBeforeOrAfter) {
+			if (lineDecoration.type !== InlineDecorationType.Regular) {
 				containsForeignElements = true;
 				break;
 			}
 		}
 		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
 	}
-	let containsRTL = false;
-	if (input.mightContainRTL) {
-		containsRTL = strings.containsRTL(lineContent);
-	}
-	if (!containsRTL && !input.fontLigatures) {
+	if (input.isBasicASCII && !input.fontLigatures) {
 		tokens = splitLargeTokens(lineContent, tokens);
 	}
 
@@ -345,7 +346,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		tokens,
 		containsForeignElements,
 		input.tabSize,
-		containsRTL,
+		input.containsRTL,
 		input.spaceWidth,
 		input.renderWhitespace,
 		input.renderControlCharacters
@@ -356,7 +357,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
  * In the rendering phase, characters are always looped until token.endIndex.
  * Ensure that all tokens end before `len` and the last one ends precisely at `len`.
  */
-function transformAndRemoveOverflowing(tokens: ViewLineToken[], fauxIndentLength: number, len: number): LinePart[] {
+function transformAndRemoveOverflowing(tokens: IViewLineTokens, fauxIndentLength: number, len: number): LinePart[] {
 	let result: LinePart[] = [], resultLen = 0;
 
 	// The faux indent part of the line should have no token type
@@ -364,14 +365,13 @@ function transformAndRemoveOverflowing(tokens: ViewLineToken[], fauxIndentLength
 		result[resultLen++] = new LinePart(fauxIndentLength, '');
 	}
 
-	for (let tokenIndex = 0, tokensLen = tokens.length; tokenIndex < tokensLen; tokenIndex++) {
-		const token = tokens[tokenIndex];
-		const endIndex = token.endIndex;
+	for (let tokenIndex = 0, tokensLen = tokens.getCount(); tokenIndex < tokensLen; tokenIndex++) {
+		const endIndex = tokens.getEndOffset(tokenIndex);
 		if (endIndex <= fauxIndentLength) {
 			// The faux indent part of the line should have no token type
 			continue;
 		}
-		const type = token.getType();
+		const type = tokens.getClassName(tokenIndex);
 		if (endIndex >= len) {
 			result[resultLen++] = new LinePart(len, type);
 			break;
@@ -406,11 +406,6 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[]): LinePart[] {
 			const piecesCount = Math.ceil(diff / Constants.LongToken);
 			for (let j = 1; j < piecesCount; j++) {
 				let pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
-				let lastCharInPiece = lineContent.charCodeAt(pieceEndIndex - 1);
-				if (strings.isHighSurrogate(lastCharInPiece)) {
-					// Don't cut in the middle of a surrogate pair
-					pieceEndIndex--;
-				}
 				result[resultLen++] = new LinePart(pieceEndIndex, tokenType);
 			}
 			result[resultLen++] = new LinePart(tokenEndIndex, tokenType);
@@ -450,6 +445,8 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: LinePa
 		const chCode = lineContent.charCodeAt(charIndex);
 		if (chCode === CharCode.Tab) {
 			tmpIndent = tabSize;
+		} else if (strings.isFullWidthCharacter(chCode)) {
+			tmpIndent += 2;
 		} else {
 			tmpIndent++;
 		}
@@ -501,6 +498,8 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: LinePa
 
 		if (chCode === CharCode.Tab) {
 			tmpIndent = tabSize;
+		} else if (strings.isFullWidthCharacter(chCode)) {
+			tmpIndent += 2;
 		} else {
 			tmpIndent++;
 		}
@@ -568,6 +567,16 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 		}
 	}
 
+	const lastTokenEndIndex = tokens[tokens.length - 1].endIndex;
+	if (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
+		let classNames: string[] = [];
+		while (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
+			classNames.push(lineDecorations[lineDecorationIndex].className);
+			lineDecorationIndex++;
+		}
+		result[resultLen++] = new LinePart(lastResultEndIndex, classNames.join(' '));
+	}
+
 	return result;
 }
 
@@ -627,6 +636,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 						_tabsCharDelta += insertSpacesCount - 1;
 						partContentCnt += insertSpacesCount;
 					} else {
+						// must be CharCode.Space
 						partContentCnt++;
 					}
 				}
@@ -725,6 +735,9 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 						break;
 
 					default:
+						if (strings.isFullWidthCharacter(charCode)) {
+							tabsCharDelta++;
+						}
 						if (renderControlCharacters && charCode < 32) {
 							sb.write1(9216 + charCode);
 							partContentCnt++;

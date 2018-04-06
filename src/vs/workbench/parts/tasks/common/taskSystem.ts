@@ -7,11 +7,11 @@
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminateResponse } from 'vs/base/common/processes';
-import { IEventEmitter } from 'vs/base/common/eventEmitter';
+import { Event } from 'vs/base/common/event';
 
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
-import { Task } from './tasks';
+import { Task, TaskEvent } from './tasks';
 
 export enum TaskErrors {
 	NotConfigured,
@@ -42,8 +42,8 @@ export class TaskError {
 		"runner": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"taskKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"command": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"success": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"exitCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		"success": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"exitCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 	}
 */
 export interface TelemetryEvent {
@@ -93,26 +93,6 @@ export interface ITaskExecuteResult {
 	};
 }
 
-export namespace TaskSystemEvents {
-	export let Active: string = 'active';
-	export let Inactive: string = 'inactive';
-	export let Terminated: string = 'terminated';
-	export let Changed: string = 'changed';
-}
-
-export enum TaskType {
-	SingleRun,
-	Watching
-}
-
-export interface TaskEvent {
-	taskId?: string;
-	taskName?: string;
-	type?: TaskType;
-	group?: string;
-	__task?: Task;
-}
-
 export interface ITaskResolver {
 	resolve(workspaceFolder: IWorkspaceFolder, identifier: string): Task;
 }
@@ -121,7 +101,8 @@ export interface TaskTerminateResponse extends TerminateResponse {
 	task: Task | undefined;
 }
 
-export interface ITaskSystem extends IEventEmitter {
+export interface ITaskSystem {
+	onDidStateChange: Event<TaskEvent>;
 	run(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
 	isActive(): TPromise<boolean>;
 	isActiveSync(): boolean;

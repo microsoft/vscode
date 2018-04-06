@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
 import * as Paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Strings = require('vs/base/common/strings');
-import Collections = require('vs/base/common/collections');
+import * as Strings from 'vs/base/common/strings';
+import * as Collections from 'vs/base/common/collections';
 
 import { CommandOptions, Source, ErrorData } from 'vs/base/common/processes';
 import { LineProcess } from 'vs/base/node/processes';
@@ -170,14 +170,15 @@ export class ProcessRunnerDetector {
 	}
 
 	public detect(list: boolean = false, detectSpecific?: string): TPromise<DetectorResult> {
-		if (this.taskConfiguration && this.taskConfiguration.command && ProcessRunnerDetector.supports(this.taskConfiguration.command)) {
-			let config = ProcessRunnerDetector.detectorConfig(this.taskConfiguration.command);
+		let commandExecutable = TaskConfig.CommandString.value(this.taskConfiguration.command);
+		if (this.taskConfiguration && this.taskConfiguration.command && ProcessRunnerDetector.supports(commandExecutable)) {
+			let config = ProcessRunnerDetector.detectorConfig(commandExecutable);
 			let args = (this.taskConfiguration.args || []).concat(config.arg);
 			let options: CommandOptions = this.taskConfiguration.options ? this.resolveCommandOptions(this._workspaceRoot, this.taskConfiguration.options) : { cwd: this._cwd };
 			let isShellCommand = !!this.taskConfiguration.isShellCommand;
 			return this.runDetection(
-				new LineProcess(this.taskConfiguration.command, this.configurationResolverService.resolve(this._workspaceRoot, args), isShellCommand, options),
-				this.taskConfiguration.command, isShellCommand, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
+				new LineProcess(commandExecutable, this.configurationResolverService.resolve(this._workspaceRoot, args.map(a => TaskConfig.CommandString.value(a))), isShellCommand, options),
+				commandExecutable, isShellCommand, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
 		} else {
 			if (detectSpecific) {
 				let detectorPromise: TPromise<DetectorResult>;
@@ -218,7 +219,7 @@ export class ProcessRunnerDetector {
 
 	private resolveCommandOptions(workspaceFolder: IWorkspaceFolder, options: CommandOptions): CommandOptions {
 		// TODO@Dirk adopt new configuration resolver service https://github.com/Microsoft/vscode/issues/31365
-		let result = Objects.clone(options);
+		let result = Objects.deepClone(options);
 		if (result.cwd) {
 			result.cwd = this.configurationResolverService.resolve(workspaceFolder, result.cwd);
 		}

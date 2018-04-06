@@ -6,32 +6,32 @@
 import * as assert from 'assert';
 import { SpectronApplication } from '../../spectron/application';
 
-describe('Multiroot', () => {
+export function setup() {
+	describe('Multiroot', () => {
 
-	before(async function () {
-		this.app.suiteName = 'Multiroot';
+		before(async function () {
+			this.app.suiteName = 'Multiroot';
 
-		const app = this.app as SpectronApplication;
+			const app = this.app as SpectronApplication;
 
-		await app.restart([app.workspaceFilePath]);
+			// restart with preventing additional windows from restoring
+			// to ensure the window after restart is the multi-root workspace
+			await app.restart({ workspaceOrFolder: app.workspaceFilePath, extraArgs: ['--disable-restore-windows'] });
+		});
 
-		// for some reason Code opens 2 windows at this point
-		// so let's select the last one
-		await app.client.windowByIndex(2);
+		it('shows results from all folders', async function () {
+			const app = this.app as SpectronApplication;
+			await app.workbench.quickopen.openQuickOpen('*.*');
+
+			await app.workbench.quickopen.waitForQuickOpenElements(names => names.length === 6);
+			await app.workbench.quickopen.closeQuickOpen();
+		});
+
+		it('shows workspace name in title', async function () {
+			const app = this.app as SpectronApplication;
+			const title = await app.client.getTitle();
+			await app.screenCapturer.capture('window title');
+			assert.ok(title.indexOf('smoketest (Workspace)') >= 0);
+		});
 	});
-
-	it('shows results from all folders', async function () {
-		const app = this.app as SpectronApplication;
-		await app.workbench.quickopen.openQuickOpen('*.*');
-
-		await app.workbench.quickopen.waitForQuickOpenElements(names => names.length >= 6);
-		await app.workbench.quickopen.closeQuickOpen();
-	});
-
-	it('shows workspace name in title', async function () {
-		const app = this.app as SpectronApplication;
-		const title = await app.client.getTitle();
-		await app.screenCapturer.capture('window title');
-		assert.ok(title.indexOf('smoketest (Workspace)') >= 0);
-	});
-});
+}

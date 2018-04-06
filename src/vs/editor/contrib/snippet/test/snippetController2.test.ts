@@ -8,9 +8,10 @@ import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('SnippetController2', function () {
 
@@ -29,12 +30,13 @@ suite('SnippetController2', function () {
 	}
 
 	let editor: ICodeEditor;
-	let model: Model;
+	let model: TextModel;
 	let contextKeys: MockContextKeyService;
+	let logService = new NullLogService();
 
 	setup(function () {
 		contextKeys = new MockContextKeyService();
-		model = Model.createFromString('if\n    $state\nfi');
+		model = TextModel.createFromString('if\n    $state\nfi');
 		editor = createTestCodeEditor(model);
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
 		assert.equal(model.getEOL(), '\n');
@@ -45,13 +47,13 @@ suite('SnippetController2', function () {
 	});
 
 	test('creation', function () {
-		const ctrl = new SnippetController2(editor, contextKeys);
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
 		assertContextKeys(contextKeys, false, false, false);
 		ctrl.dispose();
 	});
 
 	test('insert, insert -> abort', function () {
-		const ctrl = new SnippetController2(editor, contextKeys);
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
 
 		ctrl.insert('foo${1:bar}foo$0');
 		assertContextKeys(contextKeys, true, false, true);
@@ -63,7 +65,7 @@ suite('SnippetController2', function () {
 	});
 
 	test('insert, insert -> tab, tab, done', function () {
-		const ctrl = new SnippetController2(editor, contextKeys);
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
 
 		ctrl.insert('${1:one}${2:two}$0');
 		assertContextKeys(contextKeys, true, false, true);
@@ -81,7 +83,7 @@ suite('SnippetController2', function () {
 	});
 
 	test('insert, insert -> cursor moves out (left/right)', function () {
-		const ctrl = new SnippetController2(editor, contextKeys);
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
 
 		ctrl.insert('foo${1:bar}foo$0');
 		assertContextKeys(contextKeys, true, false, true);
@@ -93,7 +95,7 @@ suite('SnippetController2', function () {
 	});
 
 	test('insert, insert -> cursor moves out (up/down)', function () {
-		const ctrl = new SnippetController2(editor, contextKeys);
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
 
 		ctrl.insert('foo${1:bar}foo$0');
 		assertContextKeys(contextKeys, true, false, true);
@@ -105,7 +107,7 @@ suite('SnippetController2', function () {
 	});
 
 	test('insert, insert -> cursors collapse', function () {
-		const ctrl = new SnippetController2(editor, contextKeys);
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
 
 		ctrl.insert('foo${1:bar}foo$0');
 		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), true);
@@ -117,7 +119,7 @@ suite('SnippetController2', function () {
 	});
 
 	test('insert, insert plain text -> no snippet mode', function () {
-		const ctrl = new SnippetController2(editor, contextKeys);
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
 
 		ctrl.insert('foobar');
 		assertContextKeys(contextKeys, false, false, false);
@@ -125,7 +127,7 @@ suite('SnippetController2', function () {
 	});
 
 	test('insert, delete snippet text', function () {
-		const ctrl = new SnippetController2(editor, contextKeys);
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
 
 		ctrl.insert('${1:foobar}$0');
 		assertContextKeys(contextKeys, true, false, true);
@@ -149,7 +151,7 @@ suite('SnippetController2', function () {
 	});
 
 	test('insert, nested snippet', function () {
-		const ctrl = new SnippetController2(editor, contextKeys);
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
 		ctrl.insert('${1:foobar}$0');
 		assertContextKeys(contextKeys, true, false, true);
 		assertSelections(editor, new Selection(1, 1, 1, 7), new Selection(2, 5, 2, 11));
@@ -168,7 +170,7 @@ suite('SnippetController2', function () {
 	});
 
 	test('insert, nested plain text', function () {
-		const ctrl = new SnippetController2(editor, contextKeys);
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
 		ctrl.insert('${1:foobar}$0');
 		assertContextKeys(contextKeys, true, false, true);
 		assertSelections(editor, new Selection(1, 1, 1, 7), new Selection(2, 5, 2, 11));
@@ -183,7 +185,7 @@ suite('SnippetController2', function () {
 	});
 
 	test('Nested snippets without final placeholder jumps to next outer placeholder, #27898', function () {
-		const ctrl = new SnippetController2(editor, contextKeys);
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
 
 		ctrl.insert('for(const ${1:element} of ${2:array}) {$0}');
 		assertContextKeys(contextKeys, true, false, true);
@@ -202,7 +204,7 @@ suite('SnippetController2', function () {
 	});
 
 	test('Inconsistent tab stop behaviour with recursive snippets and tab / shift tab, #27543', function () {
-		const ctrl = new SnippetController2(editor, contextKeys);
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
 		ctrl.insert('1_calize(${1:nl}, \'${2:value}\')$0');
 
 		assertContextKeys(contextKeys, true, false, true);
@@ -226,7 +228,7 @@ suite('SnippetController2', function () {
 	});
 
 	test('Snippet tabstop selecting content of previously entered variable only works when separated by space, #23728', function () {
-		const ctrl = new SnippetController2(editor, contextKeys);
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
 
 		model.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
@@ -244,7 +246,7 @@ suite('SnippetController2', function () {
 	});
 
 	test('HTML Snippets Combine, #32211', function () {
-		const ctrl = new SnippetController2(editor, contextKeys);
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
 
 		model.setValue('');
 		model.updateOptions({ insertSpaces: false, tabSize: 4, trimAutoWhitespace: false });
@@ -274,4 +276,45 @@ suite('SnippetController2', function () {
 		assertSelections(editor, new Selection(11, 18, 11, 22));
 	});
 
+	test('Problems with nested snippet insertion #39594', function () {
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+
+		model.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		ctrl.insert('$1 = ConvertTo-Json $1');
+		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(1, 19, 1, 19));
+
+		editor.setSelection(new Selection(1, 19, 1, 19));
+
+		// snippet mode should stop because $1 has two occurrences
+		// and we only have one selection left
+		assertContextKeys(contextKeys, false, false, false);
+	});
+
+	test('Problems with nested snippet insertion #39594', function () {
+		// ensure selection-change-to-cancel logic isn't too aggressive
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+
+		model.setValue('a-\naaa-');
+		editor.setSelections([new Selection(2, 5, 2, 5), new Selection(1, 3, 1, 3)]);
+
+		ctrl.insert('log($1);$0');
+		assertSelections(editor, new Selection(2, 9, 2, 9), new Selection(1, 7, 1, 7));
+		assertContextKeys(contextKeys, true, false, true);
+	});
+
+	test('“Nested” snippets terminating abruptly in VSCode 1.19.2. #42012', function () {
+
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+		model.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		ctrl.insert('var ${2:${1:name}} = ${1:name} + 1;${0}');
+
+		assertSelections(editor, new Selection(1, 5, 1, 9), new Selection(1, 12, 1, 16));
+		assertContextKeys(contextKeys, true, false, true);
+
+		ctrl.next();
+		assertContextKeys(contextKeys, true, true, true);
+	});
 });

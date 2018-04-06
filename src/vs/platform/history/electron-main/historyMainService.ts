@@ -9,44 +9,46 @@ import * as path from 'path';
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
-import { IStorageService } from 'vs/platform/storage/node/storage';
+import { IStateService } from 'vs/platform/state/common/state';
 import { app } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
-import { getPathLabel } from 'vs/base/common/labels';
+import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
-import CommonEvent, { Emitter } from 'vs/base/common/event';
+import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent } from 'vs/platform/workspaces/common/workspaces';
 import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isEqual } from 'vs/base/common/paths';
-
-export interface ILegacyRecentlyOpened extends IRecentlyOpened {
-	folders: string[]; // TODO@Ben migration
-}
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export class HistoryMainService implements IHistoryMainService {
 
-	private static MAX_TOTAL_RECENT_ENTRIES = 100;
+	private static readonly MAX_TOTAL_RECENT_ENTRIES = 100;
+	private static readonly MAX_MACOS_DOCK_RECENT_ENTRIES = 10;
 
-	private static recentlyOpenedStorageKey = 'openedPathsList';
+	private static readonly recentlyOpenedStorageKey = 'openedPathsList';
 
 	_serviceBrand: any;
 
 	private _onRecentlyOpenedChange = new Emitter<void>();
 	onRecentlyOpenedChange: CommonEvent<void> = this._onRecentlyOpenedChange.event;
 
+	private macOSRecentDocumentsUpdater: RunOnceScheduler;
+
 	constructor(
-		@IStorageService private storageService: IStorageService,
+		@IStateService private stateService: IStateService,
 		@ILogService private logService: ILogService,
-		@IWorkspacesMainService private workspacesService: IWorkspacesMainService,
+		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 	) {
+		this.macOSRecentDocumentsUpdater = new RunOnceScheduler(() => this.updateMacOSRecentDocuments(), 800);
+
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.workspacesService.onWorkspaceSaved(e => this.onWorkspaceSaved(e));
+		this.workspacesMainService.onWorkspaceSaved(e => this.onWorkspaceSaved(e));
 	}
 
 	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
@@ -61,7 +63,7 @@ export class HistoryMainService implements IHistoryMainService {
 
 			// Workspaces
 			workspaces.forEach(workspace => {
-				const isUntitledWorkspace = !isSingleFolderWorkspaceIdentifier(workspace) && this.workspacesService.isUntitledWorkspace(workspace);
+				const isUntitledWorkspace = !isSingleFolderWorkspaceIdentifier(workspace) && this.workspacesMainService.isUntitledWorkspace(workspace);
 				if (isUntitledWorkspace) {
 					return; // only store saved workspaces
 				}
@@ -69,10 +71,8 @@ export class HistoryMainService implements IHistoryMainService {
 				mru.workspaces.unshift(workspace);
 				mru.workspaces = arrays.distinct(mru.workspaces, workspace => this.distinctFn(workspace));
 
-				// Add to recent documents (macOS only, Windows can show workspaces separately)
-				if (isMacintosh) {
-					app.addRecentDocument(isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.configPath);
-				}
+				// We do not add to recent documents here because on Windows we do this from a custom
+				// JumpList and on macOS we fill the recent documents in one go from all our data later.
 			});
 
 			// Files
@@ -80,8 +80,8 @@ export class HistoryMainService implements IHistoryMainService {
 				mru.files.unshift(path);
 				mru.files = arrays.distinct(mru.files, file => this.distinctFn(file));
 
-				// Add to recent documents (Windows/macOS only)
-				if (isMacintosh || isWindows) {
+				// Add to recent documents (Windows only, macOS later)
+				if (isWindows) {
 					app.addRecentDocument(path);
 				}
 			});
@@ -92,6 +92,11 @@ export class HistoryMainService implements IHistoryMainService {
 
 			this.saveRecentlyOpened(mru);
 			this._onRecentlyOpenedChange.fire();
+
+			// Schedule update to recent documents on macOS dock
+			if (isMacintosh) {
+				this.macOSRecentDocumentsUpdater.schedule();
+			}
 		}
 	}
 
@@ -119,6 +124,41 @@ export class HistoryMainService implements IHistoryMainService {
 		if (update) {
 			this.saveRecentlyOpened(mru);
 			this._onRecentlyOpenedChange.fire();
+
+			// Schedule update to recent documents on macOS dock
+			if (isMacintosh) {
+				this.macOSRecentDocumentsUpdater.schedule();
+			}
+		}
+	}
+
+	private updateMacOSRecentDocuments(): void {
+		if (!isMacintosh) {
+			return;
+		}
+
+		// macOS recent documents in the dock are behaving strangely. the entries seem to get
+		// out of sync quickly over time. the attempted fix is to always set the list fresh
+		// from our MRU history data. So we clear the documents first and then set the documents
+		// again.
+
+		app.clearRecentDocuments();
+
+		const mru = this.getRecentlyOpened();
+
+		let maxEntries = HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES;
+
+		// Take up to maxEntries/2 workspaces
+		for (let i = 0; i < mru.workspaces.length && i < HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES / 2; i++) {
+			const workspace = mru.workspaces[i];
+			app.addRecentDocument(isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.configPath);
+			maxEntries--;
+		}
+
+		// Take up to maxEntries files
+		for (let i = 0; i < mru.files.length && i < maxEntries; i++) {
+			const file = mru.files[i];
+			app.addRecentDocument(file);
 		}
 	}
 
@@ -135,9 +175,9 @@ export class HistoryMainService implements IHistoryMainService {
 		let files: string[];
 
 		// Get from storage
-		const storedRecents = this.storageService.getItem<IRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey) as ILegacyRecentlyOpened;
+		const storedRecents = this.stateService.getItem<IRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey);
 		if (storedRecents) {
-			workspaces = storedRecents.workspaces || storedRecents.folders || [];
+			workspaces = storedRecents.workspaces || [];
 			files = storedRecents.files || [];
 		} else {
 			workspaces = [];
@@ -159,7 +199,7 @@ export class HistoryMainService implements IHistoryMainService {
 		files = arrays.distinct(files, file => this.distinctFn(file));
 
 		// Hide untitled workspaces
-		workspaces = workspaces.filter(workspace => isSingleFolderWorkspaceIdentifier(workspace) || !this.workspacesService.isUntitledWorkspace(workspace));
+		workspaces = workspaces.filter(workspace => isSingleFolderWorkspaceIdentifier(workspace) || !this.workspacesMainService.isUntitledWorkspace(workspace));
 
 		return { workspaces, files };
 	}
@@ -173,7 +213,7 @@ export class HistoryMainService implements IHistoryMainService {
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
-		this.storageService.setItem(HistoryMainService.recentlyOpenedStorageKey, recent);
+		this.stateService.setItem(HistoryMainService.recentlyOpenedStorageKey, recent);
 	}
 
 	public updateWindowsJumpList(): void {
@@ -213,8 +253,8 @@ export class HistoryMainService implements IHistoryMainService {
 				type: 'custom',
 				name: nls.localize('recentFolders', "Recent Workspaces"),
 				items: this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(workspace => {
-					const title = isSingleFolderWorkspaceIdentifier(workspace) ? path.basename(workspace) : getWorkspaceLabel(workspace, this.environmentService);
-					const description = isSingleFolderWorkspaceIdentifier(workspace) ? nls.localize('folderDesc', "{0} {1}", path.basename(workspace), getPathLabel(path.dirname(workspace))) : nls.localize('codeWorkspace', "Code Workspace");
+					const title = isSingleFolderWorkspaceIdentifier(workspace) ? getBaseLabel(workspace) : getWorkspaceLabel(workspace, this.environmentService);
+					const description = isSingleFolderWorkspaceIdentifier(workspace) ? nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(path.dirname(workspace))) : nls.localize('codeWorkspace', "Code Workspace");
 
 					return <Electron.JumpListItem>{
 						type: 'task',
@@ -237,7 +277,7 @@ export class HistoryMainService implements IHistoryMainService {
 		try {
 			app.setJumpList(jumpList);
 		} catch (error) {
-			this.logService.log('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
+			this.logService.warn('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
 		}
 	}
 }

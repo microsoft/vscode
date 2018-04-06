@@ -6,23 +6,17 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IAction } from 'vs/base/common/actions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import Severity from 'vs/base/common/severity';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const Extensions = {
 	WorkbenchActions: 'workbench.contributions.actions'
 };
-
-export interface IActionProvider {
-	getActions(): IAction[];
-}
 
 export interface IWorkbenchActionRegistry {
 
@@ -62,13 +56,20 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 		// menu item
 		// TODO@Rob slightly weird if-check required because of
-		// https://github.com/Microsoft/vscode/blob/master/src/vs/workbench/parts/search/browser/search.contribution.ts#L266
+		// https://github.com/Microsoft/vscode/blob/master/src/vs/workbench/parts/search/electron-browser/search.contribution.ts#L266
 		if (descriptor.label) {
+
+			let idx = alias.indexOf(': ');
+			let categoryOriginal;
+			if (idx > 0) {
+				categoryOriginal = alias.substr(0, idx);
+				alias = alias.substr(idx + 2);
+			}
 
 			const command = {
 				id: descriptor.id,
 				title: { value: descriptor.label, original: alias },
-				category
+				category: category && { value: category, original: categoryOriginal }
 			};
 
 			MenuRegistry.addCommand(command);
@@ -84,32 +85,32 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 	private _createCommandHandler(descriptor: SyncActionDescriptor): ICommandHandler {
 		return (accessor, args) => {
-			const messageService = accessor.get(IMessageService);
+			const notificationService = accessor.get(INotificationService);
 			const instantiationService = accessor.get(IInstantiationService);
 			const lifecycleService = accessor.get(ILifecycleService);
 
-			TPromise.as(this._triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args)).then(null, (err) => {
-				messageService.show(Severity.Error, err);
+			TPromise.as(this._triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args)).then(null, err => {
+				notificationService.error(err);
 			});
 		};
 	}
 
 	private _triggerAndDisposeAction(instantitationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: any): Thenable<void> {
-		const actionInstance = instantitationService.createInstance(descriptor.syncDescriptor);
-		actionInstance.label = descriptor.label || actionInstance.label;
-
-		// don't run the action when not enabled
-		if (!actionInstance.enabled) {
-			actionInstance.dispose();
-
-			return void 0;
-		}
-
-		const from = args && args.from || 'keybinding';
-
 		// run action when workbench is created
 		return lifecycleService.when(LifecyclePhase.Running).then(() => {
+			const actionInstance = instantitationService.createInstance(descriptor.syncDescriptor);
 			try {
+				actionInstance.label = descriptor.label || actionInstance.label;
+
+				// don't run the action when not enabled
+				if (!actionInstance.enabled) {
+					actionInstance.dispose();
+
+					return void 0;
+				}
+
+				const from = args && args.from || 'keybinding';
+
 				return TPromise.as(actionInstance.run(undefined, { from })).then(() => {
 					actionInstance.dispose();
 				}, (err) => {
@@ -123,4 +124,3 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		});
 	}
 });
-

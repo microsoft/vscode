@@ -1,0 +1,146 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/** Notification: Container */
+
+.monaco-workbench .notifications-list-container .notification-list-item {
+	display: flex;
+	flex-direction: column;
+	flex-direction: column-reverse; /* the details row appears first in order for better keyboard access to notification buttons */
+	padding: 10px 5px;
+	height: 100%;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .notifications-list-container .notification-offset-helper {
+	opacity: 0;
+	position: absolute;
+	line-height: 22px;
+	margin: 10px 0; /* 10px top and bottom */
+	word-wrap: break-word; /* never overflow long words, but break to next line */
+}
+
+/** Notification: Main Row */
+
+.monaco-workbench .notifications-list-container .notification-list-item > .notification-list-item-main-row {
+	display: flex;
+	flex-grow: 1;
+}
+
+/** Notification: Icon */
+
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon {
+	flex: 0 0 16px;
+	height: 22px;
+	margin-right: 4px;
+	margin-left: 4px;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+.vs .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info {
+	background-image: url('info.svg');
+}
+
+.vs .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning {
+	background-image: url('warning.svg');
+}
+
+.vs .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error {
+	background-image: url('error.svg');
+}
+
+.vs-dark .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info,
+.hc-black .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info {
+	background-image: url('info-inverse.svg');
+}
+
+.vs-dark .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning,
+.hc-black .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning {
+	background-image: url('warning-inverse.svg');
+}
+
+.vs-dark .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error,
+.hc-black .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error {
+	background-image: url('error-inverse.svg');
+}
+
+/** Notification: Message */
+
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message {
+	line-height: 22px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex: 1; /* let the message always grow */
+	user-select: text;
+}
+
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a:focus {
+	outline-width: 1px;
+	outline-style: solid;
+}
+
+.monaco-workbench .notifications-list-container .notification-list-item.expanded .notification-list-item-message {
+	white-space: normal;
+	word-wrap: break-word; /* never overflow long words, but break to next line */
+}
+
+/** Notification: Toolbar Container */
+
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container {
+	display: none;
+}
+
+.monaco-workbench .notifications-list-container .notification-list-item:hover .notification-list-item-toolbar-container,
+.monaco-workbench .notifications-list-container .monaco-list-row.focused .notification-list-item .notification-list-item-toolbar-container,
+.monaco-workbench .notifications-list-container .notification-list-item.expanded .notification-list-item-toolbar-container {
+	display: block;
+}
+
+/** Notification: Details Row */
+
+.monaco-workbench .notifications-list-container .notification-list-item > .notification-list-item-details-row {
+	display: none;
+	align-items: center;
+	padding: 0 5px;
+	overflow: hidden; /* details row should never overflow */
+}
+
+.monaco-workbench .notifications-list-container .notification-list-item.expanded > .notification-list-item-details-row {
+	display: flex;
+}
+
+/** Notification: Source */
+
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-source {
+	opacity: 0.7;
+	flex: 1;
+	font-size: 12px;
+	overflow: hidden; /* always give away space to buttons container */
+	text-overflow: ellipsis;
+}
+
+/** Notification: Buttons */
+
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container {
+	display: flex;
+	overflow: hidden;
+}
+
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-button {
+	max-width: fit-content;
+	padding: 5px 10px;
+	margin-left: 10px;
+	font-size: 12px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/** Notification: Progress */
+
+.monaco-workbench .notifications-list-container .progress-bit {
+	height: 2px;
+	bottom: 0;
+}

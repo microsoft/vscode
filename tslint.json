@@ -6,7 +6,6 @@
 		"no-string-throw": true,
 		"no-unused-expression": true,
 		"no-duplicate-variable": true,
-		// "no-unused-variable": true, // requires type information in tslint > v4
 		"curly": true,
 		"class-name": true,
 		"semicolon": [
@@ -399,6 +398,18 @@
 				]
 			},
 			{
+				"target": "**/vs/code/electron-browser/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"vs/nls",
+					"**/vs/base/**",
+					"**/vs/platform/**",
+					"**/vs/code/**",
+					"*" // node modules
+				]
+			},
+			{
 				"target": "**/vs/code/**",
 				"restrictions": [
 					"vs/nls",
@@ -421,7 +432,7 @@
 			},
 			{
 				"target": "{**/**.test.ts,**/test/**}",
-				"restrictions": "{**/vs/**,assert,sinon}"
+				"restrictions": "{**/vs/**,assert,sinon,crypto}"
 			},
 			{
 				"target": "**/{common,browser,workbench}/**",

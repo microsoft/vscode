@@ -6,10 +6,10 @@
 'use strict';
 
 import 'vs/css!./media/activitybarpart';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { illegalArgument } from 'vs/base/common/errors';
-import { Builder, $, Dimension } from 'vs/base/browser/builder';
+import { $ } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import { ActionsOrientation, ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/common/activity';
@@ -18,7 +18,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { GlobalActivityActionItem, GlobalActivityAction, ViewletActivityAction, ToggleViewletAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
-import { IPartService, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -29,16 +29,18 @@ import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, 
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
+import { Dimension } from 'vs/base/browser/dom';
 
 export class ActivitybarPart extends Part {
 
 	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
-	private static COLORS = {
+	private static readonly COLORS = {
 		backgroundColor: ACTIVITY_BAR_FOREGROUND,
 		badgeBackground: ACTIVITY_BAR_BADGE_BACKGROUND,
 		badgeForeground: ACTIVITY_BAR_BADGE_FOREGROUND,
 		dragAndDropBackground: ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND
 	};
+	private static readonly ACTION_HEIGHT = 50;
 
 	public _serviceBrand: any;
 
@@ -60,6 +62,7 @@ export class ActivitybarPart extends Part {
 		super(id, { hasTitle: false }, themeService);
 
 		this.globalActivityIdToActions = Object.create(null);
+
 		this.compositeBar = this.instantiationService.createInstance(CompositeBar, {
 			icon: true,
 			storageId: ActivitybarPart.PINNED_VIEWLETS,
@@ -72,8 +75,9 @@ export class ActivitybarPart extends Part {
 			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
 			hidePart: () => this.partService.setSideBarHidden(true),
 			colors: ActivitybarPart.COLORS,
-			overflowActionSize: 50
+			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		});
+
 		this.registerListeners();
 	}
 
@@ -85,17 +89,24 @@ export class ActivitybarPart extends Part {
 		// Deactivate viewlet action on close
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.compositeBar.deactivateComposite(viewlet.getId())));
 		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
+		this.toUnbind.push(this.viewletService.onDidViewletEnablementChange(({ id, enabled }) => {
+			if (enabled) {
+				this.compositeBar.addComposite(this.viewletService.getViewlet(id));
+			} else {
+				this.compositeBar.removeComposite(id);
+			}
+		}));
 	}
 
-	public showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string): IDisposable {
+	public showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
 		if (this.viewletService.getViewlet(viewletOrActionId)) {
-			return this.compositeBar.showActivity(viewletOrActionId, badge, clazz);
+			return this.compositeBar.showActivity(viewletOrActionId, badge, clazz, priority);
 		}
 
-		return this.showGlobalActivity(viewletOrActionId, badge);
+		return this.showGlobalActivity(viewletOrActionId, badge, clazz);
 	}
 
-	private showGlobalActivity(globalActivityId: string, badge: IBadge): IDisposable {
+	private showGlobalActivity(globalActivityId: string, badge: IBadge, clazz?: string): IDisposable {
 		if (!badge) {
 			throw illegalArgument('badge');
 		}
@@ -105,12 +116,12 @@ export class ActivitybarPart extends Part {
 			throw illegalArgument('globalActivityId');
 		}
 
-		action.setBadge(badge);
+		action.setBadge(badge, clazz);
 
 		return toDisposable(() => action.setBadge(undefined));
 	}
 
-	public createContentArea(parent: Builder): Builder {
+	public createContentArea(parent: HTMLElement): HTMLElement {
 		const $el = $(parent);
 		const $result = $('.content').appendTo($el);
 
@@ -120,14 +131,14 @@ export class ActivitybarPart extends Part {
 		// Top Actionbar with action items for each viewlet action
 		this.createGlobalActivityActionBar($('.global-activity').appendTo($result).getHTMLElement());
 
-		return $result;
+		return $result.getHTMLElement();
 	}
 
 	public updateStyles(): void {
 		super.updateStyles();
 
 		// Part container
-		const container = this.getContainer();
+		const container = $(this.getContainer());
 		const background = this.getColor(ACTIVITY_BAR_BACKGROUND);
 		container.style('background-color', background);
 
@@ -169,6 +180,7 @@ export class ActivitybarPart extends Part {
 			ariaLabel: nls.localize('globalActions', "Global Actions"),
 			animated: false
 		});
+		this.toUnbind.push(this.globalActionBar);
 
 		actions.forEach(a => {
 			this.globalActivityIdToActions[a.id] = a;
@@ -184,6 +196,9 @@ export class ActivitybarPart extends Part {
 	 * Layout title, content and status area in the given dimension.
 	 */
 	public layout(dimension: Dimension): Dimension[] {
+		if (!this.partService.isVisible(Parts.ACTIVITYBAR_PART)) {
+			return [dimension];
+		}
 
 		// Pass to super
 		const sizes = super.layout(dimension);
@@ -193,7 +208,7 @@ export class ActivitybarPart extends Part {
 		let availableHeight = this.dimension.height;
 		if (this.globalActionBar) {
 			// adjust height for global actions showing
-			availableHeight -= (this.globalActionBar.items.length * this.globalActionBar.domNode.clientHeight);
+			availableHeight -= (this.globalActionBar.items.length * ActivitybarPart.ACTION_HEIGHT);
 		}
 		this.compositeBar.layout(new Dimension(dimension.width, availableHeight));
 
@@ -212,13 +227,5 @@ export class ActivitybarPart extends Part {
 		}
 
 		super.dispose();
-	}
-
-	public shutdown(): void {
-		// Persist Hidden State
-		this.compositeBar.store();
-
-		// Pass to super
-		super.shutdown();
 	}
 }

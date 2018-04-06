@@ -15,11 +15,11 @@ export class MainThreadErrors implements MainThreadErrorsShape {
 		//
 	}
 
-	$onUnexpectedError(err: any | SerializedError, extensionId: string | undefined): void {
-		if (err.$isError) {
+	$onUnexpectedError(err: any | SerializedError): void {
+		if (err && err.$isError) {
 			const { name, message, stack } = err;
 			err = new Error();
-			err.message = extensionId ? `[${extensionId}] ${message}` : message;
+			err.message = message;
 			err.name = name;
 			err.stack = stack;
 		}

@@ -7,19 +7,11 @@
 
 import URI from 'vs/base/common/uri';
 
-export interface Key {
-	toString(): string;
-}
-
-export interface Entry<K, T> {
-	key: K;
-	value: T;
-}
-
-export function values<K, V>(map: Map<K, V>): V[] {
+export function values<V = any>(set: Set<V>): V[];
+export function values<K = any, V = any>(map: Map<K, V>): V[];
+export function values<V>(forEachable: { forEach(callback: (value: V, ...more: any[]) => any) }): V[] {
 	const result: V[] = [];
-	map.forEach(value => result.push(value));
-
+	forEachable.forEach(value => result.push(value));
 	return result;
 }
 
@@ -38,186 +30,6 @@ export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	}
 
 	return result;
-}
-
-export interface ISerializedBoundedLinkedMap<T> {
-	entries: { key: string; value: T }[];
-}
-
-interface LinkedEntry<K, T> extends Entry<K, T> {
-	next?: LinkedEntry<K, T>;
-	prev?: LinkedEntry<K, T>;
-}
-
-/**
- * A simple Map<T> that optionally allows to set a limit of entries to store. Once the limit is hit,
- * the cache will remove the entry that was last recently added. Or, if a ratio is provided below 1,
- * all elements will be removed until the ratio is full filled (e.g. 0.75 to remove 25% of old elements).
- */
-export class BoundedMap<T> {
-	private map: Map<string, LinkedEntry<string, T>>;
-
-	private head: LinkedEntry<string, T>;
-	private tail: LinkedEntry<string, T>;
-	private ratio: number;
-
-	constructor(private limit = Number.MAX_VALUE, ratio = 1, value?: ISerializedBoundedLinkedMap<T>) {
-		this.map = new Map<string, LinkedEntry<string, T>>();
-		this.ratio = limit * ratio;
-
-		if (value) {
-			value.entries.forEach(entry => {
-				this.set(entry.key, entry.value);
-			});
-		}
-	}
-
-	public setLimit(limit: number): void {
-		if (limit < 0) {
-			return; // invalid limit
-		}
-
-		this.limit = limit;
-		while (this.map.size > this.limit) {
-			this.trim();
-		}
-	}
-
-	public serialize(): ISerializedBoundedLinkedMap<T> {
-		const serialized: ISerializedBoundedLinkedMap<T> = { entries: [] };
-
-		this.map.forEach(entry => {
-			serialized.entries.push({ key: entry.key, value: entry.value });
-		});
-
-		return serialized;
-	}
-
-	public get size(): number {
-		return this.map.size;
-	}
-
-	public set(key: string, value: T): boolean {
-		if (this.map.has(key)) {
-			return false; // already present!
-		}
-
-		const entry: LinkedEntry<string, T> = { key, value };
-		this.push(entry);
-
-		if (this.size > this.limit) {
-			this.trim();
-		}
-
-		return true;
-	}
-
-	public get(key: string): T {
-		const entry = this.map.get(key);
-
-		return entry ? entry.value : null;
-	}
-
-	public getOrSet(k: string, t: T): T {
-		const res = this.get(k);
-		if (res) {
-			return res;
-		}
-
-		this.set(k, t);
-
-		return t;
-	}
-
-	public delete(key: string): T {
-		const entry = this.map.get(key);
-
-		if (entry) {
-			this.map.delete(key);
-
-			if (entry.next) {
-				entry.next.prev = entry.prev; // [A]<-[x]<-[C] = [A]<-[C]
-			} else {
-				this.head = entry.prev; // [A]-[x] = [A]
-			}
-
-			if (entry.prev) {
-				entry.prev.next = entry.next; // [A]->[x]->[C] = [A]->[C]
-			} else {
-				this.tail = entry.next; // [x]-[A] = [A]
-			}
-
-			return entry.value;
-		}
-
-		return null;
-	}
-
-	public has(key: string): boolean {
-		return this.map.has(key);
-	}
-
-	public clear(): void {
-		this.map.clear();
-		this.head = null;
-		this.tail = null;
-	}
-
-	private push(entry: LinkedEntry<string, T>): void {
-		if (this.head) {
-			// [A]-[B] = [A]-[B]->[X]
-			entry.prev = this.head;
-			this.head.next = entry;
-		}
-
-		if (!this.tail) {
-			this.tail = entry;
-		}
-
-		this.head = entry;
-
-		this.map.set(entry.key, entry);
-	}
-
-	private trim(): void {
-		if (this.tail) {
-
-			// Remove all elements until ratio is reached
-			if (this.ratio < this.limit) {
-				let index = 0;
-				let current = this.tail;
-				while (current.next) {
-
-					// Remove the entry
-					this.map.delete(current.key);
-
-					// if we reached the element that overflows our ratio condition
-					// make its next element the new tail of the Map and adjust the size
-					if (index === this.ratio) {
-						this.tail = current.next;
-						this.tail.prev = null;
-
-						break;
-					}
-
-					// Move on
-					current = current.next;
-					index++;
-				}
-			}
-
-			// Just remove the tail element
-			else {
-				this.map.delete(this.tail.key);
-
-				// [x]-[B] = [B]
-				this.tail = this.tail.next;
-				if (this.tail) {
-					this.tail.prev = null;
-				}
-			}
-		}
-	}
 }
 
 export interface IKeyIterator {
@@ -267,8 +79,8 @@ export class StringIterator implements IKeyIterator {
 
 export class PathIterator implements IKeyIterator {
 
-	private static _fwd = '/'.charCodeAt(0);
-	private static _bwd = '\\'.charCodeAt(0);
+	private static readonly _fwd = '/'.charCodeAt(0);
+	private static readonly _bwd = '\\'.charCodeAt(0);
 
 	private _value: string;
 	private _from: number;
@@ -370,7 +182,7 @@ export class TernarySearchTree<E> {
 		this._root = undefined;
 	}
 
-	set(key: string, element: E): void {
+	set(key: string, element: E): E {
 		let iter = this._iter.reset(key);
 		let node: TernarySearchTreeNode<E>;
 
@@ -410,7 +222,9 @@ export class TernarySearchTree<E> {
 				break;
 			}
 		}
+		const oldElement = node.element;
 		node.element = element;
+		return oldElement;
 	}
 
 	get(key: string): E {
@@ -623,13 +437,11 @@ interface Item<K, V> {
 	value: V;
 }
 
-export namespace Touch {
-	export const None: 0 = 0;
-	export const First: 1 = 1;
-	export const Last: 2 = 2;
+export enum Touch {
+	None = 0,
+	AsOld = 1,
+	AsNew = 2
 }
-
-export type Touch = 0 | 1 | 2;
 
 export class LinkedMap<K, V> {
 
@@ -664,10 +476,13 @@ export class LinkedMap<K, V> {
 		return this._map.has(key);
 	}
 
-	public get(key: K): V | undefined {
+	public get(key: K, touch: Touch = Touch.None): V | undefined {
 		const item = this._map.get(key);
 		if (!item) {
 			return undefined;
+		}
+		if (touch !== Touch.None) {
+			this.touch(item, touch);
 		}
 		return item.value;
 	}
@@ -685,10 +500,10 @@ export class LinkedMap<K, V> {
 				case Touch.None:
 					this.addItemLast(item);
 					break;
-				case Touch.First:
+				case Touch.AsOld:
 					this.addItemFirst(item);
 					break;
-				case Touch.Last:
+				case Touch.AsNew:
 					this.addItemLast(item);
 					break;
 				default:
@@ -738,18 +553,6 @@ export class LinkedMap<K, V> {
 				callbackfn(current.value, current.key, this);
 			}
 			current = current.next;
-		}
-	}
-
-	public forEachReverse(callbackfn: (value: V, key: K, map: LinkedMap<K, V>) => void, thisArg?: any): void {
-		let current = this._tail;
-		while (current) {
-			if (thisArg) {
-				callbackfn.bind(thisArg)(current.value, current.key, this);
-			} else {
-				callbackfn(current.value, current.key, this);
-			}
-			current = current.previous;
 		}
 	}
 
@@ -813,6 +616,26 @@ export class LinkedMap<K, V> {
 	}
 	*/
 
+	protected trimOld(newSize: number) {
+		if (newSize >= this.size) {
+			return;
+		}
+		if (newSize === 0) {
+			this.clear();
+			return;
+		}
+		let current = this._head;
+		let currentSize = this.size;
+		while (current && currentSize > newSize) {
+			this._map.delete(current.key);
+			current = current.next;
+			currentSize--;
+		}
+		this._head = current;
+		this._size = currentSize;
+		current.previous = void 0;
+	}
+
 	private addItemFirst(item: Item<K, V>): void {
 		// First time Insert
 		if (!this._head && !this._tail) {
@@ -841,8 +664,8 @@ export class LinkedMap<K, V> {
 
 	private removeItem(item: Item<K, V>): void {
 		if (item === this._head && item === this._tail) {
-			this._head = undefined;
-			this._tail = undefined;
+			this._head = void 0;
+			this._tail = void 0;
 		}
 		else if (item === this._head) {
 			this._head = item.next;
@@ -865,11 +688,11 @@ export class LinkedMap<K, V> {
 		if (!this._head || !this._tail) {
 			throw new Error('Invalid list');
 		}
-		if ((touch !== Touch.First && touch !== Touch.Last)) {
+		if ((touch !== Touch.AsOld && touch !== Touch.AsNew)) {
 			return;
 		}
 
-		if (touch === Touch.First) {
+		if (touch === Touch.AsOld) {
 			if (item === this._head) {
 				return;
 			}
@@ -881,7 +704,7 @@ export class LinkedMap<K, V> {
 			if (item === this._tail) {
 				// previous must be defined since item was not head but is tail
 				// So there are more than on item in the map
-				previous!.next = undefined;
+				previous!.next = void 0;
 				this._tail = previous;
 			}
 			else {
@@ -891,11 +714,11 @@ export class LinkedMap<K, V> {
 			}
 
 			// Insert the node at head
-			item.previous = undefined;
+			item.previous = void 0;
 			item.next = this._head;
 			this._head.previous = item;
 			this._head = item;
-		} else if (touch === Touch.Last) {
+		} else if (touch === Touch.AsNew) {
 			if (item === this._tail) {
 				return;
 			}
@@ -907,17 +730,84 @@ export class LinkedMap<K, V> {
 			if (item === this._head) {
 				// next must be defined since item was not tail but is head
 				// So there are more than on item in the map
-				next!.previous = undefined;
+				next!.previous = void 0;
 				this._head = next;
 			} else {
 				// Both next and previous are not undefined since item was neither head nor tail.
 				next!.previous = previous;
 				previous!.next = next;
 			}
-			item.next = undefined;
+			item.next = void 0;
 			item.previous = this._tail;
 			this._tail.next = item;
 			this._tail = item;
+		}
+	}
+
+	public toJSON(): [K, V][] {
+		const data: [K, V][] = [];
+
+		this.forEach((value, key) => {
+			data.push([key, value]);
+		});
+
+		return data;
+	}
+
+	public fromJSON(data: [K, V][]): void {
+		this.clear();
+
+		for (const [key, value] of data) {
+			this.set(key, value);
+		}
+	}
+}
+
+export class LRUCache<K, V> extends LinkedMap<K, V> {
+
+	private _limit: number;
+	private _ratio: number;
+
+	constructor(limit: number, ratio: number = 1) {
+		super();
+		this._limit = limit;
+		this._ratio = Math.min(Math.max(0, ratio), 1);
+	}
+
+	public get limit(): number {
+		return this._limit;
+	}
+
+	public set limit(limit: number) {
+		this._limit = limit;
+		this.checkTrim();
+	}
+
+	public get ratio(): number {
+		return this._ratio;
+	}
+
+	public set ratio(ratio: number) {
+		this._ratio = Math.min(Math.max(0, ratio), 1);
+		this.checkTrim();
+	}
+
+	public get(key: K): V | undefined {
+		return super.get(key, Touch.AsNew);
+	}
+
+	public peek(key: K): V | undefined {
+		return super.get(key, Touch.None);
+	}
+
+	public set(key: K, value: V): void {
+		super.set(key, value, Touch.AsNew);
+		this.checkTrim();
+	}
+
+	private checkTrim() {
+		if (this.size > this._limit) {
+			this.trimOld(Math.round(this._limit * this._ratio));
 		}
 	}
 }

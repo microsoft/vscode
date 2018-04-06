@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -15,10 +15,10 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 export class ToggleTabsVisibilityAction extends Action {
 
-	public static ID = 'workbench.action.toggleTabsVisibility';
-	public static LABEL = nls.localize('toggleTabs', "Toggle Tab Visibility");
+	public static readonly ID = 'workbench.action.toggleTabsVisibility';
+	public static readonly LABEL = nls.localize('toggleTabs', "Toggle Tab Visibility");
 
-	private static tabsVisibleKey = 'workbench.editor.showTabs';
+	private static readonly tabsVisibleKey = 'workbench.editor.showTabs';
 
 	constructor(
 		id: string,

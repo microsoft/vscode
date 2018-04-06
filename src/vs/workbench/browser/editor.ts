@@ -11,7 +11,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { isArray } from 'vs/base/common/types';
-import URI from 'vs/base/common/uri';
 
 export interface IEditorDescriptor {
 	instantiate(instantiationService: IInstantiationService): BaseEditor;
@@ -198,42 +197,3 @@ export const Extensions = {
 };
 
 Registry.add(Extensions.Editors, new EditorRegistry());
-
-export interface IDraggedResource {
-	resource: URI;
-	isExternal: boolean;
-}
-
-export function extractResources(e: DragEvent, externalOnly?: boolean): IDraggedResource[] {
-	const resources: IDraggedResource[] = [];
-	if (e.dataTransfer.types.length > 0) {
-
-		// Check for in-app DND
-		if (!externalOnly) {
-			const rawData = e.dataTransfer.getData('URL');
-			if (rawData) {
-				try {
-					resources.push({ resource: URI.parse(rawData), isExternal: false });
-				} catch (error) {
-					// Invalid URI
-				}
-			}
-		}
-
-		// Check for native file transfer
-		if (e.dataTransfer && e.dataTransfer.files) {
-			for (let i = 0; i < e.dataTransfer.files.length; i++) {
-				const file = e.dataTransfer.files[i] as { path: string };
-				if (file && file.path) {
-					try {
-						resources.push({ resource: URI.file(file.path), isExternal: true });
-					} catch (error) {
-						// Invalid URI
-					}
-				}
-			}
-		}
-	}
-
-	return resources;
-}

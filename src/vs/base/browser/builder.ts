@@ -6,11 +6,11 @@
 
 import 'vs/css!./builder';
 import { TPromise } from 'vs/base/common/winjs.base';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import strings = require('vs/base/common/strings');
-import assert = require('vs/base/common/assert');
-import DOM = require('vs/base/browser/dom');
+import * as strings from 'vs/base/common/strings';
+import * as assert from 'vs/base/common/assert';
+import * as DOM from 'vs/base/browser/dom';
 
 /**
  * Welcome to the monaco builder. The recommended way to use it is:
@@ -43,75 +43,12 @@ export interface QuickBuilder {
 	(builder: Builder): Builder;
 }
 
-/**
- * Create a new builder from the element that is uniquely identified by the given identifier. If the
- *  second parameter "offdom" is set to true, the created elements will only be added to the provided
- *  element when the build() method is called.
- */
-export function withElementById(id: string, offdom?: boolean): Builder {
-	assert.ok(types.isString(id), 'Expected String as parameter');
-
-	let element = document.getElementById(id);
-	if (element) {
-		return new Builder(element, offdom);
-	}
-
-	return null;
-}
-
-export const Build = {
-	withElementById: withElementById
-};
-
 // --- Implementation starts here
 
 let MS_DATA_KEY = '_msDataKey';
 let DATA_BINDING_ID = '__$binding';
 let LISTENER_BINDING_ID = '__$listeners';
 let VISIBILITY_BINDING_ID = '__$visibility';
-
-export class Position {
-	public x: number;
-	public y: number;
-
-	constructor(x: number, y: number) {
-		this.x = x;
-		this.y = y;
-	}
-}
-
-export class Box {
-	public top: number;
-	public right: number;
-	public bottom: number;
-	public left: number;
-
-	constructor(top: number, right: number, bottom: number, left: number) {
-		this.top = top;
-		this.right = right;
-		this.bottom = bottom;
-		this.left = left;
-	}
-}
-
-export class Dimension {
-	public width: number;
-	public height: number;
-
-	constructor(width: number, height: number) {
-		this.width = width;
-		this.height = height;
-	}
-
-	public substract(box: Box): Dimension {
-		return new Dimension(this.width - box.left - box.right, this.height - box.top - box.bottom);
-	}
-}
-
-export interface IRange {
-	start: number;
-	end: number;
-}
 
 function data(element: any): any {
 	if (!element[MS_DATA_KEY]) {
@@ -167,32 +104,6 @@ export class Builder implements IDisposable {
 		builder.toUnbind = this.toUnbind;
 
 		return builder;
-	}
-
-	/**
-	 *  Creates a new Builder that performs all operations on the current element of the builder and
-	 *  the builder or element being passed in.
-	 */
-	public and(element: HTMLElement): MultiBuilder;
-	public and(builder: Builder): MultiBuilder;
-	public and(obj: any): MultiBuilder {
-
-		// Convert HTMLElement to Builder as necessary
-		if (!(obj instanceof Builder) && !(obj instanceof MultiBuilder)) {
-			obj = new Builder((<HTMLElement>obj), this.offdom);
-		}
-
-		// Wrap Builders into MultiBuilder
-		let builders: Builder[] = [this];
-		if (obj instanceof MultiBuilder) {
-			for (let i = 0; i < (<MultiBuilder>obj).length; i++) {
-				builders.push((<MultiBuilder>obj).item(i));
-			}
-		} else {
-			builders.push(obj);
-		}
-
-		return new MultiBuilder(builders);
 	}
 
 	/**
@@ -370,18 +281,6 @@ export class Builder implements IDisposable {
 	 *  of the element. The function will be called with a new builder created with the
 	 *  provided element.
 	 */
-	public ol(attributes?: any, fn?: (builder: Builder) => void): Builder {
-		return this.doElement('ol', attributes, fn);
-	}
-
-	/**
-	 *  Creates a new element of this kind as child of the current element or parent.
-	 *  Accepts an object literal as first parameter that can be used to describe the
-	 *  attributes of the element.
-	 *  Accepts a function as second parameter that can be used to create child elements
-	 *  of the element. The function will be called with a new builder created with the
-	 *  provided element.
-	 */
 	public li(attributes?: any, fn?: (builder: Builder) => void): Builder {
 		return this.doElement('li', attributes, fn);
 	}
@@ -420,42 +319,6 @@ export class Builder implements IDisposable {
 	 */
 	public a(attributes?: any, fn?: (builder: Builder) => void): Builder {
 		return this.doElement('a', attributes, fn);
-	}
-
-	/**
-	 *  Creates a new element of this kind as child of the current element or parent.
-	 *  Accepts an object literal as first parameter that can be used to describe the
-	 *  attributes of the element.
-	 *  Accepts a function as second parameter that can be used to create child elements
-	 *  of the element. The function will be called with a new builder created with the
-	 *  provided element.
-	 */
-	public header(attributes?: any, fn?: (builder: Builder) => void): Builder {
-		return this.doElement('header', attributes, fn);
-	}
-
-	/**
-	 *  Creates a new element of this kind as child of the current element or parent.
-	 *  Accepts an object literal as first parameter that can be used to describe the
-	 *  attributes of the element.
-	 *  Accepts a function as second parameter that can be used to create child elements
-	 *  of the element. The function will be called with a new builder created with the
-	 *  provided element.
-	 */
-	public section(attributes?: any, fn?: (builder: Builder) => void): Builder {
-		return this.doElement('section', attributes, fn);
-	}
-
-	/**
-	 *  Creates a new element of this kind as child of the current element or parent.
-	 *  Accepts an object literal as first parameter that can be used to describe the
-	 *  attributes of the element.
-	 *  Accepts a function as second parameter that can be used to create child elements
-	 *  of the element. The function will be called with a new builder created with the
-	 *  provided element.
-	 */
-	public footer(attributes?: any, fn?: (builder: Builder) => void): Builder {
-		return this.doElement('footer', attributes, fn);
 	}
 
 	/**
@@ -515,43 +378,10 @@ export class Builder implements IDisposable {
 	}
 
 	/**
-	 *  Returns true if the current element of this builder is the active element.
-	 */
-	public hasFocus(): boolean {
-		let activeElement: Element = document.activeElement;
-
-		return (activeElement === this.currentElement);
-	}
-
-	/**
-	 *  Calls select() on the current HTML element;
-	 */
-	public domSelect(range: IRange = null): Builder {
-		let input = <HTMLInputElement>this.currentElement;
-
-		input.select();
-
-		if (range) {
-			input.setSelectionRange(range.start, range.end);
-		}
-
-		return this;
-	}
-
-	/**
 	 *  Calls blur() on the current HTML element;
 	 */
 	public domBlur(): Builder {
 		this.currentElement.blur();
-
-		return this;
-	}
-
-	/**
-	 *  Calls click() on the current HTML element;
-	 */
-	public domClick(): Builder {
-		this.currentElement.click();
 
 		return this;
 	}
@@ -672,30 +502,6 @@ export class Builder implements IDisposable {
 	}
 
 	/**
-	 *  Registers listener on event types on the current element and causes
-	 *  the event to prevent default execution (e.preventDefault()). If the
-	 *  parameter "cancelBubble" is set to true, it will also prevent bubbling
-	 *  of the event.
-	 */
-	public preventDefault(type: string, cancelBubble: boolean, listenerToUnbindContainer?: IDisposable[], useCapture?: boolean): Builder;
-	public preventDefault(typesArray: string[], cancelBubble: boolean, listenerToUnbindContainer?: IDisposable[], useCapture?: boolean): Builder;
-	public preventDefault(arg1: any, cancelBubble: boolean, listenerToUnbindContainer?: IDisposable[], useCapture?: boolean): Builder {
-		let fn = function (e: Event) {
-			e.preventDefault();
-
-			if (cancelBubble) {
-				if (e.stopPropagation) {
-					e.stopPropagation();
-				} else {
-					e.cancelBubble = true;
-				}
-			}
-		};
-
-		return this.on(arg1, fn, listenerToUnbindContainer, useCapture);
-	}
-
-	/**
 	 * 	This method has different characteristics based on the parameter provided:
 	 *  a) a single string passed in as argument will return the attribute value using the
 	 *  string as key from the current element of the builder.
@@ -772,37 +578,10 @@ export class Builder implements IDisposable {
 	}
 
 	/**
-	 *  Sets the src attribute to the value provided for the current HTML element of the builder.
-	 */
-	public src(src: string): Builder {
-		this.currentElement.setAttribute('src', src);
-
-		return this;
-	}
-
-	/**
-	 *  Sets the href attribute to the value provided for the current HTML element of the builder.
-	 */
-	public href(href: string): Builder {
-		this.currentElement.setAttribute('href', href);
-
-		return this;
-	}
-
-	/**
 	 *  Sets the title attribute to the value provided for the current HTML element of the builder.
 	 */
 	public title(title: string): Builder {
 		this.currentElement.setAttribute('title', title);
-
-		return this;
-	}
-
-	/**
-	 *  Sets the name attribute to the value provided for the current HTML element of the builder.
-	 */
-	public name(name: string): Builder {
-		this.currentElement.setAttribute('name', name);
 
 		return this;
 	}
@@ -821,24 +600,6 @@ export class Builder implements IDisposable {
 	 */
 	public value(value: string): Builder {
 		this.currentElement.setAttribute('value', value);
-
-		return this;
-	}
-
-	/**
-	 *  Sets the alt attribute to the value provided for the current HTML element of the builder.
-	 */
-	public alt(alt: string): Builder {
-		this.currentElement.setAttribute('alt', alt);
-
-		return this;
-	}
-
-	/**
-	 *  Sets the name draggable to the value provided for the current HTML element of the builder.
-	 */
-	public draggable(isDraggable: boolean): Builder {
-		this.currentElement.setAttribute('draggable', isDraggable ? 'true' : 'false');
 
 		return this;
 	}
@@ -987,22 +748,6 @@ export class Builder implements IDisposable {
 	}
 
 	/**
-	 *  Sets the first class to the current HTML element of the builder if the second class is currently set
-	 *  and vice versa otherwise.
-	 */
-	public swapClass(classA: string, classB: string): Builder {
-		if (this.hasClass(classA)) {
-			this.removeClass(classA);
-			this.addClass(classB);
-		} else {
-			this.removeClass(classB);
-			this.addClass(classA);
-		}
-
-		return this;
-	}
-
-	/**
 	 *  Adds or removes the provided className for the current HTML element of the builder.
 	 */
 	public toggleClass(className: string): Builder {
@@ -1020,15 +765,6 @@ export class Builder implements IDisposable {
 	 */
 	public color(color: string): Builder {
 		this.currentElement.style.color = color;
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property background.
-	 */
-	public background(color: string): Builder {
-		this.currentElement.style.backgroundColor = color;
 
 		return this;
 	}
@@ -1152,115 +888,6 @@ export class Builder implements IDisposable {
 	}
 
 	/**
-	 *  Sets the CSS property min-size.
-	 */
-	public minSize(size: string): Builder;
-	public minSize(width: number, height?: number): Builder;
-	public minSize(width: string, height?: string): Builder;
-	public minSize(width: any, height?: any): Builder {
-		if (types.isString(width) && width.indexOf(' ') >= 0) {
-			return this.minSize.apply(this, width.split(' '));
-		}
-
-		if (!types.isUndefinedOrNull(width)) {
-			this.currentElement.style.minWidth = this.toPixel(width);
-		}
-
-		if (!types.isUndefinedOrNull(height)) {
-			this.currentElement.style.minHeight = this.toPixel(height);
-		}
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property max-size.
-	 */
-	public maxSize(size: string): Builder;
-	public maxSize(width: number, height?: number): Builder;
-	public maxSize(width: string, height?: string): Builder;
-	public maxSize(width: any, height?: any): Builder {
-		if (types.isString(width) && width.indexOf(' ') >= 0) {
-			return this.maxSize.apply(this, width.split(' '));
-		}
-
-		if (!types.isUndefinedOrNull(width)) {
-			this.currentElement.style.maxWidth = this.toPixel(width);
-		}
-
-		if (!types.isUndefinedOrNull(height)) {
-			this.currentElement.style.maxHeight = this.toPixel(height);
-		}
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property float.
-	 */
-	public float(float: string): Builder {
-		this.currentElement.style.cssFloat = float;
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property clear.
-	 */
-	public clear(clear: string): Builder {
-		this.currentElement.style.clear = clear;
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property for fonts back to default.
-	 */
-	public normal(): Builder {
-		this.currentElement.style.fontStyle = 'normal';
-		this.currentElement.style.fontWeight = 'normal';
-		this.currentElement.style.textDecoration = 'none';
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property font-style to italic.
-	 */
-	public italic(): Builder {
-		this.currentElement.style.fontStyle = 'italic';
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property font-weight to bold.
-	 */
-	public bold(): Builder {
-		this.currentElement.style.fontWeight = 'bold';
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property text-decoration to underline.
-	 */
-	public underline(): Builder {
-		this.currentElement.style.textDecoration = 'underline';
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property overflow.
-	 */
-	public overflow(overflow: string): Builder {
-		this.currentElement.style.overflow = overflow;
-
-		return this;
-	}
-
-	/**
 	 *  Sets the CSS property display.
 	 */
 	public display(display: string): Builder {
@@ -1269,24 +896,12 @@ export class Builder implements IDisposable {
 		return this;
 	}
 
-	public disable(): Builder {
-		this.currentElement.setAttribute('disabled', 'disabled');
-
-		return this;
-	}
-
-	public enable(): Builder {
-		this.currentElement.removeAttribute('disabled');
-
-		return this;
-	}
-
 	/**
 	 *  Shows the current element of the builder.
 	 */
 	public show(): Builder {
-		if (this.hasClass('builder-hidden')) {
-			this.removeClass('builder-hidden');
+		if (this.hasClass('monaco-builder-hidden')) {
+			this.removeClass('monaco-builder-hidden');
 		}
 
 		this.attr('aria-hidden', 'false');
@@ -1324,8 +939,8 @@ export class Builder implements IDisposable {
 	 *  Hides the current element of the builder.
 	 */
 	public hide(): Builder {
-		if (!this.hasClass('builder-hidden')) {
-			this.addClass('builder-hidden');
+		if (!this.hasClass('monaco-builder-hidden')) {
+			this.addClass('monaco-builder-hidden');
 		}
 		this.attr('aria-hidden', 'true');
 
@@ -1339,27 +954,7 @@ export class Builder implements IDisposable {
 	 *  Returns true if the current element of the builder is hidden.
 	 */
 	public isHidden(): boolean {
-		return this.hasClass('builder-hidden') || this.currentElement.style.display === 'none';
-	}
-
-	/**
-	 *  Toggles visibility of the current element of the builder.
-	 */
-	public toggleVisibility(): Builder {
-
-		// Cancel any pending showDelayed() invocation
-		this.cancelVisibilityPromise();
-
-		this.swapClass('builder-visible', 'builder-hidden');
-
-		if (this.isHidden()) {
-			this.attr('aria-hidden', 'true');
-		}
-		else {
-			this.attr('aria-hidden', 'false');
-		}
-
-		return this;
+		return this.hasClass('monaco-builder-hidden') || this.currentElement.style.display === 'none';
 	}
 
 	private cancelVisibilityPromise(): void {
@@ -1368,139 +963,6 @@ export class Builder implements IDisposable {
 			promise.cancel();
 			this.removeProperty(VISIBILITY_BINDING_ID);
 		}
-	}
-
-	/**
-	 *  Sets the CSS property border.
-	 */
-	public border(border: string): Builder;
-	public border(width: number, style?: string, color?: string): Builder;
-	public border(width: any, style?: string, color?: string): Builder {
-		if (types.isString(width) && width.indexOf(' ') >= 0) {
-			return this.border.apply(this, width.split(' '));
-		}
-
-		this.currentElement.style.borderWidth = this.toPixel(width);
-
-		if (color) {
-			this.currentElement.style.borderColor = color;
-		}
-
-		if (style) {
-			this.currentElement.style.borderStyle = style;
-		}
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property border-top.
-	 */
-	public borderTop(border: string): Builder;
-	public borderTop(width: number, style: string, color: string): Builder;
-	public borderTop(width: any, style?: string, color?: string): Builder {
-		if (types.isString(width) && width.indexOf(' ') >= 0) {
-			return this.borderTop.apply(this, width.split(' '));
-		}
-
-		this.currentElement.style.borderTopWidth = this.toPixel(width);
-
-		if (color) {
-			this.currentElement.style.borderTopColor = color;
-		}
-
-		if (style) {
-			this.currentElement.style.borderTopStyle = style;
-		}
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property border-bottom.
-	 */
-	public borderBottom(border: string): Builder;
-	public borderBottom(width: number, style: string, color: string): Builder;
-	public borderBottom(width: any, style?: string, color?: string): Builder {
-		if (types.isString(width) && width.indexOf(' ') >= 0) {
-			return this.borderBottom.apply(this, width.split(' '));
-		}
-
-		this.currentElement.style.borderBottomWidth = this.toPixel(width);
-
-		if (color) {
-			this.currentElement.style.borderBottomColor = color;
-		}
-
-		if (style) {
-			this.currentElement.style.borderBottomStyle = style;
-		}
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property border-left.
-	 */
-	public borderLeft(border: string): Builder;
-	public borderLeft(width: number, style: string, color: string): Builder;
-	public borderLeft(width: any, style?: string, color?: string): Builder {
-		if (types.isString(width) && width.indexOf(' ') >= 0) {
-			return this.borderLeft.apply(this, width.split(' '));
-		}
-
-		this.currentElement.style.borderLeftWidth = this.toPixel(width);
-
-		if (color) {
-			this.currentElement.style.borderLeftColor = color;
-		}
-
-		if (style) {
-			this.currentElement.style.borderLeftStyle = style;
-		}
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property border-right.
-	 */
-	public borderRight(border: string): Builder;
-	public borderRight(width: number, style: string, color: string): Builder;
-	public borderRight(width: any, style?: string, color?: string): Builder {
-		if (types.isString(width) && width.indexOf(' ') >= 0) {
-			return this.borderRight.apply(this, width.split(' '));
-		}
-
-		this.currentElement.style.borderRightWidth = this.toPixel(width);
-
-		if (color) {
-			this.currentElement.style.borderRightColor = color;
-		}
-
-		if (style) {
-			this.currentElement.style.borderRightStyle = style;
-		}
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property text-align.
-	 */
-	public textAlign(textAlign: string): Builder {
-		this.currentElement.style.textAlign = textAlign;
-
-		return this;
-	}
-
-	/**
-	 *  Sets the CSS property vertical-align.
-	 */
-	public verticalAlign(valign: string): Builder {
-		this.currentElement.style.verticalAlign = valign;
-
-		return this;
 	}
 
 	private toPixel(obj: any): string {
@@ -1554,32 +1016,6 @@ export class Builder implements IDisposable {
 	}
 
 	/**
-	 *  Adds the provided object as property to the current element. Call getBinding()
-	 *  to retrieve it again.
-	 */
-	public bind(object: any): Builder {
-		bindElement(this.currentElement, object);
-
-		return this;
-	}
-
-	/**
-	 *  Removes the binding of the current element.
-	 */
-	public unbind(): Builder {
-		unbindElement(this.currentElement);
-
-		return this;
-	}
-
-	/**
-	 *  Returns the object that was passed into the bind() call.
-	 */
-	public getBinding(): any {
-		return getBindingFromElement(this.currentElement);
-	}
-
-	/**
 	 *  Allows to store arbritary data into the current element.
 	 */
 	public setProperty(key: string, value: any): Builder {
@@ -1607,84 +1043,12 @@ export class Builder implements IDisposable {
 	}
 
 	/**
-	 *  Returns a new builder with the parent element of the current element of the builder.
-	 */
-	public parent(offdom?: boolean): Builder {
-		assert.ok(!this.offdom, 'Builder was created with offdom = true and thus has no parent set');
-
-		return withElement(<HTMLElement>this.currentElement.parentNode, offdom);
-	}
-
-	/**
-	 *  Returns a new builder with all child elements of the current element of the builder.
-	 */
-	public children(offdom?: boolean): MultiBuilder {
-		let children = this.currentElement.children;
-
-		let builders: Builder[] = [];
-		for (let i = 0; i < children.length; i++) {
-			builders.push(withElement(<HTMLElement>children.item(i), offdom));
-		}
-
-		return new MultiBuilder(builders);
-	}
-
-	/**
 	 * Returns a new builder with the child at the given index.
 	 */
 	public child(index = 0): Builder {
 		let children = this.currentElement.children;
 
 		return withElement(<HTMLElement>children.item(index));
-	}
-
-	/**
-	 *  Removes the current HTMLElement from the given builder from this builder if this builders
-	 *  current HTMLElement is the direct parent.
-	 */
-	public removeChild(builder: Builder): Builder {
-		if (this.currentElement === builder.parent().getHTMLElement()) {
-			this.currentElement.removeChild(builder.getHTMLElement());
-		}
-
-		return this;
-	}
-
-	/**
-	 *  Returns a new builder with all elements matching the provided selector scoped to the
-	 *  current element of the builder. Use Build.withElementsBySelector() to run the selector
-	 *  over the entire DOM.
-	 *  The returned builder is an instance of array that can have 0 elements if the selector does not match any
-	 *  elements.
-	 */
-	public select(selector: string, offdom?: boolean): MultiBuilder {
-		assert.ok(types.isString(selector), 'Expected String as parameter');
-
-		let elements = this.currentElement.querySelectorAll(selector);
-
-		let builders: Builder[] = [];
-		for (let i = 0; i < elements.length; i++) {
-			builders.push(withElement(<HTMLElement>elements.item(i), offdom));
-		}
-
-		return new MultiBuilder(builders);
-	}
-
-	/**
-	 *  Returns true if the current element of the builder matches the given selector and false otherwise.
-	 */
-	public matches(selector: string): boolean {
-		let element = this.currentElement;
-		let matches = (<any>element).webkitMatchesSelector || (<any>element).mozMatchesSelector || (<any>element).msMatchesSelector || (<any>element).oMatchesSelector;
-
-		return matches && matches.call(element, selector);
-	}
-
-	/**
-	 *  Returns true if the current element of the builder has no children.
-	 */
-	public isEmpty(): boolean {
-		return !this.currentElement.childNodes || this.currentElement.childNodes.length === 0;
 	}
 
 	/**
@@ -1737,6 +1101,7 @@ export class Builder implements IDisposable {
 	 *  Removes all HTML elements from the current element of the builder.
 	 */
 	public clearChildren(): Builder {
+
 		// Remove Elements
 		if (this.currentElement) {
 			DOM.clearNode(this.currentElement);
@@ -1811,49 +1176,18 @@ export class Builder implements IDisposable {
 	/**
 	 *  Gets the size (in pixels) of an element, including the margin.
 	 */
-	public getTotalSize(): Dimension {
+	public getTotalSize(): DOM.Dimension {
 		let totalWidth = DOM.getTotalWidth(this.currentElement);
 		let totalHeight = DOM.getTotalHeight(this.currentElement);
 
-		return new Dimension(totalWidth, totalHeight);
-	}
-
-	/**
-	 *  Gets the size (in pixels) of the inside of the element, excluding the border and padding.
-	 */
-	public getContentSize(): Dimension {
-		let contentWidth = DOM.getContentWidth(this.currentElement);
-		let contentHeight = DOM.getContentHeight(this.currentElement);
-
-		return new Dimension(contentWidth, contentHeight);
+		return new DOM.Dimension(totalWidth, totalHeight);
 	}
 
 	/**
 	 *  Another variant of getting the inner dimensions of an element.
 	 */
-	public getClientArea(): Dimension {
-
-		// 0.) Try with DOM clientWidth / clientHeight
-		if (this.currentElement !== document.body) {
-			return new Dimension(this.currentElement.clientWidth, this.currentElement.clientHeight);
-		}
-
-		// 1.) Try innerWidth / innerHeight
-		if (window.innerWidth && window.innerHeight) {
-			return new Dimension(window.innerWidth, window.innerHeight);
-		}
-
-		// 2.) Try with document.body.clientWidth / document.body.clientHeigh
-		if (document.body && document.body.clientWidth && document.body.clientWidth) {
-			return new Dimension(document.body.clientWidth, document.body.clientHeight);
-		}
-
-		// 3.) Try with document.documentElement.clientWidth / document.documentElement.clientHeight
-		if (document.documentElement && document.documentElement.clientWidth && document.documentElement.clientHeight) {
-			return new Dimension(document.documentElement.clientWidth, document.documentElement.clientHeight);
-		}
-
-		throw new Error('Unable to figure out browser width and height');
+	public getClientArea(): DOM.Dimension {
+		return DOM.getClientArea(this.currentElement);
 	}
 }
 
@@ -1956,73 +1290,8 @@ export class MultiBuilder extends Builder {
 		this.length = this.builders.length;
 	}
 
-	public pop(): Builder {
-		let element = this.builders.pop();
-		this.length = this.builders.length;
-
-		return element;
-	}
-
-	public concat(items: Builder[]): Builder[] {
-		let elements = this.builders.concat(items);
-		this.length = this.builders.length;
-
-		return elements;
-	}
-
-	public shift(): Builder {
-		let element = this.builders.shift();
-		this.length = this.builders.length;
-
-		return element;
-	}
-
-	public unshift(item: Builder): number {
-		let res = this.builders.unshift(item);
-		this.length = this.builders.length;
-
-		return res;
-	}
-
-	public slice(start: number, end?: number): Builder[] {
-		let elements = this.builders.slice(start, end);
-		this.length = this.builders.length;
-
-		return elements;
-	}
-
-	public splice(start: number, deleteCount?: number): Builder[] {
-		let elements = this.builders.splice(start, deleteCount);
-		this.length = this.builders.length;
-
-		return elements;
-	}
-
 	public clone(): MultiBuilder {
 		return new MultiBuilder(this);
-	}
-
-	public and(element: HTMLElement): MultiBuilder;
-	public and(builder: Builder): MultiBuilder;
-	public and(obj: any): MultiBuilder {
-
-		// Convert HTMLElement to Builder as necessary
-		if (!(obj instanceof Builder) && !(obj instanceof MultiBuilder)) {
-			obj = new Builder((<HTMLElement>obj));
-		}
-
-		let builders: Builder[] = [];
-		if (obj instanceof MultiBuilder) {
-			for (let i = 0; i < (<MultiBuilder>obj).length; i++) {
-				builders.push((<MultiBuilder>obj).item(i));
-			}
-		} else {
-			builders.push(obj);
-		}
-
-		this.push.apply(this, builders);
-
-		return this;
 	}
 }
 
@@ -2034,7 +1303,7 @@ function withBuilder(builder: Builder, offdom?: boolean): Builder {
 	return new Builder(builder.getHTMLElement(), offdom);
 }
 
-function withElement(element: HTMLElement, offdom?: boolean): Builder {
+export function withElement(element: HTMLElement, offdom?: boolean): Builder {
 	return new Builder(element, offdom);
 }
 
@@ -2066,44 +1335,12 @@ export function getPropertyFromElement(element: HTMLElement, key: string, fallba
 }
 
 /**
- *  Removes a property from an element.
- */
-export function removePropertyFromElement(element: HTMLElement, key: string): void {
-	if (hasData(element)) {
-		delete data(element)[key];
-	}
-}
-
-/**
  *  Adds the provided object as property to the given element. Call getBinding()
  *  to retrieve it again.
  */
 export function bindElement(element: HTMLElement, object: any): void {
 	setPropertyOnElement(element, DATA_BINDING_ID, object);
 }
-
-/**
- *  Removes the binding of the given element.
- */
-export function unbindElement(element: HTMLElement): void {
-	removePropertyFromElement(element, DATA_BINDING_ID);
-}
-
-/**
- *  Returns the object that was passed into the bind() call for the element.
- */
-export function getBindingFromElement(element: HTMLElement): any {
-	return getPropertyFromElement(element, DATA_BINDING_ID);
-}
-
-export const Binding = {
-	setPropertyOnElement: setPropertyOnElement,
-	getPropertyFromElement: getPropertyFromElement,
-	removePropertyFromElement: removePropertyFromElement,
-	bindElement: bindElement,
-	unbindElement: unbindElement,
-	getBindingFromElement: getBindingFromElement
-};
 
 let SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
 
@@ -2196,11 +1433,3 @@ export const $: QuickBuilder = function (arg?: any): Builder {
 		throw new Error('Bad use of $');
 	}
 };
-
-(<any>$).Box = Box;
-(<any>$).Dimension = Dimension;
-(<any>$).Position = Position;
-(<any>$).Builder = Builder;
-(<any>$).MultiBuilder = MultiBuilder;
-(<any>$).Build = Build;
-(<any>$).Binding = Binding;

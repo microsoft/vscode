@@ -58,13 +58,6 @@ export abstract class RestrictedRenderingContext {
 		return this._viewLayout.getVerticalOffsetForLineNumber(lineNumber);
 	}
 
-	public lineIsVisible(lineNumber: number): boolean {
-		return (
-			this.visibleRange.startLineNumber <= lineNumber
-			&& lineNumber <= this.visibleRange.endLineNumber
-		);
-	}
-
 	public getDecorationsInViewport(): ViewModelDecoration[] {
 		return this.viewportData.getDecorationsInViewport();
 	}

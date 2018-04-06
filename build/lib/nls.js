@@ -79,7 +79,7 @@ function isImportNode(node) {
     function fileFrom(file, contents, path) {
         if (path === void 0) { path = file.path; }
         return new File({
-            contents: new Buffer(contents),
+            contents: Buffer.from(contents),
             base: file.base,
             cwd: file.cwd,
             path: path

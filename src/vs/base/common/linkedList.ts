@@ -26,6 +26,11 @@ export class LinkedList<E> {
 		return !this._first;
 	}
 
+	clear(): void {
+		this._first = undefined;
+		this._last = undefined;
+	}
+
 	unshift(element: E) {
 		return this.insert(element, false);
 	}
@@ -90,21 +95,19 @@ export class LinkedList<E> {
 	}
 
 	iterator(): IIterator<E> {
-		let _done: boolean;
-		let _value: E;
 		let element = {
-			get done() { return _done; },
-			get value() { return _value; }
+			done: undefined,
+			value: undefined,
 		};
 		let node = this._first;
 		return {
 			next(): { done: boolean; value: E } {
 				if (!node) {
-					_done = true;
-					_value = undefined;
+					element.done = true;
+					element.value = undefined;
 				} else {
-					_done = false;
-					_value = node.element;
+					element.done = false;
+					element.value = node.element;
 					node = node.next;
 				}
 				return element;

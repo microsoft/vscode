@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
-import arrays = require('vs/base/common/arrays');
-import strings = require('vs/base/common/strings');
-import types = require('vs/base/common/types');
-import errors = require('vs/base/common/errors');
+import * as arrays from 'vs/base/common/arrays';
+import * as strings from 'vs/base/common/strings';
+import * as types from 'vs/base/common/types';
+import * as errors from 'vs/base/common/errors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
-import { KeyMod } from 'vs/base/common/keyCodes';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
@@ -131,7 +130,6 @@ export class QuickOpenHandlerDescriptor {
 	public prefix: string;
 	public description: string;
 	public contextKey: string;
-	public isDefault: boolean;
 	public helpEntries: QuickOpenHandlerHelpEntry[];
 	public instantProgress: boolean;
 
@@ -268,28 +266,30 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 		const hideWidget = (mode === Mode.OPEN);
 
 		if (mode === Mode.OPEN || mode === Mode.OPEN_IN_BACKGROUND) {
-			let sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+			const sideBySide = context.keymods.ctrlCmd;
 
-			let openInBackgroundOptions: IEditorOptions;
+			let openOptions: IEditorOptions;
 			if (mode === Mode.OPEN_IN_BACKGROUND) {
-				openInBackgroundOptions = { pinned: true, preserveFocus: true };
+				openOptions = { pinned: true, preserveFocus: true };
+			} else if (context.keymods.alt) {
+				openOptions = { pinned: true };
 			}
 
-			let input = this.getInput();
+			const input = this.getInput();
 			if (input instanceof EditorInput) {
 				let opts = this.getOptions();
 				if (opts) {
-					opts = objects.mixin(opts, openInBackgroundOptions, true);
-				} else if (openInBackgroundOptions) {
-					opts = EditorOptions.create(openInBackgroundOptions);
+					opts = objects.mixin(opts, openOptions, true);
+				} else if (openOptions) {
+					opts = EditorOptions.create(openOptions);
 				}
 
 				this.editorService.openEditor(input, opts, sideBySide).done(null, errors.onUnexpectedError);
 			} else {
 				const resourceInput = <IResourceInput>input;
 
-				if (openInBackgroundOptions) {
-					resourceInput.options = objects.assign(resourceInput.options || Object.create(null), openInBackgroundOptions);
+				if (openOptions) {
+					resourceInput.options = objects.assign(resourceInput.options || Object.create(null), openOptions);
 				}
 
 				this.editorService.openEditor(resourceInput, sideBySide).done(null, errors.onUnexpectedError);
@@ -312,21 +312,6 @@ export class EditorQuickOpenEntryGroup extends QuickOpenEntryGroup implements IE
 	public getOptions(): IEditorOptions {
 		return null;
 	}
-}
-
-// Infrastructure for quick open commands
-
-export interface ICommand {
-	aliases: string[];
-	getResults(input: string): TPromise<QuickOpenEntry[]>;
-	getEmptyLabel(input: string): string;
-	icon?: string;
-}
-
-export interface ICommandQuickOpenHandlerOptions {
-	prefix: string;
-	commands: ICommand[];
-	defaultCommand?: ICommand;
 }
 
 export class QuickOpenAction extends Action {

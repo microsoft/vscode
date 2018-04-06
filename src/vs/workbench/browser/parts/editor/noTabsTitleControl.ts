@@ -6,9 +6,9 @@
 'use strict';
 
 import 'vs/css!./media/notabstitle';
-import errors = require('vs/base/common/errors');
-import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
-import DOM = require('vs/base/browser/dom');
+import * as errors from 'vs/base/common/errors';
+import { toResource } from 'vs/workbench/common/editor';
+import * as DOM from 'vs/base/browser/dom';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { Verbosity } from 'vs/platform/editor/common/editor';
@@ -18,13 +18,6 @@ import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/brow
 export class NoTabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
 	private editorLabel: ResourceLabel;
-	private titleTouchSupport: Gesture;
-
-	public setContext(group: IEditorGroup): void {
-		super.setContext(group);
-
-		this.editorActionsToolbar.context = { group };
-	}
 
 	public create(parent: HTMLElement): void {
 		super.create(parent);
@@ -32,7 +25,7 @@ export class NoTabsTitleControl extends TitleControl {
 		this.titleContainer = parent;
 
 		// Gesture Support
-		this.titleTouchSupport = new Gesture(this.titleContainer);
+		Gesture.addTarget(this.titleContainer);
 
 		// Pin on double click
 		this.toUnbind.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
@@ -88,14 +81,14 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Close editor on middle mouse click
 		if (e instanceof MouseEvent && e.button === 1 /* Middle Button */) {
-			this.closeEditorAction.run({ group, editor: group.activeEditor }).done(null, errors.onUnexpectedError);
+			this.closeOneEditorAction.run({ groupId: group.id, editorIndex: group.indexOf(group.activeEditor) }).done(null, errors.onUnexpectedError);
 		}
 
 		// Focus editor group unless:
 		// - click on toolbar: should trigger actions within
 		// - mouse click: do not focus group if there are more than one as it otherwise makes group DND funky
 		// - touch: always focus
-		else if ((this.stacks.groups.length === 1 || !(e instanceof MouseEvent)) && !DOM.isAncestor((e.target || e.srcElement) as HTMLElement, this.editorActionsToolbar.getContainer().getHTMLElement())) {
+		else if ((this.stacks.groups.length === 1 || !(e instanceof MouseEvent)) && !DOM.isAncestor(((e as GestureEvent).initialTarget || e.target || e.srcElement) as HTMLElement, this.editorActionsToolbar.getContainer())) {
 			this.editorGroupService.focusGroup(group);
 		}
 	}
@@ -161,11 +154,5 @@ export class NoTabsTitleControl extends TitleControl {
 			case 'long': return Verbosity.LONG;
 			default: return Verbosity.MEDIUM;
 		}
-	}
-
-	public dispose(): void {
-		super.dispose();
-
-		this.titleTouchSupport.dispose();
 	}
 }

@@ -12,6 +12,21 @@ import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
 import { SpectronApplication, Quality } from './spectron/application';
+import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
+
+import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
+import { setup as setupDataExplorerTests } from './areas/explorer/explorer.test';
+import { setup as setupDataPreferencesTests } from './areas/preferences/preferences.test';
+import { setup as setupDataSearchTests } from './areas/search/search.test';
+import { setup as setupDataCSSTests } from './areas/css/css.test';
+import { setup as setupDataEditorTests } from './areas/editor/editor.test';
+import { setup as setupDataDebugTests } from './areas/debug/debug.test';
+import { setup as setupDataGitTests } from './areas/git/git.test';
+import { setup as setupDataStatusbarTests } from './areas/statusbar/statusbar.test';
+import { setup as setupDataExtensionTests } from './areas/extensions/extensions.test';
+import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
+import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
+// import './areas/terminal/terminal.test';
 
 const tmpDir = tmp.dirSync({ prefix: 't' }) as { name: string; removeCallback: Function; };
 const testDataPath = tmpDir.name;
@@ -83,12 +98,13 @@ function getBuildElectronPath(root: string): string {
 let testCodePath = opts.build;
 let stableCodePath = opts['stable-build'];
 let electronPath: string;
+let stablePath: string;
 
 if (testCodePath) {
 	electronPath = getBuildElectronPath(testCodePath);
 
 	if (stableCodePath) {
-		process.env.VSCODE_STABLE_PATH = getBuildElectronPath(stableCodePath);
+		stablePath = getBuildElectronPath(stableCodePath);
 	}
 } else {
 	testCodePath = getDevElectronPath();
@@ -109,7 +125,7 @@ process.env.VSCODE_KEYBINDINGS_PATH = keybindingsPath;
 let quality: Quality;
 if (process.env.VSCODE_DEV === '1') {
 	quality = Quality.Dev;
-} else if ((testCodePath.indexOf('Code - Insiders') /* macOS/Windows */ || testCodePath.indexOf('code-insiders') /* Linux */) >= 0) {
+} else if (electronPath.indexOf('Code - Insiders') >= 0 /* macOS/Windows */ || electronPath.indexOf('code-insiders') /* Linux */ >= 0) {
 	quality = Quality.Insiders;
 } else {
 	quality = Quality.Stable;
@@ -135,7 +151,7 @@ async function setup(): Promise<void> {
 	console.log('*** Test data:', testDataPath);
 	console.log('*** Preparing smoketest setup...');
 
-	const keybindingsUrl = `https://raw.githubusercontent.com/Microsoft/vscode-docs/master/scripts/keybindings/doc.keybindings.${getKeybindingPlatform()}.json`;
+	const keybindingsUrl = `https://raw.githubusercontent.com/Microsoft/vscode-docs/master/build/keybindings/doc.keybindings.${getKeybindingPlatform()}.json`;
 	console.log('*** Fetching keybindings...');
 
 	await new Promise((c, e) => {
@@ -195,7 +211,7 @@ async function setup(): Promise<void> {
  * @see https://github.com/webdriverio/webdriverio/issues/2076
  */
 // Filter out the following messages:
-const wdioDeprecationWarning = /^WARNING: the "\w+" command will be depcrecated soon./; // [sic]
+const wdioDeprecationWarning = /^WARNING: the "\w+" command will be deprecated soon../; // [sic]
 // Monkey patch:
 const warn = console.warn;
 console.warn = function suppressWebdriverWarnings(message) {
@@ -203,14 +219,16 @@ console.warn = function suppressWebdriverWarnings(message) {
 	warn.apply(console, arguments);
 };
 
-before(async function () {
-	// allow two minutes for setup
-	this.timeout(2 * 60 * 1000);
-	await setup();
+function createApp(quality: Quality): SpectronApplication | null {
+	const path = quality === Quality.Stable ? stablePath : electronPath;
 
-	const app = new SpectronApplication({
+	if (!path) {
+		return null;
+	}
+
+	return new SpectronApplication({
 		quality,
-		electronPath,
+		electronPath: path,
 		workspacePath,
 		userDataDir,
 		extensionsPath,
@@ -218,27 +236,42 @@ before(async function () {
 		workspaceFilePath,
 		waitTime: parseInt(opts['wait-time'] || '0') || 20
 	});
-
-	await app.start();
-	this.app = app;
+}
+before(async function () {
+	// allow two minutes for setup
+	this.timeout(2 * 60 * 1000);
+	await setup();
 });
 
 after(async function () {
-	await this.app.stop();
 	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
 });
 
-// import './areas/workbench/data-migration.test';
-import './areas/workbench/data-loss.test';
-import './areas/explorer/explorer.test';
-import './areas/preferences/preferences.test';
-import './areas/search/search.test';
-import './areas/css/css.test';
-import './areas/editor/editor.test';
-import './areas/debug/debug.test';
-import './areas/git/git.test';
-// import './areas/terminal/terminal.test';
-import './areas/statusbar/statusbar.test';
-import './areas/extensions/extensions.test';
-import './areas/multiroot/multiroot.test';
-import './areas/workbench/localization.test';
+describe('Data Migration', () => {
+	setupDataMigrationTests(userDataDir, createApp);
+});
+
+describe('Everything Else', () => {
+	before(async function () {
+		const app = createApp(quality);
+		await app!.start();
+		this.app = app;
+	});
+
+	after(async function () {
+		await this.app.stop();
+	});
+
+	setupDataLossTests();
+	setupDataExplorerTests();
+	setupDataPreferencesTests();
+	setupDataSearchTests();
+	setupDataCSSTests();
+	setupDataEditorTests();
+	setupDataDebugTests();
+	setupDataGitTests();
+	setupDataStatusbarTests();
+	setupDataExtensionTests();
+	setupDataMultirootTests();
+	setupDataLocalizationTests();
+});

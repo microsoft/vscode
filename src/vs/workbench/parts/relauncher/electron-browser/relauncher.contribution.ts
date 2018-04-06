@@ -8,21 +8,24 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IWindowsService, IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
-import { isLinux } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
+	keyboard: { touchbar: { enabled: boolean } };
+	workbench: { tree: { horizontalScrolling: boolean } };
 }
 
 export class SettingsChangeRelauncher implements IWorkbenchContribution {
@@ -31,8 +34,12 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 
 	private titleBarStyle: 'native' | 'custom';
 	private nativeTabs: boolean;
+	private clickThroughInactive: boolean;
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
+	private touchbarEnabled: boolean;
+	private treeHorizontalScrolling: boolean;
+	private windowsSmoothScrollingWorkaround: boolean;
 
 	private firstFolderResource: URI;
 	private extensionHostRestarter: RunOnceScheduler;
@@ -44,7 +51,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		@IWindowService private windowService: IWindowService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private envService: IEnvironmentService,
-		@IMessageService private messageService: IMessageService,
+		@IDialogService private dialogService: IDialogService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
@@ -66,15 +73,21 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
 		let changed = false;
 
-		// Titlebar style
-		if (config.window && config.window.titleBarStyle !== this.titleBarStyle && (config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom')) {
+		// macOS: Titlebar style
+		if (isMacintosh && config.window && config.window.titleBarStyle !== this.titleBarStyle && (config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom')) {
 			this.titleBarStyle = config.window.titleBarStyle;
 			changed = true;
 		}
 
-		// Native tabs
-		if (config.window && typeof config.window.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
+		// macOS: Native tabs
+		if (isMacintosh && config.window && typeof config.window.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
 			this.nativeTabs = config.window.nativeTabs;
+			changed = true;
+		}
+
+		// macOS: Click through (accept first mouse)
+		if (isMacintosh && config.window && typeof config.window.clickThroughInactive === 'boolean' && config.window.clickThroughInactive !== this.clickThroughInactive) {
+			this.clickThroughInactive = config.window.clickThroughInactive;
 			changed = true;
 		}
 
@@ -87,6 +100,24 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		// Crash reporter
 		if (config.telemetry && typeof config.telemetry.enableCrashReporter === 'boolean' && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
 			this.enableCrashReporter = config.telemetry.enableCrashReporter;
+			changed = true;
+		}
+
+		// macOS: Touchbar config
+		if (isMacintosh && config.keyboard && config.keyboard.touchbar && typeof config.keyboard.touchbar.enabled === 'boolean' && config.keyboard.touchbar.enabled !== this.touchbarEnabled) {
+			this.touchbarEnabled = config.keyboard.touchbar.enabled;
+			changed = true;
+		}
+
+		// Tree horizontal scrolling support
+		if (config.workbench && config.workbench.tree && typeof config.workbench.tree.horizontalScrolling === 'boolean' && config.workbench.tree.horizontalScrolling !== this.treeHorizontalScrolling) {
+			this.treeHorizontalScrolling = config.workbench.tree.horizontalScrolling;
+			changed = true;
+		}
+
+		// Windows: smooth scrolling workaround
+		if (isWindows && config.window && typeof config.window.smoothScrollingWorkaround === 'boolean' && config.window.smoothScrollingWorkaround !== this.windowsSmoothScrollingWorkaround) {
+			this.windowsSmoothScrollingWorkaround = config.window.smoothScrollingWorkaround;
 			changed = true;
 		}
 
@@ -137,22 +168,20 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
 		this.windowService.isFocused().then(focused => {
 			if (focused) {
-				const confirm = this.messageService.confirmSync({
+				return this.dialogService.confirm({
 					type: 'info',
 					message,
 					detail,
 					primaryButton
+				}).then(res => {
+					if (res.confirmed) {
+						confirmed();
+					}
 				});
-
-				if (confirm) {
-					confirmed();
-				}
 			}
-		});
-	}
 
-	public getId(): string {
-		return 'workbench.relauncher';
+			return void 0;
+		});
 	}
 
 	public dispose(): void {
@@ -160,5 +189,5 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	}
 }
 
-const workbenchRegistry = <IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher);
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Running);

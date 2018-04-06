@@ -8,17 +8,18 @@ import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { CharacterHardWrappingLineMapping, CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ILineMapping, IModel, SplitLine, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { ILineMapping, SplitLine, SplitLinesCollection, ISimpleModel } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { toUint32Array } from 'vs/editor/common/core/uint';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
+import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
@@ -32,22 +33,22 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		assert.equal(line1.getViewLineMaxColumn(model1, 1, 0), 14);
 		assert.equal(line1.getViewLineMaxColumn(model1, 1, 1), 15);
 		assert.equal(line1.getViewLineMaxColumn(model1, 1, 2), 16);
-		for (var col = 1; col <= 14; col++) {
+		for (let col = 1; col <= 14; col++) {
 			assert.equal(line1.getModelColumnOfViewPosition(0, col), col, 'getInputColumnOfOutputPosition(0, ' + col + ')');
 		}
-		for (var col = 1; col <= 15; col++) {
+		for (let col = 1; col <= 15; col++) {
 			assert.equal(line1.getModelColumnOfViewPosition(1, col), 13 + col, 'getInputColumnOfOutputPosition(1, ' + col + ')');
 		}
-		for (var col = 1; col <= 16; col++) {
+		for (let col = 1; col <= 16; col++) {
 			assert.equal(line1.getModelColumnOfViewPosition(2, col), 13 + 14 + col, 'getInputColumnOfOutputPosition(2, ' + col + ')');
 		}
-		for (var col = 1; col <= 13; col++) {
+		for (let col = 1; col <= 13; col++) {
 			assert.deepEqual(line1.getViewPositionOfModelPosition(0, col), pos(0, col), 'getOutputPositionOfInputPosition(' + col + ')');
 		}
-		for (var col = 1 + 13; col <= 14 + 13; col++) {
+		for (let col = 1 + 13; col <= 14 + 13; col++) {
 			assert.deepEqual(line1.getViewPositionOfModelPosition(0, col), pos(1, col - 13), 'getOutputPositionOfInputPosition(' + col + ')');
 		}
-		for (var col = 1 + 13 + 14; col <= 15 + 14 + 13; col++) {
+		for (let col = 1 + 13 + 14; col <= 15 + 14 + 13; col++) {
 			assert.deepEqual(line1.getViewPositionOfModelPosition(0, col), pos(2, col - 13 - 14), 'getOutputPositionOfInputPosition(' + col + ')');
 		}
 
@@ -61,33 +62,33 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		assert.equal(line1.getViewLineMaxColumn(model1, 1, 0), 14);
 		assert.equal(line1.getViewLineMaxColumn(model1, 1, 1), 16);
 		assert.equal(line1.getViewLineMaxColumn(model1, 1, 2), 17);
-		for (var col = 1; col <= 14; col++) {
+		for (let col = 1; col <= 14; col++) {
 			assert.equal(line1.getModelColumnOfViewPosition(0, col), col, 'getInputColumnOfOutputPosition(0, ' + col + ')');
 		}
-		for (var col = 1; col <= 1; col++) {
+		for (let col = 1; col <= 1; col++) {
 			assert.equal(line1.getModelColumnOfViewPosition(1, 1), 13 + col, 'getInputColumnOfOutputPosition(1, ' + col + ')');
 		}
-		for (var col = 2; col <= 16; col++) {
+		for (let col = 2; col <= 16; col++) {
 			assert.equal(line1.getModelColumnOfViewPosition(1, col), 13 + col - 1, 'getInputColumnOfOutputPosition(1, ' + col + ')');
 		}
-		for (var col = 1; col <= 1; col++) {
+		for (let col = 1; col <= 1; col++) {
 			assert.equal(line1.getModelColumnOfViewPosition(2, col), 13 + 14 + col, 'getInputColumnOfOutputPosition(2, ' + col + ')');
 		}
-		for (var col = 2; col <= 17; col++) {
+		for (let col = 2; col <= 17; col++) {
 			assert.equal(line1.getModelColumnOfViewPosition(2, col), 13 + 14 + col - 1, 'getInputColumnOfOutputPosition(2, ' + col + ')');
 		}
-		for (var col = 1; col <= 13; col++) {
+		for (let col = 1; col <= 13; col++) {
 			assert.deepEqual(line1.getViewPositionOfModelPosition(0, col), pos(0, col), 'getOutputPositionOfInputPosition(' + col + ')');
 		}
-		for (var col = 1 + 13; col <= 14 + 13; col++) {
+		for (let col = 1 + 13; col <= 14 + 13; col++) {
 			assert.deepEqual(line1.getViewPositionOfModelPosition(0, col), pos(1, 1 + col - 13), 'getOutputPositionOfInputPosition(' + col + ')');
 		}
-		for (var col = 1 + 13 + 14; col <= 15 + 14 + 13; col++) {
+		for (let col = 1 + 13 + 14; col <= 15 + 14 + 13; col++) {
 			assert.deepEqual(line1.getViewPositionOfModelPosition(0, col), pos(2, 1 + col - 13 - 14), 'getOutputPositionOfInputPosition(' + col + ')');
 		}
 	});
 
-	function withSplitLinesCollection(text: string, callback: (model: Model, linesCollection: SplitLinesCollection) => void): void {
+	function withSplitLinesCollection(text: string, callback: (model: TextModel, linesCollection: SplitLinesCollection) => void): void {
 		let config = new TestConfiguration({});
 
 		let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
@@ -96,7 +97,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			config.editor.wrappingInfo.wordWrapBreakObtrusiveCharacters
 		);
 
-		let model = Model.createFromString([
+		let model = TextModel.createFromString([
 			'int main() {',
 			'\tprintf("Hello world!");',
 			'}',
@@ -322,7 +323,7 @@ suite('SplitLinesCollection', () => {
 		]
 	];
 
-	let model: Model = null;
+	let model: TextModel = null;
 	let languageRegistration: IDisposable = null;
 
 	setup(() => {
@@ -345,7 +346,7 @@ suite('SplitLinesCollection', () => {
 		};
 		const LANGUAGE_ID = 'modelModeTest1';
 		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
-		model = Model.createFromString(_text.join('\n'), undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
+		model = TextModel.createFromString(_text.join('\n'), undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
 		// force tokenization
 		model.forceTokenization(model.getLineCount());
 	});
@@ -363,14 +364,15 @@ suite('SplitLinesCollection', () => {
 		value: number;
 	}
 
-	function assertViewLineTokens(actual: ViewLineToken[], expected: ITestViewLineToken[]): void {
-		let _actual = actual.map((token) => {
-			return {
-				endIndex: token.endIndex,
-				value: token.getForeground()
+	function assertViewLineTokens(_actual: IViewLineTokens, expected: ITestViewLineToken[]): void {
+		let actual: ITestViewLineToken[] = [];
+		for (let i = 0, len = _actual.getCount(); i < len; i++) {
+			actual[i] = {
+				endIndex: _actual.getEndOffset(i),
+				value: _actual.getForeground(i)
 			};
-		});
-		assert.deepEqual(_actual, expected);
+		}
+		assert.deepEqual(actual, expected);
 	}
 
 	interface ITestMinimapLineRenderingData {
@@ -726,7 +728,7 @@ suite('SplitLinesCollection', () => {
 		});
 	});
 
-	function withSplitLinesCollection(model: Model, wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded', wordWrapColumn: number, callback: (splitLinesCollection: SplitLinesCollection) => void): void {
+	function withSplitLinesCollection(model: TextModel, wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded', wordWrapColumn: number, callback: (splitLinesCollection: SplitLinesCollection) => void): void {
 		let configuration = new TestConfiguration({
 			wordWrap: wordWrap,
 			wordWrapColumn: wordWrapColumn,
@@ -770,7 +772,7 @@ function createLineMapping(breakingLengths: number[], wrappedLinesPrefix: string
 	);
 }
 
-function createModel(text: string): IModel {
+function createModel(text: string): ISimpleModel {
 	return {
 		getLineTokens: (lineNumber: number) => {
 			return null;
@@ -783,6 +785,9 @@ function createModel(text: string): IModel {
 		},
 		getLineMaxColumn: (lineNumber: number) => {
 			return text.length + 1;
+		},
+		getValueInRange: (range: IRange, eol?: EndOfLinePreference) => {
+			return text.substring(range.startColumn - 1, range.endColumn - 1);
 		}
 	};
 }

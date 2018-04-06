@@ -15,19 +15,21 @@ export const MAX_LINE_NUMBER = 0xFFFFFF;
 
 const MASK_INDENT = 0xFF000000;
 
-export class FoldingRanges {
+export class FoldingRegions {
 	private _startIndexes: Uint32Array;
 	private _endIndexes: Uint32Array;
 	private _collapseStates: Uint32Array;
 	private _parentsComputed: boolean;
+	private _types: string[] | undefined;
 
-	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array) {
+	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array, types?: string[]) {
 		if (startIndexes.length !== endIndexes.length || startIndexes.length > MAX_FOLDING_REGIONS) {
 			throw new Error('invalid startIndexes or endIndexes size');
 		}
 		this._startIndexes = startIndexes;
 		this._endIndexes = endIndexes;
 		this._collapseStates = new Uint32Array(Math.ceil(startIndexes.length / 32));
+		this._types = types;
 	}
 
 	private ensureParentIndices() {
@@ -67,6 +69,14 @@ export class FoldingRanges {
 		return this._endIndexes[index] & MAX_LINE_NUMBER;
 	}
 
+	public getType(index: number): string | undefined {
+		return this._types ? this._types[index] : void 0;
+	}
+
+	public hasTypes() {
+		return !!this._types;
+	}
+
 	public isCollapsed(index: number): boolean {
 		let arrayIndex = (index / 32) | 0;
 		let bit = index % 32;
@@ -82,6 +92,10 @@ export class FoldingRanges {
 		} else {
 			this._collapseStates[arrayIndex] = value & ~(1 << bit);
 		}
+	}
+
+	public toRegion(index: number): FoldingRegion {
+		return new FoldingRegion(this, index);
 	}
 
 	public getParentIndex(index: number) {
@@ -129,5 +143,49 @@ export class FoldingRanges {
 			}
 		}
 		return -1;
+	}
+
+	public toString() {
+		let res = [];
+		for (let i = 0; i < this.length; i++) {
+			res[i] = `[${this.isCollapsed(i) ? '+' : '-'}] ${this.getStartLineNumber(i)}/${this.getEndLineNumber(i)}`;
+		}
+		return res.join(', ');
+	}
+}
+
+export class FoldingRegion {
+
+	constructor(private ranges: FoldingRegions, private index: number) {
+	}
+
+	public get startLineNumber() {
+		return this.ranges.getStartLineNumber(this.index);
+	}
+
+	public get endLineNumber() {
+		return this.ranges.getEndLineNumber(this.index);
+	}
+
+	public get regionIndex() {
+		return this.index;
+	}
+
+	public get parentIndex() {
+		return this.ranges.getParentIndex(this.index);
+	}
+
+	public get isCollapsed() {
+		return this.ranges.isCollapsed(this.index);
+	}
+
+	containedBy(range: ILineRange): boolean {
+		return range.startLineNumber <= this.startLineNumber && range.endLineNumber >= this.endLineNumber;
+	}
+	containsLine(lineNumber: number) {
+		return this.startLineNumber <= lineNumber && lineNumber <= this.endLineNumber;
+	}
+	hidesLine(lineNumber: number) {
+		return this.startLineNumber < lineNumber && lineNumber <= this.endLineNumber;
 	}
 }

@@ -12,9 +12,9 @@ This project incorporates components from the projects listed below. The origina
 5.	atom/language-java (https://github.com/atom/language-java)
 6.	atom/language-objective-c (https://github.com/atom/language-objective-c)
 7.	atom/language-sass version 0.52.0 (https://github.com/atom/language-sass)
-8.	atom/language-xml (https://github.com/atom/language-xml)
-9.	Benvie/JavaScriptNext.tmLanguage (https://github.com/Microsoft/vscode-JSON.tmLanguage)
-10.	chjj-marked version 0.3.6 (https://github.com/npmcomponent/chjj-marked)
+8.	atom/language-shellscript (https://github.com/atom/language-shellscript)
+9.	atom/language-xml (https://github.com/atom/language-xml)
+10.	chjj-marked version 0.3.18 (https://github.com/npmcomponent/chjj-marked)
 11.	chriskempson/tomorrow-theme (https://github.com/chriskempson/tomorrow-theme)
 12.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
 13.	daaain/Handlebars (https://github.com/daaain/Handlebars)
@@ -38,29 +38,30 @@ This project incorporates components from the projects listed below. The origina
 31.	language-rust version 0.4.9 (https://github.com/zargony/atom-language-rust)
 32.	MagicStack/MagicPython (https://github.com/MagicStack/MagicPython)
 33.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
-34.	Microsoft/vscode-mssql (https://github.com/Microsoft/vscode-mssql)
-35.	octicons-code version 3.1.0 (https://octicons.github.com)
-36.	octicons-font version 3.1.0 (https://octicons.github.com)
-37.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
-38.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
-39.	sublimehq/Packages (https://github.com/sublimehq/Packages)
-40.	SublimeText/PowerShell (https://github.com/SublimeText/PowerShell)
-41.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
-42.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
-43.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
-44.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
-45.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
-46.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
-47.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
-48.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
-49.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
-50.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
-51.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
-52.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
-53.	textmate/shellscript.tmbundle (https://github.com/textmate/shellscript.tmbundle)
+34.	Microsoft/vscode-JSON.tmLanguage (https://github.com/Microsoft/vscode-JSON.tmLanguage)
+35.	Microsoft/vscode-mssql (https://github.com/Microsoft/vscode-mssql)
+36.	mmims/language-batchfile (https://github.com/mmims/language-batchfile)
+37.	octicons-code version 3.1.0 (https://octicons.github.com)
+38.	octicons-font version 3.1.0 (https://octicons.github.com)
+39.	PowerShell/EditorSyntax (https://github.com/powershell/editorsyntax)
+40.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
+41.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
+42.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
+43.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
+44.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
+45.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
+46.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
+47.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
+48.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
+49.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
+50.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
+51.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
+52.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
+53.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
 54.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
 55.	TypeScript-TmLanguage version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
-56.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
+56.	vscode-logfile-highlighter version 1.2.0 (https://github.com/emilast/vscode-logfile-highlighter)
+57.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
 
 
 %% atom/language-c NOTICES AND INFORMATION BEGIN HERE
@@ -371,6 +372,43 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 =========================================
 END OF atom/language-sass NOTICES AND INFORMATION
 
+%% atom/language-shellscript NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Copyright (c) 2014 GitHub Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+This package was derived from a TextMate bundle located at
+https://github.com/textmate/shellscript.tmbundle and distributed under the
+following license, located in `README.mdown`:
+
+Permission to copy, use, modify, sell and distribute this
+software is granted. This software is provided "as is" without
+express or implied warranty, and with no claim as to its
+suitability for any purpose.
+=========================================
+END OF atom/language-shellscript NOTICES AND INFORMATION
+
 %% atom/language-xml NOTICES AND INFORMATION BEGIN HERE
 =========================================
 The MIT License (MIT)
@@ -407,30 +445,6 @@ express or implied warranty, and with no claim as to its
 suitability for any purpose.
 =========================================
 END OF atom/language-xml NOTICES AND INFORMATION
-
-%% Benvie/JavaScriptNext.tmLanguage NOTICES AND INFORMATION BEGIN HERE
-=========================================
-vscode-JSON.tmLanguage
-
-Copyright (c) Microsoft Corporation
-
-All rights reserved.
-
-MIT License
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-documentation files (the ""Software""), to deal in the Software without restriction, including without limitation
-the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
-and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
-CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-=========================================
-END OF Benvie/JavaScriptNext.tmLanguage NOTICES AND INFORMATION
 
 %% chjj-marked NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -1288,6 +1302,30 @@ THE SOFTWARE.
 =========================================
 END OF Microsoft/TypeScript-TmLanguage NOTICES AND INFORMATION
 
+%% Microsoft/vscode-JSON.tmLanguage NOTICES AND INFORMATION BEGIN HERE
+=========================================
+vscode-JSON.tmLanguage
+
+Copyright (c) Microsoft Corporation
+
+All rights reserved.
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+documentation files (the ""Software""), to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
+and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+=========================================
+END OF Microsoft/vscode-JSON.tmLanguage NOTICES AND INFORMATION
+
 %% Microsoft/vscode-mssql NOTICES AND INFORMATION BEGIN HERE
 =========================================
 ------------------------------------------ START OF LICENSE -----------------------------------------
@@ -1302,6 +1340,32 @@ THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 ----------------------------------------------- END OF LICENSE ------------------------------------------
 =========================================
 END OF Microsoft/vscode-mssql NOTICES AND INFORMATION
+
+%% mmims/language-batchfile NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Copyright (c) 2017 Michael Mims
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+=========================================
+END OF mmims/language-batchfile NOTICES AND INFORMATION
 
 %% octicons-code NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -1420,6 +1484,34 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 =========================================
 END OF octicons-font NOTICES AND INFORMATION
 
+%% PowerShell/EditorSyntax NOTICES AND INFORMATION BEGIN HERE
+=========================================
+Copyright (c) Microsoft Corporation
+
+All rights reserved.
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+=========================================
+END OF PowerShell/EditorSyntax NOTICES AND INFORMATION
+
 %% seti-ui NOTICES AND INFORMATION BEGIN HERE
 =========================================
 Copyright (c) 2014 Jesse Weed
@@ -1470,38 +1562,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 =========================================
 END OF shaders-tmLanguage NOTICES AND INFORMATION
-
-%% sublimehq/Packages NOTICES AND INFORMATION BEGIN HERE
-=========================================
-Copyright (c) Sublime Packages project authors
-
-If not otherwise specified (see below), files in this folder fall under the following license:
-
-Permission to copy, use, modify, sell and distribute this
-software is granted. This software is provided "as is" without
-express or implied warranty, and with no claim as to its
-suitability for any purpose.
-
-An exception is made for files in readable text which contain their own license information,
-or files where an accompanying file exists (in the same directory) with a "-license" suffix added
-to the base-name name of the original file, and an extension of txt, html, or similar. For example
-"tidy" is accompanied by "tidy-license.txt".
-=========================================
-END OF sublimehq/Packages NOTICES AND INFORMATION
-
-%% SublimeText/PowerShell NOTICES AND INFORMATION BEGIN HERE
-=========================================
-The MIT License (MIT)
-
-Copyright (c) 2011 Guillermo López-Anglada
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-=========================================
-END OF SublimeText/PowerShell NOTICES AND INFORMATION
 
 %% textmate/asp.vb.net.tmbundle NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -1728,24 +1788,6 @@ to the base-name name of the original file, and an extension of txt, html, or si
 =========================================
 END OF textmate/ruby.tmbundle NOTICES AND INFORMATION
 
-%% textmate/shellscript.tmbundle NOTICES AND INFORMATION BEGIN HERE
-=========================================
-Copyright (c) textmate-shellscript.tmbundle project authors
-
-If not otherwise specified (see below), files in this repository fall under the following license:
-
-Permission to copy, use, modify, sell and distribute this
-software is granted. This software is provided "as is" without
-express or implied warranty, and with no claim as to its
-suitability for any purpose.
-
-An exception is made for files in readable text which contain their own license information,
-or files where an accompanying file exists (in the same directory) with a "-license" suffix added
-to the base-name name of the original file, and an extension of txt, html, or similar. For example
-"tidy" is accompanied by "tidy-license.txt".
-=========================================
-END OF textmate/shellscript.tmbundle NOTICES AND INFORMATION
-
 %% textmate/yaml.tmbundle NOTICES AND INFORMATION BEGIN HERE
 =========================================
 Copyright (c) 2015 FichteFoll <fichtefoll2@googlemail.com>
@@ -1795,6 +1837,32 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 =========================================
 END OF TypeScript-TmLanguage NOTICES AND INFORMATION
+
+%% vscode-logfile-highlighter NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Copyright (c) 2015 emilast
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+=========================================
+END OF vscode-logfile-highlighter NOTICES AND INFORMATION
 
 %% vscode-swift NOTICES AND INFORMATION BEGIN HERE
 =========================================

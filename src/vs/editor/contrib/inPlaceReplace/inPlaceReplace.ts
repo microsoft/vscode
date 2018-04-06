@@ -9,7 +9,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution, IModelDecorationsChangeAccessor } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
@@ -18,18 +18,18 @@ import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 class InPlaceReplaceController implements IEditorContribution {
 
-	private static ID = 'editor.contrib.inPlaceReplaceController';
+	private static readonly ID = 'editor.contrib.inPlaceReplaceController';
 
 	static get(editor: ICodeEditor): InPlaceReplaceController {
 		return editor.getContribution<InPlaceReplaceController>(InPlaceReplaceController.ID);
 	}
 
-	private static DECORATION = ModelDecorationOptions.register({
+	private static readonly DECORATION = ModelDecorationOptions.register({
 		className: 'valueSetReplacement'
 	});
 
@@ -130,9 +130,7 @@ class InPlaceReplaceController implements IEditorContribution {
 			this.decorationRemover.cancel();
 			this.decorationRemover = TPromise.timeout(350);
 			this.decorationRemover.then(() => {
-				this.editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-					this.decorationIds = accessor.deltaDecorations(this.decorationIds, []);
-				});
+				this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
 			});
 		});
 	}
@@ -147,7 +145,7 @@ class InPlaceReplaceUp extends EditorAction {
 			alias: 'Replace with Previous Value',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA
 			}
 		});
@@ -171,7 +169,7 @@ class InPlaceReplaceDown extends EditorAction {
 			alias: 'Replace with Next Value',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT
 			}
 		});

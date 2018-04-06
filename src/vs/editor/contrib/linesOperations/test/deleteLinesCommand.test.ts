@@ -8,8 +8,16 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { DeleteLinesCommand } from 'vs/editor/contrib/linesOperations/deleteLinesCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 
+function createFromSelection(selection: Selection): DeleteLinesCommand {
+	var endLineNumber = selection.endLineNumber;
+	if (selection.startLineNumber < selection.endLineNumber && selection.endColumn === 1) {
+		endLineNumber -= 1;
+	}
+	return new DeleteLinesCommand(selection.startLineNumber, endLineNumber, selection.positionColumn);
+}
+
 function testDeleteLinesCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => DeleteLinesCommand.createFromSelection(sel), expectedLines, expectedSelection);
+	testCommand(lines, null, selection, (sel) => createFromSelection(sel), expectedLines, expectedSelection);
 }
 
 suite('Editor Contrib - Delete Lines Command', () => {

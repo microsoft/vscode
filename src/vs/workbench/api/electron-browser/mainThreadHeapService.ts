@@ -5,14 +5,14 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, ObjectIdentifier, IExtHostContext } from '../node/extHost.protocol';
-import { consumeSignals, GCSignal } from 'gc-signals';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { isThenable } from 'vs/base/common/async';
+import { isNullOrUndefined } from 'util';
 
 export const IHeapService = createDecorator<IHeapService>('heapService');
 
@@ -25,92 +25,95 @@ export interface IHeapService {
 	 * Track gc-collection for all new objects that
 	 * have the $ident-value set.
 	 */
-	trackRecursive<T>(p: TPromise<T>): TPromise<T>;
-
-	/**
-	 * Track gc-collection for all new objects that
-	 * have the $ident-value set.
-	 */
-	trackRecursive<T>(obj: T): T;
+	trackRecursive<T>(obj: T | Thenable<T>): Thenable<T>;
 }
-
 
 export class HeapService implements IHeapService {
 
 	_serviceBrand: any;
 
-	private _onGarbageCollection: Emitter<number[]> = new Emitter<number[]>();
+	private readonly _onGarbageCollection: Emitter<number[]> = new Emitter<number[]>();
 	public readonly onGarbageCollection: Event<number[]> = this._onGarbageCollection.event;
 
-	private _activeSignals = new WeakMap<any, GCSignal>();
+	private _activeSignals = new WeakMap<any, object>();
 	private _activeIds = new Set<number>();
 	private _consumeHandle: number;
 
 	constructor() {
-		this._consumeHandle = setInterval(() => {
-			const ids = consumeSignals();
-
-			if (ids.length > 0) {
-				// local book-keeping
-				for (const id of ids) {
-					this._activeIds.delete(id);
-				}
-
-				// fire event
-				this._onGarbageCollection.fire(ids);
-			}
-
-		}, 15 * 1000);
+		//
 	}
 
 	dispose() {
 		clearInterval(this._consumeHandle);
 	}
 
-	trackRecursive<T>(p: TPromise<T>): TPromise<T>;
-	trackRecursive<T>(obj: T): T;
-	trackRecursive(obj: any): any {
-		if (TPromise.is(obj)) {
+	trackRecursive<T>(obj: T | Thenable<T>): Thenable<T> {
+		if (isThenable(obj)) {
 			return obj.then(result => this.trackRecursive(result));
 		} else {
 			return this._doTrackRecursive(obj);
 		}
 	}
 
-	private _doTrackRecursive(obj: any): any {
+	private _doTrackRecursive(obj: any): Promise<any> {
 
-		const stack = [obj];
-		while (stack.length > 0) {
+		if (isNullOrUndefined(obj)) {
+			return Promise.resolve(obj);
+		}
 
-			// remove first element
-			let obj = stack.shift();
+		return import('gc-signals').then(({ GCSignal, consumeSignals }) => {
 
-			if (!obj || typeof obj !== 'object') {
-				continue;
+			if (this._consumeHandle === void 0) {
+				// ensure that there is one consumer of signals
+				this._consumeHandle = setInterval(() => {
+					const ids = consumeSignals();
+
+					if (ids.length > 0) {
+						// local book-keeping
+						for (const id of ids) {
+							this._activeIds.delete(id);
+						}
+
+						// fire event
+						this._onGarbageCollection.fire(ids);
+					}
+
+				}, 15 * 1000);
 			}
 
-			for (let key in obj) {
-				if (!Object.prototype.hasOwnProperty.call(obj, key)) {
+			const stack = [obj];
+			while (stack.length > 0) {
+
+				// remove first element
+				let obj = stack.shift();
+
+				if (!obj || typeof obj !== 'object') {
 					continue;
 				}
 
-				const value = obj[key];
-				// recurse -> object/array
-				if (typeof value === 'object') {
-					stack.push(value);
+				for (let key in obj) {
+					if (!Object.prototype.hasOwnProperty.call(obj, key)) {
+						continue;
+					}
 
-				} else if (key === ObjectIdentifier.name) {
-					// track new $ident-objects
+					const value = obj[key];
+					// recurse -> object/array
+					if (typeof value === 'object') {
+						stack.push(value);
 
-					if (typeof value === 'number' && !this._activeIds.has(value)) {
-						this._activeIds.add(value);
-						this._activeSignals.set(obj, new GCSignal(value));
+					} else if (key === ObjectIdentifier.name) {
+						// track new $ident-objects
+
+						if (typeof value === 'number' && !this._activeIds.has(value)) {
+							this._activeIds.add(value);
+							this._activeSignals.set(obj, new GCSignal(value));
+						}
 					}
 				}
 			}
-		}
 
-		return obj;
+			return obj;
+		});
 	}
 }
 
@@ -123,7 +126,7 @@ export class MainThreadHeapService {
 		extHostContext: IExtHostContext,
 		@IHeapService heapService: IHeapService,
 	) {
-		const proxy = extHostContext.get(ExtHostContext.ExtHostHeapService);
+		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostHeapService);
 		this._toDispose = heapService.onGarbageCollection((ids) => {
 			// send to ext host
 			proxy.$onGarbageCollection(ids);

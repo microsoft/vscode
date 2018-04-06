@@ -19,12 +19,15 @@ import { HorizontalRange, RenderingContext, RestrictedRenderingContext } from 'v
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewController } from 'vs/editor/browser/view/viewController';
-import { EndOfLinePreference, ScrollType } from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { PartFingerprints, PartFingerprint, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { EndOfLinePreference } from 'vs/editor/common/model';
+import { getMapForWordSeparators, WordCharacterClass } from 'vs/editor/common/controller/wordCharacterClassifier';
 
 export interface ITextAreaHandlerHelper {
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalRange;
@@ -50,6 +53,40 @@ class VisibleTextAreaData {
 
 const canUseZeroSizeTextarea = (browser.isEdgeOrIE || browser.isFirefox);
 
+interface LocalClipboardMetadata {
+	lastCopiedValue: string;
+	isFromEmptySelection: boolean;
+	multicursorText: string[];
+}
+
+/**
+ * Every time we write to the clipboard, we record a bit of extra metadata here.
+ * Every time we read from the cipboard, if the text matches our last written text,
+ * we can fetch the previous metadata.
+ */
+class LocalClipboardMetadataManager {
+	public static INSTANCE = new LocalClipboardMetadataManager();
+
+	private _lastState: LocalClipboardMetadata;
+
+	constructor() {
+		this._lastState = null;
+	}
+
+	public set(state: LocalClipboardMetadata): void {
+		this._lastState = state;
+	}
+
+	public get(pastedText: string): LocalClipboardMetadata {
+		if (this._lastState && this._lastState.lastCopiedValue === pastedText) {
+			// match!
+			return this._lastState;
+		}
+		this._lastState = null;
+		return null;
+	}
+}
+
 export class TextAreaHandler extends ViewPart {
 
 	private readonly _viewController: ViewController;
@@ -69,8 +106,6 @@ export class TextAreaHandler extends ViewPart {
 	 */
 	private _visibleTextArea: VisibleTextAreaData;
 	private _selections: Selection[];
-	private _lastCopiedValue: string;
-	private _lastCopiedValueIsFromEmptySelection: boolean;
 
 	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
 	public readonly textAreaCover: FastDomNode<HTMLElement>;
@@ -96,8 +131,6 @@ export class TextAreaHandler extends ViewPart {
 
 		this._visibleTextArea = null;
 		this._selections = [new Selection(1, 1, 1, 1)];
-		this._lastCopiedValue = null;
-		this._lastCopiedValueIsFromEmptySelection = false;
 
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
 		this.textArea = createFastDomNode(document.createElement('textarea'));
@@ -131,20 +164,28 @@ export class TextAreaHandler extends ViewPart {
 
 		const textAreaInputHost: ITextAreaInputHost = {
 			getPlainTextToCopy: (): string => {
-				const whatToCopy = this._context.model.getPlainTextToCopy(this._selections, this._emptySelectionClipboard);
+				const rawWhatToCopy = this._context.model.getPlainTextToCopy(this._selections, this._emptySelectionClipboard);
+				const newLineCharacter = this._context.model.getEOL();
 
-				if (this._emptySelectionClipboard) {
-					if (browser.isFirefox) {
-						// When writing "LINE\r\n" to the clipboard and then pasting,
-						// Firefox pastes "LINE\n", so let's work around this quirk
-						this._lastCopiedValue = whatToCopy.replace(/\r\n/g, '\n');
-					} else {
-						this._lastCopiedValue = whatToCopy;
-					}
+				const isFromEmptySelection = (this._emptySelectionClipboard && this._selections.length === 1 && this._selections[0].isEmpty());
+				const multicursorText = (Array.isArray(rawWhatToCopy) ? rawWhatToCopy : null);
+				const whatToCopy = (Array.isArray(rawWhatToCopy) ? rawWhatToCopy.join(newLineCharacter) : rawWhatToCopy);
 
-					let selections = this._selections;
-					this._lastCopiedValueIsFromEmptySelection = (selections.length === 1 && selections[0].isEmpty());
+				let metadata: LocalClipboardMetadata = null;
+				if (isFromEmptySelection || multicursorText) {
+					// Only store the non-default metadata
+
+					// When writing "LINE\r\n" to the clipboard and then pasting,
+					// Firefox pastes "LINE\n", so let's work around this quirk
+					const lastCopiedValue = (browser.isFirefox ? whatToCopy.replace(/\r\n/g, '\n') : whatToCopy);
+					metadata = {
+						lastCopiedValue: lastCopiedValue,
+						isFromEmptySelection: (this._emptySelectionClipboard && this._selections.length === 1 && this._selections[0].isEmpty()),
+						multicursorText: multicursorText
+					};
 				}
+
+				LocalClipboardMetadataManager.INSTANCE.set(metadata);
 
 				return whatToCopy;
 			},
@@ -163,16 +204,19 @@ export class TextAreaHandler extends ViewPart {
 				if (this._accessibilitySupport === platform.AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
 					// On OSX, we write the character before the cursor to allow for "long-press" composition
+					// Also on OSX, we write the word before the cursor to allow for the Accessibility Keyboard to give good hints
 					if (platform.isMacintosh) {
 						const selection = this._selections[0];
 						if (selection.isEmpty()) {
 							const position = selection.getStartPosition();
-							if (position.column > 1) {
-								const lineContent = this._context.model.getLineContent(position.lineNumber);
-								const charBefore = lineContent.charAt(position.column - 2);
-								if (!strings.isHighSurrogate(charBefore.charCodeAt(0))) {
-									return new TextAreaState(charBefore, 1, 1, position, position);
-								}
+
+							let textBefore = this._getWordBeforePosition(position);
+							if (textBefore.length === 0) {
+								textBefore = this._getCharacterBeforePosition(position);
+							}
+
+							if (textBefore.length > 0) {
+								return new TextAreaState(textBefore, textBefore.length, textBefore.length, position, position);
 							}
 						}
 					}
@@ -198,11 +242,15 @@ export class TextAreaHandler extends ViewPart {
 		}));
 
 		this._register(this._textAreaInput.onPaste((e: IPasteData) => {
+			const metadata = LocalClipboardMetadataManager.INSTANCE.get(e.text);
+
 			let pasteOnNewLine = false;
-			if (this._emptySelectionClipboard) {
-				pasteOnNewLine = (e.text === this._lastCopiedValue && this._lastCopiedValueIsFromEmptySelection);
+			let multicursorText: string[] = null;
+			if (metadata) {
+				pasteOnNewLine = (this._emptySelectionClipboard && metadata.isFromEmptySelection);
+				multicursorText = metadata.multicursorText;
 			}
-			this._viewController.paste('keyboard', e.text, pasteOnNewLine);
+			this._viewController.paste('keyboard', e.text, pasteOnNewLine, multicursorText);
 		}));
 
 		this._register(this._textAreaInput.onCut(() => {
@@ -284,6 +332,35 @@ export class TextAreaHandler extends ViewPart {
 		super.dispose();
 	}
 
+	private _getWordBeforePosition(position: Position): string {
+		const lineContent = this._context.model.getLineContent(position.lineNumber);
+		const wordSeparators = getMapForWordSeparators(this._context.configuration.editor.wordSeparators);
+
+		let column = position.column;
+		let distance = 0;
+		while (column > 1) {
+			const charCode = lineContent.charCodeAt(column - 2);
+			const charClass = wordSeparators.get(charCode);
+			if (charClass !== WordCharacterClass.Regular || distance > 50) {
+				return lineContent.substring(column - 1, position.column - 1);
+			}
+			distance++;
+			column--;
+		}
+		return lineContent.substring(0, position.column - 1);
+	}
+
+	private _getCharacterBeforePosition(position: Position): string {
+		if (position.column > 1) {
+			const lineContent = this._context.model.getLineContent(position.lineNumber);
+			const charBefore = lineContent.charAt(position.column - 2);
+			if (!strings.isHighSurrogate(charBefore.charCodeAt(0))) {
+				return charBefore;
+			}
+		}
+		return '';
+	}
+
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
@@ -353,20 +430,6 @@ export class TextAreaHandler extends ViewPart {
 
 	public focusTextArea(): void {
 		this._textAreaInput.focusTextArea();
-	}
-
-	public setAriaActiveDescendant(id: string): void {
-		if (id) {
-			this.textArea.setAttribute('role', 'combobox');
-			if (this.textArea.getAttribute('aria-activedescendant') !== id) {
-				this.textArea.setAttribute('aria-haspopup', 'true');
-				this.textArea.setAttribute('aria-activedescendant', id);
-			}
-		} else {
-			this.textArea.setAttribute('role', 'textbox');
-			this.textArea.removeAttribute('aria-activedescendant');
-			this.textArea.removeAttribute('aria-haspopup');
-		}
 	}
 
 	// --- end view API
@@ -481,7 +544,7 @@ export class TextAreaHandler extends ViewPart {
 		if (this._context.configuration.editor.viewInfo.glyphMargin) {
 			tac.setClassName('monaco-editor-background textAreaCover ' + Margin.CLASS_NAME);
 		} else {
-			if (this._context.configuration.editor.viewInfo.renderLineNumbers) {
+			if (this._context.configuration.editor.viewInfo.renderLineNumbers !== RenderLineNumbersType.Off) {
 				tac.setClassName('monaco-editor-background textAreaCover ' + LineNumbersOverlay.CLASS_NAME);
 			} else {
 				tac.setClassName('monaco-editor-background textAreaCover');

@@ -17,11 +17,11 @@ The core editor in VS Code is packed with features.  This page highlights a numb
 
 ### Multi-Cursor Editing
 Using multiple cursors allows you to edit multiple parts of the document at once, greatly improving your productivity.  Try the following actions in the code block below:
-1. Box Selection - press <span class="mac-only windows-only">any combination of kb(cursorColumnSelectDown), kb(cursorColumnSelectRight), kb(cursorColumnSelectUp), kb(cursorColumnSelectLeft) to select a block of text, you can also press</span> <span class="shortcut mac-only">`⇧⌥`</span><span class="shortcut windows-only linux-only">`Shift+Alt`</span> while selecting text with the mouse.
-2. Add a cursor - press kb(editor.action.insertCursorAbove) or kb(editor.action.insertCursorBelow) to add a new cursor above or below, you can also use your mouse with <span class="shortcut"><span class="multi-cursor-modifier"></span>+Click</span> to add a cursor anywhere.
+1. Box Selection - press <span class="mac-only windows-only">any combination of kb(cursorColumnSelectDown), kb(cursorColumnSelectRight), kb(cursorColumnSelectUp), kb(cursorColumnSelectLeft) to select a block of text. You can also press</span> <span class="shortcut mac-only">`⇧⌥`</span><span class="shortcut windows-only linux-only">`Shift+Alt`</span> while selecting text with the mouse.
+2. Add a cursor - press kb(editor.action.insertCursorAbove) to add a new cursor above, or kb(editor.action.insertCursorBelow) to add a new cursor below. You can also use your mouse with <span class="shortcut"><span class="multi-cursor-modifier"></span>+Click</span> to add a cursor anywhere.
 3. Create cursors on all occurrences of a string - select one instance of a string e.g. `background-color` and press kb(editor.action.selectHighlights).  Now you can replace all instances by simply typing.
 
-That is the tip of the iceberg for multi-cursor editing have a look at the `selection menu` and our handy [keyboard reference guide](command:workbench.action.keybindingsReference) for additional actions.
+That is the tip of the iceberg for multi-cursor editing. Have a look at the selection menu and our handy [keyboard reference guide](command:workbench.action.keybindingsReference) for additional actions.
 
 ```css
 #p1 {background-color: #ff0000;}   /* red */
@@ -29,11 +29,11 @@ That is the tip of the iceberg for multi-cursor editing have a look at the `sele
 #p3 {background-color: #0000ff;}   /* blue */
 ```
 
-> **CSS Tip:** you may have noticed in the example above for CSS we also provide color swatches inline, additionally if you hover over an element such as `#p1` we will show how this is represented in HTML.  These swatches also act as color pickers that allow you to easily change a color value.  A simple example of some language specific editor features.
+> **CSS Tip:** you may have noticed in the example above we also provide color swatches inline for CSS, additionally if you hover over an element such as `#p1` we will show how this is represented in HTML.  These swatches also act as color pickers that allow you to easily change a color value.  A simple example of some language-specific editor features.
 
 ### IntelliSense
 
-Visual Studio Code comes with powerful IntelliSense for JavaScript and TypeScript pre-installed. In the below example, position the text cursor in front of the error underline, right after the dot and press kb(editor.action.triggerSuggest) to invoke IntelliSense.  Notice how the suggestion comes from the Request API.
+Visual Studio Code comes with the powerful IntelliSense for JavaScript and TypeScript pre-installed. In the below example, position the text cursor in front of the error underline, right after the dot and press kb(editor.action.triggerSuggest) to invoke IntelliSense.  Notice how the suggestion comes from the Request API.
 
 ```js
 var express = require('express');
@@ -50,7 +50,7 @@ app.listen(3000);
 
 
 ### Line Actions
-Since it's very common to want to work with the entire text in a line we provide a set of useful shortcuts to help with this.
+Since it's very common to work with the entire text in a line we provide a set of useful shortcuts to help with this.
 1. Copy a line and insert it above or below the current position with kb(editor.action.copyLinesDownAction) or kb(editor.action.copyLinesUpAction) respectively.
 2. Move an entire line or selection of lines up or down with kb(editor.action.moveLinesUpAction) and kb(editor.action.moveLinesDownAction) respectively.
 3. Delete the entire line with kb(editor.action.deleteLines).
@@ -68,7 +68,7 @@ Since it's very common to want to work with the entire text in a line we provide
 
 
 ### Rename Refactoring
-It's easy to rename a symbol such as a function name or variable name.  Hit kb(editor.action.rename) while in the symbol `Book` to rename all instances - this will occur across all files in a project.  You can also see refactoring in the right click context menu.
+It's easy to rename a symbol such as a function name or variable name.  Hit kb(editor.action.rename) while in the symbol `Book` to rename all instances - this will occur across all files in a project.  You can also see refactoring in the right-click context menu.
 
 ```js
 // Reference the function
@@ -84,11 +84,11 @@ function Book(title, author) {
 }
 ```
 
-> **JSDoc Tip:** The example above also showcased another way to get IntelliSense hints by using `JSDoc` comments.  You can try this out by invoking the `Book` function and seeing the enhanced context in the IntelliSense Experience for the function as well as parameters.
+> **JSDoc Tip:** The example above also showcased another way to get IntelliSense hints by using `JSDoc` comments.  You can try this out by invoking the `Book` function and seeing the enhanced context in the IntelliSense menu for the function as well as parameters.
 
 
 ### Refactoring via Extraction
-Sometimes you want factor already written code into a separate function or constant to use it later again. Select the lines you want to factor out and press kb(editor.action.quickFix) or click the little light bulb and choose one of the respective `Extract to...` options. Try it by selecting the code inside the `if`-clause on line 3 or any other common code you want to factor out.
+Sometimes you want to refactor already written code into a separate function or constant to reuse it later. Select the lines you want to refactor out and press kb(editor.action.quickFix) or click the little light bulb and choose one of the respective `Extract to...` options. Try it by selecting the code inside the `if`-clause on line 3 or any other common code you want to refactor out.
 
 ```js
 function findFirstEvenNumber(arr) {
@@ -103,7 +103,7 @@ function findFirstEvenNumber(arr) {
 
 
 ### Formatting
-Keeping your code looking great is hard without a good formatter.  Luckily it's easy to format content either the entire document with kb(editor.action.formatDocument) or formatting can be applied to the current selection with kb(editor.action.formatSelection).  Both of these options are also available through the right click context menu.
+Keeping your code looking great is hard without a good formatter.  Luckily it's easy to format content either the entire document with kb(editor.action.formatDocument). Formatting can be applied to the current selection with kb(editor.action.formatSelection).  Both of these options are also available through the right-click context menu.
 
 ```js
 var cars = ["Saab", "Volvo", "BMW"];
@@ -118,7 +118,7 @@ console.log(`This is the manufacturer [${cars[i]}])`);
 
 
 ### Code Folding
-In a large file it can often be useful to collapse sections of code to increase readability.  To do this you can simply press kb(editor.fold) to `fold` the code - press kb(editor.unfold) to `unfold`.  Folding can also be done with the +/- icons in the left gutter.  To fold all sections kb(editor.foldAll) or to unfold all kb(editor.unfoldAll).
+In a large file it can often be useful to collapse sections of code to increase readability.  To do this you can simply press kb(editor.fold) to fold the code, press kb(editor.unfold) to unfold.  Folding can also be done with the +/- icons in the left gutter.  To fold all sections use kb(editor.foldAll) or to unfold all use kb(editor.unfoldAll).
 
 ```html
 <div>
@@ -137,7 +137,7 @@ In a large file it can often be useful to collapse sections of code to increase 
 >**Tip:** Folding is based on indentation and as a result can apply to all languages.  Simply indent your code to create a foldable section you can fold a certain number of levels with shortcuts like kb(editor.foldLevel1) through to kb(editor.foldLevel5).
 
 ### Errors and Warnings
-Errors and warnings are highlighted as you edit your code with `squiggles`.  In the sample below you can see a number of syntax errors.  By pressing kb(editor.action.marker.next) you can navigate across them in sequence and see the detailed error message.  As you correct them the `squiggles` and `scrollbar indicators` will update.
+Errors and warnings are highlighted as you edit your code with squiggles.  In the sample below you can see a number of syntax errors.  By pressing kb(editor.action.marker.next) you can navigate across them in sequence and see the detailed error message.  As you correct them the squiggles and scrollbar indicators will update.
 
 ```js
 // This code has a few syntax errors
@@ -157,11 +157,11 @@ You can greatly accelerate your editing through the use of snippets.  Simply sta
 
 ```
 
->**Tip:** the extension gallery includes snippets for almost every framework and language imaginable [extensions](command:workbench.extensions.action.showPopularExtensions).  You can also create your own [user defined snippets](command:workbench.action.openSnippets).
+>**Tip:** the [extension gallery](command:workbench.extensions.action.showPopularExtensions) includes snippets for almost every framework and language imaginable.  You can also create your own [user-defined snippets](command:workbench.action.openSnippets).
 
 
 ### Emmet
-Emmet takes the snippets idea to a whole new level: you can type CSS-like expressions that can be dynamically parsed, and produce output depending on what you type in the abbreviation. To use Emmet simply run the command `Emmet: Expand Abbreviation` with cursor at the end of a valid Emmet abbreviation or snippet and the expansion will occur.
+Emmet takes the snippets idea to a whole new level: you can type CSS-like expressions that can be dynamically parsed, and produce output depending on what you type in the abbreviation. Try it by selecting `Emmet: Expand Abbreviation` from the `Edit` menu with the cursor at the end of a valid Emmet abbreviation or snippet and the expansion will occur.
 
 ```html
 ul>li.item$*5
@@ -186,10 +186,10 @@ easy = 42;
 
 ## Thanks!
 Well if you have got this far then you will have touched on some of the editing features in Visual Studio Code.  But don't stop now :)  We have lots of additional [documentation](https://code.visualstudio.com/docs), [introductory videos](https://code.visualstudio.com/docs/getstarted/introvideos) and [tips and tricks](https://go.microsoft.com/fwlink/?linkid=852118) for the product that will help you learn how to use it.  And while you are here, here are a few additional things you can try:
-- Open the Integrated Terminal by pressing kb(workbench.action.terminal.toggleTerminal) then see what's possible by [reviewing the terminal documentation](https://code.visualstudio.com/docs/editor/integrated-terminal)
-- Work with version control by pressing kb(workbench.view.scm) understand how to stage, commit, change branches, and view diffs and more by reviewing the [version control documentation](https://code.visualstudio.com/docs/editor/versioncontrol)
-- Browse thousands of extensions in our integrated gallery by pressing with kb(workbench.view.extensions) the [documentation](https://code.visualstudio.com/docs/editor/extension-gallery) will show you how to see the most popular extensions, disable installed ones and more.
+- Open the Integrated Terminal by pressing kb(workbench.action.terminal.toggleTerminal), then see what's possible by [reviewing the terminal documentation](https://code.visualstudio.com/docs/editor/integrated-terminal)
+- Work with version control by pressing kb(workbench.view.scm). Understand how to stage, commit, change branches, and view diffs and more by reviewing the [version control documentation](https://code.visualstudio.com/docs/editor/versioncontrol)
+- Browse thousands of extensions in our integrated gallery by pressing kb(workbench.view.extensions). The [documentation](https://code.visualstudio.com/docs/editor/extension-gallery) will show you how to see the most popular extensions, disable installed ones and more.
 
-OK that's all for now,
+That's all for now,
 
 Happy Coding!

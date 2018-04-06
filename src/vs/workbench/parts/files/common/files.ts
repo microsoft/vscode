@@ -8,22 +8,32 @@ import URI from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
+import { ExplorerItem, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { IMode } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IViewlet } from 'vs/workbench/common/viewlet';
+import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 
 /**
  * Explorer viewlet id.
  */
 export const VIEWLET_ID = 'workbench.view.explorer';
+
+export interface IExplorerViewlet extends IViewlet {
+	getExplorerView(): IExplorerView;
+}
+
+export interface IExplorerView {
+	select(resource: URI, reveal?: boolean): TPromise<void>;
+}
 
 /**
  * Context Keys to use with keybindings for the Explorer and Open Editors view
@@ -34,17 +44,19 @@ const openEditorsVisibleId = 'openEditorsVisible';
 const openEditorsFocusId = 'openEditorsFocus';
 const explorerViewletFocusId = 'explorerViewletFocus';
 const explorerResourceIsFolderId = 'explorerResourceIsFolder';
+const explorerResourceIsRootId = 'explorerResourceIsRoot';
 
 export const ExplorerViewletVisibleContext = new RawContextKey<boolean>(explorerViewletVisibleId, true);
 export const ExplorerFolderContext = new RawContextKey<boolean>(explorerResourceIsFolderId, false);
-export const FilesExplorerFocusedContext = new RawContextKey<boolean>(filesExplorerFocusId, false);
+export const ExplorerRootContext = new RawContextKey<boolean>(explorerResourceIsRootId, false);
+export const FilesExplorerFocusedContext = new RawContextKey<boolean>(filesExplorerFocusId, true);
 export const OpenEditorsVisibleContext = new RawContextKey<boolean>(openEditorsVisibleId, false);
-export const OpenEditorsFocusedContext = new RawContextKey<boolean>(openEditorsFocusId, false);
-export const ExplorerFocusedContext = new RawContextKey<boolean>(explorerViewletFocusId, false);
+export const OpenEditorsFocusedContext = new RawContextKey<boolean>(openEditorsFocusId, true);
+export const ExplorerFocusedContext = new RawContextKey<boolean>(explorerViewletFocusId, true);
 
 export const OpenEditorsVisibleCondition = ContextKeyExpr.has(openEditorsVisibleId);
-export const FilesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(filesExplorerFocusId));
-export const ExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(explorerViewletFocusId));
+export const FilesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(filesExplorerFocusId), ContextKeyExpr.not(InputFocusedContextKey));
+export const ExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(explorerViewletFocusId), ContextKeyExpr.not(InputFocusedContextKey));
 
 /**
  * File editor input id.
@@ -65,7 +77,6 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 	explorer: {
 		openEditors: {
 			visible: number;
-			dynamicHeight: boolean;
 		};
 		autoReveal: boolean;
 		enableDragAndDrop: boolean;
@@ -87,9 +98,9 @@ export interface IFileResource {
 /**
  * Helper to get an explorer item from an object.
  */
-export function explorerItemToFileResource(obj: FileStat | OpenEditor): IFileResource {
-	if (obj instanceof FileStat) {
-		const stat = obj as FileStat;
+export function explorerItemToFileResource(obj: ExplorerItem | OpenEditor): IFileResource {
+	if (obj instanceof ExplorerItem) {
+		const stat = obj as ExplorerItem;
 
 		return {
 			resource: stat.resource,
@@ -131,7 +142,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	) {
 	}
 
-	public provideTextContent(resource: URI): TPromise<IModel> {
+	public provideTextContent(resource: URI): TPromise<ITextModel> {
 		const fileOnDiskResource = URI.file(resource.fsPath);
 
 		// Make sure our file from disk is resolved up to date
@@ -140,7 +151,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 			// Make sure to keep contents on disk up to date when it changes
 			if (!this.fileWatcher) {
 				this.fileWatcher = this.fileService.onFileChanges(changes => {
-					if (changes.contains(fileOnDiskResource, FileChangeType.UPDATED)) { //
+					if (changes.contains(fileOnDiskResource, FileChangeType.UPDATED)) {
 						this.resolveEditorModel(resource, false /* do not create if missing */).done(null, onUnexpectedError); // update model when resource changes
 					}
 				});
@@ -155,7 +166,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 		});
 	}
 
-	private resolveEditorModel(resource: URI, createAsNeeded = true): TPromise<IModel> {
+	private resolveEditorModel(resource: URI, createAsNeeded = true): TPromise<ITextModel> {
 		const fileOnDiskResource = URI.file(resource.fsPath);
 
 		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {

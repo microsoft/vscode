@@ -17,12 +17,10 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfirmation, IMessageService, IConfirmationResult } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Selection } from 'vs/editor/common/core/selection';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Configuration, DefaultConfigurationModel, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
@@ -39,6 +37,10 @@ import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } fr
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
 import { IRange } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
+import { INotificationService, INotification, INotificationHandle, NoOpNotification, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IPosition, Position as Pos } from 'vs/editor/common/core/position';
 
 export class SimpleEditor implements IEditor {
 
@@ -54,7 +56,6 @@ export class SimpleEditor implements IEditor {
 
 	public getId(): string { return 'editor'; }
 	public getControl(): editorCommon.IEditor { return this._widget; }
-	public getSelection(): Selection { return this._widget.getSelection(); }
 	public focus(): void { this._widget.focus(); }
 	public isVisible(): boolean { return true; }
 
@@ -71,10 +72,10 @@ export class SimpleEditor implements IEditor {
 
 export class SimpleModel implements ITextEditorModel {
 
-	private model: editorCommon.IModel;
-	private _onDispose: Emitter<void>;
+	private model: ITextModel;
+	private readonly _onDispose: Emitter<void>;
 
-	constructor(model: editorCommon.IModel) {
+	constructor(model: ITextModel) {
 		this.model = model;
 		this._onDispose = new Emitter<void>();
 	}
@@ -87,7 +88,7 @@ export class SimpleModel implements ITextEditorModel {
 		return TPromise.as(this);
 	}
 
-	public get textEditorModel(): editorCommon.IModel {
+	public get textEditorModel(): ITextModel {
 		return this.model;
 	}
 
@@ -165,7 +166,7 @@ export class SimpleEditorService implements IEditorService {
 		return this.editor;
 	}
 
-	private findModel(editor: ICodeEditor, data: IResourceInput): editorCommon.IModel {
+	private findModel(editor: ICodeEditor, data: IResourceInput): ITextModel {
 		let model = editor.getModel();
 		if (model.uri.toString() !== data.resource.toString()) {
 			return null;
@@ -185,7 +186,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 	}
 
 	public createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
-		let model: editorCommon.IModel;
+		let model: ITextModel;
 
 		model = this.editor.withTypedEditor(
 			(editor) => this.findModel(editor, resource),
@@ -205,7 +206,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 		};
 	}
 
-	private findModel(editor: ICodeEditor, resource: URI): editorCommon.IModel {
+	private findModel(editor: ICodeEditor, resource: URI): ITextModel {
 		let model = editor.getModel();
 		if (model.uri.toString() !== resource.toString()) {
 			return null;
@@ -235,44 +236,69 @@ export class SimpleProgressService implements IProgressService {
 	}
 }
 
-export class SimpleMessageService implements IMessageService {
+export class SimpleDialogService implements IDialogService {
 
 	public _serviceBrand: any;
 
-	private static Empty = function () { /* nothing */ };
-
-	public show(sev: Severity, message: any): () => void {
-
-		switch (sev) {
-			case Severity.Error:
-				console.error(message);
-				break;
-			case Severity.Warning:
-				console.warn(message);
-				break;
-			default:
-				console.log(message);
-				break;
-		}
-
-		return SimpleMessageService.Empty;
+	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+		return this.doConfirm(confirmation).then(confirmed => {
+			return {
+				confirmed,
+				checkboxChecked: false // unsupported
+			} as IConfirmationResult;
+		});
 	}
 
-	public hideAll(): void {
-		// No-op
-	}
-
-	public confirmSync(confirmation: IConfirmation): boolean {
+	private doConfirm(confirmation: IConfirmation): TPromise<boolean> {
 		let messageText = confirmation.message;
 		if (confirmation.detail) {
 			messageText = messageText + '\n\n' + confirmation.detail;
 		}
 
-		return window.confirm(messageText);
+		return TPromise.wrap(window.confirm(messageText));
 	}
 
-	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
-		return TPromise.as({ confirmed: this.confirmSync(confirmation) } as IConfirmationResult);
+	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): TPromise<number> {
+		return TPromise.as(0);
+	}
+}
+
+export class SimpleNotificationService implements INotificationService {
+
+	public _serviceBrand: any;
+
+	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
+
+	public info(message: string): INotificationHandle {
+		return this.notify({ severity: Severity.Info, message });
+	}
+
+	public warn(message: string): INotificationHandle {
+		return this.notify({ severity: Severity.Warning, message });
+	}
+
+	public error(error: string | Error): INotificationHandle {
+		return this.notify({ severity: Severity.Error, message: error });
+	}
+
+	public notify(notification: INotification): INotificationHandle {
+		switch (notification.severity) {
+			case Severity.Error:
+				console.error(notification.message);
+				break;
+			case Severity.Warning:
+				console.warn(notification.message);
+				break;
+			default:
+				console.log(notification.message);
+				break;
+		}
+
+		return SimpleNotificationService.NO_OP;
+	}
+
+	public prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
+		return SimpleNotificationService.NO_OP;
 	}
 }
 
@@ -282,7 +308,7 @@ export class StandaloneCommandService implements ICommandService {
 	private readonly _instantiationService: IInstantiationService;
 	private _dynamicCommands: { [id: string]: ICommand; };
 
-	private _onWillExecuteCommand: Emitter<ICommandEvent> = new Emitter<ICommandEvent>();
+	private readonly _onWillExecuteCommand: Emitter<ICommandEvent> = new Emitter<ICommandEvent>();
 	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
 
 	constructor(instantiationService: IInstantiationService) {
@@ -324,10 +350,10 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		contextKeyService: IContextKeyService,
 		commandService: ICommandService,
 		telemetryService: ITelemetryService,
-		messageService: IMessageService,
+		notificationService: INotificationService,
 		domNode: HTMLElement
 	) {
-		super(contextKeyService, commandService, telemetryService, messageService);
+		super(contextKeyService, commandService, telemetryService, notificationService);
 
 		this._cachedResolver = null;
 		this._dynamicKeybindings = [];
@@ -446,7 +472,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 	_serviceBrand: any;
 
 	private _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
-	public onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
+	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
 
 	private _configuration: Configuration;
 
@@ -479,7 +505,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 		workspaceFolder: C
 		value: C,
 	} {
-		return this.configuration().lookup<C>(key, options, null);
+		return this.configuration().inspect<C>(key, options, null);
 	}
 
 	public keys() {
@@ -508,10 +534,13 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 		});
 	}
 
-	public getValue<T>(): T {
-		return this.configurationService.getValue<T>();
+	getValue<T>(resource: URI, section?: string): T;
+	getValue<T>(resource: URI, position?: IPosition, section?: string): T;
+	getValue<T>(resource: any, arg2?: any, arg3?: any) {
+		const position: IPosition = Pos.isIPosition(arg2) ? arg2 : null;
+		const section: string = position ? (typeof arg3 === 'string' ? arg3 : void 0) : (typeof arg2 === 'string' ? arg2 : void 0);
+		return this.configurationService.getValue<T>(section);
 	}
-
 }
 
 export class SimpleMenuService implements IMenuService {
@@ -585,10 +614,6 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	public isInsideWorkspace(resource: URI): boolean {
 		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME;
-	}
-
-	public toResource(workspaceRelativePath: string, workspaceFolder: IWorkspaceFolder): URI {
-		return URI.file(workspaceRelativePath);
 	}
 
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {

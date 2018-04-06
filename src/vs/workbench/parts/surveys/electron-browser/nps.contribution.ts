@@ -6,17 +6,16 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Action } from 'vs/base/common/actions';
 import { language } from 'vs/base/common/platform';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 
 const PROBABILITY = 0.15;
 const SESSION_COUNT_KEY = 'nps/sessionCount';
@@ -29,7 +28,7 @@ class NPSContribution implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.GLOBAL, '');
@@ -63,38 +62,34 @@ class NPSContribution implements IWorkbenchContribution {
 			return;
 		}
 
-		const message = nls.localize('surveyQuestion', "Do you mind taking a quick feedback survey?");
-
-		const takeSurveyAction = new Action('nps.takeSurvey', nls.localize('takeSurvey', "Take Survey"), '', true, () => {
-			return telemetryService.getTelemetryInfo().then(info => {
-				window.open(`${product.npsSurveyUrl}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(pkg.version)}&m=${encodeURIComponent(info.machineId)}`);
-				storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
-				storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
-			});
-		});
-
-		const remindMeLaterAction = new Action('nps.later', nls.localize('remindLater', "Remind Me later"), '', true, () => {
-			storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.GLOBAL);
-			return TPromise.as(null);
-		});
-
-		const neverAgainAction = new Action('nps.never', nls.localize('neverAgain', "Don't Show Again"), '', true, () => {
-			storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
-			storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
-			return TPromise.as(null);
-		});
-
-		const actions = [neverAgainAction, remindMeLaterAction, takeSurveyAction];
-
-		messageService.show(Severity.Info, { message, actions });
-	}
-
-	getId(): string {
-		return 'nps';
+		notificationService.prompt(
+			Severity.Info,
+			nls.localize('surveyQuestion', "Do you mind taking a quick feedback survey?"),
+			[{
+				label: nls.localize('takeSurvey', "Take Survey"),
+				run: () => {
+					telemetryService.getTelemetryInfo().then(info => {
+						window.open(`${product.npsSurveyUrl}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(pkg.version)}&m=${encodeURIComponent(info.machineId)}`);
+						storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
+						storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
+					});
+				}
+			}, {
+				label: nls.localize('remindLater', "Remind Me later"),
+				run: () => storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.GLOBAL)
+			}, {
+				label: nls.localize('neverAgain', "Don't Show Again"),
+				isSecondary: true,
+				run: () => {
+					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
+					storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
+				}
+			}]
+		);
 	}
 }
 
 if (language === 'en' && product.npsSurveyUrl) {
-	const workbenchRegistry = <IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench);
-	workbenchRegistry.registerWorkbenchContribution(NPSContribution);
+	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+	workbenchRegistry.registerWorkbenchContribution(NPSContribution, LifecyclePhase.Running);
 }

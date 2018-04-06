@@ -17,7 +17,7 @@ import { ITextSearchWorkerProvider } from './textSearchWorkerProvider';
 
 export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 
-	private static PROGRESS_FLUSH_CHUNK_SIZE = 50; // optimization: number of files to process before emitting progress event
+	private static readonly PROGRESS_FLUSH_CHUNK_SIZE = 50; // optimization: number of files to process before emitting progress event
 
 	private config: IRawSearch;
 	private walker: FileWalker;
@@ -147,20 +147,22 @@ export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 				nextBatch = [];
 				nextBatchBytes = 0;
 			}
-		}, (error, isLimitHit) => {
-			this.walkerIsDone = true;
-			this.walkerError = error;
+		},
+			onProgress,
+			(error, isLimitHit) => {
+				this.walkerIsDone = true;
+				this.walkerError = error;
 
-			// Send any remaining paths to a worker, or unwind if we're stopping
-			if (nextBatch.length) {
-				if (this.limitReached || this.isCanceled) {
-					unwind(nextBatchBytes);
+				// Send any remaining paths to a worker, or unwind if we're stopping
+				if (nextBatch.length) {
+					if (this.limitReached || this.isCanceled) {
+						unwind(nextBatchBytes);
+					} else {
+						run(nextBatch, nextBatchBytes);
+					}
 				} else {
-					run(nextBatch, nextBatchBytes);
+					unwind(0);
 				}
-			} else {
-				unwind(0);
-			}
-		});
+			});
 	}
 }

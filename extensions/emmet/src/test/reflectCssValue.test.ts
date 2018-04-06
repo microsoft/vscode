@@ -7,7 +7,13 @@ import 'mocha';
 import * as assert from 'assert';
 import { Selection } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
-import { reflectCssValue } from '../reflectCssValue';
+import { reflectCssValue as reflectCssValueImpl } from '../reflectCssValue';
+
+function reflectCssValue(): Thenable<boolean> {
+	const result = reflectCssValueImpl();
+	assert.ok(result);
+	return result!;
+}
 
 suite('Tests for Emmet: Reflect CSS Value command', () => {
 	teardown(closeAllEditors);

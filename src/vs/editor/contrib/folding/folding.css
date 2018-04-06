@@ -24,7 +24,7 @@
 }
 
 .monaco-editor .margin-view-overlays:hover .folding,
-.monaco-editor.alwaysShowFoldIcons .margin-view-overlays .folding {
+.monaco-editor .margin-view-overlays .folding.alwaysShowFoldIcons {
 	opacity: 1;
 }
 

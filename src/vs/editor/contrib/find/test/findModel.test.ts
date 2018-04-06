@@ -14,12 +14,14 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 
 suite('FindModel', () => {
 
 	function findTest(testName: string, callback: (editor: ICodeEditor, cursor: Cursor) => void): void {
 		test(testName, () => {
-			withTestCodeEditor([
+			const textArr = [
 				'// my cool header',
 				'#include "cool.h"',
 				'#include <iostream>',
@@ -32,7 +34,19 @@ suite('FindModel', () => {
 				'}',
 				'// blablablaciao',
 				''
-			], {}, callback);
+			];
+			withTestCodeEditor(textArr, {}, callback);
+
+			const text = textArr.join('\n');
+			const ptBuilder = new PieceTreeTextBufferBuilder();
+			ptBuilder.acceptChunk(text.substr(0, 94));
+			ptBuilder.acceptChunk(text.substr(94, 101));
+			ptBuilder.acceptChunk(text.substr(195, 59));
+			const factory = ptBuilder.finish();
+			withTestCodeEditor([],
+				{
+					model: new TextModel(factory, TextModel.DEFAULT_CREATION_OPTIONS, null, null)
+				}, callback);
 		});
 	}
 
@@ -1470,46 +1484,6 @@ suite('FindModel', () => {
 
 		assert.equal(editor.getModel().getLineContent(2), '#bar "cool.h"');
 		assert.equal(editor.getModel().getLineContent(3), '#bar <iostream>');
-
-		findModel.dispose();
-		findState.dispose();
-	});
-
-	findTest('finds only in editable range if replace is shown', (editor, cursor) => {
-		editor.getModel().setEditableRange({
-			startLineNumber: 6,
-			startColumn: 1,
-			endLineNumber: 8,
-			endColumn: 1
-		});
-
-		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', replaceString: 'hi', wholeWord: true }, false);
-		let findModel = new FindModelBoundToEditorModel(editor, findState);
-
-		assertFindState(
-			editor,
-			[1, 1, 1, 1],
-			null,
-			[
-				[6, 14, 6, 19],
-				[6, 27, 6, 32],
-				[7, 14, 7, 19],
-				[8, 14, 8, 19]
-			]
-		);
-
-		findState.change({ isReplaceRevealed: true }, false);
-		assertFindState(
-			editor,
-			[1, 1, 1, 1],
-			null,
-			[
-				[6, 14, 6, 19],
-				[6, 27, 6, 32],
-				[7, 14, 7, 19]
-			]
-		);
 
 		findModel.dispose();
 		findState.dispose();

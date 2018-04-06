@@ -37,7 +37,7 @@ export class TelemetryService implements ITelemetryService {
 	private _userOptIn: boolean;
 
 	private _disposables: IDisposable[] = [];
-	private _cleanupPatterns: [RegExp, string][] = [];
+	private _cleanupPatterns: RegExp[] = [];
 
 	constructor(
 		config: ITelemetryServiceConfig,
@@ -48,18 +48,11 @@ export class TelemetryService implements ITelemetryService {
 		this._piiPaths = config.piiPaths || [];
 		this._userOptIn = typeof config.userOptIn === 'undefined' ? true : config.userOptIn;
 
-		// static cleanup patterns for:
-		// #1 `file:///DANGEROUS/PATH/resources/app/Useful/Information`
-		// #2 // Any other file path that doesn't match the approved form above should be cleaned.
-		// #3 "Error: ENOENT; no such file or directory" is often followed with PII, clean it
-		this._cleanupPatterns.push(
-			[/file:\/\/\/.*?\/resources\/app\//gi, ''],
-			[/file:\/\/\/.*/gi, ''],
-			[/ENOENT: no such file or directory.*?\'([^\']+)\'/gi, 'ENOENT: no such file or directory']
-		);
+		// static cleanup pattern for: `file:///DANGEROUS/PATH/resources/app/Useful/Information`
+		this._cleanupPatterns = [/file:\/\/\/.*?\/resources\/app\//gi];
 
 		for (let piiPath of this._piiPaths) {
-			this._cleanupPatterns.push([new RegExp(escapeRegExpCharacters(piiPath), 'gi'), '']);
+			this._cleanupPatterns.push(new RegExp(escapeRegExpCharacters(piiPath), 'gi'));
 		}
 
 		if (this._configurationService) {
@@ -67,7 +60,7 @@ export class TelemetryService implements ITelemetryService {
 			this._configurationService.onDidChangeConfiguration(this._updateUserOptIn, this, this._disposables);
 			/* __GDPR__
 				"optInStatus" : {
-					"optIn" : { "classification": "SystemMetaData", "purpose": "BusinessInsight" }
+					"optIn" : { "classification": "SystemMetaData", "purpose": "BusinessInsight", "isMeasurement": true }
 				}
 			*/
 			this.publicLog('optInStatus', { optIn: this._userOptIn });
@@ -126,14 +119,36 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	private _cleanupInfo(stack: string): string {
-
-		// sanitize with configured cleanup patterns
-		for (let tuple of this._cleanupPatterns) {
-			let [regexp, replaceValue] = tuple;
-			stack = stack.replace(regexp, replaceValue);
+		const cleanUpIndexes: [number, number][] = [];
+		for (let regexp of this._cleanupPatterns) {
+			while (true) {
+				const result = regexp.exec(stack);
+				if (!result) {
+					break;
+				}
+				cleanUpIndexes.push([result.index, regexp.lastIndex]);
+			}
 		}
 
-		return stack;
+		const nodeModulesRegex = /^[\\\/]?(node_modules|node_modules\.asar)[\\\/]/;
+		const fileRegex = /(file:\/\/)?([a-zA-Z]:(\\\\|\\|\/)|(\\\\|\\|\/))?([\w-\._]+(\\\\|\\|\/))+[\w-\._]*/g;
+		let updatedStack = stack;
+		while (true) {
+			const result = fileRegex.exec(stack);
+			if (!result) {
+				break;
+			}
+			// Anoynimize user file paths that do not need to be retained or cleaned up.
+			if (!nodeModulesRegex.test(result[0]) && cleanUpIndexes.every(([x, y]) => result.index < x || result.index >= y)) {
+				updatedStack = updatedStack.slice(0, result.index) + result[0].replace(/./g, 'a') + updatedStack.slice(fileRegex.lastIndex);
+			}
+		}
+
+		// sanitize with configured cleanup patterns
+		for (let regexp of this._cleanupPatterns) {
+			updatedStack = updatedStack.replace(regexp, '');
+		}
+		return updatedStack;
 	}
 }
 

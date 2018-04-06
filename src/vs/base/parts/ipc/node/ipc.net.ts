@@ -7,7 +7,7 @@
 
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter, once, mapEvent, fromNodeEventEmitter } from 'vs/base/common/event';
+import { Event, Emitter, once, mapEvent, fromNodeEventEmitter } from 'vs/base/common/event';
 import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -25,7 +25,7 @@ export function generateRandomPipeName(): string {
 
 export class Protocol implements IMessagePassingProtocol {
 
-	private static _headerLen = 17;
+	private static readonly _headerLen = 17;
 
 	private _onMessage = new Emitter<any>();
 

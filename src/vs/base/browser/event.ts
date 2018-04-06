@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import _Event, { Emitter, mapEvent } from 'vs/base/common/event';
+import { Event as _Event, Emitter, mapEvent } from 'vs/base/common/event';
 
 export type EventHandler = HTMLElement | HTMLDocument | Window;
 
@@ -126,7 +126,12 @@ export const domEvent: IDomEvent = (element: EventHandler, type: string, useCapt
 	return emitter.event;
 };
 
-export function stop<T extends Event>(event: _Event<T>): _Event<T> {
+export interface CancellableEvent {
+	preventDefault();
+	stopPropagation();
+}
+
+export function stop<T extends CancellableEvent>(event: _Event<T>): _Event<T> {
 	return mapEvent(event, e => {
 		e.preventDefault();
 		e.stopPropagation();

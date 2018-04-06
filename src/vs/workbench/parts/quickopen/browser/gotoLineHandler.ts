@@ -5,14 +5,14 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import types = require('vs/base/common/types');
-import errors = require('vs/base/common/errors');
+import * as nls from 'vs/nls';
+import * as types from 'vs/base/common/types';
+import * as errors from 'vs/base/common/errors';
 import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { KeyMod } from 'vs/base/common/keyCodes';
 import { QuickOpenHandler, EditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
-import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IEditorViewState, ITextModel, IDiffEditorModel, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditor, IEditorViewState, IDiffEditorModel, ScrollType } from 'vs/editor/common/editorCommon';
+import { IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -20,14 +20,14 @@ import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 export const GOTO_LINE_PREFIX = ':';
 
 export class GotoLineAction extends QuickOpenAction {
 
-	public static ID = 'workbench.action.gotoLine';
-	public static LABEL = nls.localize('gotoLine', "Go to Line...");
+	public static readonly ID = 'workbench.action.gotoLine';
+	public static readonly LABEL = nls.localize('gotoLine', "Go to Line...");
 
 	constructor(actionId: string, actionLabel: string,
 		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
@@ -43,7 +43,7 @@ export class GotoLineAction extends QuickOpenAction {
 
 		if (editor) {
 			const config = editor.getConfiguration();
-			if (config.viewInfo.renderLineNumbers && config.viewInfo.renderRelativeLineNumbers) {
+			if (config.viewInfo.renderLineNumbers === RenderLineNumbersType.Relative) {
 				editor.updateOptions({
 					lineNumbers: 'on'
 				});
@@ -131,9 +131,10 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		return this.editorService.getActiveEditorInput();
 	}
 
-	public getOptions(): ITextEditorOptions {
+	public getOptions(pinned?: boolean): ITextEditorOptions {
 		return {
-			selection: this.toSelection()
+			selection: this.toSelection(),
+			pinned
 		};
 	}
 
@@ -145,9 +146,9 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		}
 
 		// Check for sideBySide use
-		const sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+		const sideBySide = context.keymods.ctrlCmd;
 		if (sideBySide) {
-			this.editorService.openEditor(this.getInput(), this.getOptions(), true).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor(this.getInput(), this.getOptions(context.keymods.alt), true).done(null, errors.onUnexpectedError);
 		}
 
 		// Apply selection and focus
@@ -210,7 +211,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 	private rangeHighlightDecorationId: IEditorLineDecoration;
 	private lastKnownEditorViewState: IEditorViewState;
 
-	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super();
 	}
 

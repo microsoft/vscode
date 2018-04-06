@@ -70,14 +70,9 @@ export class ViewCursorStateChangedEvent {
 	 * The primary selection is always at index 0.
 	 */
 	public readonly selections: Selection[];
-	/**
-	 * Is the primary cursor in the editable range?
-	 */
-	public readonly isInEditableRange: boolean;
 
-	constructor(selections: Selection[], isInEditableRange: boolean) {
+	constructor(selections: Selection[]) {
 		this.selections = selections;
-		this.isInEditableRange = isInEditableRange;
 	}
 }
 
@@ -316,10 +311,14 @@ export interface IViewEventListener {
 
 export class ViewEventEmitter extends Disposable {
 	private _listeners: IViewEventListener[];
+	private _collector: ViewEventsCollector;
+	private _collectorCnt: number;
 
 	constructor() {
 		super();
 		this._listeners = [];
+		this._collector = null;
+		this._collectorCnt = 0;
 	}
 
 	public dispose(): void {
@@ -327,7 +326,26 @@ export class ViewEventEmitter extends Disposable {
 		super.dispose();
 	}
 
-	protected _emit(events: ViewEvent[]): void {
+	protected _beginEmit(): ViewEventsCollector {
+		this._collectorCnt++;
+		if (this._collectorCnt === 1) {
+			this._collector = new ViewEventsCollector();
+		}
+		return this._collector;
+	}
+
+	protected _endEmit(): void {
+		this._collectorCnt--;
+		if (this._collectorCnt === 0) {
+			const events = this._collector.finalize();
+			this._collector = null;
+			if (events.length > 0) {
+				this._emit(events);
+			}
+		}
+	}
+
+	private _emit(events: ViewEvent[]): void {
 		const listeners = this._listeners.slice(0);
 		for (let i = 0, len = listeners.length; i < len; i++) {
 			safeInvokeListener(listeners[i], events);
@@ -348,6 +366,28 @@ export class ViewEventEmitter extends Disposable {
 			}
 		};
 	}
+}
+
+export class ViewEventsCollector {
+
+	private _events: ViewEvent[];
+	private _eventsLen = 0;
+
+	constructor() {
+		this._events = [];
+		this._eventsLen = 0;
+	}
+
+	public emit(event: ViewEvent) {
+		this._events[this._eventsLen++] = event;
+	}
+
+	public finalize(): ViewEvent[] {
+		let result = this._events;
+		this._events = null;
+		return result;
+	}
+
 }
 
 function safeInvokeListener(listener: IViewEventListener, events: ViewEvent[]): void {

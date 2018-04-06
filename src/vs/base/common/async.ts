@@ -6,11 +6,10 @@
 'use strict';
 
 import * as errors from 'vs/base/common/errors';
-import * as platform from 'vs/base/common/platform';
 import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 
 export function isThenable<T>(obj: any): obj is Thenable<T> {
@@ -30,10 +29,13 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TP
 	return new TPromise<T>((resolve, reject, progress) => {
 		let item = callback(source.token);
 		if (item instanceof TPromise) {
+			always(item, () => source.dispose());
 			item.then(resolve, reject, progress);
 		} else if (isThenable<T>(item)) {
+			always(item, () => source.dispose());
 			item.then(resolve, reject);
 		} else {
+			source.dispose();
 			resolve(item);
 		}
 	}, () => {
@@ -181,7 +183,7 @@ export class Delayer<T> {
 	private timeout: number;
 	private completionPromise: Promise;
 	private onSuccess: ValueCallback;
-	private task: ITask<T>;
+	private task: ITask<T | TPromise<T>>;
 
 	constructor(public defaultDelay: number) {
 		this.timeout = null;
@@ -190,7 +192,7 @@ export class Delayer<T> {
 		this.task = null;
 	}
 
-	trigger(task: ITask<T>, delay: number = this.defaultDelay): TPromise<T> {
+	trigger(task: ITask<T | TPromise<T>>, delay: number = this.defaultDelay): TPromise<T> {
 		this.task = task;
 		this.cancelTimeout();
 
@@ -255,62 +257,40 @@ export class ThrottledDelayer<T> extends Delayer<TPromise<T>> {
 		this.throttler = new Throttler();
 	}
 
-	trigger(promiseFactory: ITask<TPromise<T>>, delay?: number): Promise {
+	trigger(promiseFactory: ITask<TPromise<T>>, delay?: number): TPromise {
 		return super.trigger(() => this.throttler.queue(promiseFactory), delay);
 	}
 }
 
 /**
- * Similar to the ThrottledDelayer, except it also guarantees that the promise
- * factory doesn't get called more often than every `minimumPeriod` milliseconds.
+ * A barrier that is initially closed and then becomes opened permanently.
  */
-export class PeriodThrottledDelayer<T> extends ThrottledDelayer<T> {
+export class Barrier {
 
-	private minimumPeriod: number;
-	private periodThrottler: Throttler;
-
-	constructor(defaultDelay: number, minimumPeriod: number = 0) {
-		super(defaultDelay);
-
-		this.minimumPeriod = minimumPeriod;
-		this.periodThrottler = new Throttler();
-	}
-
-	trigger(promiseFactory: ITask<TPromise<T>>, delay?: number): Promise {
-		return super.trigger(() => {
-			return this.periodThrottler.queue(() => {
-				return Promise.join([
-					TPromise.timeout(this.minimumPeriod),
-					promiseFactory()
-				]).then(r => r[1]);
-			});
-		}, delay);
-	}
-}
-
-export class PromiseSource<T> {
-
-	private _value: TPromise<T>;
-	private _completeCallback: Function;
-	private _errorCallback: Function;
+	private _isOpen: boolean;
+	private _promise: TPromise<boolean>;
+	private _completePromise: (v: boolean) => void;
 
 	constructor() {
-		this._value = new TPromise<T>((c, e) => {
-			this._completeCallback = c;
-			this._errorCallback = e;
+		this._isOpen = false;
+		this._promise = new TPromise<boolean>((c, e, p) => {
+			this._completePromise = c;
+		}, () => {
+			console.warn('You should really not try to cancel this ready promise!');
 		});
 	}
 
-	get value(): TPromise<T> {
-		return this._value;
+	isOpen(): boolean {
+		return this._isOpen;
 	}
 
-	complete(value?: T): void {
-		this._completeCallback(value);
+	open(): void {
+		this._isOpen = true;
+		this._completePromise(true);
 	}
 
-	error(err?: any): void {
-		this._errorCallback(err);
+	wait(): TPromise<boolean> {
+		return this._promise;
 	}
 }
 
@@ -337,47 +317,68 @@ export class ShallowCancelThenPromise<T> extends TPromise<T> {
 }
 
 /**
+ * Replacement for `WinJS.Promise.timeout`.
+ */
+export function timeout(n: number): Promise<void> {
+	return new Promise(resolve => setTimeout(resolve, n));
+}
+
+function isWinJSPromise(candidate: any): candidate is TPromise {
+	return TPromise.is(candidate) && typeof (<TPromise>candidate).done === 'function';
+}
+
+/**
  * Returns a new promise that joins the provided promise. Upon completion of
  * the provided promise the provided function will always be called. This
  * method is comparable to a try-finally code block.
  * @param promise a promise
  * @param f a function that will be call in the success and error case.
  */
-export function always<T>(promise: TPromise<T>, f: Function): TPromise<T> {
-	return new TPromise<T>((c, e, p) => {
-		promise.done((result) => {
-			try {
-				f(result);
-			} catch (e1) {
-				errors.onUnexpectedError(e1);
-			}
-			c(result);
-		}, (err) => {
-			try {
-				f(err);
-			} catch (e1) {
-				errors.onUnexpectedError(e1);
-			}
-			e(err);
-		}, (progress) => {
-			p(progress);
+export function always<T>(thenable: TPromise<T>, f: Function): TPromise<T>;
+export function always<T>(promise: Thenable<T>, f: Function): Thenable<T>;
+export function always<T>(winjsPromiseOrThenable: Thenable<T> | TPromise<T>, f: Function): TPromise<T> | Thenable<T> {
+	if (isWinJSPromise(winjsPromiseOrThenable)) {
+		return new TPromise<T>((c, e, p) => {
+			winjsPromiseOrThenable.done((result) => {
+				try {
+					f(result);
+				} catch (e1) {
+					errors.onUnexpectedError(e1);
+				}
+				c(result);
+			}, (err) => {
+				try {
+					f(err);
+				} catch (e1) {
+					errors.onUnexpectedError(e1);
+				}
+				e(err);
+			}, (progress) => {
+				p(progress);
+			});
+		}, () => {
+			winjsPromiseOrThenable.cancel();
 		});
-	}, () => {
-		promise.cancel();
-	});
+
+	} else {
+		// simple
+		winjsPromiseOrThenable.then(_ => f(), _ => f());
+		return winjsPromiseOrThenable;
+	}
 }
 
 /**
  * Runs the provided list of promise factories in sequential order. The returned
  * promise will complete to an array of results from each promise.
  */
-export function sequence<T>(promiseFactories: ITask<TPromise<T>>[]): TPromise<T[]> {
+
+export function sequence<T>(promiseFactories: ITask<Thenable<T>>[]): TPromise<T[]> {
 	const results: T[] = [];
 
 	// reverse since we start with last element using pop()
 	promiseFactories = promiseFactories.reverse();
 
-	function next(): Promise {
+	function next(): Thenable<any> {
 		if (promiseFactories.length) {
 			return promiseFactories.pop()();
 		}
@@ -385,7 +386,7 @@ export function sequence<T>(promiseFactories: ITask<TPromise<T>>[]): TPromise<T[
 		return null;
 	}
 
-	function thenHandler(result: any): Promise {
+	function thenHandler(result: any): Thenable<any> {
 		if (result !== undefined && result !== null) {
 			results.push(result);
 		}
@@ -439,7 +440,7 @@ export class Limiter<T> {
 	private runningPromises: number;
 	private maxDegreeOfParalellism: number;
 	private outstandingPromises: ILimitedTaskFactory[];
-	private _onFinished: Emitter<void>;
+	private readonly _onFinished: Emitter<void>;
 
 	constructor(maxDegreeOfParalellism: number) {
 		this.maxDegreeOfParalellism = maxDegreeOfParalellism;
@@ -539,7 +540,7 @@ export function setDisposableTimeout(handler: Function, timeout: number, ...args
 }
 
 export class TimeoutTimer extends Disposable {
-	private _token: platform.TimeoutToken;
+	private _token: number;
 
 	constructor() {
 		super();
@@ -553,14 +554,14 @@ export class TimeoutTimer extends Disposable {
 
 	cancel(): void {
 		if (this._token !== -1) {
-			platform.clearTimeout(this._token);
+			clearTimeout(this._token);
 			this._token = -1;
 		}
 	}
 
 	cancelAndSet(runner: () => void, timeout: number): void {
 		this.cancel();
-		this._token = platform.setTimeout(() => {
+		this._token = setTimeout(() => {
 			this._token = -1;
 			runner();
 		}, timeout);
@@ -571,7 +572,7 @@ export class TimeoutTimer extends Disposable {
 			// timer is already set
 			return;
 		}
-		this._token = platform.setTimeout(() => {
+		this._token = setTimeout(() => {
 			this._token = -1;
 			runner();
 		}, timeout);
@@ -580,7 +581,7 @@ export class TimeoutTimer extends Disposable {
 
 export class IntervalTimer extends Disposable {
 
-	private _token: platform.IntervalToken;
+	private _token: number;
 
 	constructor() {
 		super();
@@ -594,14 +595,14 @@ export class IntervalTimer extends Disposable {
 
 	cancel(): void {
 		if (this._token !== -1) {
-			platform.clearInterval(this._token);
+			clearInterval(this._token);
 			this._token = -1;
 		}
 	}
 
 	cancelAndSet(runner: () => void, interval: number): void {
 		this.cancel();
-		this._token = platform.setInterval(() => {
+		this._token = setInterval(() => {
 			runner();
 		}, interval);
 	}
@@ -609,7 +610,7 @@ export class IntervalTimer extends Disposable {
 
 export class RunOnceScheduler {
 
-	private timeoutToken: platform.TimeoutToken;
+	private timeoutToken: number;
 	private runner: () => void;
 	private timeout: number;
 	private timeoutHandler: () => void;
@@ -634,16 +635,9 @@ export class RunOnceScheduler {
 	 */
 	cancel(): void {
 		if (this.isScheduled()) {
-			platform.clearTimeout(this.timeoutToken);
+			clearTimeout(this.timeoutToken);
 			this.timeoutToken = -1;
 		}
-	}
-
-	/**
-	 * Replace runner. If there is a runner already scheduled, the new runner will be called.
-	 */
-	setRunner(runner: () => void): void {
-		this.runner = runner;
 	}
 
 	/**
@@ -651,7 +645,7 @@ export class RunOnceScheduler {
 	 */
 	schedule(delay = this.timeout): void {
 		this.cancel();
-		this.timeoutToken = platform.setTimeout(this.timeoutHandler, delay);
+		this.timeoutToken = setTimeout(this.timeoutHandler, delay);
 	}
 
 	/**

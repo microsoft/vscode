@@ -6,7 +6,6 @@
 
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
@@ -17,6 +16,7 @@ import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { ThemeType, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -108,7 +108,7 @@ export class ViewLineOptions {
 
 export class ViewLine implements IVisibleLine {
 
-	public static CLASS_NAME = 'view-line';
+	public static readonly CLASS_NAME = 'view-line';
 
 	private _options: ViewLineOptions;
 	private _isMaybeInvalid: boolean;
@@ -183,7 +183,7 @@ export class ViewLine implements IVisibleLine {
 				let endColumn = (selection.endLineNumber === lineNumber ? selection.endColumn : lineData.maxColumn);
 
 				if (startColumn < endColumn) {
-					actualInlineDecorations.push(new LineDecoration(startColumn, endColumn, 'inline-selected-text', false));
+					actualInlineDecorations.push(new LineDecoration(startColumn, endColumn, 'inline-selected-text', InlineDecorationType.Regular));
 				}
 			}
 		}
@@ -191,7 +191,8 @@ export class ViewLine implements IVisibleLine {
 		let renderLineInput = new RenderLineInput(
 			options.useMonospaceOptimizations,
 			lineData.content,
-			lineData.mightContainRTL,
+			lineData.isBasicASCII,
+			lineData.containsRTL,
 			lineData.minColumn - 1,
 			lineData.tokens,
 			actualInlineDecorations,
@@ -221,15 +222,13 @@ export class ViewLine implements IVisibleLine {
 		sb.appendASCIIString('</div>');
 
 		let renderedViewLine: IRenderedViewLine = null;
-		if (canUseFastRenderedViewLine && options.useMonospaceOptimizations && !output.containsForeignElements) {
-			let isRegularASCII = true;
-			if (lineData.mightContainNonBasicASCII) {
-				isRegularASCII = strings.isBasicASCII(lineData.content);
-			}
-
-			if (isRegularASCII && lineData.content.length < 1000) {
+		if (canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && !output.containsForeignElements) {
+			if (lineData.content.length < 1000 && renderLineInput.lineTokens.getCount() < 100) {
 				// Browser rounding errors have been observed in Chrome and IE, so using the fast
 				// view line only for short lines. Please test before removing the length check...
+				// ---
+				// Another rounding error has been observed on Linux in VSCode, where <span> width
+				// rounding errors add up to an observable large number...
 				renderedViewLine = new FastRenderedViewLine(
 					this._renderedViewLine ? this._renderedViewLine.domNode : null,
 					renderLineInput,
@@ -277,8 +276,27 @@ export class ViewLine implements IVisibleLine {
 	}
 
 	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
+		startColumn = startColumn | 0; // @perf
+		endColumn = endColumn | 0; // @perf
+
 		startColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, startColumn));
 		endColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, endColumn));
+
+		const stopRenderingLineAfter = this._renderedViewLine.input.stopRenderingLineAfter | 0; // @perf
+
+		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter && endColumn > stopRenderingLineAfter) {
+			// This range is obviously not visible
+			return null;
+		}
+
+		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter) {
+			startColumn = stopRenderingLineAfter;
+		}
+
+		if (stopRenderingLineAfter !== -1 && endColumn > stopRenderingLineAfter) {
+			endColumn = stopRenderingLineAfter;
+		}
+
 		return this._renderedViewLine.getVisibleRangesForRange(startColumn, endColumn, context);
 	}
 
@@ -324,23 +342,6 @@ class FastRenderedViewLine implements IRenderedViewLine {
 	}
 
 	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
-		startColumn = startColumn | 0; // @perf
-		endColumn = endColumn | 0; // @perf
-		const stopRenderingLineAfter = this.input.stopRenderingLineAfter | 0; // @perf
-
-		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter && endColumn > stopRenderingLineAfter) {
-			// This range is obviously not visible
-			return null;
-		}
-
-		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter) {
-			startColumn = stopRenderingLineAfter;
-		}
-
-		if (stopRenderingLineAfter !== -1 && endColumn > stopRenderingLineAfter) {
-			endColumn = stopRenderingLineAfter;
-		}
-
 		const startPosition = this._getCharPosition(startColumn);
 		const endPosition = this._getCharPosition(endColumn);
 		return [new HorizontalRange(startPosition, endPosition - startPosition)];
@@ -431,23 +432,6 @@ class RenderedViewLine implements IRenderedViewLine {
 	 * Visible ranges for a model range
 	 */
 	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
-		startColumn = startColumn | 0; // @perf
-		endColumn = endColumn | 0; // @perf
-		const stopRenderingLineAfter = this.input.stopRenderingLineAfter | 0; // @perf
-
-		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter && endColumn > stopRenderingLineAfter) {
-			// This range is obviously not visible
-			return null;
-		}
-
-		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter) {
-			startColumn = stopRenderingLineAfter;
-		}
-
-		if (stopRenderingLineAfter !== -1 && endColumn > stopRenderingLineAfter) {
-			endColumn = stopRenderingLineAfter;
-		}
-
 		if (this._pixelOffsetCache !== null) {
 			// the text is LTR
 			let startOffset = this._readPixelOffset(startColumn, context);

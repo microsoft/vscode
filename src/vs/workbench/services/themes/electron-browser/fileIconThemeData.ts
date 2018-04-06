@@ -5,12 +5,12 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as Paths from 'path';
-import Json = require('vs/base/common/json');
+import * as Json from 'vs/base/common/json';
 import { ExtensionData, IThemeExtensionPoint, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { TPromise } from 'vs/base/common/winjs.base';
-import pfs = require('vs/base/node/pfs');
+import * as pfs from 'vs/base/node/pfs';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
@@ -26,7 +26,7 @@ export class FileIconThemeData implements IFileIconTheme {
 	path?: string;
 	extensionData: ExtensionData;
 
-	private styleSheetContent?: string;
+	styleSheetContent?: string;
 
 	private constructor() {
 	}
@@ -76,6 +76,46 @@ export class FileIconThemeData implements IFileIconTheme {
 			themeData.extensionData = null;
 		}
 		return themeData;
+	}
+
+	static fromStorageData(input: string): FileIconThemeData {
+		try {
+			let data = JSON.parse(input);
+			let theme = new FileIconThemeData();
+			for (let key in data) {
+				switch (key) {
+					case 'id':
+					case 'label':
+					case 'description':
+					case 'settingsId':
+					case 'extensionData':
+					case 'path':
+					case 'styleSheetContent':
+					case 'hasFileIcons':
+					case 'hidesExplorerArrows':
+					case 'hasFolderIcons':
+						theme[key] = data[key];
+						break;
+				}
+			}
+			return theme;
+		} catch (e) {
+			return null;
+		}
+	}
+
+	toStorageData() {
+		return JSON.stringify({
+			id: this.id,
+			label: this.label,
+			description: this.description,
+			settingsId: this.settingsId,
+			path: this.path,
+			styleSheetContent: this.styleSheetContent,
+			hasFileIcons: this.hasFileIcons,
+			hasFolderIcons: this.hasFolderIcons,
+			hidesExplorerArrows: this.hidesExplorerArrows
+		});
 	}
 }
 
@@ -204,6 +244,9 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 
 			let languageIds = associations.languageIds;
 			if (languageIds) {
+				if (!languageIds.jsonc && languageIds.json) {
+					languageIds.jsonc = languageIds.json;
+				}
 				for (let languageId in languageIds) {
 					addSelector(`${qualifier} .${escapeCSS(languageId)}-lang-file-icon.file-icon::before`, languageIds[languageId]);
 					result.hasFileIcons = true;

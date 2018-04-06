@@ -4,36 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Assert = require('vs/base/common/assert');
+import * as Assert from 'vs/base/common/assert';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import arrays = require('vs/base/common/arrays');
+import * as arrays from 'vs/base/common/arrays';
 import { INavigator } from 'vs/base/common/iterator';
-import Events = require('vs/base/common/eventEmitter');
-import WinJS = require('vs/base/common/winjs.base');
-import _ = require('./tree');
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as _ from './tree';
+import { Event, Emitter, once, EventMultiplexer, Relay } from 'vs/base/common/event';
 
 interface IMap<T> { [id: string]: T; }
 interface IItemMap extends IMap<Item> { }
 interface ITraitMap extends IMap<IItemMap> { }
 
-export class LockData extends Events.EventEmitter {
+export class LockData {
 
 	private _item: Item;
+	private _onDispose = new Emitter<void>();
+	readonly onDispose: Event<void> = this._onDispose.event;
 
 	constructor(item: Item) {
-		super();
-
 		this._item = item;
 	}
 
-	public get item(): Item {
+	get item(): Item {
 		return this._item;
 	}
 
-	public dispose(): void {
-		this.emit('unlock');
-		super.dispose();
+	dispose(): void {
+		if (this._onDispose) {
+			this._onDispose.fire();
+			this._onDispose.dispose();
+			this._onDispose = null;
+		}
 	}
 }
 
@@ -84,7 +87,7 @@ export class Lock {
 			var unbindListener: IDisposable;
 
 			return new WinJS.TPromise((c, e) => {
-				unbindListener = lock.addOneTimeListener('unlock', () => {
+				unbindListener = once(lock.onDispose)(() => {
 					return this.run(item, fn).then(c, e);
 				});
 			}, () => { unbindListener.dispose(); });
@@ -126,19 +129,56 @@ export class Lock {
 	}
 }
 
-export class ItemRegistry extends Events.EventEmitter {
+export class ItemRegistry {
 
 	private _isDisposed = false;
 	private items: IMap<{ item: Item; disposable: IDisposable; }>;
 
+	private _onDidRevealItem = new EventMultiplexer<IItemRevealEvent>();
+	readonly onDidRevealItem: Event<IItemRevealEvent> = this._onDidRevealItem.event;
+	private _onExpandItem = new EventMultiplexer<IItemExpandEvent>();
+	readonly onExpandItem: Event<IItemExpandEvent> = this._onExpandItem.event;
+	private _onDidExpandItem = new EventMultiplexer<IItemExpandEvent>();
+	readonly onDidExpandItem: Event<IItemExpandEvent> = this._onDidExpandItem.event;
+	private _onCollapseItem = new EventMultiplexer<IItemCollapseEvent>();
+	readonly onCollapseItem: Event<IItemCollapseEvent> = this._onCollapseItem.event;
+	private _onDidCollapseItem = new EventMultiplexer<IItemCollapseEvent>();
+	readonly onDidCollapseItem: Event<IItemCollapseEvent> = this._onDidCollapseItem.event;
+	private _onDidAddTraitItem = new EventMultiplexer<IItemTraitEvent>();
+	readonly onDidAddTraitItem: Event<IItemTraitEvent> = this._onDidAddTraitItem.event;
+	private _onDidRemoveTraitItem = new EventMultiplexer<IItemCollapseEvent>();
+	readonly onDidRemoveTraitItem: Event<IItemCollapseEvent> = this._onDidRemoveTraitItem.event;
+	private _onDidRefreshItem = new EventMultiplexer<Item>();
+	readonly onDidRefreshItem: Event<Item> = this._onDidRefreshItem.event;
+	private _onRefreshItemChildren = new EventMultiplexer<IItemChildrenRefreshEvent>();
+	readonly onRefreshItemChildren: Event<IItemChildrenRefreshEvent> = this._onRefreshItemChildren.event;
+	private _onDidRefreshItemChildren = new EventMultiplexer<IItemChildrenRefreshEvent>();
+	readonly onDidRefreshItemChildren: Event<IItemChildrenRefreshEvent> = this._onDidRefreshItemChildren.event;
+	private _onDidDisposeItem = new EventMultiplexer<Item>();
+	readonly onDidDisposeItem: Event<Item> = this._onDidDisposeItem.event;
+
 	constructor() {
-		super();
 		this.items = {};
 	}
 
 	public register(item: Item): void {
 		Assert.ok(!this.isRegistered(item.id), 'item already registered: ' + item.id);
-		this.items[item.id] = { item, disposable: this.addEmitter(item) };
+
+		const disposable = combinedDisposable([
+			this._onDidRevealItem.add(item.onDidReveal),
+			this._onExpandItem.add(item.onExpand),
+			this._onDidExpandItem.add(item.onDidExpand),
+			this._onCollapseItem.add(item.onCollapse),
+			this._onDidCollapseItem.add(item.onDidCollapse),
+			this._onDidAddTraitItem.add(item.onDidAddTrait),
+			this._onDidRemoveTraitItem.add(item.onDidRemoveTrait),
+			this._onDidRefreshItem.add(item.onDidRefresh),
+			this._onRefreshItemChildren.add(item.onRefreshChildren),
+			this._onDidRefreshItemChildren.add(item.onDidRefreshChildren),
+			this._onDidDisposeItem.add(item.onDidDispose)
+		]);
+
+		this.items[item.id] = { item, disposable };
 	}
 
 	public deregister(item: Item): void {
@@ -157,8 +197,19 @@ export class ItemRegistry extends Events.EventEmitter {
 	}
 
 	public dispose(): void {
-		super.dispose();
 		this.items = null;
+
+		this._onDidRevealItem.dispose();
+		this._onExpandItem.dispose();
+		this._onDidExpandItem.dispose();
+		this._onCollapseItem.dispose();
+		this._onDidCollapseItem.dispose();
+		this._onDidAddTraitItem.dispose();
+		this._onDidRemoveTraitItem.dispose();
+		this._onDidRefreshItem.dispose();
+		this._onRefreshItemChildren.dispose();
+		this._onDidRefreshItemChildren.dispose();
+
 		this._isDisposed = true;
 	}
 
@@ -174,7 +225,6 @@ export interface IBaseItemEvent {
 export interface IItemRefreshEvent extends IBaseItemEvent { }
 export interface IItemExpandEvent extends IBaseItemEvent { }
 export interface IItemCollapseEvent extends IBaseItemEvent { }
-export interface IItemDisposeEvent extends IBaseItemEvent { }
 
 export interface IItemTraitEvent extends IBaseItemEvent {
 	trait: string;
@@ -188,7 +238,7 @@ export interface IItemChildrenRefreshEvent extends IBaseItemEvent {
 	isNested: boolean;
 }
 
-export class Item extends Events.EventEmitter {
+export class Item {
 
 	private registry: ItemRegistry;
 	private context: _.ITreeContext;
@@ -214,11 +264,34 @@ export class Item extends Events.EventEmitter {
 
 	private traits: { [trait: string]: boolean; };
 
+	private _onDidCreate = new Emitter<Item>();
+	readonly onDidCreate: Event<Item> = this._onDidCreate.event;
+	private _onDidReveal = new Emitter<IItemRevealEvent>();
+	readonly onDidReveal: Event<IItemRevealEvent> = this._onDidReveal.event;
+	private _onExpand = new Emitter<IItemExpandEvent>();
+	readonly onExpand: Event<IItemExpandEvent> = this._onExpand.event;
+	private _onDidExpand = new Emitter<IItemExpandEvent>();
+	readonly onDidExpand: Event<IItemExpandEvent> = this._onDidExpand.event;
+	private _onCollapse = new Emitter<IItemCollapseEvent>();
+	readonly onCollapse: Event<IItemCollapseEvent> = this._onCollapse.event;
+	private _onDidCollapse = new Emitter<IItemCollapseEvent>();
+	readonly onDidCollapse: Event<IItemCollapseEvent> = this._onDidCollapse.event;
+	private _onDidAddTrait = new Emitter<IItemTraitEvent>();
+	readonly onDidAddTrait: Event<IItemTraitEvent> = this._onDidAddTrait.event;
+	private _onDidRemoveTrait = new Emitter<IItemCollapseEvent>();
+	readonly onDidRemoveTrait: Event<IItemCollapseEvent> = this._onDidRemoveTrait.event;
+	private _onDidRefresh = new Emitter<Item>();
+	readonly onDidRefresh: Event<Item> = this._onDidRefresh.event;
+	private _onRefreshChildren = new Emitter<IItemChildrenRefreshEvent>();
+	readonly onRefreshChildren: Event<IItemChildrenRefreshEvent> = this._onRefreshChildren.event;
+	private _onDidRefreshChildren = new Emitter<IItemChildrenRefreshEvent>();
+	readonly onDidRefreshChildren: Event<IItemChildrenRefreshEvent> = this._onDidRefreshChildren.event;
+	private _onDidDispose = new Emitter<Item>();
+	readonly onDidDispose: Event<Item> = this._onDidDispose.event;
+
 	private _isDisposed: boolean;
 
 	constructor(id: string, registry: ItemRegistry, context: _.ITreeContext, lock: Lock, element: any) {
-		super();
-
 		this.registry = registry;
 		this.context = context;
 		this.lock = lock;
@@ -240,7 +313,7 @@ export class Item extends Events.EventEmitter {
 		this.depth = 0;
 		this.expanded = this.context.dataSource.shouldAutoexpand && this.context.dataSource.shouldAutoexpand(this.context.tree, element);
 
-		this.emit('item:create', { item: this });
+		this._onDidCreate.fire(this);
 
 		this.visible = this._isVisible();
 		this.height = this._getHeight();
@@ -278,7 +351,7 @@ export class Item extends Events.EventEmitter {
 
 	public reveal(relativeTop: number = null): void {
 		var eventData: IItemRevealEvent = { item: this, relativeTop: relativeTop };
-		this.emit('item:reveal', eventData);
+		this._onDidReveal.fire(eventData);
 	}
 
 	public expand(): WinJS.Promise {
@@ -289,7 +362,7 @@ export class Item extends Events.EventEmitter {
 		var result = this.lock.run(this, () => {
 			var eventData: IItemExpandEvent = { item: this };
 			var result: WinJS.Promise;
-			this.emit('item:expanding', eventData);
+			this._onExpand.fire(eventData);
 
 			if (this.needsChildrenRefresh) {
 				result = this.refreshChildren(false, true, true);
@@ -299,7 +372,7 @@ export class Item extends Events.EventEmitter {
 
 			return result.then(() => {
 				this._setExpanded(true);
-				this.emit('item:expanded', eventData);
+				this._onDidExpand.fire(eventData);
 				return true;
 			});
 		});
@@ -334,9 +407,9 @@ export class Item extends Events.EventEmitter {
 
 			return this.lock.run(this, () => {
 				var eventData: IItemCollapseEvent = { item: this };
-				this.emit('item:collapsing', eventData);
+				this._onCollapse.fire(eventData);
 				this._setExpanded(false);
-				this.emit('item:collapsed', eventData);
+				this._onDidCollapse.fire(eventData);
 
 				return WinJS.TPromise.as(true);
 			});
@@ -346,13 +419,13 @@ export class Item extends Events.EventEmitter {
 	public addTrait(trait: string): void {
 		var eventData: IItemTraitEvent = { item: this, trait: trait };
 		this.traits[trait] = true;
-		this.emit('item:addTrait', eventData);
+		this._onDidAddTrait.fire(eventData);
 	}
 
 	public removeTrait(trait: string): void {
 		var eventData: IItemTraitEvent = { item: this, trait: trait };
 		delete this.traits[trait];
-		this.emit('item:removeTrait', eventData);
+		this._onDidRemoveTrait.fire(eventData);
 	}
 
 	public hasTrait(trait: string): boolean {
@@ -384,7 +457,7 @@ export class Item extends Events.EventEmitter {
 
 		var doRefresh = () => {
 			var eventData: IItemChildrenRefreshEvent = { item: this, isNested: safe };
-			this.emit('item:childrenRefreshing', eventData);
+			this._onRefreshChildren.fire(eventData);
 
 			var childrenPromise: WinJS.Promise;
 			if (this.doesHaveChildren) {
@@ -440,20 +513,18 @@ export class Item extends Events.EventEmitter {
 
 			return result
 				.then(null, onUnexpectedError)
-				.then(() => this.emit('item:childrenRefreshed', eventData));
+				.then(() => this._onDidRefreshChildren.fire(eventData));
 		};
 
 		return safe ? doRefresh() : this.lock.run(this, doRefresh);
 	}
 
 	private doRefresh(recursive: boolean, safe: boolean = false): WinJS.Promise {
-		var eventData: IItemRefreshEvent = { item: this };
-
 		this.doesHaveChildren = this.context.dataSource.hasChildren(this.context.tree, this.element);
 		this.height = this._getHeight();
 		this.setVisible(this._isVisible());
 
-		this.emit('item:refresh', eventData);
+		this._onDidRefresh.fire(this);
 
 		return this.refreshChildren(recursive, safe);
 	}
@@ -602,11 +673,22 @@ export class Item extends Events.EventEmitter {
 		this.firstChild = null;
 		this.lastChild = null;
 
-		var eventData: IItemDisposeEvent = { item: this };
-		this.emit('item:dispose', eventData);
+		this._onDidDispose.fire(this);
 
 		this.registry.deregister(this);
-		super.dispose();
+
+		this._onDidCreate.dispose();
+		this._onDidReveal.dispose();
+		this._onExpand.dispose();
+		this._onDidExpand.dispose();
+		this._onCollapse.dispose();
+		this._onDidCollapse.dispose();
+		this._onDidAddTrait.dispose();
+		this._onDidRemoveTrait.dispose();
+		this._onDidRefresh.dispose();
+		this._onRefreshChildren.dispose();
+		this._onDidRefreshChildren.dispose();
+		this._onDidDispose.dispose();
 
 		this._isDisposed = true;
 	}
@@ -788,7 +870,7 @@ export interface IRefreshEvent extends IBaseEvent {
 	recursive: boolean;
 }
 
-export class TreeModel extends Events.EventEmitter {
+export class TreeModel {
 
 	private context: _.ITreeContext;
 	private lock: Lock;
@@ -797,9 +879,45 @@ export class TreeModel extends Events.EventEmitter {
 	private registryDisposable: IDisposable;
 	private traitsToItems: ITraitMap;
 
-	constructor(context: _.ITreeContext) {
-		super();
+	private _onSetInput = new Emitter<IInputEvent>();
+	readonly onSetInput: Event<IInputEvent> = this._onSetInput.event;
+	private _onDidSetInput = new Emitter<IInputEvent>();
+	readonly onDidSetInput: Event<IInputEvent> = this._onDidSetInput.event;
+	private _onRefresh = new Emitter<IRefreshEvent>();
+	readonly onRefresh: Event<IRefreshEvent> = this._onRefresh.event;
+	private _onDidRefresh = new Emitter<IRefreshEvent>();
+	readonly onDidRefresh: Event<IRefreshEvent> = this._onDidRefresh.event;
+	private _onDidHighlight = new Emitter<_.IHighlightEvent>();
+	readonly onDidHighlight: Event<_.IHighlightEvent> = this._onDidHighlight.event;
+	private _onDidSelect = new Emitter<_.ISelectionEvent>();
+	readonly onDidSelect: Event<_.ISelectionEvent> = this._onDidSelect.event;
+	private _onDidFocus = new Emitter<_.IFocusEvent>();
+	readonly onDidFocus: Event<_.IFocusEvent> = this._onDidFocus.event;
 
+	private _onDidRevealItem = new Relay<IItemRevealEvent>();
+	readonly onDidRevealItem: Event<IItemRevealEvent> = this._onDidRevealItem.event;
+	private _onExpandItem = new Relay<IItemExpandEvent>();
+	readonly onExpandItem: Event<IItemExpandEvent> = this._onExpandItem.event;
+	private _onDidExpandItem = new Relay<IItemExpandEvent>();
+	readonly onDidExpandItem: Event<IItemExpandEvent> = this._onDidExpandItem.event;
+	private _onCollapseItem = new Relay<IItemCollapseEvent>();
+	readonly onCollapseItem: Event<IItemCollapseEvent> = this._onCollapseItem.event;
+	private _onDidCollapseItem = new Relay<IItemCollapseEvent>();
+	readonly onDidCollapseItem: Event<IItemCollapseEvent> = this._onDidCollapseItem.event;
+	private _onDidAddTraitItem = new Relay<IItemTraitEvent>();
+	readonly onDidAddTraitItem: Event<IItemTraitEvent> = this._onDidAddTraitItem.event;
+	private _onDidRemoveTraitItem = new Relay<IItemCollapseEvent>();
+	readonly onDidRemoveTraitItem: Event<IItemCollapseEvent> = this._onDidRemoveTraitItem.event;
+	private _onDidRefreshItem = new Relay<Item>();
+	readonly onDidRefreshItem: Event<Item> = this._onDidRefreshItem.event;
+	private _onRefreshItemChildren = new Relay<IItemChildrenRefreshEvent>();
+	readonly onRefreshItemChildren: Event<IItemChildrenRefreshEvent> = this._onRefreshItemChildren.event;
+	private _onDidRefreshItemChildren = new Relay<IItemChildrenRefreshEvent>();
+	readonly onDidRefreshItemChildren: Event<IItemChildrenRefreshEvent> = this._onDidRefreshItemChildren.event;
+	private _onDidDisposeItem = new Relay<Item>();
+	readonly onDidDisposeItem: Event<Item> = this._onDidDisposeItem.event;
+
+	constructor(context: _.ITreeContext) {
 		this.context = context;
 		this.input = null;
 		this.traitsToItems = {};
@@ -807,7 +925,7 @@ export class TreeModel extends Events.EventEmitter {
 
 	public setInput(element: any): WinJS.Promise {
 		var eventData: IInputEvent = { item: this.input };
-		this.emit('clearingInput', eventData);
+		this._onSetInput.fire(eventData);
 
 		this.setSelection([]);
 		this.setFocus();
@@ -826,18 +944,25 @@ export class TreeModel extends Events.EventEmitter {
 
 		this.registry = new ItemRegistry();
 
-		this.registryDisposable = combinedDisposable([
-			this.addEmitter(this.registry),
-			this.registry.addListener('item:dispose', (event: IItemDisposeEvent) => {
-				event.item.getAllTraits()
-					.forEach(trait => delete this.traitsToItems[trait][event.item.id]);
-			})
-		]);
+		this._onDidRevealItem.input = this.registry.onDidRevealItem;
+		this._onExpandItem.input = this.registry.onExpandItem;
+		this._onDidExpandItem.input = this.registry.onDidExpandItem;
+		this._onCollapseItem.input = this.registry.onCollapseItem;
+		this._onDidCollapseItem.input = this.registry.onDidCollapseItem;
+		this._onDidAddTraitItem.input = this.registry.onDidAddTraitItem;
+		this._onDidRemoveTraitItem.input = this.registry.onDidRemoveTraitItem;
+		this._onDidRefreshItem.input = this.registry.onDidRefreshItem;
+		this._onRefreshItemChildren.input = this.registry.onRefreshItemChildren;
+		this._onDidRefreshItemChildren.input = this.registry.onDidRefreshItemChildren;
+		this._onDidDisposeItem.input = this.registry.onDidDisposeItem;
+
+		this.registryDisposable = this.registry
+			.onDidDisposeItem(item => item.getAllTraits().forEach(trait => delete this.traitsToItems[trait][item.id]));
 
 		var id = this.context.dataSource.getId(this.context.tree, element);
 		this.input = new RootItem(id, this.registry, this.context, this.lock, element);
 		eventData = { item: this.input };
-		this.emit('setInput', eventData);
+		this._onDidSetInput.fire(eventData);
 		return this.refresh(this.input);
 	}
 
@@ -853,9 +978,9 @@ export class TreeModel extends Events.EventEmitter {
 		}
 
 		var eventData: IRefreshEvent = { item: item, recursive: recursive };
-		this.emit('refreshing', eventData);
+		this._onRefresh.fire(eventData);
 		return item.refresh(recursive).then(() => {
-			this.emit('refreshed', eventData);
+			this._onDidRefresh.fire(eventData);
 		});
 	}
 
@@ -1001,7 +1126,7 @@ export class TreeModel extends Events.EventEmitter {
 	public setHighlight(element?: any, eventPayload?: any): void {
 		this.setTraits('highlighted', element ? [element] : []);
 		var eventData: _.IHighlightEvent = { highlight: this.getHighlight(), payload: eventPayload };
-		this.emit('highlight', eventData);
+		this._onDidHighlight.fire(eventData);
 	}
 
 	public getHighlight(includeHidden?: boolean): any {
@@ -1048,7 +1173,7 @@ export class TreeModel extends Events.EventEmitter {
 	public selectAll(elements: any[], eventPayload?: any): void {
 		this.addTraits('selected', elements);
 		var eventData: _.ISelectionEvent = { selection: this.getSelection(), payload: eventPayload };
-		this.emit('selection', eventData);
+		this._onDidSelect.fire(eventData);
 	}
 
 	public deselect(element: any, eventPayload?: any): void {
@@ -1058,19 +1183,19 @@ export class TreeModel extends Events.EventEmitter {
 	public deselectAll(elements: any[], eventPayload?: any): void {
 		this.removeTraits('selected', elements);
 		var eventData: _.ISelectionEvent = { selection: this.getSelection(), payload: eventPayload };
-		this.emit('selection', eventData);
+		this._onDidSelect.fire(eventData);
 	}
 
 	public setSelection(elements: any[], eventPayload?: any): void {
 		this.setTraits('selected', elements);
 		var eventData: _.ISelectionEvent = { selection: this.getSelection(), payload: eventPayload };
-		this.emit('selection', eventData);
+		this._onDidSelect.fire(eventData);
 	}
 
 	public toggleSelection(element: any, eventPayload?: any): void {
 		this.toggleTrait('selected', element);
 		var eventData: _.ISelectionEvent = { selection: this.getSelection(), payload: eventPayload };
-		this.emit('selection', eventData);
+		this._onDidSelect.fire(eventData);
 	}
 
 	public isSelected(element: any): boolean {
@@ -1114,7 +1239,7 @@ export class TreeModel extends Events.EventEmitter {
 			previousItem: Item = null;
 
 		if (selection.length === 0) {
-			var nav = this.getNavigator(this.input);
+			let nav = this.getNavigator(this.input);
 
 			while (item = nav.next()) {
 				previousItem = item;
@@ -1124,7 +1249,7 @@ export class TreeModel extends Events.EventEmitter {
 
 		} else {
 			item = selection[0];
-			var nav = this.getNavigator(item, false);
+			let nav = this.getNavigator(item, false);
 
 			for (var i = 0; i < count; i++) {
 				previousItem = nav.previous();
@@ -1160,7 +1285,7 @@ export class TreeModel extends Events.EventEmitter {
 	public setFocus(element?: any, eventPayload?: any): void {
 		this.setTraits('focused', element ? [element] : []);
 		var eventData: _.IFocusEvent = { focus: this.getFocus(), payload: eventPayload };
-		this.emit('focus', eventData);
+		this._onDidFocus.fire(eventData);
 	}
 
 	public isFocused(element: any): boolean {
@@ -1357,7 +1482,7 @@ export class TreeModel extends Events.EventEmitter {
 			var items: { [id: string]: Item; } = {};
 			var item: Item;
 
-			for (var i = 0, len = elements.length; i < len; i++) {
+			for (let i = 0, len = elements.length; i < len; i++) {
 				item = this.getItem(elements[i]);
 
 				if (item) {
@@ -1379,7 +1504,7 @@ export class TreeModel extends Events.EventEmitter {
 				}
 			}
 
-			for (var i = 0, len = itemsToRemoveTrait.length; i < len; i++) {
+			for (let i = 0, len = itemsToRemoveTrait.length; i < len; i++) {
 				item = itemsToRemoveTrait[i];
 				item.removeTrait(trait);
 				delete traitItems[item.id];
@@ -1415,6 +1540,23 @@ export class TreeModel extends Events.EventEmitter {
 			this.registry = null;
 		}
 
-		super.dispose();
+		this._onSetInput.dispose();
+		this._onDidSetInput.dispose();
+		this._onRefresh.dispose();
+		this._onDidRefresh.dispose();
+		this._onDidHighlight.dispose();
+		this._onDidSelect.dispose();
+		this._onDidFocus.dispose();
+		this._onDidRevealItem.dispose();
+		this._onExpandItem.dispose();
+		this._onDidExpandItem.dispose();
+		this._onCollapseItem.dispose();
+		this._onDidCollapseItem.dispose();
+		this._onDidAddTraitItem.dispose();
+		this._onDidRemoveTraitItem.dispose();
+		this._onDidRefreshItem.dispose();
+		this._onRefreshItemChildren.dispose();
+		this._onDidRefreshItemChildren.dispose();
+		this._onDidDisposeItem.dispose();
 	}
 }

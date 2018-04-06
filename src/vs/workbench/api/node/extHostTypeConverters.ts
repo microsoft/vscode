@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Severity from 'vs/base/common/severity';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IDecorationOptions, EndOfLineSequence } from 'vs/editor/common/editorCommon';
+import { IDecorationOptions } from 'vs/editor/common/editorCommon';
+import { EndOfLineSequence } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
@@ -17,6 +17,10 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
+import { IRelativePattern } from 'vs/base/common/glob';
+import { LanguageSelector, LanguageFilter } from 'vs/editor/common/modes/languageSelector';
+import { WorkspaceEditDto, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
+import { MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
 
 export interface PositionLike {
 	line: number;
@@ -79,33 +83,57 @@ export function fromPosition(position: types.Position): IPosition {
 	return { lineNumber: position.line + 1, column: position.character + 1 };
 }
 
-export function fromDiagnosticSeverity(value: number): Severity {
-	switch (value) {
-		case types.DiagnosticSeverity.Error:
-			return Severity.Error;
-		case types.DiagnosticSeverity.Warning:
-			return Severity.Warning;
-		case types.DiagnosticSeverity.Information:
-			return Severity.Info;
-		case types.DiagnosticSeverity.Hint:
-			return Severity.Ignore;
-	}
-	return Severity.Error;
+export function fromDiagnostic(value: vscode.Diagnostic): IMarkerData {
+	return {
+		...fromRange(value.range),
+		message: value.message,
+		source: value.source,
+		code: String(value.code),
+		severity: fromDiagnosticSeverity(value.severity),
+		relatedInformation: value.relatedInformation && value.relatedInformation.map(fromDiagnosticRelatedInformation)
+	};
 }
 
-export function toDiagnosticSeverty(value: Severity): types.DiagnosticSeverity {
+export function fromDiagnosticRelatedInformation(value: types.DiagnosticRelatedInformation): IRelatedInformation {
+	return {
+		...fromRange(value.location.range),
+		message: value.message,
+		resource: value.location.uri
+	};
+}
+
+export function toDiagnosticRelatedInformation(value: IRelatedInformation): types.DiagnosticRelatedInformation {
+	return new types.DiagnosticRelatedInformation(new types.Location(value.resource, toRange(value)), value.message);
+}
+
+export function fromDiagnosticSeverity(value: number): MarkerSeverity {
 	switch (value) {
-		case Severity.Info:
+		case types.DiagnosticSeverity.Error:
+			return MarkerSeverity.Error;
+		case types.DiagnosticSeverity.Warning:
+			return MarkerSeverity.Warning;
+		case types.DiagnosticSeverity.Information:
+			return MarkerSeverity.Info;
+		case types.DiagnosticSeverity.Hint:
+			return MarkerSeverity.Hint;
+	}
+	return MarkerSeverity.Error;
+}
+
+export function toDiagnosticSeverty(value: MarkerSeverity): types.DiagnosticSeverity {
+	switch (value) {
+		case MarkerSeverity.Info:
 			return types.DiagnosticSeverity.Information;
-		case Severity.Warning:
+		case MarkerSeverity.Warning:
 			return types.DiagnosticSeverity.Warning;
-		case Severity.Error:
+		case MarkerSeverity.Error:
 			return types.DiagnosticSeverity.Error;
-		case Severity.Ignore:
+		case MarkerSeverity.Hint:
 			return types.DiagnosticSeverity.Hint;
 	}
 	return types.DiagnosticSeverity.Error;
 }
+
 
 export function fromViewColumn(column?: vscode.ViewColumn): EditorPosition {
 	let editorColumn = EditorPosition.ONE;
@@ -216,7 +244,7 @@ export const TextEdit = {
 			range: fromRange(edit.range)
 		};
 	},
-	to(edit: modes.TextEdit): vscode.TextEdit {
+	to(edit: modes.TextEdit): types.TextEdit {
 		let result = new types.TextEdit(toRange(edit.range), edit.text);
 		result.newEol = EndOfLine.to(edit.eol);
 		return result;
@@ -225,28 +253,36 @@ export const TextEdit = {
 
 export namespace WorkspaceEdit {
 	export function from(value: vscode.WorkspaceEdit): modes.WorkspaceEdit {
-		const result: modes.WorkspaceEdit = { edits: [] };
-		for (let entry of value.entries()) {
-			let [uri, textEdits] = entry;
-			for (let textEdit of textEdits) {
-				result.edits.push({
-					resource: uri,
-					newText: textEdit.newText,
-					range: fromRange(textEdit.range)
-				});
+		const result: modes.WorkspaceEdit = {
+			edits: []
+		};
+		for (const entry of value.entries()) {
+			const [uri, uriOrEdits] = entry;
+			if (Array.isArray(uriOrEdits)) {
+				// text edits
+				result.edits.push({ resource: uri, edits: uriOrEdits.map(TextEdit.from) });
+			} else {
+				// resource edits
+				result.edits.push({ oldUri: uri, newUri: uriOrEdits });
 			}
 		}
 		return result;
 	}
 
-	export function fromTextEdits(uri: vscode.Uri, textEdits: vscode.TextEdit[]): modes.WorkspaceEdit {
-		const result: modes.WorkspaceEdit = { edits: [] };
-		for (let textEdit of textEdits) {
-			result.edits.push({
-				resource: uri,
-				newText: textEdit.newText,
-				range: fromRange(textEdit.range)
-			});
+	export function to(value: WorkspaceEditDto) {
+		const result = new types.WorkspaceEdit();
+		for (const edit of value.edits) {
+			if (Array.isArray((<ResourceTextEditDto>edit).edits)) {
+				result.set(
+					URI.revive((<ResourceTextEditDto>edit).resource),
+					<types.TextEdit[]>(<ResourceTextEditDto>edit).edits.map(TextEdit.to)
+				);
+				// } else {
+				// 	result.renameResource(
+				// 		URI.revive((<ResourceFileEditDto>edit).oldUri),
+				// 		URI.revive((<ResourceFileEditDto>edit).newUri)
+				// 	);
+			}
 		}
 		return result;
 	}
@@ -348,7 +384,8 @@ export namespace CompletionTriggerKind {
 		switch (kind) {
 			case modes.SuggestTriggerKind.TriggerCharacter:
 				return types.CompletionTriggerKind.TriggerCharacter;
-
+			case modes.SuggestTriggerKind.TriggerForIncompleteCompletions:
+				return types.CompletionTriggerKind.TriggerForIncompleteCompletions;
 			case modes.SuggestTriggerKind.Invoke:
 			default:
 				return types.CompletionTriggerKind.Invoke;
@@ -509,12 +546,15 @@ export namespace DocumentLink {
 }
 
 export namespace ColorPresentation {
-	export function to(colorPresentation: modes.IColorPresentation): vscode.ColorPresentation {
-		return {
-			label: colorPresentation.label,
-			textEdit: colorPresentation.textEdit ? TextEdit.to(colorPresentation.textEdit) : undefined,
-			additionalTextEdits: colorPresentation.additionalTextEdits ? colorPresentation.additionalTextEdits.map(value => TextEdit.to(value)) : undefined
-		};
+	export function to(colorPresentation: modes.IColorPresentation): types.ColorPresentation {
+		let cp = new types.ColorPresentation(colorPresentation.label);
+		if (colorPresentation.textEdit) {
+			cp.textEdit = TextEdit.to(colorPresentation.textEdit);
+		}
+		if (colorPresentation.additionalTextEdits) {
+			cp.additionalTextEdits = colorPresentation.additionalTextEdits.map(value => TextEdit.to(value));
+		}
+		return cp;
 	}
 
 	export function from(colorPresentation: vscode.ColorPresentation): modes.IColorPresentation {
@@ -523,6 +563,15 @@ export namespace ColorPresentation {
 			textEdit: colorPresentation.textEdit ? TextEdit.from(colorPresentation.textEdit) : undefined,
 			additionalTextEdits: colorPresentation.additionalTextEdits ? colorPresentation.additionalTextEdits.map(value => TextEdit.from(value)) : undefined
 		};
+	}
+}
+
+export namespace Color {
+	export function to(c: [number, number, number, number]): types.Color {
+		return new types.Color(c[0], c[1], c[2], c[3]);
+	}
+	export function from(color: types.Color): [number, number, number, number] {
+		return [color.red, color.green, color.blue, color.alpha];
 	}
 }
 
@@ -568,8 +617,17 @@ export namespace ProgressLocation {
 		switch (loc) {
 			case types.ProgressLocation.SourceControl: return MainProgressLocation.Scm;
 			case types.ProgressLocation.Window: return MainProgressLocation.Window;
+			case types.ProgressLocation.Notification: return MainProgressLocation.Notification;
 		}
 		return undefined;
+	}
+}
+
+export namespace FoldingRangeList {
+	export function from(rangeList: vscode.FoldingRangeList): modes.IFoldingRangeList {
+		return {
+			ranges: rangeList.ranges.map(r => ({ startLineNumber: r.startLine + 1, endLineNumber: r.endLine + 1, type: r.type }))
+		};
 	}
 }
 
@@ -580,6 +638,48 @@ export function toTextEditorOptions(options?: vscode.TextDocumentShowOptions): I
 			preserveFocus: options.preserveFocus,
 			selection: typeof options.selection === 'object' ? fromRange(options.selection) : undefined
 		} as ITextEditorOptions;
+	}
+
+	return undefined;
+}
+
+export function toGlobPattern(pattern: vscode.GlobPattern): string | IRelativePattern {
+	if (typeof pattern === 'string') {
+		return pattern;
+	}
+
+	if (isRelativePattern(pattern)) {
+		return new types.RelativePattern(pattern.base, pattern.pattern);
+	}
+
+	return pattern; // preserve `undefined` and `null`
+}
+
+function isRelativePattern(obj: any): obj is vscode.RelativePattern {
+	const rp = obj as vscode.RelativePattern;
+
+	return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
+}
+
+export function toLanguageSelector(selector: vscode.DocumentSelector): LanguageSelector {
+	if (Array.isArray(selector)) {
+		return selector.map(sel => doToLanguageSelector(sel));
+	}
+
+	return doToLanguageSelector(selector);
+}
+
+function doToLanguageSelector(selector: string | vscode.DocumentFilter): string | LanguageFilter {
+	if (typeof selector === 'string') {
+		return selector;
+	}
+
+	if (selector) {
+		return {
+			language: selector.language,
+			scheme: selector.scheme,
+			pattern: toGlobPattern(selector.pattern)
+		};
 	}
 
 	return undefined;

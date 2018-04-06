@@ -17,8 +17,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
 import * as Dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
-import * as Builder from 'vs/base/browser/builder';
+import { Event, Emitter } from 'vs/base/common/event';
 import * as Types from 'vs/base/common/types';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { TerminateResponseCode } from 'vs/base/common/processes';
@@ -32,24 +31,25 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IMessageService, IChoiceService } from 'vs/platform/message/common/message';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
+import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IDialogService, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
-import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
+import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import { IStatusbarItem, IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor, StatusbarAlignment } from 'vs/workbench/browser/parts/statusbar/statusbar';
@@ -57,7 +57,7 @@ import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandler
 
 import { IQuickOpenService, IPickOpenEntry, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import Constants from 'vs/workbench/parts/markers/common/constants';
+import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -69,10 +69,14 @@ import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs
 
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
-import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier, TaskSorter } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskService, TaskServiceEvents, ITaskProvider, TaskEvent, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
-import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
+import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
+import {
+	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
+	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
+	TaskIdentifier, TaskSorter, TaskItem
+} from 'vs/workbench/parts/tasks/common/tasks';
+import { ITaskService, ITaskProvider, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
+import { getTemplates as getTaskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../node/taskConfiguration';
 import { ProcessTaskSystem } from 'vs/workbench/parts/tasks/node/processTaskSystem';
@@ -83,32 +87,11 @@ import { QuickOpenActionContributor } from '../browser/quickOpen';
 import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
-import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-
-let $ = Builder.$;
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
 namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
 	export const TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task");
-}
-
-class CloseMessageAction extends Action {
-
-	public static ID = 'workbench.action.build.closeMessage';
-	public static TEXT = nls.localize('CloseMessageAction.label', 'Close');
-
-	public closeFunction: () => void;
-
-	constructor() {
-		super(CloseMessageAction.ID, CloseMessageAction.TEXT);
-	}
-	public run(): TPromise<void> {
-		if (this.closeFunction) {
-			this.closeFunction();
-		}
-		return TPromise.as(undefined);
-	}
 }
 
 class BuildStatusBarItem extends Themable implements IStatusbarItem {
@@ -156,11 +139,15 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		const info = document.createElement('div');
 		const building = document.createElement('div');
 
+		const errorTitle = n => nls.localize('totalErrors', "{0} Errors", n);
+		const warningTitle = n => nls.localize('totalWarnings', "{0} Warnings", n);
+		const infoTitle = n => nls.localize('totalInfos', "{0} Infos", n);
+
 		Dom.addClass(element, 'task-statusbar-item');
+		element.title = nls.localize('problems', "Problems");
 
 		Dom.addClass(label, 'task-statusbar-item-label');
 		element.appendChild(label);
-		element.title = nls.localize('problems', "Problems");
 
 		Dom.addClass(errorIcon, 'task-statusbar-item-label-error');
 		Dom.addClass(errorIcon, 'mask-icon');
@@ -169,6 +156,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 
 		Dom.addClass(error, 'task-statusbar-item-label-counter');
 		error.innerHTML = '0';
+		error.title = errorIcon.title = errorTitle(0);
 		label.appendChild(error);
 
 		Dom.addClass(warningIcon, 'task-statusbar-item-label-warning');
@@ -178,23 +166,23 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 
 		Dom.addClass(warning, 'task-statusbar-item-label-counter');
 		warning.innerHTML = '0';
+		warning.title = warningIcon.title = warningTitle(0);
 		label.appendChild(warning);
 
 		Dom.addClass(infoIcon, 'task-statusbar-item-label-info');
 		Dom.addClass(infoIcon, 'mask-icon');
 		label.appendChild(infoIcon);
 		this.icons.push(infoIcon);
-		$(infoIcon).hide();
+		Dom.hide(infoIcon);
 
 		Dom.addClass(info, 'task-statusbar-item-label-counter');
 		label.appendChild(info);
-		$(info).hide();
+		Dom.hide(info);
 
 		Dom.addClass(building, 'task-statusbar-item-building');
 		element.appendChild(building);
 		building.innerHTML = nls.localize('building', 'Building...');
-		$(building).hide();
-
+		Dom.hide(building);
 
 		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e: MouseEvent) => {
 			const panel = this.panelService.getActivePanel();
@@ -205,61 +193,55 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 			}
 		}));
 
-		let updateStatus = (element: HTMLDivElement, icon: HTMLDivElement, stats: number): boolean => {
-			if (stats > 0) {
-				element.innerHTML = stats.toString();
-				$(element).show();
-				$(icon).show();
-				return true;
-			} else {
-				$(element).hide();
-				$(icon).hide();
-				return false;
-			}
-		};
-
-		let manyMarkers = nls.localize('manyMarkers', "99+");
+		const manyProblems = nls.localize('manyProblems', "10K+");
+		const packNumber = n => n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
 		let updateLabel = (stats: MarkerStatistics) => {
-			error.innerHTML = stats.errors < 100 ? stats.errors.toString() : manyMarkers;
-			warning.innerHTML = stats.warnings < 100 ? stats.warnings.toString() : manyMarkers;
-			updateStatus(info, infoIcon, stats.infos);
+			error.innerHTML = packNumber(stats.errors);
+			error.title = errorIcon.title = errorTitle(stats.errors);
+			warning.innerHTML = packNumber(stats.warnings);
+			warning.title = warningIcon.title = warningTitle(stats.warnings);
+			if (stats.infos > 0) {
+				info.innerHTML = packNumber(stats.infos);
+				info.title = infoIcon.title = infoTitle(stats.infos);
+				Dom.show(info);
+				Dom.show(infoIcon);
+			} else {
+				Dom.hide(info);
+				Dom.hide(infoIcon);
+			}
 		};
 
 		this.markerService.onMarkerChanged((changedResources) => {
 			updateLabel(this.markerService.getStatistics());
 		});
 
-		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Active, (event: TaskEvent) => {
+		callOnDispose.push(this.taskService.onDidStateChange((event) => {
 			if (this.ignoreEvent(event)) {
 				return;
 			}
-			this.activeCount++;
-			if (this.activeCount === 1) {
-				$(building).show();
-			}
-		}));
-
-		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Inactive, (event: TaskEvent) => {
-			if (this.ignoreEvent(event)) {
-				return;
-			}
-			// Since the exiting of the sub process is communicated async we can't order inactive and terminate events.
-			// So try to treat them accordingly.
-			if (this.activeCount > 0) {
-				this.activeCount--;
-				if (this.activeCount === 0) {
-					$(building).hide();
-				}
-			}
-		}));
-
-		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Terminated, (event: TaskEvent) => {
-			if (this.ignoreEvent(event)) {
-				return;
-			}
-			if (this.activeCount !== 0) {
-				$(building).hide();
-				this.activeCount = 0;
+			switch (event.kind) {
+				case TaskEventKind.Active:
+					this.activeCount++;
+					if (this.activeCount === 1) {
+						Dom.show(building);
+					}
+					break;
+				case TaskEventKind.Inactive:
+					// Since the exiting of the sub process is communicated async we can't order inactive and terminate events.
+					// So try to treat them accordingly.
+					if (this.activeCount > 0) {
+						this.activeCount--;
+						if (this.activeCount === 0) {
+							Dom.hide(building);
+						}
+					}
+					break;
+				case TaskEventKind.Terminated:
+					if (this.activeCount !== 0) {
+						Dom.hide(building);
+						this.activeCount = 0;
+					}
+					break;
 			}
 		}));
 
@@ -314,7 +296,7 @@ class TaskStatusBarItem extends Themable implements IStatusbarItem {
 		let label = new OcticonLabel(labelElement);
 		label.title = nls.localize('runningTasks', "Show Running Tasks");
 
-		$(element).hide();
+		Dom.hide(element);
 
 		callOnDispose.push(Dom.addDisposableListener(labelElement, 'click', (e: MouseEvent) => {
 			(this.taskService as TaskService).runShowTasks();
@@ -323,16 +305,18 @@ class TaskStatusBarItem extends Themable implements IStatusbarItem {
 		let updateStatus = (): void => {
 			this.taskService.getActiveTasks().then(tasks => {
 				if (tasks.length === 0) {
-					$(element).hide();
+					Dom.hide(element);
 				} else {
 					label.text = `$(tools) ${tasks.length}`;
-					$(element).show();
+					Dom.show(element);
 				}
 			});
 		};
 
-		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Changed, (event: TaskEvent) => {
-			updateStatus();
+		callOnDispose.push(this.taskService.onDidStateChange((event) => {
+			if (event.kind === TaskEventKind.Changed) {
+				updateStatus();
+			}
 		}));
 
 		container.appendChild(element);
@@ -379,10 +363,6 @@ class ProblemReporter implements TaskConfig.IProblemReporter {
 	public get status(): ValidationStatus {
 		return this._validationStatus;
 	}
-
-	public clearOutput(): void {
-		this._outputChannel.clear();
-	}
 }
 
 interface WorkspaceTaskResult {
@@ -426,10 +406,6 @@ class TaskMap {
 		return result;
 	}
 
-	public has(workspaceFolder: IWorkspaceFolder): boolean {
-		return this._store.has(workspaceFolder.uri.toString());
-	}
-
 	public add(workspaceFolder: IWorkspaceFolder | string, ...task: Task[]): void {
 		let values = Types.isString(workspaceFolder) ? this._store.get(workspaceFolder) : this._store.get(workspaceFolder.uri.toString());
 		if (!values) {
@@ -450,34 +426,19 @@ interface TaskQuickPickEntry extends IPickOpenEntry {
 	task: Task;
 }
 
-class TaskService extends EventEmitter implements ITaskService {
+class TaskService implements ITaskService {
 
 	// private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
-	private static RecentlyUsedTasks_Key = 'workbench.tasks.recentlyUsedTasks';
-	private static RanTaskBefore_Key = 'workbench.tasks.ranTaskBefore';
-	private static IgnoreTask010DonotShowAgain_key = 'workbench.tasks.ignoreTask010Shown';
+	private static readonly RecentlyUsedTasks_Key = 'workbench.tasks.recentlyUsedTasks';
+	private static readonly RanTaskBefore_Key = 'workbench.tasks.ranTaskBefore';
+	private static readonly IgnoreTask010DonotShowAgain_key = 'workbench.tasks.ignoreTask010Shown';
 
 	private static CustomizationTelemetryEventName: string = 'taskService.customize';
 	public static TemplateTelemetryEventName: string = 'taskService.template';
 
 	public _serviceBrand: any;
-	public static SERVICE_ID: string = 'taskService';
 	public static OutputChannelId: string = 'tasks';
 	public static OutputChannelLabel: string = nls.localize('tasks', "Tasks");
-
-	private configurationService: IConfigurationService;
-	private markerService: IMarkerService;
-	private outputService: IOutputService;
-	private messageService: IMessageService;
-	private choiceService: IChoiceService;
-	private fileService: IFileService;
-	private telemetryService: ITelemetryService;
-	private editorService: IWorkbenchEditorService;
-	private contextService: IWorkspaceContextService;
-	private textFileService: ITextFileService;
-	private modelService: IModelService;
-	private extensionService: IExtensionService;
-	private quickOpenService: IQuickOpenService;
 
 	private _configHasErrors: boolean;
 	private __schemaVersion: JsonSchemaVersion;
@@ -490,48 +451,38 @@ class TaskService extends EventEmitter implements ITaskService {
 	private _workspaceTasksPromise: TPromise<Map<string, WorkspaceFolderTaskResult>>;
 
 	private _taskSystem: ITaskSystem;
-	private _taskSystemListeners: IDisposable[];
+	private _taskSystemListener: IDisposable;
 	private _recentlyUsedTasks: LinkedMap<string, string>;
 
 	private _outputChannel: IOutputChannel;
+	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
 	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
-		@IMarkerService markerService: IMarkerService, @IOutputService outputService: IOutputService,
-		@IMessageService messageService: IMessageService, @IChoiceService choiceService: IChoiceService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IFileService fileService: IFileService, @IWorkspaceContextService contextService: IWorkspaceContextService,
-		@ITelemetryService telemetryService: ITelemetryService, @ITextFileService textFileService: ITextFileService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IMarkerService private markerService: IMarkerService,
+		@IOutputService private outputService: IOutputService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IFileService private fileService: IFileService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IModelService modelService: IModelService, @IExtensionService extensionService: IExtensionService,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IModelService private modelService: IModelService,
+		@IExtensionService private extensionService: IExtensionService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@ITerminalService private terminalService: ITerminalService,
 		@IStorageService private storageService: IStorageService,
 		@IProgressService2 private progressService: IProgressService2,
 		@IOpenerService private openerService: IOpenerService,
-		@IWindowService private _windowServive: IWindowService
+		@IWindowService private readonly _windowService: IWindowService,
+		@IDialogService private dialogService: IDialogService,
+		@INotificationService private notificationService: INotificationService
 	) {
-
-		super();
-		this.configurationService = configurationService;
-		this.markerService = markerService;
-		this.outputService = outputService;
-		this.messageService = messageService;
-		this.choiceService = choiceService;
-		this.editorService = editorService;
-		this.fileService = fileService;
-		this.contextService = contextService;
-		this.telemetryService = telemetryService;
-		this.textFileService = textFileService;
-		this.modelService = modelService;
-		this.extensionService = extensionService;
-		this.quickOpenService = quickOpenService;
-
 		this._configHasErrors = false;
 		this._workspaceTasksPromise = undefined;
 		this._taskSystem = undefined;
-		this._taskSystemListeners = [];
+		this._taskSystemListener = undefined;
 		this._outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
 		this._providers = new Map<number, ITaskProvider>();
 		this.configurationService.onDidChangeConfiguration(() => {
@@ -544,18 +495,16 @@ class TaskService extends EventEmitter implements ITaskService {
 			let folderSetup = this.computeWorkspaceFolderSetup();
 			if (this.executionEngine !== folderSetup[2]) {
 				if (this._taskSystem && this._taskSystem.getActiveTasks().length > 0) {
-					this.messageService.show(
+					this.notificationService.prompt(
 						Severity.Info,
-						{
-							message: nls.localize(
-								'TaskSystem.noHotSwap',
-								'Changing the task execution engine with an active task running requires to reload the Window'
-							),
-							actions: [
-								new ReloadWindowAction(ReloadWindowAction.ID, ReloadWindowAction.LABEL, this._windowServive),
-								new CloseMessageAction()
-							]
-						}
+						nls.localize(
+							'TaskSystem.noHotSwap',
+							'Changing the task execution engine with an active task running requires to reload the Window'
+						),
+						[{
+							label: nls.localize('reloadWindow', "Reload Window"),
+							run: () => this._windowService.reloadWindow()
+						}]
 					);
 					return;
 				} else {
@@ -567,7 +516,12 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.updateWorkspaceTasks();
 		});
 		lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
+		this._onDidStateChange = new Emitter();
 		this.registerCommands();
+	}
+
+	public get onDidStateChange(): Event<TaskEvent> {
+		return this._onDidStateChange.event;
 	}
 
 	private registerCommands(): void {
@@ -625,6 +579,19 @@ class TaskService extends EventEmitter implements ITaskService {
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.showTasks', () => {
 			this.runShowTasks();
+		});
+
+		CommandsRegistry.registerCommand('_executeTaskProvider', (accessor, args) => {
+			return this.tasks().then((tasks) => {
+				let result: TaskItem[] = [];
+				for (let task of tasks) {
+					let item = Task.getTaskItem(task);
+					if (item) {
+						result.push(item);
+					}
+				}
+				return result;
+			});
 		});
 	}
 
@@ -688,11 +655,13 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private showOutput(): void {
-		this._outputChannel.show(true);
+		this.outputService.showChannel(this._outputChannel.id, true);
 	}
 
 	private disposeTaskSystemListeners(): void {
-		this._taskSystemListeners = dispose(this._taskSystemListeners);
+		if (this._taskSystemListener) {
+			this._taskSystemListener.dispose();
+		}
 	}
 
 	public registerTaskProvider(handle: number, provider: ITaskProvider): void {
@@ -706,7 +675,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		return this._providers.delete(handle);
 	}
 
-	public getTask(folder: IWorkspaceFolder | string, alias: string): TPromise<Task> {
+	public getTask(folder: IWorkspaceFolder | string, alias: string, compareId: boolean = false): TPromise<Task> {
 		let name = Types.isString(folder) ? folder : folder.name;
 		if (this.ignoredWorkspaceFolders.some(ignored => ignored.name === name)) {
 			return TPromise.wrapError(new Error(nls.localize('TaskServer.folderIgnored', 'The folder {0} is ignored since it uses task version 0.1.0', name)));
@@ -717,7 +686,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				return undefined;
 			}
 			for (let task of values) {
-				if (Task.matches(task, alias)) {
+				if (Task.matches(task, alias, compareId)) {
 					return task;
 				}
 			}
@@ -798,14 +767,6 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.handleError(error);
 			return TPromise.wrapError(error);
 		});
-	}
-
-	public rebuild(): TPromise<ITaskSummary> {
-		return TPromise.wrapError<ITaskSummary>(new Error('Not implemented'));
-	}
-
-	public clean(): TPromise<ITaskSummary> {
-		return TPromise.wrapError<ITaskSummary>(new Error('Not implemented'));
 	}
 
 	public runTest(): TPromise<ITaskSummary> {
@@ -970,7 +931,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 		let configuration = this.getConfiguration(workspaceFolder);
 		if (configuration.hasParseErrors) {
-			this.messageService.show(Severity.Warning, nls.localize('customizeParseErrors', 'The current task configuration has errors. Please fix the errors first before customizing a task.'));
+			this.notificationService.warn(nls.localize('customizeParseErrors', 'The current task configuration has errors. Please fix the errors first before customizing a task.'));
 			return TPromise.wrap<void>(undefined);
 		}
 
@@ -1201,15 +1162,15 @@ class TaskService extends EventEmitter implements ITaskService {
 				let executeResult = this.getTaskSystem().run(task, resolver);
 				let key = Task.getRecentlyUsedKey(task);
 				if (key) {
-					this.getRecentlyUsedTasks().set(key, key, Touch.First);
+					this.getRecentlyUsedTasks().set(key, key, Touch.AsOld);
 				}
 				if (executeResult.kind === TaskExecuteKind.Active) {
 					let active = executeResult.active;
 					if (active.same) {
 						if (active.background) {
-							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.background', 'The task \'{0}\' is already active and in background mode. To terminate it use `Terminate Task...` from the Tasks menu.', Task.getQualifiedLabel(task)));
+							this.notificationService.info(nls.localize('TaskSystem.activeSame.background', 'The task \'{0}\' is already active and in background mode. To terminate it use \'Terminate Task...\' from the Tasks menu.', Task.getQualifiedLabel(task)));
 						} else {
-							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active. To terminate it use `Terminate Task...` from the Tasks menu.', Task.getQualifiedLabel(task)));
+							this.notificationService.info(nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active. To terminate it use \'Terminate Task...\' from the Tasks menu.', Task.getQualifiedLabel(task)));
 						}
 					} else {
 						throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
@@ -1226,10 +1187,9 @@ class TaskService extends EventEmitter implements ITaskService {
 		}
 		this._taskSystem.terminate(task).then((response) => {
 			if (response.success) {
-				this.emit(TaskServiceEvents.Terminated, {});
 				this.run(task);
 			} else {
-				this.messageService.show(Severity.Warning, nls.localize('TaskSystem.restartFailed', 'Failed to terminate and restart task {0}', Types.isString(task) ? task : task.name));
+				this.notificationService.warn(nls.localize('TaskSystem.restartFailed', 'Failed to terminate and restart task {0}', Types.isString(task) ? task : task.name));
 			}
 			return response;
 		});
@@ -1267,10 +1227,9 @@ class TaskService extends EventEmitter implements ITaskService {
 			system.hasErrors(this._configHasErrors);
 			this._taskSystem = system;
 		}
-		this._taskSystemListeners.push(this._taskSystem.addListener(TaskSystemEvents.Active, (event) => this.emit(TaskServiceEvents.Active, event)));
-		this._taskSystemListeners.push(this._taskSystem.addListener(TaskSystemEvents.Inactive, (event) => this.emit(TaskServiceEvents.Inactive, event)));
-		this._taskSystemListeners.push(this._taskSystem.addListener(TaskSystemEvents.Terminated, (event) => this.emit(TaskServiceEvents.Terminated, event)));
-		this._taskSystemListeners.push(this._taskSystem.addListener(TaskSystemEvents.Changed, () => this.emit(TaskServiceEvents.Changed)));
+		this._taskSystemListener = this._taskSystem.onDidStateChange((event) => {
+			this._onDidStateChange.fire(event);
+		});
 		return this._taskSystem;
 	}
 
@@ -1293,7 +1252,7 @@ class TaskService extends EventEmitter implements ITaskService {
 							this._outputChannel.append('Error: ');
 							this._outputChannel.append(error.message);
 							this._outputChannel.append('\n');
-							this._outputChannel.show(true);
+							this.outputService.showChannel(this._outputChannel.id, true);
 						}
 					} finally {
 						if (--counter === 0) {
@@ -1529,7 +1488,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					if (!detectedConfig) {
 						return { workspaceFolder, config, hasErrors };
 					}
-					let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
+					let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.deepClone(config);
 					let configuredTasks: IStringDictionary<TaskConfig.CustomTask> = Object.create(null);
 					if (!result.tasks) {
 						if (detectedConfig.tasks) {
@@ -1601,7 +1560,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private getConfiguration(workspaceFolder: IWorkspaceFolder): { config: TaskConfig.ExternalTaskRunnerConfiguration; hasParseErrors: boolean } {
 		let result = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY
-			? this.configurationService.getValue<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: workspaceFolder.uri })
+			? Objects.deepClone(this.configurationService.getValue<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: workspaceFolder.uri }))
 			: undefined;
 		if (!result) {
 			return { config: undefined, hasParseErrors: false };
@@ -1631,7 +1590,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				result = true;
 				this._outputChannel.append(line + '\n');
 			});
-			this._outputChannel.show(true);
+			this.outputService.showChannel(this._outputChannel.id, true);
 		}
 		return result;
 	}
@@ -1647,19 +1606,10 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!config.command || this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return false;
 		}
-		return ProcessRunnerDetector.supports(config.command);
+		return ProcessRunnerDetector.supports(TaskConfig.CommandString.value(config.command));
 	}
 
 	public configureAction(): Action {
-		let run = () => { this.runConfigureTasks(); return TPromise.as(undefined); };
-		return new class extends Action {
-			constructor() {
-				super(ConfigureTaskAction.ID, ConfigureTaskAction.TEXT, undefined, true, run);
-			}
-		};
-	}
-
-	private configureBuildTask(): Action {
 		let run = () => { this.runConfigureTasks(); return TPromise.as(undefined); };
 		return new class extends Action {
 			constructor() {
@@ -1681,50 +1631,50 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (this._taskSystem instanceof TerminalTaskSystem) {
 			return false;
 		}
-		if (this._taskSystem.canAutoTerminate() || this.messageService.confirmSync({
-			message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
-			primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
-			type: 'question'
-		})) {
-			return this._taskSystem.terminateAll().then((responses) => {
-				let success = true;
-				let code: number = undefined;
-				for (let response of responses) {
-					success = success && response.success;
-					// We only have a code in the old output runner which only has one task
-					// So we can use the first code.
-					if (code === void 0 && response.code !== void 0) {
-						code = response.code;
-					}
-				}
-				if (success) {
-					this.emit(TaskServiceEvents.Terminated, {});
-					this._taskSystem = null;
-					this.disposeTaskSystemListeners();
-					return false; // no veto
-				} else if (code && code === TerminateResponseCode.ProcessNotFound) {
-					return !this.messageService.confirmSync({
-						message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
-						primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
-						type: 'info'
-					});
-				}
-				return true; // veto
-			}, (err) => {
-				return true; // veto
-			});
-		} else {
-			return true; // veto
-		}
-	}
 
-	private getConfigureAction(code: TaskErrors): Action {
-		switch (code) {
-			case TaskErrors.NoBuildTask:
-				return this.configureBuildTask();
-			default:
-				return this.configureAction();
+		let terminatePromise: TPromise<IConfirmationResult>;
+		if (this._taskSystem.canAutoTerminate()) {
+			terminatePromise = TPromise.wrap({ confirmed: true });
+		} else {
+			terminatePromise = this.dialogService.confirm({
+				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
+				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
+				type: 'question'
+			});
 		}
+
+		return terminatePromise.then(res => {
+			if (res.confirmed) {
+				return this._taskSystem.terminateAll().then((responses) => {
+					let success = true;
+					let code: number = undefined;
+					for (let response of responses) {
+						success = success && response.success;
+						// We only have a code in the old output runner which only has one task
+						// So we can use the first code.
+						if (code === void 0 && response.code !== void 0) {
+							code = response.code;
+						}
+					}
+					if (success) {
+						this._taskSystem = null;
+						this.disposeTaskSystemListeners();
+						return false; // no veto
+					} else if (code && code === TerminateResponseCode.ProcessNotFound) {
+						return this.dialogService.confirm({
+							message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
+							primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
+							type: 'info'
+						}).then(res => !res.confirmed);
+					}
+					return true; // veto
+				}, (err) => {
+					return true; // veto
+				});
+			}
+
+			return true; // veto
+		});
 	}
 
 	private handleError(err: any): void {
@@ -1734,33 +1684,35 @@ class TaskService extends EventEmitter implements ITaskService {
 			let needsConfig = buildError.code === TaskErrors.NotConfigured || buildError.code === TaskErrors.NoBuildTask || buildError.code === TaskErrors.NoTestTask;
 			let needsTerminate = buildError.code === TaskErrors.RunningTask;
 			if (needsConfig || needsTerminate) {
-				let closeAction = new CloseMessageAction();
-				let action: Action = needsConfig
-					? this.getConfigureAction(buildError.code)
-					: new Action(
-						'workbench.action.tasks.terminate',
-						nls.localize('TerminateAction.label', "Terminate Task"),
-						undefined, true, () => { this.runTerminateCommand(); return TPromise.wrap<void>(undefined); });
-				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [action, closeAction] });
+				this.notificationService.prompt(buildError.severity, buildError.message, [{
+					label: needsConfig ? ConfigureTaskAction.TEXT : nls.localize('TerminateAction.label', "Terminate Task"),
+					run: () => {
+						if (needsConfig) {
+							this.runConfigureTasks();
+						} else {
+							this.runTerminateCommand();
+						}
+					}
+				}]);
 			} else {
-				this.messageService.show(buildError.severity, buildError.message);
+				this.notificationService.notify({ severity: buildError.severity, message: buildError.message });
 			}
 		} else if (err instanceof Error) {
 			let error = <Error>err;
-			this.messageService.show(Severity.Error, error.message);
+			this.notificationService.error(error.message);
 		} else if (Types.isString(err)) {
-			this.messageService.show(Severity.Error, <string>err);
+			this.notificationService.error(<string>err);
 		} else {
-			this.messageService.show(Severity.Error, nls.localize('TaskSystem.unknownError', 'An error has occurred while running a task. See task log for details.'));
+			this.notificationService.error(nls.localize('TaskSystem.unknownError', 'An error has occurred while running a task. See task log for details.'));
 		}
 		if (showOutput) {
-			this._outputChannel.show(true);
+			this.outputService.showChannel(this._outputChannel.id, true);
 		}
 	}
 
 	private canRunCommand(): boolean {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.messageService.show(Severity.Info, nls.localize('TaskService.noWorkspace', 'Tasks are only available on a workspace folder.'));
+			this.notificationService.info(nls.localize('TaskService.noWorkspace', 'Tasks are only available on a workspace folder.'));
 			return false;
 		}
 		return true;
@@ -1874,30 +1826,28 @@ class TaskService extends EventEmitter implements ITaskService {
 				entries.push(defaultEntry);
 			}
 			return entries;
-		}), { placeHolder, autoFocus: { autoFocusFirstEntry: true } }).then(entry => entry ? entry.task : undefined);
+		}), { placeHolder, autoFocus: { autoFocusFirstEntry: true }, matchOnDescription: true }).then(entry => entry ? entry.task : undefined);
 	}
 
 	private showIgnoredFoldersMessage(): TPromise<void> {
 		if (this.ignoredWorkspaceFolders.length === 0 || !this.showIgnoreMessage) {
 			return TPromise.as(undefined);
 		}
-		let message: string = nls.localize('TaskService.ignoredFolder', 'The following workspace folders are ignored since they use task version 0.1.0: ');
-		for (let i = 0; i < this.ignoredWorkspaceFolders.length; i++) {
-			message = message + this.ignoredWorkspaceFolders[i].name;
-			if (i < this.ignoredWorkspaceFolders.length - 1) {
-				message = message + ', ';
-			}
-		}
 
-		let notAgain = nls.localize('TaskService.notAgain', 'Don\'t Show Again');
-		let ok = nls.localize('TaskService.ok', 'OK');
-		return this.choiceService.choose(Severity.Info, message, [notAgain, ok], 0).then((choice) => {
-			if (choice === 0) {
-				this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
-			}
-			this.__showIgnoreMessage = false;
-			return undefined;
-		}, () => undefined);
+		this.notificationService.prompt(
+			Severity.Info,
+			nls.localize('TaskService.ignoredFolder', 'The following workspace folders are ignored since they use task version 0.1.0: {0}', this.ignoredWorkspaceFolders.map(f => f.name).join(', ')),
+			[{
+				label: nls.localize('TaskService.notAgain', 'Don\'t Show Again'),
+				isSecondary: true,
+				run: () => {
+					this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
+					this.__showIgnoreMessage = false;
+				}
+			}]
+		);
+
+		return TPromise.as(undefined);
 	}
 
 	private runTaskCommand(accessor: ServicesAccessor, arg: any): void {
@@ -2078,9 +2028,9 @@ class TaskService extends EventEmitter implements ITaskService {
 							return;
 						}
 						if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
-							this.messageService.show(Severity.Error, nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
+							this.notificationService.error(nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
 						} else {
-							this.messageService.show(Severity.Error, nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
+							this.notificationService.error(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
 						}
 					});
 				}
@@ -2135,7 +2085,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				if (stat) {
 					return stat.resource;
 				}
-				return this.quickOpenService.pick(taskTemplates, { placeHolder: nls.localize('TaskService.template', 'Select a Task Template') }).then((selection) => {
+				return this.quickOpenService.pick(getTaskTemplates(), { placeHolder: nls.localize('TaskService.template', 'Select a Task Template') }).then((selection) => {
 					if (!selection) {
 						return undefined;
 					}
@@ -2145,6 +2095,12 @@ class TaskService extends EventEmitter implements ITaskService {
 						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
 					}
 					configFileCreated = true;
+					/* __GDPR__
+						"taskService.template" : {
+							"templateId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"autoDetect" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+						}
+					*/
 					return this.fileService.createFile(resource, content).then((result): URI => {
 						this.telemetryService.publicLog(TaskService.TemplateTelemetryEventName, {
 							templateId: selection.id,
@@ -2172,6 +2128,8 @@ class TaskService extends EventEmitter implements ITaskService {
 				this.customize(task, undefined, true);
 			} else if (CustomTask.is(task)) {
 				this.openConfig(task);
+			} else if (ConfiguringTask.is(task)) {
+				// Do nothing.
 			}
 		};
 
@@ -2192,12 +2150,19 @@ class TaskService extends EventEmitter implements ITaskService {
 				let entries: EntryType[] = [];
 				if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 					let tasks = taskMap.all();
+					let needsCreateOrOpen: boolean = true;
 					if (tasks.length > 0) {
 						tasks = tasks.sort((a, b) => a._label.localeCompare(b._label));
-						entries = tasks.map(task => { return { label: task._label, task }; });
-					} else {
+						for (let task of tasks) {
+							entries.push({ label: task._label, task });
+							if (!ContributedTask.is(task)) {
+								needsCreateOrOpen = false;
+							}
+						}
+					}
+					if (needsCreateOrOpen) {
 						let label = stats[0] !== void 0 ? openLabel : createLabel;
-						entries.push({ label, folder: this.contextService.getWorkspace().folders[0] });
+						entries.push({ label, folder: this.contextService.getWorkspace().folders[0], separator: entries.length > 0 ? { border: true } : undefined });
 					}
 				} else {
 					let folders = this.contextService.getWorkspace().folders;
@@ -2303,7 +2268,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					}
 				}
 				if (defaultTask) {
-					this.messageService.show(Severity.Info, nls.localize('TaskService.defaultTestTaskExists', '{0} is already marked as the default test task.', Task.getQualifiedLabel(defaultTask)));
+					this.notificationService.info(nls.localize('TaskService.defaultTestTaskExists', '{0} is already marked as the default test task.', Task.getQualifiedLabel(defaultTask)));
 					return;
 				}
 				this.showIgnoredFoldersMessage().then(() => {
@@ -2355,11 +2320,15 @@ MenuRegistry.addCommand({ id: 'workbench.action.tasks.configureDefaultTestTask',
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.rebuild', title: nls.localize('RebuildAction.label', 'Run Rebuild Task'), category: tasksCategory });
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.clean', title: nls.localize('CleanAction.label', 'Run Clean Task'), category: tasksCategory });
 
+// Tasks Output channel. Register it before using it in Task Service.
+let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
+outputChannelRegistry.registerChannel(TaskService.OutputChannelId, TaskService.OutputChannelLabel);
+
 // Task Service
 registerSingleton(ITaskService, TaskService);
 
 // Register Quick Open
-const quickOpenRegistry = (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen));
+const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));
 const tasksPickerContextKey = 'inTasksPicker';
 
 quickOpenRegistry.registerQuickOpenHandler(
@@ -2376,15 +2345,9 @@ const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Ac
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
 
 // Status bar
-let statusbarRegistry = <IStatusbarRegistry>Registry.as(StatusbarExtensions.Statusbar);
+let statusbarRegistry = Registry.as<IStatusbarRegistry>(StatusbarExtensions.Statusbar);
 statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(BuildStatusBarItem, StatusbarAlignment.LEFT, 50 /* Medium Priority */));
 statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(TaskStatusBarItem, StatusbarAlignment.LEFT, 50 /* Medium Priority */));
-
-// Output channel
-let outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);
-outputChannelRegistry.registerChannel(TaskService.OutputChannelId, TaskService.OutputChannelLabel);
-
-// (<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(TaskServiceParticipant);
 
 // tasks.json validation
 let schemaId = 'vscode://schemas/tasks';
@@ -2416,7 +2379,6 @@ schema.definitions = {
 	...schemaVersion2.definitions,
 };
 schema.oneOf = [...schemaVersion2.oneOf, ...schemaVersion1.oneOf];
-
 
 let jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);

@@ -7,7 +7,7 @@
 
 import 'vs/css!./panelview';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter, chain } from 'vs/base/common/event';
+import { Event, Emitter, chain } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -32,7 +32,7 @@ export interface IPanelStyles {
 
 export abstract class Panel implements IView {
 
-	private static HEADER_SIZE = 22;
+	private static readonly HEADER_SIZE = 22;
 
 	protected _expanded: boolean;
 	private expandedSize: number | undefined = undefined;
@@ -48,6 +48,10 @@ export abstract class Panel implements IView {
 
 	private _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
+
+	get element(): HTMLElement {
+		return this.el;
+	}
 
 	get draggableElement(): HTMLElement {
 		return this.header;
@@ -146,8 +150,8 @@ export abstract class Panel implements IView {
 		this.renderHeader(this.header);
 
 		const focusTracker = trackFocus(this.header);
-		focusTracker.addFocusListener(() => addClass(this.header, 'focused'));
-		focusTracker.addBlurListener(() => removeClass(this.header, 'focused'));
+		focusTracker.onDidFocus(() => addClass(this.header, 'focused'));
+		focusTracker.onDidBlur(() => removeClass(this.header, 'focused'));
 
 		this.updateHeader();
 
@@ -226,7 +230,7 @@ interface IDndContext {
 
 class PanelDraggable implements IDisposable {
 
-	private static DefaultDragOverBackgroundColor = new Color(new RGBA(128, 128, 128, 0.5));
+	private static readonly DefaultDragOverBackgroundColor = new Color(new RGBA(128, 128, 128, 0.5));
 
 	// see https://github.com/Microsoft/vscode/issues/14470
 	private dragOverCounter = 0;

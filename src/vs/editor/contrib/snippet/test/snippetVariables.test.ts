@@ -8,30 +8,34 @@ import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
-import { EditorSnippetVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
-import { SnippetParser, Variable } from 'vs/editor/contrib/snippet/snippetParser';
-import { Model } from 'vs/editor/common/model/model';
+import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver, TimeBasedVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
+import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/snippet/snippetParser';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 suite('Snippet Variables Resolver', function () {
 
-	let model: Model;
-	let resolver: EditorSnippetVariableResolver;
+	let model: TextModel;
+	let resolver: VariableResolver;
 
 	setup(function () {
-		model = Model.createFromString([
+		model = TextModel.createFromString([
 			'this is line one',
 			'this is line two',
 			'    this is line three'
 		].join('\n'), undefined, undefined, URI.parse('file:///foo/files/text.txt'));
 
-		resolver = new EditorSnippetVariableResolver(model, new Selection(1, 1, 1, 1));
+		resolver = new CompositeSnippetVariableResolver([
+			new ModelBasedVariableResolver(model),
+			new SelectionBasedVariableResolver(model, new Selection(1, 1, 1, 1)),
+		]);
 	});
 
 	teardown(function () {
 		model.dispose();
 	});
 
-	function assertVariableResolve(resolver: EditorSnippetVariableResolver, varName: string, expected: string) {
+	function assertVariableResolve(resolver: VariableResolver, varName: string, expected: string) {
 		const snippet = new SnippetParser().parse(`$${varName}`);
 		const variable = <Variable>snippet.children[0];
 		variable.resolve(resolver);
@@ -55,9 +59,8 @@ suite('Snippet Variables Resolver', function () {
 			assertVariableResolve(resolver, 'TM_FILEPATH', '/foo/files/text.txt');
 		}
 
-		resolver = new EditorSnippetVariableResolver(
-			Model.createFromString('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi')),
-			new Selection(1, 1, 1, 1)
+		resolver = new ModelBasedVariableResolver(
+			TextModel.createFromString('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME', 'ghi');
 		if (!isWindows) {
@@ -65,9 +68,8 @@ suite('Snippet Variables Resolver', function () {
 			assertVariableResolve(resolver, 'TM_FILEPATH', '/abc/def/ghi');
 		}
 
-		resolver = new EditorSnippetVariableResolver(
-			Model.createFromString('', undefined, undefined, URI.parse('mem:fff.ts')),
-			new Selection(1, 1, 1, 1)
+		resolver = new ModelBasedVariableResolver(
+			TextModel.createFromString('', undefined, undefined, URI.parse('mem:fff.ts'))
 		);
 		assertVariableResolve(resolver, 'TM_DIRECTORY', '');
 		assertVariableResolve(resolver, 'TM_FILEPATH', 'fff.ts');
@@ -76,24 +78,24 @@ suite('Snippet Variables Resolver', function () {
 
 	test('editor variables, selection', function () {
 
-		resolver = new EditorSnippetVariableResolver(model, new Selection(1, 2, 2, 3));
+		resolver = new SelectionBasedVariableResolver(model, new Selection(1, 2, 2, 3));
 		assertVariableResolve(resolver, 'TM_SELECTED_TEXT', 'his is line one\nth');
 		assertVariableResolve(resolver, 'TM_CURRENT_LINE', 'this is line two');
 		assertVariableResolve(resolver, 'TM_LINE_INDEX', '1');
 		assertVariableResolve(resolver, 'TM_LINE_NUMBER', '2');
 
-		resolver = new EditorSnippetVariableResolver(model, new Selection(2, 3, 1, 2));
+		resolver = new SelectionBasedVariableResolver(model, new Selection(2, 3, 1, 2));
 		assertVariableResolve(resolver, 'TM_SELECTED_TEXT', 'his is line one\nth');
 		assertVariableResolve(resolver, 'TM_CURRENT_LINE', 'this is line one');
 		assertVariableResolve(resolver, 'TM_LINE_INDEX', '0');
 		assertVariableResolve(resolver, 'TM_LINE_NUMBER', '1');
 
-		resolver = new EditorSnippetVariableResolver(model, new Selection(1, 2, 1, 2));
+		resolver = new SelectionBasedVariableResolver(model, new Selection(1, 2, 1, 2));
 		assertVariableResolve(resolver, 'TM_SELECTED_TEXT', undefined);
 
 		assertVariableResolve(resolver, 'TM_CURRENT_WORD', 'this');
 
-		resolver = new EditorSnippetVariableResolver(model, new Selection(3, 1, 3, 1));
+		resolver = new SelectionBasedVariableResolver(model, new Selection(3, 1, 3, 1));
 		assertVariableResolve(resolver, 'TM_CURRENT_WORD', undefined);
 
 	});
@@ -117,21 +119,18 @@ suite('Snippet Variables Resolver', function () {
 
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'text');
 
-		resolver = new EditorSnippetVariableResolver(
-			Model.createFromString('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi')),
-			new Selection(1, 1, 1, 1)
+		resolver = new ModelBasedVariableResolver(
+			TextModel.createFromString('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'ghi');
 
-		resolver = new EditorSnippetVariableResolver(
-			Model.createFromString('', undefined, undefined, URI.parse('mem:.git')),
-			new Selection(1, 1, 1, 1)
+		resolver = new ModelBasedVariableResolver(
+			TextModel.createFromString('', undefined, undefined, URI.parse('mem:.git'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', '.git');
 
-		resolver = new EditorSnippetVariableResolver(
-			Model.createFromString('', undefined, undefined, URI.parse('mem:foo.')),
-			new Selection(1, 1, 1, 1)
+		resolver = new ModelBasedVariableResolver(
+			TextModel.createFromString('', undefined, undefined, URI.parse('mem:foo.'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'foo');
 	});
@@ -208,4 +207,89 @@ suite('Snippet Variables Resolver', function () {
 		);
 	});
 
+	test('Add variable to insert value from clipboard to a snippet #40153', function () {
+
+		let readTextResult: string;
+		const clipboardService = new class implements IClipboardService {
+			_serviceBrand: any;
+			readText(): string { return readTextResult; }
+			_throw = () => { throw new Error(); };
+			writeText = this._throw;
+			readFindText = this._throw;
+			writeFindText = this._throw;
+			writeFiles = this._throw;
+			readFiles = this._throw;
+			hasFiles = this._throw;
+		};
+		let resolver = new ClipboardBasedVariableResolver(clipboardService, 1, 0);
+
+		readTextResult = undefined;
+		assertVariableResolve(resolver, 'CLIPBOARD', undefined);
+
+		readTextResult = null;
+		assertVariableResolve(resolver, 'CLIPBOARD', undefined);
+
+		readTextResult = '';
+		assertVariableResolve(resolver, 'CLIPBOARD', undefined);
+
+		readTextResult = 'foo';
+		assertVariableResolve(resolver, 'CLIPBOARD', 'foo');
+
+		assertVariableResolve(resolver, 'foo', undefined);
+		assertVariableResolve(resolver, 'cLIPBOARD', undefined);
+	});
+
+	test('Add variable to insert value from clipboard to a snippet #40153', function () {
+
+		let readTextResult: string;
+		let resolver: VariableResolver;
+		const clipboardService = new class implements IClipboardService {
+			_serviceBrand: any;
+			readText(): string { return readTextResult; }
+			_throw = () => { throw new Error(); };
+			writeText = this._throw;
+			readFindText = this._throw;
+			writeFindText = this._throw;
+			writeFiles = this._throw;
+			readFiles = this._throw;
+			hasFiles = this._throw;
+		};
+
+		resolver = new ClipboardBasedVariableResolver(clipboardService, 1, 2);
+		readTextResult = 'line1';
+		assertVariableResolve(resolver, 'CLIPBOARD', 'line1');
+		readTextResult = 'line1\nline2\nline3';
+		assertVariableResolve(resolver, 'CLIPBOARD', 'line1\nline2\nline3');
+
+		readTextResult = 'line1\nline2';
+		assertVariableResolve(resolver, 'CLIPBOARD', 'line2');
+		readTextResult = 'line1\nline2';
+		resolver = new ClipboardBasedVariableResolver(clipboardService, 0, 2);
+		assertVariableResolve(resolver, 'CLIPBOARD', 'line1');
+	});
+
+
+	function assertVariableResolve3(resolver: VariableResolver, varName: string) {
+		const snippet = new SnippetParser().parse(`$${varName}`);
+		const variable = <Variable>snippet.children[0];
+
+		assert.equal(variable.resolve(resolver), true, `${varName} failed to resolve`);
+	}
+
+	test('Add time variables for snippets #41631, #43140', function () {
+
+		const resolver = new TimeBasedVariableResolver;
+
+		assertVariableResolve3(resolver, 'CURRENT_YEAR');
+		assertVariableResolve3(resolver, 'CURRENT_YEAR_SHORT');
+		assertVariableResolve3(resolver, 'CURRENT_MONTH');
+		assertVariableResolve3(resolver, 'CURRENT_DATE');
+		assertVariableResolve3(resolver, 'CURRENT_HOUR');
+		assertVariableResolve3(resolver, 'CURRENT_MINUTE');
+		assertVariableResolve3(resolver, 'CURRENT_SECOND');
+		assertVariableResolve3(resolver, 'CURRENT_DAY_NAME');
+		assertVariableResolve3(resolver, 'CURRENT_DAY_NAME_SHORT');
+		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME');
+		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME_SHORT');
+	});
 });
