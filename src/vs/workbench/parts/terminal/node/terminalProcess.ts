@@ -43,7 +43,7 @@ if (cols && rows) {
 	options.rows = parseInt(rows, 10);
 }
 
-var ptyProcess = pty.fork(shell, args, options);
+var ptyProcess = pty.spawn(shell, args, options);
 
 var closeTimeout: number;
 var exitCode: number;
@@ -91,9 +91,9 @@ process.on('message', function (message) {
 sendProcessId();
 setupTitlePolling();
 
-function getArgs(): string[] {
+function getArgs(): pty.ArgvOrCommandLine {
 	if (process.env['PTYSHELLCMDLINE']) {
-		return [process.env['PTYSHELLCMDLINE']];
+		return process.env['PTYSHELLCMDLINE'];
 	}
 	var args = [];
 	var i = 0;
