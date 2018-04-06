@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'node-pty' {
-	export function fork(file: string, args: string[], options: any): Terminal;
-	export function spawn(file: string, args: string[], options: any): Terminal;
-	export function createTerminal(file: string, args: string[], options: any): Terminal;
+	export type ArgvOrCommandLine = string[] | string;
+
+	export function spawn(file: string, args: ArgvOrCommandLine, options: any): Terminal;
 
 	export interface Terminal {
 		pid: number;

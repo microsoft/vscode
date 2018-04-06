@@ -275,7 +275,7 @@ function packageTask(platform, arch, opts) {
 		const packageJsonStream = gulp.src(['package.json'], { base: '.' })
 			.pipe(json({ name, version }));
 
-		const settingsSearchBuildId = getBuildNumber();
+		const settingsSearchBuildId = getSettingsSearchBuildId(packageJson);
 		const date = new Date().toISOString();
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(json({ commit, date, checksums, settingsSearchBuildId }));
@@ -481,14 +481,12 @@ gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () =
 	}
 
 	if (!fs.existsSync(allConfigDetailsPath)) {
-		console.error(`configuration file at ${allConfigDetailsPath} does not exist`);
-		return;
+		throw new Error(`configuration file at ${allConfigDetailsPath} does not exist`);
 	}
 
-	const settingsSearchBuildId = getBuildNumber();
+	const settingsSearchBuildId = getSettingsSearchBuildId(packageJson);
 	if (!settingsSearchBuildId) {
-		console.error('Failed to compute build number');
-		return;
+		throw new Error('Failed to compute build number');
 	}
 
 	return gulp.src(allConfigDetailsPath)
@@ -500,74 +498,16 @@ gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () =
 		}));
 });
 
-function getBuildNumber() {
-	const previous = getPreviousVersion(packageJson.version);
-	if (!previous) {
-		return 0;
-	}
+function getSettingsSearchBuildId(packageJson) {
+	const previous = util.getPreviousVersion(packageJson.version);
 
 	try {
 		const out = cp.execSync(`git rev-list ${previous}..HEAD --count`);
 		const count = parseInt(out.toString());
-		return versionStringToNumber(packageJson.version) * 1e4 + count;
+		return util.versionStringToNumber(packageJson.version) * 1e4 + count;
 	} catch (e) {
-		console.error('Could not determine build number: ' + e.toString());
-		return 0;
+		throw new Error('Could not determine build number: ' + e.toString());
 	}
-}
-
-/**
- * Given 1.17.2, return 1.17.1
- * 1.18.0 => 1.17.2.
- * 2.0.0 => 1.18.0 (or the highest 1.x)
- */
-function getPreviousVersion(versionStr) {
-	function tagExists(tagName) {
-		try {
-			cp.execSync(`git rev-parse ${tagName}`, { stdio: 'ignore' });
-			return true;
-		} catch (e) {
-			return false;
-		}
-	}
-
-	function getLastTagFromBase(semverArr, componentToTest) {
-		const baseVersion = semverArr.join('.');
-		if (!tagExists(baseVersion)) {
-			console.error('Failed to find tag for base version, ' + baseVersion);
-			return null;
-		}
-
-		let goodTag;
-		do {
-			goodTag = semverArr.join('.');
-			semverArr[componentToTest]++;
-		} while (tagExists(semverArr.join('.')));
-
-		return goodTag;
-	}
-
-	const semverArr = versionStr.split('.');
-	if (semverArr[2] > 0) {
-		semverArr[2]--;
-		return semverArr.join('.');
-	} else if (semverArr[1] > 0) {
-		semverArr[1]--;
-		return getLastTagFromBase(semverArr, 2);
-	} else {
-		semverArr[0]--;
-		return getLastTagFromBase(semverArr, 1);
-	}
-}
-
-function versionStringToNumber(versionStr) {
-	const semverRegex = /(\d+)\.(\d+)\.(\d+)/;
-	const match = versionStr.match(semverRegex);
-	if (!match) {
-		return 0;
-	}
-
-	return parseInt(match[1], 10) * 1e4 + parseInt(match[2], 10) * 1e2 + parseInt(match[3], 10);
 }
 
 // This task is only run for the MacOS build
@@ -601,8 +541,5 @@ gulp.task('generate-vscode-configuration', () => {
 			clearTimeout(timer);
 			reject(err);
 		});
-	}).catch(e => {
-		// Don't fail the build
-		console.error(e.toString());
 	});
 });
