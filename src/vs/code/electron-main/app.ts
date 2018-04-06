@@ -59,11 +59,14 @@ import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { join } from 'path';
+import { copy } from 'vs/base/node/pfs';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 
 export class CodeApplication {
 
 	private static readonly MACHINE_ID_KEY = 'telemetry.machineId';
+	private static readonly LOCAL_STORAGE_BACKED_UP_KEY = 'localStorage.backedUp';
 
 	private toDispose: IDisposable[];
 	private windowsMainService: IWindowsMainService;
@@ -261,38 +264,43 @@ export class CodeApplication {
 		this.logService.debug(`from: ${this.environmentService.appRoot}`);
 		this.logService.debug('args:', this.environmentService.args);
 
-		// Make sure we associate the program with the app user model id
-		// This will help Windows to associate the running program with
-		// any shortcut that is pinned to the taskbar and prevent showing
-		// two icons in the taskbar for the same app.
-		if (platform.isWindows && product.win32AppUserModelId) {
-			app.setAppUserModelId(product.win32AppUserModelId);
-		}
+		// Backup local storage (TODO@Ben remove me after a while)
+		this.logService.trace('Backing up localStorage if needed...');
+		return this.backupLocalStorage().then(() => {
 
-		// Create Electron IPC Server
-		this.electronIpcServer = new ElectronIPCServer();
+			// Make sure we associate the program with the app user model id
+			// This will help Windows to associate the running program with
+			// any shortcut that is pinned to the taskbar and prevent showing
+			// two icons in the taskbar for the same app.
+			if (platform.isWindows && product.win32AppUserModelId) {
+				app.setAppUserModelId(product.win32AppUserModelId);
+			}
 
-		// Resolve unique machine ID
-		this.logService.trace('Resolving machine identifier...');
-		return this.resolveMachineId().then(machineId => {
-			this.logService.trace(`Resolved machine identifier: ${machineId}`);
+			// Create Electron IPC Server
+			this.electronIpcServer = new ElectronIPCServer();
 
-			// Spawn shared process
-			this.sharedProcess = new SharedProcess(this.environmentService, this.lifecycleService, this.logService, machineId, this.userEnv);
-			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
+			// Resolve unique machine ID
+			this.logService.trace('Resolving machine identifier...');
+			return this.resolveMachineId().then(machineId => {
+				this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
-			// Services
-			const appInstantiationService = this.initServices(machineId);
+				// Spawn shared process
+				this.sharedProcess = new SharedProcess(this.environmentService, this.lifecycleService, this.logService, machineId, this.userEnv);
+				this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
-			// Setup Auth Handler
-			const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
-			this.toDispose.push(authHandler);
+				// Services
+				const appInstantiationService = this.initServices(machineId);
 
-			// Open Windows
-			appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
+				// Setup Auth Handler
+				const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
+				this.toDispose.push(authHandler);
 
-			// Post Open Windows Tasks
-			appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+				// Open Windows
+				appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
+
+				// Post Open Windows Tasks
+				appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+			});
 		});
 	}
 
@@ -309,6 +317,24 @@ export class CodeApplication {
 
 			return machineId;
 		});
+	}
+
+	private backupLocalStorage(): TPromise<void> {
+		const localStorageBackedUp = this.stateService.getItem<string>(CodeApplication.LOCAL_STORAGE_BACKED_UP_KEY);
+		if (localStorageBackedUp) {
+			return TPromise.wrap(void 0);
+		}
+
+		const afterBackupDone = () => {
+
+			// Remember in global storage
+			this.stateService.setItem(CodeApplication.LOCAL_STORAGE_BACKED_UP_KEY, true);
+		};
+
+		const localStorageFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage');
+		const localStorageJournalFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal');
+
+		return copy(localStorageFile, `${localStorageFile}.vscbak`).then(() => copy(localStorageJournalFile, `${localStorageJournalFile}.vscbak`)).then(afterBackupDone, afterBackupDone);
 	}
 
 	private initServices(machineId: string): IInstantiationService {
