@@ -20,6 +20,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const VARIABLES_VIEW_ID = 'workbench.debug.variablesView';
@@ -347,6 +348,7 @@ export interface IDebugConfiguration {
 	hideActionBar: boolean;
 	showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
 	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
+	extensionHostDebugAdapter: boolean;
 }
 
 export interface IGlobalConfig {
@@ -378,6 +380,22 @@ export interface IConfig extends IEnvConfig {
 export interface ICompound {
 	name: string;
 	configurations: (string | { name: string, folder: string })[];
+}
+
+export interface IDebugAdapter extends IDisposable {
+	readonly onError: Event<Error>;
+	readonly onExit: Event<number>;
+	onRequest(callback: (request: DebugProtocol.Request) => void);
+	onEvent(callback: (event: DebugProtocol.Event) => void);
+	startSession(): TPromise<void>;
+	sendMessage(message: DebugProtocol.ProtocolMessage): void;
+	sendResponse(response: DebugProtocol.Response): void;
+	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void): void;
+	stopSession(): TPromise<void>;
+}
+
+export interface IDebugAdapterProvider {
+	createDebugAdapter(debugType: string, adapterInfo: IAdapterExecutable | null): IDebugAdapter;
 }
 
 export interface IAdapterExecutable {
@@ -448,6 +466,9 @@ export interface IConfigurationManager {
 
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): TPromise<any>;
 	debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined>;
+
+	registerDebugAdapterProvider(debugType: string, debugAdapterLauncher: IDebugAdapterProvider);
+	createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable | null): IDebugAdapter;
 }
 
 export interface ILaunch {
