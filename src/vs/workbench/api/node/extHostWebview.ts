@@ -237,10 +237,10 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		state: any,
 		position: Position,
 		options: vscode.WebviewOptions
-	): Thenable<boolean> {
+	): Thenable<void> {
 		const serializer = this._serializers.get(viewType);
 		if (!serializer) {
-			return TPromise.as(false);
+			return TPromise.wrapError(new Error(`No serializer found for '${viewType}'`));
 		}
 
 		const revivedWebview = new ExtHostWebview(webviewHandle, this._proxy, viewType, typeConverters.toViewColumn(position), options);

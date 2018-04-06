@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
@@ -132,7 +133,8 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 	}
 
 	reviveWebview(webview: WebviewEditorInput): TPromise<void> {
-		return this._extensionService.activateByEvent(`onView:${webview.state.viewType}`).then(() => {
+		const viewType = webview.state.viewType;
+		return this._extensionService.activateByEvent(`onView:${viewType}`).then(() => {
 			const handle = 'revival-' + MainThreadWebviews.revivalPool++;
 			this._webviews.set(handle, webview);
 
@@ -148,7 +150,9 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			};
 
 			return this._proxy.$deserializeWebview(handle, webview.state.viewType, webview.state.state, webview.position, webview.options)
-				.then(() => { });
+				.then(undefined, () => {
+					webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
+				});
 		});
 	}
 
@@ -230,5 +234,17 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		if (MainThreadWebviews.standardSupportedLinkSchemes.indexOf(link.scheme) >= 0 || enableCommandUris && link.scheme === 'command') {
 			this._openerService.open(link);
 		}
+	}
+
+	private static getDeserializationFailedContents(viewType: string) {
+		return `<!DOCTYPE html>
+		<html>
+			<head>
+				<base href="https://code.visualstudio.com/raw/">
+				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src vscode-core-resource: https: 'unsafe-inline'; child-src 'none'; frame-src 'none';">
+			</head>
+			<body>${localize('errorMessage', "An error occurred while restoring view:{0}", viewType)}</body>
+		</html>`;
 	}
 }

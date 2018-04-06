@@ -658,10 +658,8 @@ declare module 'vscode' {
 		 *
 		 * @param webview Webview to restore. The serializer should take ownership of this webview.
 		 * @param state Persisted state.
-		 *
-		 * @return Was deserialization successful?
 		 */
-		deserializeWebview(webview: Webview, state: any): Thenable<boolean>;
+		deserializeWebview(webview: Webview, state: any): Thenable<void>;
 	}
 
 	namespace window {
