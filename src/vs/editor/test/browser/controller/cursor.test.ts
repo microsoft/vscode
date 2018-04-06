@@ -2080,6 +2080,40 @@ suite('Editor Controller - Regression tests', () => {
 		languageRegistration.dispose();
 		model.dispose();
 	});
+
+	test('issue #37967: problem replacing consecutive characters', () => {
+		let model = TextModel.createFromString(
+			[
+				'const a = "foo";',
+				'const b = ""'
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { multiCursorMergeOverlapping: false, model: model }, (editor, cursor) => {
+			editor.setSelections([
+				new Selection(1, 12, 1, 12),
+				new Selection(1, 16, 1, 16),
+				new Selection(2, 12, 2, 12),
+				new Selection(2, 13, 2, 13),
+			]);
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+
+			assertCursor(cursor, [
+				new Selection(1, 11, 1, 11),
+				new Selection(1, 14, 1, 14),
+				new Selection(2, 11, 2, 11),
+				new Selection(2, 11, 2, 11),
+			]);
+
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+
+			assert.equal(model.getLineContent(1), 'const a = \'foo\';');
+			assert.equal(model.getLineContent(2), 'const b = \'\'');
+		});
+
+		model.dispose();
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {
