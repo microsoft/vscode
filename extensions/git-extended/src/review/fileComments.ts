@@ -8,7 +8,7 @@ import * as path from 'path';
 import { PullRequest } from '../common/treeItems';
 
 const collection = vscode.languages.createDiagnosticCollection('reviews');
-export function populatePRDiagnostics(workspaceRoot, pr: PullRequest) {
+export function populatePRDiagnostics(workspaceRoot: string, pr: PullRequest) {
 	// todo, if we already have fileChanges locally, then we reuse it, otherwise, compare between
 	// pr.prItem.base.sha and pr.prItem.head.sha
 	collection.clear();
