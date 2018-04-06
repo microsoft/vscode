@@ -7,7 +7,7 @@
 
 import { Model } from './model';
 import { Repository as ModelRepository } from './repository';
-import { Uri, SourceControlInputBox } from 'vscode';
+import { SourceControlInputBox } from 'vscode';
 
 export interface InputBox {
 	value: string;

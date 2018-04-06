@@ -74,20 +74,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	} else {
 		repo = repos[0];
 	}
-	// importedGitApi.getModel().then((model: any) => {
-	// 	model.onDidOpenRepository(repository => {
-	// 		console.log(repository);
-	// 		let prGroup = repository._sourceControl.createResourceGroup('pr', "Changes from PR");
-	// 		prGroup.resourceStates = [{
-	// 			resourceUri: vscode.Uri.file('/Users/penlv/code/vscode/extensions/git-extended/src/extension.ts')
-	// 		}
 
-	// 		];
-	// 	});
-	// });
-
-
-	const remoteUrls = remotes.map(remote => parseRemote(remote.url));
-	const repository = new Repository(rootPath, remoteUrls);
+	const remoteInfos = remotes.map(remote => parseRemote(remote.name, remote.url));
+	const repository = new Repository(rootPath, remoteInfos);
 	new PRProvider(configuration).activate(context, rootPath, repository, repo);
 }

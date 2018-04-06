@@ -25,7 +25,7 @@ export async function getRemotes(
 }
 
 /** Parse the remote information from URL. */
-export function parseRemote(url: string): Remote | null {
+export function parseRemote(remoteName: string, url: string): Remote | null {
 	// Examples:
 	// https://github.com/octocat/Hello-World.git
 	// https://github.com/octocat/Hello-World.git/
@@ -48,7 +48,7 @@ export function parseRemote(url: string): Remote | null {
 		const owner = result[2];
 		const name = result[3];
 		if (hostname) {
-			return new Remote(url, hostname, owner, name);
+			return new Remote(remoteName, url, hostname, owner, name);
 		}
 	}
 

@@ -5,6 +5,7 @@
 
 export class Remote {
 	constructor(
+		public readonly remoteName: string,
 		public readonly url: string,
 		public readonly hostname: string,
 		public readonly owner: string,

@@ -13,6 +13,8 @@ import * as _ from 'lodash';
 import { Configuration } from './configuration';
 import { CredentialStore } from './credentials';
 import { parseComments, getMatchingCommentsForDiffViewEditor, getMatchingCommentsForNormalEditor } from './common/comment';
+import { Remote } from './common/models/remote';
+import { fetch, checkout } from './common/operation';
 
 export enum PRGroupType {
 	RequestReview = 0,
@@ -49,7 +51,7 @@ export class PRGroup implements vscode.TreeItem {
 export class PullRequest {
 	public comments?: Comment[];
 	public fileChanges?: FileChangeItem[];
-	constructor(public readonly otcokit: any, public readonly owner: string, public readonly repo: string, public prItem: any) { }
+	constructor(public readonly otcokit: any, public readonly remote: Remote, public prItem: any) { }
 }
 
 export class FileChangeItem implements vscode.TreeItem {
@@ -133,11 +135,18 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 		};
 
 		const collection = vscode.languages.createDiagnosticCollection('reviews');
-		this.context.subscriptions.push(vscode.commands.registerCommand('pr.pick', (pr: PullRequest) => {
+		this.context.subscriptions.push(vscode.commands.registerCommand('pr.pick', async (pr: PullRequest) => {
+			// git fetch ${pr.remote.remoteName} pull/${pr.prItem.number}/head:pull-request-${pr.prItem.number}
+			await fetch(this.repository, pr.remote.remoteName, `pull/${pr.prItem.number}/head:pull-request-${pr.prItem.number}`);
+			await checkout(this.repository, `pull-request-${pr.prItem.number}`);
+
+			// or maybe simply git fetch ${pr.remote.remoteName} ${pr.prItem.head.ref} && git checkout {pr.prItem.head.ref}
 			if (!pr.fileChanges || !pr.comments) {
 				return;
 			}
 
+			// todo, if we already have fileChanges locally, then we reuse it, otherwise, compare between
+			// pr.prItem.base.sha and pr.prItem.head.sha
 			pr.fileChanges.forEach(filechange => {
 				let comments = pr.comments.filter(comment => comment.path === filechange.fileName);
 				let diags = comments.map(comment => ({
@@ -240,7 +249,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 						const { data } = await octo.search.issues({
 							q: this.getPRFetchQuery(remote.owner, remote.name, user.data.login, element.groupType)
 						});
-						return data.items.map(item => new PullRequest(octo, remote.owner, remote.name, item));
+						return data.items.map(item => new PullRequest(octo, remote, item));
 					}
 				});
 
@@ -255,7 +264,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 							owner: remote.owner,
 							repo: remote.name
 						});
-						return data.map(item => new PullRequest(octo, remote.owner, remote.name, item));
+						return data.map(item => new PullRequest(octo, remote, item));
 					}
 				});
 
@@ -265,13 +274,13 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 			}
 		} else if (element instanceof PullRequest) {
 			return element.otcokit.pullRequests.getFiles({
-				owner: element.owner,
-				repo: element.repo,
+				owner: element.remote.owner,
+				repo: element.remote.name,
 				number: element.prItem.number
 			}).then(async ({ data }) => {
 				const reviewData = await element.otcokit.pullRequests.getComments({
-					owner: element.owner,
-					repo: element.repo,
+					owner: element.remote.owner,
+					repo: element.remote.name,
 					number: element.prItem.number
 				});
 				const rawComments = reviewData.data;
@@ -279,8 +288,8 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 				if (!element.prItem.base) {
 					// this one is from search results, which is not complete.
 					const { data } = await element.otcokit.pullRequests.get({
-						owner: element.owner,
-						repo: element.repo,
+						owner: element.remote.owner,
+						repo: element.remote.name,
 						number: element.prItem.number
 					});
 					element.prItem = data;
