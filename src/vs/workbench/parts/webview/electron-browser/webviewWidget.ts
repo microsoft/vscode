@@ -13,14 +13,16 @@ import { WebviewElement } from 'vs/workbench/parts/webview/electron-browser/webv
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IPosition } from 'vs/editor/common/core/position';
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.webview';
 
 export class WebviewWidget extends ZoneWidget {
 
 	private _webview: WebviewElement;
+	private _scrollable: DomScrollableElement;
 
 	constructor(
 		editor: ICodeEditor,
@@ -53,16 +55,16 @@ export class WebviewWidget extends ZoneWidget {
 			});
 		this._webview.mountTo(container);
 
-		const e = new DomScrollableElement(this._webview.getDomNode(), {});
-		e.getDomNode().style.width = '100%';
-		e.getDomNode().style.height = '100%';
-		container.appendChild(e.getDomNode());
+		this._scrollable = new DomScrollableElement(this._webview.getDomNode(), {});
+		this._scrollable.getDomNode().style.width = '100%';
+		this._scrollable.getDomNode().style.height = '100%';
+		container.appendChild(this._scrollable.getDomNode());
 		this._delegate(this._webview);
 	}
 }
 
 export interface IWebviewWidgetContribution extends IEditorContribution {
-	showWebviewWidget(lineNumber: number, column: number, delegate: (view: WebviewElement) => void): void;
+	showWebviewWidget(position: IPosition, delegate: (view: WebviewElement) => void): void;
 	closeWebviewWidget(): void;
 }
 
@@ -75,13 +77,13 @@ export class WebviewWidgetContribution implements IWebviewWidgetContribution {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
-	showWebviewWidget(lineNumber: number, column: number, delegate: (view: WebviewElement) => void): void {
+	showWebviewWidget(position: IPosition, delegate: (view: WebviewElement) => void): void {
 		if (this._webviewWidget) {
 			this._webviewWidget.dispose();
 		}
 
 		this._webviewWidget = this.instantiationService.createInstance(WebviewWidget, this.editor, delegate);
-		this._webviewWidget.show({ lineNumber, column: 1 }, 20);
+		this._webviewWidget.show(position, 20);
 		// this.webviewWidgetVisible.set(true);
 	}
 

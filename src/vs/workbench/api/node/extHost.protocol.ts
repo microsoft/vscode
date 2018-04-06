@@ -360,7 +360,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$registerSerializer(viewType: string): void;
 	$unregisterSerializer(viewType: string): void;
 
-	$showWebviewWidget(handle: WebviewHandle, editorId: string, lineNumber: number, viewType: string, options: vscode.WebviewOptions): void;
+	$showWebviewWidget(handle: WebviewHandle, editorId: string, position: IPosition, viewType: string, options: vscode.WebviewOptions): void;
 }
 
 export interface ExtHostWebviewsShape {

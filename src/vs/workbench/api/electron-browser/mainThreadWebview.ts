@@ -22,6 +22,7 @@ import { ICodeEditor } from '../../../editor/browser/editorBrowser';
 import { EDITOR_CONTRIBUTION_ID, WebviewWidgetContribution } from '../../parts/webview/electron-browser/webviewWidget';
 import { extHostNamedCustomer } from './extHostCustomers';
 import { WebviewElement } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
+import { IPosition } from 'vs/editor/common/core/position';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
@@ -133,10 +134,10 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._revivers.delete(viewType);
 	}
 
-	$showWebviewWidget(handle: WebviewHandle, editorId: string, lineNumber: number, viewType: string, options: WebviewInputOptions): void {
+	$showWebviewWidget(handle: WebviewHandle, editorId: string, position: IPosition, viewType: string, options: WebviewInputOptions): void {
 		const editor = this._editorService.getActiveEditor();
 		if (editor && editor.getControl()) {
-			(editor.getControl() as ICodeEditor).getContribution<WebviewWidgetContribution>(EDITOR_CONTRIBUTION_ID).showWebviewWidget(lineNumber, 0, webview => {
+			(editor.getControl() as ICodeEditor).getContribution<WebviewWidgetContribution>(EDITOR_CONTRIBUTION_ID).showWebviewWidget(position, webview => {
 				this._webviews.set(handle, webview);
 				webview.onDidClickLink(uri => this.onDidClickLink(handle, uri));
 				webview.onMessage(message => this._proxy.$onMessage(handle, message));

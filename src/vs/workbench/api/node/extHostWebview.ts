@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { Position } from 'vs/platform/editor/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Disposable } from './extHostTypes';
+import * as types from './extHostTypes';
 import { ExtHostTextEditor } from './extHostTextEditor';
 
 export class ExtHostWebview implements vscode.Webview {
@@ -173,15 +173,15 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		this._serializers.set(viewType, serializer);
 		this._proxy.$registerSerializer(viewType);
 
-		return new Disposable(() => {
+		return new types.Disposable(() => {
 			this._serializers.delete(viewType);
 			this._proxy.$unregisterSerializer(viewType);
 		});
 	}
 
-	async showWebviewWidget(editor: vscode.TextEditor, lineNumber: number, viewType: string, title: string, options: vscode.WebviewOptions) {
+	async showWebviewWidget(editor: vscode.TextEditor, position: vscode.Position, viewType: string, title: string, options: vscode.WebviewOptions) {
 		const handle = ExtHostWebviews.webviewHandlePool++ + '';
-		this._proxy.$showWebviewWidget(handle, (editor as ExtHostTextEditor).id, lineNumber, viewType, options);
+		this._proxy.$showWebviewWidget(handle, (editor as ExtHostTextEditor).id, typeConverters.fromPosition(new types.Position(position.line, position.character)), viewType, options);
 
 		const webview = new ExtHostWebview(handle, this._proxy, viewType, undefined, options);
 		this._webviews.set(handle, webview);
