@@ -18,7 +18,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import * as DOM from 'vs/base/browser/dom';
 import { Event, Emitter } from 'vs/base/common/event';
-import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewInput';
+import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
 import URI from 'vs/base/common/uri';
 
 export class WebviewEditor extends BaseWebviewEditor {

@@ -9,7 +9,7 @@ import { IInstantiationService, createDecorator } from 'vs/platform/instantiatio
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import * as vscode from 'vscode';
-import { WebviewEditorInput } from './webviewInput';
+import { WebviewEditorInput } from './webviewEditorInput';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');

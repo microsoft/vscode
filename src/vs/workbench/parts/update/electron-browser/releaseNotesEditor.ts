@@ -27,7 +27,7 @@ import { IWebviewEditorService } from 'vs/workbench/parts/webview/electron-brows
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { Position } from 'vs/platform/editor/common/editor';
-import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewInput';
+import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
 
 function renderBody(
 	body: string,
