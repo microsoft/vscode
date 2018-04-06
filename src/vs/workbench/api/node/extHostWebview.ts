@@ -252,6 +252,9 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		webviewHandle: WebviewHandle
 	): Thenable<any> {
 		const webview = this.getWebview(webviewHandle);
+		if (!webview) {
+			return TPromise.as(undefined);
+		}
 
 		const serialzer = this._serializers.get(webview.viewType);
 		if (!serialzer) {
@@ -261,7 +264,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		return serialzer.serializeWebview(webview);
 	}
 
-	private getWebview(handle: WebviewHandle) {
+	private getWebview(handle: WebviewHandle): ExtHostWebview | undefined {
 		return this._webviews.get(handle);
 	}
 }
