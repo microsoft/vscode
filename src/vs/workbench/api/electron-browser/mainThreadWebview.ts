@@ -166,7 +166,9 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 		const reviveResponses = toRevive.map(handle =>
 			TPromise.any([
-				this._proxy.$serializeWebview(handle).then(state => ({ handle, state })),
+				this._proxy.$serializeWebview(handle).then(
+					state => ({ handle, state }),
+					() => ({ handle, state: null })),
 				TPromise.timeout(MainThreadWebviews.serializeTimeout).then(() => ({ handle, state: null }))
 			]).then(x => x.value));
 
