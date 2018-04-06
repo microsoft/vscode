@@ -22,7 +22,6 @@ export class ExtHostWebview implements vscode.Webview {
 	private _isDisposed: boolean = false;
 	private _viewColumn: vscode.ViewColumn;
 	private _active: boolean;
-	private _state: any;
 
 	public readonly onMessageEmitter = new Emitter<any>();
 	public readonly onDidReceiveMessage: Event<any> = this.onMessageEmitter.event;
@@ -89,11 +88,6 @@ export class ExtHostWebview implements vscode.Webview {
 			this._html = value;
 			this._proxy.$setHtml(this._handle, value);
 		}
-	}
-
-	get state(): any {
-		this.assertNotDisposed();
-		return this._state;
 	}
 
 	get options(): vscode.WebviewOptions {
