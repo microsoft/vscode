@@ -29,8 +29,8 @@ export class ExtHostWebview implements vscode.Webview {
 	public readonly onDisposeEmitter = new Emitter<void>();
 	public readonly onDidDispose: Event<void> = this.onDisposeEmitter.event;
 
-	public readonly onDidChangeViewStateEmitter = new Emitter<vscode.WebViewOnDidChangeViewStateEvent>();
-	public readonly onDidChangeViewState: Event<vscode.WebViewOnDidChangeViewStateEvent> = this.onDidChangeViewStateEmitter.event;
+	public readonly onDidChangeViewStateEmitter = new Emitter<vscode.WebviewOnDidChangeViewStateEvent>();
+	public readonly onDidChangeViewState: Event<vscode.WebviewOnDidChangeViewStateEvent> = this.onDidChangeViewStateEmitter.event;
 
 	constructor(
 		handle: WebviewHandle,

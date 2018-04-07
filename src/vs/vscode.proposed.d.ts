@@ -532,7 +532,7 @@ declare module 'vscode' {
 		readonly localResourceRoots?: Uri[];
 	}
 
-	export interface WebViewOnDidChangeViewStateEvent {
+	export interface WebviewOnDidChangeViewStateEvent {
 		readonly viewColumn: ViewColumn;
 		readonly active: boolean;
 	}
@@ -581,7 +581,7 @@ declare module 'vscode' {
 		/**
 		 * Fired when the webview's view state changes.
 		 */
-		readonly onDidChangeViewState: Event<WebViewOnDidChangeViewStateEvent>;
+		readonly onDidChangeViewState: Event<WebviewOnDidChangeViewStateEvent>;
 
 		/**
 		 * Post a message to the webview content.
