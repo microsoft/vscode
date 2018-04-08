@@ -559,7 +559,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 
 export class InstalledExtensionsView extends ExtensionsListView {
 
-	public static isInsalledExtensionsQuery(query: string): boolean {
+	public static isInstalledExtensionsQuery(query: string): boolean {
 		return ExtensionsListView.isInstalledExtensionsQuery(query)
 			|| ExtensionsListView.isOutdatedExtensionsQuery(query)
 			|| ExtensionsListView.isDisabledExtensionsQuery(query)
@@ -567,7 +567,7 @@ export class InstalledExtensionsView extends ExtensionsListView {
 	}
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
-		if (InstalledExtensionsView.isInsalledExtensionsQuery(query)) {
+		if (InstalledExtensionsView.isInstalledExtensionsQuery(query)) {
 			return super.show(query);
 		}
 		let searchInstalledQuery = '@installed';
