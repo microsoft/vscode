@@ -6,8 +6,9 @@
 'use strict';
 
 import 'mocha';
-import { GitStatusParser, parseGitmodules } from '../git';
+import { Git, GitStatusParser, Repository, parseGitmodules } from '../git';
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 
 suite('git', () => {
 	suite('GitStatusParser', () => {
@@ -173,6 +174,24 @@ suite('git', () => {
 				{ name: 'deps/spdlog3', path: 'deps/spdlog3', url: 'https://github.com/gabime/spdlog.git' },
 				{ name: 'deps/spdlog4', path: 'deps/spdlog4', url: 'https://github.com/gabime/spdlog4.git' }
 			]);
+		});
+	});
+
+	suite('Repository', () => {
+		test('get commit', async () => {
+			const spawnOption = {};
+			const gitOutput = `52c293a05038d865604c2284aa8698bd087915a1
+This is a commit message.`;
+			const git = sinon.createStubInstance(Git);
+			git.exec = sinon.stub()
+				.withArgs('REPOSITORY_ROOT', ['show', '-s', '--format=%H\n%B', 'REF'], spawnOption)
+				.returns(Promise.resolve({stdout: gitOutput}));
+			const repository = new Repository(git, 'REPOSITORY_ROOT');
+
+			assert.deepEqual(await repository.getCommit('REF'), {
+				hash: '52c293a05038d865604c2284aa8698bd087915a1',
+				message: 'This is a commit message.'
+			});
 		});
 	});
 });
