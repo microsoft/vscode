@@ -118,6 +118,7 @@ export class QuickOpenWidget implements IModelProvider {
 	private inputChangingTimeoutHandle: number;
 	private styles: IQuickOpenStyles;
 	private renderer: Renderer;
+	private lastValue: string;
 
 	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions) {
 		this.isDisposed = false;
@@ -150,7 +151,7 @@ export class QuickOpenWidget implements IModelProvider {
 				const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e as KeyboardEvent);
 				if (keyboardEvent.keyCode === KeyCode.Escape) {
 					DOM.EventHelper.stop(e, true);
-
+					this.lastValue = this.inputBox.inputElement.value;
 					this.hide(HideReason.CANCELED);
 				}
 			})
@@ -554,6 +555,8 @@ export class QuickOpenWidget implements IModelProvider {
 		this.visible = true;
 		this.isLoosingFocus = false;
 		this.quickNavigateConfiguration = options ? options.quickNavigateConfiguration : void 0;
+		this.inputBox.inputElement.value = (this.lastValue) || '';
+		this.inputBox.inputElement.select();
 
 		// Adjust UI for quick navigate mode
 		if (this.quickNavigateConfiguration) {
@@ -792,6 +795,7 @@ export class QuickOpenWidget implements IModelProvider {
 		// Callbacks
 		if (reason === HideReason.ELEMENT_SELECTED) {
 			this.callbacks.onOk();
+			this.lastValue = '';
 		} else {
 			this.callbacks.onCancel();
 		}
