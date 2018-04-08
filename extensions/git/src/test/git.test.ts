@@ -181,16 +181,18 @@ suite('git', () => {
 		test('get commit', async () => {
 			const spawnOption = {};
 			const gitOutput = `52c293a05038d865604c2284aa8698bd087915a1
+8e5a374372b8393906c7e380dbb09349c5385554
 This is a commit message.`;
 			const git = sinon.createStubInstance(Git);
 			git.exec = sinon.stub()
-				.withArgs('REPOSITORY_ROOT', ['show', '-s', '--format=%H\n%B', 'REF'], spawnOption)
+				.withArgs('REPOSITORY_ROOT', ['show', '-s', '--format=%H\n%P\n%B', 'REF_SINGLE_PARENT'], spawnOption)
 				.returns(Promise.resolve({stdout: gitOutput}));
 			const repository = new Repository(git, 'REPOSITORY_ROOT');
 
-			assert.deepEqual(await repository.getCommit('REF'), {
+			assert.deepEqual(await repository.getCommit('REF_SINGLE_PARENT'), {
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
-				message: 'This is a commit message.'
+				message: 'This is a commit message.',
+				previousHashes: ['8e5a374372b8393906c7e380dbb09349c5385554']
 			});
 		});
 	});

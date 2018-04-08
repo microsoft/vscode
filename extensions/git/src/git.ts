@@ -481,6 +481,7 @@ export class Git {
 export interface Commit {
 	hash: string;
 	message: string;
+	previousHashes: string[];
 }
 
 export class GitStatusParser {
@@ -1287,14 +1288,14 @@ export class Repository {
 	}
 
 	async getCommit(ref: string): Promise<Commit> {
-		const result = await this.run(['show', '-s', '--format=%H\n%B', ref]);
-		const match = /^([0-9a-f]{40})\n([^]*)$/m.exec(result.stdout.trim());
+		const result = await this.run(['show', '-s', '--format=%H\n%P\n%B', ref]);
+		const match = /^([0-9a-f]{40})\n(.*)\n([^]*)$/m.exec(result.stdout.trim());
 
 		if (!match) {
 			return Promise.reject<Commit>('bad commit format');
 		}
 
-		return { hash: match[1], message: match[2] };
+		return { hash: match[1], message: match[3], previousHashes: [match[2]] };
 	}
 
 	async updateSubmodules(paths: string[]): Promise<void> {
