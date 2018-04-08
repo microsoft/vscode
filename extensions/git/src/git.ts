@@ -1295,7 +1295,8 @@ export class Repository {
 			return Promise.reject<Commit>('bad commit format');
 		}
 
-		return { hash: match[1], message: match[3], previousHashes: [match[2]] };
+		const previousHashes = match[2] ? match[2].split(' ') : [];
+		return { hash: match[1], message: match[3], previousHashes };
 	}
 
 	async updateSubmodules(paths: string[]): Promise<void> {
