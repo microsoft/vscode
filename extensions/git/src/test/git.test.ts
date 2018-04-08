@@ -190,16 +190,18 @@ This is a commit message.`;
 This is a commit message.`;
 
 		const git = sinon.createStubInstance(Git);
-		git.exec = sinon.stub();
-		git.exec
-			.withArgs('REPOSITORY_ROOT', ['show', '-s', '--format=%H\n%P\n%B', 'REF_SINGLE_PARENT'], spawnOption)
-			.returns(Promise.resolve({stdout: GIT_OUTPUT_SINGLE_PARENT}));
-		git.exec
-			.withArgs('REPOSITORY_ROOT', ['show', '-s', '--format=%H\n%P\n%B', 'REF_MULTIPLE_PARENTS'], spawnOption)
-			.returns(Promise.resolve({stdout: GIT_OUTPUT_MULTIPLE_PARENTS}));
-		git.exec
-			.withArgs('REPOSITORY_ROOT', ['show', '-s', '--format=%H\n%P\n%B', 'REF_NO_PARENTS'], spawnOption)
-			.returns(Promise.resolve({stdout: GIT_OUTPUT_NO_PARENTS}));
+		git.exec = stub([
+			{
+				withArgs: ['REPOSITORY_ROOT', ['show', '-s', '--format=%H\n%P\n%B', 'REF_SINGLE_PARENT'], spawnOption],
+				returns: GIT_OUTPUT_SINGLE_PARENT
+			}, {
+				withArgs: ['REPOSITORY_ROOT', ['show', '-s', '--format=%H\n%P\n%B', 'REF_MULTIPLE_PARENTS'], spawnOption],
+				returns: GIT_OUTPUT_MULTIPLE_PARENTS
+			}, {
+				withArgs: ['REPOSITORY_ROOT', ['show', '-s', '--format=%H\n%P\n%B', 'REF_NO_PARENTS'], spawnOption],
+				returns: GIT_OUTPUT_NO_PARENTS
+			}
+		]);
 		const repository = new Repository(git, 'REPOSITORY_ROOT');
 
 		test('get commit', async () => {
@@ -219,5 +221,13 @@ This is a commit message.`;
 			const commit = await repository.getCommit('REF_NO_PARENTS');
 			assert.deepEqual(commit.previousHashes, []);
 		});
+
+		function stub(argOutputPairs: {withArgs: any[], returns: string}[]): sinon.SinonStub {
+			const stub = sinon.stub();
+			argOutputPairs.forEach(({withArgs, returns}) => {
+				stub.withArgs(...withArgs).returns(Promise.resolve({stdout: returns}));
+			});
+			return stub;
+		}
 	});
 });
