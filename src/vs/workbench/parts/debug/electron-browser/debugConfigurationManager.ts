@@ -328,7 +328,7 @@ export class ConfigurationManager implements IConfigurationManager {
 						});
 					}
 
-					const duplicate = this.debuggers.filter(a => a.type === rawAdapter.type).pop();
+					const duplicate = this.getAdapter(rawAdapter.type);
 					if (duplicate) {
 						duplicate.merge(rawAdapter, extension.description);
 					} else {
