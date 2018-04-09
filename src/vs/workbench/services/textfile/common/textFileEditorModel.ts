@@ -692,16 +692,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// mark the save participant as current pending save operation
 		return this.saveSequentializer.setPending(versionId, saveParticipantPromise.then(newVersionId => {
 
-			// Under certain conditions a save to the model will not cause the contents to the flushed on
-			// disk because we can assume that the contents are already on disk. Instead, we just touch the
-			// file to still trigger external file watchers for example.
+			// Under certain conditions we do a short-cut of flushing contents to disk when we can assume that
+			// the file has not changed and as such was not dirty before.
 			// The conditions are all of:
 			// - a forced, explicit save (Ctrl+S)
 			// - the model is not dirty (otherwise we know there are changed which needs to go to the file)
 			// - the model is not in orphan mode (because in that case we know the file does not exist on disk)
 			// - the model version did not change due to save participants running
 			if (options.force && !this.dirty && !this.inOrphanMode && options.reason === SaveReason.EXPLICIT && versionId === newVersionId) {
-				return this.doTouch();
+				return this.doTouch(newVersionId);
 			}
 
 			// update versionId with its new value (if pre-save changes happened)
@@ -791,12 +790,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		});
 	}
 
-	private doTouch(): TPromise<void> {
-		return this.fileService.touchFile(this.resource).then(stat => {
+	private doTouch(versionId: number): TPromise<void> {
+		return this.saveSequentializer.setPending(versionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, this.createSnapshot(), {
+			mtime: this.lastResolvedDiskStat.mtime,
+			encoding: this.getEncoding(),
+			etag: this.lastResolvedDiskStat.etag
+		}).then(stat => {
 
 			// Updated resolved stat with updated stat since touching it might have changed mtime
 			this.updateLastResolvedDiskStat(stat);
-		}, () => void 0 /* gracefully ignore errors if just touching */);
+		}, () => void 0 /* gracefully ignore errors if just touching */));
 	}
 
 	private setDirty(dirty: boolean): () => void {
