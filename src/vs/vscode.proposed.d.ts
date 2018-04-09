@@ -232,7 +232,9 @@ declare module 'vscode' {
 
 		readonly onDidChange?: Event<FileChange[]>;
 
-		stat(resource: Uri): Thenable<FileStat>;
+		stat(resource: Uri, token: CancellationToken): Thenable<FileStat>;
+
+		readdir(resource: Uri, token: CancellationToken): Thenable<[Uri, FileStat][]>;
 
 		readFile(resource: Uri, token: CancellationToken): Thenable<Uint8Array>;
 
@@ -245,9 +247,6 @@ declare module 'vscode' {
 		// todo@remote
 		// helps with performance bigly
 		// copy?(from: Uri, to: Uri): Thenable<void>;
-
-
-		readdir(resource: Uri): Thenable<[Uri, FileStat][]>;
 
 		// todo@remote
 		// ? useTrash, expose trash

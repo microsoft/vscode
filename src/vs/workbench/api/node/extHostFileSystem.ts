@@ -168,10 +168,10 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	$stat(handle: number, resource: UriComponents): TPromise<IStat, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).stat(URI.revive(resource)));
+		return asWinJsPromise(token => this._fsProvider.get(handle).stat(URI.revive(resource), token));
 	}
 	$readdir(handle: number, resource: UriComponents): TPromise<[UriComponents, IStat][], any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).readdir(URI.revive(resource)));
+		return asWinJsPromise(token => this._fsProvider.get(handle).readdir(URI.revive(resource), token));
 	}
 	$readFile(handle: number, resource: UriComponents): TPromise<string> {
 		return asWinJsPromise(token => {
