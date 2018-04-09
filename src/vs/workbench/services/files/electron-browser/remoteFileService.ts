@@ -472,26 +472,6 @@ export class RemoteFileService extends FileService {
 		});
 	}
 
-	touchFile(resource: URI): TPromise<IFileStat, any> {
-		if (resource.scheme === Schemas.file) {
-			return super.touchFile(resource);
-		} else {
-			return this._doTouchFile(resource);
-		}
-	}
-
-	private _doTouchFile(resource: URI): TPromise<IFileStat> {
-		return this._withProvider(resource).then(provider => {
-			return provider.stat(resource).then(() => {
-				return provider.utimes(resource, Date.now(), Date.now());
-			}, err => {
-				return provider.writeFile(resource, new Uint8Array(0));
-			}).then(() => {
-				return this.resolveFile(resource);
-			});
-		});
-	}
-
 	// TODO@Joh - file watching on demand!
 	public watchFileChanges(resource: URI): void {
 		if (resource.scheme === Schemas.file) {

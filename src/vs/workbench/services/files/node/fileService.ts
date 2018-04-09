@@ -757,31 +757,6 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public touchFile(resource: uri): TPromise<IFileStat> {
-		const absolutePath = this.toAbsolutePath(resource);
-
-		// 1.) check file for writing
-		return this.checkFileBeforeWriting(absolutePath).then(exists => {
-			let createPromise: TPromise<IFileStat>;
-			if (exists) {
-				createPromise = TPromise.as(null);
-			} else {
-				createPromise = this.createFile(resource);
-			}
-
-			// 2.) create file as needed
-			return createPromise.then(() => {
-
-				// 3.) update atime and mtime
-				return pfs.touch(absolutePath).then(() => {
-
-					// 4.) resolve
-					return this.resolve(resource);
-				});
-			});
-		});
-	}
-
 	private checkFileBeforeWriting(absolutePath: string, options: IUpdateContentOptions = Object.create(null), ignoreReadonly?: boolean): TPromise<boolean /* exists */> {
 		return pfs.exists(absolutePath).then(exists => {
 			if (exists) {

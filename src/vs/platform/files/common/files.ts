@@ -120,12 +120,6 @@ export interface IFileService {
 	rename(resource: URI, newName: string): TPromise<IFileStat>;
 
 	/**
-	 * Creates a new empty file if the given path does not exist and otherwise
-	 * will set the mtime and atime of the file to the current date.
-	 */
-	touchFile(resource: URI): TPromise<IFileStat>;
-
-	/**
 	 * Deletes the provided file.  The optional useTrash parameter allows to
 	 * move the file to trash.
 	 */
