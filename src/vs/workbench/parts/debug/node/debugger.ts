@@ -14,7 +14,7 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
-import { DebugAdapter } from 'vs/workbench/parts/debug/node/v8Protocol';
+import { DebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 
 
 export class Debugger {

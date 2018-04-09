@@ -16,7 +16,7 @@ import * as vscode from 'vscode';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint } from 'vs/workbench/api/node/extHostTypes';
 import { generateUuid } from 'vs/base/common/uuid';
-import { DebugAdapter } from 'vs/workbench/parts/debug/node/v8Protocol';
+import { DebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/node/DapPathConverter';
 import * as paths from 'vs/base/common/paths';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';

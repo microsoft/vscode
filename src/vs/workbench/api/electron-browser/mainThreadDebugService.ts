@@ -14,7 +14,7 @@ import {
 } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import severity from 'vs/base/common/severity';
-import { AbstractDebugAdapter } from 'vs/workbench/parts/debug/node/v8Protocol';
+import { AbstractDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { convertToDAPaths, convertToVSCPaths } from 'vs/workbench/parts/debug/node/DapPathConverter';
 import * as paths from 'vs/base/common/paths';
 

@@ -20,7 +20,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TerminalSupport } from 'vs/workbench/parts/debug/electron-browser/terminalSupport';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { StreamDebugAdapter } from 'vs/workbench/parts/debug/node/v8Protocol';
+import { StreamDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 
 
 export interface SessionExitedEvent extends debug.DebugEvent {

@@ -11,7 +11,7 @@ import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { DebugAdapter } from 'vs/workbench/parts/debug/node/v8Protocol';
+import { DebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 
 
 suite('Debug - Debugger', () => {
