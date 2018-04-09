@@ -21,7 +21,7 @@ declare module 'vscode' {
 		ranges: FoldingRange[];
 
 		/**
-		 * Creates mew folding range list.
+		 * Creates new folding range list.
 		 *
 		 * @param ranges The folding ranges
 		 */
