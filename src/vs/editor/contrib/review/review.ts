@@ -102,10 +102,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 		$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
 
 		const actionsContainer = $('.review-actions').appendTo(this._headElement);
-		this._actionbarWidget = new ActionBar(actionsContainer, {});
+		this._actionbarWidget = new ActionBar(actionsContainer.getHTMLElement(), {});
 		this._disposables.push(this._actionbarWidget);
 
 		this._actionbarWidget.push(new Action('review.expand', nls.localize('label.expand', "Expand"), 'expand-review-action octicon octicon-chevron-down', true, () => {
+			// let webView = await commentProvider.resolveComment(threadId)
+			// this._bodyElement.appendChild(webView);
 			this._bodyElement.style.display = 'block';
 			return null;
 		}), { label: false, icon: true });
@@ -331,6 +333,7 @@ export class ReviewController implements IEditorContribution {
 		this._commentThreads.forEach(thread => {
 			let zoneWidget = new ReviewZoneWidget(this.themeService, this.editor, {}, thread.comments);
 			zoneWidget.display(this.getComments(thread.range.startLineNumber), thread.range.startLineNumber);
+			this._zoneWidgets.push(zoneWidget);
 		});
 
 	}
