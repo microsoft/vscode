@@ -308,7 +308,8 @@ class Widget {
 	private _layoutBoxInPage(topLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult {
 		let left0 = topLeft.left - ctx.scrollLeft;
 
-		if (left0 + width < 0 || left0 > this._contentWidth) {
+		if (left0 < 0 || left0 > this._contentWidth) {
+			// Don't render if position is scrolled outside viewport
 			return null;
 		}
 
@@ -390,6 +391,7 @@ class Widget {
 			}
 
 			if (this.allowEditorOverflow) {
+				console.log(`here i am: ${JSON.stringify(topLeft)}`);
 				placement = this._layoutBoxInPage(topLeft, this._cachedDomNodeClientWidth, this._cachedDomNodeClientHeight, ctx);
 			} else {
 				placement = this._layoutBoxInViewport(topLeft, this._cachedDomNodeClientWidth, this._cachedDomNodeClientHeight, ctx);
