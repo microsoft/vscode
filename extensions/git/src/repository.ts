@@ -292,6 +292,7 @@ export enum Operation {
 	GetCommitTemplate = 'GetCommitTemplate',
 	DeleteBranch = 'DeleteBranch',
 	RenameBranch = 'RenameBranch',
+	DeleteRef = 'DeleteRef',
 	Merge = 'Merge',
 	Ignore = 'Ignore',
 	Tag = 'Tag',
@@ -720,6 +721,10 @@ export class Repository implements Disposable {
 
 	async reset(treeish: string, hard?: boolean): Promise<void> {
 		await this.run(Operation.Reset, () => this.repository.reset(treeish, hard));
+	}
+
+	async deleteRef(ref: string): Promise<void> {
+		await this.run(Operation.DeleteRef, () => this.repository.deleteRef(ref));
 	}
 
 	@throttle
