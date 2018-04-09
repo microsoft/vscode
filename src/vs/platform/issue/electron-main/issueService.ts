@@ -77,7 +77,7 @@ export class IssueService implements IIssueService {
 	openProcessExplorer(data: ProcessExplorerData): TPromise<void> {
 		// Create as singleton
 		if (!this._processExplorerWindow) {
-			const position = this.getWindowPosition(BrowserWindow.getFocusedWindow(), 800, 350);
+			const position = this.getWindowPosition(BrowserWindow.getFocusedWindow(), 800, 300);
 			this._processExplorerWindow = new BrowserWindow({
 				skipTaskbar: true,
 				resizable: true,
