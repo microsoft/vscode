@@ -7,7 +7,7 @@
 
 import { Model } from './model';
 import { Repository as ModelRepository } from './repository';
-import { SourceControlInputBox } from 'vscode';
+import { Uri, SourceControlInputBox, SourceControl, EventEmitter, Event } from 'vscode';
 
 export interface InputBox {
 	value: string;
@@ -19,32 +19,39 @@ export class InputBoxImpl implements InputBox {
 	constructor(private inputBox: SourceControlInputBox) { }
 }
 
-// export interface Repository {
-// 	readonly rootUri: Uri;
-// 	readonly inputBox: InputBox;
-// }
+export interface Repository {
+	readonly rootUri: Uri;
+	readonly inputBox: InputBox;
+}
 
-// export class RepositoryImpl implements Repository {
+export class RepositoryImpl implements Repository {
 
-// 	readonly rootUri: Uri;
-// 	readonly inputBox: InputBox;
+	readonly rootUri: Uri;
+	readonly inputBox: InputBox;
+	readonly sourceControl: SourceControl;
 
-// 	constructor(repository: ModelRepository) {
-// 		this.rootUri = Uri.file(repository.root);
-// 		this.inputBox = new InputBoxImpl(repository.inputBox);
-// 	}
-// }
+	constructor(repository: ModelRepository) {
+		this.rootUri = Uri.file(repository.root);
+		this.inputBox = new InputBoxImpl(repository.inputBox);
+		this.sourceControl = repository.sourceControl;
+	}
+}
 
 export interface API {
-	getRepositories(): Promise<ModelRepository[]>;
+	getRepositories(): Promise<Repository[]>;
 	getGitPath(): Promise<string>;
-	getModel(): Promise<Model>;
 }
 
 export class APIImpl implements API {
-	private model?: Model;
+	private _onDidOpenRepository = new EventEmitter<Repository>();
+	readonly onDidOpenRepository: Event<Repository> = this._onDidOpenRepository.event;
+
 	constructor(private modelPromise: Promise<Model>) {
-		this.model = undefined;
+		modelPromise.then(model => {
+			model.onDidOpenRepository(repository => {
+				this._onDidOpenRepository.fire(new RepositoryImpl(repository));
+			});
+		});
 	}
 
 	async getGitPath(): Promise<string> {
@@ -52,16 +59,9 @@ export class APIImpl implements API {
 		return model.git.path;
 	}
 
-	async getModel(): Promise<Model> {
+	async getRepositories(): Promise<Repository[]> {
 		const model = await this.modelPromise;
-		this.model = model;
-		return model;
-	}
-
-	async getRepositories(): Promise<ModelRepository[]> {
-		const model = await this.modelPromise;
-		this.model = model;
-		return this.model.repositories;
+		return model.repositories.map(repository => new RepositoryImpl(repository));
 	}
 }
 

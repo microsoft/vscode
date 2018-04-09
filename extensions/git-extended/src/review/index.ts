@@ -74,7 +74,7 @@ export async function restoreReviewState(repository: Repository, workspaceState:
 		}
 	}));
 
-	let prGroup: vscode.SourceControlResourceGroup = gitRepo._sourceControl.createResourceGroup('pr', 'Changes from PR');
+	let prGroup: vscode.SourceControlResourceGroup = gitRepo.sourceControl.createResourceGroup('pr', 'Changes from PR');
 	prGroup.resourceStates = prChangeResources;
 }
 
@@ -112,7 +112,7 @@ export async function enterReviewMode(workspaceState: vscode.Memento, repository
 			}
 		}));
 
-		let prGroup: vscode.SourceControlResourceGroup = gitRepo._sourceControl.createResourceGroup('pr', 'Changes from PR');
+		let prGroup: vscode.SourceControlResourceGroup = gitRepo.sourceControl.createResourceGroup('pr', 'Changes from PR');
 		prGroup.resourceStates = prChangeResources;
 	});
 }

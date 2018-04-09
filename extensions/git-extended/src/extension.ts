@@ -39,13 +39,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	let importedGitApi = gitExt.exports;
 	let repos = await importedGitApi.getRepositories();
 	let repo;
+
 	if (!repos || !repos.length) {
-		let model = await importedGitApi.getModel();
 		let waitForRepo = new Promise((resolve, reject) => {
-			model.onDidOpenRepository(repository => {
+			importedGitApi.onDidOpenRepository(repository => {
 				resolve(repository);
 			});
 		});
+
 		repo = await waitForRepo;
 	} else {
 		repo = repos[0];
