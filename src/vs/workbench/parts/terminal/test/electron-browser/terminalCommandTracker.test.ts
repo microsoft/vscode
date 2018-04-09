@@ -82,32 +82,32 @@ suite('Workbench - TerminalCommandTracker', () => {
 			commandTracker.scrollToNextCommand();
 			assert.equal(xterm.buffer.ydisp, 20);
 		});
-		test('should select to the next and previous commands', () => {
-			xterm.open(document.createElement('div'));
+		// test('should select to the next and previous commands', () => {
+		// 	xterm.open(document.createElement('div'));
 
-			syncWrite(xterm, '\r0');
-			syncWrite(xterm, '\n\r1');
-			syncWrite(xterm, '\x1b[3G'); // Move cursor to column 3
-			xterm.emit('key', '\x0d'); // Mark line
-			assert.equal(xterm.markers[0].line, 10);
-			syncWrite(xterm, '\n\r2');
-			syncWrite(xterm, '\x1b[3G'); // Move cursor to column 3
-			xterm.emit('key', '\x0d'); // Mark line
-			assert.equal(xterm.markers[1].line, 11);
-			syncWrite(xterm, '\n\r3');
+		// 	syncWrite(xterm, '\r0');
+		// 	syncWrite(xterm, '\n\r1');
+		// 	syncWrite(xterm, '\x1b[3G'); // Move cursor to column 3
+		// 	xterm.emit('key', '\x0d'); // Mark line
+		// 	assert.equal(xterm.markers[0].line, 10);
+		// 	syncWrite(xterm, '\n\r2');
+		// 	syncWrite(xterm, '\x1b[3G'); // Move cursor to column 3
+		// 	xterm.emit('key', '\x0d'); // Mark line
+		// 	assert.equal(xterm.markers[1].line, 11);
+		// 	syncWrite(xterm, '\n\r3');
 
-			assert.equal(xterm.buffer.ybase, 3);
-			assert.equal(xterm.buffer.ydisp, 3);
+		// 	assert.equal(xterm.buffer.ybase, 3);
+		// 	assert.equal(xterm.buffer.ydisp, 3);
 
-			assert.equal(xterm.getSelection(), '');
-			commandTracker.selectToPreviousCommand();
-			assert.equal(xterm.getSelection(), '2');
-			commandTracker.selectToPreviousCommand();
-			assert.equal(xterm.getSelection(), '1\n2');
-			commandTracker.selectToNextCommand();
-			assert.equal(xterm.getSelection(), '2');
-			commandTracker.selectToNextCommand();
-			assert.equal(xterm.getSelection(), '\n');
-		});
+		// 	assert.equal(xterm.getSelection(), '');
+		// 	commandTracker.selectToPreviousCommand();
+		// 	assert.equal(xterm.getSelection(), '2');
+		// 	commandTracker.selectToPreviousCommand();
+		// 	assert.equal(xterm.getSelection(), '1\n2');
+		// 	commandTracker.selectToNextCommand();
+		// 	assert.equal(xterm.getSelection(), '2');
+		// 	commandTracker.selectToNextCommand();
+		// 	assert.equal(xterm.getSelection(), '\n');
+		// });
 	});
 });
