@@ -28,7 +28,7 @@ export function parseComments(comments: any[]): Comment[] {
 }
 
 export function getMatchingCommentsForDiffViewEditor(filePath: string, items: FileChange[], comments: Comment[]): Comment[] {
-	let fileChangeItem = items.filter(item => filePath === path.resolve(item.workspaceRoot, item.filePath));
+	let fileChangeItem = items.filter(item => filePath === item.filePath.fsPath);
 
 	if (fileChangeItem.length === 0) {
 		return [];

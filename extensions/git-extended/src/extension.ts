@@ -7,16 +7,16 @@
 import * as vscode from 'vscode';
 import { PRProvider } from './prProvider';
 import { Repository } from './common/models/repository';
-import { getRemotes, parseRemote } from './common/remote';
 import { Configuration } from './configuration';
 import { Resource } from './common/resources';
+import { GitContentProvider } from './contentProvider';
+import { CommentsProvider } from './commentsProvider';
 
 export async function activate(context: vscode.ExtensionContext) {
 	// initialize resources
 	Resource.initialize(context);
 
 	const rootPath = vscode.workspace.rootPath;
-	const remotes = await getRemotes(rootPath);
 
 	const config = vscode.workspace.getConfiguration('github');
 	const configuration = new Configuration(
@@ -51,7 +51,12 @@ export async function activate(context: vscode.ExtensionContext) {
 		repo = repos[0];
 	}
 
-	const remoteInfos = remotes.map(remote => parseRemote(remote.name, remote.url));
-	const repository = new Repository(rootPath, remoteInfos);
-	new PRProvider(configuration).activate(context, rootPath, repository, repo);
+
+	const repository = new Repository(rootPath, context.workspaceState);
+	repository.onDidRunGitStatus(async e => {
+		let commentsProvider = new CommentsProvider();
+		// tslint:disable-next-line:no-unused-expression
+		new GitContentProvider(repository);
+		await (new PRProvider(configuration)).activate(context, rootPath, repository, commentsProvider, repo);
+	});
 }

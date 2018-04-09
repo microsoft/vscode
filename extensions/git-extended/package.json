@@ -12,9 +12,7 @@
     "Other"
   ],
   "activationEvents": [
-    "onView:commits",
-    "onView:stash",
-    "onView:pr"
+    "*"
   ],
   "extensionDependencies": [
       "vscode.git"

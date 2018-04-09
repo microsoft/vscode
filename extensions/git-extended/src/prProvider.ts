@@ -10,20 +10,20 @@ import { Comment } from './common/models/comment';
 import * as _ from 'lodash';
 import { Configuration } from './configuration';
 import { CredentialStore } from './credentials';
-import { parseComments, getMatchingCommentsForDiffViewEditor, getMatchingCommentsForNormalEditor } from './common/comment';
-import { enterReviewMode } from './review';
+import { parseComments } from './common/comment';
+import { enterReviewMode, restoreReviewState } from './review';
 import { PRGroup, PullRequest, FileChange, PRGroupType } from './common/treeItems';
 import { Resource } from './common/resources';
+import { CommentsProvider } from './commentsProvider';
 
-export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest | FileChange>, vscode.CommentProvider {
-	private _fileChanges: FileChange[];
-	private _comments?: Comment[];
+export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest | FileChange> {
 	private context: vscode.ExtensionContext;
 	private workspaceRoot: string;
 	private repository: Repository;
 	private gitRepo: any;
 	private crendentialStore: CredentialStore;
 	private configuration: Configuration;
+	private commentsProvider: CommentsProvider;
 	private _onDidChangeTreeData = new vscode.EventEmitter<PRGroup | PullRequest | FileChange | undefined>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
@@ -32,21 +32,22 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 		this.crendentialStore = new CredentialStore(configuration);
 	}
 
-	activate(context: vscode.ExtensionContext, workspaceRoot: string, repository: Repository, gitRepo: any) {
+	async activate(context: vscode.ExtensionContext, workspaceRoot: string, repository: Repository, commentsProvider: CommentsProvider, gitRepo: any) {
 		this.context = context;
 		this.workspaceRoot = workspaceRoot;
 		this.repository = repository;
+		this.commentsProvider = commentsProvider;
 		this.gitRepo = gitRepo;
 
 		this.context.subscriptions.push(vscode.window.registerTreeDataProvider<PRGroup | PullRequest | FileChange>('pr', this));
-
 		this.context.subscriptions.push(vscode.commands.registerCommand('pr.pick', async (pr: PullRequest) => {
-			await enterReviewMode(this.workspaceRoot, this.repository, pr, this.gitRepo);
+			await enterReviewMode(context.workspaceState, this.repository, pr, this.gitRepo);
 		}));
-		this.context.subscriptions.push(vscode.workspace.registerCommentProvider(this));
 		this.context.subscriptions.push(this.configuration.onDidChange(e => {
 			this._onDidChangeTreeData.fire();
 		}));
+
+		await restoreReviewState(this.repository, context.workspaceState, gitRepo, this.commentsProvider);
 	}
 
 	getTreeItem(element: PRGroup | PullRequest | FileChange): vscode.TreeItem {
@@ -101,16 +102,22 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 				element.prItem = data;
 			}
 			let richContentChanges = await parseDiff(data, this.repository, element.prItem.base.sha);
+			const commentsCache = new Map<String, Comment[]>();
 			let fileChanges = richContentChanges.map(change => {
-				let changedItem = new FileChange(element.prItem, change.fileName, change.status, this.context, change.fileName, change.filePath, change.originalFilePath, this.workspaceRoot);
+				let changedItem = new FileChange(element.prItem, change.fileName, change.status, this.context, change.fileName, vscode.Uri.file(change.filePath), vscode.Uri.file(change.originalFilePath), this.workspaceRoot);
 				changedItem.comments = comments.filter(comment => comment.path === changedItem.fileName);
+				commentsCache.set(changedItem.filePath.toString(), changedItem.comments);
 				return changedItem;
+			});
+			this.commentsProvider.registerCommentProvider({
+				provideComments: async (uri: vscode.Uri) => {
+					let matchingComments = commentsCache.get(uri.toString());
+					return matchingComments;
+				}
 			});
 			// fill in file changes and comments.
 			element.comments = comments;
 			element.fileChanges = fileChanges;
-			this._fileChanges = fileChanges;
-			this._comments = comments;
 			return fileChanges;
 		}
 	}
@@ -138,20 +145,20 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 					let { data } = await octo.pullRequests.getAll({
 						owner: remote.owner,
 						repo: remote.name,
-						per_page: 100
+						// per_page: 100
 					});
 					let ret = data.map(item => new PullRequest(octo, remote, item));
 
-					if (ret.length >= 100) {
-						let secondPage = await octo.pullRequests.getAll({
-							owner: remote.owner,
-							repo: remote.name,
-							per_page: 100,
-							page: 2
-						});
+					// if (ret.length >= 100) {
+					// 	let secondPage = await octo.pullRequests.getAll({
+					// 		owner: remote.owner,
+					// 		repo: remote.name,
+					// 		per_page: 100,
+					// 		page: 2
+					// 	});
 
-						ret.push(...secondPage.data.map(item => new PullRequest(octo, remote, item)));
-					}
+					// 	ret.push(...secondPage.data.map(item => new PullRequest(octo, remote, item)));
+					// }
 					return ret;
 				}
 			});
@@ -188,42 +195,35 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 		return `is:open ${filter} type:pr repo:${owner}/${repo}`;
 	}
 
-	async provideComments(document: vscode.TextDocument): Promise<vscode.CommentThread[]> {
-		if (!this._comments) {
-			return [];
-		}
+	// async provideComments(document: vscode.TextDocument): Promise<vscode.CommentThread[]> {
+	// 	let matchingComments = await this.commentsProvider.provideComments(document.uri)
 
-		let matchingComments = getMatchingCommentsForDiffViewEditor(document.fileName, this._fileChanges, this._comments);
-		if (!matchingComments || !matchingComments.length) {
-			matchingComments = getMatchingCommentsForNormalEditor(document.fileName, this.workspaceRoot, this._comments);
-		}
+	// 	if (!matchingComments || !matchingComments.length) {
+	// 		return [];
+	// 	}
 
-		if (!matchingComments || !matchingComments.length) {
-			return [];
-		}
+	// 	let sections = _.groupBy(matchingComments, comment => comment.position);
+	// 	let ret = [];
 
-		let sections = _.groupBy(matchingComments, comment => comment.position);
-		let ret = [];
+	// 	for (let i in sections) {
+	// 		let comments = sections[i];
 
-		for (let i in sections) {
-			let comments = sections[i];
+	// 		const comment = comments[0];
+	// 		const pos = new vscode.Position(comment.diff_hunk_range.start + comment.position - 1 - 1, 0);
+	// 		const range = new vscode.Range(pos, pos);
 
-			const comment = comments[0];
-			const pos = new vscode.Position(comment.diff_hunk_range.start + comment.position - 1 - 1, 0);
-			const range = new vscode.Range(pos, pos);
+	// 		ret.push({
+	// 			range,
+	// 			comments: comments.map(comment => {
+	// 				return {
+	// 					body: new vscode.MarkdownString(comment.body),
+	// 					userName: comment.user.login,
+	// 					gravatar: comment.user.avatar_url
+	// 				};
+	// 			})
+	// 		});
+	// 	}
 
-			ret.push({
-				range,
-				comments: comments.map(comment => {
-					return {
-						body: new vscode.MarkdownString(comment.body),
-						userName: comment.user.login,
-						gravatar: comment.user.avatar_url
-					};
-				})
-			});
-		}
-
-		return ret;
-	}
+	// 	return ret;
+	// }
 }

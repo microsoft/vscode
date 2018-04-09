@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { GitChangeType } from './models/file';
 import { Comment } from './models/comment';
 import { Remote } from './models/remote';
@@ -55,21 +54,21 @@ export class FileChange implements vscode.TreeItem {
 	public comments?: any[];
 
 	constructor(
-		public readonly rItem: any,
+		public readonly prItem: any,
 		public readonly label: string,
 		public readonly status: GitChangeType,
 		public readonly context: vscode.ExtensionContext,
 		public readonly fileName: string,
-		public readonly filePath: string,
-		public readonly parentFilePath: string,
+		public readonly filePath: vscode.Uri,
+		public readonly parentFilePath: vscode.Uri,
 		public readonly workspaceRoot: string
 	) {
 		this.command = {
 			title: 'show diff',
 			command: 'vscode.diff',
 			arguments: [
-				vscode.Uri.file(path.resolve(this.workspaceRoot, this.parentFilePath)),
-				vscode.Uri.file(path.resolve(this.workspaceRoot, this.filePath)),
+				this.parentFilePath,
+				this.filePath,
 				this.fileName
 			]
 		};
