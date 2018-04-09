@@ -133,15 +133,6 @@ export class CodeDriver implements Driver {
 
 	private _activeWindowId: number | undefined = undefined;
 
-	private async getWindowId(): Promise<number> {
-		if (typeof this._activeWindowId !== 'number') {
-			const windows = await this.driver.getWindowIds();
-			this._activeWindowId = windows[0];
-		}
-
-		return this._activeWindowId;
-	}
-
 	async dispatchKeybinding(keybinding: string): Promise<void> {
 		if (this.verbose) {
 			console.log('- dispatchKeybinding:', keybinding);
@@ -215,5 +206,14 @@ export class CodeDriver implements Driver {
 		}
 
 		throw new Error('Method not implemented.');
+	}
+
+	private async getWindowId(): Promise<number> {
+		if (typeof this._activeWindowId !== 'number') {
+			const windows = await this.driver.getWindowIds();
+			this._activeWindowId = windows[0];
+		}
+
+		return this._activeWindowId;
 	}
 }

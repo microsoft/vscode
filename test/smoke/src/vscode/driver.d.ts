@@ -12,8 +12,15 @@ export interface IElement {
 export interface IDriver {
 	_serviceBrand: any;
 	getWindowIds(): Promise<number[]>;
-	getElements(windowId: number, selector: string): Promise<IElement[]>;
 	dispatchKeybinding(windowId: number, keybinding: string): Promise<void>;
+	click(windowId: number, selector: string, xoffset: number | undefined, yoffset: number | undefined): Promise<void>;
+	doubleClick(windowId: number, selector: string): Promise<void>;
+	move(windowId: number, selector: string): Promise<void>;
+	setValue(windowId: number, selector: string, text: string): Promise<void>;
+	getTitle(windowId: number): Promise<void>;
+	isActiveElement(windowId: number, selector: string): Promise<void>;
+	getElements(windowId: number, selector: string): Promise<IElement[]>;
+	selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): Promise<P>;
 }
 
 export interface IDisposable {
