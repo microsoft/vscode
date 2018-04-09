@@ -26,6 +26,19 @@
 	};
 })();
 //#endregion
+//#region Prevent natives from being required as it will crash Electron 2+
+(function () {
+	const Module = require('module');
+	const originalLoad = Module._load;
+
+	Module._load = function (request) {
+		if (request === 'natives') {
+			throw new Error('Cannot require the "natives" node module');
+		}
+		return originalLoad.apply(this, arguments);
+	};
+})();
+//#endregion
 
 // Will be defined if we got forked from another node process
 // In that case we override console.log/warn/error to be able
