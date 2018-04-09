@@ -1,7 +1,7 @@
 [
 	{
 		"c": "#",
-		"t": "text.html.markdown markup.heading.markdown punctuation.definition.heading.markdown",
+		"t": "text.html.markdown markup.heading.markdown heading.1.markdown punctuation.definition.heading.markdown",
 		"r": {
 			"dark_plus": "markup.heading: #569CD6",
 			"light_plus": "markup.heading: #800000",
@@ -12,7 +12,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.heading.markdown",
+		"t": "text.html.markdown markup.heading.markdown heading.1.markdown",
 		"r": {
 			"dark_plus": "markup.heading: #569CD6",
 			"light_plus": "markup.heading: #800000",
@@ -23,7 +23,7 @@
 	},
 	{
 		"c": "h",
-		"t": "text.html.markdown markup.heading.markdown entity.name.section.markdown",
+		"t": "text.html.markdown markup.heading.markdown heading.1.markdown entity.name.section.markdown",
 		"r": {
 			"dark_plus": "markup.heading: #569CD6",
 			"light_plus": "markup.heading: #800000",
@@ -177,7 +177,7 @@
 	},
 	{
 		"c": "#",
-		"t": "text.html.markdown markup.heading.markdown punctuation.definition.heading.markdown",
+		"t": "text.html.markdown markup.heading.markdown heading.1.markdown punctuation.definition.heading.markdown",
 		"r": {
 			"dark_plus": "markup.heading: #569CD6",
 			"light_plus": "markup.heading: #800000",
@@ -188,7 +188,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.heading.markdown",
+		"t": "text.html.markdown markup.heading.markdown heading.1.markdown",
 		"r": {
 			"dark_plus": "markup.heading: #569CD6",
 			"light_plus": "markup.heading: #800000",
@@ -199,7 +199,7 @@
 	},
 	{
 		"c": "h",
-		"t": "text.html.markdown markup.heading.markdown entity.name.section.markdown",
+		"t": "text.html.markdown markup.heading.markdown heading.1.markdown entity.name.section.markdown",
 		"r": {
 			"dark_plus": "markup.heading: #569CD6",
 			"light_plus": "markup.heading: #800000",
@@ -298,7 +298,7 @@
 	},
 	{
 		"c": "#",
-		"t": "text.html.markdown markup.heading.markdown punctuation.definition.heading.markdown",
+		"t": "text.html.markdown markup.heading.markdown heading.1.markdown punctuation.definition.heading.markdown",
 		"r": {
 			"dark_plus": "markup.heading: #569CD6",
 			"light_plus": "markup.heading: #800000",
@@ -309,7 +309,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.heading.markdown",
+		"t": "text.html.markdown markup.heading.markdown heading.1.markdown",
 		"r": {
 			"dark_plus": "markup.heading: #569CD6",
 			"light_plus": "markup.heading: #800000",
@@ -320,7 +320,7 @@
 	},
 	{
 		"c": "h",
-		"t": "text.html.markdown markup.heading.markdown entity.name.section.markdown",
+		"t": "text.html.markdown markup.heading.markdown heading.1.markdown entity.name.section.markdown",
 		"r": {
 			"dark_plus": "markup.heading: #569CD6",
 			"light_plus": "markup.heading: #800000",
