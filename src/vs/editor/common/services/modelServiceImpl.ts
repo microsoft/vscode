@@ -197,8 +197,8 @@ interface IRawConfig {
 		insertSpaces?: any;
 		detectIndentation?: any;
 		trimAutoWhitespace?: any;
-		hugeFileSize?: any;
-		hugeFileNumLines?: any;
+		largeFileSize?: any;
+		largeFileLineCount?: any;
 	};
 }
 
@@ -277,19 +277,19 @@ export class ModelServiceImpl implements IModelService {
 			detectIndentation = (config.editor.detectIndentation === 'false' ? false : Boolean(config.editor.detectIndentation));
 		}
 
-		let hugeFileSize = EDITOR_MODEL_DEFAULTS.hugeFileSize;
-		if (config.editor && typeof config.editor.hugeFileSize !== 'undefined') {
-			let parsedHugeFileSize = parseInt(config.editor.hugeFileSize, 10);
-			if (!isNaN(parsedHugeFileSize)) {
-				hugeFileSize = parsedHugeFileSize;
+		let largeFileSize = EDITOR_MODEL_DEFAULTS.largeFileSize;
+		if (config.editor && typeof config.editor.largeFileSize !== 'undefined') {
+			let parsedlargeFileSize = parseInt(config.editor.largeFileSize, 10);
+			if (!isNaN(parsedlargeFileSize)) {
+				largeFileSize = parsedlargeFileSize;
 			}
 		}
 
-		let hugeFileNumLines = EDITOR_MODEL_DEFAULTS.hugeFileNumLines;
-		if (config.editor && typeof config.editor.hugeFileNumLines !== 'undefined') {
-			let parsedHugeFileNumLines = parseInt(config.editor.hugeFileNumLines, 10);
-			if (!isNaN(parsedHugeFileNumLines)) {
-				hugeFileNumLines = parsedHugeFileNumLines;
+		let largeFileLineCount = EDITOR_MODEL_DEFAULTS.largeFileLineCount;
+		if (config.editor && typeof config.editor.largeFileLineCount !== 'undefined') {
+			let parsedlargeFileLineCount = parseInt(config.editor.largeFileLineCount, 10);
+			if (!isNaN(parsedlargeFileLineCount)) {
+				largeFileLineCount = parsedlargeFileLineCount;
 			}
 		}
 
@@ -300,8 +300,8 @@ export class ModelServiceImpl implements IModelService {
 			detectIndentation: detectIndentation,
 			defaultEOL: newDefaultEOL,
 			trimAutoWhitespace: trimAutoWhitespace,
-			hugeFileSize: hugeFileSize,
-			hugeFileNumLines: hugeFileNumLines
+			largeFileSize: largeFileSize,
+			largeFileLineCount: largeFileLineCount
 		};
 	}
 

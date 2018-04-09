@@ -2205,8 +2205,8 @@ export const EDITOR_MODEL_DEFAULTS = {
 	insertSpaces: true,
 	detectIndentation: true,
 	trimAutoWhitespace: true,
-	hugeFileSize: 20 * 1024 * 1024, // 20 MB
-	hugeFileNumLines: 300 * 1000 // 300K lines
+	largeFileSize: 20 * 1024 * 1024, // 20 MB
+	largeFileLineCount: 300 * 1000 // 300K lines
 };
 
 /**
