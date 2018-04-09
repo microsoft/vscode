@@ -285,7 +285,7 @@ export class ExtHostApiCommands {
 	// --- command impl
 
 	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
-		let disposable = this._commands.registerCommand(false, id, handler, this, description);
+		let disposable = this._commands.registerCommand(true, id, handler, this, description);
 		this._disposables.push(disposable);
 	}
 
