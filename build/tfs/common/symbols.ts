@@ -193,7 +193,7 @@ if (process.platform === 'darwin') {
 ensureVersionAndSymbols({
 	platform,
 	versions: {
-		code: '1.10.0-insiders', // TODO@Ben use codeVersion
+		code: codeVersion,
 		insiders,
 		electron: electronVersion
 	},
