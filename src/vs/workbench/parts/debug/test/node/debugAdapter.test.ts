@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import * as paths from 'vs/base/common/paths';
+import * as platform from 'vs/base/common/platform';
 import { IAdapterExecutable, IConfigurationManager } from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -61,55 +62,55 @@ suite('Debug - Debugger', () => {
 		}
 	};
 
-	// const extensionDescriptor1 = {
-	// 	id: 'extension1',
-	// 	name: 'extension1',
-	// 	version: '1.0.0',
-	// 	publisher: 'vscode',
-	// 	extensionFolderPath: '/e1/b/c/',
-	// 	isBuiltin: false,
-	// 	engines: null,
-	// 	contributes: {
-	// 		'debuggers': [
-	// 			{
-	// 				type: 'mock',
-	// 				runtime: 'runtime',
-	// 				runtimeArgs: ['rarg'],
-	// 				program: 'mockprogram',
-	// 				args: ['parg']
-	// 			}
-	// 		]
-	// 	}
-	// };
+	const extensionDescriptor1 = {
+		id: 'extension1',
+		name: 'extension1',
+		version: '1.0.0',
+		publisher: 'vscode',
+		extensionFolderPath: '/e1/b/c/',
+		isBuiltin: false,
+		engines: null,
+		contributes: {
+			'debuggers': [
+				{
+					type: 'mock',
+					runtime: 'runtime',
+					runtimeArgs: ['rarg'],
+					program: 'mockprogram',
+					args: ['parg']
+				}
+			]
+		}
+	};
 
-	// const extensionDescriptor2 = {
-	// 	id: 'extension2',
-	// 	name: 'extension2',
-	// 	version: '1.0.0',
-	// 	publisher: 'vscode',
-	// 	extensionFolderPath: '/e2/b/c/',
-	// 	isBuiltin: false,
-	// 	engines: null,
-	// 	contributes: {
-	// 		'debuggers': [
-	// 			{
-	// 				type: 'mock',
-	// 				win: {
-	// 					runtime: 'winRuntime',
-	// 					program: 'winProgram'
-	// 				},
-	// 				linux: {
-	// 					runtime: 'linuxRuntime',
-	// 					program: 'linuxProgram'
-	// 				},
-	// 				osx: {
-	// 					runtime: 'osxRuntime',
-	// 					program: 'osxProgram'
-	// 				}
-	// 			}
-	// 		]
-	// 	}
-	// };
+	const extensionDescriptor2 = {
+		id: 'extension2',
+		name: 'extension2',
+		version: '1.0.0',
+		publisher: 'vscode',
+		extensionFolderPath: '/e2/b/c/',
+		isBuiltin: false,
+		engines: null,
+		contributes: {
+			'debuggers': [
+				{
+					type: 'mock',
+					win: {
+						runtime: 'winRuntime',
+						program: 'winProgram'
+					},
+					linux: {
+						runtime: 'linuxRuntime',
+						program: 'linuxProgram'
+					},
+					osx: {
+						runtime: 'osxRuntime',
+						program: 'osxProgram'
+					}
+				}
+			]
+		}
+	};
 
 
 	const configurationManager = {
@@ -150,14 +151,14 @@ suite('Debug - Debugger', () => {
 		assert.equal(!!schemaAttribute['properties']['preLaunchTask'], true);
 	});
 
-	// test('merge platform specific attributes', () => {
+	test('merge platform specific attributes', () => {
 
 
-	// 	const ae2 = DebugAdapter.platformAdapterExecutable([extensionDescriptor1, extensionDescriptor2], 'mock');
-	// 	assert.equal(ae2.command, platform.isLinux ? 'linuxRuntime' : (platform.isMacintosh ? 'osxRuntime' : 'winRuntime'));
-	// 	const xprogram = platform.isLinux ? 'linuxProgram' : (platform.isMacintosh ? 'osxProgram' : 'winProgram');
-	// 	assert.deepEqual(ae2.args, ['rarg', '/e2/b/c/' + xprogram, 'parg']);
-	// });
+		const ae2 = DebugAdapter.platformAdapterExecutable([extensionDescriptor1, extensionDescriptor2], 'mock');
+		assert.equal(ae2.command, platform.isLinux ? 'linuxRuntime' : (platform.isMacintosh ? 'osxRuntime' : 'winRuntime'));
+		const xprogram = platform.isLinux ? 'linuxProgram' : (platform.isMacintosh ? 'osxProgram' : 'winProgram');
+		assert.deepEqual(ae2.args, ['rarg', '/e2/b/c/' + xprogram, 'parg']);
+	});
 
 	test('initial config file content', () => {
 
