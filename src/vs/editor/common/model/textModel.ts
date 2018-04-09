@@ -772,6 +772,15 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._buffer.getLineContent(lineNumber);
 	}
 
+	public getLineLength(lineNumber: number): number {
+		this._assertNotDisposed();
+		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
+			throw new Error('Illegal value for lineNumber');
+		}
+
+		return this._buffer.getLineLength(lineNumber);
+	}
+
 	public getLinesContent(): string[] {
 		this._assertNotDisposed();
 		return this._buffer.getLinesContent();
