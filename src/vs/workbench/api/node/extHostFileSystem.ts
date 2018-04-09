@@ -66,9 +66,6 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 		this.onDidChange = this._delegate.onDidChange;
 	}
 
-	utimes(resource: vscode.Uri, mtime: number, atime: number): Thenable<vscode.FileStat> {
-		return this._delegate.utimes(resource, mtime, atime);
-	}
 	stat(resource: vscode.Uri): Thenable<vscode.FileStat> {
 		return this._delegate.stat(resource);
 	}
@@ -170,9 +167,6 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		};
 	}
 
-	$utimes(handle: number, resource: UriComponents, mtime: number, atime: number): TPromise<IStat, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).utimes(URI.revive(resource), mtime, atime));
-	}
 	$stat(handle: number, resource: UriComponents): TPromise<IStat, any> {
 		return asWinJsPromise(token => this._fsProvider.get(handle).stat(URI.revive(resource)));
 	}

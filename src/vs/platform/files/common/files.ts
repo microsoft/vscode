@@ -175,7 +175,6 @@ export interface IFileSystemProvider {
 
 	// more...
 	//
-	utimes(resource: URI, mtime: number, atime: number): TPromise<IStat>;
 	stat(resource: URI): TPromise<IStat>;
 	readFile(resource: URI): TPromise<Uint8Array>;
 	writeFile(resource: URI, content: Uint8Array): TPromise<void>;

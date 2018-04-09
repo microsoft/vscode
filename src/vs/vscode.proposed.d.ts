@@ -185,7 +185,7 @@ declare module 'vscode' {
 		readonly onDidChange?: Event<FileChange[]>;
 
 		// more...
-		//
+		// @deprecated - will go away
 		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
 
 		stat(resource: Uri): Thenable<FileStat>;
@@ -231,10 +231,6 @@ declare module 'vscode' {
 		_version: 2;
 
 		readonly onDidChange?: Event<FileChange[]>;
-
-		// more...
-		//
-		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
 
 		stat(resource: Uri): Thenable<FileStat>;
 
