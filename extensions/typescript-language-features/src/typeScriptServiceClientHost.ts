@@ -255,7 +255,10 @@ export default class TypeScriptServiceClientHost {
 	}
 
 	private getDiagnosticSeverity(diagnostic: Proto.Diagnostic): DiagnosticSeverity {
-		if (this.reportStyleCheckAsWarnings && this.isStyleCheckDiagnostic(diagnostic.code)) {
+		if (this.reportStyleCheckAsWarnings
+			&& this.isStyleCheckDiagnostic(diagnostic.code)
+			&& diagnostic.category === PConst.DiagnosticCategory.error
+		) {
 			return DiagnosticSeverity.Warning;
 		}
 
