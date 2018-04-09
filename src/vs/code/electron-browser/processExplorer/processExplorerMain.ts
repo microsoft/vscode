@@ -14,8 +14,8 @@ import product from 'vs/platform/node/product';
 import { localize } from 'vs/nls';
 import { ProcessExplorerData, ProcessExplorerStyles } from '../../../platform/issue/common/issue';
 import * as browser from 'vs/base/browser/browser';
+import * as platform from 'vs/base/common/platform';
 
-let selectedProcess: number;
 let processList: any[];
 
 function getProcessList(rootProcess: ProcessItem) {
@@ -72,19 +72,18 @@ function updateProcessInfo(processList): void {
 
 	let tableHtml = `
 		<tr>
-			<th>${localize('cpu', "CPU %")}</th>
-			<th>${localize('memory', "Memory (MB)")}</th>
-			<th>${localize('pid', "pid")}</th>
+			<th class="cpu">${localize('cpu', "CPU %")}</th>
+			<th class="memory">${localize('memory', "Memory (MB)")}</th>
+			<th class="pid">${localize('pid', "pid")}</th>
 			<th>${localize('name', "Name")}</th>
 		</tr>`;
 
 	processList.forEach(p => {
-		const classList = selectedProcess === p.pid ? 'selected' : '';
 		const cpuClass = p.pid === highestCPUProcess ? 'highest' : '';
 		const memoryClass = p.pid === highestMemoryProcess ? 'highest' : '';
 
 		tableHtml += `
-			<tr class="${classList}">
+			<tr id=${p.pid}>
 				<td class="centered ${cpuClass}">${p.cpu}</td>
 				<td class="centered ${memoryClass}">${p.memory}</td>
 				<td class="centered">${p.pid}</td>
@@ -100,19 +99,11 @@ function applyStyles(styles: ProcessExplorerStyles): void {
 	const content: string[] = [];
 
 	if (styles.hoverBackground) {
-		content.push(`tr:hover  { background-color: ${styles.hoverBackground}; }`);
+		content.push(`tbody > tr:hover  { background-color: ${styles.hoverBackground}; }`);
 	}
 
 	if (styles.hoverForeground) {
-		content.push(`tr:hover{ color: ${styles.hoverForeground}; }`);
-	}
-
-	if (styles.selectionBackground) {
-		content.push(`tr.selected { background.color: ${styles.selectionBackground}; }`);
-	}
-
-	if (styles.selectionForeground) {
-		content.push(`tr.selected { color: ${styles.selectionForeground}; }`);
+		content.push(`tbody > tr:hover{ color: ${styles.hoverForeground}; }`);
 	}
 
 	if (styles.highlightForeground) {
@@ -133,6 +124,32 @@ function applyZoom(zoomLevel: number): void {
 	browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
 }
 
+function showContextMenu(e) {
+	e.preventDefault();
+
+	const pid = parseInt(e.currentTarget.id);
+	if (pid && typeof pid === 'number') {
+		const menu = new remote.Menu();
+		menu.append(new remote.MenuItem({
+			label: localize('killProcess', "Kill Process"),
+			click() {
+				process.kill(pid, 'SIGTERM');
+			}
+		})
+		);
+
+		menu.append(new remote.MenuItem({
+			label: localize('forceKillProcess', "Force Kill Process"),
+			click() {
+				process.kill(pid, 'SIGKILL');
+			}
+		})
+		);
+
+		menu.popup(remote.getCurrentWindow());
+	}
+}
+
 export function startup(data: ProcessExplorerData): void {
 	applyStyles(data.styles);
 	applyZoom(data.zoomLevel);
@@ -144,16 +161,24 @@ export function startup(data: ProcessExplorerData): void {
 		const tableRows = document.getElementsByTagName('tr');
 		for (let i = 0; i < tableRows.length; i++) {
 			const tableRow = tableRows[i];
-			tableRow.addEventListener('click', () => {
-				const selected = document.getElementsByClassName('selected');
-				if (selected.length) {
-					selected[0].classList.remove('selected');
-				}
-
-				const pid = parseInt(tableRow.children[2].textContent);
-				selectedProcess = pid;
-				tableRow.classList.add('selected');
+			tableRow.addEventListener('click', (e) => {
+				showContextMenu(e);
 			});
 		}
 	}), 1200);
+
+
+	document.onkeydown = (e: KeyboardEvent) => {
+		const cmdOrCtrlKey = platform.isMacintosh ? e.metaKey : e.ctrlKey;
+
+		// Cmd/Ctrl + zooms in
+		if (cmdOrCtrlKey && e.keyCode === 187) {
+			applyZoom(webFrame.getZoomLevel() + 1);
+		}
+
+		// Cmd/Ctrl - zooms out
+		if (cmdOrCtrlKey && e.keyCode === 189) {
+			applyZoom(webFrame.getZoomLevel() - 1);
+		}
+	};
 }

@@ -9,7 +9,6 @@ body {
 	padding: 0;
 	height: 100%;
 	width: 100%;
-	overflow: hidden;
 	-webkit-touch-callout: none;
 	-webkit-user-select: none;
 	user-select: none;
@@ -18,12 +17,26 @@ body {
 	color: #cccccc;
 }
 
+.cpu {
+	width: 45px;
+}
+
+.pid {
+	width: 50px
+}
+
+.memory {
+	width: 85px;
+}
+
 .process-item {
 	line-height: 22px;
 }
 
 table {
 	border-collapse: collapse;
+	width: 100%;
+	table-layout: fixed;
 }
 th {
 	vertical-align: bottom;
@@ -45,15 +58,6 @@ td {
 	white-space: pre;
 }
 
-.highest {
-	color: yellow;
-}
-
-tr:hover {
+tbody > tr:hover {
 	background-color: #2A2D2E;
-	cursor: pointer;
-}
-
-tr.selected {
-	background-color: #094771;
 }

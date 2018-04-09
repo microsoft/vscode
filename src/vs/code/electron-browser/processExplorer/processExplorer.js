@@ -8,6 +8,11 @@
 const path = require('path');
 const remote = require('electron').remote;
 
+function assign(destination, source) {
+	return Object.keys(source)
+		.reduce(function (r, key) { r[key] = source[key]; return r; }, destination);
+}
+
 function parseURLQueryArgs() {
 	const search = window.location.search || '';
 
@@ -39,6 +44,8 @@ function uriFromPath(_path) {
 function main() {
 	const args = parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
+
+	assign(process.env, configuration.userEnv);
 
 	// Get the nls configuration into the process.env as early as possible.
 	var nlsConfig = { availableLanguages: {} };

@@ -77,13 +77,14 @@ export class IssueService implements IIssueService {
 	openProcessExplorer(data: ProcessExplorerData): TPromise<void> {
 		// Create as singleton
 		if (!this._processExplorerWindow) {
-			const position = this.getWindowPosition(BrowserWindow.getFocusedWindow(), 800, 400);
+			const position = this.getWindowPosition(BrowserWindow.getFocusedWindow(), 800, 350);
 			this._processExplorerWindow = new BrowserWindow({
-				alwaysOnTop: true,
 				skipTaskbar: true,
 				resizable: true,
 				width: position.width,
 				height: position.height,
+				minWidth: 300,
+				minHeight: 200,
 				x: position.x,
 				y: position.y,
 				backgroundColor: data.styles.backgroundColor,
@@ -96,6 +97,7 @@ export class IssueService implements IIssueService {
 				appRoot: this.environmentService.appRoot,
 				nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
 				windowId: this._processExplorerWindow.id,
+				userEnv: this.userEnv,
 				machineId: this.machineId,
 				data
 			};
