@@ -27,7 +27,7 @@ import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/p
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugConfigurationProvider, IRawAdapter, ICompound, IDebugConfiguration, IConfig, IEnvConfig, IGlobalConfig, IConfigurationManager, ILaunch, IAdapterExecutable, IDebugAdapterProvider, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
-import { Debugger } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';

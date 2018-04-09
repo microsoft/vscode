@@ -14,7 +14,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITerminalService as IExternalTerminalService } from 'vs/workbench/parts/execution/common/execution';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
-import { Debugger } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TerminalSupport } from 'vs/workbench/parts/debug/electron-browser/terminalSupport';
