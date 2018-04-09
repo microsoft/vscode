@@ -842,8 +842,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Subsequent resolve - make sure that we only assign it if the mtime is equal or has advanced.
-		// This is essential a If-Modified-Since check on the client ot prevent race conditions from loading
-		// and saving. If a save comes in late after a revert was called, the mtime could be out of sync.
+		// This prevents race conditions from loading and saving. If a save comes in late after a revert
+		// was called, the mtime could be out of sync.
 		else if (this.lastResolvedDiskStat.mtime <= newVersionOnDiskStat.mtime) {
 			this.lastResolvedDiskStat = newVersionOnDiskStat;
 		}

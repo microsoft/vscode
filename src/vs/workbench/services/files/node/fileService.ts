@@ -536,8 +536,8 @@ export class FileService implements IFileService {
 	private doUpdateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
 		const absolutePath = this.toAbsolutePath(resource);
 
-		// 1.) check file
-		return this.checkFile(absolutePath, options).then(exists => {
+		// 1.) check file for writing
+		return this.checkFileBeforeWriting(absolutePath, options).then(exists => {
 			let createParentsPromise: TPromise<boolean>;
 			if (exists) {
 				createParentsPromise = TPromise.as(null);
@@ -653,8 +653,8 @@ export class FileService implements IFileService {
 	private doUpdateContentElevated(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
 		const absolutePath = this.toAbsolutePath(resource);
 
-		// 1.) check file
-		return this.checkFile(absolutePath, options, options.overwriteReadonly /* ignore readonly if we overwrite readonly, this is handled via sudo later */).then(exists => {
+		// 1.) check file for writing
+		return this.checkFileBeforeWriting(absolutePath, options, options.overwriteReadonly /* ignore readonly if we overwrite readonly, this is handled via sudo later */).then(exists => {
 			const writeOptions: IUpdateContentOptions = objects.assign(Object.create(null), options);
 			writeOptions.writeElevated = false;
 			writeOptions.encoding = this.getEncoding(resource, options.encoding);
@@ -760,8 +760,8 @@ export class FileService implements IFileService {
 	public touchFile(resource: uri): TPromise<IFileStat> {
 		const absolutePath = this.toAbsolutePath(resource);
 
-		// 1.) check file
-		return this.checkFile(absolutePath).then(exists => {
+		// 1.) check file for writing
+		return this.checkFileBeforeWriting(absolutePath).then(exists => {
 			let createPromise: TPromise<IFileStat>;
 			if (exists) {
 				createPromise = TPromise.as(null);
@@ -780,6 +780,68 @@ export class FileService implements IFileService {
 				});
 			});
 		});
+	}
+
+	private checkFileBeforeWriting(absolutePath: string, options: IUpdateContentOptions = Object.create(null), ignoreReadonly?: boolean): TPromise<boolean /* exists */> {
+		return pfs.exists(absolutePath).then(exists => {
+			if (exists) {
+				return pfs.stat(absolutePath).then(stat => {
+					if (stat.isDirectory()) {
+						return TPromise.wrapError<boolean>(new Error('Expected file is actually a directory'));
+					}
+
+					// Dirty write prevention: if the file on disk has been changed and does not match our expected
+					// mtime and etag, we bail out to prevent dirty writing.
+					//
+					// First, we check for a mtime that is in the future before we do more checks. The assumption is
+					// that only the mtime is an indicator for a file that has changd on disk.
+					//
+					// Second, if the mtime has advanced, we compare the size of the file on disk with our previous
+					// one using the etag() function. Relying only on the mtime check has prooven to produce false
+					// positives due to file system weirdness (especially around remote file systems). As such, the
+					// check for size is a weaker check because it can return a false negative if the file has changed
+					// but to the same length. This is a compromise we take to avoid having to produce checksums of
+					// the file content for comparison which would be much slower to compute.
+					if (typeof options.mtime === 'number' && typeof options.etag === 'string' && options.mtime < stat.mtime.getTime() && options.etag !== etag(stat.size, options.mtime)) {
+						return TPromise.wrapError<boolean>(new FileOperationError(nls.localize('fileModifiedError', "File Modified Since"), FileOperationResult.FILE_MODIFIED_SINCE, options));
+					}
+
+					// Throw if file is readonly and we are not instructed to overwrite
+					if (!ignoreReadonly && !(stat.mode & 128) /* readonly */) {
+						if (!options.overwriteReadonly) {
+							return this.readOnlyError<boolean>(options);
+						}
+
+						// Try to change mode to writeable
+						let mode = stat.mode;
+						mode = mode | 128;
+						return pfs.chmod(absolutePath, mode).then(() => {
+
+							// Make sure to check the mode again, it could have failed
+							return pfs.stat(absolutePath).then(stat => {
+								if (!(stat.mode & 128) /* readonly */) {
+									return this.readOnlyError<boolean>(options);
+								}
+
+								return exists;
+							});
+						});
+					}
+
+					return TPromise.as<boolean>(exists);
+				});
+			}
+
+			return TPromise.as<boolean>(exists);
+		});
+	}
+
+	private readOnlyError<T>(options: IUpdateContentOptions): TPromise<T> {
+		return TPromise.wrapError<T>(new FileOperationError(
+			nls.localize('fileReadOnlyError', "File is Read Only"),
+			FileOperationResult.FILE_READ_ONLY,
+			options
+		));
 	}
 
 	public rename(resource: uri, newName: string): TPromise<IFileStat> {
@@ -988,61 +1050,6 @@ export class FileService implements IFileService {
 		}
 
 		return null;
-	}
-
-	private checkFile(absolutePath: string, options: IUpdateContentOptions = Object.create(null), ignoreReadonly?: boolean): TPromise<boolean /* exists */> {
-		return pfs.exists(absolutePath).then(exists => {
-			if (exists) {
-				return pfs.stat(absolutePath).then(stat => {
-					if (stat.isDirectory()) {
-						return TPromise.wrapError<boolean>(new Error('Expected file is actually a directory'));
-					}
-
-					// Dirty write prevention
-					if (typeof options.mtime === 'number' && typeof options.etag === 'string' && options.mtime < stat.mtime.getTime()) {
-
-						// Find out if content length has changed
-						if (options.etag !== etag(stat.size, options.mtime)) {
-							return TPromise.wrapError<boolean>(new FileOperationError(nls.localize('fileModifiedError', "File Modified Since"), FileOperationResult.FILE_MODIFIED_SINCE, options));
-						}
-					}
-
-					// Throw if file is readonly and we are not instructed to overwrite
-					if (!ignoreReadonly && !(stat.mode & 128) /* readonly */) {
-						if (!options.overwriteReadonly) {
-							return this.readOnlyError<boolean>(options);
-						}
-
-						// Try to change mode to writeable
-						let mode = stat.mode;
-						mode = mode | 128;
-						return pfs.chmod(absolutePath, mode).then(() => {
-
-							// Make sure to check the mode again, it could have failed
-							return pfs.stat(absolutePath).then(stat => {
-								if (!(stat.mode & 128) /* readonly */) {
-									return this.readOnlyError<boolean>(options);
-								}
-
-								return exists;
-							});
-						});
-					}
-
-					return TPromise.as<boolean>(exists);
-				});
-			}
-
-			return TPromise.as<boolean>(exists);
-		});
-	}
-
-	private readOnlyError<T>(options: IUpdateContentOptions): TPromise<T> {
-		return TPromise.wrapError<T>(new FileOperationError(
-			nls.localize('fileReadOnlyError', "File is Read Only"),
-			FileOperationResult.FILE_READ_ONLY,
-			options
-		));
 	}
 
 	public watchFileChanges(resource: uri): void {
