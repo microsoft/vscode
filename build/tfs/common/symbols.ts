@@ -171,23 +171,22 @@ async function ensureVersionAndSymbols(options: IOptions) {
 
 // Environment
 const pakage = require('../../../package.json');
+const product = require('../../../product.json');
 const codeVersion = pakage.version;
-const insiders = process.env['VSCODE_QUALITY'] !== 'stable';
-const githubToken = process.env['VSCODE_MIXIN_PASSWORD']; // TODO@Joao we should rename this to GITHUB_TOKEN
-const hockeyAppToken = process.env['VSCODE_HOCKEYAPP_TOKEN'];
+const electronVersion = require('../../lib/electron').getElectronVersion();
+const insiders = product.quality !== 'stable';
+const githubToken = process.argv[2];
+const hockeyAppToken = process.argv[3];
+const is64 = process.argv[4] === 'x64';
+const hockeyAppId = process.argv[5];
 
-let hockeyAppId: string;
 let platform: Platform;
-const is64 = process.env['VSCODE_ARCH'] === 'x64';
 if (process.platform === 'darwin') {
 	platform = Platform.MAC_OS;
-	hockeyAppId = process.env['VSCODE_HOCKEYAPP_ID_MACOS'];
 } else if (process.platform === 'win32') {
 	platform = is64 ? Platform.WIN_64 : Platform.WIN_32;
-	hockeyAppId = is64 ? process.env['VSCODE_HOCKEYAPP_ID_WIN64'] : process.env['VSCODE_HOCKEYAPP_ID_WIN32'];
 } else {
 	platform = is64 ? Platform.LINUX_64 : Platform.LINUX_32;
-	hockeyAppId = is64 ? process.env['VSCODE_HOCKEYAPP_ID_LINUX64'] : process.env['VSCODE_HOCKEYAPP_ID_LINUX32'];
 }
 
 // Create version and upload symbols in HockeyApp
@@ -196,7 +195,7 @@ ensureVersionAndSymbols({
 	versions: {
 		code: '1.10.0-insiders', // TODO@Ben use codeVersion
 		insiders,
-		electron: '1.7.12' // TODO@Ben get from environment (.yarnrc?)
+		electron: electronVersion
 	},
 	access: {
 		githubToken,

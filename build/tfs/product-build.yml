@@ -223,7 +223,8 @@ phases:
       node build/tfs/common/publish.js $Quality "$global:assetPlatform" setup "VSCodeSetup-$(VSCODE_ARCH)-$Version.exe" $Version true $Exe
 
       # publish hockeyapp symbols
-      node build/tfs/common/symbols.js
+      $hockeyAppId = if ("$(VSCODE_ARCH)" -eq "ia32") { "$(VSCODE_HOCKEYAPP_ID_WIN32)" } else { "$(VSCODE_HOCKEYAPP_ID_WIN64)" }
+      node build/tfs/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(hockeyAppId)"
 
 - phase: Linux
   condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
@@ -273,7 +274,7 @@ phases:
       ./build/tfs/linux/release2.sh "$(VSCODE_ARCH)" "$(LINUX_REPO_PASSWORD)"
 
       # publish hockeyapp symbols
-      node build/tfs/common/symbols.js
+      node build/tfs/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_LINUX64)"
 
 - phase: Linux32
   condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
@@ -323,7 +324,7 @@ phases:
       ./build/tfs/linux/release2.sh "$(VSCODE_ARCH)" "$(LINUX_REPO_PASSWORD)"
 
       # publish hockeyapp symbols
-      node build/tfs/common/symbols.js
+      node build/tfs/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_LINUX32)"
 
 - phase: macOS
   condition: eq(variables['VSCODE_BUILD_MACOS'], 'true')
@@ -375,7 +376,7 @@ phases:
         ../VSCode-darwin-unsigned.zip
 
       # publish hockeyapp symbols
-      node build/tfs/common/symbols.js
+      node build/tfs/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_MACOS)"
 
       # enqueue the unsigned build
       AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
