@@ -132,7 +132,7 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 	write(resource: URI, content: Uint8Array): TPromise<void, any> {
 		let encoded = Buffer.isBuffer(content)
 			? content.toString('base64')
-			: Buffer.from(content.buffer).toString('base64');
+			: Buffer.from(content.buffer, content.byteOffset, content.byteLength).toString('base64');
 		return this._proxy.$write(this._handle, resource, encoded);
 	}
 	unlink(resource: URI): TPromise<void, any> {

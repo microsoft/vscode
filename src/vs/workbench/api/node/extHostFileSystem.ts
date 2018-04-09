@@ -114,7 +114,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 			report: chunk => {
 				let base64Chunk = Buffer.isBuffer(chunk)
 					? chunk.toString('base64')
-					: Buffer.from(chunk.buffer).toString('base64');
+					: Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength).toString('base64');
 
 				this._proxy.$reportFileChunk(handle, session, base64Chunk);
 			}
