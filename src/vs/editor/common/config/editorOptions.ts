@@ -382,6 +382,11 @@ export interface IEditorOptions {
 	 */
 	multiCursorModifier?: 'ctrlCmd' | 'alt';
 	/**
+	 * Merge overlapping selections.
+	 * Defaults to true
+	 */
+	multiCursorMergeOverlapping?: boolean;
+	/**
 	 * Configure the editor's accessibility support.
 	 * Defaults to 'auto'. It is best to leave this to 'auto'.
 	 */
@@ -878,6 +883,7 @@ export interface IValidatedEditorOptions {
 	readonly emptySelectionClipboard: boolean;
 	readonly useTabStops: boolean;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+	readonly multiCursorMergeOverlapping: boolean;
 	readonly accessibilitySupport: 'auto' | 'off' | 'on';
 
 	readonly viewInfo: InternalEditorViewOptions;
@@ -900,6 +906,7 @@ export class InternalEditorOptions {
 	 */
 	readonly accessibilitySupport: platform.AccessibilitySupport;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+	readonly multiCursorMergeOverlapping: boolean;
 
 	// ---- cursor options
 	readonly wordSeparators: string;
@@ -928,6 +935,7 @@ export class InternalEditorOptions {
 		readOnly: boolean;
 		accessibilitySupport: platform.AccessibilitySupport;
 		multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+		multiCursorMergeOverlapping: boolean;
 		wordSeparators: string;
 		autoClosingBrackets: boolean;
 		autoIndent: boolean;
@@ -948,6 +956,7 @@ export class InternalEditorOptions {
 		this.readOnly = source.readOnly;
 		this.accessibilitySupport = source.accessibilitySupport;
 		this.multiCursorModifier = source.multiCursorModifier;
+		this.multiCursorMergeOverlapping = source.multiCursorMergeOverlapping;
 		this.wordSeparators = source.wordSeparators;
 		this.autoClosingBrackets = source.autoClosingBrackets;
 		this.autoIndent = source.autoIndent;
@@ -974,6 +983,7 @@ export class InternalEditorOptions {
 			&& this.readOnly === other.readOnly
 			&& this.accessibilitySupport === other.accessibilitySupport
 			&& this.multiCursorModifier === other.multiCursorModifier
+			&& this.multiCursorMergeOverlapping === other.multiCursorMergeOverlapping
 			&& this.wordSeparators === other.wordSeparators
 			&& this.autoClosingBrackets === other.autoClosingBrackets
 			&& this.autoIndent === other.autoIndent
@@ -1001,6 +1011,7 @@ export class InternalEditorOptions {
 			readOnly: (this.readOnly !== newOpts.readOnly),
 			accessibilitySupport: (this.accessibilitySupport !== newOpts.accessibilitySupport),
 			multiCursorModifier: (this.multiCursorModifier !== newOpts.multiCursorModifier),
+			multiCursorMergeOverlapping: (this.multiCursorMergeOverlapping !== newOpts.multiCursorMergeOverlapping),
 			wordSeparators: (this.wordSeparators !== newOpts.wordSeparators),
 			autoClosingBrackets: (this.autoClosingBrackets !== newOpts.autoClosingBrackets),
 			autoIndent: (this.autoIndent !== newOpts.autoIndent),
@@ -1354,6 +1365,7 @@ export interface IConfigurationChangedEvent {
 	readonly readOnly: boolean;
 	readonly accessibilitySupport: boolean;
 	readonly multiCursorModifier: boolean;
+	readonly multiCursorMergeOverlapping: boolean;
 	readonly wordSeparators: boolean;
 	readonly autoClosingBrackets: boolean;
 	readonly autoIndent: boolean;
@@ -1539,6 +1551,7 @@ export class EditorOptionsValidator {
 			emptySelectionClipboard: _boolean(opts.emptySelectionClipboard, defaults.emptySelectionClipboard),
 			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
 			multiCursorModifier: multiCursorModifier,
+			multiCursorMergeOverlapping: _boolean(opts.multiCursorMergeOverlapping, defaults.multiCursorMergeOverlapping),
 			accessibilitySupport: _stringSet<'auto' | 'on' | 'off'>(opts.accessibilitySupport, defaults.accessibilitySupport, ['auto', 'on', 'off']),
 			viewInfo: viewInfo,
 			contribInfo: contribInfo,
@@ -1774,6 +1787,7 @@ export class InternalEditorOptionsFactory {
 			emptySelectionClipboard: opts.emptySelectionClipboard,
 			useTabStops: opts.useTabStops,
 			multiCursorModifier: opts.multiCursorModifier,
+			multiCursorMergeOverlapping: opts.multiCursorMergeOverlapping,
 			accessibilitySupport: opts.accessibilitySupport,
 
 			viewInfo: {
@@ -1981,6 +1995,7 @@ export class InternalEditorOptionsFactory {
 			readOnly: opts.readOnly,
 			accessibilitySupport: accessibilitySupport,
 			multiCursorModifier: opts.multiCursorModifier,
+			multiCursorMergeOverlapping: opts.multiCursorMergeOverlapping,
 			wordSeparators: opts.wordSeparators,
 			autoClosingBrackets: opts.autoClosingBrackets,
 			autoIndent: opts.autoIndent,
@@ -2189,7 +2204,9 @@ export const EDITOR_MODEL_DEFAULTS = {
 	tabSize: 4,
 	insertSpaces: true,
 	detectIndentation: true,
-	trimAutoWhitespace: true
+	trimAutoWhitespace: true,
+	largeFileSize: 20 * 1024 * 1024, // 20 MB
+	largeFileLineCount: 300 * 1000 // 300K lines
 };
 
 /**
@@ -2217,6 +2234,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	emptySelectionClipboard: true,
 	useTabStops: true,
 	multiCursorModifier: 'altKey',
+	multiCursorMergeOverlapping: true,
 	accessibilitySupport: 'auto',
 
 	viewInfo: {

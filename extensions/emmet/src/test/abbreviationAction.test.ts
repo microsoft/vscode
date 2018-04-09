@@ -304,6 +304,18 @@ suite('Tests for jsx, xml and xsl', () => {
 		});
 	});
 
+	test('Expand abbreviation with single quotes for jsx', () => {
+		return workspace.getConfiguration('emmet').update('syntaxProfiles', {jsx: {"attr_quotes": "single"}}).then(() => {
+			return withRandomFileEditor('img', 'javascriptreact', (editor, doc) => {
+				editor.selection = new Selection(0, 6, 0, 6);
+				return expandEmmetAbbreviation({ language: 'javascriptreact' }).then(() => {
+					assert.equal(editor.document.getText(), '<img src=\'\' alt=\'\'/>');
+					return workspace.getConfiguration('emmet').update('syntaxProfiles', {});
+				});
+			});
+		});
+	});
+
 	test('Expand abbreviation with self closing tags for xml', () => {
 		return withRandomFileEditor('img', 'xml', (editor, doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);

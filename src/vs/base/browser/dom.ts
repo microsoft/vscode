@@ -1116,7 +1116,7 @@ export function windowOpenNoOpener(url: string): void {
 	} else {
 		let newTab = window.open();
 		if (newTab) {
-			newTab.opener = null;
+			(newTab as any).opener = null;
 			newTab.location.href = url;
 		}
 	}

@@ -155,8 +155,6 @@ class TextModelSnapshot implements ITextSnapshot {
 export class TextModel extends Disposable implements model.ITextModel {
 
 	private static readonly MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
-	private static readonly MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
-	private static readonly MANY_MANY_LINES = 300 * 1000; // 300K lines
 
 	public static DEFAULT_CREATION_OPTIONS: model.ITextModelCreationOptions = {
 		isForSimpleWidget: false,
@@ -165,6 +163,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 		detectIndentation: false,
 		defaultEOL: model.DefaultEndOfLine.LF,
 		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
+		largeFileSize: EDITOR_MODEL_DEFAULTS.largeFileSize,
+		largeFileLineCount: EDITOR_MODEL_DEFAULTS.largeFileLineCount,
 	};
 
 	public static createFromString(text: string, options: model.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null, uri: URI = null): TextModel {
@@ -289,8 +289,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 		// If a model is too large at construction time, it will never get tokenized,
 		// under no circumstances.
 		this._isTooLargeForTokenization = (
-			(bufferTextLength > TextModel.MODEL_TOKENIZATION_LIMIT)
-			|| (bufferLineCount > TextModel.MANY_MANY_LINES)
+			(bufferTextLength > creationOptions.largeFileSize)
+			|| (bufferLineCount > creationOptions.largeFileLineCount)
 		);
 
 		this._shouldSimplifyMode = (
@@ -770,6 +770,15 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 
 		return this._buffer.getLineContent(lineNumber);
+	}
+
+	public getLineLength(lineNumber: number): number {
+		this._assertNotDisposed();
+		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
+			throw new Error('Illegal value for lineNumber');
+		}
+
+		return this._buffer.getLineLength(lineNumber);
 	}
 
 	public getLinesContent(): string[] {

@@ -11,32 +11,6 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
-	//#region Joh: readable diagnostics
-
-	export interface DiagnosticChangeEvent {
-		uris: Uri[];
-	}
-
-	export namespace languages {
-
-		/**
-		 *
-		 */
-		export const onDidChangeDiagnostics: Event<DiagnosticChangeEvent>;
-
-		/**
-		 *
-		 */
-		export function getDiagnostics(resource: Uri): Diagnostic[];
-
-		/**
-		 *
-		 */
-		export function getDiagnostics(): [Uri, Diagnostic[]][];
-	}
-
-	//#endregion
-
 	//#region Aeschli: folding
 
 	export class FoldingRangeList {
@@ -47,7 +21,7 @@ declare module 'vscode' {
 		ranges: FoldingRange[];
 
 		/**
-		 * Creates mew folding range list.
+		 * Creates new folding range list.
 		 *
 		 * @param ranges The folding ranges
 		 */
@@ -211,7 +185,7 @@ declare module 'vscode' {
 		readonly onDidChange?: Event<FileChange[]>;
 
 		// more...
-		//
+		// @deprecated - will go away
 		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
 
 		stat(resource: Uri): Thenable<FileStat>;
@@ -249,8 +223,41 @@ declare module 'vscode' {
 		// create(resource: Uri): Thenable<FileStat>;
 	}
 
+	// todo@joh discover files etc
+	// todo@joh CancellationToken everywhere
+	// todo@joh add open/close calls?
+	export interface FileSystemProvider2 {
+
+		_version: 2;
+
+		readonly onDidChange?: Event<FileChange[]>;
+
+		stat(uri: Uri, token: CancellationToken): Thenable<FileStat>;
+
+		readdir(uri: Uri, token: CancellationToken): Thenable<[Uri, FileStat][]>;
+
+		readFile(uri: Uri, token: CancellationToken): Thenable<Uint8Array>;
+
+		writeFile(uri: Uri, content: Uint8Array, token: CancellationToken): Thenable<void>;
+
+		// todo@remote
+		// Thenable<FileStat>
+		rename(oldUri: Uri, newUri: Uri): Thenable<FileStat>;
+
+		// todo@remote
+		// helps with performance bigly
+		// copy?(from: Uri, to: Uri): Thenable<void>;
+
+		// todo@remote
+		// ? useTrash, expose trash
+		delete(resource: Uri, options: { recursive?: boolean; }): Thenable<void>;
+
+		// todo@remote
+		create(resource: Uri, options: { type: FileType }): Thenable<FileStat>;
+	}
+
 	export namespace workspace {
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
+		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, newProvider?: FileSystemProvider2): Disposable;
 	}
 
 	//#endregion
@@ -558,7 +565,7 @@ declare module 'vscode' {
 		readonly localResourceRoots?: Uri[];
 	}
 
-	export interface WebViewOnDidChangeViewStateEvent {
+	export interface WebviewOnDidChangeViewStateEvent {
 		readonly viewColumn: ViewColumn;
 		readonly active: boolean;
 	}
@@ -607,7 +614,7 @@ declare module 'vscode' {
 		/**
 		 * Fired when the webview's view state changes.
 		 */
-		readonly onDidChangeViewState: Event<WebViewOnDidChangeViewStateEvent>;
+		readonly onDidChangeViewState: Event<WebviewOnDidChangeViewStateEvent>;
 
 		/**
 		 * Post a message to the webview content.

@@ -229,17 +229,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		}
 
 		if (selected !== undefined) {
-			// Guard against out of bounds selected values
-			// Cannot currently return error, set selected within range
-			if (selected >= 0 && selected < this.options.length) {
-				this.select(selected);
-			} else if (selected > this.options.length - 1) {
-				// This could make client out of sync with the select
-				this.select(this.options.length - 1);
-				console.error('selectBoxCustom: setOptions selected exceeds options length');
-			} else if (selected < 0) {
-				this.selected = 0;
-			}
+			this.select(selected);
 		}
 	}
 
@@ -247,6 +237,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 		if (index >= 0 && index < this.options.length) {
 			this.selected = index;
+		} else if (index > this.options.length - 1) {
+			// Adjust index to end of list
+			// This could make client out of sync with the select
+			this.select(this.options.length - 1);
 		} else if (this.selected < 0) {
 			this.selected = 0;
 		}
@@ -360,12 +354,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 	private showSelectDropDown() {
 		if (!this.contextViewProvider || this._isVisible) {
-			return;
-		}
-
-		// Bounds check selected/list before attempting to show
-		if (this.selected < 0 || this.selected > this.options.length - 1 || !this.selectList.length) {
-			console.error('selectBoxCustom: showSelectDropDown this.select exceeds options length or empty list');
 			return;
 		}
 

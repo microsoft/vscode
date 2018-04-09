@@ -125,7 +125,7 @@ suite('Tests for Emmet actions on html tags', () => {
 
 				return splitJoinTag()!.then(() => {
 					assert.equal(doc.getText(), expectedContents);
-					return Promise.resolve()
+					return workspace.getConfiguration('emmet').update('syntaxProfiles', {});
 				});
 			});
 		});
