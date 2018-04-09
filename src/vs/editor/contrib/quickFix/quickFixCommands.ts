@@ -26,6 +26,7 @@ import { CodeAction } from 'vs/editor/common/modes';
 import { BulkEdit } from 'vs/editor/browser/services/bulkEdit';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { MessageController } from 'vs/editor/contrib/message/messageController';
 
 export class QuickFixController implements IEditorContribution {
 
@@ -108,12 +109,8 @@ export class QuickFixController implements IEditorContribution {
 		this._quickFixContextMenu.show(this._lightBulbWidget.model.fixes, coords);
 	}
 
-	public triggerFromEditorSelection(): void {
-		this._model.trigger({ type: 'manual' });
-	}
-
-	public triggerCodeActionFromEditorSelection(kind?: CodeActionKind, autoApply?: CodeActionAutoApply): void {
-		this._model.trigger({ type: 'manual', kind, autoApply });
+	public triggerFromEditorSelection(kind?: CodeActionKind, autoApply?: CodeActionAutoApply): TPromise<CodeAction[] | undefined> {
+		return this._model.trigger({ type: 'manual', kind, autoApply });
 	}
 
 	private _updateLightBulbTitle(): void {
@@ -138,6 +135,28 @@ export class QuickFixController implements IEditorContribution {
 	}
 }
 
+
+function showCodeActionsForEditorSelection(
+	editor: ICodeEditor,
+	notAvailableMessage: string,
+	kind?: CodeActionKind,
+	autoApply?: CodeActionAutoApply
+) {
+	const controller = QuickFixController.get(editor);
+	if (!controller) {
+		return;
+	}
+
+	const pos = editor.getPosition();
+	controller.triggerFromEditorSelection(kind, autoApply).then(codeActions => {
+		if (!codeActions || !codeActions.length) {
+			MessageController.get(editor).showMessage(notAvailableMessage, pos);
+		}
+	});
+}
+
+
+
 export class QuickFixAction extends EditorAction {
 
 	static readonly Id = 'editor.action.quickFix';
@@ -156,10 +175,7 @@ export class QuickFixAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = QuickFixController.get(editor);
-		if (controller) {
-			controller.triggerFromEditorSelection();
-		}
+		return showCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"));
 	}
 }
 
@@ -212,11 +228,8 @@ export class CodeActionCommand extends EditorCommand {
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, userArg: any) {
-		const controller = QuickFixController.get(editor);
-		if (controller) {
-			const args = CodeActionCommandArgs.fromUser(userArg);
-			controller.triggerCodeActionFromEditorSelection(args.kind, args.apply);
-		}
+		const args = CodeActionCommandArgs.fromUser(userArg);
+		return showCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"), args.kind, args.apply);
 	}
 }
 
@@ -239,10 +252,10 @@ export class RefactorAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = QuickFixController.get(editor);
-		if (controller) {
-			controller.triggerCodeActionFromEditorSelection(CodeActionKind.Refactor, CodeActionAutoApply.Never);
-		}
+		return showCodeActionsForEditorSelection(editor,
+			nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
+			CodeActionKind.Refactor,
+			CodeActionAutoApply.Never);
 	}
 }
 
