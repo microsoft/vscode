@@ -152,12 +152,10 @@ suite('Debug - Debugger', () => {
 	});
 
 	test('merge platform specific attributes', () => {
-
-
-		const ae2 = DebugAdapter.platformAdapterExecutable([extensionDescriptor1, extensionDescriptor2], 'mock');
-		assert.equal(ae2.command, platform.isLinux ? 'linuxRuntime' : (platform.isMacintosh ? 'osxRuntime' : 'winRuntime'));
+		const ae = DebugAdapter.platformAdapterExecutable([extensionDescriptor1, extensionDescriptor2], 'mock');
+		assert.equal(ae.command, platform.isLinux ? 'linuxRuntime' : (platform.isMacintosh ? 'osxRuntime' : 'winRuntime'));
 		const xprogram = platform.isLinux ? 'linuxProgram' : (platform.isMacintosh ? 'osxProgram' : 'winProgram');
-		assert.deepEqual(ae2.args, ['rarg', '/e2/b/c/' + xprogram, 'parg']);
+		assert.deepEqual(ae.args, ['rarg', '/e2/b/c/' + xprogram, 'parg']);
 	});
 
 	test('initial config file content', () => {
