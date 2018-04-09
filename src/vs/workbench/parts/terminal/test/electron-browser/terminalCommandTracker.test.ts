@@ -83,6 +83,9 @@ suite('Workbench - TerminalCommandTracker', () => {
 			assert.equal(xterm.buffer.ydisp, 20);
 		});
 		// test('should select to the next and previous commands', () => {
+		// 	(<any>window).matchMedia = () => {
+		// 		return { addListener: () => {} }
+		// 	};
 		// 	xterm.open(document.createElement('div'));
 
 		// 	syncWrite(xterm, '\r0');
