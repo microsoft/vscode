@@ -278,8 +278,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// It is very important to not reload the model when the model is dirty. We only want to reload the model from the disk
 		// if no save is pending to avoid data loss. This might cause a save conflict in case the file has been modified on the disk
 		// meanwhile, but this is a very low risk.
-		if (this.dirty) {
-			diag('load() - exit - without loading because model is dirty', this.resource, new Date());
+		if (this.dirty || this.saveSequentializer.hasPendingSave()) {
+			diag('load() - exit - without loading because model is dirty or being saved', this.resource, new Date());
 
 			return TPromise.as(this);
 		}
