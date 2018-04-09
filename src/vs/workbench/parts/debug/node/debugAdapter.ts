@@ -8,6 +8,7 @@ import * as cp from 'child_process';
 import * as stream from 'stream';
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
+import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import * as stdfork from 'vs/base/node/stdFork';
@@ -359,7 +360,7 @@ export class DebugAdapter extends StreamDebugAdapter {
 			if (ed.contributes) {
 				const debuggers = <debug.IRawAdapter[]>ed.contributes['debuggers'];
 				if (debuggers && debuggers.length > 0) {
-					const dbgs = debuggers.filter(d => d.type.toLowerCase() === debugType);
+					const dbgs = debuggers.filter(d => strings.equalsIgnoreCase(d.type, debugType));
 					for (const dbg of dbgs) {
 
 						// extract relevant attributes and make then absolute where needed
