@@ -20,11 +20,15 @@ export class ExtHostTerminal implements vscode.Terminal {
 
 	constructor(
 		proxy: MainThreadTerminalServiceShape,
-		name?: string
+		name: string = '',
+		id?: number
 	) {
-		this._name = name;
-		this._queuedRequests = [];
 		this._proxy = proxy;
+		this._name = name;
+		if (id) {
+			this._id = id;
+		}
+		this._queuedRequests = [];
 		this._pidPromise = new Promise<number>(c => {
 			this._pidPromiseComplete = c;
 		});
@@ -149,9 +153,16 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	// TOOD: How do we set PID
 	// TODO: Make sure both API terminals and non-API terminals are created correctly
+	// TODO: Ensure the terminal that is opened when first launched gets added, I think it's set before the ext host is ready for it
 	public $acceptTerminalOpened(id: number, name: string): void {
+		let index = this._getTerminalIndexById(id);
+		if (index !== null) {
+			// The terminal has already been created (via createTerminal*), only fire the event
+			this._onDidOpenTerminal.fire(this.terminals[index]);
+			return;
+		}
 		// TODO: Only create a terminal if it doesn't already exist for the ID
-		let terminal = new ExtHostTerminal(this._proxy, name);
+		let terminal = new ExtHostTerminal(this._proxy, name, id);
 		this._terminals.push(terminal);
 		this._onDidOpenTerminal.fire(terminal);
 	}

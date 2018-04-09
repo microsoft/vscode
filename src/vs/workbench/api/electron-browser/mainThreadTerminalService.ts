@@ -22,7 +22,12 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 		this._toDispose = [];
-		this._toDispose.push(terminalService.onInstanceCreated((terminalInstance) => this._onTerminalOpened(terminalInstance)));
+		this._toDispose.push(terminalService.onInstanceCreated((terminalInstance) => {
+			// Delay this message so the TerminalInstance constructor has a change to finish and
+			// return the ID normally to the extension host. The ID that is passed here will be used
+			// to register non-extension API terminals in the extension host.
+			setTimeout(() => this._onTerminalOpened(terminalInstance), 100);
+		}));
 		this._toDispose.push(terminalService.onInstanceDisposed((terminalInstance) => this._onTerminalDisposed(terminalInstance)));
 		this._toDispose.push(terminalService.onInstanceProcessIdReady((terminalInstance) => this._onTerminalProcessIdReady(terminalInstance)));
 	}
