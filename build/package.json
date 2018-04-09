@@ -9,12 +9,15 @@
     "@types/mime": "0.0.29",
     "@types/node": "8.0.33",
     "@types/xml2js": "0.0.33",
+    "@types/request": "^2.47.0",
     "azure-storage": "^2.1.0",
     "documentdb": "1.13.0",
     "mime": "^1.3.4",
     "minimist": "^1.2.0",
     "typescript": "2.7.2",
-    "xml2js": "^0.4.17"
+    "xml2js": "^0.4.17",
+    "github-releases": "^0.4.1",
+    "request": "^2.85.0"
   },
   "scripts": {
     "compile": "tsc -p tsconfig.build.json",
