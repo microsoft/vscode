@@ -22,6 +22,8 @@ export interface IRelaxedTextModelCreationOptions {
 	trimAutoWhitespace?: boolean;
 	defaultEOL?: DefaultEndOfLine;
 	isForSimpleWidget?: boolean;
+	largeFileSize?: number;
+	largeFileLineCount?: number;
 }
 
 export function createTextModel(text: string, _options: IRelaxedTextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null, uri: URI = null): TextModel {
@@ -32,6 +34,8 @@ export function createTextModel(text: string, _options: IRelaxedTextModelCreatio
 		trimAutoWhitespace: (typeof _options.trimAutoWhitespace === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.trimAutoWhitespace : _options.trimAutoWhitespace),
 		defaultEOL: (typeof _options.defaultEOL === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.defaultEOL : _options.defaultEOL),
 		isForSimpleWidget: (typeof _options.isForSimpleWidget === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.isForSimpleWidget : _options.isForSimpleWidget),
+		largeFileSize: (typeof _options.largeFileSize === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.largeFileSize : _options.largeFileSize),
+		largeFileLineCount: (typeof _options.largeFileLineCount === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.largeFileLineCount : _options.largeFileLineCount),
 	};
 	return TextModel.createFromString(text, options, languageIdentifier, uri);
 }
