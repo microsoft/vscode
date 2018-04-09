@@ -69,8 +69,8 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 	stat(resource: vscode.Uri): Thenable<vscode.FileStat> {
 		return this._delegate.stat(resource);
 	}
-	move(resource: vscode.Uri, target: vscode.Uri): Thenable<vscode.FileStat> {
-		return this.move(resource, target);
+	rename(oldUri: vscode.Uri, newUri: vscode.Uri): Thenable<vscode.FileStat> {
+		return this._delegate.move(oldUri, newUri);
 	}
 	readdir(resource: vscode.Uri): Thenable<[vscode.Uri, vscode.FileStat][]> {
 		return this._delegate.readdir(resource);
@@ -186,8 +186,8 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	$delete(handle: number, resource: UriComponents): TPromise<void, any> {
 		return asWinJsPromise(token => this._fsProvider.get(handle).delete(URI.revive(resource), { recursive: true }));
 	}
-	$move(handle: number, resource: UriComponents, target: UriComponents): TPromise<IStat, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).move(URI.revive(resource), URI.revive(target)));
+	$move(handle: number, oldUri: UriComponents, newUri: UriComponents): TPromise<IStat, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).rename(URI.revive(oldUri), URI.revive(newUri)));
 	}
 	$mkdir(handle: number, resource: UriComponents): TPromise<IStat, any> {
 		return asWinJsPromise(token => this._fsProvider.get(handle).create(URI.revive(resource), { type: FileType.Dir }));

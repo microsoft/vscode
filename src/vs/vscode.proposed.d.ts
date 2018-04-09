@@ -232,17 +232,17 @@ declare module 'vscode' {
 
 		readonly onDidChange?: Event<FileChange[]>;
 
-		stat(resource: Uri, token: CancellationToken): Thenable<FileStat>;
+		stat(uri: Uri, token: CancellationToken): Thenable<FileStat>;
 
-		readdir(resource: Uri, token: CancellationToken): Thenable<[Uri, FileStat][]>;
+		readdir(uri: Uri, token: CancellationToken): Thenable<[Uri, FileStat][]>;
 
-		readFile(resource: Uri, token: CancellationToken): Thenable<Uint8Array>;
+		readFile(uri: Uri, token: CancellationToken): Thenable<Uint8Array>;
 
-		writeFile(resource: Uri, content: Uint8Array, token: CancellationToken): Thenable<void>;
+		writeFile(uri: Uri, content: Uint8Array, token: CancellationToken): Thenable<void>;
 
 		// todo@remote
 		// Thenable<FileStat>
-		move(resource: Uri, target: Uri): Thenable<FileStat>;
+		rename(oldUri: Uri, newUri: Uri): Thenable<FileStat>;
 
 		// todo@remote
 		// helps with performance bigly
