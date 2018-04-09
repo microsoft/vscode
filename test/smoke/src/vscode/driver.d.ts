@@ -13,6 +13,7 @@ export interface IDriver {
 	_serviceBrand: any;
 	getWindowIds(): Promise<number[]>;
 	getElements(windowId: number, selector: string): Promise<IElement[]>;
+	dispatchKeybinding(windowId: number, keybinding: string): Promise<void>;
 }
 
 export interface IDisposable {

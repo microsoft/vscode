@@ -27,11 +27,10 @@ export class SettingsEditor {
 		await this.api.waitAndClick(SEARCH_INPUT);
 		await this.api.waitForActiveElement(SEARCH_INPUT);
 
-		await this.api.keys(['ArrowDown', 'NULL']);
+		await this.api.dispatchKeybinding('down');
 		await this.api.waitForActiveElement(EDITOR);
 
-		await this.api.keys(['ArrowRight', 'NULL']);
-
+		await this.api.dispatchKeybinding('right');
 		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value}`, '.editable-preferences-editor-container');
 		await this.editors.saveOpenedFile();
 	}

@@ -13,7 +13,7 @@ export interface Element {
 }
 
 export interface Driver {
-	keys(keys: string[]): Promise<void>;
+	dispatchKeybinding(keybinding: string): Promise<void>;
 	click(selector: string, xoffset?: number, yoffset?: number): Promise<any>;
 	doubleClick(selector: string): Promise<any>;
 	move(selector: string): Promise<any>;
@@ -32,13 +32,8 @@ export class SpectronDriver implements Driver {
 		private verbose: boolean
 	) { }
 
-	keys(keys: string[]): Promise<void> {
-		if (this.verbose) {
-			console.log('- keys:', keys);
-		}
-
-		this.spectronClient.keys(keys);
-		return Promise.resolve();
+	dispatchKeybinding(keybinding: string): Promise<void> {
+		return Promise.reject(new Error('not implemented'));
 	}
 
 	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void> {
@@ -147,12 +142,13 @@ export class CodeDriver implements Driver {
 		return this._activeWindowId;
 	}
 
-	keys(keys: string[]): Promise<void> {
+	async dispatchKeybinding(keybinding: string): Promise<void> {
 		if (this.verbose) {
-			console.log('- keys:', keys);
+			console.log('- dispatchKeybinding:', keybinding);
 		}
 
-		throw new Error('Method not implemented.');
+		const windowId = await this.getWindowId();
+		await this.driver.dispatchKeybinding(windowId, keybinding);
 	}
 
 	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<any> {

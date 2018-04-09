@@ -11,7 +11,7 @@ export class API {
 	// waitFor calls should not take more than 200 * 100 = 20 seconds to complete, excluding
 	// the time it takes for the actual retry call to complete
 	private retryCount: number;
-	private readonly retryDuration = 100; // in milliseconds
+	private readonly retryDuration = 1000; // in milliseconds
 
 	constructor(
 		private driver: Driver,
@@ -21,8 +21,8 @@ export class API {
 		this.retryCount = (waitTime * 1000) / this.retryDuration;
 	}
 
-	keys(keys: string[]): Promise<void> {
-		return this.driver.keys(keys);
+	dispatchKeybinding(keybinding: string): Promise<void> {
+		return this.driver.dispatchKeybinding(keybinding);
 	}
 
 	waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean): Promise<string> {

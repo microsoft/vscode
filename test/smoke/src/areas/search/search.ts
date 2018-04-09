@@ -33,7 +33,7 @@ export class Search extends Viewlet {
 		await this.api.waitAndClick(INPUT);
 		await this.api.waitForActiveElement(INPUT);
 
-		await this.api.keys(['Enter', 'NULL']);
+		await this.api.dispatchKeybinding('enter');
 		await this.api.waitForElement(`${VIEWLET} .messages[aria-hidden="false"]`);
 	}
 

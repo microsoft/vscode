@@ -12,7 +12,7 @@ export class KeybindingsEditor {
 
 	constructor(private api: API, private commands: Commands) { }
 
-	async updateKeybinding(command: string, keys: string[], ariaLabel: string): Promise<any> {
+	async updateKeybinding(command: string, keybinding: string, ariaLabel: string): Promise<any> {
 		await this.commands.runCommand('workbench.action.openGlobalKeybindings');
 		await this.api.waitForActiveElement(SEARCH_INPUT);
 		await this.api.setValue(SEARCH_INPUT, command);
@@ -23,7 +23,8 @@ export class KeybindingsEditor {
 		await this.api.waitAndClick('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item .action-item .icon.add');
 		await this.api.waitForElement('.defineKeybindingWidget .monaco-inputbox.synthetic-focus');
 
-		await this.api.keys([...keys, 'NULL', 'Enter', 'NULL']);
+		await this.api.dispatchKeybinding(keybinding);
+		await this.api.dispatchKeybinding('enter');
 		await this.api.waitForElement(`div[aria-label="Keybindings"] div[aria-label="Keybinding is ${ariaLabel}."]`);
 	}
 }

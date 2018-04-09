@@ -23,12 +23,14 @@ export interface IDriver {
 	_serviceBrand: any;
 	getWindowIds(): TPromise<number[]>;
 	getElements(windowId: number, selector: string): TPromise<IElement[]>;
+	dispatchKeybinding(windowId: number, keybinding: string): TPromise<void>;
 }
 //*END
 
 export interface IDriverChannel extends IChannel {
 	call(command: 'getWindowIds'): TPromise<number[]>;
 	call(command: 'getElements', arg: [number, string]): TPromise<IElement[]>;
+	call(command: 'dispatchKeybinding', arg: [number, string]): TPromise<void>;
 	call(command: string, arg: any): TPromise<any>;
 }
 
@@ -40,6 +42,7 @@ export class DriverChannel implements IDriverChannel {
 		switch (command) {
 			case 'getWindowIds': return this.driver.getWindowIds();
 			case 'getElements': return this.driver.getElements(arg[0], arg[1]);
+			case 'dispatchKeybinding': return this.driver.dispatchKeybinding(arg[0], arg[1]);
 		}
 
 		return undefined;
@@ -58,6 +61,10 @@ export class DriverChannelClient implements IDriver {
 
 	getElements(windowId: number, selector: string): TPromise<IElement[]> {
 		return this.channel.call('getElements', [windowId, selector]);
+	}
+
+	dispatchKeybinding(windowId: number, keybinding: string): TPromise<void> {
+		return this.channel.call('dispatchKeybinding', [windowId, keybinding]);
 	}
 }
 
@@ -96,10 +103,12 @@ export class WindowDriverRegistryChannelClient implements IWindowDriverRegistry 
 
 export interface IWindowDriver {
 	getElements(selector: string): TPromise<IElement[]>;
+	dispatchKeybinding(keybinding: string): TPromise<void>;
 }
 
 export interface IWindowDriverChannel extends IChannel {
 	call(command: 'getElements', arg: string): TPromise<IElement[]>;
+	call(command: 'dispatchKeybinding', arg: string): TPromise<void>;
 	call(command: string, arg: any): TPromise<any>;
 }
 
@@ -110,6 +119,7 @@ export class WindowDriverChannel implements IWindowDriverChannel {
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'getElements': return this.driver.getElements(arg);
+			case 'dispatchKeybinding': return this.driver.dispatchKeybinding(arg);
 		}
 
 		return undefined;
@@ -124,5 +134,9 @@ export class WindowDriverChannelClient implements IWindowDriver {
 
 	getElements(selector: string): TPromise<IElement[]> {
 		return this.channel.call('getElements', selector);
+	}
+
+	dispatchKeybinding(keybinding: string): TPromise<void> {
+		return this.channel.call('dispatchKeybinding', keybinding);
 	}
 }

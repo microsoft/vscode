@@ -28,7 +28,7 @@ export class Terminal {
 	async runCommand(commandText: string): Promise<void> {
 		// TODO@Tyriar fix this. we should not use type but setValue
 		// await this.spectron.client.type(commandText);
-		await this.api.keys(['Enter', 'NULL']);
+		await this.api.dispatchKeybinding('enter');
 	}
 
 	async waitForTerminalText(fn: (text: string[]) => boolean, timeOutDescription: string = 'Getting Terminal Text'): Promise<string[]> {

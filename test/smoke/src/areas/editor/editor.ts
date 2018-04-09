@@ -34,7 +34,7 @@ export class Editor {
 		await this.api.waitForActiveElement(RENAME_INPUT);
 		await this.api.setValue(RENAME_INPUT, to);
 
-		await this.api.keys(['Enter', 'NULL']);
+		await this.api.dispatchKeybinding('enter');
 	}
 
 	async gotoDefinition(term: string, line: number): Promise<void> {

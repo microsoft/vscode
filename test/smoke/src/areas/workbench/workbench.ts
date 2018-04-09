@@ -68,32 +68,7 @@ export class Workbench implements Commands {
 			return;
 		}
 
-		const keys: string = binding.key;
-		let keysToPress: string[] = [];
-
-		const chords = keys.split(' ');
-		chords.forEach((chord) => {
-			const keys = chord.split('+');
-			keys.forEach((key) => keysToPress.push(this.transliterate(key)));
-			keysToPress.push('NULL');
-		});
-
-		return this.api.keys(keysToPress);
-	}
-
-	/**
-	 * Transliterates key names from keybindings file to WebdriverIO keyboard actions defined in:
-	 * https://w3c.github.io/webdriver/webdriver-spec.html#keyboard-actions
-	 */
-	private transliterate(key: string): string {
-		switch (key) {
-			case 'ctrl':
-				return 'Control';
-			case 'cmd':
-				return 'Meta';
-			default:
-				return key.length === 1 ? key : key.charAt(0).toUpperCase() + key.slice(1);
-		}
+		return this.api.dispatchKeybinding(binding.key);
 	}
 }
 

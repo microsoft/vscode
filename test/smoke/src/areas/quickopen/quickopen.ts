@@ -36,7 +36,7 @@ export class QuickOpen {
 		await this.openQuickOpen(fileName);
 
 		await this.waitForQuickOpenElements(names => names.some(n => n === fileName));
-		await this.api.keys(['Enter', 'NULL']);
+		await this.api.dispatchKeybinding('enter');
 		await this.editors.waitForActiveTab(fileName);
 		await this.editors.waitForEditorFocus(fileName);
 	}
@@ -51,16 +51,16 @@ export class QuickOpen {
 
 	async submit(text: string): Promise<void> {
 		await this.api.setValue(QuickOpen.QUICK_OPEN_INPUT, text);
-		await this.api.keys(['Enter', 'NULL']);
+		await this.api.dispatchKeybinding('enter');
 		await this.waitForQuickOpenClosed();
 	}
 
 	async selectQuickOpenElement(index: number): Promise<void> {
 		await this.waitForQuickOpenOpened();
 		for (let from = 0; from < index; from++) {
-			await this.api.keys(['ArrowDown', 'NULL']);
+			await this.api.dispatchKeybinding('down');
 		}
-		await this.api.keys(['Enter', 'NULL']);
+		await this.api.dispatchKeybinding('enter');
 		await this.waitForQuickOpenClosed();
 	}
 

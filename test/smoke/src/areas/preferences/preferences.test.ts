@@ -32,9 +32,9 @@ export function setup() {
 			const app = this.app as SpectronApplication;
 			assert.ok(await app.workbench.activitybar.getActivityBar(ActivityBarPosition.LEFT), 'Activity bar should be positioned on the left.');
 
-			await app.workbench.keybindingsEditor.updateKeybinding('workbench.action.toggleSidebarPosition', ['Control', 'u'], 'Control+U');
+			await app.workbench.keybindingsEditor.updateKeybinding('workbench.action.toggleSidebarPosition', 'ctrl+u', 'Control+U');
 
-			await app.api.keys(['Control', 'u', 'NULL']);
+			await app.api.dispatchKeybinding('ctrl+u');
 			assert.ok(await app.workbench.activitybar.getActivityBar(ActivityBarPosition.RIGHT), 'Activity bar was not moved to right after toggling its position.');
 		});
 

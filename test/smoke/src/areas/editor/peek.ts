@@ -34,7 +34,7 @@ export class References {
 	}
 
 	async close(): Promise<void> {
-		await this.api.keys(['Escape', 'NULL']);
+		await this.api.dispatchKeybinding('escape');
 		await this.api.waitForElement(References.REFERENCES_WIDGET, element => !element);
 	}
 }

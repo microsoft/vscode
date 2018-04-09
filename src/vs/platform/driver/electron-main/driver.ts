@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDriver, DriverChannel, IElement, IWindowDriverChannel, WindowDriverChannelClient, IWindowDriverRegistry, WindowDriverRegistryChannel } from 'vs/platform/driver/common/driver';
+import { IDriver, DriverChannel, IElement, IWindowDriverChannel, WindowDriverChannelClient, IWindowDriverRegistry, WindowDriverRegistryChannel, IWindowDriver } from 'vs/platform/driver/common/driver';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -45,11 +45,19 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	}
 
 	getElements(windowId: number, selector: string): TPromise<IElement[], any> {
+		const windowDriver = this.getWindowDriver(windowId);
+		return windowDriver.getElements(selector);
+	}
+
+	dispatchKeybinding(windowId: number, keybinding: string): TPromise<void> {
+		const windowDriver = this.getWindowDriver(windowId);
+		return windowDriver.dispatchKeybinding(keybinding);
+	}
+
+	private getWindowDriver(windowId: number): IWindowDriver {
 		const router = new WindowRouter(windowId);
 		const windowDriverChannel = this.windowServer.getChannel<IWindowDriverChannel>('windowDriver', router);
-		const windowDriver = new WindowDriverChannelClient(windowDriverChannel);
-
-		return windowDriver.getElements(selector);
+		return new WindowDriverChannelClient(windowDriverChannel);
 	}
 }
 

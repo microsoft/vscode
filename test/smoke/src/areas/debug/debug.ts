@@ -120,7 +120,7 @@ export class Debug extends Viewlet {
 
 		// Wait for the keys to be picked up by the editor model such that repl evalutes what just got typed
 		await this.editor.waitForEditorContents('debug:input', s => s.indexOf(text) >= 0);
-		await this.api.keys(['Enter', 'NULL']);
+		await this.api.dispatchKeybinding('enter');
 		await this.api.waitForElement(CONSOLE_INPUT_OUTPUT);
 		await this.api.waitFor(async () => {
 			const result = await this.getConsoleOutput();

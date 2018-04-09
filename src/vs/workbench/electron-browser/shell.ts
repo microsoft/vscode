@@ -95,7 +95,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/common/dialogIpc';
 import { EventType, addDisposableListener, addClass, getClientArea } from 'vs/base/browser/dom';
-import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 
 /**
  * Services that we require for the Shell
@@ -140,7 +139,7 @@ export class WorkbenchShell {
 	private configuration: IWindowConfiguration;
 	private workbench: Workbench;
 
-	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, mainProcessClient: IPCClient, configuration: IWindowConfiguration) {
+	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, private mainProcessClient: IPCClient, configuration: IWindowConfiguration) {
 		this.container = container;
 
 		this.configuration = configuration;
@@ -156,11 +155,6 @@ export class WorkbenchShell {
 
 		this.toUnbind = [];
 		this.previousErrorTime = 0;
-
-		if (coreServices.environmentService.driverHandle) {
-			registerWindowDriver(mainProcessClient, configuration.windowId)
-				.then(disposable => this.toUnbind.push(disposable));
-		}
 	}
 
 	private createContents(parent: HTMLElement): HTMLElement {
@@ -195,7 +189,7 @@ export class WorkbenchShell {
 
 	private createWorkbench(instantiationService: IInstantiationService, serviceCollection: ServiceCollection, parent: HTMLElement, workbenchContainer: HTMLElement): Workbench {
 		try {
-			const workbench = instantiationService.createInstance(Workbench, parent, workbenchContainer, this.configuration, serviceCollection, this.lifecycleService);
+			const workbench = instantiationService.createInstance(Workbench, parent, workbenchContainer, this.configuration, serviceCollection, this.lifecycleService, this.mainProcessClient);
 
 			// Set lifecycle phase to `Restoring`
 			this.lifecycleService.phase = LifecyclePhase.Restoring;
