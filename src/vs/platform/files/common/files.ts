@@ -12,7 +12,6 @@ import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
-import { IProgress } from 'vs/platform/progress/common/progress';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
 import { isUndefinedOrNull } from 'vs/base/common/types';
@@ -184,13 +183,12 @@ export interface IFileSystemProvider {
 	//
 	utimes(resource: URI, mtime: number, atime: number): TPromise<IStat>;
 	stat(resource: URI): TPromise<IStat>;
-	read(resource: URI, offset: number, count: number, progress: IProgress<Uint8Array>): TPromise<number>;
-	write(resource: URI, content: Uint8Array): TPromise<void>;
+	readFile(resource: URI): TPromise<Uint8Array>;
+	writeFile(resource: URI, content: Uint8Array): TPromise<void>;
 	move(from: URI, to: URI): TPromise<IStat>;
 	mkdir(resource: URI): TPromise<IStat>;
 	readdir(resource: URI): TPromise<[URI, IStat][]>;
-	rmdir(resource: URI): TPromise<void>;
-	unlink(resource: URI): TPromise<void>;
+	delete(resource: URI): TPromise<void>;
 }
 
 

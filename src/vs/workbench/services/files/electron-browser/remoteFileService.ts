@@ -12,7 +12,6 @@ import { posix } from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isFalsyOrEmpty, distinct } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
-import { Progress } from 'vs/platform/progress/common/progress';
 import { decodeStream, encode, UTF8, UTF8_with_bom, detectEncodingFromBuffer, maxEncodingDetectionBufferLen } from 'vs/base/node/encoding';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -213,7 +212,7 @@ export class RemoteFileService extends FileService {
 		if (resource.scheme === Schemas.file) {
 			return super.resolveContent(resource, options);
 		} else {
-			return this._doResolveContent(resource, options).then(RemoteFileService._asContent);
+			return this._readFile(resource, options).then(RemoteFileService._asContent);
 		}
 	}
 
@@ -221,11 +220,11 @@ export class RemoteFileService extends FileService {
 		if (resource.scheme === Schemas.file) {
 			return super.resolveStreamContent(resource, options);
 		} else {
-			return this._doResolveContent(resource, options);
+			return this._readFile(resource, options);
 		}
 	}
 
-	private _doResolveContent(resource: URI, options: IResolveContentOptions = Object.create(null)): TPromise<IStreamContent> {
+	private _readFile(resource: URI, options: IResolveContentOptions = Object.create(null)): TPromise<IStreamContent> {
 		return this._withProvider(resource).then(provider => {
 
 			return this.resolveFile(resource).then(fileStat => {
@@ -249,15 +248,11 @@ export class RemoteFileService extends FileService {
 
 				const guessEncoding = options.autoGuessEncoding;
 				const count = maxEncodingDetectionBufferLen(options);
-				const chunks: Buffer[] = [];
+				let buffer: Buffer;
 
-				return provider.read(
-					resource,
-					0, count,
-					new Progress<Buffer>(chunk => chunks.push(chunk))
-				).then(bytesRead => {
-					return detectEncodingFromBuffer({ bytesRead, buffer: Buffer.concat(chunks) }, guessEncoding);
-
+				return provider.readFile(resource).then(data => {
+					buffer = Buffer.from(data);
+					return detectEncodingFromBuffer({ bytesRead: Math.min(count, buffer.length), buffer }, guessEncoding);
 				}).then(detected => {
 					if (options.acceptTextOnly && detected.seemsBinary) {
 						return TPromise.wrapError<IStreamContent>(new FileOperationError(
@@ -289,27 +284,7 @@ export class RemoteFileService extends FileService {
 
 					// const encoding = this.getEncoding(resource);
 					const stream = decodeStream(preferredEncoding);
-
-					// start with what we have already read
-					// and have a new stream to read the rest
-					let offset = 0;
-					for (const chunk of chunks) {
-						stream.write(chunk);
-						offset += chunk.length;
-					}
-					if (offset < count) {
-						// we didn't read enough the first time which means
-						// that we are done
-						stream.end();
-					} else {
-						// there is more to read
-						provider.read(resource, offset, -1, new Progress<Buffer>(chunk => stream.write(chunk))).then(() => {
-							stream.end();
-						}, err => {
-							stream.emit('error', err);
-							stream.end();
-						});
-					}
+					stream.end(buffer);
 
 					return {
 						encoding: preferredEncoding,
@@ -340,7 +315,7 @@ export class RemoteFileService extends FileService {
 					if (exists && options && !options.overwrite) {
 						return TPromise.wrapError(new FileOperationError('EEXIST', FileOperationResult.FILE_MODIFIED_SINCE, options));
 					}
-					return this._doUpdateContent(provider, resource, content || '', {});
+					return this._writeFile(provider, resource, content || '', {});
 				}).then(fileStat => {
 					this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
 					return fileStat;
@@ -354,15 +329,15 @@ export class RemoteFileService extends FileService {
 			return super.updateContent(resource, value, options);
 		} else {
 			return this._withProvider(resource).then(provider => {
-				return this._doUpdateContent(provider, resource, value, options || {});
+				return this._writeFile(provider, resource, value, options || {});
 			});
 		}
 	}
 
-	private _doUpdateContent(provider: IFileSystemProvider, resource: URI, content: string | ITextSnapshot, options: IUpdateContentOptions): TPromise<IFileStat> {
+	private _writeFile(provider: IFileSystemProvider, resource: URI, content: string | ITextSnapshot, options: IUpdateContentOptions): TPromise<IFileStat> {
 		const encoding = this.getEncoding(resource, options.encoding);
 		// TODO@Joh support streaming API for remote file system writes
-		return provider.write(resource, encode(typeof content === 'string' ? content : snapshotToString(content), encoding)).then(() => {
+		return provider.writeFile(resource, encode(typeof content === 'string' ? content : snapshotToString(content), encoding)).then(() => {
 			return this.resolveFile(resource);
 		});
 	}
@@ -390,9 +365,7 @@ export class RemoteFileService extends FileService {
 			return super.del(resource, useTrash);
 		} else {
 			return this._withProvider(resource).then(provider => {
-				return provider.stat(resource).then(stat => {
-					return stat.type === FileType.Dir ? provider.rmdir(resource) : provider.unlink(resource);
-				}).then(() => {
+				return provider.delete(resource).then(() => {
 					this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
 				});
 			});
@@ -483,7 +456,7 @@ export class RemoteFileService extends FileService {
 			// https://github.com/Microsoft/vscode/issues/41543
 			return this.resolveContent(source, { acceptTextOnly: true }).then(content => {
 				return this._withProvider(target).then(provider => {
-					return this._doUpdateContent(provider, target, content.value, { encoding: content.encoding }).then(fileStat => {
+					return this._writeFile(provider, target, content.value, { encoding: content.encoding }).then(fileStat => {
 						this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
 						return fileStat;
 					});
@@ -497,7 +470,6 @@ export class RemoteFileService extends FileService {
 				});
 			});
 		});
-
 	}
 
 	touchFile(resource: URI): TPromise<IFileStat, any> {
@@ -513,7 +485,7 @@ export class RemoteFileService extends FileService {
 			return provider.stat(resource).then(() => {
 				return provider.utimes(resource, Date.now(), Date.now());
 			}, err => {
-				return provider.write(resource, new Uint8Array(0));
+				return provider.writeFile(resource, new Uint8Array(0));
 			}).then(() => {
 				return this.resolveFile(resource);
 			});

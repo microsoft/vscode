@@ -387,7 +387,6 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$unregisterProvider(handle: number): void;
 
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
-	$reportFileChunk(handle: number, session: number, base64Encoded: string | null): void;
 
 	$handleFindMatch(handle: number, session, data: UriComponents | [UriComponents, ILineMatch]): void;
 }
@@ -568,13 +567,16 @@ export interface ExtHostWorkspaceShape {
 export interface ExtHostFileSystemShape {
 	$utimes(handle: number, resource: UriComponents, mtime: number, atime: number): TPromise<IStat>;
 	$stat(handle: number, resource: UriComponents): TPromise<IStat>;
-	$read(handle: number, session: number, offset: number, count: number, resource: UriComponents): TPromise<number>;
-	$write(handle: number, resource: UriComponents, base64Encoded: string): TPromise<void>;
-	$unlink(handle: number, resource: UriComponents): TPromise<void>;
+
+	$readFile(handle: number, resource: UriComponents): TPromise<string>;
+	$writeFile(handle: number, resource: UriComponents, base64Encoded: string): TPromise<void>;
+
 	$move(handle: number, resource: UriComponents, target: UriComponents): TPromise<IStat>;
 	$mkdir(handle: number, resource: UriComponents): TPromise<IStat>;
 	$readdir(handle: number, resource: UriComponents): TPromise<[UriComponents, IStat][]>;
-	$rmdir(handle: number, resource: UriComponents): TPromise<void>;
+
+	$delete(handle: number, resource: UriComponents): TPromise<void>;
+
 	$provideFileSearchResults(handle: number, session: number, query: string): TPromise<void>;
 	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, options: { includes: string[], excludes: string[] }): TPromise<void>;
 }

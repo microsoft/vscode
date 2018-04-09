@@ -223,8 +223,46 @@ declare module 'vscode' {
 		// create(resource: Uri): Thenable<FileStat>;
 	}
 
+	// todo@joh discover files etc
+	// todo@joh CancellationToken everywhere
+	// todo@joh add open/close calls?
+	export interface FileSystemProvider2 {
+
+		_version: 2;
+
+		readonly onDidChange?: Event<FileChange[]>;
+
+		// more...
+		//
+		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
+
+		stat(resource: Uri): Thenable<FileStat>;
+
+		readFile(resource: Uri, token: CancellationToken): Thenable<Uint8Array>;
+
+		writeFile(resource: Uri, content: Uint8Array, token: CancellationToken): Thenable<void>;
+
+		// todo@remote
+		// Thenable<FileStat>
+		move(resource: Uri, target: Uri): Thenable<FileStat>;
+
+		// todo@remote
+		// helps with performance bigly
+		// copy?(from: Uri, to: Uri): Thenable<void>;
+
+
+		readdir(resource: Uri): Thenable<[Uri, FileStat][]>;
+
+		// todo@remote
+		// ? useTrash, expose trash
+		delete(resource: Uri, options: { recursive?: boolean; }): Thenable<void>;
+
+		// todo@remote
+		create(resource: Uri, options: { type: FileType }): Thenable<FileStat>;
+	}
+
 	export namespace workspace {
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
+		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, newProvider?: FileSystemProvider2): Disposable;
 	}
 
 	//#endregion

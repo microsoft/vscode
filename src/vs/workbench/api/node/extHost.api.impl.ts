@@ -538,8 +538,8 @@ export function createApiFactory(
 			onDidEndTask: (listeners, thisArgs?, disposables?) => {
 				return extHostTask.onDidEndTask(listeners, thisArgs, disposables);
 			},
-			registerFileSystemProvider: proposedApiFunction(extension, (scheme, provider) => {
-				return extHostFileSystem.registerFileSystemProvider(scheme, provider);
+			registerFileSystemProvider: proposedApiFunction(extension, (scheme, provider, newProvider?) => {
+				return extHostFileSystem.registerFileSystemProvider(scheme, provider, newProvider);
 			}),
 			registerSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
 				return extHostFileSystem.registerSearchProvider(scheme, provider);
