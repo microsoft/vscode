@@ -149,6 +149,7 @@ export interface ITerminalService {
 	configHelper: ITerminalConfigHelper;
 	onActiveTabChanged: Event<void>;
 	onTabDisposed: Event<ITerminalTab>;
+	onInstanceCreated: Event<ITerminalInstance>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
 	onInstancesChanged: Event<void>;

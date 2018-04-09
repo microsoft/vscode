@@ -351,6 +351,9 @@ export function createApiFactory(
 			onDidCloseTerminal(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidCloseTerminal(listener, thisArg, disposables);
 			},
+			onDidOpenTerminal(listener, thisArg?, disposables?) {
+				return extHostTerminalService.onDidOpenTerminal(listener, thisArg, disposables);
+			},
 			get state() {
 				return extHostWindow.state;
 			},

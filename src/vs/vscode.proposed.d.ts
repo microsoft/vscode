@@ -769,4 +769,12 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region Terminal
+
+	export namespace window {
+		export const onDidOpenTerminal: Event<Terminal>;
+	}
+
+	//#endregion
 }

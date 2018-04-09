@@ -20,12 +20,7 @@ export class ExtHostTerminal implements vscode.Terminal {
 
 	constructor(
 		proxy: MainThreadTerminalServiceShape,
-		name?: string,
-		shellPath?: string,
-		shellArgs?: string[],
-		cwd?: string,
-		env?: { [key: string]: string },
-		waitOnExit?: boolean
+		name?: string
 	) {
 		this._name = name;
 		this._queuedRequests = [];
@@ -33,8 +28,16 @@ export class ExtHostTerminal implements vscode.Terminal {
 		this._pidPromise = new Promise<number>(c => {
 			this._pidPromiseComplete = c;
 		});
+	}
 
-		this._proxy.$createTerminal(name, shellPath, shellArgs, cwd, env, waitOnExit).then((id) => {
+	public create(
+		shellPath?: string,
+		shellArgs?: string[],
+		cwd?: string,
+		env?: { [key: string]: string },
+		waitOnExit?: boolean
+	): void {
+		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit).then((id) => {
 			this._id = id;
 			this._queuedRequests.forEach((r) => {
 				r.run(this._proxy, this._id);
@@ -99,29 +102,37 @@ export class ExtHostTerminal implements vscode.Terminal {
 export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	private readonly _onDidCloseTerminal: Emitter<vscode.Terminal>;
+	private readonly _onDidOpenTerminal: Emitter<vscode.Terminal>;
 	private _proxy: MainThreadTerminalServiceShape;
 	private _terminals: ExtHostTerminal[];
 
 	constructor(mainContext: IMainContext) {
 		this._onDidCloseTerminal = new Emitter<vscode.Terminal>();
+		this._onDidOpenTerminal = new Emitter<vscode.Terminal>();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTerminalService);
 		this._terminals = [];
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
-		let terminal = new ExtHostTerminal(this._proxy, name, shellPath, shellArgs);
+		let terminal = new ExtHostTerminal(this._proxy, name);
+		terminal.create(shellPath, shellArgs);
 		this._terminals.push(terminal);
 		return terminal;
 	}
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
-		let terminal = new ExtHostTerminal(this._proxy, options.name, options.shellPath, options.shellArgs, options.cwd, options.env /*, options.waitOnExit*/);
+		let terminal = new ExtHostTerminal(this._proxy, options.name);
+		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env /*, options.waitOnExit*/);
 		this._terminals.push(terminal);
 		return terminal;
 	}
 
 	public get onDidCloseTerminal(): Event<vscode.Terminal> {
 		return this._onDidCloseTerminal && this._onDidCloseTerminal.event;
+	}
+
+	public get onDidOpenTerminal(): Event<vscode.Terminal> {
+		return this._onDidOpenTerminal && this._onDidOpenTerminal.event;
 	}
 
 	public $acceptTerminalClosed(id: number): void {
@@ -132,6 +143,15 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 		let terminal = this._terminals.splice(index, 1)[0];
 		this._onDidCloseTerminal.fire(terminal);
+	}
+
+	// TOOD: How do we set PID
+	// TODO: Make sure both API terminals and non-API terminals are created correctly
+	public $acceptTerminalOpened(id: number, name: string): void {
+		// TODO: Only create a terminal if it doesn't already exist for the ID
+		let terminal = new ExtHostTerminal(this._proxy, name);
+		this._terminals.push(terminal);
+		this._onDidOpenTerminal.fire(terminal);
 	}
 
 	public $acceptTerminalProcessId(id: number, processId: number): void {
