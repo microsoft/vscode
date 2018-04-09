@@ -895,6 +895,11 @@ export class Repository {
 		await this.run(args);
 	}
 
+	async deleteRef(ref: string): Promise<void> {
+		const args = ['update-ref', '-d', ref];
+		await this.run(args);
+	}
+
 	async merge(ref: string): Promise<void> {
 		const args = ['merge', ref];
 

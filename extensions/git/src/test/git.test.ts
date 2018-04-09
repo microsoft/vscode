@@ -179,55 +179,69 @@ suite('git', () => {
 
 	suite('Repository', () => {
 		const spawnOption = {};
-		const GIT_OUTPUT_SINGLE_PARENT = `52c293a05038d865604c2284aa8698bd087915a1
+
+		suite('getCommit', () => {
+			const GIT_OUTPUT_SINGLE_PARENT = `52c293a05038d865604c2284aa8698bd087915a1
 8e5a374372b8393906c7e380dbb09349c5385554
 This is a commit message.`;
-		const GIT_OUTPUT_MULTIPLE_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
+			const GIT_OUTPUT_MULTIPLE_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
 8e5a374372b8393906c7e380dbb09349c5385554 df27d8c75b129ab9b178b386077da2822101b217
 This is a commit message.`;
-		const GIT_OUTPUT_NO_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
+			const GIT_OUTPUT_NO_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
 
 This is a commit message.`;
 
-		const git = sinon.createStubInstance(Git);
-		git.exec = stub([
-			{
-				withArgs: ['REPOSITORY_ROOT', ['show', '-s', '--format=%H\n%P\n%B', 'REF_SINGLE_PARENT'], spawnOption],
-				returns: GIT_OUTPUT_SINGLE_PARENT
-			}, {
-				withArgs: ['REPOSITORY_ROOT', ['show', '-s', '--format=%H\n%P\n%B', 'REF_MULTIPLE_PARENTS'], spawnOption],
-				returns: GIT_OUTPUT_MULTIPLE_PARENTS
-			}, {
-				withArgs: ['REPOSITORY_ROOT', ['show', '-s', '--format=%H\n%P\n%B', 'REF_NO_PARENTS'], spawnOption],
-				returns: GIT_OUTPUT_NO_PARENTS
+			const git = sinon.createStubInstance(Git);
+			git.exec = stub([
+				{
+					withArgs: ['REPOSITORY_ROOT', ['show', '-s', '--format=%H\n%P\n%B', 'REF_SINGLE_PARENT'], spawnOption],
+					returns: GIT_OUTPUT_SINGLE_PARENT
+				}, {
+					withArgs: ['REPOSITORY_ROOT', ['show', '-s', '--format=%H\n%P\n%B', 'REF_MULTIPLE_PARENTS'], spawnOption],
+					returns: GIT_OUTPUT_MULTIPLE_PARENTS
+				}, {
+					withArgs: ['REPOSITORY_ROOT', ['show', '-s', '--format=%H\n%P\n%B', 'REF_NO_PARENTS'], spawnOption],
+					returns: GIT_OUTPUT_NO_PARENTS
+				}
+			]);
+			const repository = new Repository(git, 'REPOSITORY_ROOT');
+
+			test('get commit', async () => {
+				assert.deepEqual(await repository.getCommit('REF_SINGLE_PARENT'), {
+					hash: '52c293a05038d865604c2284aa8698bd087915a1',
+					message: 'This is a commit message.',
+					previousHashes: ['8e5a374372b8393906c7e380dbb09349c5385554']
+				});
+			});
+
+			test('multiple previous commits', async () => {
+				const commit = await repository.getCommit('REF_MULTIPLE_PARENTS');
+				assert.deepEqual(commit.previousHashes, ['8e5a374372b8393906c7e380dbb09349c5385554', 'df27d8c75b129ab9b178b386077da2822101b217']);
+			});
+
+			test('no previous commits', async () => {
+				const commit = await repository.getCommit('REF_NO_PARENTS');
+				assert.deepEqual(commit.previousHashes, []);
+			});
+
+			function stub(argOutputPairs: {withArgs: any[], returns: string}[]): sinon.SinonStub {
+				const stub = sinon.stub();
+				argOutputPairs.forEach(({withArgs, returns}) => {
+					stub.withArgs(...withArgs).returns(Promise.resolve({stdout: returns}));
+				});
+				return stub;
 			}
-		]);
-		const repository = new Repository(git, 'REPOSITORY_ROOT');
+		});
 
-		test('get commit', async () => {
-			assert.deepEqual(await repository.getCommit('REF_SINGLE_PARENT'), {
-				hash: '52c293a05038d865604c2284aa8698bd087915a1',
-				message: 'This is a commit message.',
-				previousHashes: ['8e5a374372b8393906c7e380dbb09349c5385554']
+		suite('deleteRef', () => {
+			const git = sinon.createStubInstance(Git);
+			git.exec = sinon.spy();
+			const repository = new Repository(git, 'REPOSITORY_ROOT');
+
+			test('delete ref', async () => {
+				await repository.deleteRef('REF_TO_BE_DELETED');
+				assert.deepEqual(git.exec.args, [['REPOSITORY_ROOT', ['update-ref', '-d', 'REF_TO_BE_DELETED'], spawnOption]]);
 			});
 		});
-
-		test('multiple previous commits', async () => {
-			const commit = await repository.getCommit('REF_MULTIPLE_PARENTS');
-			assert.deepEqual(commit.previousHashes, ['8e5a374372b8393906c7e380dbb09349c5385554', 'df27d8c75b129ab9b178b386077da2822101b217']);
-		});
-
-		test('no previous commits', async () => {
-			const commit = await repository.getCommit('REF_NO_PARENTS');
-			assert.deepEqual(commit.previousHashes, []);
-		});
-
-		function stub(argOutputPairs: {withArgs: any[], returns: string}[]): sinon.SinonStub {
-			const stub = sinon.stub();
-			argOutputPairs.forEach(({withArgs, returns}) => {
-				stub.withArgs(...withArgs).returns(Promise.resolve({stdout: returns}));
-			});
-			return stub;
-		}
 	});
 });
