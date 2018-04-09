@@ -135,7 +135,6 @@ export class QuickFixController implements IEditorContribution {
 	}
 }
 
-
 function showCodeActionsForEditorSelection(
 	editor: ICodeEditor,
 	notAvailableMessage: string,
@@ -154,8 +153,6 @@ function showCodeActionsForEditorSelection(
 		}
 	});
 }
-
-
 
 export class QuickFixAction extends EditorAction {
 
@@ -247,6 +244,10 @@ export class RefactorAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R
+			},
+			menuOpts: {
+				group: '1_modification',
+				order: 2
 			}
 		});
 	}
