@@ -773,6 +773,11 @@ declare module 'vscode' {
 	//#region Terminal
 
 	export namespace window {
+		/**
+		 * @readonly
+		 */
+		export let terminals: Terminal[];
+
 		export const onDidOpenTerminal: Event<Terminal>;
 	}
 

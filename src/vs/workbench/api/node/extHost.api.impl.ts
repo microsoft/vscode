@@ -316,6 +316,9 @@ export function createApiFactory(
 			get visibleTextEditors() {
 				return extHostEditors.getVisibleTextEditors();
 			},
+			get terminals() {
+				return extHostTerminalService.terminals;
+			},
 			showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
 				let documentPromise: TPromise<vscode.TextDocument>;
 				if (URI.isUri(documentOrUri)) {
