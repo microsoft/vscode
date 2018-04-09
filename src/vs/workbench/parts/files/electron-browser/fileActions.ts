@@ -1414,13 +1414,12 @@ export function getWellFormedFileName(filename: string): string {
 		return filename;
 	}
 
-	// Trim whitespaces
-	filename = strings.trim(strings.trim(filename, ' '), '\t');
+	// Trim tabs
+	filename = strings.trim(filename, '\t');
 
-	// Remove trailing dots
+	// Remove trailing dots, slashes, and spaces
 	filename = strings.rtrim(filename, '.');
-
-	// Remove trailing slashes
+	filename = strings.rtrim(filename, ' ');
 	filename = strings.rtrim(filename, '/');
 	filename = strings.rtrim(filename, '\\');
 
