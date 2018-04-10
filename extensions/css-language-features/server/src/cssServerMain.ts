@@ -49,7 +49,7 @@ connection.onShutdown(() => {
 });
 
 let scopedSettingsSupport = false;
-let workspaceFolders: WorkspaceFolder[] | undefined;
+let workspaceFolders: WorkspaceFolder[];
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
