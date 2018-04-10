@@ -412,7 +412,7 @@ export interface IRawEnvAdapter {
 	runtimeArgs?: string[];
 }
 
-export interface IRawAdapter extends IRawEnvAdapter {
+export interface IDebuggerContribution extends IRawEnvAdapter {
 	adapterExecutableCommand?: string;
 	enableBreakpointsFor?: { languageIds: string[] };
 	configurationAttributes?: any;

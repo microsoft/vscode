@@ -304,11 +304,11 @@ export class DebugAdapter extends StreamDebugAdapter {
 		}
 	}
 
-	private static extract(dbg: debug.IRawAdapter, extensionFolderPath: string) {
+	private static extract(dbg: debug.IDebuggerContribution, extensionFolderPath: string) {
 		if (!dbg) {
 			return undefined;
 		}
-		let x: debug.IRawAdapter = {};
+		let x: debug.IDebuggerContribution = {};
 
 		if (dbg.runtime) {
 			if (dbg.runtime.indexOf('./') === 0) {	// TODO
@@ -351,14 +351,14 @@ export class DebugAdapter extends StreamDebugAdapter {
 
 	static platformAdapterExecutable(extensionDescriptions: IExtensionDescription[], debugType: string): debug.IAdapterExecutable {
 
-		let result: debug.IRawAdapter = {};
+		let result: debug.IDebuggerContribution = {};
 
 		debugType = debugType.toLowerCase();
 
 		// merge all contributions into one
 		for (const ed of extensionDescriptions) {
 			if (ed.contributes) {
-				const debuggers = <debug.IRawAdapter[]>ed.contributes['debuggers'];
+				const debuggers = <debug.IDebuggerContribution[]>ed.contributes['debuggers'];
 				if (debuggers && debuggers.length > 0) {
 					const dbgs = debuggers.filter(d => strings.equalsIgnoreCase(d.type, debugType));
 					for (const dbg of dbgs) {

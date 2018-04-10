@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IRawAdapter, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugConfiguration } from 'vs/workbench/parts/debug/common/debug';
+import { IConfig, IDebuggerContribution, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugConfiguration } from 'vs/workbench/parts/debug/common/debug';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -21,7 +21,7 @@ export class Debugger {
 
 	private _mergedExtensionDescriptions: IExtensionDescription[];
 
-	constructor(private configurationManager: IConfigurationManager, private rawAdapter: IRawAdapter, public extensionDescription: IExtensionDescription,
+	constructor(private configurationManager: IConfigurationManager, private rawAdapter: IDebuggerContribution, public extensionDescription: IExtensionDescription,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {
@@ -82,7 +82,7 @@ export class Debugger {
 		return this.rawAdapter.languages;
 	}
 
-	public merge(secondRawAdapter: IRawAdapter, extensionDescription: IExtensionDescription): void {
+	public merge(secondRawAdapter: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
 
 		// remember all ext descriptions that are the source of this debugger
 		this._mergedExtensionDescriptions.push(extensionDescription);
