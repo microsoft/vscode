@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInputFactory } from 'vs/workbench/common/editor';
-import { IWebviewEditorService, WebviewInputOptions } from './webviewEditorService';
 import { WebviewEditorInput } from './webviewEditorInput';
+import { IWebviewEditorService, WebviewInputOptions } from './webviewEditorService';
 
 interface SerializedWebview {
 	readonly viewType: string;

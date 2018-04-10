@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import URI from 'vs/base/common/uri';
+import { addClass, addDisposableListener } from 'vs/base/browser/dom';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { addDisposableListener, addClass } from 'vs/base/browser/dom';
-import { editorBackground, editorForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ITheme, LIGHT, DARK, IThemeService } from 'vs/platform/theme/common/themeService';
-import { WebviewFindWidget } from './webviewFindWidget';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { nativeSep } from 'vs/base/common/paths';
 import { startsWith } from 'vs/base/common/strings';
+import URI from 'vs/base/common/uri';
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { editorBackground, editorForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
+import { WebviewFindWidget } from './webviewFindWidget';
 
 export interface WebviewOptions {
 	readonly allowScripts?: boolean;
