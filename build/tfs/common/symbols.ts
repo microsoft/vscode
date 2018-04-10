@@ -174,9 +174,12 @@ async function ensureVersionAndSymbols(options: IOptions) {
 const pakage = require('../../../package.json');
 const product = require('../../../product.json');
 const repository = product.electronRepository;
-const codeVersion = pakage.version;
 const electronVersion = require('../../lib/electron').getElectronVersion();
 const insiders = product.quality !== 'stable';
+let codeVersion = pakage.version;
+if (insiders) {
+	codeVersion = `${codeVersion}-insider`;
+}
 const githubToken = process.argv[2];
 const hockeyAppToken = process.argv[3];
 const is64 = process.argv[4] === 'x64';
@@ -192,7 +195,7 @@ if (process.platform === 'darwin') {
 }
 
 // Create version and upload symbols in HockeyApp
-if (repository && codeVersion && electronVersion) {
+if (repository && codeVersion && electronVersion && (product.quality === 'stable' || product.quality === 'insider')) {
 	ensureVersionAndSymbols({
 		repository,
 		platform,
@@ -212,5 +215,5 @@ if (repository && codeVersion && electronVersion) {
 		console.error(`HockeyApp: error (${error})`);
 	});
 } else {
-	console.log(`HockeyApp: skipping due to insufficient context (repository: ${repository}, codeVersion: ${codeVersion}, electronVersion: ${electronVersion})`);
+	console.log(`HockeyApp: skipping due to unexpected context (repository: ${repository}, codeVersion: ${codeVersion}, electronVersion: ${electronVersion}, quality: ${product.quality})`);
 }
