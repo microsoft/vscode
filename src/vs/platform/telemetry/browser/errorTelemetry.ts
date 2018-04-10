@@ -22,7 +22,8 @@ import { safeStringify } from 'vs/base/common/objects';
 		"file" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 		"line": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"column": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"name": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+		"uncaught_error_name": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+		"uncaught_error_msg": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 		"count": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 	}
  */
@@ -32,7 +33,8 @@ interface ErrorEvent {
 	file?: string;
 	line?: number;
 	column?: number;
-	name?: string;
+	uncaught_error_name?: string;
+	uncaught_error_msg?: string;
 	count?: number;
 }
 
@@ -125,9 +127,9 @@ export default class ErrorTelemetry {
 
 		if (err) {
 			let { name, message, stack } = err;
-			data.name = name;
+			data.uncaught_error_name = name;
 			if (message) {
-				data.msg = message;
+				data.uncaught_error_msg = message;
 			}
 			if (stack) {
 				data.callstack = Array.isArray(err.stack)
