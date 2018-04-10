@@ -34,7 +34,11 @@ class WindowDriver implements IWindowDriver {
 			throw new Error('Element not found');
 		}
 
-		(element as HTMLInputElement).value = text;
+		const inputElement = element as HTMLInputElement;
+		inputElement.value = text;
+
+		const event = new Event('input', { bubbles: true, cancelable: true });
+		inputElement.dispatchEvent(event);
 	}
 
 	async getTitle(): TPromise<string> {
