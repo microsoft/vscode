@@ -64,26 +64,7 @@ class WindowDriver implements IWindowDriver {
 		webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers } as any);
 
 		await TPromise.timeout(100);
-
-		// const event: IKeyboardEvent = {
-		// 	ctrlKey: keybinding.ctrlKey,
-		// 	altKey: keybinding.altKey,
-		// 	shiftKey: keybinding.shiftKey,
-		// 	metaKey: keybinding.metaKey,
-		// 	keyCode: keybinding.keyCode,
-		// 	code: ScanCodeUtils.toString(scanCode)
-		// };
-
-		// this.keybindingService.dispatchEvent(event, document.activeElement);
-
-		// console.log(keybinding);
-
-		// const e = new KeyboardEvent('keydown', event);
-		// console.log('dispatching', e);
-		// document.activeElement.dispatchEvent(e);
-		// document.activeElement.dispatchEvent(new KeyboardEvent('keyup', event));
 	}
-
 
 	click(selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
 		throw new Error('Method not implemented.');
