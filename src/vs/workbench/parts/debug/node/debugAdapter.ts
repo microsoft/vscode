@@ -374,7 +374,7 @@ export class DebugAdapter extends StreamDebugAdapter {
 		}
 
 		// select the right platform
-		let platformInfo: debug.IRawEnvAdapter;
+		let platformInfo: debug.IPlatformSpecificAdapterContribution;
 		if (platform.isWindows && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432')) {
 			platformInfo = result.winx86 || result.win || result.windows;
 		} else if (platform.isWindows) {

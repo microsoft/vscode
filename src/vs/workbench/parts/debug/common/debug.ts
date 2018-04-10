@@ -403,16 +403,18 @@ export interface IAdapterExecutable {
 	args?: string[];
 }
 
-export interface IRawEnvAdapter {
-	type?: string;
-	label?: string;
+export interface IPlatformSpecificAdapterContribution {
+	type?: string;		// TODO: doesn't belong here
+	label?: string;		// TODO: doesn't belong here
 	program?: string;
 	args?: string[];
 	runtime?: string;
 	runtimeArgs?: string[];
 }
 
-export interface IDebuggerContribution extends IRawEnvAdapter {
+export interface IDebuggerContribution extends IPlatformSpecificAdapterContribution {
+	// type: string;		// TODO: host from IPlatformSpecificAdapterContribution
+	// label?: string;		// TODO: host from IPlatformSpecificAdapterContribution
 	adapterExecutableCommand?: string;
 	enableBreakpointsFor?: { languageIds: string[] };
 	configurationAttributes?: any;
@@ -421,11 +423,11 @@ export interface IDebuggerContribution extends IRawEnvAdapter {
 	languages?: string[];
 	variables?: { [key: string]: string };
 	aiKey?: string;
-	win?: IRawEnvAdapter;
-	winx86?: IRawEnvAdapter;
-	windows?: IRawEnvAdapter;
-	osx?: IRawEnvAdapter;
-	linux?: IRawEnvAdapter;
+	win?: IPlatformSpecificAdapterContribution;
+	winx86?: IPlatformSpecificAdapterContribution;
+	windows?: IPlatformSpecificAdapterContribution;
+	osx?: IPlatformSpecificAdapterContribution;
+	linux?: IPlatformSpecificAdapterContribution;
 }
 
 export interface IDebugConfigurationProvider {
