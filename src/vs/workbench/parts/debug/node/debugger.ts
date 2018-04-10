@@ -21,7 +21,7 @@ export class Debugger {
 
 	private _mergedExtensionDescriptions: IExtensionDescription[];
 
-	constructor(private configurationManager: IConfigurationManager, private rawAdapter: IDebuggerContribution, public extensionDescription: IExtensionDescription,
+	constructor(private configurationManager: IConfigurationManager, private debuggerContribution: IDebuggerContribution, public extensionDescription: IExtensionDescription,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {
@@ -34,52 +34,54 @@ export class Debugger {
 		return this.getAdapterExecutable(root).then(adapterExecutable => {
 			const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
 			if (debugConfigs.extensionHostDebugAdapter) {
-				return this.configurationManager.createDebugAdapter(this.rawAdapter.type, adapterExecutable);
+				return this.configurationManager.createDebugAdapter(this.type, adapterExecutable);
 			} else {
-				return new DebugAdapter(this.rawAdapter.type, adapterExecutable, this._mergedExtensionDescriptions, outputService);
+				return new DebugAdapter(this.type, adapterExecutable, this._mergedExtensionDescriptions, outputService);
 			}
 		});
 	}
 
 	public getAdapterExecutable(root: IWorkspaceFolder): TPromise<IAdapterExecutable | null> {
 
-		return this.configurationManager.debugAdapterExecutable(root ? root.uri : undefined, this.rawAdapter.type).then(adapterExecutable => {
+		// first try to get an executable from DebugConfigurationProvider
+		return this.configurationManager.debugAdapterExecutable(root ? root.uri : undefined, this.type).then(adapterExecutable => {
 
 			if (adapterExecutable) {
 				return adapterExecutable;
 			}
 
-			// try deprecated command based extension API
-			if (this.rawAdapter.adapterExecutableCommand) {
-				return this.commandService.executeCommand<IAdapterExecutable>(this.rawAdapter.adapterExecutableCommand, root ? root.uri.toString() : undefined);
+			// try deprecated command based extension API to receive an executable
+			if (this.debuggerContribution.adapterExecutableCommand) {
+				return this.commandService.executeCommand<IAdapterExecutable>(this.debuggerContribution.adapterExecutableCommand, root ? root.uri.toString() : undefined);
 			}
 
+			// give up and let DebugAdapter determine executable based on package.json contribution
 			return TPromise.as(null);
 		});
 	}
 
 	public get aiKey(): string {
-		return this.rawAdapter.aiKey;
+		return this.debuggerContribution.aiKey;
 	}
 
 	public get label(): string {
-		return this.rawAdapter.label || this.rawAdapter.type;
+		return this.debuggerContribution.label || this.debuggerContribution.type;
 	}
 
 	public get type(): string {
-		return this.rawAdapter.type;
+		return this.debuggerContribution.type;
 	}
 
 	public get variables(): { [key: string]: string } {
-		return this.rawAdapter.variables;
+		return this.debuggerContribution.variables;
 	}
 
 	public get configurationSnippets(): IJSONSchemaSnippet[] {
-		return this.rawAdapter.configurationSnippets;
+		return this.debuggerContribution.configurationSnippets;
 	}
 
 	public get languages(): string[] {
-		return this.rawAdapter.languages;
+		return this.debuggerContribution.languages;
 	}
 
 	public merge(secondRawAdapter: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
@@ -91,16 +93,16 @@ export class Debugger {
 		if (extensionDescription.isBuiltin) {
 			this.extensionDescription = extensionDescription;
 		}
-		objects.mixin(this.rawAdapter, secondRawAdapter, extensionDescription.isBuiltin);
+		objects.mixin(this.debuggerContribution, secondRawAdapter, extensionDescription.isBuiltin);
 	}
 
 	public hasInitialConfiguration(): boolean {
-		return !!this.rawAdapter.initialConfigurations;
+		return !!this.debuggerContribution.initialConfigurations;
 	}
 
 	public getInitialConfigurationContent(initialConfigs?: IConfig[]): TPromise<string> {
 		// at this point we got some configs from the package.json and/or from registered DebugConfigurationProviders
-		let initialConfigurations = this.rawAdapter.initialConfigurations || [];
+		let initialConfigurations = this.debuggerContribution.initialConfigurations || [];
 		if (initialConfigs) {
 			initialConfigurations = initialConfigurations.concat(initialConfigs);
 		}
@@ -130,12 +132,12 @@ export class Debugger {
 	}
 
 	public getSchemaAttributes(): IJSONSchema[] {
-		if (!this.rawAdapter.configurationAttributes) {
+		if (!this.debuggerContribution.configurationAttributes) {
 			return null;
 		}
 		// fill in the default configuration attributes shared by all adapters.
-		return Object.keys(this.rawAdapter.configurationAttributes).map(request => {
-			const attributes: IJSONSchema = this.rawAdapter.configurationAttributes[request];
+		return Object.keys(this.debuggerContribution.configurationAttributes).map(request => {
+			const attributes: IJSONSchema = this.debuggerContribution.configurationAttributes[request];
 			const defaultRequired = ['name', 'type', 'request'];
 			attributes.required = attributes.required && attributes.required.length ? defaultRequired.concat(attributes.required) : defaultRequired;
 			attributes.additionalProperties = false;
