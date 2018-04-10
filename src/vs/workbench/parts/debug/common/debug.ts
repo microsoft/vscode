@@ -415,19 +415,27 @@ export interface IPlatformSpecificAdapterContribution {
 export interface IDebuggerContribution extends IPlatformSpecificAdapterContribution {
 	// type: string;		// TODO: host from IPlatformSpecificAdapterContribution
 	// label?: string;		// TODO: host from IPlatformSpecificAdapterContribution
+
+	// debug adapter executable
 	adapterExecutableCommand?: string;
-	enableBreakpointsFor?: { languageIds: string[] };
-	configurationAttributes?: any;
-	configurationSnippets?: IJSONSchemaSnippet[];
-	initialConfigurations?: any[];
-	languages?: string[];
-	variables?: { [key: string]: string };
-	aiKey?: string;
 	win?: IPlatformSpecificAdapterContribution;
 	winx86?: IPlatformSpecificAdapterContribution;
 	windows?: IPlatformSpecificAdapterContribution;
 	osx?: IPlatformSpecificAdapterContribution;
 	linux?: IPlatformSpecificAdapterContribution;
+
+	// internal
+	aiKey?: string;
+
+	// supported languages
+	languages?: string[];
+	enableBreakpointsFor?: { languageIds: string[] };
+
+	// debug configuration support
+	configurationAttributes?: any;
+	initialConfigurations?: any[];
+	configurationSnippets?: IJSONSchemaSnippet[];
+	variables?: { [key: string]: string };
 }
 
 export interface IDebugConfigurationProvider {
