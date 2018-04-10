@@ -293,8 +293,9 @@ connection.onCompletion(async (textDocumentPosition, token) => {
 		let settings = await getDocumentSettings(document, () => doComplete.length > 2);
 		let result = doComplete(document, textDocumentPosition.position, settings, completionParticipants);
 		if (emmetCompletionList.isIncomplete) {
+			emmetCompletionList.items = emmetCompletionList.items || [];
 			cachedCompletionList = result;
-			if (hexColorRegex.test(emmetCompletionList.items[0].label) && result.items.some(x => x.label === emmetCompletionList.items[0].label)) {
+			if (emmetCompletionList.items.length && hexColorRegex.test(emmetCompletionList.items[0].label) && result.items.some(x => x.label === emmetCompletionList.items[0].label)) {
 				emmetCompletionList.items.shift();
 			}
 			return CompletionList.create([...emmetCompletionList.items, ...result.items], emmetCompletionList.isIncomplete || result.isIncomplete);
