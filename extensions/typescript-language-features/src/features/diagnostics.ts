@@ -5,7 +5,7 @@
 
 import *  as vscode from 'vscode';
 
-class DiagnosticSet {
+export class DiagnosticSet {
 	private _map: ObjectMap<vscode.Diagnostic[]> = Object.create(null);
 
 	public set(
