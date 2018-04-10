@@ -10,6 +10,7 @@ export interface Element {
 	tagName: string;
 	className: string;
 	textContent: string;
+	attributes: { [name: string]: string };
 }
 
 export interface Driver {
@@ -21,7 +22,7 @@ export interface Driver {
 	getTitle(): Promise<string>;
 
 	isActiveElement(selector: string): Promise<boolean>;
-	getElements(selector: string): Promise<Element[]>;
+	getElements(selector: string, recursive?: boolean): Promise<Element[]>;
 	selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): Promise<P>;
 }
 
@@ -104,7 +105,8 @@ export class SpectronDriver implements Driver {
 				result.push({
 					tagName: element.tagName,
 					className: element.className,
-					textContent: element.textContent || ''
+					textContent: element.textContent || '',
+					attributes: {}
 				});
 			}
 
@@ -196,13 +198,13 @@ export class CodeDriver implements Driver {
 		return await this.driver.isActiveElement(windowId, selector);
 	}
 
-	async getElements(selector: string): Promise<Element[]> {
+	async getElements(selector: string, recursive = false): Promise<Element[]> {
 		if (this.verbose) {
 			console.log('- getElements:', selector);
 		}
 
 		const windowId = await this.getWindowId();
-		const result = await this.driver.getElements(windowId, selector);
+		const result = await this.driver.getElements(windowId, selector, recursive);
 		return result;
 	}
 

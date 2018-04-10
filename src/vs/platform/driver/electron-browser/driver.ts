@@ -11,6 +11,31 @@ import { IWindowDriver, IElement, WindowDriverChannel, WindowDriverRegistryChann
 import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
+function serializeElement(element: Element, recursive: boolean): IElement {
+	const attributes = Object.create(null);
+
+	for (let j = 0; j < element.attributes.length; j++) {
+		const attr = element.attributes.item(j);
+		attributes[attr.name] = attr.value;
+	}
+
+	const children = [];
+
+	if (recursive) {
+		for (let i = 0; i < element.children.length; i++) {
+			children.push(serializeElement(element.children.item(i), true));
+		}
+	}
+
+	return {
+		tagName: element.tagName,
+		className: element.className,
+		textContent: element.textContent || '',
+		attributes,
+		children
+	};
+}
+
 class WindowDriver implements IWindowDriver {
 
 	constructor() { }
@@ -50,18 +75,13 @@ class WindowDriver implements IWindowDriver {
 		return element === document.activeElement;
 	}
 
-	async getElements(selector: string): TPromise<IElement[]> {
+	async getElements(selector: string, recursive: boolean): TPromise<IElement[]> {
 		const query = document.querySelectorAll(selector);
 		const result: IElement[] = [];
 
 		for (let i = 0; i < query.length; i++) {
 			const element = query.item(i);
-
-			result.push({
-				tagName: element.tagName,
-				className: element.className,
-				textContent: element.textContent || ''
-			});
+			result.push(serializeElement(element, recursive));
 		}
 
 		return result;

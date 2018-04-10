@@ -18,12 +18,12 @@ export function setup() {
 			const app = this.app as SpectronApplication;
 
 			await app.workbench.explorer.openFile('app.js');
-			await app.api.waitForElements('.line-numbers', elements => !!elements.length);
+			await app.api.waitForElements('.line-numbers', false, elements => !!elements.length);
 			await app.screenCapturer.capture('app.js has line numbers');
 
 			await app.workbench.settingsEditor.addUserSetting('editor.lineNumbers', '"off"');
 			await app.workbench.editors.selectTab('app.js');
-			await app.api.waitForElements('.line-numbers', result => !result || result.length === 0);
+			await app.api.waitForElements('.line-numbers', false, result => !result || result.length === 0);
 
 			await app.screenCapturer.capture('line numbers hidden');
 		});

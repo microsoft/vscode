@@ -17,6 +17,8 @@ export interface IElement {
 	tagName: string;
 	className: string;
 	textContent: string;
+	attributes: { [name: string]: string; };
+	children: IElement[];
 }
 
 export interface IDriver {
@@ -30,7 +32,7 @@ export interface IDriver {
 	setValue(windowId: number, selector: string, text: string): TPromise<void>;
 	getTitle(windowId: number): TPromise<string>;
 	isActiveElement(windowId: number, selector: string): TPromise<boolean>;
-	getElements(windowId: number, selector: string): TPromise<IElement[]>;
+	getElements(windowId: number, selector: string, recursive: boolean): TPromise<IElement[]>;
 	selectorExecute<P>(windowId: number, selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): TPromise<P>;
 }
 //*END
@@ -44,7 +46,7 @@ export interface IDriverChannel extends IChannel {
 	call(command: 'setValue', arg: [number, string, string]): TPromise<void>;
 	call(command: 'getTitle', arg: [number]): TPromise<string>;
 	call(command: 'isActiveElement', arg: [number, string]): TPromise<boolean>;
-	call(command: 'getElements', arg: [number, string]): TPromise<IElement[]>;
+	call(command: 'getElements', arg: [number, string, boolean]): TPromise<IElement[]>;
 	call(command: 'selectorExecute', arg: [number, string, string, any[]]): TPromise<any>;
 	call(command: string, arg: any): TPromise<any>;
 }
@@ -63,7 +65,7 @@ export class DriverChannel implements IDriverChannel {
 			case 'setValue': return this.driver.setValue(arg[0], arg[1], arg[2]);
 			case 'getTitle': return this.driver.getTitle(arg[0]);
 			case 'isActiveElement': return this.driver.isActiveElement(arg[0], arg[1]);
-			case 'getElements': return this.driver.getElements(arg[0], arg[1]);
+			case 'getElements': return this.driver.getElements(arg[0], arg[1], arg[2]);
 
 			// TODO@joao
 			case 'selectorExecute': return this.driver.selectorExecute(arg[0], arg[1], arg[1], ...arg[2]);
@@ -111,8 +113,8 @@ export class DriverChannelClient implements IDriver {
 		return this.channel.call('isActiveElement', [windowId, selector]);
 	}
 
-	getElements(windowId: number, selector: string): TPromise<IElement[]> {
-		return this.channel.call('getElements', [windowId, selector]);
+	getElements(windowId: number, selector: string, recursive: boolean): TPromise<IElement[]> {
+		return this.channel.call('getElements', [windowId, selector, recursive]);
 	}
 
 	selectorExecute<P>(windowId: number, selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): TPromise<P> {
@@ -161,7 +163,7 @@ export interface IWindowDriver {
 	setValue(selector: string, text: string): TPromise<void>;
 	getTitle(): TPromise<string>;
 	isActiveElement(selector: string): TPromise<boolean>;
-	getElements(selector: string): TPromise<IElement[]>;
+	getElements(selector: string, recursive: boolean): TPromise<IElement[]>;
 	selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): TPromise<P>;
 }
 
@@ -172,7 +174,7 @@ export interface IWindowDriverChannel extends IChannel {
 	call(command: 'setValue', arg: [string, string]): TPromise<void>;
 	call(command: 'getTitle'): TPromise<string>;
 	call(command: 'isActiveElement', arg: string): TPromise<boolean>;
-	call(command: 'getElements', arg: string): TPromise<IElement[]>;
+	call(command: 'getElements', arg: [string, boolean]): TPromise<IElement[]>;
 	call(command: 'selectorExecute', arg: [string, string, any[]]): TPromise<any>;
 	call(command: string, arg: any): TPromise<any>;
 }
@@ -189,7 +191,7 @@ export class WindowDriverChannel implements IWindowDriverChannel {
 			case 'setValue': return this.driver.setValue(arg[0], arg[1]);
 			case 'getTitle': return this.driver.getTitle();
 			case 'isActiveElement': return this.driver.isActiveElement(arg);
-			case 'getElements': return this.driver.getElements(arg);
+			case 'getElements': return this.driver.getElements(arg[0], arg[1]);
 			// TODO@joao
 			case 'selectorExecute': return this.driver.selectorExecute(arg[0], arg[1], ...arg[2]);
 		}
@@ -228,8 +230,8 @@ export class WindowDriverChannelClient implements IWindowDriver {
 		return this.channel.call('isActiveElement', selector);
 	}
 
-	getElements(selector: string): TPromise<IElement[]> {
-		return this.channel.call('getElements', selector);
+	getElements(selector: string, recursive: boolean): TPromise<IElement[]> {
+		return this.channel.call('getElements', [selector, recursive]);
 	}
 
 	selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): TPromise<P> {

@@ -127,9 +127,9 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		return windowDriver.isActiveElement(selector);
 	}
 
-	getElements(windowId: number, selector: string): TPromise<IElement[]> {
+	getElements(windowId: number, selector: string, recursive: boolean): TPromise<IElement[]> {
 		const windowDriver = this.getWindowDriver(windowId);
-		return windowDriver.getElements(selector);
+		return windowDriver.getElements(selector, recursive);
 	}
 
 	selectorExecute<P>(windowId: number, selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): TPromise<P> {

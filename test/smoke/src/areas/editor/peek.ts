@@ -26,7 +26,7 @@ export class References {
 	}
 
 	async waitForReferencesCount(count: number): Promise<void> {
-		await this.api.waitForElements(References.REFERENCES, result => result && result.length === count);
+		await this.api.waitForElements(References.REFERENCES, false, result => result && result.length === count);
 	}
 
 	async waitForFile(file: string): Promise<void> {

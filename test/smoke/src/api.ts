@@ -60,8 +60,8 @@ export class API {
 		return elements.length;
 	}
 
-	waitForElements(selector: string, accept: (result: Element[]) => boolean = result => result.length > 0): Promise<Element[]> {
-		return this.waitFor(() => this.driver.getElements(selector), accept, `elements with selector ${selector}`) as Promise<any>;
+	waitForElements(selector: string, recursive: boolean, accept: (result: Element[]) => boolean = result => result.length > 0): Promise<Element[]> {
+		return this.waitFor(() => this.driver.getElements(selector, recursive), accept, `elements with selector ${selector}`) as Promise<any>;
 	}
 
 	waitForElement(selector: string, accept: (result: Element | undefined) => boolean = result => !!result): Promise<void> {

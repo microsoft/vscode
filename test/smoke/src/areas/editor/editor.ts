@@ -125,13 +125,13 @@ export class Editor {
 	}
 
 	private async getClassSelectors(term: string, viewline: number): Promise<string[]> {
-		const elements = await this.api.waitForElements(`${Editor.VIEW_LINES}>:nth-child(${viewline}) span span`, els => els.some(el => el.textContent === term));
+		const elements = await this.api.waitForElements(`${Editor.VIEW_LINES}>:nth-child(${viewline}) span span`, false, els => els.some(el => el.textContent === term));
 		const { className } = elements.filter(r => r.textContent === term)[0];
 		return className.split(/\s/g);
 	}
 
 	private async getViewLineIndex(line: number): Promise<number> {
-		const elements = await this.api.waitForElements(Editor.LINE_NUMBERS, els => {
+		const elements = await this.api.waitForElements(Editor.LINE_NUMBERS, false, els => {
 			return els.some(el => el.textContent === `${line}`);
 		});
 

@@ -105,7 +105,7 @@ export class Debug extends Viewlet {
 	}
 
 	async waitForStackFrameLength(length: number): Promise<any> {
-		await this.api.waitForElements(STACK_FRAME, result => result.length === length);
+		await this.api.waitForElements(STACK_FRAME, false, result => result.length === length);
 	}
 
 	async focusStackFrame(name: string, message: string): Promise<any> {

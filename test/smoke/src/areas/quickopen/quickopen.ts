@@ -65,7 +65,7 @@ export class QuickOpen {
 	}
 
 	async waitForQuickOpenElements(accept: (names: string[]) => boolean): Promise<void> {
-		await this.api.waitForElements(QuickOpen.QUICK_OPEN_ENTRY_LABEL_SELECTOR, els => accept(els.map(e => e.textContent)));
+		await this.api.waitForElements(QuickOpen.QUICK_OPEN_ENTRY_LABEL_SELECTOR, false, els => accept(els.map(e => e.textContent)));
 	}
 
 	async runCommand(command: string): Promise<void> {
