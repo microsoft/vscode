@@ -13,7 +13,7 @@ import { $ } from 'vs/base/browser/builder';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
+import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ZoneWidget, IOptions } from '../zoneWidget/zoneWidget';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -27,15 +27,21 @@ import { Action } from 'vs/base/common/actions';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { peekViewEditorBackground, peekViewBorder, } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { Color } from 'vs/base/common/color';
+import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 export const ID = 'editor.contrib.review';
 
 declare var ResizeObserver: any;
 
-const REVIEWL_DECORATION = ModelDecorationOptions.register({
+const REVIEW_DECORATION = ModelDecorationOptions.register({
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 	glyphMarginClassName: 'review'
+});
+
+const NEW_COMMENT_DECORATION = ModelDecorationOptions.register({
+	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+	glyphMarginClassName: 'new-comment-hint',
 });
 
 export class ReviewViewZone implements IViewZone {
@@ -191,6 +197,7 @@ export class ReviewController implements IEditorContribution {
 	private localToDispose: IDisposable[];
 	private editor: ICodeEditor;
 	private decorationIDs: string[];
+	private newCommentHintDecoration: string[];
 	private _domNode: HTMLElement;
 	private _zoneWidget: ReviewZoneWidget;
 	private _zoneWidgets: ReviewZoneWidget[];
@@ -206,6 +213,7 @@ export class ReviewController implements IEditorContribution {
 		this.globalToDispose = [];
 		this.localToDispose = [];
 		this.decorationIDs = [];
+		this.newCommentHintDecoration = [];
 		this.mouseDownInfo = null;
 		this._commentThreads = [];
 		this._zoneWidgets = [];
@@ -250,6 +258,7 @@ export class ReviewController implements IEditorContribution {
 		this._zoneWidgets = [];
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
+		this.localToDispose.push(this.editor.onMouseMove(e => this.onEditorMouseMove(e)));
 	}
 
 	private mouseDownInfo: { lineNumber: number, iconClicked: boolean };
@@ -306,6 +315,62 @@ export class ReviewController implements IEditorContribution {
 		}
 	}
 
+	private onEditorMouseMove(e: IEditorMouseEvent): void {
+		let showNewCommentHintAtLineNumber = -1;
+		if (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN
+			&& this.marginFreeFromCommentHintDecorations(e.target.position.lineNumber)) {
+			const data = e.target.detail as IMarginData;
+			if (!data.isAfterLines) {
+				showNewCommentHintAtLineNumber = e.target.position.lineNumber;
+			}
+		}
+		this.ensureNewCommentHintDecoration(showNewCommentHintAtLineNumber);
+	}
+
+	ensureNewCommentHintDecoration(showNewCommentHintAtLineNumber: number) {
+		const newDecoration: IModelDeltaDecoration[] = [];
+		if (showNewCommentHintAtLineNumber !== -1) {
+			newDecoration.push({
+				options: NEW_COMMENT_DECORATION,
+				range: {
+					startLineNumber: showNewCommentHintAtLineNumber,
+					startColumn: 1,
+					endLineNumber: showNewCommentHintAtLineNumber,
+					endColumn: 1
+				}
+			});
+		}
+
+		this.newCommentHintDecoration = this.editor.deltaDecorations(this.newCommentHintDecoration, newDecoration);
+	}
+
+	marginFreeFromCommentHintDecorations(line: number): boolean {
+		let allowNewComment = false;
+
+		for (let i = 0; i < this._commentThreads.length; i++) {
+			if (this._commentThreads[i].newCommentRange.startLineNumber <= line && this._commentThreads[i].newCommentRange.endLineNumber >= line) {
+				allowNewComment = true;
+				break;
+			}
+
+		}
+
+		if (!allowNewComment) {
+			return false;
+		}
+
+		const decorations = this.editor.getLineDecorations(line);
+		if (decorations) {
+			for (const { options } of decorations) {
+				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf('review') > -1) {
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
 	getComments(line: number): modes.Comment[] {
 		for (let i = 0; i < this._commentThreads.length; i++) {
 			if (this._commentThreads[i].range.startLineNumber === line) {
@@ -321,7 +386,7 @@ export class ReviewController implements IEditorContribution {
 		this.editor.changeDecorations(accessor => {
 			this.decorationIDs = accessor.deltaDecorations(this.decorationIDs, commentThreads.map(thread => ({
 				range: thread.range,
-				options: REVIEWL_DECORATION
+				options: REVIEW_DECORATION
 			})));
 		});
 

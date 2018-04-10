@@ -774,6 +774,7 @@ declare module 'vscode' {
 
 	interface CommentThread {
 		range: Range;
+		newCommentRange: Range;
 		comments: Comment[];
 	}
 

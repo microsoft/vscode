@@ -5030,6 +5030,7 @@ declare namespace monaco.languages {
 
 	export interface CommentThread {
 		readonly range: IRange;
+		readonly newCommentRange: IRange;
 		readonly comments: Comment[];
 	}
 

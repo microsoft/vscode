@@ -65,6 +65,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 function convertCommentThread(vscodeCommentThread: vscode.CommentThread): modes.CommentThread {
 	return {
 		range: extHostTypeConverter.fromRange(vscodeCommentThread.range),
+		newCommentRange: extHostTypeConverter.fromRange(vscodeCommentThread.newCommentRange),
 		comments: vscodeCommentThread.comments.map(convertComment)
 	};
 }

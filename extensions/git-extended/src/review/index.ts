@@ -12,6 +12,7 @@ import { Comment } from '../common/models/comment';
 import { toGitUri } from '../common/uri';
 import { CommentsProvider } from '../commentsProvider';
 import { GitChangeType } from '../common/models/file';
+import { fetch, checkout } from '../common/operation';
 
 const REVIEW_STATE = 'git-extended.state';
 
@@ -79,6 +80,9 @@ export async function restoreReviewState(repository: Repository, workspaceState:
 }
 
 export async function enterReviewMode(workspaceState: vscode.Memento, repository: Repository, pr: PullRequest, gitRepo: any) {
+	await fetch(repository, pr.remote.remoteName, `pull/${pr.prItem.number}/head:pull-request-${pr.prItem.number}`);
+	await checkout(repository, `pull-request-${pr.prItem.number}`);
+
 	workspaceState.update(`${REVIEW_STATE}:pull-request-${pr.prItem.number}`, {
 		remote: pr.remote.remoteName,
 		prNumber: pr.prItem.number,

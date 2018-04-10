@@ -6,7 +6,15 @@
 .monaco-editor .margin-view-overlays .review {
 	background-image: url('comment.svg');
 	cursor: pointer;
-	background-repeat:no-repeat;
+	background-repeat: no-repeat;
+	background-position: center center;
+}
+
+.monaco-editor .margin-view-overlays .new-comment-hint {
+	background-image: url('comment.svg');
+	opacity: 0.5;
+	cursor: pointer;
+	background-repeat: no-repeat;
 	background-position: center center;
 }
 
@@ -14,7 +22,6 @@
 	width: 100%;
 	position: absolute;
 }
-
 
 .monaco-editor .review-widget .body .review-comment {
 	margin-left: 20px;
@@ -25,6 +32,7 @@
 	float: left;
 	margin-top: 4px !important;
 }
+
 .monaco-editor .review-widget .body .review-comment .float-left img.avatar {
 	height: 28px;
 	width: 28px;
@@ -45,13 +53,16 @@
 	word-wrap: normal;
 	white-space: pre;
 }
+
 .monaco-editor.vs-dark .review-widget .body .review-comment .review-comment-contents h4 {
 	margin: 0;
 }
+
 .monaco-editor.vs-dark .review-widget .body .review-comment .review-comment-contents .author {
 	color: #fff;
 	font-weight: 600;
 }
+
 .monaco-editor.vs-dark .review-widget .body .review-comment .review-comment-contents .comment-body {
 	padding-top: 4px;
 }
@@ -79,11 +90,11 @@
 	padding-left: 20px;
 }
 
-.monaco-editor .review-widget .body li > p {
+.monaco-editor .review-widget .body li>p {
 	margin-bottom: 0;
 }
 
-.monaco-editor .review-widget .body li > ul {
+.monaco-editor .review-widget .body li>ul {
 	margin-top: 0;
 }
 
@@ -93,11 +104,11 @@
 }
 
 .monaco-editor .review-widget .head {
-	-webkit-box-sizing:	border-box;
+	-webkit-box-sizing: border-box;
 	-o-box-sizing: border-box;
 	-moz-box-sizing: border-box;
 	-ms-box-sizing: border-box;
-	box-sizing:	border-box;
+	box-sizing: border-box;
 	display: flex;
 }
 
@@ -119,20 +130,20 @@
 	padding-right: 2px;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar {
+.monaco-editor .review-widget .head .review-actions>.monaco-action-bar {
 	display: inline-block;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar,
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar > .actions-container {
+.monaco-editor .review-widget .head .review-actions>.monaco-action-bar,
+.monaco-editor .review-widget .head .review-actions>.monaco-action-bar>.actions-container {
 	height: 100%;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .action-item {
+.monaco-editor .review-widget .head .review-actions>.monaco-action-bar .action-item {
 	margin-left: 4px;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .action-label {
+.monaco-editor .review-widget .head .review-actions>.monaco-action-bar .action-label {
 	width: 16px;
 	height: 100%;
 	margin: 0;
@@ -141,7 +152,7 @@
 	background-position: center center;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .action-label.octicon {
+.monaco-editor .review-widget .head .review-actions>.monaco-action-bar .action-label.octicon {
 	margin: 0;
 }
 
@@ -149,7 +160,7 @@
 	background: url('close.svg') center center no-repeat;
 }
 
-.monaco-editor .review-widget > .body {
+.monaco-editor .review-widget>.body {
 	border-top: 1px solid;
 	position: relative;
 }

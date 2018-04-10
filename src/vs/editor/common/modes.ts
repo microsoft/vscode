@@ -940,6 +940,7 @@ export interface Command {
 
 export interface CommentThread {
 	readonly range: IRange;
+	readonly newCommentRange: IRange;
 	readonly comments: Comment[];
 }
 

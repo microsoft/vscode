@@ -59,9 +59,12 @@ export class CommentsProvider implements vscode.CommentProvider {
 			const comment = comments[0];
 			const pos = new vscode.Position(comment.diff_hunk_range.start + comment.position - 1 - 1, 0);
 			const range = new vscode.Range(pos, pos);
+			const newCommentStartPos = new vscode.Position(comment.diff_hunk_range.start - 1, 0);
+			const newCommentEndPos = new vscode.Position(comment.diff_hunk_range.start + comment.diff_hunk_range.length - 1 - 1, 0);
 
 			ret.push({
 				range,
+				newCommentRange: new vscode.Range(newCommentStartPos, newCommentEndPos),
 				comments: comments.map(comment => {
 					return {
 						body: new vscode.MarkdownString(comment.body),
