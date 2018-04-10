@@ -70,7 +70,7 @@ suite('AbstractKeybindingService', () => {
 
 		public testDispatch(kb: number): boolean {
 			const keybinding = createSimpleKeybinding(kb, OS);
-			return this.dispatchEvent({
+			return this._dispatch({
 				ctrlKey: keybinding.ctrlKey,
 				shiftKey: keybinding.shiftKey,
 				altKey: keybinding.altKey,

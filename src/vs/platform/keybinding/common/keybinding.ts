@@ -77,10 +77,5 @@ export interface IKeybindingService {
 	getKeybindings(): ResolvedKeybindingItem[];
 
 	customKeybindingsCount(): number;
-
-	/**
-	 * For simulation purposes (eg, smoke test)
-	 */
-	dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean;
 }
 

@@ -17,7 +17,7 @@ suite('StandaloneKeybindingService', () => {
 
 	class TestStandaloneKeybindingService extends StandaloneKeybindingService {
 		public testDispatch(e: IKeyboardEvent): void {
-			super.dispatchEvent(e, null);
+			super._dispatch(e, null);
 		}
 	}
 

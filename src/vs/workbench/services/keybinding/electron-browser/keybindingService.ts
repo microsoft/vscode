@@ -313,7 +313,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		this.toDispose.push(dom.addDisposableListener(windowElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
-			let shouldPreventDefault = this.dispatchEvent(keyEvent, keyEvent.target);
+			let shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
 			if (shouldPreventDefault) {
 				keyEvent.preventDefault();
 			}
