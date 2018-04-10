@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
-import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation, IFileSystemProvider, IStat, FileType, IImportResult, FileChangesEvent, ICreateFileOptions, FileOperationError, FileOperationResult, ITextSnapshot, snapshotToString } from 'vs/platform/files/common/files';
+import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation, IFileSystemProvider, IStat, FileType2, IImportResult, FileChangesEvent, ICreateFileOptions, FileOperationError, FileOperationResult, ITextSnapshot, snapshotToString } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { posix } from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -27,8 +27,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse?: (tuple: [URI, IStat]) => boolean): TPromise<IFileStat> {
 	const [resource, stat] = tuple;
 	const fileStat: IFileStat = {
-		isDirectory: false,
-		isSymbolicLink: stat.type === FileType.Symlink,
+		isDirectory: (stat.type & FileType2.Directory) !== 0,
+		isSymbolicLink: (stat.type & FileType2.SymbolicLink) !== 0,
 		resource: resource,
 		name: posix.basename(resource.path),
 		mtime: stat.mtime,
@@ -36,14 +36,10 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 		etag: stat.mtime.toString(29) + stat.size.toString(31),
 	};
 
-	if (stat.type === FileType.Dir) {
-		fileStat.isDirectory = true;
-
+	if (fileStat.isDirectory) {
 		if (recurse && recurse([resource, stat])) {
 			// dir -> resolve
 			return provider.readdir(resource).then(entries => {
-				fileStat.isDirectory = true;
-
 				// resolve children if requested
 				return TPromise.join(entries.map(stat => toIFileStat(provider, stat, recurse))).then(children => {
 					fileStat.children = children;

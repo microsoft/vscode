@@ -1818,10 +1818,22 @@ export enum FileChangeType {
 	Deleted = 2
 }
 
+export enum FileChangeType2 {
+	Changed = 1,
+	Created = 2,
+	Deleted = 3,
+}
+
 export enum FileType {
 	File = 0,
 	Dir = 1,
 	Symlink = 2
+}
+
+export enum FileType2 {
+	File = 1,
+	Directory = 2,
+	SymbolicLink = 4,
 }
 
 //#endregion
