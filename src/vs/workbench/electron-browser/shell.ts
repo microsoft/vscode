@@ -304,17 +304,17 @@ export class WorkbenchShell {
 		}
 
 		perf.mark('willReadLocalStorage');
-		const readyToSend = this.storageService.getBoolean('localStorageMetricsReadyToSend3');
+		const readyToSend = this.storageService.getBoolean('localStorageMetricsReadyToSend4');
 		perf.mark('didReadLocalStorage');
 
 		if (!readyToSend) {
-			this.storageService.store('localStorageMetricsReadyToSend3', true);
+			this.storageService.store('localStorageMetricsReadyToSend4', true);
 			return; // avoid logging localStorage metrics directly after the update, we prefer cold startup numbers
 		}
 
-		if (!this.storageService.getBoolean('localStorageMetricsSent3')) {
+		if (!this.storageService.getBoolean('localStorageMetricsSent4')) {
 			perf.mark('willWriteLocalStorage');
-			this.storageService.store('localStorageMetricsSent3', true);
+			this.storageService.store('localStorageMetricsSent4', true);
 			perf.mark('didWriteLocalStorage');
 
 			perf.mark('willStatLocalStorage');
@@ -322,7 +322,7 @@ export class WorkbenchShell {
 				perf.mark('didStatLocalStorage');
 
 				/* __GDPR__
-					"localStorageTimers2" : {
+					"localStorageTimers4" : {
 						"statTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"accessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"firstReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -332,7 +332,7 @@ export class WorkbenchShell {
 						"size": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 				*/
-				this.telemetryService.publicLog('localStorageTimers3', {
+				this.telemetryService.publicLog('localStorageTimers4', {
 					'statTime': perf.getDuration('willStatLocalStorage', 'didStatLocalStorage'),
 					'accessTime': perf.getDuration('willAccessLocalStorage', 'didAccessLocalStorage'),
 					'firstReadTime': perf.getDuration('willReadWorkspaceIdentifier', 'didReadWorkspaceIdentifier'),
