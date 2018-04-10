@@ -6,9 +6,10 @@
 
 import 'vs/css!./review';
 import * as nls from 'vs/nls';
+import * as dom from 'vs/base/browser/dom';
 import * as modes from 'vs/editor/common/modes';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IViewZone } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IViewZone, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { $ } from 'vs/base/browser/builder';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -29,6 +30,9 @@ import { peekViewEditorBackground, peekViewBorder, } from 'vs/editor/contrib/ref
 import { Color } from 'vs/base/common/color';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { ReviewModel, ReviewStyle } from 'vs/editor/contrib/review/reviewModel';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 export const ID = 'editor.contrib.review';
@@ -72,6 +76,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _bodyElement: HTMLElement;
 	private _resizeObserver: any;
 	private _comments: modes.Comment[];
+	private _onDidClose = new Emitter<ReviewZoneWidget>();
 
 	constructor(
 		private readonly themeService: IThemeService,
@@ -83,6 +88,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._comments = comments;
 		this.create();
 		this.themeService.onThemeChange(this._applyTheme, this);
+	}
+
+	public get onDidClose(): Event<ReviewZoneWidget> {
+		return this._onDidClose.event;
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
@@ -115,23 +124,35 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._actionbarWidget = new ActionBar(actionsContainer.getHTMLElement(), {});
 		this._disposables.push(this._actionbarWidget);
 
-		this._actionbarWidget.push(new Action('review.expand', nls.localize('label.expand', "Expand"), 'expand-review-action octicon octicon-chevron-down', true, () => {
+		let toggleAction = new Action('review.expand', nls.localize('label.expand', "Expand"), 'expand-review-action octicon octicon-chevron-down', true, () => {
 			// let webView = await commentProvider.resolveComment(threadId)
 			// this._bodyElement.appendChild(webView);
-			this._bodyElement.style.display = 'block';
-			return null;
-		}), { label: false, icon: true });
+			if (toggleAction.class.indexOf('octicon-chevron-down') >= 0) {
+				this._bodyElement.style.display = 'block';
+				toggleAction.class = 'expand-review-action octicon octicon-chevron-up';
+			} else {
+				this._bodyElement.style.display = 'none';
+				toggleAction.class = 'expand-review-action octicon octicon-chevron-down';
 
-		this._actionbarWidget.push(new Action('review.close', nls.localize('label.close', "Close"), 'close-review-action', true, () => {
-			this.dispose();
+			}
 			return null;
-		}), { label: false, icon: true });
+		});
 
+		this._actionbarWidget.push(toggleAction, { label: false, icon: true });
+
+		// this._actionbarWidget.push(new Action('review.close', nls.localize('label.close', "Close"), 'close-review-action', true, () => {
+		// 	this.dispose();
+		// 	return null;
+		// }), { label: false, icon: true });
 	}
 
 	display(commentThread: modes.CommentThread, lineNumber: number) {
 		const comments = commentThread.comments;
 		this.show({ lineNumber: lineNumber, column: 1 }, 2);
+
+		var headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
+		this._headElement.style.height = `${headHeight}px`;
+		this._headElement.style.lineHeight = this._headElement.style.height;
 
 		this._bodyElement.style.display = 'none';
 		for (let i = 0; i < comments.length; i++) {
@@ -183,7 +204,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 			if (entries[0].target === this._bodyElement) {
 				const lineHeight = this.editor.getConfiguration().lineHeight;
 				const arrowHeight = Math.round(lineHeight / 3);
-				const computedLinesNumber = Math.ceil((entries[0].contentRect.height + arrowHeight + 30) / lineHeight);
+				const computedLinesNumber = Math.ceil((headHeight + entries[0].contentRect.height + arrowHeight) / lineHeight);
 				this._relayout(computedLinesNumber);
 			}
 		});
@@ -205,8 +226,43 @@ export class ReviewZoneWidget extends ZoneWidget {
 			this._resizeObserver.disconnect();
 			this._resizeObserver = null;
 		}
+		this._onDidClose.fire();
 	}
 
+}
+
+export class ReviewSwitchWidget extends Widget implements IOverlayWidget {
+	private _domNode: HTMLElement;
+
+	constructor(reviewModel: ReviewModel) {
+		super();
+		this._domNode = document.createElement('div');
+		this._domNode.className = 'review-switch-widget';
+		this._domNode.textContent = 'Review';
+
+		this._domNode.onclick = e => {
+			dom.toggleClass(this._domNode, 'inactive');
+			if (dom.hasClass(this._domNode, 'inactive')) {
+				reviewModel.setStyle(ReviewStyle.Gutter);
+			} else {
+				reviewModel.setStyle(ReviewStyle.Inline);
+			}
+		};
+	}
+
+	getId(): string {
+		return 'editor.contrib.reviewSwitch';
+	}
+
+	getDomNode(): HTMLElement {
+		return this._domNode;
+	}
+
+	getPosition(): IOverlayWidgetPosition {
+		return {
+			preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
+		};
+	}
 }
 
 export class ReviewController implements IEditorContribution {
@@ -216,10 +272,12 @@ export class ReviewController implements IEditorContribution {
 	private decorationIDs: string[];
 	private newCommentHintDecoration: string[];
 	private _domNode: HTMLElement;
+	private _reviewSwitch: ReviewSwitchWidget;
 	private _zoneWidget: ReviewZoneWidget;
 	private _zoneWidgets: ReviewZoneWidget[];
 	private _reviewPanelVisible: IContextKey<boolean>;
 	private _commentThreads: modes.CommentThread[];
+	private _reviewModel: ReviewModel;
 
 	constructor(
 		editor: ICodeEditor,
@@ -235,11 +293,48 @@ export class ReviewController implements IEditorContribution {
 		this.mouseDownInfo = null;
 		this._commentThreads = [];
 		this._zoneWidgets = [];
+		this._zoneWidget = null;
+		this._reviewSwitch = null;
 
 		this._reviewPanelVisible = ctxReviewPanelVisible.bindTo(contextKeyService);
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'review-widget';
-		this._zoneWidget = null;
+		this._reviewModel = new ReviewModel();
+
+		this._reviewModel.onDidChangeStyle(style => {
+			if (style === ReviewStyle.Gutter) {
+				this._zoneWidgets.forEach(zone => {
+					zone.dispose();
+				});
+				this._zoneWidgets = [];
+
+				this.editor.changeDecorations(accessor => {
+					this.decorationIDs = accessor.deltaDecorations(this.decorationIDs, this._commentThreads.map(thread => ({
+						range: thread.range,
+						options: REVIEW_DECORATION
+					})));
+				});
+			} else {
+				this.editor.changeDecorations(accessor => {
+					this.decorationIDs = accessor.deltaDecorations(this.decorationIDs, []);
+				});
+
+				if (this._zoneWidget) {
+					this._zoneWidget.dispose();
+					this._zoneWidget = null;
+				}
+
+				this._zoneWidgets.forEach(zone => {
+					zone.dispose();
+				});
+
+				this._commentThreads.forEach(thread => {
+					let zoneWidget = new ReviewZoneWidget(this.themeService, this.commandService, this.editor, {}, thread.comments);
+					zoneWidget.display(this.getCommentThread(thread.range.startLineNumber), thread.range.startLineNumber);
+					this._zoneWidgets.push(zoneWidget);
+				});
+			}
+		});
 
 		this.globalToDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
 	}
@@ -274,6 +369,7 @@ export class ReviewController implements IEditorContribution {
 			zone.dispose();
 		});
 		this._zoneWidgets = [];
+
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
 		this.localToDispose.push(this.editor.onMouseMove(e => this.onEditorMouseMove(e)));
@@ -329,6 +425,9 @@ export class ReviewController implements IEditorContribution {
 		if (thread && thread.comments.length) {
 			this._reviewPanelVisible.set(true);
 			this._zoneWidget = new ReviewZoneWidget(this.themeService, this.commandService, this.editor, {}, thread.comments);
+			this._zoneWidget.onDidClose(e => {
+				this._zoneWidget = null;
+			});
 			this._zoneWidget.display(this.getCommentThread(lineNumber), lineNumber);
 		}
 	}
@@ -401,24 +500,31 @@ export class ReviewController implements IEditorContribution {
 
 	setComments(commentThreads: modes.CommentThread[]): void {
 		this._commentThreads = commentThreads;
-		this.editor.changeDecorations(accessor => {
-			this.decorationIDs = accessor.deltaDecorations(this.decorationIDs, commentThreads.map(thread => ({
-				range: thread.range,
-				options: REVIEW_DECORATION
-			})));
-		});
 
-		// create viewzones
-		this._zoneWidgets.forEach(zone => {
-			zone.dispose();
-		});
+		if (!this._reviewSwitch) {
+			this._reviewSwitch = new ReviewSwitchWidget(this._reviewModel);
+			this.editor.addOverlayWidget(this._reviewSwitch);
+		}
 
-		this._commentThreads.forEach(thread => {
-			let zoneWidget = new ReviewZoneWidget(this.themeService, this.commandService, this.editor, {}, thread.comments);
-			zoneWidget.display(this.getCommentThread(thread.range.startLineNumber), thread.range.startLineNumber);
-			this._zoneWidgets.push(zoneWidget);
-		});
+		if (this._reviewModel.style === ReviewStyle.Gutter) {
+			this.editor.changeDecorations(accessor => {
+				this.decorationIDs = accessor.deltaDecorations(this.decorationIDs, commentThreads.map(thread => ({
+					range: thread.range,
+					options: REVIEW_DECORATION
+				})));
+			});
+		} else {
+			// create viewzones
+			this._zoneWidgets.forEach(zone => {
+				zone.dispose();
+			});
 
+			this._commentThreads.forEach(thread => {
+				let zoneWidget = new ReviewZoneWidget(this.themeService, this.commandService, this.editor, {}, thread.comments);
+				zoneWidget.display(this.getCommentThread(thread.range.startLineNumber), thread.range.startLineNumber);
+				this._zoneWidgets.push(zoneWidget);
+			});
+		}
 	}
 
 

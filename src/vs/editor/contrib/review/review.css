@@ -3,6 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-editor .review-switch-widget {
+	padding: 5px 10px;
+	background: #fc618d;
+	border-radius: 6px;
+	opacity: 0.9;
+}
+
+.monaco-editor .review-switch-widget.inactive {
+	background: #363537;
+}
+
+.monaco-editor .review-switch-widget:hover {
+	opacity: 1;
+	cursor: pointer;
+}
+
 .monaco-editor .margin-view-overlays .review {
 	background-image: url('comment.svg');
 	cursor: pointer;
@@ -21,6 +37,10 @@
 .monaco-editor .review-widget {
 	width: 100%;
 	position: absolute;
+}
+
+.monaco-editor .review-widget .head {
+	height: 100%;
 }
 
 .monaco-editor .review-widget .body .review-comment {
