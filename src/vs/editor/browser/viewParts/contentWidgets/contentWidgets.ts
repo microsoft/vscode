@@ -391,7 +391,6 @@ class Widget {
 			}
 
 			if (this.allowEditorOverflow) {
-				console.log(`here i am: ${JSON.stringify(topLeft)}`);
 				placement = this._layoutBoxInPage(topLeft, this._cachedDomNodeClientWidth, this._cachedDomNodeClientHeight, ctx);
 			} else {
 				placement = this._layoutBoxInViewport(topLeft, this._cachedDomNodeClientWidth, this._cachedDomNodeClientHeight, ctx);
