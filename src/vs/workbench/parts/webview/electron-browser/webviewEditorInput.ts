@@ -228,9 +228,5 @@ export class WebviewEditorInput extends EditorInput {
 
 	public onBecameActive(position: Position): void {
 		this._position = position;
-
-		if (this._events && this._events.onDidChangePosition) {
-			this._events.onDidChangePosition(position);
-		}
 	}
 }

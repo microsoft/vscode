@@ -82,6 +82,14 @@ suite('markdown.TableOfContentsProvider', () => {
 
 		assert.strictEqual((await provider.lookup('indentacao'))!.line, 0);
 	});
+
+	test('should map special З, #37079', async () => {
+		const doc = new InMemoryDocument(testFileName, `### Заголовок Header 3`);
+		const provider = new TableOfContentsProvider(newEngine(), doc);
+
+		assert.strictEqual((await provider.lookup('Заголовок-header-3'))!.line, 0);
+		assert.strictEqual((await provider.lookup('3аголовок-header-3'))!.line, 0);
+	});
 });
 
 function newEngine(): MarkdownEngine {

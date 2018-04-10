@@ -871,6 +871,24 @@ export class OpenIssueReporterAction extends Action {
 	}
 }
 
+export class OpenProcessExplorer extends Action {
+	public static readonly ID = 'workbench.action.openProcessExplorer';
+	public static readonly LABEL = nls.localize('openProcessExplorer', "Open Process Explorer");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchIssueService private issueService: IWorkbenchIssueService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+		return this.issueService.openProcessExplorer()
+			.then(() => true);
+	}
+}
+
 export class ReportPerformanceIssueUsingReporterAction extends Action {
 	public static readonly ID = 'workbench.action.reportPerformanceIssueUsingReporter';
 	public static readonly LABEL = nls.localize('reportPerformanceIssue', "Report Performance Issue");

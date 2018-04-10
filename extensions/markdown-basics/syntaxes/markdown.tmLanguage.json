@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/6e1063a71d4d017f976ccbe3d68138f4662c9a66",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/641c88a57c3f33ef8bcb504202f8330acef39b9e",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -1668,14 +1668,103 @@
 					"name": "markup.fenced_code.block.markdown"
 				},
 				"heading": {
-					"begin": "(?:^|\\G)[ ]{0,3}(#{1,6})\\s*(?=[\\S[^#]])",
+					"match": "(?:^|\\G)[ ]{0,3}((#{1,6})\\s*(?=[\\S[^#]]).*?\\s*(#{1,6})?)$\\n?",
 					"captures": {
 						"1": {
-							"name": "punctuation.definition.heading.markdown"
+							"patterns": [
+								{
+									"match": "(#{6})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+									"name": "heading.6.markdown",
+									"captures": {
+										"1": {
+											"name": "punctuation.definition.heading.markdown"
+										},
+										"2": {
+											"name": "entity.name.section.markdown"
+										},
+										"3": {
+											"name": "punctuation.definition.heading.markdown"
+										}
+									}
+								},
+								{
+									"match": "(#{5})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+									"name": "heading.5.markdown",
+									"captures": {
+										"1": {
+											"name": "punctuation.definition.heading.markdown"
+										},
+										"2": {
+											"name": "entity.name.section.markdown"
+										},
+										"3": {
+											"name": "punctuation.definition.heading.markdown"
+										}
+									}
+								},
+								{
+									"match": "(#{4})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+									"name": "heading.4.markdown",
+									"captures": {
+										"1": {
+											"name": "punctuation.definition.heading.markdown"
+										},
+										"2": {
+											"name": "entity.name.section.markdown"
+										},
+										"3": {
+											"name": "punctuation.definition.heading.markdown"
+										}
+									}
+								},
+								{
+									"match": "(#{3})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+									"name": "heading.3.markdown",
+									"captures": {
+										"1": {
+											"name": "punctuation.definition.heading.markdown"
+										},
+										"2": {
+											"name": "entity.name.section.markdown"
+										},
+										"3": {
+											"name": "punctuation.definition.heading.markdown"
+										}
+									}
+								},
+								{
+									"match": "(#{2})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+									"name": "heading.2.markdown",
+									"captures": {
+										"1": {
+											"name": "punctuation.definition.heading.markdown"
+										},
+										"2": {
+											"name": "entity.name.section.markdown"
+										},
+										"3": {
+											"name": "punctuation.definition.heading.markdown"
+										}
+									}
+								},
+								{
+									"match": "(#{1})\\s*(?=[\\S[^#]])(.*?)\\s*(\\s+#+)?$\\n?",
+									"name": "heading.1.markdown",
+									"captures": {
+										"1": {
+											"name": "punctuation.definition.heading.markdown"
+										},
+										"2": {
+											"name": "entity.name.section.markdown"
+										},
+										"3": {
+											"name": "punctuation.definition.heading.markdown"
+										}
+									}
+								}
+							]
 						}
 					},
-					"contentName": "entity.name.section.markdown",
-					"end": "\\s*(#{1,6})?$\\n?",
 					"name": "markup.heading.markdown",
 					"patterns": [
 						{

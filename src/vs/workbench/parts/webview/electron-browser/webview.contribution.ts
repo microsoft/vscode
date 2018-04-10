@@ -13,12 +13,12 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
-import { WebviewInputFactory } from 'vs/workbench/parts/webview/electron-browser/webviewInputFactory';
+import { WebviewEditorInputFactory } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInputFactory';
 import { KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
 import { HideWebViewEditorFindCommand, OpenWebviewDeveloperToolsAction, ReloadWebviewAction, ShowWebViewEditorFindTermCommand, ShowWebViewEditorFindWidgetCommand } from './webviewCommands';
 import { WebviewEditor } from './webviewEditor';
 import { IWebviewEditorService, WebviewEditorService } from './webviewEditorService';
-import { WebviewEditorInput } from './webviewInput';
+import { WebviewEditorInput } from './webviewEditorInput';
 
 (Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(
 	WebviewEditor,
@@ -27,8 +27,8 @@ import { WebviewEditorInput } from './webviewInput';
 	[new SyncDescriptor(WebviewEditorInput)]);
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
-	WebviewInputFactory.ID,
-	WebviewInputFactory);
+	WebviewEditorInputFactory.ID,
+	WebviewEditorInputFactory);
 
 registerSingleton(IWebviewEditorService, WebviewEditorService);
 

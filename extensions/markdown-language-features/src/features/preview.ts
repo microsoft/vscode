@@ -28,6 +28,8 @@ export class MarkdownPreview {
 	private currentVersion?: { resource: vscode.Uri, version: number };
 	private forceUpdate = false;
 	private isScrolling = false;
+	private _disposed: boolean = false;
+
 
 	public static async revive(
 		webview: vscode.Webview,
@@ -141,7 +143,7 @@ export class MarkdownPreview {
 
 		vscode.window.onDidChangeTextEditorSelection(event => {
 			if (this.isPreviewOf(event.textEditor.document.uri)) {
-				this.webview.postMessage({
+				this.postMessage({
 					type: 'onDidChangeTextEditorSelection',
 					line: event.selections[0].active.line,
 					source: this.resource.toString()
@@ -153,7 +155,7 @@ export class MarkdownPreview {
 	private readonly _onDisposeEmitter = new vscode.EventEmitter<void>();
 	public readonly onDispose = this._onDisposeEmitter.event;
 
-	private readonly _onDidChangeViewStateEmitter = new vscode.EventEmitter<vscode.WebViewOnDidChangeViewStateEvent>();
+	private readonly _onDidChangeViewStateEmitter = new vscode.EventEmitter<vscode.WebviewOnDidChangeViewStateEvent>();
 	public readonly onDidChangeViewState = this._onDidChangeViewStateEmitter.event;
 
 	public get resource(): vscode.Uri {
@@ -169,6 +171,11 @@ export class MarkdownPreview {
 	}
 
 	public dispose() {
+		if (this._disposed) {
+			return;
+		}
+
+		this._disposed = true;
 		this._onDisposeEmitter.fire();
 
 		this._onDisposeEmitter.dispose();
@@ -276,11 +283,17 @@ export class MarkdownPreview {
 		if (typeof topLine === 'number') {
 			this.logger.log('updateForView', { markdownFile: resource });
 			this.line = topLine;
-			this.webview.postMessage({
+			this.postMessage({
 				type: 'updateView',
 				line: topLine,
 				source: resource.toString()
 			});
+		}
+	}
+
+	private postMessage(msg: any) {
+		if (!this._disposed) {
+			this.webview.postMessage(msg);
 		}
 	}
 

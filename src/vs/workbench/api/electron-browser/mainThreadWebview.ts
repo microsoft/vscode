@@ -13,7 +13,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewHandle } from 'vs/workbench/api/node/extHost.protocol';
 import { WebviewEditor } from 'vs/workbench/parts/webview/electron-browser/webviewEditor';
-import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewInput';
+import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
 import { IWebviewEditorService, WebviewInputOptions, WebviewReviver } from 'vs/workbench/parts/webview/electron-browser/webviewEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -37,7 +37,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 	private readonly _webviews = new Map<WebviewHandle, WebviewEditorInput>();
 	private readonly _revivers = new Set<string>();
 
-	private _activeWebview: WebviewEditorInput | undefined = undefined;
+	private _activeWebview: WebviewHandle | undefined = undefined;
 
 	constructor(
 		context: IExtHostContext,
@@ -175,7 +175,6 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		return {
 			onDidClickLink: uri => this.onDidClickLink(handle, uri),
 			onMessage: message => this._proxy.$onMessage(handle, message),
-			onDidChangePosition: position => this._proxy.$onDidChangePosition(handle, position),
 			onDispose: () => {
 				this._proxy.$onDidDisposeWeview(handle).then(() => {
 					this._webviews.delete(handle);
@@ -205,16 +204,25 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			}
 		}
 
+		if (newActiveWebview && newActiveWebview.handle === this._activeWebview) {
+			// No change
+			return;
+		}
+
+		// Broadcast view state update for currently active
+		if (typeof this._activeWebview !== 'undefined') {
+			const oldActiveWebview = this._webviews.get(this._activeWebview);
+			if (oldActiveWebview) {
+				this._proxy.$onDidChangeWeviewViewState(this._activeWebview, false, oldActiveWebview.position);
+			}
+		}
+
+		// Then for newly active
 		if (newActiveWebview) {
-			if (!this._activeWebview || newActiveWebview.input !== this._activeWebview) {
-				this._proxy.$onDidChangeActiveWeview(newActiveWebview.handle);
-				this._activeWebview = newActiveWebview.input;
-			}
+			this._proxy.$onDidChangeWeviewViewState(newActiveWebview.handle, true, activeEditor.position);
+			this._activeWebview = newActiveWebview.handle;
 		} else {
-			if (this._activeWebview) {
-				this._proxy.$onDidChangeActiveWeview(undefined);
-				this._activeWebview = undefined;
-			}
+			this._activeWebview = undefined;
 		}
 	}
 
