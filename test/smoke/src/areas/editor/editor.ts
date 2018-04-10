@@ -9,6 +9,7 @@ import { API } from '../../api';
 
 const RENAME_BOX = '.monaco-editor .monaco-editor.rename-box';
 const RENAME_INPUT = `${RENAME_BOX} .rename-input`;
+const EDITOR = filename => `.monaco-editor[data-uri$="${filename}"]`;
 
 export class Editor {
 
@@ -87,39 +88,20 @@ export class Editor {
 	}
 
 	async waitForTypeInEditor(filename: string, text: string, selectorPrefix = ''): Promise<any> {
-		const editor = [
-			selectorPrefix || '',
-			`.monaco-editor[data-uri$="${filename}"]`
-		].join(' ');
+		const editor = [selectorPrefix || '', EDITOR(filename)].join(' ');
 
 		await this.api.waitForElement(editor);
 
 		const textarea = `${editor} textarea`;
 		await this.api.waitForActiveElement(textarea);
 
-		// https://github.com/Microsoft/vscode/issues/34203#issuecomment-334441786
-		await this.api.selectorExecute(textarea, (elements, text) => {
-			const textarea = (Array.isArray(elements) ? elements : [elements])[0] as HTMLTextAreaElement;
-			const start = textarea.selectionStart;
-			const newStart = start + text.length;
-			const value = textarea.value;
-			const newValue = value.substr(0, start) + text + value.substr(start);
-
-			textarea.value = newValue;
-			textarea.setSelectionRange(newStart, newStart);
-
-			const event = new Event('input', { 'bubbles': true, 'cancelable': true });
-			textarea.dispatchEvent(event);
-		}, text);
+		await this.api.typeInEditor(textarea, text);
 
 		await this.waitForEditorContents(filename, c => c.indexOf(text) > -1, selectorPrefix);
 	}
 
 	async waitForEditorContents(filename: string, accept: (contents: string) => boolean, selectorPrefix = ''): Promise<any> {
-		const selector = [
-			selectorPrefix || '',
-			`.monaco-editor[data-uri$="${filename}"] .view-lines`
-		].join(' ');
+		const selector = [selectorPrefix || '', `${EDITOR(filename)} .view-lines`].join(' ');
 
 		return this.api.waitForTextContent(selector, undefined, c => accept(c.replace(/\u00a0/g, ' ')));
 	}

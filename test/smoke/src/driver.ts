@@ -23,6 +23,7 @@ export interface Driver {
 
 	isActiveElement(selector: string): Promise<boolean>;
 	getElements(selector: string, recursive?: boolean): Promise<Element[]>;
+	typeInEditor(selector: string, text: string): Promise<void>;
 	selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): Promise<P>;
 }
 
@@ -114,6 +115,10 @@ export class SpectronDriver implements Driver {
 		}, selector) as any as Promise<{ value: Element[]; }>);
 
 		return result.value;
+	}
+
+	typeInEditor(selector: string, text: string): Promise<void> {
+		throw new Error('Method not implemented.');
 	}
 
 	async selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): Promise<P> {
@@ -215,6 +220,15 @@ export class CodeDriver implements Driver {
 
 		const windowId = await this.getWindowId();
 		return await this.driver.selectorExecute(windowId, selector, script, ...args);
+	}
+
+	async typeInEditor(selector: string, text: string): Promise<void> {
+		if (this.verbose) {
+			console.log('- typeInEditor:', selector, text);
+		}
+
+		const windowId = await this.getWindowId();
+		return await this.driver.typeInEditor(windowId, selector, text);
 	}
 
 	private async getWindowId(): Promise<number> {

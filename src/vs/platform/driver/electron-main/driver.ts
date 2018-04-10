@@ -137,6 +137,11 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		return windowDriver.selectorExecute(selector, script, ...args);
 	}
 
+	typeInEditor(windowId: number, selector: string, text: string): TPromise<void> {
+		const windowDriver = this.getWindowDriver(windowId);
+		return windowDriver.typeInEditor(selector, text);
+	}
+
 	private getWindowDriver(windowId: number): IWindowDriver {
 		const router = new WindowRouter(windowId);
 		const windowDriverChannel = this.windowServer.getChannel<IWindowDriverChannel>('windowDriver', router);

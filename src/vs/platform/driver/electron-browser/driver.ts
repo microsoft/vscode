@@ -87,6 +87,29 @@ class WindowDriver implements IWindowDriver {
 		return result;
 	}
 
+	async typeInEditor(selector: string, text: string): TPromise<void> {
+		const element = document.querySelector(selector);
+
+		if (!element) {
+			throw new Error('Editor not found: ' + selector);
+		}
+
+		const textarea = element as HTMLTextAreaElement;
+
+		console.log(textarea);
+
+		const start = textarea.selectionStart;
+		const newStart = start + text.length;
+		const value = textarea.value;
+		const newValue = value.substr(0, start) + text + value.substr(start);
+
+		textarea.value = newValue;
+		textarea.setSelectionRange(newStart, newStart);
+
+		const event = new Event('input', { 'bubbles': true, 'cancelable': true });
+		textarea.dispatchEvent(event);
+	}
+
 	selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): TPromise<P> {
 		return TPromise.wrapError(new Error('not implemented'));
 	}

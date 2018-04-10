@@ -80,6 +80,10 @@ export class API {
 		return this.driver.selectorExecute(selector, script, ...args);
 	}
 
+	typeInEditor(selector: string, text: string): Promise<void> {
+		return this.driver.typeInEditor(selector, text);
+	}
+
 	private running = false;
 	async waitFor<T>(func: () => T | Promise<T | undefined>, accept?: (result: T) => boolean | Promise<boolean>, timeoutMessage?: string, retryCount?: number): Promise<T>;
 	async waitFor<T>(func: () => T | Promise<T>, accept: (result: T) => boolean | Promise<boolean> = result => !!result, timeoutMessage?: string, retryCount?: number): Promise<T> {
