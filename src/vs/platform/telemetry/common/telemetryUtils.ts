@@ -125,7 +125,6 @@ const configurationValueWhitelist = [
 	'editor.dragAndDrop',
 	'editor.formatOnSave',
 	'editor.colorDecorators',
-	'editor.blockCommentStarPrefix',
 
 	'window.zoomLevel',
 	'files.autoSave',

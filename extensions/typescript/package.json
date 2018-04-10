@@ -439,6 +439,11 @@
           "default": null,
           "description": "%typescript.locale%",
           "scope": "window"
+        },
+        "typescript.blockCommentStarPrefix": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.blockCommentStarPrefix%"
         }
       }
     },

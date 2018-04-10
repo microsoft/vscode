@@ -2834,10 +2834,6 @@ declare module monaco.editor {
 		 * The letter spacing
 		 */
 		letterSpacing?: number;
-		/**
-		 * Include/exclude star (*) prefix in block comments
-		 */
-		blockCommentStarPrefix?: boolean;
 	}
 
 	/**
@@ -3068,7 +3064,6 @@ declare module monaco.editor {
 		readonly find: InternalEditorFindOptions;
 		readonly colorDecorators: boolean;
 		readonly lightbulbEnabled: boolean;
-		readonly blockCommentStarPrefix: boolean;
 	}
 
 	/**

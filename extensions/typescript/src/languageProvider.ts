@@ -20,8 +20,12 @@ import * as fileSchemes from './utils/fileSchemes';
 import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
 
 const validateSetting = 'validate.enable';
+const blockCommentStarSetting = 'typescript.blockCommentStarPrefix';
+
 
 export default class LanguageProvider {
+	private enableBlockCommentAltConf: any;
+
 	private readonly diagnosticsManager: DiagnosticsManager;
 	private readonly bufferSyncSupport: BufferSyncSupport;
 	private readonly formattingOptionsManager: FormattingConfigurationManager;
@@ -141,12 +145,21 @@ export default class LanguageProvider {
 
 		this.disposables.push(languages.registerWorkspaceSymbolProvider(new (await import('./features/workspaceSymbolProvider')).default(client, this.description.modeIds)));
 
+		await this.initBlockCommentStarSetting();
+
 		if (!this.description.isExternal) {
 			for (const modeId of this.description.modeIds) {
-				this.disposables.push(languages.setLanguageConfiguration(modeId, languageConfigurations.jsTsLanguageConfiguration));
+				this.disposables.push(languages.setLanguageConfiguration(modeId,
+					this.enableBlockCommentAltConf ?
+					languageConfigurations.jsTsLanguageConfigurationAlt : languageConfigurations.jsTsLanguageConfiguration));
 			}
 		}
 	}
+
+	private initBlockCommentStarSetting() : void {
+		this.enableBlockCommentAltConf = !workspace.getConfiguration().get(blockCommentStarSetting, true);
+	}
+
 
 	private configurationChanged(): void {
 		const config = workspace.getConfiguration(this.id);

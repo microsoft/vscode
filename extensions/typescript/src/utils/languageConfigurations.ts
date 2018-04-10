@@ -45,6 +45,41 @@ export const jsTsLanguageConfiguration = {
 	]
 };
 
+export const jsTsLanguageConfigurationAlt = {
+	indentationRules: {
+		// ^(.*\*/)?\s*\}.*$
+		decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]\)].*$/,
+		// ^.*\{[^}"']*$
+		increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/
+	},
+	wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
+	onEnterRules: [
+		{
+			// e.g. /** | */
+			beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+			afterText: /^\s*\*\/$/,
+			action: { indentAction: IndentAction.IndentOutdent, appendText: '  ' }
+		}, {
+			// e.g. /** ...|
+			beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+			action: { indentAction: IndentAction.None, appendText: '  ' }
+		}, {
+			// e.g.  * ...|
+			beforeText: /^(\t|[ ])*[ ]\*([ ]([^\*]|\*(?!\/))*)?$/,
+			action: { indentAction: IndentAction.None, appendText: ' ' }
+		}, {
+			// e.g.  */|
+			beforeText: /^(\t|[ ])*[ ]\*\/\s*$/,
+			action: { indentAction: IndentAction.None, removeText: 1 }
+		},
+		{
+			// e.g.  *-----*/|
+			beforeText: /^(\t|[ ])*[ ]\*[^/]*\*\/\s*$/,
+			action: { indentAction: IndentAction.None, removeText: 1 }
+		}
+	]
+};
+
 const EMPTY_ELEMENTS: string[] = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr'];
 
 export const jsxTags = {

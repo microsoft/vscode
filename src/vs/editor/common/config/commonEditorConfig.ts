@@ -643,11 +643,6 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('selectionClipboard', "Controls if the Linux primary clipboard should be supported."),
 			'included': platform.isLinux
 		},
-		'editor.blockCommentStarPrefix': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('blockCommentStarPrefix', "Controls if block comments have star (*) prefix in new row.")
-		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',
 			'default': true,
