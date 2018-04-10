@@ -501,6 +501,10 @@ export class ReviewController implements IEditorContribution {
 	setComments(commentThreads: modes.CommentThread[]): void {
 		this._commentThreads = commentThreads;
 
+		if (this._commentThreads.length === 0) {
+			return;
+		}
+
 		if (!this._reviewSwitch) {
 			this._reviewSwitch = new ReviewSwitchWidget(this._reviewModel);
 			this.editor.addOverlayWidget(this._reviewSwitch);
