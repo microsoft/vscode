@@ -224,25 +224,22 @@ declare module 'vscode' {
 	}
 
 	// todo@joh discover files etc
-	// todo@joh CancellationToken everywhere
 	// todo@joh add open/close calls?
 	export interface FileSystemProvider2 {
 
-		_version: 2;
+		_version: 3;
 
-		readonly onDidChange?: Event<FileChange[]>;
+		readonly onDidChange: Event<FileChange[]>;
 
 		stat(uri: Uri, token: CancellationToken): Thenable<FileStat>;
 
-		readdir(uri: Uri, token: CancellationToken): Thenable<[Uri, FileStat][]>;
+		readDirectory(uri: Uri, token: CancellationToken): Thenable<[Uri, FileStat][]>;
 
 		readFile(uri: Uri, token: CancellationToken): Thenable<Uint8Array>;
 
 		writeFile(uri: Uri, content: Uint8Array, token: CancellationToken): Thenable<void>;
 
-		// todo@remote
-		// Thenable<FileStat>
-		rename(oldUri: Uri, newUri: Uri): Thenable<FileStat>;
+		rename(oldUri: Uri, newUri: Uri, token: CancellationToken): Thenable<FileStat>;
 
 		// todo@remote
 		// helps with performance bigly
@@ -250,10 +247,10 @@ declare module 'vscode' {
 
 		// todo@remote
 		// ? useTrash, expose trash
-		delete(resource: Uri, options: { recursive?: boolean; }): Thenable<void>;
+		delete(uri: Uri, token: CancellationToken): Thenable<void>;
 
 		// todo@remote
-		create(resource: Uri, options: { type: FileType }): Thenable<FileStat>;
+		create(uri: Uri, options: { type: FileType }, token: CancellationToken): Thenable<FileStat>;
 	}
 
 	export namespace workspace {
