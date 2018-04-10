@@ -43,10 +43,22 @@ export class EditOperationsCommand implements editorCommon.ICommand {
 		editor.pushUndoStop();
 	}
 
+	static isFullModelReplaceEdit(editor: ICodeEditor, edit: ISingleEditOperation): boolean {
+		const model = editor.getModel();
+		const editRange = model.validateRange(edit.range);
+		const fullModelRange = model.getFullModelRange();
+		return fullModelRange.equalsRange(editRange);
+	}
+
 	static execute(editor: ICodeEditor, _edits: TextEdit[]) {
 		let edits = this._handleEolEdits(editor, _edits);
 		editor.pushUndoStop();
-		editor.executeEdits('formatEditsCommand', edits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text)));
+		if (edits.length === 1 && EditOperationsCommand.isFullModelReplaceEdit(editor, edits[0])) {
+			// We use replace semantics and hope that markers stay put...
+			editor.executeEdits('formatEditsCommand', edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+		} else {
+			editor.executeEdits('formatEditsCommand', edits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text)));
+		}
 		editor.pushUndoStop();
 	}
 
