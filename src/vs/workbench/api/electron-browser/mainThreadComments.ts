@@ -75,5 +75,4 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}
 		return result;
 	}
-
 }
