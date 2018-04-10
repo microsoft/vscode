@@ -43,7 +43,7 @@ import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -83,7 +83,7 @@ import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { stat } from 'fs';
+import { stat, existsSync } from 'fs';
 import { join } from 'path';
 import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/common/localizationsIpc';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
@@ -139,6 +139,8 @@ export class WorkbenchShell {
 	private configuration: IWindowConfiguration;
 	private workbench: Workbench;
 
+	private hasLocalStorageData: boolean;
+
 	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, configuration: IWindowConfiguration) {
 		this.container = container;
 
@@ -150,6 +152,9 @@ export class WorkbenchShell {
 		this.logService = coreServices.logService;
 		this.timerService = coreServices.timerService;
 		this.storageService = coreServices.storageService;
+
+		// TODO@Ben remove me later
+		this.hasLocalStorageData = !!this.storageService.get('releaseNotes/lastVersion', StorageScope.GLOBAL);
 
 		this.mainProcessServices = mainProcessServices;
 
@@ -219,6 +224,11 @@ export class WorkbenchShell {
 				// localStorage metrics (TODO@Ben remove me later)
 				if (!this.environmentService.extensionTestsPath && this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 					this.logLocalStorageMetrics();
+				}
+
+				// localStorage migration (TODO@Ben remove me later)
+				if (!this.environmentService.extensionTestsPath) {
+					this.logLocalStorageMigrationStatus();
 				}
 			});
 
@@ -331,6 +341,38 @@ export class WorkbenchShell {
 					'keys': window.localStorage.length,
 					'size': stat ? stat.size : -1
 				});
+			});
+		}
+	}
+
+	private logLocalStorageMigrationStatus(): void {
+		if (!this.storageService.getBoolean('localStorageMigrationStatusLogged')) {
+			this.storageService.store('localStorageMigrationStatusLogged', true);
+
+			stat(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage.vscbak'), (error, stat) => {
+				// if we have a backup of localStorage it means a migration was attempted
+				// by Electron 2.0. We log to telemetry if we had data initially which means
+				// the migration was successful.
+				if (stat) {
+					/* __GDPR__
+						"localStorageMigrationStatus" : {
+							"platform": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"arch": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"migrated": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"size": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"sqliteStillExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"sqliteJournalExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+						}
+					*/
+					this.telemetryService.publicLog('localStorageMigrationStatus', {
+						'platform': process.platform,
+						'arch': process.arch,
+						'migrated': this.hasLocalStorageData,
+						'size': stat.size,
+						'sqliteStillExists': existsSync(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage')),
+						'sqliteJournalExists': existsSync(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal'))
+					});
+				}
 			});
 		}
 	}
