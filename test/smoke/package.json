@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "main": "./src/main.js",
   "scripts": {
-    "postinstall": "tsc",
+    "postinstall": "npm run compile",
     "compile": "node tools/prebuild && tsc && node tools/postbuild",
     "watch": "node tools/prebuild && node tools/postbuild && tsc --watch",
     "mocha": "mocha"
