@@ -142,52 +142,58 @@ export class CodeDriver implements Driver {
 		await this.driver.dispatchKeybinding(windowId, keybinding);
 	}
 
-	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<any> {
+	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<any> {
 		if (this.verbose) {
 			console.log('- click:', selector);
 		}
 
-		throw new Error('Method not implemented.');
+		const windowId = await this.getWindowId();
+		await this.driver.click(windowId, selector, xoffset, yoffset);
 	}
 
-	doubleClick(selector: string): Promise<any> {
+	async doubleClick(selector: string): Promise<any> {
 		if (this.verbose) {
 			console.log('- doubleClick:', selector);
 		}
 
-		throw new Error('Method not implemented.');
+		const windowId = await this.getWindowId();
+		await this.driver.doubleClick(windowId, selector);
 	}
 
-	move(selector: string): Promise<any> {
+	async move(selector: string): Promise<any> {
 		if (this.verbose) {
 			console.log('- move:', selector);
 		}
 
-		throw new Error('Method not implemented.');
+		const windowId = await this.getWindowId();
+		await this.driver.move(windowId, selector);
 	}
 
-	setValue(selector: string, text: string): Promise<void> {
+	async setValue(selector: string, text: string): Promise<void> {
 		if (this.verbose) {
 			console.log('- setValue:', selector, text);
 		}
 
-		throw new Error('Method not implemented.');
+		const windowId = await this.getWindowId();
+		await this.driver.setValue(windowId, selector, text);
 	}
 
-	getTitle(): Promise<string> {
+	async getTitle(): Promise<string> {
 		if (this.verbose) {
 			console.log('- getTitle:');
 		}
 
-		throw new Error('Method not implemented.');
+		const windowId = await this.getWindowId();
+		return await this.driver.getTitle(windowId);
 	}
 
-	isActiveElement(selector: string): Promise<boolean> {
+	async isActiveElement(selector: string): Promise<boolean> {
 		if (this.verbose) {
 			console.log('- isActiveElement:', selector);
 		}
 
-		throw new Error('Method not implemented.');
+		const windowId = await this.getWindowId();
+		return await this.driver.isActiveElement(windowId, selector);
 	}
 
 	async getElements(selector: string): Promise<Element[]> {
@@ -200,12 +206,13 @@ export class CodeDriver implements Driver {
 		return result;
 	}
 
-	selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): Promise<P> {
+	async selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): Promise<P> {
 		if (this.verbose) {
 			console.log('- selectorExecute:', selector);
 		}
 
-		throw new Error('Method not implemented.');
+		const windowId = await this.getWindowId();
+		return await this.driver.selectorExecute(windowId, selector, script, ...args);
 	}
 
 	private async getWindowId(): Promise<number> {
