@@ -25,7 +25,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 let SCOPE_PREFIX = ':';
 
-class SymbolEntry extends QuickOpenEntryGroup {
+export class SymbolEntry extends QuickOpenEntryGroup {
 	private name: string;
 	private type: string;
 	private description: string;
