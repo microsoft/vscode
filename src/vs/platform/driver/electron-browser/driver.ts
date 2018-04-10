@@ -9,62 +9,11 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IWindowDriver, IElement, WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/common/driver';
 import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
-import { SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import * as electron from 'electron';
-import { USLayoutResolvedKeybinding } from '../../keybinding/common/usLayoutResolvedKeybinding';
-import { OS } from 'vs/base/common/platform';
 
 class WindowDriver implements IWindowDriver {
 
 	constructor() { }
-
-	async dispatchKeybinding(rawKeybinding: string): TPromise<void> {
-		const [first, second] = KeybindingIO._readUserBinding(rawKeybinding);
-
-		await this._dispatchKeybinding(first);
-
-		if (second) {
-			await this._dispatchKeybinding(second);
-		}
-	}
-
-	private async _dispatchKeybinding(keybinding: SimpleKeybinding | ScanCodeBinding): TPromise<void> {
-		if (keybinding instanceof ScanCodeBinding) {
-			throw new Error('ScanCodeBindings not supported');
-		}
-
-		const webContents = electron.remote.getCurrentWebContents();
-		const noModifiedKeybinding = new SimpleKeybinding(false, false, false, false, keybinding.keyCode);
-		const resolvedKeybinding = new USLayoutResolvedKeybinding(noModifiedKeybinding, OS);
-		const keyCode = resolvedKeybinding.getElectronAccelerator();
-
-		const modifiers = [];
-
-		if (keybinding.ctrlKey) {
-			modifiers.push('ctrl');
-		}
-
-		if (keybinding.metaKey) {
-			modifiers.push('meta');
-		}
-
-		if (keybinding.shiftKey) {
-			modifiers.push('shift');
-		}
-
-		if (keybinding.altKey) {
-			modifiers.push('alt');
-		}
-
-		webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers } as any);
-		webContents.sendInputEvent({ type: 'char', keyCode, modifiers } as any);
-		webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers } as any);
-
-		await TPromise.timeout(100);
-	}
 
 	click(selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
 		throw new Error('Method not implemented.');

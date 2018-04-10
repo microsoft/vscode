@@ -12,6 +12,13 @@ import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPCServer, IClientRouter } from 'vs/base/parts/ipc/common/ipc';
+import { SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+import { OS } from 'vs/base/common/platform';
+
+// TODO@joao: bad layering!
+import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
+import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 
 class WindowRouter implements IClientRouter {
 
@@ -44,9 +51,50 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 			.filter(id => this.registeredWindowIds.has(id));
 	}
 
-	dispatchKeybinding(windowId: number, keybinding: string): TPromise<void> {
-		const windowDriver = this.getWindowDriver(windowId);
-		return windowDriver.dispatchKeybinding(keybinding);
+	async dispatchKeybinding(windowId: number, keybinding: string): TPromise<void> {
+		const [first, second] = KeybindingIO._readUserBinding(keybinding);
+
+		await this._dispatchKeybinding(windowId, first);
+
+		if (second) {
+			await this._dispatchKeybinding(windowId, second);
+		}
+	}
+
+	private async _dispatchKeybinding(windowId: number, keybinding: SimpleKeybinding | ScanCodeBinding): TPromise<void> {
+		if (keybinding instanceof ScanCodeBinding) {
+			throw new Error('ScanCodeBindings not supported');
+		}
+
+		const window = this.windowsService.getWindowById(windowId);
+		const webContents = window.win.webContents;
+		const noModifiedKeybinding = new SimpleKeybinding(false, false, false, false, keybinding.keyCode);
+		const resolvedKeybinding = new USLayoutResolvedKeybinding(noModifiedKeybinding, OS);
+		const keyCode = resolvedKeybinding.getElectronAccelerator();
+
+		const modifiers = [];
+
+		if (keybinding.ctrlKey) {
+			modifiers.push('ctrl');
+		}
+
+		if (keybinding.metaKey) {
+			modifiers.push('meta');
+		}
+
+		if (keybinding.shiftKey) {
+			modifiers.push('shift');
+		}
+
+		if (keybinding.altKey) {
+			modifiers.push('alt');
+		}
+
+		webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers } as any);
+		webContents.sendInputEvent({ type: 'char', keyCode, modifiers } as any);
+		webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers } as any);
+
+		await TPromise.timeout(100);
 	}
 
 	click(windowId: number, selector: string, xoffset?: number, yoffset?: number): TPromise<void> {

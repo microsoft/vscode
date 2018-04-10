@@ -155,7 +155,6 @@ export class WindowDriverRegistryChannelClient implements IWindowDriverRegistry 
 }
 
 export interface IWindowDriver {
-	dispatchKeybinding(keybinding: string): TPromise<void>;
 	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): TPromise<void>;
 	doubleClick(selector: string): TPromise<void>;
 	move(selector: string): TPromise<void>;
@@ -167,7 +166,6 @@ export interface IWindowDriver {
 }
 
 export interface IWindowDriverChannel extends IChannel {
-	call(command: 'dispatchKeybinding', arg: string): TPromise<void>;
 	call(command: 'click', arg: [string, number | undefined, number | undefined]): TPromise<void>;
 	call(command: 'doubleClick', arg: string): TPromise<void>;
 	call(command: 'move', arg: string): TPromise<void>;
@@ -185,7 +183,6 @@ export class WindowDriverChannel implements IWindowDriverChannel {
 
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
-			case 'dispatchKeybinding': return this.driver.dispatchKeybinding(arg);
 			case 'click': return this.driver.click(arg[0], arg[1], arg[2]);
 			case 'doubleClick': return this.driver.doubleClick(arg);
 			case 'move': return this.driver.move(arg);
@@ -206,10 +203,6 @@ export class WindowDriverChannelClient implements IWindowDriver {
 	_serviceBrand: any;
 
 	constructor(private channel: IWindowDriverChannel) { }
-
-	dispatchKeybinding(keybinding: string): TPromise<void> {
-		return this.channel.call('dispatchKeybinding', keybinding);
-	}
 
 	click(selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
 		return this.channel.call('click', [selector, xoffset, yoffset]);
