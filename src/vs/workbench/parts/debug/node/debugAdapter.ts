@@ -191,6 +191,7 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 					continue;	// there may be more complete messages to process
 				}
 			} else {
+				/*
 				const idx = this.rawData.indexOf(StreamDebugAdapter.TWO_CRLF);
 				if (idx !== -1) {
 					const header = this.rawData.toString('utf8', 0, idx);
@@ -203,6 +204,17 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 					}
 					this.rawData = this.rawData.slice(idx + StreamDebugAdapter.TWO_CRLF.length);
 					continue;
+				}
+				*/
+				const s = this.rawData.toString('utf8', 0, this.rawData.length);
+				const idx = s.indexOf(StreamDebugAdapter.TWO_CRLF);
+				if (idx !== -1) {
+					const match = /Content-Length: (\d+)/.exec(s);
+					if (match && match[1]) {
+						this.contentLength = Number(match[1]);
+						this.rawData = this.rawData.slice(idx + StreamDebugAdapter.TWO_CRLF.length);
+						continue;	// try to handle a complete message
+					}
 				}
 			}
 			break;
