@@ -10,11 +10,91 @@ import * as iconv from 'iconv-lite';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { exec } from 'child_process';
+import { Readable, Writable, WritableOptions } from 'stream';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
 export const UTF16be = 'utf16be';
 export const UTF16le = 'utf16le';
+
+export interface IDecodeStreamOptions {
+	minBytesRequiredForDetection: number;
+	guessEncoding: boolean;
+	overwriteEncoding(detected: string): string;
+}
+
+export function toDecodeStream(readable: Readable, opts: IDecodeStreamOptions): TPromise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }> {
+	return new TPromise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }>((resolve, reject) => {
+		readable.pipe(new class extends Writable {
+
+			private _decodeStream: NodeJS.ReadWriteStream;
+			private _decodeStreamConstruction: Thenable<any>;
+			private _buffer: Buffer[] = [];
+			private _bytesBuffered = 0;
+
+			constructor(opts?: WritableOptions) {
+				super(opts);
+				this.once('finish', () => this._finish());
+			}
+
+			_write(chunk: any, encoding: string, callback: Function): void {
+				if (!Buffer.isBuffer(chunk)) {
+					callback(new Error('data must be a buffer'));
+				}
+
+				if (this._decodeStream) {
+					// just a forwarder now
+					this._decodeStream.write(chunk, callback);
+					return;
+				}
+
+				this._buffer.push(chunk);
+				this._bytesBuffered += chunk.length;
+
+				if (this._decodeStreamConstruction) {
+					// waiting for the decoder to be ready
+					this._decodeStreamConstruction.then(_ => callback(), err => callback(err));
+
+				} else if (this._bytesBuffered >= opts.minBytesRequiredForDetection) {
+					// buffered enough data, create stream and forward data
+					this._startDecodeStream(callback);
+
+				} else {
+					// only buffering
+					callback();
+				}
+			}
+
+			_startDecodeStream(callback: Function): void {
+
+				this._decodeStreamConstruction = TPromise.as(detectEncodingFromBuffer({
+					buffer: Buffer.concat(this._buffer), bytesRead: this._bytesBuffered
+				}, opts.guessEncoding)).then(detected => {
+					detected.encoding = opts.overwriteEncoding(detected.encoding); // default encoding
+					this._decodeStream = decodeStream(detected.encoding);
+					for (const buffer of this._buffer) {
+						this._decodeStream.write(buffer);
+					}
+					callback();
+					resolve({ detected, stream: this._decodeStream });
+
+				}, err => {
+					callback(err);
+				});
+			}
+
+			_finish(): void {
+				if (this._decodeStream) {
+					// normal finish
+					this._decodeStream.end();
+				} else {
+					// we were still waiting for data...
+					this._startDecodeStream(() => this._decodeStream.end());
+				}
+			}
+		});
+	});
+}
 
 export function bomLength(encoding: string): number {
 	switch (encoding) {
