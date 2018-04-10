@@ -95,9 +95,6 @@ class WindowDriver implements IWindowDriver {
 		}
 
 		const textarea = element as HTMLTextAreaElement;
-
-		console.log(textarea);
-
 		const start = textarea.selectionStart;
 		const newStart = start + text.length;
 		const value = textarea.value;
@@ -110,8 +107,22 @@ class WindowDriver implements IWindowDriver {
 		textarea.dispatchEvent(event);
 	}
 
-	selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): TPromise<P> {
-		return TPromise.wrapError(new Error('not implemented'));
+	async getTerminalBuffer(selector: string): TPromise<string[]> {
+		const element = document.querySelector(selector);
+
+		if (!element) {
+			throw new Error('Terminal not found: ' + selector);
+		}
+
+		const buffer = (element as any).xterm.buffer;
+
+		const lines: string[] = [];
+
+		for (let i = 0; i < buffer.lines.length; i++) {
+			lines.push(buffer.translateBufferLineToString(i, true));
+		}
+
+		return lines;
 	}
 }
 

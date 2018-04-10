@@ -34,7 +34,7 @@ export interface IDriver {
 	isActiveElement(windowId: number, selector: string): TPromise<boolean>;
 	getElements(windowId: number, selector: string, recursive: boolean): TPromise<IElement[]>;
 	typeInEditor(windowId: number, selector: string, text: string): TPromise<void>;
-	selectorExecute<P>(windowId: number, selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): TPromise<P>;
+	getTerminalBuffer(windowId: number, selector: string): TPromise<string[]>;
 }
 //*END
 
@@ -49,7 +49,7 @@ export interface IDriverChannel extends IChannel {
 	call(command: 'isActiveElement', arg: [number, string]): TPromise<boolean>;
 	call(command: 'getElements', arg: [number, string, boolean]): TPromise<IElement[]>;
 	call(command: 'typeInEditor', arg: [number, string, string]): TPromise<void>;
-	call(command: 'selectorExecute', arg: [number, string, string, any[]]): TPromise<any>;
+	call(command: 'getTerminalBuffer', arg: [number, string]): TPromise<string[]>;
 	call(command: string, arg: any): TPromise<any>;
 }
 
@@ -69,9 +69,7 @@ export class DriverChannel implements IDriverChannel {
 			case 'isActiveElement': return this.driver.isActiveElement(arg[0], arg[1]);
 			case 'getElements': return this.driver.getElements(arg[0], arg[1], arg[2]);
 			case 'typeInEditor': return this.driver.typeInEditor(arg[0], arg[1], arg[2]);
-
-			// TODO@joao
-			case 'selectorExecute': return this.driver.selectorExecute(arg[0], arg[1], arg[1], ...arg[2]);
+			case 'getTerminalBuffer': return this.driver.getTerminalBuffer(arg[0], arg[1]);
 		}
 
 		return undefined;
@@ -124,9 +122,8 @@ export class DriverChannelClient implements IDriver {
 		return this.channel.call('typeInEditor', [windowId, selector, text]);
 	}
 
-	selectorExecute<P>(windowId: number, selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): TPromise<P> {
-		// TODO@joao
-		return this.channel.call('selectorExecute', [windowId, selector, script.toString(), args]);
+	getTerminalBuffer(windowId: number, selector: string): TPromise<string[]> {
+		return this.channel.call('getTerminalBuffer', [windowId, selector]);
 	}
 }
 
@@ -172,7 +169,7 @@ export interface IWindowDriver {
 	isActiveElement(selector: string): TPromise<boolean>;
 	getElements(selector: string, recursive: boolean): TPromise<IElement[]>;
 	typeInEditor(selector: string, text: string): TPromise<void>;
-	selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): TPromise<P>;
+	getTerminalBuffer(selector: string): TPromise<string[]>;
 }
 
 export interface IWindowDriverChannel extends IChannel {
@@ -184,7 +181,7 @@ export interface IWindowDriverChannel extends IChannel {
 	call(command: 'isActiveElement', arg: string): TPromise<boolean>;
 	call(command: 'getElements', arg: [string, boolean]): TPromise<IElement[]>;
 	call(command: 'typeInEditor', arg: [string, string]): TPromise<void>;
-	call(command: 'selectorExecute', arg: [string, string, any[]]): TPromise<any>;
+	call(command: 'getTerminalBuffer', arg: string): TPromise<string[]>;
 	call(command: string, arg: any): TPromise<any>;
 }
 
@@ -202,8 +199,7 @@ export class WindowDriverChannel implements IWindowDriverChannel {
 			case 'isActiveElement': return this.driver.isActiveElement(arg);
 			case 'getElements': return this.driver.getElements(arg[0], arg[1]);
 			case 'typeInEditor': return this.driver.typeInEditor(arg[0], arg[1]);
-			// TODO@joao
-			case 'selectorExecute': return this.driver.selectorExecute(arg[0], arg[1], ...arg[2]);
+			case 'getTerminalBuffer': return this.driver.getTerminalBuffer(arg);
 		}
 
 		return undefined;
@@ -248,8 +244,7 @@ export class WindowDriverChannelClient implements IWindowDriver {
 		return this.channel.call('typeInEditor', [selector, text]);
 	}
 
-	selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): TPromise<P> {
-		// TODO@joao
-		return this.channel.call('selectorExecute', [selector, script.toString(), args]);
+	getTerminalBuffer(selector: string): TPromise<string[]> {
+		return this.channel.call('getTerminalBuffer', selector);
 	}
 }

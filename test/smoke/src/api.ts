@@ -76,12 +76,12 @@ export class API {
 		return this.driver.getTitle();
 	}
 
-	selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): Promise<P> {
-		return this.driver.selectorExecute(selector, script, ...args);
-	}
-
 	typeInEditor(selector: string, text: string): Promise<void> {
 		return this.driver.typeInEditor(selector, text);
+	}
+
+	getTerminalBuffer(selector: string): Promise<string[]> {
+		return this.driver.getTerminalBuffer(selector);
 	}
 
 	private running = false;

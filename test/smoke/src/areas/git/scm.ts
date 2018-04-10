@@ -6,6 +6,7 @@
 import { Viewlet } from '../workbench/viewlet';
 import { API } from '../../api';
 import { Commands } from '../workbench/workbench';
+import { Element, findElement, findElements } from '../../driver';
 
 const VIEWLET = 'div[id="workbench.view.scm"]';
 const SCM_INPUT = `${VIEWLET} .scm-editor textarea`;
@@ -23,6 +24,21 @@ interface Change {
 	actions: string[];
 }
 
+function toChange(element: Element): Change {
+	const name = findElement(element, e => /\blabel-name\b/.test(e.className))!;
+	const type = element.attributes['data-tooltip'] || '';
+
+	const actionElementList = findElements(element, e => /\baction-label\b/.test(e.className));
+	const actions = actionElementList.map(e => e.attributes['title']);
+
+	return {
+		name: name.textContent || '',
+		type,
+		actions
+	};
+}
+
+
 export class SCM extends Viewlet {
 
 	constructor(api: API, private commands: Commands) {
@@ -34,51 +50,13 @@ export class SCM extends Viewlet {
 		await this.api.waitForElement(SCM_INPUT);
 	}
 
-	waitForChange(name: string, type?: string): Promise<void> {
-		return this.api.waitFor(async () => {
-			const changes = await this.queryChanges(name, type);
-			return changes.length;
-		}, l => l > 0, 'Getting SCM changes') as Promise<any> as Promise<void>;
+	async waitForChange(name: string, type?: string): Promise<void> {
+		const func = (change: Change) => change.name === name && (!type || change.type === type);
+		await this.api.waitForElements(SCM_RESOURCE, true, elements => elements.some(e => func(toChange(e))));
 	}
 
 	async refreshSCMViewlet(): Promise<any> {
 		await this.api.waitAndClick(REFRESH_COMMAND);
-	}
-
-	private async queryChanges(name: string, type?: string): Promise<Change[]> {
-		const result = await this.api.selectorExecute(SCM_RESOURCE, (div, name, type) => {
-			return (Array.isArray(div) ? div : [div])
-				.map(element => {
-					const name = element.querySelector('.label-name') as HTMLElement;
-					const type = element.getAttribute('data-tooltip') || '';
-					const actionElementList = element.querySelectorAll('.actions .action-label');
-					const actions: string[] = [];
-
-					for (let i = 0; i < actionElementList.length; i++) {
-						const element = actionElementList.item(i) as HTMLElement;
-						actions.push(element.title);
-					}
-
-					return {
-						name: name.textContent || '',
-						type,
-						actions
-					};
-				})
-				.filter(change => {
-					if (change.name !== name) {
-						return false;
-					}
-
-					if (type && (change.type !== type)) {
-						return false;
-					}
-
-					return true;
-				});
-		}, name, type);
-
-		return result;
 	}
 
 	async openChange(name: string): Promise<void> {

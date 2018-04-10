@@ -31,31 +31,15 @@ export class Terminal {
 		await this.api.dispatchKeybinding('enter');
 	}
 
-	async waitForTerminalText(fn: (text: string[]) => boolean, timeOutDescription: string = 'Getting Terminal Text'): Promise<string[]> {
-		return this.api.waitFor(async () => {
-			const terminalText = await this.getTerminalText();
-			if (fn(terminalText)) {
-				return terminalText;
-			}
-			return undefined;
+	async waitForTerminalText(fn: (text: string[]) => boolean, timeOutDescription: string = 'Getting Terminal Text'): Promise<void> {
+		await this.api.waitFor(async () => {
+			const terminalText = await this.api.getTerminalBuffer(XTERM_SELECTOR);
+			return fn(terminalText);
 		}, void 0, timeOutDescription);
 	}
 
-	getCurrentLineNumber(): Promise<number> {
-		return this.getTerminalText().then(text => text.length);
-	}
-
-	private async getTerminalText(): Promise<string[]> {
-		return await this.api.selectorExecute(XTERM_SELECTOR,
-			div => {
-				const xterm = (<any>(Array.isArray(div) ? div[0] : div)).xterm;
-				const buffer = xterm.buffer;
-				const lines: string[] = [];
-				for (let i = 0; i < buffer.lines.length; i++) {
-					lines.push(buffer.translateBufferLineToString(i, true));
-				}
-				return lines;
-			}
-		);
+	async getCurrentLineNumber(): Promise<number> {
+		const terminalText = await this.api.getTerminalBuffer(XTERM_SELECTOR);
+		return terminalText.length;
 	}
 }

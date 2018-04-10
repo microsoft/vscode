@@ -11,6 +11,7 @@ export interface Element {
 	className: string;
 	textContent: string;
 	attributes: { [name: string]: string };
+	children: Element[];
 }
 
 export interface Driver {
@@ -24,7 +25,7 @@ export interface Driver {
 	isActiveElement(selector: string): Promise<boolean>;
 	getElements(selector: string, recursive?: boolean): Promise<Element[]>;
 	typeInEditor(selector: string, text: string): Promise<void>;
-	selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): Promise<P>;
+	getTerminalBuffer(selector: string): Promise<string[]>;
 }
 
 export class SpectronDriver implements Driver {
@@ -107,7 +108,8 @@ export class SpectronDriver implements Driver {
 					tagName: element.tagName,
 					className: element.className,
 					textContent: element.textContent || '',
-					attributes: {}
+					attributes: {},
+					children: []
 				});
 			}
 
@@ -121,13 +123,8 @@ export class SpectronDriver implements Driver {
 		throw new Error('Method not implemented.');
 	}
 
-	async selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): Promise<P> {
-		if (this.verbose) {
-			console.log('- selectorExecute:', selector);
-		}
-
-		let _script = (element, script, ...args) => script(Array.isArray(element) ? element : [element], ...args);
-		return this.spectronClient.selectorExecute(selector, _script, script, ...args);
+	getTerminalBuffer(selector: string): Promise<string[]> {
+		throw new Error('Method not implemented.');
 	}
 }
 
@@ -209,17 +206,7 @@ export class CodeDriver implements Driver {
 		}
 
 		const windowId = await this.getWindowId();
-		const result = await this.driver.getElements(windowId, selector, recursive);
-		return result;
-	}
-
-	async selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): Promise<P> {
-		if (this.verbose) {
-			console.log('- selectorExecute:', selector);
-		}
-
-		const windowId = await this.getWindowId();
-		return await this.driver.selectorExecute(windowId, selector, script, ...args);
+		return await this.driver.getElements(windowId, selector, recursive);
 	}
 
 	async typeInEditor(selector: string, text: string): Promise<void> {
@@ -231,6 +218,15 @@ export class CodeDriver implements Driver {
 		return await this.driver.typeInEditor(windowId, selector, text);
 	}
 
+	async getTerminalBuffer(selector: string): Promise<string[]> {
+		if (this.verbose) {
+			console.log('- getTerminalBuffer:', selector);
+		}
+
+		const windowId = await this.getWindowId();
+		return await this.driver.getTerminalBuffer(windowId, selector);
+	}
+
 	private async getWindowId(): Promise<number> {
 		if (typeof this._activeWindowId !== 'number') {
 			const windows = await this.driver.getWindowIds();
@@ -239,4 +235,37 @@ export class CodeDriver implements Driver {
 
 		return this._activeWindowId;
 	}
+}
+
+export function findElement(element: Element, fn: (element: Element) => boolean): Element | null {
+	const queue = [element];
+
+	while (queue.length > 0) {
+		const element = queue.shift()!;
+
+		if (fn(element)) {
+			return element;
+		}
+
+		queue.push(...element.children);
+	}
+
+	return null;
+}
+
+export function findElements(element: Element, fn: (element: Element) => boolean): Element[] {
+	const result: Element[] = [];
+	const queue = [element];
+
+	while (queue.length > 0) {
+		const element = queue.shift()!;
+
+		if (fn(element)) {
+			result.push(element);
+		}
+
+		queue.push(...element.children);
+	}
+
+	return result;
 }

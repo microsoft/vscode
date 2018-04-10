@@ -8,6 +8,7 @@ import { Commands } from '../workbench/workbench';
 import { API } from '../../api';
 import { Editors } from '../editor/editors';
 import { Editor } from '../editor/editor';
+import { findElement, Element } from '../../driver';
 
 const VIEWLET = 'div[id="workbench.view.debug"]';
 const DEBUG_VIEW = `${VIEWLET} .debug-view-content`;
@@ -27,7 +28,7 @@ const TOOLBAR_HIDDEN = `.debug-actions-widget.monaco-builder-hidden`;
 const STACK_FRAME = `${VIEWLET} .monaco-tree-row .stack-frame`;
 const SPECIFIC_STACK_FRAME = filename => `${STACK_FRAME} .file[title$="${filename}"]`;
 const VARIABLE = `${VIEWLET} .debug-variables .monaco-tree-row .expression`;
-const CONSOLE_OUTPUT = `.repl .output.expression`;
+const CONSOLE_OUTPUT = `.repl .output.expression .value`;
 const CONSOLE_INPUT_OUTPUT = `.repl .input-output-pair .output.expression .value`;
 
 const REPL_FOCUSED = '.repl-input-wrapper .monaco-editor textarea';
@@ -35,6 +36,17 @@ const REPL_FOCUSED = '.repl-input-wrapper .monaco-editor textarea';
 export interface IStackFrame {
 	name: string;
 	lineNumber: number;
+}
+
+function toStackFrame(element: Element): IStackFrame {
+	const name = findElement(element, e => /\bfile-name\b/.test(e.className))!;
+	const line = findElement(element, e => /\bline-number\b/.test(e.className))!;
+	const lineNumber = line.textContent ? parseInt(line.textContent.split(':').shift() || '0') : 0;
+
+	return {
+		name: name.textContent || '',
+		lineNumber
+	};
 }
 
 export class Debug extends Viewlet {
@@ -64,12 +76,9 @@ export class Debug extends Viewlet {
 		await this.api.waitForElement(PAUSE);
 		await this.api.waitForElement(DEBUG_STATUS_BAR);
 		const portPrefix = 'Port: ';
-		await this.api.waitFor(async () => {
-			const output = await this.getConsoleOutput();
-			return output.join('');
-		}, text => !!text && text.indexOf(portPrefix) >= 0);
-		const output = await this.getConsoleOutput();
-		const lastOutput = output.pop();
+
+		const output = await this.waitForOutput(output => output.some(line => line.indexOf(portPrefix) >= 0));
+		const lastOutput = output.filter(line => line.indexOf(portPrefix) >= 0)[0];
 
 		return lastOutput ? parseInt(lastOutput.substr(portPrefix.length)) : 3000;
 	}
@@ -98,10 +107,8 @@ export class Debug extends Viewlet {
 	}
 
 	async waitForStackFrame(func: (stackFrame: IStackFrame) => boolean, message: string): Promise<IStackFrame> {
-		return await this.api.waitFor(async () => {
-			const stackFrames = await this.getStackFrames();
-			return stackFrames.filter(func)[0];
-		}, void 0, `Waiting for Stack Frame: ${message}`);
+		const elements = await this.api.waitForElements(STACK_FRAME, true, elements => elements.some(e => func(toStackFrame(e))));
+		return elements.map(toStackFrame).filter(s => func(s))[0];
 	}
 
 	async waitForStackFrameLength(length: number): Promise<any> {
@@ -122,45 +129,15 @@ export class Debug extends Viewlet {
 		await this.editor.waitForEditorContents('debug:input', s => s.indexOf(text) >= 0);
 		await this.api.dispatchKeybinding('enter');
 		await this.api.waitForElement(CONSOLE_INPUT_OUTPUT);
-		await this.api.waitFor(async () => {
-			const result = await this.getConsoleOutput();
-			return result[result.length - 1] || '';
-		}, accept);
+		await this.waitForOutput(output => accept(output[output.length - 1] || ''));
 	}
 
 	async getLocalVariableCount(): Promise<number> {
 		return await this.api.getElementCount(VARIABLE);
 	}
 
-	private async getStackFrames(): Promise<IStackFrame[]> {
-		const result = await this.api.selectorExecute(STACK_FRAME,
-			div => (Array.isArray(div) ? div : [div]).map(element => {
-				const name = element.querySelector('.file-name') as HTMLElement;
-				const line = element.querySelector('.line-number') as HTMLElement;
-				const lineNumber = line.textContent ? parseInt(line.textContent.split(':').shift() || '0') : 0;
-
-				return {
-					name: name.textContent || '',
-					lineNumber
-				};
-			})
-		);
-
-		if (!Array.isArray(result)) {
-			return [];
-		}
-
-		return result.map(({ name, lineNumber }) => ({ name, lineNumber }));
-	}
-
-	private async getConsoleOutput(): Promise<string[]> {
-		const result = await this.api.selectorExecute(CONSOLE_OUTPUT,
-			div => (Array.isArray(div) ? div : [div]).map(element => {
-				const value = element.querySelector('.value') as HTMLElement;
-				return value && value.textContent;
-			}).filter(line => !!line) as string[]
-		);
-
-		return result;
+	private async waitForOutput(fn: (output: string[]) => boolean): Promise<string[]> {
+		const elements = await this.api.waitForElements(CONSOLE_OUTPUT, false, elements => fn(elements.map(e => e.textContent)));
+		return elements.map(e => e.textContent);
 	}
 }

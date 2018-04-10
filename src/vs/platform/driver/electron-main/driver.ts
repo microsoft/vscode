@@ -132,14 +132,14 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		return windowDriver.getElements(selector, recursive);
 	}
 
-	selectorExecute<P>(windowId: number, selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): TPromise<P> {
-		const windowDriver = this.getWindowDriver(windowId);
-		return windowDriver.selectorExecute(selector, script, ...args);
-	}
-
 	typeInEditor(windowId: number, selector: string, text: string): TPromise<void> {
 		const windowDriver = this.getWindowDriver(windowId);
 		return windowDriver.typeInEditor(selector, text);
+	}
+
+	getTerminalBuffer(windowId: number, selector: string): TPromise<string[]> {
+		const windowDriver = this.getWindowDriver(windowId);
+		return windowDriver.getTerminalBuffer(selector);
 	}
 
 	private getWindowDriver(windowId: number): IWindowDriver {
