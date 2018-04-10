@@ -28,6 +28,7 @@ import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/t
 import { peekViewEditorBackground, peekViewBorder, } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { Color } from 'vs/base/common/color';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 export const ID = 'editor.contrib.review';
@@ -72,7 +73,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _resizeObserver: any;
 	private _comments: modes.Comment[];
 
-	constructor(@IThemeService private themeService: IThemeService,
+	constructor(
+		private readonly themeService: IThemeService,
+		private readonly commandService: ICommandService,
+
 		editor: ICodeEditor, options: IOptions = {}, comments: modes.Comment[]) {
 		super(editor, options);
 		this._resizeObserver = null;
@@ -125,7 +129,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 	}
 
-	display(comments: modes.Comment[], lineNumber: number) {
+	display(commentThread: modes.CommentThread, lineNumber: number) {
+		const comments = commentThread.comments;
 		this.show({ lineNumber: lineNumber, column: 1 }, 2);
 
 		this._bodyElement.style.display = 'none';
@@ -161,7 +166,19 @@ export class ReviewZoneWidget extends ZoneWidget {
 			body.appendChild(renderMarkdown(md));
 			this._bodyElement.appendChild(singleCommentContainer);
 		}
-		// this._domNode.appendChild(document.createElement('textarea'));
+
+		const textArea = document.createElement('textarea');
+		this._bodyElement.appendChild(textArea);
+
+		for (const action of commentThread.actions) {
+			const button = document.createElement('button');
+			button.onclick = () => {
+				this.commandService.executeCommand(action.id, commentThread.threadId, textArea.value);
+			};
+			button.textContent = action.title;
+			this._bodyElement.appendChild(button);
+		}
+
 		this._resizeObserver = new ResizeObserver(entries => {
 			if (entries[0].target === this._bodyElement) {
 				const lineHeight = this.editor.getConfiguration().lineHeight;
@@ -207,7 +224,8 @@ export class ReviewController implements IEditorContribution {
 	constructor(
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@ICommandService private commandService: ICommandService,
 	) {
 		this.editor = editor;
 		this.globalToDispose = [];
@@ -307,11 +325,11 @@ export class ReviewController implements IEditorContribution {
 			return;
 		}
 
-		let comments = this.getComments(lineNumber);
-		if (comments && comments.length) {
+		let thread = this.getCommentThread(lineNumber);
+		if (thread && thread.comments.length) {
 			this._reviewPanelVisible.set(true);
-			this._zoneWidget = new ReviewZoneWidget(this.themeService, this.editor, {}, comments);
-			this._zoneWidget.display(this.getComments(lineNumber), lineNumber);
+			this._zoneWidget = new ReviewZoneWidget(this.themeService, this.commandService, this.editor, {}, thread.comments);
+			this._zoneWidget.display(this.getCommentThread(lineNumber), lineNumber);
 		}
 	}
 
@@ -371,14 +389,14 @@ export class ReviewController implements IEditorContribution {
 		return true;
 	}
 
-	getComments(line: number): modes.Comment[] {
+	getCommentThread(line: number): modes.CommentThread | undefined {
 		for (let i = 0; i < this._commentThreads.length; i++) {
 			if (this._commentThreads[i].range.startLineNumber === line) {
-				return this._commentThreads[i].comments;
+				return this._commentThreads[i];
 			}
 		}
 
-		return [];
+		return undefined;
 	}
 
 	setComments(commentThreads: modes.CommentThread[]): void {
@@ -396,8 +414,8 @@ export class ReviewController implements IEditorContribution {
 		});
 
 		this._commentThreads.forEach(thread => {
-			let zoneWidget = new ReviewZoneWidget(this.themeService, this.editor, {}, thread.comments);
-			zoneWidget.display(this.getComments(thread.range.startLineNumber), thread.range.startLineNumber);
+			let zoneWidget = new ReviewZoneWidget(this.themeService, this.commandService, this.editor, {}, thread.comments);
+			zoneWidget.display(this.getCommentThread(thread.range.startLineNumber), thread.range.startLineNumber);
 			this._zoneWidgets.push(zoneWidget);
 		});
 

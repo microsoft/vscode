@@ -771,9 +771,11 @@ declare module 'vscode' {
 	//#endregion
 
 	interface CommentThread {
+		threadId: string;
 		range: Range;
 		newCommentRange: Range;
 		comments: Comment[];
+		actions?: Command[];
 	}
 
 	interface Comment {

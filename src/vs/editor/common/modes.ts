@@ -939,9 +939,11 @@ export interface Command {
 
 
 export interface CommentThread {
+	readonly threadId: string;
 	readonly range: IRange;
 	readonly newCommentRange: IRange;
 	readonly comments: Comment[];
+	readonly actions: Command[];
 }
 
 export interface Comment {

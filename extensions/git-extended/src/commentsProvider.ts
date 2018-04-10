@@ -8,6 +8,14 @@ import * as vscode from 'vscode';
 import * as _ from 'lodash';
 import { Comment } from './common/models/comment';
 
+class PostCommentCommand {
+	public static readonly id = 'pr.postComment';
+
+	public static run(id: string, text: string) {
+		vscode.window.showInformationMessage(`posty! ${text}`);
+	}
+}
+
 export interface ICommentsProvider {
 	provideComments(uri: vscode.Uri): Promise<Comment[]>;
 }
@@ -20,6 +28,8 @@ export class CommentsProvider implements vscode.CommentProvider {
 		this.providers = new Map<number, ICommentsProvider>();
 		this._id = 0;
 		vscode.workspace.registerCommentProvider(this);
+
+		vscode.commands.registerCommand(PostCommentCommand.id, PostCommentCommand.run);
 	}
 
 	registerCommentProvider(provider: ICommentsProvider): number {
@@ -51,7 +61,7 @@ export class CommentsProvider implements vscode.CommentProvider {
 		}
 
 		let sections = _.groupBy(matchingComments, comment => comment.position);
-		let ret = [];
+		let ret: vscode.CommentThread[] = [];
 
 		for (let i in sections) {
 			let comments = sections[i];
@@ -63,6 +73,7 @@ export class CommentsProvider implements vscode.CommentProvider {
 			const newCommentEndPos = new vscode.Position(comment.diff_hunk_range.start + comment.diff_hunk_range.length - 1 - 1, 0);
 
 			ret.push({
+				threadId: comment.id,
 				range,
 				newCommentRange: new vscode.Range(newCommentStartPos, newCommentEndPos),
 				comments: comments.map(comment => {
@@ -71,7 +82,13 @@ export class CommentsProvider implements vscode.CommentProvider {
 						userName: comment.user.login,
 						gravatar: comment.user.avatar_url
 					};
-				})
+				}),
+				actions: [
+					{
+						command: PostCommentCommand.id,
+						title: 'Post'
+					}
+				]
 			});
 		}
 

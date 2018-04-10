@@ -28,11 +28,6 @@
 	"contributes": {
 		"commands": [
 			{
-				"command": "unicorn",
-				"title": "🦄 unicorn",
-				"category": "Markdown"
-			},
-			{
 				"command": "markdown.showPreview",
 				"title": "%markdown.preview.title%",
 				"category": "Markdown",

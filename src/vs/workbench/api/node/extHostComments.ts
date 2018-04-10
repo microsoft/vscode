@@ -11,11 +11,11 @@ import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
+import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import * as vscode from 'vscode';
 import { flatten } from '../../../base/common/arrays';
 import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShape } from './extHost.protocol';
-
-import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
+import { CommandsConverter } from './extHostCommands';
 
 
 export class ExtHostComments implements ExtHostCommentsShape {
@@ -27,6 +27,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 
 	constructor(
 		mainContext: IMainContext,
+		private readonly _commandsConverter: CommandsConverter,
 		private readonly _documents: ExtHostDocuments,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadComments);
@@ -58,15 +59,17 @@ export class ExtHostComments implements ExtHostCommentsShape {
 			return TPromise.join(allProviderResults);
 		})
 			.then(flatten)
-			.then(comments => comments.map(convertCommentThread));
+			.then(comments => comments.map(x => convertCommentThread(x, this._commandsConverter)));
 	}
 }
 
-function convertCommentThread(vscodeCommentThread: vscode.CommentThread): modes.CommentThread {
+function convertCommentThread(vscodeCommentThread: vscode.CommentThread, commandsConverter: CommandsConverter): modes.CommentThread {
 	return {
+		threadId: vscodeCommentThread.threadId,
 		range: extHostTypeConverter.fromRange(vscodeCommentThread.range),
 		newCommentRange: extHostTypeConverter.fromRange(vscodeCommentThread.newCommentRange),
-		comments: vscodeCommentThread.comments.map(convertComment)
+		comments: vscodeCommentThread.comments.map(convertComment),
+		actions: vscodeCommentThread.actions.map(commandsConverter.toInternal)
 	};
 }
 
