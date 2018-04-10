@@ -12,7 +12,7 @@ import { posix } from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isFalsyOrEmpty, distinct } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
-import { decodeStream, encode, UTF8, UTF8_with_bom, detectEncodingFromBuffer, maxEncodingDetectionBufferLen } from 'vs/base/node/encoding';
+import { encode, UTF8, UTF8_with_bom, toDecodeStream } from 'vs/base/node/encoding';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -23,6 +23,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Readable } from 'stream';
 
 function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse?: (tuple: [URI, IStat]) => boolean): TPromise<IFileStat> {
 	const [resource, stat] = tuple;
@@ -220,6 +221,25 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
+	private _createReadStream(provider: IFileSystemProvider, resource: URI): Readable {
+		return new class extends Readable {
+			_done: boolean = false;
+			_read(size?: number): void {
+				if (this._done) {
+					this.push(null);
+					return;
+				}
+				provider.readFile(resource).then(data => {
+					this._done = true;
+					this.push(data);
+				}, err => {
+					this._done = true;
+					this.emit('error', err);
+				});
+			}
+		};
+	}
+
 	private _readFile(resource: URI, options: IResolveContentOptions = Object.create(null)): TPromise<IStreamContent> {
 		return this._withProvider(resource).then(provider => {
 
@@ -242,15 +262,34 @@ export class RemoteFileService extends FileService {
 					);
 				}
 
-				const guessEncoding = options.autoGuessEncoding;
-				const count = maxEncodingDetectionBufferLen(options);
-				let buffer: Buffer;
+				return toDecodeStream(this._createReadStream(provider, resource), {
+					guessEncoding: options.autoGuessEncoding,
+					overwriteEncoding: detected => {
+						let preferredEncoding: string;
+						if (options && options.encoding) {
+							if (detected === UTF8 && options.encoding === UTF8) {
+								preferredEncoding = UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
+							} else {
+								preferredEncoding = options.encoding; // give passed in encoding highest priority
+							}
+						} else if (detected) {
+							if (detected === UTF8) {
+								preferredEncoding = UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
+							} else {
+								preferredEncoding = detected;
+							}
+							// todo@remote - encoding logic should not be kept
+							// hostage inside the node file service
+							// } else if (super.configuredEncoding(resource) === UTF8_with_bom) {
+						} else {
+							preferredEncoding = UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
+						}
+						return preferredEncoding;
+					}
 
-				return provider.readFile(resource).then(data => {
-					buffer = Buffer.from(data);
-					return detectEncodingFromBuffer({ bytesRead: Math.min(count, buffer.length), buffer }, guessEncoding);
-				}).then(detected => {
-					if (options.acceptTextOnly && detected.seemsBinary) {
+				}).then(data => {
+
+					if (options.acceptTextOnly && data.detected.seemsBinary) {
 						return TPromise.wrapError<IStreamContent>(new FileOperationError(
 							localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
 							FileOperationResult.FILE_IS_BINARY,
@@ -258,33 +297,9 @@ export class RemoteFileService extends FileService {
 						));
 					}
 
-					let preferredEncoding: string;
-					if (options && options.encoding) {
-						if (detected.encoding === UTF8 && options.encoding === UTF8) {
-							preferredEncoding = UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
-						} else {
-							preferredEncoding = options.encoding; // give passed in encoding highest priority
-						}
-					} else if (detected.encoding) {
-						if (detected.encoding === UTF8) {
-							preferredEncoding = UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
-						} else {
-							preferredEncoding = detected.encoding;
-						}
-						// todo@remote - encoding logic should not be kept
-						// hostage inside the node file service
-						// } else if (super.configuredEncoding(resource) === UTF8_with_bom) {
-					} else {
-						preferredEncoding = UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
-					}
-
-					// const encoding = this.getEncoding(resource);
-					const stream = decodeStream(preferredEncoding);
-					stream.end(buffer);
-
-					return {
-						encoding: preferredEncoding,
-						value: stream,
+					return <IStreamContent>{
+						encoding: data.detected.encoding,
+						value: data.stream,
 						resource: fileStat.resource,
 						name: fileStat.name,
 						etag: fileStat.etag,

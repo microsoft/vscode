@@ -189,7 +189,7 @@ suite('Encoding', () => {
 			}
 		});
 
-		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 4, guessEncoding: true, overwriteEncoding() { return encoding.UTF8; } });
+		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 4 });
 
 		assert.ok(detected);
 		assert.ok(stream);
@@ -209,7 +209,7 @@ suite('Encoding', () => {
 			}
 		});
 
-		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 64, guessEncoding: true, overwriteEncoding() { return encoding.UTF8; } });
+		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 64 });
 
 		assert.ok(detected);
 		assert.ok(stream);
@@ -226,7 +226,7 @@ suite('Encoding', () => {
 			}
 		});
 
-		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 512, guessEncoding: true, overwriteEncoding() { return encoding.UTF8; } });
+		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 512 });
 
 		assert.ok(detected);
 		assert.ok(stream);
@@ -241,7 +241,7 @@ suite('Encoding', () => {
 		let path = require.toUrl('./fixtures/some_utf16be.css');
 		let source = fs.createReadStream(path);
 
-		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 64, guessEncoding: true, overwriteEncoding(detected) { return detected; } });
+		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 64 });
 
 		assert.equal(detected.encoding, 'utf16be');
 		assert.equal(detected.seemsBinary, false);
@@ -256,7 +256,7 @@ suite('Encoding', () => {
 
 		let path = require.toUrl('./fixtures/empty.txt');
 		let source = fs.createReadStream(path);
-		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 64, guessEncoding: true, overwriteEncoding() { return encoding.UTF8; } });
+		let { detected, stream } = await encoding.toDecodeStream(source, {});
 
 		let expected = await readAndDecodeFromDisk(path, detected.encoding);
 		let actual = await readAllAsString(stream);
