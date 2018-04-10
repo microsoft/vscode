@@ -56,6 +56,38 @@ class WindowDriver implements IWindowDriver {
 		// document.activeElement.dispatchEvent(new KeyboardEvent('keyup', event));
 	}
 
+
+	click(selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	doubleClick(selector: string): TPromise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	move(selector: string): TPromise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	async setValue(selector: string, text: string): TPromise<void> {
+		const element = document.querySelector(selector);
+
+		if (!element) {
+			throw new Error('Element not found');
+		}
+
+		(element as HTMLInputElement).value = text;
+	}
+
+	async getTitle(): TPromise<string> {
+		return document.title;
+	}
+
+	async isActiveElement(selector: string): TPromise<boolean> {
+		const element = document.querySelector(selector);
+		return element === document.activeElement;
+	}
+
 	async getElements(selector: string): TPromise<IElement[]> {
 		const query = document.querySelectorAll(selector);
 		const result: IElement[] = [];
@@ -71,6 +103,10 @@ class WindowDriver implements IWindowDriver {
 		}
 
 		return result;
+	}
+
+	selectorExecute<P>(selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): TPromise<P> {
+		return TPromise.wrapError(new Error('not implemented'));
 	}
 }
 

@@ -44,14 +44,49 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 			.filter(id => this.registeredWindowIds.has(id));
 	}
 
-	getElements(windowId: number, selector: string): TPromise<IElement[], any> {
+	dispatchKeybinding(windowId: number, keybinding: string): TPromise<void> {
+		const windowDriver = this.getWindowDriver(windowId);
+		return windowDriver.dispatchKeybinding(keybinding);
+	}
+
+	click(windowId: number, selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
+		const windowDriver = this.getWindowDriver(windowId);
+		return windowDriver.click(selector, xoffset, yoffset);
+	}
+
+	doubleClick(windowId: number, selector: string): TPromise<void> {
+		const windowDriver = this.getWindowDriver(windowId);
+		return windowDriver.doubleClick(selector);
+	}
+
+	move(windowId: number, selector: string): TPromise<void> {
+		const windowDriver = this.getWindowDriver(windowId);
+		return windowDriver.move(selector);
+	}
+
+	setValue(windowId: number, selector: string, text: string): TPromise<void> {
+		const windowDriver = this.getWindowDriver(windowId);
+		return windowDriver.setValue(selector, text);
+	}
+
+	getTitle(windowId: number): TPromise<string> {
+		const windowDriver = this.getWindowDriver(windowId);
+		return windowDriver.getTitle();
+	}
+
+	isActiveElement(windowId: number, selector: string): TPromise<boolean> {
+		const windowDriver = this.getWindowDriver(windowId);
+		return windowDriver.isActiveElement(selector);
+	}
+
+	getElements(windowId: number, selector: string): TPromise<IElement[]> {
 		const windowDriver = this.getWindowDriver(windowId);
 		return windowDriver.getElements(selector);
 	}
 
-	dispatchKeybinding(windowId: number, keybinding: string): TPromise<void> {
+	selectorExecute<P>(windowId: number, selector: string, script: (elements: HTMLElement[], ...args: any[]) => P, ...args: any[]): TPromise<P> {
 		const windowDriver = this.getWindowDriver(windowId);
-		return windowDriver.dispatchKeybinding(keybinding);
+		return windowDriver.selectorExecute(selector, script, ...args);
 	}
 
 	private getWindowDriver(windowId: number): IWindowDriver {
