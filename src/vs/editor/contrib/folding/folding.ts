@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-/// <amd-dependency path="vs/css!./folding" />
 
 'use strict';
 
+import 'vs/css!./folding';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
