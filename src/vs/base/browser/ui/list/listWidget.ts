@@ -383,7 +383,7 @@ function isMouseRightClick(event: UIEvent): boolean {
 	return event instanceof MouseEvent && event.button === 2;
 }
 
-const DefaultMultipleSelectionContoller = {
+const DefaultMultipleSelectionController = {
 	isSelectionSingleChangeEvent,
 	isSelectionRangeChangeEvent
 };
@@ -445,7 +445,7 @@ class MouseController<T> implements IDisposable {
 		this.multipleSelectionSupport = !(options.multipleSelectionSupport === false);
 
 		if (this.multipleSelectionSupport) {
-			this.multipleSelectionController = options.multipleSelectionController || DefaultMultipleSelectionContoller;
+			this.multipleSelectionController = options.multipleSelectionController || DefaultMultipleSelectionController;
 		}
 
 		this.openController = options.openController || DefaultOpenController;
