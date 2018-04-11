@@ -15,6 +15,7 @@ import { IPCServer, IClientRouter } from 'vs/base/parts/ipc/common/ipc';
 import { SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';
+import { Emitter, toPromise } from 'vs/base/common/event';
 
 // TODO@joao: bad layering!
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
@@ -38,24 +39,33 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	_serviceBrand: any;
 
 	private registeredWindowIds = new Set<number>();
+	private reloadingWindowIds = new Set<number>();
+	private onDidReloadingChange = new Emitter<void>();
 
 	constructor(
 		private windowServer: IPCServer,
 		@IWindowsMainService private windowsService: IWindowsMainService
 	) { }
 
-	registerWindowDriver(windowId: number): TPromise<void> {
+	async registerWindowDriver(windowId: number): TPromise<void> {
 		this.registeredWindowIds.add(windowId);
-		return TPromise.as(null);
+		this.reloadingWindowIds.delete(windowId);
+		this.onDidReloadingChange.fire();
+	}
+
+	async reloadWindowDriver(windowId: number): TPromise<void> {
+		this.reloadingWindowIds.add(windowId);
 	}
 
 	async getWindowIds(): TPromise<number[]> {
 		return this.windowsService.getWindows()
 			.map(w => w.id)
-			.filter(id => this.registeredWindowIds.has(id));
+			.filter(id => this.registeredWindowIds.has(id) && !this.reloadingWindowIds.has(id));
 	}
 
 	async dispatchKeybinding(windowId: number, keybinding: string): TPromise<void> {
+		await this.whenUnfrozen(windowId);
+
 		const [first, second] = KeybindingIO._readUserBinding(keybinding);
 
 		await this._dispatchKeybinding(windowId, first);
@@ -105,55 +115,63 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		await TPromise.timeout(100);
 	}
 
-	click(windowId: number, selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
-		const windowDriver = this.getWindowDriver(windowId);
+	async click(windowId: number, selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
+		const windowDriver = await this.getWindowDriver(windowId);
 		return windowDriver.click(selector, xoffset, yoffset);
 	}
 
-	doubleClick(windowId: number, selector: string): TPromise<void> {
-		const windowDriver = this.getWindowDriver(windowId);
+	async doubleClick(windowId: number, selector: string): TPromise<void> {
+		const windowDriver = await this.getWindowDriver(windowId);
 		return windowDriver.doubleClick(selector);
 	}
 
-	move(windowId: number, selector: string): TPromise<void> {
-		const windowDriver = this.getWindowDriver(windowId);
+	async move(windowId: number, selector: string): TPromise<void> {
+		const windowDriver = await this.getWindowDriver(windowId);
 		return windowDriver.move(selector);
 	}
 
-	setValue(windowId: number, selector: string, text: string): TPromise<void> {
-		const windowDriver = this.getWindowDriver(windowId);
+	async setValue(windowId: number, selector: string, text: string): TPromise<void> {
+		const windowDriver = await this.getWindowDriver(windowId);
 		return windowDriver.setValue(selector, text);
 	}
 
-	getTitle(windowId: number): TPromise<string> {
-		const windowDriver = this.getWindowDriver(windowId);
+	async getTitle(windowId: number): TPromise<string> {
+		const windowDriver = await this.getWindowDriver(windowId);
 		return windowDriver.getTitle();
 	}
 
-	isActiveElement(windowId: number, selector: string): TPromise<boolean> {
-		const windowDriver = this.getWindowDriver(windowId);
+	async isActiveElement(windowId: number, selector: string): TPromise<boolean> {
+		const windowDriver = await this.getWindowDriver(windowId);
 		return windowDriver.isActiveElement(selector);
 	}
 
-	getElements(windowId: number, selector: string, recursive: boolean): TPromise<IElement[]> {
-		const windowDriver = this.getWindowDriver(windowId);
+	async getElements(windowId: number, selector: string, recursive: boolean): TPromise<IElement[]> {
+		const windowDriver = await this.getWindowDriver(windowId);
 		return windowDriver.getElements(selector, recursive);
 	}
 
-	typeInEditor(windowId: number, selector: string, text: string): TPromise<void> {
-		const windowDriver = this.getWindowDriver(windowId);
+	async typeInEditor(windowId: number, selector: string, text: string): TPromise<void> {
+		const windowDriver = await this.getWindowDriver(windowId);
 		return windowDriver.typeInEditor(selector, text);
 	}
 
-	getTerminalBuffer(windowId: number, selector: string): TPromise<string[]> {
-		const windowDriver = this.getWindowDriver(windowId);
+	async getTerminalBuffer(windowId: number, selector: string): TPromise<string[]> {
+		const windowDriver = await this.getWindowDriver(windowId);
 		return windowDriver.getTerminalBuffer(selector);
 	}
 
-	private getWindowDriver(windowId: number): IWindowDriver {
+	private async getWindowDriver(windowId: number): TPromise<IWindowDriver> {
+		await this.whenUnfrozen(windowId);
+
 		const router = new WindowRouter(windowId);
 		const windowDriverChannel = this.windowServer.getChannel<IWindowDriverChannel>('windowDriver', router);
 		return new WindowDriverChannelClient(windowDriverChannel);
+	}
+
+	private async whenUnfrozen(windowId: number): TPromise<void> {
+		while (this.reloadingWindowIds.has(windowId)) {
+			await toPromise(this.onDidReloadingChange.event);
+		}
 	}
 }
 

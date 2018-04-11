@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IWindowDriver, IElement, WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/common/driver';
 import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -180,5 +180,6 @@ export async function registerWindowDriver(
 
 	await windowDriverRegistry.registerWindowDriver(windowId);
 
-	return client;
+	const disposable = toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowId));
+	return combinedDisposable([disposable, client]);
 }

@@ -120,8 +120,10 @@ export class SpectronApplication {
 	}
 
 	async reload(): Promise<any> {
-		await this.workbench.runCommand('Reload Window');
-		// TODO @sandy: Find a proper condition to wait for reload
+		this.workbench.runCommand('Reload Window')
+			.catch(err => null); // ignore the connection drop errors
+
+		// needs to be enough to propagate the 'Reload Window' command
 		await new Promise(c => setTimeout(c, 1500));
 		await this.checkWindowReady();
 	}
@@ -278,7 +280,7 @@ export class SpectronApplication {
 
 		let retries = 0;
 
-		while (++retries < 50) {
+		while (++retries < 300) { // 30 seconds
 			const ids = await this.codeInstance.driver.getWindowIds();
 
 			if (ids.length > 0) {

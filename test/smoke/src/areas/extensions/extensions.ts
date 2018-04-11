@@ -30,14 +30,10 @@ export class Extensions extends Viewlet {
 		await this.api.setValue(SEARCH_BOX, name);
 	}
 
-	async installExtension(name: string): Promise<boolean> {
+	async installExtension(name: string): Promise<void> {
 		await this.searchForExtension(name);
 
-		// we might want to wait for a while longer since the Marketplace can be slow
-		// a minute should do
-		await this.api.waitFor(() => this.api.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.install`), void 0, 'waiting for install button', 600);
-
+		await this.api.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.install`);
 		await this.api.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.reload`);
-		return true;
 	}
 }
