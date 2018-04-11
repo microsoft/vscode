@@ -50,7 +50,7 @@ class WindowDriver implements IWindowDriver {
 		return this._click(selector, 2);
 	}
 
-	private async _click(selector: string, clickCount: number, xoffset?: number, yoffset?: number): TPromise<void> {
+	private async _getElementXY(selector: string, xoffset?: number, yoffset?: number): TPromise<{ x: number; y: number; }> {
 		const element = document.querySelector(selector);
 
 		if (!element) {
@@ -72,6 +72,11 @@ class WindowDriver implements IWindowDriver {
 		x = Math.round(x);
 		y = Math.round(y);
 
+		return { x, y };
+	}
+
+	private async _click(selector: string, clickCount: number, xoffset?: number, yoffset?: number): TPromise<void> {
+		const { x, y } = await this._getElementXY(selector, xoffset, yoffset);
 		const webContents = electron.remote.getCurrentWebContents();
 		webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
 		webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount } as any);
@@ -79,8 +84,12 @@ class WindowDriver implements IWindowDriver {
 		await TPromise.timeout(100);
 	}
 
-	move(selector: string): TPromise<void> {
-		throw new Error('Method not implemented.');
+	async move(selector: string): TPromise<void> {
+		const { x, y } = await this._getElementXY(selector);
+		const webContents = electron.remote.getCurrentWebContents();
+		webContents.sendInputEvent({ type: 'mouseMove', x, y } as any);
+
+		await TPromise.timeout(100);
 	}
 
 	async setValue(selector: string, text: string): TPromise<void> {

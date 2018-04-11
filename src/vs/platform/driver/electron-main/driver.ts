@@ -12,7 +12,7 @@ import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPCServer, IClientRouter } from 'vs/base/parts/ipc/common/ipc';
-import { SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';
 
@@ -27,6 +27,10 @@ class WindowRouter implements IClientRouter {
 	route(command: string, arg: any): string {
 		return `window:${this.windowId}`;
 	}
+}
+
+function isSilentKeyCode(keyCode: KeyCode) {
+	return keyCode < KeyCode.KEY_0;
 }
 
 export class Driver implements IDriver, IWindowDriverRegistry {
@@ -91,7 +95,11 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		}
 
 		webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers } as any);
-		webContents.sendInputEvent({ type: 'char', keyCode, modifiers } as any);
+
+		if (!isSilentKeyCode(keybinding.keyCode)) {
+			webContents.sendInputEvent({ type: 'char', keyCode, modifiers } as any);
+		}
+
 		webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers } as any);
 
 		await TPromise.timeout(100);
