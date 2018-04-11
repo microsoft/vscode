@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Promise as WinJSPromise } from './winjs.base';
+import * as platform from 'vs/base/common/platform';
 
 /**
  * A polyfill for the native promises. The implementation is based on
@@ -53,13 +54,13 @@ export class PolyfillPromise<T = any> implements Promise<T> {
 					if (!initializing) {
 						resolve(value);
 					} else {
-						setImmediate(resolve, value);
+						platform.setImmediate(() => resolve(value));
 					}
 				}, function (err) {
 					if (!initializing) {
 						reject(err);
 					} else {
-						setImmediate(reject, err);
+						platform.setImmediate(() => reject(err));
 					}
 				});
 				initializing = false;
@@ -74,14 +75,14 @@ export class PolyfillPromise<T = any> implements Promise<T> {
 				if (!sync) {
 					onFulfilled(value);
 				} else {
-					setImmediate(onFulfilled, value);
+					platform.setImmediate(() => onFulfilled(value));
 				}
 			},
 			onRejected && function (err) {
 				if (!sync) {
 					onFulfilled(err);
 				} else {
-					setImmediate(onFulfilled, err);
+					platform.setImmediate(() => onFulfilled(err));
 				}
 			}
 		));
