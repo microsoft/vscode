@@ -26,6 +26,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	telemetry: { enableCrashReporter: boolean };
 	keyboard: { touchbar: { enabled: boolean } };
 	workbench: { tree: { horizontalScrolling: boolean } };
+	files: { useExperimentalFileWatcher: boolean };
 }
 
 export class SettingsChangeRelauncher implements IWorkbenchContribution {
@@ -40,6 +41,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private touchbarEnabled: boolean;
 	private treeHorizontalScrolling: boolean;
 	private windowsSmoothScrollingWorkaround: boolean;
+	private experimentalFileWatcher: boolean;
 
 	private firstFolderResource: URI;
 	private extensionHostRestarter: RunOnceScheduler;
@@ -100,6 +102,12 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		// Crash reporter
 		if (config.telemetry && typeof config.telemetry.enableCrashReporter === 'boolean' && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
 			this.enableCrashReporter = config.telemetry.enableCrashReporter;
+			changed = true;
+		}
+
+		// Experimental File Watcher
+		if (config.files && typeof config.files.useExperimentalFileWatcher === 'boolean' && config.files.useExperimentalFileWatcher !== this.experimentalFileWatcher) {
+			this.experimentalFileWatcher = config.files.useExperimentalFileWatcher;
 			changed = true;
 		}
 

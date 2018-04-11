@@ -11,14 +11,14 @@ import * as os from 'os';
 import * as assert from 'assert';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { FileService, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
+import { FileService, IEncodingOverride } from 'vs/workbench/services/files/electron-browser/fileService';
 import { FileOperation, FileOperationEvent, FileChangesEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import uri from 'vs/base/common/uri';
 import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
 import * as encodingLib from 'vs/base/node/encoding';
-import * as utils from 'vs/workbench/services/files/test/node/utils';
-import { TestEnvironmentService, TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
+import * as utils from 'vs/workbench/services/files/test/electron-browser/utils';
+import { TestEnvironmentService, TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService, TestNotificationService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -34,7 +34,7 @@ suite('FileService', () => {
 		const sourceDir = require.toUrl('./fixtures/service');
 
 		return pfs.copy(sourceDir, testDir).then(() => {
-			service = new FileService(new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), { disableWatcher: true });
+			service = new FileService(new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
 		});
 	});
 
@@ -892,10 +892,18 @@ suite('FileService', () => {
 
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
-			const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))), TestEnvironmentService, textResourceConfigurationService, configurationService, new TestLifecycleService(), {
-				encodingOverride,
-				disableWatcher: true
-			});
+			const _service = new FileService(
+				new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))),
+				TestEnvironmentService,
+				textResourceConfigurationService,
+				configurationService,
+				new TestLifecycleService(),
+				new TestStorageService(),
+				new TestNotificationService(),
+				{
+					encodingOverride,
+					disableWatcher: true
+				});
 
 			return _service.resolveContent(uri.file(path.join(testDir, 'index.html'))).then(c => {
 				assert.equal(c.encoding, 'windows1252');
@@ -929,10 +937,18 @@ suite('FileService', () => {
 
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
-			const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))), TestEnvironmentService, textResourceConfigurationService, configurationService, new TestLifecycleService(), {
-				encodingOverride,
-				disableWatcher: true
-			});
+			const _service = new FileService(
+				new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))),
+				TestEnvironmentService,
+				textResourceConfigurationService,
+				configurationService,
+				new TestLifecycleService(),
+				new TestStorageService(),
+				new TestNotificationService(),
+				{
+					encodingOverride,
+					disableWatcher: true
+				});
 
 			return _service.resolveContent(uri.file(path.join(testDir, 'index.html'))).then(c => {
 				assert.equal(c.encoding, 'windows1252');
@@ -955,9 +971,17 @@ suite('FileService', () => {
 		const _sourceDir = require.toUrl('./fixtures/service');
 		const resource = uri.file(path.join(testDir, 'index.html'));
 
-		const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), {
-			disableWatcher: true
-		});
+		const _service = new FileService(
+			new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))),
+			TestEnvironmentService,
+			new TestTextResourceConfigurationService(),
+			new TestConfigurationService(),
+			new TestLifecycleService(),
+			new TestStorageService(),
+			new TestNotificationService(),
+			{
+				disableWatcher: true
+			});
 
 		return pfs.copy(_sourceDir, _testDir).then(() => {
 			return pfs.readFile(resource.fsPath).then(data => {

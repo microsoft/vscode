@@ -141,11 +141,6 @@ export interface IFileService {
 	unwatchFileChanges(resource: URI): void;
 
 	/**
-	 * Configures the file service with the provided options.
-	 */
-	updateOptions(options: object): void;
-
-	/**
 	 * Returns the preferred encoding to use for a given resource.
 	 */
 	getEncoding(resource: URI, preferredEncoding?: string): string;

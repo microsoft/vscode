@@ -815,9 +815,6 @@ export class TestFileService implements IFileService {
 	unwatchFileChanges(resource: URI): void {
 	}
 
-	updateOptions(options: any): void {
-	}
-
 	getEncoding(resource: URI): string {
 		return 'utf8';
 	}

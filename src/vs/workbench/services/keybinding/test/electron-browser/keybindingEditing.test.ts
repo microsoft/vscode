@@ -16,11 +16,11 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCodes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as extfs from 'vs/base/node/extfs';
-import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService, TestContextService, TestTextResourceConfigurationService, TestHashService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService, TestContextService, TestTextResourceConfigurationService, TestHashService, TestEnvironmentService, TestStorageService, TestNotificationService } from 'vs/workbench/test/workbenchTestServices';
 import { IWorkspaceContextService, Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import * as uuid from 'vs/base/common/uuid';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
-import { FileService } from 'vs/workbench/services/files/node/fileService';
+import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -80,7 +80,16 @@ suite('Keybindings Editing', () => {
 			instantiationService.stub(ITelemetryService, NullTelemetryService);
 			instantiationService.stub(IModeService, ModeServiceImpl);
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
-			instantiationService.stub(IFileService, new FileService(new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), lifecycleService, { disableWatcher: true }));
+			instantiationService.stub(IFileService, new FileService(
+				new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))),
+				TestEnvironmentService,
+				new TestTextResourceConfigurationService(),
+				new TestConfigurationService(),
+				lifecycleService,
+				new TestStorageService(),
+				new TestNotificationService(),
+				{ disableWatcher: true })
+			);
 			instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));

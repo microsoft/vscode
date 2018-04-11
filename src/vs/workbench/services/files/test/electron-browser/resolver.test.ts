@@ -9,10 +9,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as assert from 'assert';
 
-import { StatResolver } from 'vs/workbench/services/files/node/fileService';
+import { StatResolver } from 'vs/workbench/services/files/electron-browser/fileService';
 import uri from 'vs/base/common/uri';
 import { isLinux } from 'vs/base/common/platform';
-import * as utils from 'vs/workbench/services/files/test/node/utils';
+import * as utils from 'vs/workbench/services/files/test/electron-browser/utils';
 
 function create(relativePath: string): StatResolver {
 	let basePath = require.toUrl('./fixtures/resolver');

@@ -84,13 +84,13 @@ export class RemoteFileService extends FileService {
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 	) {
 		super(
-			configurationService,
 			contextService,
 			environmentService,
-			lifecycleService,
-			notificationService,
-			_storageService,
 			textResourceConfigurationService,
+			configurationService,
+			lifecycleService,
+			_storageService,
+			notificationService
 		);
 
 		this._supportedSchemes = JSON.parse(this._storageService.get('remote_schemes', undefined, '[]'));
