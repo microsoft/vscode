@@ -3,16 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorInput, IEditorModel, Position } from 'vs/platform/editor/common/editor';
 import { EditorInput, EditorModel } from 'vs/workbench/common/editor';
-import { Webview } from 'vs/workbench/parts/html/electron-browser/webview';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import { WebviewEvents, WebviewInputOptions, WebviewReviver } from './webviewService';
+import { WebviewEvents, WebviewInputOptions, WebviewReviver } from './webviewEditorService';
+import { WebviewElement } from './webviewElement';
 
 
 export class WebviewEditorInput extends EditorInput {
@@ -26,7 +24,7 @@ export class WebviewEditorInput extends EditorInput {
 	private _currentWebviewHtml: string = '';
 	public _events: WebviewEvents | undefined;
 	private _container: HTMLElement;
-	private _webview: Webview | undefined;
+	private _webview: WebviewElement | undefined;
 	private _webviewOwner: any;
 	private _webviewDisposables: IDisposable[] = [];
 	private _position?: Position;
@@ -141,6 +139,11 @@ export class WebviewEditorInput extends EditorInput {
 	}
 
 	public resolve(refresh?: boolean): TPromise<IEditorModel, any> {
+		if (this.reviver && !this._revived) {
+			this._revived = true;
+			return this.reviver.reviveWebview(this).then(() => new EditorModel());
+		}
+
 		return TPromise.as(new EditorModel());
 	}
 
@@ -158,11 +161,11 @@ export class WebviewEditorInput extends EditorInput {
 		return this._container;
 	}
 
-	public get webview(): Webview | undefined {
+	public get webview(): WebviewElement | undefined {
 		return this._webview;
 	}
 
-	public set webview(value: Webview) {
+	public set webview(value: WebviewElement) {
 		this._webviewDisposables = dispose(this._webviewDisposables);
 
 		this._webview = value;
@@ -221,16 +224,7 @@ export class WebviewEditorInput extends EditorInput {
 		this._currentWebviewHtml = '';
 	}
 
-	public onBecameActive(position: Position) {
+	public onBecameActive(position: Position): void {
 		this._position = position;
-
-		if (this._events && this._events.onDidChangePosition) {
-			this._events.onDidChangePosition(position);
-		}
-
-		if (this.reviver && !this._revived) {
-			this._revived = true;
-			this.reviver.reviveWebview(this);
-		}
 	}
 }

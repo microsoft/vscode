@@ -11,32 +11,6 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
-	//#region Joh: readable diagnostics
-
-	export interface DiagnosticChangeEvent {
-		uris: Uri[];
-	}
-
-	export namespace languages {
-
-		/**
-		 *
-		 */
-		export const onDidChangeDiagnostics: Event<DiagnosticChangeEvent>;
-
-		/**
-		 *
-		 */
-		export function getDiagnostics(resource: Uri): Diagnostic[];
-
-		/**
-		 *
-		 */
-		export function getDiagnostics(): [Uri, Diagnostic[]][];
-	}
-
-	//#endregion
-
 	//#region Aeschli: folding
 
 	export class FoldingRangeList {
@@ -47,7 +21,7 @@ declare module 'vscode' {
 		ranges: FoldingRange[];
 
 		/**
-		 * Creates mew folding range list.
+		 * Creates new folding range list.
 		 *
 		 * @param ranges The folding ranges
 		 */
@@ -211,7 +185,7 @@ declare module 'vscode' {
 		readonly onDidChange?: Event<FileChange[]>;
 
 		// more...
-		//
+		// @deprecated - will go away
 		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
 
 		stat(resource: Uri): Thenable<FileStat>;
@@ -249,8 +223,101 @@ declare module 'vscode' {
 		// create(resource: Uri): Thenable<FileStat>;
 	}
 
+	export enum FileChangeType2 {
+		Changed = 1,
+		Created = 2,
+		Deleted = 3,
+	}
+
+	export interface FileChange2 {
+		type: FileChangeType2;
+		resource: Uri;
+	}
+
+	export enum FileType2 {
+		File = 0b001,
+		Directory = 0b010,
+		SymbolicLink = 0b100,
+	}
+
+	export interface FileStat2 {
+		type: FileType2;
+		mtime: number;
+		size: number;
+	}
+
+
+	// todo@joh discover files etc
+	// todo@joh add open/close calls?
+	export interface FileSystemProvider2 {
+
+		_version: 3;
+
+		/**
+		 * An event to signal that a resource has been created, changed, or deleted.
+		 */
+		readonly onDidChange: Event<FileChange2[]>;
+
+		/**
+		 * Retrieve meta data about a file.
+		 *
+		 * @param uri The uri of the file to retrieve meta data about.
+		 * @param token A cancellation token.
+		 */
+		// todo@remote
+		// ! throw error (ENOENT) when the file doesn't exist
+		stat(uri: Uri, token: CancellationToken): Thenable<FileStat2>;
+
+		/**
+		 * Retrieve the meta data of all entries of a [directory](#FileType2.Directory)
+		 *
+		 * @param uri The uri of the folder.
+		 * @param token A cancellation token.
+		 * @return A thenable that resolves to an array of tuples of resources and files stats.
+		 */
+		readDirectory(uri: Uri, token: CancellationToken): Thenable<[Uri, FileStat2][]>;
+
+		/**
+		 * Read the entire contents of a file.
+		 *
+		 * @param uri The uri of the file.
+		 * @param token A cancellation token.
+		 * @return A thenable that resolves to an array of bytes.
+		 */
+		readFile(uri: Uri, token: CancellationToken): Thenable<Uint8Array>;
+
+		/**
+		 * Write data to a file, replacing its entire contents.
+		 *
+		 * @param uri The uri of the file.
+		 * @param content The new content of the file.
+		 * @param token A cancellation token.
+		 */
+		writeFile(uri: Uri, content: Uint8Array, token: CancellationToken): Thenable<void>;
+
+		/**
+		 * Rename a file or folder.
+		 *
+		 * @param oldUri The exiting file or folder
+		 * @param newUri The target location
+		 * @param token A cancellation token.
+		 */
+		rename(oldUri: Uri, newUri: Uri, token: CancellationToken): Thenable<FileStat2>;
+
+		// todo@remote
+		// helps with performance bigly
+		// copy?(from: Uri, to: Uri): Thenable<FileStat2>;
+
+		// todo@remote
+		// ? useTrash, expose trash
+		delete(uri: Uri, token: CancellationToken): Thenable<void>;
+
+		// todo@remote
+		create(uri: Uri, options: { type: FileType }, token: CancellationToken): Thenable<FileStat2>;
+	}
+
 	export namespace workspace {
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
+		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, newProvider?: FileSystemProvider2): Disposable;
 	}
 
 	//#endregion
@@ -558,7 +625,7 @@ declare module 'vscode' {
 		readonly localResourceRoots?: Uri[];
 	}
 
-	export interface WebViewOnDidChangeViewStateEvent {
+	export interface WebviewOnDidChangeViewStateEvent {
 		readonly viewColumn: ViewColumn;
 		readonly active: boolean;
 	}
@@ -607,7 +674,7 @@ declare module 'vscode' {
 		/**
 		 * Fired when the webview's view state changes.
 		 */
-		readonly onDidChangeViewState: Event<WebViewOnDidChangeViewStateEvent>;
+		readonly onDidChangeViewState: Event<WebviewOnDidChangeViewStateEvent>;
 
 		/**
 		 * Post a message to the webview content.
@@ -658,10 +725,8 @@ declare module 'vscode' {
 		 *
 		 * @param webview Webview to restore. The serializer should take ownership of this webview.
 		 * @param state Persisted state.
-		 *
-		 * @return Was deserialization successful?
 		 */
-		deserializeWebview(webview: Webview, state: any): Thenable<boolean>;
+		deserializeWebview(webview: Webview, state: any): Thenable<void>;
 	}
 
 	namespace window {

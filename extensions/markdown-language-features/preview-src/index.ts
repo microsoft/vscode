@@ -75,7 +75,7 @@ document.addEventListener('dblclick', event => {
 	const offset = event.pageY;
 	const line = getEditorLineNumberForPageOffset(offset);
 	if (typeof line === 'number' && !isNaN(line)) {
-		postMessage('didClick', { line });
+		postMessage('didClick', { line: Math.floor(line) });
 	}
 });
 

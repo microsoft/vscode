@@ -24,7 +24,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';

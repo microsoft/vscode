@@ -267,15 +267,26 @@ suite('WordOperations', () => {
 			moveWordRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a'.length + 1, '007');
 			moveWordRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+='.length + 1, '008');
 			moveWordRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3'.length + 1, '009');
-			moveWordRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +'.length + 1, '010');
 			moveWordRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5'.length + 1, '011');
-			moveWordRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5-'.length + 1, '012');
 			moveWordRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3'.length + 1, '013');
 			moveWordRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 +'.length + 1, '014');
 			moveWordRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7'.length + 1, '015');
 			moveWordRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7 */'.length + 1, '016');
 			moveWordRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7 */  '.length + 1, '016');
 
+		});
+	});
+
+	test('issue #41199: moveWordRight', () => {
+		withTestCodeEditor([
+			'console.log(err)'
+		], {}, (editor, _) => {
+			editor.setPosition(new Position(1, 1));
+
+			moveWordRight(editor); assert.equal(editor.getPosition().column, 'console'.length + 1, '001');
+			moveWordRight(editor); assert.equal(editor.getPosition().column, 'console.log'.length + 1, '002');
+			moveWordRight(editor); assert.equal(editor.getPosition().column, 'console.log(err'.length + 1, '003');
+			moveWordRight(editor); assert.equal(editor.getPosition().column, 'console.log(err)'.length + 1, '004');
 		});
 	});
 
@@ -293,9 +304,7 @@ suite('WordOperations', () => {
 			moveWordEndRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a'.length + 1, '007');
 			moveWordEndRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+='.length + 1, '008');
 			moveWordEndRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3'.length + 1, '009');
-			moveWordEndRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +'.length + 1, '010');
 			moveWordEndRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5'.length + 1, '011');
-			moveWordEndRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5-'.length + 1, '012');
 			moveWordEndRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3'.length + 1, '013');
 			moveWordEndRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 +'.length + 1, '014');
 			moveWordEndRight(editor); assert.equal(editor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7'.length + 1, '015');

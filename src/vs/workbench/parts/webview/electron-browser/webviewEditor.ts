@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as DOM from 'vs/base/browser/dom';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDisposable, } from 'vs/base/common/lifecycle';
-import { EditorOptions } from 'vs/workbench/common/editor';
-import { Position } from 'vs/platform/editor/common/editor';
-import { BaseWebviewEditor as BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/parts/html/electron-browser/baseWebviewEditor';
-import { Webview } from 'vs/workbench/parts/html/electron-browser/webview';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { Position } from 'vs/platform/editor/common/editor';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import * as DOM from 'vs/base/browser/dom';
-import { Event, Emitter } from 'vs/base/common/event';
-import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewInput';
-import URI from 'vs/base/common/uri';
+import { EditorOptions } from 'vs/workbench/common/editor';
+import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
+import { WebviewElement } from './webviewElement';
 
 export class WebviewEditor extends BaseWebviewEditor {
 
@@ -145,10 +145,10 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this._webview = undefined;
 			this.webviewContent = undefined;
 		}
-
 		await super.setInput(input, options);
 
-		input.onBecameActive(this.position);
+		await input.resolve();
+		await input.onBecameActive(this.position);
 		this.updateWebview(input);
 	}
 
@@ -179,7 +179,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 		return rootPaths;
 	}
 
-	private getWebview(input: WebviewEditorInput): Webview {
+	private getWebview(input: WebviewEditorInput): WebviewElement {
 		if (this._webview) {
 			return this._webview;
 		}
@@ -203,7 +203,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		}
 
-		this._webview = new Webview(
+		this._webview = new WebviewElement(
 			this._partService.getContainer(Parts.EDITOR_PART),
 			this.themeService,
 			this._environmentService,

@@ -23,11 +23,11 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
-import { IWebviewService } from 'vs/workbench/parts/webview/electron-browser/webviewService';
+import { IWebviewEditorService } from 'vs/workbench/parts/webview/electron-browser/webviewEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { Position } from 'vs/platform/editor/common/editor';
-import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewInput';
+import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
 
 function renderBody(
 	body: string,
@@ -61,7 +61,7 @@ export class ReleaseNotesManager {
 		@IRequestService private readonly _requestService: IRequestService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
-		@IWebviewService private readonly _webviewService: IWebviewService,
+		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
 	) { }
 
 	public async show(
@@ -76,9 +76,9 @@ export class ReleaseNotesManager {
 		if (this._currentReleaseNotes) {
 			this._currentReleaseNotes.setName(title);
 			this._currentReleaseNotes.html = html;
-			this._webviewService.revealWebview(this._currentReleaseNotes, activeEditor ? activeEditor.position : undefined);
+			this._webviewEditorService.revealWebview(this._currentReleaseNotes, activeEditor ? activeEditor.position : undefined);
 		} else {
-			this._currentReleaseNotes = this._webviewService.createWebview(
+			this._currentReleaseNotes = this._webviewEditorService.createWebview(
 				'releaseNotes',
 				title,
 				activeEditor ? activeEditor.position : Position.ONE,

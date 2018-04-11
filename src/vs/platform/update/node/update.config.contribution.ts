@@ -26,6 +26,7 @@ configurationRegistry.registerConfiguration({
 		'update.enableWindowsBackgroundUpdates': {
 			'type': 'boolean',
 			'default': true,
+			'scope': ConfigurationScope.APPLICATION,
 			'description': nls.localize('enableWindowsBackgroundUpdates', "Enables Windows background updates.")
 		}
 	}

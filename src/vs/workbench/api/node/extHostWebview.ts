@@ -13,14 +13,15 @@ import { Disposable } from './extHostTypes';
 
 export class ExtHostWebview implements vscode.Webview {
 
+	private readonly _handle: WebviewHandle;
 	private readonly _viewType: string;
+	private readonly _proxy: MainThreadWebviewsShape;
 	private _title: string;
 	private _html: string;
 	private _options: vscode.WebviewOptions;
 	private _isDisposed: boolean = false;
 	private _viewColumn: vscode.ViewColumn;
 	private _active: boolean;
-	private _state: any;
 
 	public readonly onMessageEmitter = new Emitter<any>();
 	public readonly onDidReceiveMessage: Event<any> = this.onMessageEmitter.event;
@@ -28,16 +29,18 @@ export class ExtHostWebview implements vscode.Webview {
 	public readonly onDisposeEmitter = new Emitter<void>();
 	public readonly onDidDispose: Event<void> = this.onDisposeEmitter.event;
 
-	public readonly onDidChangeViewStateEmitter = new Emitter<vscode.WebViewOnDidChangeViewStateEvent>();
-	public readonly onDidChangeViewState: Event<vscode.WebViewOnDidChangeViewStateEvent> = this.onDidChangeViewStateEmitter.event;
+	public readonly onDidChangeViewStateEmitter = new Emitter<vscode.WebviewOnDidChangeViewStateEvent>();
+	public readonly onDidChangeViewState: Event<vscode.WebviewOnDidChangeViewStateEvent> = this.onDidChangeViewStateEmitter.event;
 
 	constructor(
-		private readonly _handle: WebviewHandle,
-		private readonly _proxy: MainThreadWebviewsShape,
+		handle: WebviewHandle,
+		proxy: MainThreadWebviewsShape,
 		viewType: string,
 		viewColumn: vscode.ViewColumn,
 		options: vscode.WebviewOptions
 	) {
+		this._handle = handle;
+		this._proxy = proxy;
 		this._viewType = viewType;
 		this._viewColumn = viewColumn;
 		this._options = options;
@@ -85,11 +88,6 @@ export class ExtHostWebview implements vscode.Webview {
 			this._html = value;
 			this._proxy.$setHtml(this._handle, value);
 		}
-	}
-
-	get state(): any {
-		this.assertNotDisposed();
-		return this._state;
 	}
 
 	get options(): vscode.WebviewOptions {
@@ -142,8 +140,6 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	private readonly _webviews = new Map<WebviewHandle, ExtHostWebview>();
 	private readonly _serializers = new Map<string, vscode.WebviewSerializer>();
 
-	private _activeWebview: ExtHostWebview | undefined;
-
 	constructor(
 		mainContext: IMainContext
 	) {
@@ -189,21 +185,14 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 	}
 
-	$onDidChangeActiveWeview(handle: WebviewHandle | undefined): void {
-		if (handle) {
-			const webview = this.getWebview(handle);
-			if (webview) {
-				if (webview !== this._activeWebview) {
-					this._activeWebview = webview;
-					webview.active = true;
-					webview.onDidChangeViewStateEmitter.fire({ viewColumn: webview.viewColumn, active: true });
-				}
-			}
-		} else {
-			if (this._activeWebview) {
-				this._activeWebview.active = false;
-				this._activeWebview.onDidChangeViewStateEmitter.fire({ viewColumn: this._activeWebview.viewColumn, active: false });
-				this._activeWebview = undefined;
+	$onDidChangeWeviewViewState(handle: WebviewHandle, active: boolean, position: Position): void {
+		const webview = this.getWebview(handle);
+		if (webview) {
+			const viewColumn = typeConverters.toViewColumn(position);
+			if (webview.active !== active || webview.viewColumn !== viewColumn) {
+				webview.active = active;
+				webview.viewColumn = viewColumn;
+				webview.onDidChangeViewStateEmitter.fire({ active, viewColumn });
 			}
 		}
 	}
@@ -213,22 +202,8 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		if (webview) {
 			webview.onDisposeEmitter.fire();
 			this._webviews.delete(handle);
-			if (this._activeWebview === webview) {
-				this._activeWebview = undefined;
-			}
 		}
 		return TPromise.as(void 0);
-	}
-
-	$onDidChangePosition(handle: WebviewHandle, newPosition: Position): void {
-		const webview = this.getWebview(handle);
-		if (webview) {
-			const newViewColumn = typeConverters.toViewColumn(newPosition);
-			if (webview.viewColumn !== newViewColumn) {
-				webview.viewColumn = newViewColumn;
-				webview.onDidChangeViewStateEmitter.fire({ viewColumn: newViewColumn, active: webview.active });
-			}
-		}
 	}
 
 	$deserializeWebview(
@@ -237,21 +212,24 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		state: any,
 		position: Position,
 		options: vscode.WebviewOptions
-	): void {
+	): Thenable<void> {
 		const serializer = this._serializers.get(viewType);
 		if (!serializer) {
-			return;
+			return TPromise.wrapError(new Error(`No serializer found for '${viewType}'`));
 		}
 
 		const revivedWebview = new ExtHostWebview(webviewHandle, this._proxy, viewType, typeConverters.toViewColumn(position), options);
 		this._webviews.set(webviewHandle, revivedWebview);
-		serializer.deserializeWebview(revivedWebview, state);
+		return serializer.deserializeWebview(revivedWebview, state);
 	}
 
 	$serializeWebview(
 		webviewHandle: WebviewHandle
 	): Thenable<any> {
 		const webview = this.getWebview(webviewHandle);
+		if (!webview) {
+			return TPromise.as(undefined);
+		}
 
 		const serialzer = this._serializers.get(webview.viewType);
 		if (!serialzer) {
@@ -261,7 +239,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		return serialzer.serializeWebview(webview);
 	}
 
-	private getWebview(handle: WebviewHandle) {
+	private getWebview(handle: WebviewHandle): ExtHostWebview | undefined {
 		return this._webviews.get(handle);
 	}
 }

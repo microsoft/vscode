@@ -108,6 +108,8 @@ import { registerNotificationCommands } from 'vs/workbench/browser/parts/notific
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
 
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const InZenModeContext = new RawContextKey<boolean>('inZenMode', false);
@@ -639,6 +641,9 @@ export class Workbench implements IPartService {
 		this.quickInput = this.instantiationService.createInstance(QuickInputService);
 		this.toUnbind.push({ dispose: () => this.quickInput.shutdown() });
 		serviceCollection.set(IQuickInputService, this.quickInput);
+
+		// PreferencesService
+		serviceCollection.set(IPreferencesService, this.instantiationService.createInstance(PreferencesService));
 
 		// Contributed services
 		const contributedServices = getServices();

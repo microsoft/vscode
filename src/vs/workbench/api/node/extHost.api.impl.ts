@@ -106,7 +106,7 @@ export function createApiFactory(
 	const extHostCommands = rpcProtocol.set(ExtHostContext.ExtHostCommands, new ExtHostCommands(rpcProtocol, extHostHeapService, extHostLogService));
 	const extHostTreeViews = rpcProtocol.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(rpcProtocol.getProxy(MainContext.MainThreadTreeViews), extHostCommands));
 	rpcProtocol.set(ExtHostContext.ExtHostWorkspace, extHostWorkspace);
-	const extHostDebugService = rpcProtocol.set(ExtHostContext.ExtHostDebugService, new ExtHostDebugService(rpcProtocol, extHostWorkspace));
+	const extHostDebugService = rpcProtocol.set(ExtHostContext.ExtHostDebugService, new ExtHostDebugService(rpcProtocol, extHostWorkspace, extensionService));
 	rpcProtocol.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
 	const extHostDiagnostics = rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(rpcProtocol));
 	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics));
@@ -237,9 +237,9 @@ export function createApiFactory(
 				checkProposedApiEnabled(extension);
 				return extHostDiagnostics.onDidChangeDiagnostics;
 			},
-			getDiagnostics: <any>proposedApiFunction(extension, (resource?) => {
-				return extHostDiagnostics.getDiagnostics(resource);
-			}),
+			getDiagnostics: (resource?) => {
+				return <any>extHostDiagnostics.getDiagnostics(resource);
+			},
 			getLanguages(): TPromise<string[]> {
 				return extHostLanguages.getLanguages();
 			},
@@ -538,8 +538,8 @@ export function createApiFactory(
 			onDidEndTask: (listeners, thisArgs?, disposables?) => {
 				return extHostTask.onDidEndTask(listeners, thisArgs, disposables);
 			},
-			registerFileSystemProvider: proposedApiFunction(extension, (scheme, provider) => {
-				return extHostFileSystem.registerFileSystemProvider(scheme, provider);
+			registerFileSystemProvider: proposedApiFunction(extension, (scheme, provider, newProvider?) => {
+				return extHostFileSystem.registerFileSystemProvider(scheme, provider, newProvider);
 			}),
 			registerSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
 				return extHostFileSystem.registerSearchProvider(scheme, provider);
@@ -679,6 +679,8 @@ export function createApiFactory(
 
 			FileChangeType: extHostTypes.FileChangeType,
 			FileType: extHostTypes.FileType,
+			FileChangeType2: extHostTypes.FileChangeType2,
+			FileType2: extHostTypes.FileType2,
 			FoldingRangeList: extHostTypes.FoldingRangeList,
 			FoldingRange: extHostTypes.FoldingRange,
 			FoldingRangeType: extHostTypes.FoldingRangeType
@@ -710,7 +712,7 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 
 	activate(): Thenable<T> {
-		return this._extensionService.activateById(this.id, new ExtensionActivatedByAPI(false)).then(() => this.exports);
+		return this._extensionService.activateByIdWithErrors(this.id, new ExtensionActivatedByAPI(false)).then(() => this.exports);
 	}
 }
 

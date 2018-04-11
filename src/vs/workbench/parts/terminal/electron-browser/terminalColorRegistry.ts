@@ -165,5 +165,4 @@ export function registerColors(): void {
 		let colorName = id.substring(13);
 		ansiColorIdentifiers[entry.index] = registerColor(id, entry.defaults, nls.localize('terminal.ansiColor', '\'{0}\' ANSI color in the terminal.', colorName));
 	}
-
 }

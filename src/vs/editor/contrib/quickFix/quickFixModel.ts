@@ -37,12 +37,12 @@ export class QuickFixOracle {
 		this._disposables = dispose(this._disposables);
 	}
 
-	trigger(trigger: CodeActionTrigger): void {
+	trigger(trigger: CodeActionTrigger) {
 		let rangeOrSelection = this._getRangeOfMarker() || this._getRangeOfSelectionUnlessWhitespaceEnclosed();
 		if (!rangeOrSelection && trigger.type === 'manual') {
 			rangeOrSelection = this._editor.getSelection();
 		}
-		this._createEventAndSignalChange(trigger, rangeOrSelection);
+		return this._createEventAndSignalChange(trigger, rangeOrSelection);
 	}
 
 	private _onMarkerChanges(resources: URI[]): void {
@@ -99,7 +99,7 @@ export class QuickFixOracle {
 		return selection;
 	}
 
-	private _createEventAndSignalChange(trigger: CodeActionTrigger, rangeOrSelection: Range | Selection): void {
+	private _createEventAndSignalChange(trigger: CodeActionTrigger, rangeOrSelection: Range | Selection): TPromise<CodeAction[] | undefined> {
 		if (!rangeOrSelection) {
 			// cancel
 			this._signalChange({
@@ -108,6 +108,7 @@ export class QuickFixOracle {
 				position: undefined,
 				fixes: undefined,
 			});
+			return TPromise.as(undefined);
 		} else {
 			// actual
 			const model = this._editor.getModel();
@@ -121,6 +122,7 @@ export class QuickFixOracle {
 				position,
 				fixes
 			});
+			return fixes;
 		}
 	}
 }
@@ -177,9 +179,10 @@ export class QuickFixModel {
 		}
 	}
 
-	trigger(trigger: CodeActionTrigger): void {
+	trigger(trigger: CodeActionTrigger): TPromise<CodeAction[] | undefined> {
 		if (this._quickFixOracle) {
-			this._quickFixOracle.trigger(trigger);
+			return this._quickFixOracle.trigger(trigger);
 		}
+		return TPromise.as(undefined);
 	}
 }

@@ -59,15 +59,14 @@ import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { join } from 'path';
-import { copy } from 'vs/base/node/pfs';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
+import { join } from 'path';
+import { exists, unlink, del } from 'vs/base/node/pfs';
 
 export class CodeApplication {
 
 	private static readonly MACHINE_ID_KEY = 'telemetry.machineId';
-	private static readonly LOCAL_STORAGE_BACKED_UP_KEY = 'localStorage.backedUp';
 
 	private toDispose: IDisposable[];
 	private windowsMainService: IWindowsMainService;
@@ -265,9 +264,8 @@ export class CodeApplication {
 		this.logService.debug(`from: ${this.environmentService.appRoot}`);
 		this.logService.debug('args:', this.environmentService.args);
 
-		// Backup local storage (TODO@Ben remove me after a while)
-		this.logService.trace('Backing up localStorage if needed...');
-		return this.backupLocalStorage().then(() => {
+		// Handle local storage (TODO@Ben remove me after a while)
+		return this.handleLocalStorage().then(() => {
 
 			// Make sure we associate the program with the app user model id
 			// This will help Windows to associate the running program with
@@ -332,22 +330,27 @@ export class CodeApplication {
 		});
 	}
 
-	private backupLocalStorage(): TPromise<void> {
-		const localStorageBackedUp = this.stateService.getItem<string>(CodeApplication.LOCAL_STORAGE_BACKED_UP_KEY);
-		if (localStorageBackedUp) {
-			return TPromise.wrap(void 0);
+	private handleLocalStorage(): TPromise<void> {
+		const localStorageBackupFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage.vscbak');
+		const localStorageJournalBackupFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal.vscbak');
+		const localStorageLevelDB = join(this.environmentService.userDataPath, 'Local Storage', 'leveldb');
+
+		// Electron 1.7.12: Delete
+		if (product.quality === 'insider' && process.versions.electron === '1.7.12') {
+			return exists(localStorageBackupFile).then(localStorageBackupFileExists => {
+				return exists(localStorageJournalBackupFile).then(localStorageJournalBackupFileExists => {
+					return exists(localStorageLevelDB).then(localStorageLevelDBExists => {
+						return TPromise.join([
+							localStorageBackupFileExists ? unlink(localStorageBackupFile) : TPromise.as(null),
+							localStorageJournalBackupFile ? unlink(localStorageJournalBackupFile) : TPromise.as(null),
+							localStorageLevelDBExists ? del(localStorageLevelDB) : TPromise.as(null)
+						]);
+					});
+				});
+			}).then(() => void 0, () => void 0);
 		}
 
-		const afterBackupDone = () => {
-
-			// Remember in global storage
-			this.stateService.setItem(CodeApplication.LOCAL_STORAGE_BACKED_UP_KEY, true);
-		};
-
-		const localStorageFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage');
-		const localStorageJournalFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal');
-
-		return copy(localStorageFile, `${localStorageFile}.vscbak`).then(() => copy(localStorageJournalFile, `${localStorageJournalFile}.vscbak`)).then(afterBackupDone, afterBackupDone);
+		return TPromise.as(null);
 	}
 
 	private initServices(machineId: string): IInstantiationService {

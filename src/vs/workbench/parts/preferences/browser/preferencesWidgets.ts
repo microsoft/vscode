@@ -17,7 +17,7 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPosit
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ISettingsGroup } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IAction, Action } from 'vs/base/common/actions';

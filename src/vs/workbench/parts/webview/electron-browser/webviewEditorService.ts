@@ -2,18 +2,20 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import * as vscode from 'vscode';
-import { WebviewEditorInput } from './webviewInput';
+import { WebviewEditorInput } from './webviewEditorInput';
 
-export const IWebviewService = createDecorator<IWebviewService>('webviewService');
+export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
 
-export interface IWebviewService {
+export interface IWebviewEditorService {
 	_serviceBrand: any;
 
 	createWebview(
@@ -25,7 +27,7 @@ export interface IWebviewService {
 		events: WebviewEvents
 	): WebviewEditorInput;
 
-	createRevivableWebview(
+	reviveWebview(
 		viewType: string,
 		title: string,
 		state: any,
@@ -55,7 +57,7 @@ export interface WebviewReviver {
 
 	reviveWebview(
 		webview: WebviewEditorInput
-	): void;
+	): TPromise<void>;
 }
 
 export interface WebviewEvents {
@@ -69,11 +71,11 @@ export interface WebviewInputOptions extends vscode.WebviewOptions {
 	tryRestoreScrollPosition?: boolean;
 }
 
-export class WebviewService implements IWebviewService {
+export class WebviewEditorService implements IWebviewEditorService {
 	_serviceBrand: any;
 
 	private readonly _revivers = new Map<string, WebviewReviver>();
-	private readonly _needingRevival = new Map<string, WebviewEditorInput[]>();
+	private _awaitingRevival: { input: WebviewEditorInput, resolve: (x: any) => void }[] = [];
 
 	constructor(
 		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
@@ -103,13 +105,13 @@ export class WebviewService implements IWebviewService {
 		}
 
 		if (webview.position === column) {
-			this._editorService.openEditor(webview, { preserveFocus: true }, column);
+			this._editorService.openEditor(webview, { preserveFocus: false }, column);
 		} else {
-			this._editorGroupService.moveEditor(webview, webview.position, column, { preserveFocus: true });
+			this._editorGroupService.moveEditor(webview, webview.position, column, { preserveFocus: false });
 		}
 	}
 
-	createRevivableWebview(
+	reviveWebview(
 		viewType: string,
 		title: string,
 		state: any,
@@ -120,12 +122,16 @@ export class WebviewService implements IWebviewService {
 			canRevive: (webview) => {
 				return true;
 			},
-			reviveWebview: (webview) => {
-				if (!this._needingRevival.has(viewType)) {
-					this._needingRevival.set(viewType, []);
+			reviveWebview: async (webview: WebviewEditorInput): TPromise<void> => {
+				const didRevive = await this.tryRevive(webview);
+				if (didRevive) {
+					return;
 				}
-				this._needingRevival.get(viewType).push(webviewInput);
-				this.tryRevive(viewType);
+				// A reviver may not be registered yet. Put into queue and resolve promise when we can revive
+				let resolve: (value: void) => void;
+				const promise = new TPromise<void>(r => { resolve = r; });
+				this._awaitingRevival.push({ input: webview, resolve });
+				return promise;
 			}
 		});
 
@@ -137,11 +143,18 @@ export class WebviewService implements IWebviewService {
 		reviver: WebviewReviver
 	): IDisposable {
 		if (this._revivers.has(viewType)) {
-			throw new Error(`Reveriver for 'viewType' already registered`);
+			throw new Error(`Reviver for '${viewType}' already registered`);
 		}
 
 		this._revivers.set(viewType, reviver);
-		this.tryRevive(viewType);
+
+		// Resolve any pending views
+		const toRevive = this._awaitingRevival.filter(x => x.input.viewType === viewType);
+		this._awaitingRevival = this._awaitingRevival.filter(x => x.input.viewType !== viewType);
+
+		for (const input of toRevive) {
+			reviver.reviveWebview(input.input).then(() => input.resolve(void 0));
+		}
 
 		return toDisposable(() => {
 			this._revivers.delete(viewType);
@@ -155,21 +168,15 @@ export class WebviewService implements IWebviewService {
 		return this._revivers.has(viewType) && this._revivers.get(viewType).canRevive(webview);
 	}
 
-	tryRevive(
-		viewType: string
-	) {
-		const reviver = this._revivers.get(viewType);
+	private async tryRevive(
+		webview: WebviewEditorInput
+	): TPromise<boolean> {
+		const reviver = this._revivers.get(webview.viewType);
 		if (!reviver) {
-			return;
+			return false;
 		}
 
-		const toRevive = this._needingRevival.get(viewType);
-		if (!toRevive) {
-			return;
-		}
-
-		for (const webview of toRevive) {
-			reviver.reviveWebview(webview);
-		}
+		await reviver.reviveWebview(webview);
+		return true;
 	}
 }

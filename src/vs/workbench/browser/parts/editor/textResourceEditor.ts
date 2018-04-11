@@ -67,7 +67,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		}
 
 		// Remember view settings if input changes
-		this.saveTextEditorViewStateForInput(this.input);
+		this.saveTextResourceEditorViewState(this.input);
 
 		// Set input and resolve
 		return super.setInput(input, options).then(() => {
@@ -97,7 +97,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 				// Otherwise restore View State
 				if (!optionsGotApplied) {
-					this.restoreViewState(input);
+					this.restoreTextResourceEditorViewState(input);
 				}
 
 				return void 0;
@@ -105,7 +105,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		});
 	}
 
-	private restoreViewState(input: EditorInput) {
+	private restoreTextResourceEditorViewState(input: EditorInput) {
 		if (input instanceof UntitledEditorInput || input instanceof ResourceEditorInput) {
 			const viewState = this.loadTextEditorViewState(input.getResource());
 			if (viewState) {
@@ -153,7 +153,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 	public clearInput(): void {
 
 		// Keep editor view state in settings to restore when coming back
-		this.saveTextEditorViewStateForInput(this.input);
+		this.saveTextResourceEditorViewState(this.input);
 
 		// Clear Model
 		this.getControl().setModel(null);
@@ -165,14 +165,14 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 		// Save View State (only for untitled)
 		if (this.input instanceof UntitledEditorInput) {
-			this.saveTextEditorViewStateForInput(this.input);
+			this.saveTextResourceEditorViewState(this.input);
 		}
 
 		// Call Super
 		super.shutdown();
 	}
 
-	protected saveTextEditorViewStateForInput(input: EditorInput): void {
+	private saveTextResourceEditorViewState(input: EditorInput): void {
 		if (!(input instanceof UntitledEditorInput) && !(input instanceof ResourceEditorInput)) {
 			return; // only enabled for untitled and resource inputs
 		}

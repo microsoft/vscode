@@ -91,8 +91,8 @@ export class MarkdownPreviewManager implements vscode.WebviewSerializer {
 	public async deserializeWebview(
 		webview: vscode.Webview,
 		state: any
-	): Promise<boolean> {
-		const preview = MarkdownPreview.revive(
+	): Promise<void> {
+		const preview = await MarkdownPreview.revive(
 			webview,
 			state,
 			this.contentProvider,
@@ -101,8 +101,6 @@ export class MarkdownPreviewManager implements vscode.WebviewSerializer {
 			this.topmostLineMonitor);
 
 		this.registerPreview(preview);
-		preview.refresh();
-		return true;
 	}
 
 	public async serializeWebview(
