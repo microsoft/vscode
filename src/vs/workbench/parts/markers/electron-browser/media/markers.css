@@ -7,7 +7,7 @@
 	cursor: default;
 	margin: 4px 10px 0 0;
 	min-width: 150px;
-	max-width: 800px;
+	max-width: 1000px;
 }
 
 .monaco-action-bar .action-item.markers-panel-action-filter {
@@ -27,18 +27,35 @@
 	border: 1px solid #ddd;
 }
 
-.markers-panel-action-filter > .markers-panel-filter-badge {
-	margin: 4px 0px;
-	padding: 0px 8px;
-	border-radius: 2px;
+.markers-panel-action-filter > .markers-panel-filter-controls {
 	position: absolute;
 	top: 0px;
 	right: 4px;
+	display: flex;
 }
 
-.markers-panel-action-filter > .markers-panel-filter-badge.hidden,
-.markers-panel-action-filter > .markers-panel-filter-badge.small {
+.markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge {
+	margin: 4px 0px;
+	padding: 0px 8px;
+	border-radius: 2px;
+}
+
+.markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge.hidden,
+.markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge.small {
 	display: none;
+}
+
+.markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
+	margin: 3px 0 0 3px;
+}
+
+.vs .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
+	background: url('excludeSettings.svg') center center no-repeat;
+}
+
+.vs-dark .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude,
+.hc-black .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
+	background: url('excludeSettings-dark.svg') center center no-repeat;
 }
 
 .markers-panel .markers-panel-container {
@@ -141,17 +158,4 @@
 
 .vs-dark .markers-panel .icon.info {
 	background: url('status-info-inverse.svg') center center no-repeat;
-}
-
-.vs .monaco-action-bar .action-item .icon.markers-panel-action-files-exclude {
-	background: url('excludeSettings.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-action-bar .action-item .icon.markers-panel-action-files-exclude,
-.hc-black .monaco-action-bar .action-item .icon.markers-panel-action-files-exclude {
-	background: url('excludeSettings-dark.svg') center center no-repeat;
-}
-
-.monaco-action-bar .action-item .icon.markers-panel-action-files-exclude:not(.checked) {
-	opacity: 0.5;
 }
