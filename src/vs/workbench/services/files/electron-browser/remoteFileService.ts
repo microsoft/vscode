@@ -12,7 +12,7 @@ import { posix } from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isFalsyOrEmpty, distinct } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
-import { encode, UTF8, UTF8_with_bom, toDecodeStream } from 'vs/base/node/encoding';
+import { encode, toDecodeStream, IDecodeStreamOptions } from 'vs/base/node/encoding';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -261,32 +261,15 @@ export class RemoteFileService extends FileService {
 					);
 				}
 
-				return toDecodeStream(this._createReadStream(provider, resource), {
+				const decodeStreamOpts: IDecodeStreamOptions = {
 					guessEncoding: options.autoGuessEncoding,
 					overwriteEncoding: detected => {
-						let preferredEncoding: string;
-						if (options && options.encoding) {
-							if (detected === UTF8 && options.encoding === UTF8) {
-								preferredEncoding = UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
-							} else {
-								preferredEncoding = options.encoding; // give passed in encoding highest priority
-							}
-						} else if (detected) {
-							if (detected === UTF8) {
-								preferredEncoding = UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
-							} else {
-								preferredEncoding = detected;
-							}
-							// todo@remote - encoding logic should not be kept
-							// hostage inside the node file service
-							// } else if (super.configuredEncoding(resource) === UTF8_with_bom) {
-						} else {
-							preferredEncoding = UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
-						}
-						return preferredEncoding;
+						const prefered = this.getPeferredEncoding(resource, options, { encoding: detected, seemsBinary: false });
+						return this.getEncoding(resource, prefered);
 					}
+				};
 
-				}).then(data => {
+				return toDecodeStream(this._createReadStream(provider, resource), decodeStreamOpts).then(data => {
 
 					if (options.acceptTextOnly && data.detected.seemsBinary) {
 						return TPromise.wrapError<IStreamContent>(new FileOperationError(

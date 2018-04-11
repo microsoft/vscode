@@ -1068,7 +1068,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	private getPeferredEncoding(resource: uri, options: IResolveContentOptions, detected: encoding.IDetectedEncodingResult): string {
+	protected getPeferredEncoding(resource: uri, options: IResolveContentOptions, detected: encoding.IDetectedEncodingResult): string {
 		let preferredEncoding: string;
 		if (options && options.encoding) {
 			if (detected.encoding === encoding.UTF8 && options.encoding === encoding.UTF8) {
