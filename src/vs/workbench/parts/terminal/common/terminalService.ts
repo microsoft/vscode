@@ -110,7 +110,7 @@ export abstract class TerminalService implements ITerminalService {
 		}
 
 		if (this.configHelper.config.confirmOnExit) {
-			// veto if configured to show confirmation and the user choosed not to exit
+			// veto if configured to show confirmation and the user chose not to exit
 			return this._showTerminalCloseConfirmation().then(veto => {
 				if (!veto) {
 					this._isShuttingDown = true;
