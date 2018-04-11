@@ -12,45 +12,45 @@ import { StandardTokenType } from 'vs/editor/common/modes';
 suite('CharacterPairSupport', () => {
 
 	test('only autoClosingPairs', () => {
-		let characaterPairSupport = new CharacterPairSupport({ autoClosingPairs: [{ open: 'a', close: 'b' }] });
-		assert.deepEqual(characaterPairSupport.getAutoClosingPairs(), [{ open: 'a', close: 'b', _standardTokenMask: 0 }]);
-		assert.deepEqual(characaterPairSupport.getSurroundingPairs(), [{ open: 'a', close: 'b', _standardTokenMask: 0 }]);
+		let characterPairSupport = new CharacterPairSupport({ autoClosingPairs: [{ open: 'a', close: 'b' }] });
+		assert.deepEqual(characterPairSupport.getAutoClosingPairs(), [{ open: 'a', close: 'b', _standardTokenMask: 0 }]);
+		assert.deepEqual(characterPairSupport.getSurroundingPairs(), [{ open: 'a', close: 'b', _standardTokenMask: 0 }]);
 	});
 
 	test('only empty autoClosingPairs', () => {
-		let characaterPairSupport = new CharacterPairSupport({ autoClosingPairs: [] });
-		assert.deepEqual(characaterPairSupport.getAutoClosingPairs(), []);
-		assert.deepEqual(characaterPairSupport.getSurroundingPairs(), []);
+		let characterPairSupport = new CharacterPairSupport({ autoClosingPairs: [] });
+		assert.deepEqual(characterPairSupport.getAutoClosingPairs(), []);
+		assert.deepEqual(characterPairSupport.getSurroundingPairs(), []);
 	});
 
 	test('only brackets', () => {
-		let characaterPairSupport = new CharacterPairSupport({ brackets: [['a', 'b']] });
-		assert.deepEqual(characaterPairSupport.getAutoClosingPairs(), [{ open: 'a', close: 'b', _standardTokenMask: 0 }]);
-		assert.deepEqual(characaterPairSupport.getSurroundingPairs(), [{ open: 'a', close: 'b', _standardTokenMask: 0 }]);
+		let characterPairSupport = new CharacterPairSupport({ brackets: [['a', 'b']] });
+		assert.deepEqual(characterPairSupport.getAutoClosingPairs(), [{ open: 'a', close: 'b', _standardTokenMask: 0 }]);
+		assert.deepEqual(characterPairSupport.getSurroundingPairs(), [{ open: 'a', close: 'b', _standardTokenMask: 0 }]);
 	});
 
 	test('only empty brackets', () => {
-		let characaterPairSupport = new CharacterPairSupport({ brackets: [] });
-		assert.deepEqual(characaterPairSupport.getAutoClosingPairs(), []);
-		assert.deepEqual(characaterPairSupport.getSurroundingPairs(), []);
+		let characterPairSupport = new CharacterPairSupport({ brackets: [] });
+		assert.deepEqual(characterPairSupport.getAutoClosingPairs(), []);
+		assert.deepEqual(characterPairSupport.getSurroundingPairs(), []);
 	});
 
 	test('only surroundingPairs', () => {
-		let characaterPairSupport = new CharacterPairSupport({ surroundingPairs: [{ open: 'a', close: 'b' }] });
-		assert.deepEqual(characaterPairSupport.getAutoClosingPairs(), []);
-		assert.deepEqual(characaterPairSupport.getSurroundingPairs(), [{ open: 'a', close: 'b' }]);
+		let characterPairSupport = new CharacterPairSupport({ surroundingPairs: [{ open: 'a', close: 'b' }] });
+		assert.deepEqual(characterPairSupport.getAutoClosingPairs(), []);
+		assert.deepEqual(characterPairSupport.getSurroundingPairs(), [{ open: 'a', close: 'b' }]);
 	});
 
 	test('only empty surroundingPairs', () => {
-		let characaterPairSupport = new CharacterPairSupport({ surroundingPairs: [] });
-		assert.deepEqual(characaterPairSupport.getAutoClosingPairs(), []);
-		assert.deepEqual(characaterPairSupport.getSurroundingPairs(), []);
+		let characterPairSupport = new CharacterPairSupport({ surroundingPairs: [] });
+		assert.deepEqual(characterPairSupport.getAutoClosingPairs(), []);
+		assert.deepEqual(characterPairSupport.getSurroundingPairs(), []);
 	});
 
 	test('brackets is ignored when having autoClosingPairs', () => {
-		let characaterPairSupport = new CharacterPairSupport({ autoClosingPairs: [], brackets: [['a', 'b']] });
-		assert.deepEqual(characaterPairSupport.getAutoClosingPairs(), []);
-		assert.deepEqual(characaterPairSupport.getSurroundingPairs(), []);
+		let characterPairSupport = new CharacterPairSupport({ autoClosingPairs: [], brackets: [['a', 'b']] });
+		assert.deepEqual(characterPairSupport.getAutoClosingPairs(), []);
+		assert.deepEqual(characterPairSupport.getSurroundingPairs(), []);
 	});
 
 	function testShouldAutoClose(characterPairSupport: CharacterPairSupport, line: TokenText[], character: string, column: number): boolean {
