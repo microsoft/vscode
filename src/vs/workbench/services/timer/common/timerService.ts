@@ -26,18 +26,18 @@ export interface IMemoryInfo {
 /* __GDPR__FRAGMENT__
 	"IStartupMetrics" : {
 		"version" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"ellapsed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedAppReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedWindowLoad" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedWindowLoadToRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedExtensions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedExtensionsReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedEditorRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedTimersToTimersComputed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedNlsGeneration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"elapsed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedAppReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedWindowLoad" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedWindowLoadToRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedExtensions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedExtensionsReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedEditorRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedTimersToTimersComputed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.elapsedNlsGeneration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"platform" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"release" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"arch" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -56,19 +56,19 @@ export interface IMemoryInfo {
 */
 export interface IStartupMetrics {
 	version: number;
-	ellapsed: number;
+	elapsed: number;
 	timers: {
-		ellapsedAppReady?: number;
-		ellapsedWindowLoad?: number;
-		ellapsedWindowLoadToRequire: number;
-		ellapsedExtensions: number;
-		ellapsedExtensionsReady: number;
-		ellapsedRequire: number;
-		ellapsedViewletRestore: number;
-		ellapsedEditorRestore: number;
-		ellapsedWorkbench: number;
-		ellapsedTimersToTimersComputed: number;
-		ellapsedNlsGeneration: number;
+		elapsedAppReady?: number;
+		elapsedWindowLoad?: number;
+		elapsedWindowLoadToRequire: number;
+		elapsedExtensions: number;
+		elapsedExtensionsReady: number;
+		elapsedRequire: number;
+		elapsedViewletRestore: number;
+		elapsedEditorRestore: number;
+		elapsedWorkbench: number;
+		elapsedTimersToTimersComputed: number;
+		elapsedNlsGeneration: number;
 	};
 	platform: string;
 	release: string;
