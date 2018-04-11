@@ -3287,7 +3287,7 @@ declare module 'vscode' {
 	export class ColorInformation {
 
 		/**
-		 * The range in the document where this color appers.
+		 * The range in the document where this color appears.
 		 */
 		range: Range;
 
