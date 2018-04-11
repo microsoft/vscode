@@ -338,13 +338,13 @@
 					]
 				},
 				{
-					"begin": "\\b(extern)(?=\\s*\")",
+					"begin": "\\b(extern)(?=\\s*\"\\w+\"\\b)",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.modifier.cpp"
 						}
 					},
-					"end": "(?<=\\})|(?=\\w)|(?=\\s*#\\s*endif\\b)",
+					"end": "(?<=\\})|(?=\\w)|(?=\\s*#\\s*(?:else|elseif|endif)\\b)",
 					"name": "meta.extern-block.cpp",
 					"patterns": [
 						{
@@ -354,7 +354,7 @@
 									"name": "punctuation.section.block.begin.bracket.curly.c"
 								}
 							},
-							"end": "\\}|(?=\\s*#\\s*endif\\b)",
+							"end": "\\}|(?=\\s*#\\s*(?:else|elseif|endif\\b)",
 							"endCaptures": {
 								"0": {
 									"name": "punctuation.section.block.end.bracket.curly.c"
