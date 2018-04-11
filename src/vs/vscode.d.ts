@@ -2034,7 +2034,6 @@ declare module 'vscode' {
 	 * A code action can be any command that is [known](#commands.getCommands) to the system.
 	 */
 	export interface CodeActionProvider {
-
 		/**
 		 * Provide commands for the given document and range.
 		 *
@@ -2046,6 +2045,14 @@ declare module 'vscode' {
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
+
+		/**
+		 * [CodeActionKinds](#CodeActionKind) that this provider may return.
+		 *
+		 * The list of kinds may be generic, such as `CodeActionKind.Refactor`, or the provider
+		 * may list our every specific kind they provide, such as `CodeActionKind.Refactor.Extract.append('function`)`
+		 */
+		readonly providedKinds?: CodeActionKind[];
 	}
 
 	/**

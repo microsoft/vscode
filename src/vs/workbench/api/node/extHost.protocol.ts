@@ -273,7 +273,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerHoverProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerDocumentHighlightProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerReferenceSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
-	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[], supportedKinds?: string[]): void;
 	$registerDocumentFormattingSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerRangeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerOnTypeFormattingSupport(handle: number, selector: ISerializedDocumentFilter[], autoFormatTriggerCharacters: string[]): void;
