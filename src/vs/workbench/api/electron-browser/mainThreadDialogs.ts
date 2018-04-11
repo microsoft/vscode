@@ -6,13 +6,13 @@
 
 import URI from 'vs/base/common/uri';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { MainThreadDiaglogsShape, MainContext, IExtHostContext, MainThreadDialogOpenOptions, MainThreadDialogSaveOptions } from '../node/extHost.protocol';
+import { MainThreadDialogsShape, MainContext, IExtHostContext, MainThreadDialogOpenOptions, MainThreadDialogSaveOptions } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { forEach } from 'vs/base/common/collections';
 
 @extHostNamedCustomer(MainContext.MainThreadDialogs)
-export class MainThreadDialogs implements MainThreadDiaglogsShape {
+export class MainThreadDialogs implements MainThreadDialogsShape {
 
 	constructor(
 		context: IExtHostContext,
