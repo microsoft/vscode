@@ -118,7 +118,7 @@ class FileSystemProviderShim implements vscode.FileSystemProvider2 {
 				break;
 
 		}
-		return { resource, type: newType };
+		return { uri: resource, type: newType };
 	}
 
 	// --- delete/create file or folder
@@ -192,7 +192,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		if (provider.onDidChange) {
 			reg = provider.onDidChange(event => {
 				let newEvent = event.map(e => {
-					let { resource, type } = e;
+					let { uri: resource, type } = e;
 					let newType: files.FileChangeType;
 					switch (type) {
 						case FileChangeType2.Changed:

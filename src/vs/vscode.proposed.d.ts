@@ -231,7 +231,7 @@ declare module 'vscode' {
 
 	export interface FileChange2 {
 		type: FileChangeType2;
-		resource: Uri;
+		uri: Uri;
 	}
 
 	export enum FileType2 {
