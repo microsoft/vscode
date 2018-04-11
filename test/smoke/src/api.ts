@@ -11,7 +11,7 @@ export class API {
 	// waitFor calls should not take more than 200 * 100 = 20 seconds to complete, excluding
 	// the time it takes for the actual retry call to complete
 	private retryCount: number;
-	private readonly retryDuration = 1000; // in milliseconds
+	private readonly retryDuration = 100; // in milliseconds
 
 	constructor(
 		private driver: Driver,

@@ -49,7 +49,6 @@ class WindowDriver implements IWindowDriver {
 			throw new Error('Element not found');
 		}
 
-		await TPromise.timeout(500);
 		const { left, top } = getTopLeftOffset(element as HTMLElement);
 		const { width, height } = getClientArea(element as HTMLElement);
 		let x: number, y: number;
