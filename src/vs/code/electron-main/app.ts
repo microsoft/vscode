@@ -324,7 +324,7 @@ export class CodeApplication {
 		const localStorageBackupFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage.vscbak');
 		const localStorageJournalBackupFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal.vscbak');
 
-		// Electron 1.7.12: Restore
+		// Electron 1.7.12: Restore storage
 		if (process.versions.electron === '1.7.12') {
 			return exists(localStorageBackupFile).then(localStorageBackupFileExists => {
 				return exists(localStorageJournalBackupFile).then(localStorageJournalBackupFileExists => {
