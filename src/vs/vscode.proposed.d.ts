@@ -266,7 +266,7 @@ declare module 'vscode' {
 		 */
 		// todo@remote
 		// ! throw error (ENOENT) when the file doesn't exist
-		stat(uri: Uri, token: CancellationToken): Thenable<FileStat2>;
+		stat(uri: Uri, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
 
 		/**
 		 * Retrieve the meta data of all entries of a [directory](#FileType2.Directory)
@@ -275,7 +275,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A thenable that resolves to an array of tuples of file names and files stats.
 		 */
-		readDirectory(uri: Uri, token: CancellationToken): Thenable<[string, FileStat2][]>;
+		readDirectory(uri: Uri, token: CancellationToken): [string, FileStat2][] | Thenable<[string, FileStat2][]>;
 
 		/**
 		 * Read the entire contents of a file.
@@ -284,7 +284,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A thenable that resolves to an array of bytes.
 		 */
-		readFile(uri: Uri, token: CancellationToken): Thenable<Uint8Array>;
+		readFile(uri: Uri, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
 
 		/**
 		 * Write data to a file, replacing its entire contents.
@@ -293,7 +293,7 @@ declare module 'vscode' {
 		 * @param content The new content of the file.
 		 * @param token A cancellation token.
 		 */
-		writeFile(uri: Uri, content: Uint8Array, token: CancellationToken): Thenable<void>;
+		writeFile(uri: Uri, content: Uint8Array, token: CancellationToken): void | Thenable<void>;
 
 		/**
 		 * Rename a file or folder.
@@ -302,18 +302,18 @@ declare module 'vscode' {
 		 * @param newUri The target location
 		 * @param token A cancellation token.
 		 */
-		rename(oldUri: Uri, newUri: Uri, token: CancellationToken): Thenable<FileStat2>;
+		rename(oldUri: Uri, newUri: Uri, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
 
 		// todo@remote
 		// helps with performance bigly
-		// copy?(from: Uri, to: Uri): Thenable<FileStat2>;
+		// copy?(from: Uri, to: Uri): FileStat2 | Thenable<FileStat2>;
 
 		// todo@remote
 		// ? useTrash, expose trash
-		delete(uri: Uri, token: CancellationToken): Thenable<void>;
+		delete(uri: Uri, token: CancellationToken): void | Thenable<void>;
 
 		// todo@remote
-		create(uri: Uri, options: { type: FileType2 }, token: CancellationToken): Thenable<FileStat2>;
+		create(uri: Uri, options: { type: FileType2 }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
 	}
 
 	export namespace workspace {
