@@ -6,9 +6,8 @@
 'use strict';
 
 import 'mocha';
-import { Git, GitStatusParser, Repository, parseGitCommit, parseGitmodules } from '../git';
+import { GitStatusParser, parseGitCommit, parseGitmodules } from '../git';
 import * as assert from 'assert';
-import * as sinon from 'sinon';
 
 suite('git', () => {
 	suite('GitStatusParser', () => {
@@ -211,20 +210,6 @@ This is a commit message.`;
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
 				message: 'This is a commit message.',
 				previousHashes: []
-			});
-		});
-	});
-
-	suite('Repository', () => {
-		suite('deleteRef', () => {
-			const spawnOption = {};
-			const git = sinon.createStubInstance(Git);
-			git.exec = sinon.spy();
-			const repository = new Repository(git, 'REPOSITORY_ROOT');
-
-			test('delete ref', async () => {
-				await repository.deleteRef('REF_TO_BE_DELETED');
-				assert.deepEqual(git.exec.args, [['REPOSITORY_ROOT', ['update-ref', '-d', 'REF_TO_BE_DELETED'], spawnOption]]);
 			});
 		});
 	});
