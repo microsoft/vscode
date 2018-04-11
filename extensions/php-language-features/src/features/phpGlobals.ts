@@ -1613,7 +1613,7 @@ export var globalfunctions: IEntries = {
 		signature: '(string $iptcdata , string $jpeg_file_name [, int $spool ]): mixed'
 	},
 	getimagesize: {
-		description: 'The getimagesize() function will determine the size of any given image file and return the dimensions along with the file type and a height/width text string to be used inside a normal HTML IMG tag and the correspondant HTTP content type.',
+		description: 'The getimagesize() function will determine the size of any given image file and return the dimensions along with the file type and a height/width text string to be used inside a normal HTML IMG tag and the correspondent HTTP content type.',
 		signature: '(string $filename [, array &$imageinfo ]): array'
 	},
 	image_type_to_mime_type: {
