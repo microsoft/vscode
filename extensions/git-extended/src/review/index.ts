@@ -17,6 +17,7 @@ import { mapCommentsToHead } from '../common/diff';
 import { CredentialStore } from '../credentials';
 
 const REVIEW_STATE = 'git-extended.state';
+const resourceGroups: vscode.SourceControlResourceGroup[] = [];
 
 export function parseCommitDiff(repository: Repository, head: string, base: string, fileChanges: FileChange[]): FileChange[] {
 	let ret = fileChanges.map(fileChange => {
@@ -82,7 +83,7 @@ export async function restoreReviewState(repository: Repository, crendentialStor
 	});
 
 	let prChangeResources = localFileChanges.map(fileChange => ({
-		resourceUri: fileChange.filePath,
+		resourceUri: vscode.Uri.file(path.resolve(repository.path, fileChange.fileName)),
 		command: {
 			title: 'show diff',
 			command: 'vscode.diff',
@@ -94,7 +95,12 @@ export async function restoreReviewState(repository: Repository, crendentialStor
 		}
 	}));
 
+	resourceGroups.forEach(group => {
+		group.dispose();
+	});
+
 	let prGroup: vscode.SourceControlResourceGroup = gitRepo.sourceControl.createResourceGroup('pr', 'Changes from PR');
+	resourceGroups.push(prGroup);
 	prGroup.resourceStates = prChangeResources;
 }
 
@@ -135,7 +141,12 @@ export async function enterReviewMode(workspaceState: vscode.Memento, repository
 			}
 		}));
 
+		resourceGroups.forEach(group => {
+			group.dispose();
+		});
+
 		let prGroup: vscode.SourceControlResourceGroup = gitRepo.sourceControl.createResourceGroup('pr', 'Changes from PR');
+		resourceGroups.push(prGroup);
 		prGroup.resourceStates = prChangeResources;
 	});
 }

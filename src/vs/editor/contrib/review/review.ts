@@ -217,8 +217,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 				let newComment = await this.commandService.executeCommand(action.id, commentThread.threadId, textArea.value);
 				if (newComment) {
 					textArea.value = '';
+					this._comments.push(newComment);
 					let singleCommentContainer = this.createCommentElement(newComment);
 					this._commentsElement.appendChild(singleCommentContainer);
+					let secondaryHeading = this._comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
+					$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
 				}
 			};
 			button.textContent = action.title;
