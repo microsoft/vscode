@@ -47,7 +47,7 @@ export interface IColorRegistry {
 
 	/**
 	 * Register a color to the registry.
-	 * @param id The color id as used in theme descrition files
+	 * @param id The color id as used in theme description files
 	 * @param defaults The default values
 	 * @description the description
 	 */
