@@ -719,7 +719,7 @@ export class CodeMenu {
 		} else {
 			activityBarLabel = nls.localize({ key: 'miShowActivityBar', comment: ['&& denotes a mnemonic'] }, "Show &&Activity Bar");
 		}
-		const toggleActivtyBar = this.createMenuItem(activityBarLabel, 'workbench.action.toggleActivityBarVisibility');
+		const toggleActivityBar = this.createMenuItem(activityBarLabel, 'workbench.action.toggleActivityBarVisibility');
 
 		const toggleWordWrap = this.createMenuItem(nls.localize({ key: 'miToggleWordWrap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Word Wrap"), 'editor.action.toggleWordWrap');
 		const toggleMinimap = this.createMenuItem(nls.localize({ key: 'miToggleMinimap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Minimap"), 'editor.action.toggleMinimap');
@@ -757,7 +757,7 @@ export class CodeMenu {
 			toggleSidebar,
 			togglePanel,
 			toggleStatusbar,
-			toggleActivtyBar,
+			toggleActivityBar,
 			__separator__(),
 			toggleWordWrap,
 			toggleMinimap,
