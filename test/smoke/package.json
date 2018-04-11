@@ -4,8 +4,12 @@
   "main": "./src/main.js",
   "scripts": {
     "postinstall": "npm run compile",
-    "compile": "node tools/prebuild && tsc && node tools/postbuild",
-    "watch": "node tools/prebuild && node tools/postbuild && tsc --watch",
+    "compile": "npm run copy-driver && npm run copy-driver-definition && tsc",
+    "watch": "concurrently \"npm run watch-driver\" \"npm run watch-driver-definition\" \"tsc --watch\"",
+    "copy-driver": "cpx src/vscode/driver.js out/vscode",
+    "watch-driver": "cpx src/vscode/driver.js out/vscode -w",
+    "copy-driver-definition": "node tools/copy-driver-definition.js",
+    "watch-driver-definition": "watch \"node tools/copy-driver-definition.js\" ../../src/vs/platform/driver/common",
     "mocha": "mocha"
   },
   "devDependencies": {
@@ -16,6 +20,8 @@
     "@types/node": "8.0.33",
     "@types/rimraf": "2.0.2",
     "@types/webdriverio": "4.6.1",
+    "concurrently": "^3.5.1",
+    "cpx": "^1.5.0",
     "electron": "1.7.7",
     "htmlparser2": "^3.9.2",
     "mkdirp": "^0.5.1",
@@ -26,6 +32,7 @@
     "spectron": "^3.7.2",
     "strip-json-comments": "^2.0.1",
     "tmp": "0.0.33",
-    "typescript": "2.5.2"
+    "typescript": "2.5.2",
+    "watch": "^1.0.2"
   }
 }

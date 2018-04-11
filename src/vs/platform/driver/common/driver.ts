@@ -12,6 +12,8 @@ import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 export const ID = 'driverService';
 export const IDriver = createDecorator<IDriver>(ID);
 
+// !! Do not remove the following START and END markers, they are parsed by the smoketest build
+
 //*START
 export interface IElement {
 	tagName: string;
