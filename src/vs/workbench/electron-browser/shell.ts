@@ -346,7 +346,7 @@ export class WorkbenchShell {
 	}
 
 	private logLocalStorageMigrationStatus(): void {
-		if (!this.storageService.getBoolean('localStorageMigrationStatusLogged')) {
+		if (product.quality === 'insider' && !this.storageService.getBoolean('localStorageMigrationStatusLogged')) {
 			this.storageService.store('localStorageMigrationStatusLogged', true);
 
 			stat(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage.vscbak'), (error, stat) => {
