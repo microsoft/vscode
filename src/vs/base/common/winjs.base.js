@@ -2017,7 +2017,7 @@ _winjs("WinJS/Promise/_StateMachine", ["WinJS/Core/_Global","WinJS/Core/_BaseCor
                 //
                 // Returns a promise which on cancelation will still result in downstream cancelation while
                 //  protecting the promise 'input' from being  canceled which has the effect of allowing
-                //  'input' to be shared amoung various consumers.
+                //  'input' to be shared among various consumers.
                 //
                 if (!Promise.is(input)) {
                     return Promise.wrap(input);
