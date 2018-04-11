@@ -492,7 +492,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		position: vscode.Position
 	): Promise<boolean> {
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
-		// Don't complete function calls inside of destructive assigments or imports
+		// Don't complete function calls inside of destructive assignments or imports
 		try {
 			const infoResponse = await this.client.execute('quickinfo', typeConverters.Position.toFileLocationRequestArgs(filepath, position));
 			const info = infoResponse.body;
