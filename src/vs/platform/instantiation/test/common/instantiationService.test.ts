@@ -155,7 +155,7 @@ suite('Instantiation Service', () => {
 		assert.ok(collection.has(IService2));
 	});
 
-	test('@Param - simple clase', function () {
+	test('@Param - simple case', function () {
 		let collection = new ServiceCollection();
 		let service = new InstantiationService(collection);
 		collection.set(IService1, new Service1());
