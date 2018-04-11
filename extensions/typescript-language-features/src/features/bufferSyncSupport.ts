@@ -10,7 +10,7 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
 import * as languageModeIds from '../utils/languageModeIds';
-import { disposeAll } from '../utils/dipose';
+import { disposeAll } from '../utils/dispose';
 
 interface IDiagnosticRequestor {
 	requestDiagnostic(resource: Uri): void;
