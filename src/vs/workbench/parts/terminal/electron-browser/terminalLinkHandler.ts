@@ -32,7 +32,7 @@ const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()\\[\\]+\'":;]
 const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharactersClause + ')+)?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)';
 
 /** As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
-replacing space with nonBreakningSpace or space ASCII code - 32. */
+replacing space with nonBreakingSpace or space ASCII code - 32. */
 const lineAndColumnClause = [
 	'((\\S*)", line ((\\d+)( column (\\d+))?))', // "(file path)", line 45 [see #40468]
 	'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
