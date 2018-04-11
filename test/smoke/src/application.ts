@@ -119,7 +119,8 @@ export class SpectronApplication {
 			workspacePath: workspaceOrFolder,
 			userDataDir: this.options.userDataDir,
 			extensionsPath: this.options.extensionsPath,
-			verbose: this.options.verbose
+			verbose: this.options.verbose,
+			extraArgs
 		});
 
 		const driver = new CodeDriver(this.codeInstance.driver, this.options.verbose);

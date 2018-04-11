@@ -72,14 +72,6 @@ export class Code {
 	}
 }
 
-export interface SpawnOptions {
-	codePath?: string;
-	workspacePath: string;
-	userDataDir: string;
-	extensionsPath: string;
-	verbose: boolean;
-}
-
 export async function connect(child: cp.ChildProcess, outPath: string, handlePath: string): Promise<Code> {
 	let errCount = 0;
 
@@ -103,6 +95,15 @@ export async function connect(child: cp.ChildProcess, outPath: string, handlePat
 const instances = new Set<cp.ChildProcess>();
 process.once('exit', () => instances.forEach(code => code.kill()));
 
+export interface SpawnOptions {
+	codePath?: string;
+	workspacePath: string;
+	userDataDir: string;
+	extensionsPath: string;
+	verbose: boolean;
+	extraArgs?: string[];
+}
+
 export async function spawn(options: SpawnOptions): Promise<Code> {
 	const codePath = options.codePath;
 	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
@@ -124,6 +125,10 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 	if (!codePath) {
 		args.unshift(repoPath);
+	}
+
+	if (options.extraArgs) {
+		args.push(...options.extraArgs);
 	}
 
 	const spawnOptions: cp.SpawnOptions = {};
