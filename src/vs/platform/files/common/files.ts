@@ -164,20 +164,15 @@ export interface IStat {
 }
 
 export interface IFileSystemProvider {
-
-	onDidChange?: Event<IFileChange[]>;
-
-	// more...
-	//
+	onDidChange: Event<IFileChange[]>;
 	stat(resource: URI): TPromise<IStat>;
 	readFile(resource: URI): TPromise<Uint8Array>;
 	writeFile(resource: URI, content: Uint8Array): TPromise<void>;
-	move(from: URI, to: URI): TPromise<IStat>;
+	rename(from: URI, to: URI): TPromise<IStat>;
 	mkdir(resource: URI): TPromise<IStat>;
 	readdir(resource: URI): TPromise<[string, IStat][]>;
 	delete(resource: URI): TPromise<void>;
 }
-
 
 export enum FileOperation {
 	CREATE,

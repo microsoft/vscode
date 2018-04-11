@@ -410,7 +410,7 @@ export class RemoteFileService extends FileService {
 			: TPromise.as(null);
 
 		return prepare.then(() => this._withProvider(source)).then(provider => {
-			return provider.move(source, target).then(stat => {
+			return provider.rename(source, target).then(stat => {
 				return toIFileStat(provider, [target, stat]);
 			}).then(fileStat => {
 				this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, fileStat));
