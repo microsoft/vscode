@@ -36,6 +36,7 @@
 	right: 4px;
 }
 
+.markers-panel-action-filter > .markers-panel-filter-badge.hidden,
 .markers-panel-action-filter > .markers-panel-filter-badge.small {
 	display: none;
 }
@@ -49,8 +50,10 @@
 	padding-left: 20px;
 }
 
-.markers-panel .markers-panel-container .message-box-container span:focus {
-	outline: none;
+.markers-panel .markers-panel-container .message-box-container .messageAction {
+	margin-left: 4px;
+	cursor: pointer;
+	text-decoration: underline;
 }
 
 .markers-panel  .markers-panel-container .hidden {

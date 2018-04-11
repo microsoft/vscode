@@ -27,7 +27,8 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { badgeBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { localize } from '../../../../nls';
+import { localize } from 'vs/nls';
+import { isUndefined } from 'vs/base/common/types';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
@@ -80,12 +81,16 @@ export class FilterByFilesExcludeAction extends Action {
 		super(FilterByFilesExcludeAction.ID, checked ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE : Messages.MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE, 'markers-panel-action-files-exclude', true);
 		this.toDispose.push(this._onDidCheck);
 		this.checked = checked;
+		this.toDispose.push(this.onDidChange(e => {
+			if (e && !isUndefined(e.checked)) {
+				this._onDidCheck.fire(this.checked);
+			}
+		}));
 	}
 
 	public run(): TPromise<any> {
 		this.checked = !this.checked;
 		this.tooltip = this.checked ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE : Messages.MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE;
-		this._onDidCheck.fire(this.checked);
 		return TPromise.as(null);
 	}
 
@@ -138,6 +143,10 @@ export class FilterInputActionItem extends BaseActionItem {
 		DOM.addClass(this.container, 'markers-panel-action-filter');
 		this.createInput(this.container);
 		this.createBadge(this.container);
+	}
+
+	clear(): void {
+		this.filterInputBox.value = '';
 	}
 
 	getFilterText(): string {
@@ -194,7 +203,7 @@ export class FilterInputActionItem extends BaseActionItem {
 
 	private updateBadge(): void {
 		const { total, filtered } = this.markersWorkbenchService.markersModel.stats();
-		DOM.toggleClass(this.filterBadge, 'hidden', total === filtered);
+		DOM.toggleClass(this.filterBadge, 'hidden', total === filtered || filtered === 0);
 		this.filterBadge.textContent = localize('showing filtered problems', "Showing {0} of {1}", filtered, total);
 		this.filterInputBox.inputElement.style.paddingRight = DOM.getTotalWidth(this.filterBadge) + 'px';
 	}

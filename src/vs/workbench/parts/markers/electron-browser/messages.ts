@@ -23,7 +23,7 @@ export default class Messages {
 
 	public static MARKERS_PANEL_NO_PROBLEMS_BUILT: string = nls.localize('markers.panel.no.problems.build', "No problems have been detected in the workspace so far.");
 	public static MARKERS_PANEL_NO_PROBLEMS_FILTERS: string = nls.localize('markers.panel.no.problems.filters', "No results found with provided filter criteria.");
-	public static MARKERS_PANEL_NO_PROBLEMS_FILE_EXCLUSIONS_FILTER: string = nls.localize('markers.panel.no.problems.file.exclusions', "No results found. Review your files exclusion setting.");
+	public static MARKERS_PANEL_NO_PROBLEMS_FILE_EXCLUSIONS_FILTER: string = nls.localize('markers.panel.no.problems.file.exclusions', "All problems are hidden because files exculde filter is enabled.");
 
 	public static MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE: string = nls.localize('markers.panel.action.useFilesExclude', "Filter using Files Exclude Setting");
 	public static MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE: string = nls.localize('markers.panel.action.donotUseFilesExclude', "Do not use Files Exclude Setting");

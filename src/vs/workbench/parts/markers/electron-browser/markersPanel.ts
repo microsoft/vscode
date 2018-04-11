@@ -32,6 +32,7 @@ import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/electron-br
 import { SimpleFileResourceDragAndDrop } from 'vs/workbench/browser/dnd';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Scope } from 'vs/workbench/common/memento';
+import { localize } from 'vs/nls';
 
 export class MarkersPanel extends Panel {
 
@@ -51,7 +52,6 @@ export class MarkersPanel extends Panel {
 
 	private treeContainer: HTMLElement;
 	private messageBoxContainer: HTMLElement;
-	private messageBox: HTMLElement;
 	private panelSettings: any;
 
 	private currentResourceGotAddedToMarkersData: boolean = false;
@@ -116,7 +116,7 @@ export class MarkersPanel extends Panel {
 			this.highlightCurrentSelectedMarkerRange();
 			this.autoReveal(true);
 		} else {
-			this.messageBox.focus();
+			this.messageBoxContainer.focus();
 		}
 	}
 
@@ -188,8 +188,6 @@ export class MarkersPanel extends Panel {
 
 	private createMessageBox(parent: HTMLElement): void {
 		this.messageBoxContainer = dom.append(parent, dom.$('.message-box-container'));
-		this.messageBox = dom.append(this.messageBoxContainer, dom.$('span'));
-		this.messageBox.setAttribute('tabindex', '0');
 	}
 
 	private createTree(parent: HTMLElement): void {
@@ -231,7 +229,7 @@ export class MarkersPanel extends Panel {
 	private createActions(): void {
 		this.collapseAllAction = this.instantiationService.createInstance(CollapseAllAction, this.tree, true);
 		const filterAction = this.instantiationService.createInstance(FilterAction);
-		this.filterInputActionItem = this.instantiationService.createInstance(FilterInputActionItem, this.panelSettings['filter'], this.panelSettings['filterHistory'] || [], filterAction);
+		this.filterInputActionItem = this.instantiationService.createInstance(FilterInputActionItem, this.panelSettings['filter'] || '', this.panelSettings['filterHistory'] || [], filterAction);
 		this.filterByFilesExcludeAction = new FilterByFilesExcludeAction(this.panelSettings['useFilesExclude']);
 		this.actions = [filterAction, this.filterByFilesExcludeAction, this.collapseAllAction];
 	}
@@ -300,21 +298,44 @@ export class MarkersPanel extends Panel {
 	}
 
 	private renderMessage(): void {
-		this.messageBox.textContent = this.getMessage();
-		dom.toggleClass(this.messageBoxContainer, 'hidden', this.markersWorkbenchService.markersModel.hasFilteredResources());
+		const markersModel = this.markersWorkbenchService.markersModel;
+		const hasFilteredResources = markersModel.hasFilteredResources();
+		dom.clearNode(this.messageBoxContainer);
+		dom.toggleClass(this.messageBoxContainer, 'hidden', hasFilteredResources);
+		if (!hasFilteredResources) {
+			if (markersModel.hasResources()) {
+				if (markersModel.filterOptions.filter) {
+					this.renderFilteredByFilterMessage(this.messageBoxContainer);
+				} else {
+					this.renderFilteredByFilesExcludeMessage(this.messageBoxContainer);
+				}
+			} else {
+				this.renderNoProblemsMessage(this.messageBoxContainer);
+			}
+		}
 	}
 
-	private getMessage(): string {
-		if (this.markersWorkbenchService.markersModel.hasFilteredResources()) {
-			return '';
-		}
-		if (this.markersWorkbenchService.markersModel.hasResources()) {
-			if (!this.markersWorkbenchService.markersModel.filterOptions.filter) {
-				return Messages.MARKERS_PANEL_NO_PROBLEMS_FILE_EXCLUSIONS_FILTER;
-			}
-			return Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS;
-		}
-		return Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
+	private renderFilteredByFilesExcludeMessage(container: HTMLElement) {
+		const span1 = dom.append(container, dom.$('span'));
+		span1.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_FILE_EXCLUSIONS_FILTER;
+		const link = dom.append(container, dom.$('a.messageAction'));
+		link.textContent = localize('disableFilesExclude', "Disable Files Exclude.");
+		link.setAttribute('tabIndex', '0');
+		dom.addDisposableListener(link, dom.EventType.CLICK, () => this.filterByFilesExcludeAction.checked = false);
+	}
+
+	private renderFilteredByFilterMessage(container: HTMLElement) {
+		const span1 = dom.append(container, dom.$('span'));
+		span1.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS;
+		const link = dom.append(container, dom.$('a.messageAction'));
+		link.textContent = localize('clearFilter', "Clear Filter.");
+		link.setAttribute('tabIndex', '0');
+		dom.addDisposableListener(link, dom.EventType.CLICK, () => this.filterInputActionItem.clear());
+	}
+
+	private renderNoProblemsMessage(container: HTMLElement) {
+		const span = dom.append(container, dom.$('span'));
+		span.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
 	}
 
 	private autoExpand(): void {
