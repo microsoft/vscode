@@ -18,7 +18,7 @@ suite('Debug - Debugger', () => {
 	let _debugger: Debugger;
 
 	const extensionFolderPath = 'a/b/c/';
-	const rawAdapter = {
+	const debuggerContribution = {
 		type: 'mock',
 		label: 'Mock Debug',
 		enableBreakpointsFor: { 'languageIds': ['markdown'] },
@@ -57,7 +57,7 @@ suite('Debug - Debugger', () => {
 		engines: null,
 		contributes: {
 			'debuggers': [
-				rawAdapter
+				debuggerContribution
 			]
 		}
 	};
@@ -113,14 +113,14 @@ suite('Debug - Debugger', () => {
 	};
 
 
-	const configurationManager = {
+	const configurationManager = <IConfigurationManager>{
 		debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined> {
 			return TPromise.as(undefined);
 		}
 	};
 
 	setup(() => {
-		_debugger = new Debugger(<IConfigurationManager>configurationManager, rawAdapter, extensionDescriptor0, new TestConfigurationService(), null);
+		_debugger = new Debugger(configurationManager, debuggerContribution, extensionDescriptor0, new TestConfigurationService(), null);
 	});
 
 	teardown(() => {
@@ -128,20 +128,20 @@ suite('Debug - Debugger', () => {
 	});
 
 	test('attributes', () => {
-		assert.equal(_debugger.type, rawAdapter.type);
-		assert.equal(_debugger.label, rawAdapter.label);
+		assert.equal(_debugger.type, debuggerContribution.type);
+		assert.equal(_debugger.label, debuggerContribution.label);
 
 		const ae = DebugAdapter.platformAdapterExecutable([extensionDescriptor0], 'mock');
 
-		assert.equal(ae.command, paths.join(extensionFolderPath, rawAdapter.program));
-		assert.deepEqual(ae.args, rawAdapter.args);
+		assert.equal(ae.command, paths.join(extensionFolderPath, debuggerContribution.program));
+		assert.deepEqual(ae.args, debuggerContribution.args);
 	});
 
 	test('schema attributes', () => {
 		const schemaAttribute = _debugger.getSchemaAttributes()[0];
-		assert.notDeepEqual(schemaAttribute, rawAdapter.configurationAttributes);
-		Object.keys(rawAdapter.configurationAttributes.launch).forEach(key => {
-			assert.deepEqual(schemaAttribute[key], rawAdapter.configurationAttributes.launch[key]);
+		assert.notDeepEqual(schemaAttribute, debuggerContribution.configurationAttributes);
+		Object.keys(debuggerContribution.configurationAttributes.launch).forEach(key => {
+			assert.deepEqual(schemaAttribute[key], debuggerContribution.configurationAttributes.launch[key]);
 		});
 
 		assert.equal(schemaAttribute['additionalProperties'], false);

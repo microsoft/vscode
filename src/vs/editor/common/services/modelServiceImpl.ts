@@ -82,15 +82,23 @@ class ModelMarkerHandler {
 	}
 
 	private static _createDecorationRange(model: ITextModel, rawMarker: IMarker): Range {
-		let marker = model.validateRange(new Range(rawMarker.startLineNumber, rawMarker.startColumn, rawMarker.endLineNumber, rawMarker.endColumn));
-		let ret: Range = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
+
+		let ret = Range.lift(rawMarker);
+
+		if (rawMarker.severity === MarkerSeverity.Hint && Range.spansMultipleLines(ret)) {
+			// never render hints on multiple lines
+			ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn);
+		}
+
+		ret = model.validateRange(ret);
+
 		if (ret.isEmpty()) {
 			let word = model.getWordAtPosition(ret.getStartPosition());
 			if (word) {
 				ret = new Range(ret.startLineNumber, word.startColumn, ret.endLineNumber, word.endColumn);
 			} else {
-				let maxColumn = model.getLineLastNonWhitespaceColumn(marker.startLineNumber) ||
-					model.getLineMaxColumn(marker.startLineNumber);
+				let maxColumn = model.getLineLastNonWhitespaceColumn(ret.startLineNumber) ||
+					model.getLineMaxColumn(ret.startLineNumber);
 
 				if (maxColumn === 1) {
 					// empty line

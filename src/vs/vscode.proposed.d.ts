@@ -223,37 +223,58 @@ declare module 'vscode' {
 		// create(resource: Uri): Thenable<FileStat>;
 	}
 
+	export enum FileChangeType2 {
+		Changed = 1,
+		Created = 2,
+		Deleted = 3,
+	}
+
+	export interface FileChange2 {
+		type: FileChangeType2;
+		resource: Uri;
+	}
+
+	export enum FileType2 {
+		File = 0b001,
+		Directory = 0b010,
+		SymbolicLink = 0b100,
+	}
+
+	export interface FileStat2 {
+		type: FileType2;
+		mtime: number;
+		size: number;
+	}
+
+
 	// todo@joh discover files etc
-	// todo@joh CancellationToken everywhere
 	// todo@joh add open/close calls?
 	export interface FileSystemProvider2 {
 
-		_version: 2;
+		_version: 3;
 
-		readonly onDidChange?: Event<FileChange[]>;
+		readonly onDidChange: Event<FileChange2[]>;
 
-		stat(uri: Uri, token: CancellationToken): Thenable<FileStat>;
+		stat(uri: Uri, token: CancellationToken): Thenable<FileStat2>;
 
-		readdir(uri: Uri, token: CancellationToken): Thenable<[Uri, FileStat][]>;
+		readDirectory(uri: Uri, token: CancellationToken): Thenable<[Uri, FileStat2][]>;
 
 		readFile(uri: Uri, token: CancellationToken): Thenable<Uint8Array>;
 
 		writeFile(uri: Uri, content: Uint8Array, token: CancellationToken): Thenable<void>;
 
-		// todo@remote
-		// Thenable<FileStat>
-		rename(oldUri: Uri, newUri: Uri): Thenable<FileStat>;
+		rename(oldUri: Uri, newUri: Uri, token: CancellationToken): Thenable<FileStat2>;
 
 		// todo@remote
 		// helps with performance bigly
-		// copy?(from: Uri, to: Uri): Thenable<void>;
+		// copy?(from: Uri, to: Uri): Thenable<FileStat2>;
 
 		// todo@remote
 		// ? useTrash, expose trash
-		delete(resource: Uri, options: { recursive?: boolean; }): Thenable<void>;
+		delete(uri: Uri, token: CancellationToken): Thenable<void>;
 
 		// todo@remote
-		create(resource: Uri, options: { type: FileType }): Thenable<FileStat>;
+		create(uri: Uri, options: { type: FileType }, token: CancellationToken): Thenable<FileStat2>;
 	}
 
 	export namespace workspace {

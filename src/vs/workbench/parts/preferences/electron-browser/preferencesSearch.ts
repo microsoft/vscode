@@ -46,7 +46,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 			// Filter to enabled extensions that have settings
 			return exts
 				.filter(ext => this.extensionEnablementService.isEnabled(ext))
-				.filter(ext => ext.manifest.contributes && ext.manifest.contributes.configuration)
+				.filter(ext => ext.manifest && ext.manifest.contributes && ext.manifest.contributes.configuration)
 				.filter(ext => !!ext.identifier.uuid);
 		});
 	}

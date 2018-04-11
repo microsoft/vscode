@@ -679,6 +679,8 @@ export function createApiFactory(
 
 			FileChangeType: extHostTypes.FileChangeType,
 			FileType: extHostTypes.FileType,
+			FileChangeType2: extHostTypes.FileChangeType2,
+			FileType2: extHostTypes.FileType2,
 			FoldingRangeList: extHostTypes.FoldingRangeList,
 			FoldingRange: extHostTypes.FoldingRange,
 			FoldingRangeType: extHostTypes.FoldingRangeType

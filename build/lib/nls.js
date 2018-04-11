@@ -150,16 +150,13 @@ function isImportNode(node) {
             .filter(function (d) { return d.importClause.namedBindings.kind === ts.SyntaxKind.NamespaceImport; })
             .map(function (d) { return d.importClause.namedBindings.name; })
             .concat(importEqualsDeclarations.map(function (d) { return d.name; }))
-            // find read-only references to `nls`
             .map(function (n) { return service.getReferencesAtPosition(filename, n.pos + 1); })
             .flatten()
             .filter(function (r) { return !r.isWriteAccess; })
-            // find the deepest call expressions AST nodes that contain those references
             .map(function (r) { return collect(sourceFile, function (n) { return isCallExpressionWithinTextSpanCollectStep(r.textSpan, n); }); })
             .map(function (a) { return lazy(a).last(); })
             .filter(function (n) { return !!n; })
             .map(function (n) { return n; })
-            // only `localize` calls
             .filter(function (n) { return n.expression.kind === ts.SyntaxKind.PropertyAccessExpression && n.expression.name.getText() === 'localize'; });
         // `localize` named imports
         var allLocalizeImportDeclarations = importDeclarations

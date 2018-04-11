@@ -10,11 +10,100 @@ import * as iconv from 'iconv-lite';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { exec } from 'child_process';
+import { Readable, Writable, WritableOptions } from 'stream';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
 export const UTF16be = 'utf16be';
 export const UTF16le = 'utf16le';
+
+export interface IDecodeStreamOptions {
+	guessEncoding?: boolean;
+	minBytesRequiredForDetection?: number;
+	overwriteEncoding?(detected: string): string;
+}
+
+export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions): TPromise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }> {
+
+	if (!options.minBytesRequiredForDetection) {
+		options.minBytesRequiredForDetection = options.guessEncoding ? AUTO_GUESS_BUFFER_MAX_LEN : NO_GUESS_BUFFER_MAX_LEN;
+	}
+
+	if (!options.overwriteEncoding) {
+		options.overwriteEncoding = detected => detected || UTF8;
+	}
+
+	return new TPromise<{ detected: IDetectedEncodingResult, stream: NodeJS.ReadableStream }>((resolve, reject) => {
+		readable.pipe(new class extends Writable {
+
+			private _decodeStream: NodeJS.ReadWriteStream;
+			private _decodeStreamConstruction: Thenable<any>;
+			private _buffer: Buffer[] = [];
+			private _bytesBuffered = 0;
+
+			constructor(opts?: WritableOptions) {
+				super(opts);
+				this.once('finish', () => this._finish());
+			}
+
+			_write(chunk: any, encoding: string, callback: Function): void {
+				if (!Buffer.isBuffer(chunk)) {
+					callback(new Error('data must be a buffer'));
+				}
+
+				if (this._decodeStream) {
+					// just a forwarder now
+					this._decodeStream.write(chunk, callback);
+					return;
+				}
+
+				this._buffer.push(chunk);
+				this._bytesBuffered += chunk.length;
+
+				if (this._decodeStreamConstruction) {
+					// waiting for the decoder to be ready
+					this._decodeStreamConstruction.then(_ => callback(), err => callback(err));
+
+				} else if (this._bytesBuffered >= options.minBytesRequiredForDetection) {
+					// buffered enough data, create stream and forward data
+					this._startDecodeStream(callback);
+
+				} else {
+					// only buffering
+					callback();
+				}
+			}
+
+			_startDecodeStream(callback: Function): void {
+
+				this._decodeStreamConstruction = TPromise.as(detectEncodingFromBuffer({
+					buffer: Buffer.concat(this._buffer), bytesRead: this._bytesBuffered
+				}, options.guessEncoding)).then(detected => {
+					detected.encoding = options.overwriteEncoding(detected.encoding); // default encoding
+					this._decodeStream = decodeStream(detected.encoding);
+					for (const buffer of this._buffer) {
+						this._decodeStream.write(buffer);
+					}
+					callback();
+					resolve({ detected, stream: this._decodeStream });
+
+				}, err => {
+					callback(err);
+				});
+			}
+
+			_finish(): void {
+				if (this._decodeStream) {
+					// normal finish
+					this._decodeStream.end();
+				} else {
+					// we were still waiting for data...
+					this._startDecodeStream(() => this._decodeStream.end());
+				}
+			}
+		});
+	});
+}
 
 export function bomLength(encoding: string): number {
 	switch (encoding) {
@@ -175,17 +264,6 @@ export function toCanonicalName(enc: string): string {
 const ZERO_BYTE_DETECTION_BUFFER_MAX_LEN = 512; // number of bytes to look at to decide about a file being binary or not
 const NO_GUESS_BUFFER_MAX_LEN = 512; 			// when not auto guessing the encoding, small number of bytes are enough
 const AUTO_GUESS_BUFFER_MAX_LEN = 512 * 8; 		// with auto guessing we want a lot more content to be read for guessing
-
-export function maxEncodingDetectionBufferLen(arg1?: DetectEncodingOption | boolean): number {
-	let autoGuessEncoding: boolean;
-	if (typeof arg1 === 'boolean') {
-		autoGuessEncoding = arg1;
-	} else {
-		autoGuessEncoding = arg1 && arg1.autoGuessEncoding;
-	}
-
-	return autoGuessEncoding ? AUTO_GUESS_BUFFER_MAX_LEN : NO_GUESS_BUFFER_MAX_LEN;
-}
 
 export interface IDetectedEncodingResult {
 	encoding: string;

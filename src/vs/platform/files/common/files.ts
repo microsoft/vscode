@@ -156,17 +156,16 @@ export interface IFileService {
 	dispose(): void;
 }
 
-
-export enum FileType {
-	File = 0,
-	Dir = 1,
-	Symlink = 2
+export enum FileType2 {
+	File = 1,
+	Directory = 2,
+	SymbolicLink = 4,
 }
+
 export interface IStat {
-	id: number | string;
 	mtime: number;
 	size: number;
-	type: FileType;
+	type: FileType2;
 }
 
 export interface IFileSystemProvider {

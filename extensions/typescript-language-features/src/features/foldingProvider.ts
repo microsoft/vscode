@@ -36,6 +36,10 @@ export default class TypeScriptFoldingProvider implements vscode.FoldingProvider
 
 		return new vscode.FoldingRangeList(response.body.map(span => {
 			const range = typeConverters.Range.fromTextSpan(span.textSpan);
+			// workaround for #47240
+			if (range.end.character > 0 && document.getText(new vscode.Range(range.end.translate(0, -1), range.end)) === '}') {
+				return new vscode.FoldingRange(range.start.line, Math.max(range.end.line - 1, range.start.line));
+			}
 			return new vscode.FoldingRange(range.start.line, range.end.line);
 		}));
 	}

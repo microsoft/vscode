@@ -204,7 +204,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			let result = await this.extensionsWorkbenchService.queryLocal();
 
 			result = result
-				.filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1);
+				.filter(e => e.type === LocalExtensionType.User && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
 
 			return new PagedModel(this.sortExtensions(result, options));
 		}
@@ -224,7 +224,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			const local = await this.extensionsWorkbenchService.queryLocal();
 			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(extension => extension.outdated && extension.name.toLowerCase().indexOf(value) > -1);
+				.filter(extension => extension.outdated && (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1));
 
 			return new PagedModel(this.sortExtensions(result, options));
 		}
@@ -237,7 +237,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 
 			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && e.name.toLowerCase().indexOf(value) > -1);
+				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
 
 			return new PagedModel(this.sortExtensions(result, options));
 		}
@@ -251,7 +251,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 				.filter(e => e.type === LocalExtensionType.User &&
 					(e.enablementState === EnablementState.Enabled || e.enablementState === EnablementState.WorkspaceEnabled) &&
-					e.name.toLowerCase().indexOf(value) > -1
+					(e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
 				);
 
 			return new PagedModel(this.sortExtensions(result, options));
