@@ -1277,7 +1277,7 @@ _winjs("WinJS/Promise/_StateMachine", ["WinJS/Core/_Global","WinJS/Core/_BaseCor
         }
         promise._listeners = listeners;
     }
-    // The difference beween setCompleteValue()/setErrorValue() and complete()/error() is that setXXXValue() moves
+    // The difference between setCompleteValue()/setErrorValue() and complete()/error() is that setXXXValue() moves
     // a promise directly to the success/error state without starting another notification pass (because one
     // is already ongoing).
     function setErrorInfo(promise, errorId, isException) {
