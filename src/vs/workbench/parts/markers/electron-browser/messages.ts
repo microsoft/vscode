@@ -22,10 +22,14 @@ export default class Messages {
 	public static MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE: string = nls.localize('markers.panel.aria.label.problems.tree', "Problems grouped by files");
 
 	public static MARKERS_PANEL_NO_PROBLEMS_BUILT: string = nls.localize('markers.panel.no.problems.build', "No problems have been detected in the workspace so far.");
-	public static MARKERS_PANEL_NO_PROBLEMS_FILTERS: string = nls.localize('markers.panel.no.problems.filters', "No results found with provided filter criteria");
+	public static MARKERS_PANEL_NO_PROBLEMS_FILTERS: string = nls.localize('markers.panel.no.problems.filters', "No results found with provided filter criteria.");
+	public static MARKERS_PANEL_NO_PROBLEMS_FILE_EXCLUSIONS_FILTER: string = nls.localize('markers.panel.no.problems.file.exclusions', "No results found. Review your files exclusion setting.");
 
+	public static MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE: string = nls.localize('markers.panel.action.useFilesExclude', "Filter using Files Exclude Setting");
+	public static MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE: string = nls.localize('markers.panel.action.donotUseFilesExclude', "Do not use Files Exclude Setting");
 	public static MARKERS_PANEL_ACTION_TOOLTIP_FILTER: string = nls.localize('markers.panel.action.filter', "Filter Problems");
-	public static MARKERS_PANEL_FILTER_PLACEHOLDER: string = nls.localize('markers.panel.filter.placeholder', "Filter by type or text");
+	public static MARKERS_PANEL_FILTER_ARIA_LABEL: string = nls.localize('markers.panel.filter.ariaLabel', "Filter Problems");
+	public static MARKERS_PANEL_FILTER_PLACEHOLDER: string = nls.localize('markers.panel.filter.placeholder', "Filter by text, include/exclude file patterns. Examples: some text, **/*.ts, !**/node_modules/**");
 	public static MARKERS_PANEL_FILTER_ERRORS: string = nls.localize('markers.panel.filter.errors', "errors");
 	public static MARKERS_PANEL_FILTER_WARNINGS: string = nls.localize('markers.panel.filter.warnings', "warnings");
 	public static MARKERS_PANEL_FILTER_INFOS: string = nls.localize('markers.panel.filter.infos', "infos");

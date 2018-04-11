@@ -4,11 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-action-bar .action-item.markers-panel-action-filter {
-	max-width: 400px;
-	min-width: 150px;
-	flex: 1;
 	cursor: default;
 	margin: 4px 10px 0 0;
+	min-width: 150px;
+	max-width: 800px;
+}
+
+.monaco-action-bar .action-item.markers-panel-action-filter {
+	flex: 0.7;
+}
+
+.monaco-action-bar .action-item.markers-panel-action-filter.small {
+	flex: 0.5;
 }
 
 .monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
@@ -18,6 +25,19 @@
 .vs .monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
 	height: 25px;
 	border: 1px solid #ddd;
+}
+
+.markers-panel-action-filter > .markers-panel-filter-badge {
+	margin: 4px 0px;
+	padding: 0px 8px;
+	border-radius: 2px;
+	position: absolute;
+	top: 0px;
+	right: 4px;
+}
+
+.markers-panel-action-filter > .markers-panel-filter-badge.small {
+	display: none;
 }
 
 .markers-panel .markers-panel-container {
@@ -35,10 +55,6 @@
 
 .markers-panel  .markers-panel-container .hidden {
 	display: none;
-}
-
-.markers-panel .markers-panel-container .tree-container {
-	height: 100%;
 }
 
 .markers-panel .markers-panel-container .tree-container.hidden,
@@ -122,4 +138,17 @@
 
 .vs-dark .markers-panel .icon.info {
 	background: url('status-info-inverse.svg') center center no-repeat;
+}
+
+.vs .monaco-action-bar .action-item .icon.markers-panel-action-files-exclude {
+	background: url('excludeSettings.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-action-bar .action-item .icon.markers-panel-action-files-exclude,
+.hc-black .monaco-action-bar .action-item .icon.markers-panel-action-files-exclude {
+	background: url('excludeSettings-dark.svg') center center no-repeat;
+}
+
+.monaco-action-bar .action-item .icon.markers-panel-action-files-exclude:not(.checked) {
+	opacity: 0.5;
 }
