@@ -14,6 +14,7 @@ import { Disposable } from './extHostTypes';
 export class ExtHostWebview implements vscode.Webview {
 	private readonly _handle: WebviewHandle;
 	private readonly _proxy: MainThreadWebviewsShape;
+	private _title: string;
 	private _html: string;
 	private _options: vscode.WebviewOptions;
 	private _isDisposed: boolean = false;
@@ -27,15 +28,30 @@ export class ExtHostWebview implements vscode.Webview {
 	constructor(
 		handle: WebviewHandle,
 		proxy: MainThreadWebviewsShape,
+		title: string,
 		options: vscode.WebviewOptions
 	) {
 		this._handle = handle;
 		this._proxy = proxy;
+		this._title = title;
 		this._options = options;
 	}
 
 	dispose() {
 		this.onDidChangeViewStateEmitter.dispose();
+	}
+
+	get title(): string {
+		this.assertNotDisposed();
+		return this._title;
+	}
+
+	set title(value: string) {
+		this.assertNotDisposed();
+		if (this._title !== value) {
+			this._title = value;
+			this._proxy.$setTitle(this._handle, value);
+		}
 	}
 
 	get html(): string {
@@ -79,7 +95,6 @@ export class ExtHostWebviewEditor implements vscode.WebviewEditor {
 	private readonly _viewType: string;
 	private readonly _options: vscode.WebviewEditorOptions;
 	private readonly _proxy: MainThreadWebviewsShape;
-	private _title: string;
 	private _isDisposed: boolean = false;
 	private _viewColumn: vscode.ViewColumn;
 	private _active: boolean;
@@ -96,6 +111,7 @@ export class ExtHostWebviewEditor implements vscode.WebviewEditor {
 		handle: WebviewHandle,
 		proxy: MainThreadWebviewsShape,
 		viewType: string,
+		title: string,
 		viewColumn: vscode.ViewColumn,
 		editorOptions: vscode.WebviewEditorOptions,
 		webviewOptions: vscode.WebviewOptions
@@ -105,7 +121,7 @@ export class ExtHostWebviewEditor implements vscode.WebviewEditor {
 		this._viewType = viewType;
 		this._options = editorOptions;
 		this._viewColumn = viewColumn;
-		this._webview = new ExtHostWebview(handle, proxy, webviewOptions);
+		this._webview = new ExtHostWebview(handle, proxy, title, webviewOptions);
 	}
 
 	public dispose() {
@@ -121,25 +137,13 @@ export class ExtHostWebviewEditor implements vscode.WebviewEditor {
 	}
 
 	get webview() {
+		this.assertNotDisposed();
 		return this._webview;
 	}
 
 	get viewType(): string {
 		this.assertNotDisposed();
 		return this._viewType;
-	}
-
-	get title(): string {
-		this.assertNotDisposed();
-		return this._title;
-	}
-
-	set title(value: string) {
-		this.assertNotDisposed();
-		if (this._title !== value) {
-			this._title = value;
-			this._proxy.$setTitle(this._handle, value);
-		}
 	}
 
 	get options() {
@@ -201,14 +205,13 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		viewType: string,
 		title: string,
 		viewColumn: vscode.ViewColumn,
-		editorOptions: vscode.WebviewEditorOptions,
-		webviewOptions: vscode.WebviewOptions,
+		options: vscode.WebviewEditorOptions & vscode.WebviewOptions,
 		extensionFolderPath: string
 	): vscode.WebviewEditor {
 		const handle = ExtHostWebviews.webviewHandlePool++ + '';
-		this._proxy.$createWebview(handle, viewType, title, typeConverters.fromViewColumn(viewColumn), { ...editorOptions, ...webviewOptions, }, extensionFolderPath);
+		this._proxy.$createWebview(handle, viewType, title, typeConverters.fromViewColumn(viewColumn), options, extensionFolderPath);
 
-		const webview = new ExtHostWebviewEditor(handle, this._proxy, viewType, viewColumn, editorOptions, webviewOptions);
+		const webview = new ExtHostWebviewEditor(handle, this._proxy, viewType, title, viewColumn, options, options);
 		this._webviews.set(handle, webview);
 		return webview;
 	}
@@ -261,6 +264,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 	$deserializeWebview(
 		webviewHandle: WebviewHandle,
 		viewType: string,
+		title: string,
 		state: any,
 		position: Position,
 		options: vscode.WebviewOptions
@@ -270,7 +274,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 			return TPromise.wrapError(new Error(`No serializer found for '${viewType}'`));
 		}
 
-		const revivedWebview = new ExtHostWebviewEditor(webviewHandle, this._proxy, viewType, typeConverters.toViewColumn(position), options as vscode.WebviewEditorOptions, options as vscode.WebviewOptions);
+		const revivedWebview = new ExtHostWebviewEditor(webviewHandle, this._proxy, viewType, title, typeConverters.toViewColumn(position), options as vscode.WebviewEditorOptions, options as vscode.WebviewOptions);
 		this._webviews.set(webviewHandle, revivedWebview);
 		return serializer.deserializeWebviewEditor(revivedWebview, state);
 	}

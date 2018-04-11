@@ -20,7 +20,7 @@ export class MarkdownPreview {
 
 	public static viewType = 'markdown.preview';
 
-	private readonly webview: vscode.WebviewEditor;
+	private readonly editor: vscode.WebviewEditor;
 	private throttleTimer: any;
 	private line: number | undefined = undefined;
 	private readonly disposables: vscode.Disposable[] = [];
@@ -98,17 +98,17 @@ export class MarkdownPreview {
 		private readonly logger: Logger,
 		topmostLineMonitor: MarkdownFileTopmostLineMonitor
 	) {
-		this.webview = webview;
+		this.editor = webview;
 
-		this.webview.onDidDispose(() => {
+		this.editor.onDidDispose(() => {
 			this.dispose();
 		}, null, this.disposables);
 
-		this.webview.onDidChangeViewState(e => {
+		this.editor.onDidChangeViewState(e => {
 			this._onDidChangeViewStateEmitter.fire(e);
 		}, null, this.disposables);
 
-		this.webview.webview.onDidReceiveMessage(e => {
+		this.editor.webview.onDidReceiveMessage(e => {
 			if (e.source !== this._resource.toString()) {
 				return;
 			}
@@ -180,7 +180,7 @@ export class MarkdownPreview {
 
 		this._onDisposeEmitter.dispose();
 		this._onDidChangeViewStateEmitter.dispose();
-		this.webview.dispose();
+		this.editor.dispose();
 
 		disposeAll(this.disposables);
 	}
@@ -224,7 +224,7 @@ export class MarkdownPreview {
 	}
 
 	public get viewColumn(): vscode.ViewColumn | undefined {
-		return this.webview.viewColumn;
+		return this.editor.viewColumn;
 	}
 
 	public isPreviewOf(resource: vscode.Uri): boolean {
@@ -232,7 +232,7 @@ export class MarkdownPreview {
 	}
 
 	public isWebviewOf(webview: vscode.WebviewEditor): boolean {
-		return this.webview === webview;
+		return this.editor === webview;
 	}
 
 	public matchesResource(
@@ -256,12 +256,12 @@ export class MarkdownPreview {
 	}
 
 	public reveal(viewColumn: vscode.ViewColumn) {
-		this.webview.reveal(viewColumn);
+		this.editor.reveal(viewColumn);
 	}
 
 	public toggleLock() {
 		this.locked = !this.locked;
-		this.webview.title = MarkdownPreview.getPreviewTitle(this._resource, this.locked);
+		this.editor.webview.title = MarkdownPreview.getPreviewTitle(this._resource, this.locked);
 	}
 
 	private static getPreviewTitle(resource: vscode.Uri, locked: boolean): string {
@@ -293,7 +293,7 @@ export class MarkdownPreview {
 
 	private postMessage(msg: any) {
 		if (!this._disposed) {
-			this.webview.webview.postMessage(msg);
+			this.editor.webview.postMessage(msg);
 		}
 	}
 
@@ -315,8 +315,8 @@ export class MarkdownPreview {
 		this.currentVersion = { resource, version: document.version };
 		const content = await this.contentProvider.provideTextDocumentContent(document, this.previewConfigurations, this.line);
 		if (this._resource === resource) {
-			this.webview.title = MarkdownPreview.getPreviewTitle(this._resource, this.locked);
-			this.webview.webview.html = content;
+			this.editor.webview.title = MarkdownPreview.getPreviewTitle(this._resource, this.locked);
+			this.editor.webview.html = content;
 		}
 	}
 

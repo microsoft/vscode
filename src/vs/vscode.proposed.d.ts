@@ -574,6 +574,11 @@ declare module 'vscode' {
 		readonly options: WebviewOptions;
 
 		/**
+		 * Title of the webview shown in UI.
+		 */
+		title: string;
+
+		/**
 		 * Contents of the webview.
 		 *
 		 * Should be a complete html document.
@@ -600,17 +605,17 @@ declare module 'vscode' {
 	 */
 	export interface WebviewEditorOptions {
 		/**
-		 * Should the find widget be enabled in the webview?
+		 * Should the find widget be enabled in the editor?
 		 *
 		 * Defaults to false.
 		 */
 		readonly enableFindWidget?: boolean;
 
 		/**
-		 * Should the webview editor's webview content be kept around even when the webview
+		 * Should the webview editor's content (iframe) be kept around even when the editor
 		 * is no longer visible?
 		 *
-		 * Normally a webview context is created when the editor becomes visible
+		 * Normally the editors html context is created when the editor becomes visible
 		 * and destroyed when the webview is hidden. Apps that have complex state
 		 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
 		 * context around, even when the webview moves to a background tab. When
@@ -632,17 +637,15 @@ declare module 'vscode' {
 		 */
 		readonly viewType: string;
 
-		readonly options: WebviewEditorOptions;
-
-		/**
-		 * Title of the editor shown in UI.
-		 */
-		title: string;
-
 		/**
 		 * The webview belonging to the editor.
 		 */
 		readonly webview: Webview;
+
+		/**
+		 * Content settings for the webview editor.
+		 */
+		readonly options: WebviewEditorOptions;
 
 		/**
 		 * The column in which the webview is showing.
@@ -650,7 +653,17 @@ declare module 'vscode' {
 		readonly viewColumn?: ViewColumn;
 
 		/**
-		 * Shows the webview in a given column.
+		 * Fired when the webview's view state changes.
+		 */
+		readonly onDidChangeViewState: Event<WebviewEditorOnDidChangeViewStateEvent>;
+
+		/**
+		 * Fired when the webview is disposed.
+		 */
+		readonly onDidDispose: Event<void>;
+
+		/**
+		 * Shows the webview editor in a given column.
 		 *
 		 * A webview may only be in a single column at a time. If it is already showing, this
 		 * command moves it to a new column.
@@ -658,23 +671,13 @@ declare module 'vscode' {
 		reveal(viewColumn: ViewColumn): void;
 
 		/**
-		 * Fired when the webview's view state changes.
-		 */
-		readonly onDidChangeViewState: Event<WebviewEditorOnDidChangeViewStateEvent>;
-
-		/**
-		 * Dispose of the the webview.
+		 * Dispose of the the webview editor.
 		 *
 		 * This closes the webview if it showing and disposes of the resources owned by the webview.
 		 * Webview are also disposed when the user closes the webview editor. Both cases fire `onDispose`
 		 * event. Trying to use the webview after it has been disposed throws an exception.
 		 */
 		dispose(): any;
-
-		/**
-		 * Fired when the webview is disposed.
-		 */
-		readonly onDidDispose: Event<void>;
 	}
 
 	export interface WebviewEditorOnDidChangeViewStateEvent {
@@ -691,21 +694,21 @@ declare module 'vscode' {
 		 *
 		 * Called before shutdown. Webview editor may or may not be visible.
 		 *
-		 * @param webview Webview editor to serialize.
+		 * @param webviewEditor Webview editor to serialize.
 		 *
 		 * @returns JSON serializable state blob.
 		 */
-		serializeWebviewEditor(webview: WebviewEditor): Thenable<any>;
+		serializeWebviewEditor(webviewEditor: WebviewEditor): Thenable<any>;
 
 		/**
-		 * Restore a webview from its `state`.
+		 * Restore a webview editor from its `state`.
 		 *
 		 * Called when a serialized webview first becomes active.
 		 *
-		 * @param webview Webview to restore. The serializer should take ownership of this webview.
+		 * @param webviewEditor Webview editor to restore. The serializer should take ownership of this editor.
 		 * @param state Persisted state.
 		 */
-		deserializeWebviewEditor(webview: WebviewEditor, state: any): Thenable<void>;
+		deserializeWebviewEditor(webviewEditor: WebviewEditor, state: any): Thenable<void>;
 	}
 
 	namespace window {
@@ -715,10 +718,9 @@ declare module 'vscode' {
 		 * @param viewType Identifies the type of the webview.
 		 * @param title Title of the webview.
 		 * @param column Editor column to show the new webview in.
-		 * @param editorOptions Content settings for the webview editor.
-		 * @param webviewOptions Content settings for the webview.
+		 * @param editorOptions Settings for the webview editor.
 		 */
-		export function createWebviewEditor(viewType: string, title: string, column: ViewColumn, editorOptions: WebviewEditorOptions, webviewOptions: WebviewOptions): WebviewEditor;
+		export function createWebviewEditor(viewType: string, title: string, column: ViewColumn, options: WebviewEditorOptions & WebviewOptions): WebviewEditor;
 
 		/**
 		 * Registers a webview editor serializer.

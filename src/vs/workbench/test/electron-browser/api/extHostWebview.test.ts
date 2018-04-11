@@ -36,7 +36,7 @@ suite('ExtHostWebview', function () {
 
 		const serializerARegistration = extHostWebviews.registerWebviewEditorSerializer(viewType, serializerA);
 
-		await extHostWebviews.$deserializeWebview('x', viewType, {}, EditorPosition.ONE, {});
+		await extHostWebviews.$deserializeWebview('x', viewType, 'title', {}, EditorPosition.ONE, {});
 		assert.strictEqual(lastInvokedDeserializer, serializerA);
 
 		assert.throws(
@@ -47,7 +47,7 @@ suite('ExtHostWebview', function () {
 
 		extHostWebviews.registerWebviewEditorSerializer(viewType, serializerB);
 
-		await extHostWebviews.$deserializeWebview('x', viewType, {}, EditorPosition.ONE, {});
+		await extHostWebviews.$deserializeWebview('x', viewType, 'title', {}, EditorPosition.ONE, {});
 		assert.strictEqual(lastInvokedDeserializer, serializerB);
 	});
 });

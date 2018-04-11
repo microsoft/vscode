@@ -67,7 +67,7 @@ export interface WebviewEvents {
 	onDidClickLink?(link: URI, options: vscode.WebviewOptions): void;
 }
 
-export interface WebviewInputOptions extends vscode.WebviewOptions {
+export interface WebviewInputOptions extends vscode.WebviewOptions, vscode.WebviewEditorOptions {
 	tryRestoreScrollPosition?: boolean;
 }
 
