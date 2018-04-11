@@ -246,23 +246,22 @@ export class Code {
 		return await this.waitFor<IElement>(() => this.driver.getElements(windowId, selector).then(els => els[0]), accept, `element with selector ${selector}`);
 	}
 
-	async waitForActiveElement(selector: string): Promise<any> {
+	async waitForActiveElement(selector: string): Promise<void> {
 		if (this.verbose) {
 			console.log('- waitForActiveElement:', selector);
 		}
 
 		const windowId = await this.getActiveWindowId();
-		return await this.waitFor(() => this.driver.isActiveElement(windowId, selector), undefined, `wait for active element: ${selector}`);
+		await this.waitFor(() => this.driver.isActiveElement(windowId, selector), undefined, `wait for active element: ${selector}`);
 	}
 
-	// TODO make into waitForTitle
-	async getTitle(): Promise<string> {
+	async waitForTitle(fn: (title: string) => boolean): Promise<void> {
 		if (this.verbose) {
 			console.log('- getTitle');
 		}
 
 		const windowId = await this.getActiveWindowId();
-		return await this.driver.getTitle(windowId);
+		await this.waitFor(() => this.driver.getTitle(windowId), fn, 'wait for title: ${}');
 	}
 
 	// TODO make into waitForTypeInEditor

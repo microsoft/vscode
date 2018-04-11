@@ -9,11 +9,9 @@ import { Code } from '../../vscode/code';
 
 export abstract class Viewlet {
 
-	constructor(protected code: Code) {
-		// noop
-	}
+	constructor(protected code: Code) { }
 
-	async getTitle(): Promise<string> {
-		return this.code.waitForTextContent('.monaco-workbench-container .part.sidebar > .title > .title-label > span');
+	async waitForTitle(fn: (title: string) => boolean): Promise<void> {
+		await this.code.waitForTextContent('.monaco-workbench-container .part.sidebar > .title > .title-label > span', undefined, fn);
 	}
 }

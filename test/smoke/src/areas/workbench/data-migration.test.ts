@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-
 import { Application, Quality } from '../../application';
 import * as rimraf from 'rimraf';
 
 export interface ICreateAppFn {
-	(quality: Quality): Application | null;
+	(quality: Quality): Application;
 }
 
 export function setup(userDataDir: string, createApp: ICreateAppFn) {
@@ -40,14 +38,9 @@ export function setup(userDataDir: string, createApp: ICreateAppFn) {
 			// Checking latest version for the restored state
 			const app = createApp(Quality.Insiders);
 
-			if (!app) {
-				return assert(false);
-			}
-
 			await app.start(false);
 
-			assert.ok(await app.workbench.editors.waitForActiveTab('Untitled-1', true), `Untitled-1 tab is not present after migration.`);
-
+			await app.workbench.editors.waitForActiveTab('Untitled-1', true);
 			await app.workbench.editor.waitForEditorContents('Untitled-1', c => c.indexOf(textToType) > -1);
 
 			await app.stop();
@@ -76,13 +69,9 @@ export function setup(userDataDir: string, createApp: ICreateAppFn) {
 			// Checking latest version for the restored state
 			const app = createApp(Quality.Insiders);
 
-			if (!app) {
-				return assert(false);
-			}
-
 			await app.start(false);
 
-			assert.ok(await app.workbench.editors.waitForActiveTab(fileName), `dirty file tab is not present after migration.`);
+			await app.workbench.editors.waitForActiveTab(fileName);
 			await app.workbench.editor.waitForEditorContents(fileName, c => c.indexOf(textPart) > -1);
 
 			await app.stop();
@@ -109,15 +98,11 @@ export function setup(userDataDir: string, createApp: ICreateAppFn) {
 
 			const app = createApp(Quality.Insiders);
 
-			if (!app) {
-				return assert(false);
-			}
-
 			await app.start(false);
 
-			assert.ok(await app.workbench.editors.waitForTab(fileName1), `${fileName1} tab was not restored after migration.`);
-			assert.ok(await app.workbench.editors.waitForTab(fileName2), `${fileName2} tab was not restored after migration.`);
-			assert.ok(await app.workbench.editors.waitForTab(fileName3), `${fileName3} tab was not restored after migration.`);
+			await app.workbench.editors.waitForTab(fileName1);
+			await app.workbench.editors.waitForTab(fileName2);
+			await app.workbench.editors.waitForTab(fileName3);
 
 			await app.stop();
 		});

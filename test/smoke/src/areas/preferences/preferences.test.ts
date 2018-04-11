@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-
 import { Application } from '../../application';
 import { ActivityBarPosition } from '../activitybar/activityBar';
 
@@ -23,12 +21,12 @@ export function setup() {
 
 		it(`changes 'workbench.action.toggleSidebarPosition' command key binding and verifies it`, async function () {
 			const app = this.app as Application;
-			assert.ok(await app.workbench.activitybar.getActivityBar(ActivityBarPosition.LEFT), 'Activity bar should be positioned on the left.');
+			await app.workbench.activitybar.waitForActivityBar(ActivityBarPosition.LEFT);
 
 			await app.workbench.keybindingsEditor.updateKeybinding('workbench.action.toggleSidebarPosition', 'ctrl+u', 'Control+U');
 
 			await app.code.dispatchKeybinding('ctrl+u');
-			assert.ok(await app.workbench.activitybar.getActivityBar(ActivityBarPosition.RIGHT), 'Activity bar was not moved to right after toggling its position.');
+			await app.workbench.activitybar.waitForActivityBar(ActivityBarPosition.RIGHT);
 		});
 
 		after(async function () {

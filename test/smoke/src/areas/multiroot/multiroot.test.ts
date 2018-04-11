@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
 import { Application } from '../../application';
 
 export function setup() {
@@ -27,8 +26,7 @@ export function setup() {
 
 		it('shows workspace name in title', async function () {
 			const app = this.app as Application;
-			const title = await app.code.getTitle();
-			assert.ok(title.indexOf('smoketest (Workspace)') >= 0);
+			await app.code.waitForTitle(title => /smoketest \(Workspace\)/i.test(title));
 		});
 	});
 }

@@ -37,8 +37,8 @@ export class StatusBar {
 		return this.code.waitForTextContent(this.getSelector(StatusBarElement.EOL_STATUS), eol);
 	}
 
-	async getStatusbarTextByTitle(title: string): Promise<string> {
-		return await this.code.waitForTextContent(`${this.mainSelector} span[title="smoke test"]`);
+	async waitForStatusbarText(title: string, text: string): Promise<void> {
+		await this.code.waitForTextContent(`${this.mainSelector} span[title="${title}"]`, text);
 	}
 
 	private getSelector(element: StatusBarElement): string {

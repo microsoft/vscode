@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-
 import { Application, Quality } from '../../application';
 
 export function setup() {
@@ -27,24 +25,19 @@ export function setup() {
 				return;
 			}
 
-			let text = await app.workbench.explorer.getOpenEditorsViewTitle();
-			assert(/geöffnete editoren/i.test(text));
+			await app.workbench.explorer.waitForOpenEditorsViewTitle(title => /geöffnete editoren/i.test(title));
 
 			await app.workbench.search.openSearchViewlet();
-			text = await app.workbench.search.getTitle();
-			assert(/suchen/i.test(text));
+			await app.workbench.search.waitForTitle(title => /suchen/i.test(title));
 
 			await app.workbench.scm.openSCMViewlet();
-			text = await app.workbench.scm.getTitle();
-			assert(/quellcodeverwaltung/i.test(text));
+			await app.workbench.scm.waitForTitle(title => /quellcodeverwaltung/i.test(title));
 
 			await app.workbench.debug.openDebugViewlet();
-			text = await app.workbench.debug.getTitle();
-			assert(/debuggen/i.test(text));
+			await app.workbench.debug.waitForTitle(title => /debuggen/i.test(title));
 
 			await app.workbench.extensions.openExtensionsViewlet();
-			text = await app.workbench.extensions.getTitle();
-			assert(/erweiterungen/i.test(text));
+			await app.workbench.extensions.waitForTitle(title => /erweiterungen/i.test(title));
 		});
 	});
 }

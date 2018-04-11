@@ -21,8 +21,8 @@ export class Explorer extends Viewlet {
 		return this.commands.runCommand('workbench.view.explorer');
 	}
 
-	getOpenEditorsViewTitle(): Promise<string> {
-		return this.code.waitForTextContent(Explorer.OPEN_EDITORS_VIEW);
+	async waitForOpenEditorsViewTitle(fn: (title: string) => boolean): Promise<void> {
+		await this.code.waitForTextContent(Explorer.OPEN_EDITORS_VIEW, undefined, fn);
 	}
 
 	async openFile(fileName: string): Promise<any> {

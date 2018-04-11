@@ -100,16 +100,16 @@ function getBuildElectronPath(root: string): string {
 }
 
 let testCodePath = opts.build;
-let stableCodePath = opts['stable-build'];
+// let stableCodePath = opts['stable-build'];
 let electronPath: string;
-let stablePath: string;
+// let stablePath: string;
 
 if (testCodePath) {
 	electronPath = getBuildElectronPath(testCodePath);
 
-	if (stableCodePath) {
-		stablePath = getBuildElectronPath(stableCodePath);
-	}
+	// if (stableCodePath) {
+	// 	stablePath = getBuildElectronPath(stableCodePath);
+	// }
 } else {
 	testCodePath = getDevElectronPath();
 	electronPath = testCodePath;
@@ -228,13 +228,7 @@ async function setup(): Promise<void> {
 	console.log('*** Smoketest setup done!\n');
 }
 
-function createApp(quality: Quality): Application | null {
-	const path = quality === Quality.Stable ? stablePath : electronPath;
-
-	if (!path) {
-		return null;
-	}
-
+function createApp(quality: Quality): Application {
 	return new Application({
 		quality,
 		codePath: opts.build,
@@ -246,6 +240,7 @@ function createApp(quality: Quality): Application | null {
 		verbose: opts.verbose
 	});
 }
+
 before(async function () {
 	// allow two minutes for setup
 	this.timeout(2 * 60 * 1000);
