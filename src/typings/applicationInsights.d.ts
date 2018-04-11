@@ -49,7 +49,7 @@ declare module ApplicationInsights {
 
 	/**
 	* Sets the state of enabling offline mode to cache event when client is offline (disabled by default)
-	* @param value if true events that happen while client is offline will be cahced on disk,
+	* @param value if true events that happen while client is offline will be cached on disk,
 	* client will retry to send events when back online
 	* @returns {ApplicationInsights} this class
 	*/
