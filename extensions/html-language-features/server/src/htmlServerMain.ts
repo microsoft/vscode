@@ -277,11 +277,11 @@ connection.onCompletion(async (textDocumentPosition, token) => {
 
 		if (mode.getId() !== 'html') {
 			/* __GDPR__
-				"html.embbedded.complete" : {
+				"html.embedded.complete" : {
 					"languageId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			 */
-			connection.telemetry.logEvent({ key: 'html.embbedded.complete', value: { languageId: mode.getId() } });
+			connection.telemetry.logEvent({ key: 'html.embedded.complete', value: { languageId: mode.getId() } });
 		}
 
 		cachedCompletionList = null;
