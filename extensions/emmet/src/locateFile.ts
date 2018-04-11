@@ -15,7 +15,7 @@ const reAbsolute = /^\/+/;
 /**
  * Locates given `filePath` on user’s file system and returns absolute path to it.
  * This method expects either URL, or relative/absolute path to resource
- * @param basePath Base path to use if filePath is not absoulte
+ * @param basePath Base path to use if filePath is not absolute
  * @param filePath File to locate.
  */
 export function locateFile(base: string, filePath: string): Promise<string> {
