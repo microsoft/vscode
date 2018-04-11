@@ -747,7 +747,7 @@ suite('Quick Open Scorer', () => {
 	});
 
 	test('compareFilesByScore - avoid match scattering (bug #18381)', function () {
-		const resourceA = URI.file('AssymblyInfo.cs');
+		const resourceA = URI.file('AssemblyInfo.cs');
 		const resourceB = URI.file('IAsynchronousTask.java');
 
 		let query = 'async';
