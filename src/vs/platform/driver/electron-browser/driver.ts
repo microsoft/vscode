@@ -61,6 +61,9 @@ class WindowDriver implements IWindowDriver {
 			y = top + (height / 2);
 		}
 
+		x = Math.round(x);
+		y = Math.round(y);
+
 		const webContents = electron.remote.getCurrentWebContents();
 		webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 } as any);
 		webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 } as any);

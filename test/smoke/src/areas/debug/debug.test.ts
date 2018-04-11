@@ -54,6 +54,9 @@ export function setup() {
 		it('start debugging', async function () {
 			const app = this.app as SpectronApplication;
 
+			// TODO@isidor
+			await new Promise(c => setTimeout(c, 100));
+
 			port = await app.workbench.debug.startDebugging();
 			await app.screenCapturer.capture('debugging has started');
 
