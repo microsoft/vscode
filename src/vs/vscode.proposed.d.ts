@@ -253,16 +253,55 @@ declare module 'vscode' {
 
 		_version: 3;
 
+		/**
+		 * An event to signal that a resource has been created, changed, or deleted.
+		 */
 		readonly onDidChange: Event<FileChange2[]>;
 
+		/**
+		 * Retrieve meta data about a file.
+		 *
+		 * @param uri The uri of the file to retrieve meta data about.
+		 * @param token A cancellation token.
+		 */
+		// todo@remote
+		// ! throw error (ENOENT) when the file doesn't exist
 		stat(uri: Uri, token: CancellationToken): Thenable<FileStat2>;
 
+		/**
+		 * Retrieve the meta data of all entries of a [directory](#FileType2.Directory)
+		 *
+		 * @param uri The uri of the folder.
+		 * @param token A cancellation token.
+		 * @return A thenable that resolves to an array of tuples of resources and files stats.
+		 */
 		readDirectory(uri: Uri, token: CancellationToken): Thenable<[Uri, FileStat2][]>;
 
+		/**
+		 * Read the entire contents of a file.
+		 *
+		 * @param uri The uri of the file.
+		 * @param token A cancellation token.
+		 * @return A thenable that resolves to an array of bytes.
+		 */
 		readFile(uri: Uri, token: CancellationToken): Thenable<Uint8Array>;
 
+		/**
+		 * Write data to a file, replacing its entire contents.
+		 *
+		 * @param uri The uri of the file.
+		 * @param content The new content of the file.
+		 * @param token A cancellation token.
+		 */
 		writeFile(uri: Uri, content: Uint8Array, token: CancellationToken): Thenable<void>;
 
+		/**
+		 * Rename a file or folder.
+		 *
+		 * @param oldUri The exiting file or folder
+		 * @param newUri The target location
+		 * @param token A cancellation token.
+		 */
 		rename(oldUri: Uri, newUri: Uri, token: CancellationToken): Thenable<FileStat2>;
 
 		// todo@remote
