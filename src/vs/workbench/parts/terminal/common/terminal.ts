@@ -235,6 +235,8 @@ export interface ITerminalInstance {
 
 	onProcessIdReady: Event<ITerminalInstance>;
 
+	processReady: TPromise<void>;
+
 	/**
 	 * The title of the terminal. This is either title or the process currently running or an
 	 * explicit name given to the terminal instance through the extension API.
