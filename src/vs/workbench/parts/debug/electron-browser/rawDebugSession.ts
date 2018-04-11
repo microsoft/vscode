@@ -266,8 +266,8 @@ export class RawDebugSession implements debug.ISession {
 			this.readyForBreakpoints = true;
 			this._onDidInitialize.fire(event);
 		} else if (event.event === 'capabilities' && event.body) {
-			const capabilites = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
-			this._capabilities = objects.mixin(this._capabilities, capabilites);
+			const capabilities = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
+			this._capabilities = objects.mixin(this._capabilities, capabilities);
 		} else if (event.event === 'stopped') {
 			this.emittedStopped = true;
 			this._onDidStop.fire(<DebugProtocol.StoppedEvent>event);
