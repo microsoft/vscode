@@ -59,7 +59,7 @@ export function provideSuggestionItems(model: ITextModel, position: Position, sn
 		supports.unshift([_snippetSuggestSupport]);
 	}
 
-	const suggestConext = context || { triggerKind: SuggestTriggerKind.Invoke };
+	const suggestContext = context || { triggerKind: SuggestTriggerKind.Invoke };
 
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
@@ -77,7 +77,7 @@ export function provideSuggestionItems(model: ITextModel, position: Position, sn
 					return undefined;
 				}
 
-				return asWinJsPromise(token => support.provideCompletionItems(model, position, suggestConext, token)).then(container => {
+				return asWinJsPromise(token => support.provideCompletionItems(model, position, suggestContext, token)).then(container => {
 
 					const len = allSuggestions.length;
 
