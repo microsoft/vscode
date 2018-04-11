@@ -19,7 +19,8 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { DebugAdapter, convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/node/debugAdapter';
 import * as paths from 'vs/base/common/paths';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
-import { IAdapterExecutable } from 'vs/workbench/parts/debug/common/debug';
+import { IAdapterExecutable, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
+import { getTerminalLauncher } from 'vs/workbench/parts/debug/node/terminals';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
@@ -80,6 +81,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this._breakpointEventsActive = false;
 
 		this._debugAdapters = new Map<number, DebugAdapter>();
+	}
+
+	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
+		return getTerminalLauncher().runInTerminal(args, config);
 	}
 
 	public $startDASession(handle: number, debugType: string, adpaterExecutable: IAdapterExecutable | null): TPromise<void> {

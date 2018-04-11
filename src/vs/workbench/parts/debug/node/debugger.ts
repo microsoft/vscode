@@ -9,13 +9,12 @@ import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugConfiguration } from 'vs/workbench/parts/debug/common/debug';
+import { IConfig, IDebuggerContribution, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugConfiguration, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { DebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
-
 
 export class Debugger {
 
@@ -58,6 +57,12 @@ export class Debugger {
 			// give up and let DebugAdapter determine executable based on package.json contribution
 			return TPromise.as(null);
 		});
+	}
+
+	public runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void> {
+		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
+		const config = this.configurationService.getValue<ITerminalSettings>('terminal');
+		return this.configurationManager.runInTerminal(debugConfigs && debugConfigs.extensionHostDebugAdapter, args, config);
 	}
 
 	public get aiKey(): string {

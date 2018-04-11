@@ -26,7 +26,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, IDebuggerContribution, ICompound, IDebugConfiguration, IConfig, IEnvConfig, IGlobalConfig, IConfigurationManager, ILaunch, IAdapterExecutable, IDebugAdapterProvider, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugConfigurationProvider, IDebuggerContribution, ICompound, IDebugConfiguration, IConfig, IEnvConfig, IGlobalConfig, IConfigurationManager, ILaunch, IAdapterExecutable, IDebugAdapterProvider, IDebugAdapter, ITerminalLauncher, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -34,6 +34,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { TerminalLauncher } from 'vs/workbench/parts/debug/electron-browser/terminalSupport';
 
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IDebuggerContribution[]>('debuggers', [], {
@@ -230,6 +231,8 @@ export class ConfigurationManager implements IConfigurationManager {
 	private _onDidSelectConfigurationName = new Emitter<void>();
 	private providers: IDebugConfigurationProvider[];
 	private debugAdapterProviders: Map<string, IDebugAdapterProvider>;
+	private _terminalLauncher: ITerminalLauncher;
+	private _ehTerminalLauncher: ITerminalLauncher;
 
 
 	constructor(
@@ -313,6 +316,22 @@ export class ConfigurationManager implements IConfigurationManager {
 			dap = this.debugAdapterProviders.get('*');
 		}
 		return dap.createDebugAdapter(debugType, adapterExecutable);
+	}
+
+	public registerEHTerminalLauncher(launcher: ITerminalLauncher): void {
+		this._ehTerminalLauncher = launcher;
+	}
+
+	public runInTerminal(extensionHost: boolean, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
+
+		if (extensionHost && this._ehTerminalLauncher) {
+			return this._ehTerminalLauncher.runInTerminal(args, config);
+		} else {
+			if (!this._terminalLauncher) {
+				this._terminalLauncher = this.instantiationService.createInstance(TerminalLauncher);
+			}
+			return this._terminalLauncher.runInTerminal(args, config);
+		}
 	}
 
 	private registerListeners(lifecycleService: ILifecycleService): void {

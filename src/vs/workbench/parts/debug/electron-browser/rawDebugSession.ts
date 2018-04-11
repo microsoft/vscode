@@ -11,14 +11,10 @@ import { Action } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
-import { ITerminalService as IExternalTerminalService } from 'vs/workbench/parts/execution/common/execution';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { TerminalSupport } from 'vs/workbench/parts/debug/electron-browser/terminalSupport';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { StreamDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 
@@ -102,10 +98,7 @@ export class RawDebugSession implements debug.ISession {
 		public root: IWorkspaceFolder,
 		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IOutputService private outputService: IOutputService,
-		@ITerminalService private terminalService: ITerminalService,
-		@IExternalTerminalService private nativeTerminalService: IExternalTerminalService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IOutputService private outputService: IOutputService
 	) {
 		this.emittedStopped = false;
 		this.readyForBreakpoints = false;
@@ -471,13 +464,14 @@ export class RawDebugSession implements debug.ISession {
 
 		if (request.command === 'runInTerminal') {
 
-			TerminalSupport.runInTerminal(this.terminalService, this.nativeTerminalService, this.configurationService, <DebugProtocol.RunInTerminalRequestArguments>request.arguments, <DebugProtocol.RunInTerminalResponse>response).then(() => {
+			this._debugger.runInTerminal(<DebugProtocol.RunInTerminalRequestArguments>request.arguments).then(_ => {
 				this.debugAdapter.sendResponse(response);
-			}, e => {
+			}, err => {
 				response.success = false;
-				response.message = e.message;
+				response.message = err.message;
 				this.debugAdapter.sendResponse(response);
 			});
+
 		} else if (request.command === 'handshake') {
 			try {
 				const vsda = <any>require.__$__nodeRequire('vsda');
