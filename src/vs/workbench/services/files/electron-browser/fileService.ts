@@ -47,61 +47,6 @@ import product from 'vs/platform/node/product';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { shell } from 'electron';
 
-export interface IEncodingOverride {
-	parent?: uri;
-	extension?: string;
-	encoding: string;
-}
-
-export interface IFileServiceTestOptions {
-	tmpDir?: string;
-	disableWatcher?: boolean;
-	encodingOverride?: IEncodingOverride[];
-}
-
-function etag(stat: fs.Stats): string;
-function etag(size: number, mtime: number): string;
-function etag(arg1: any, arg2?: any): string {
-	let size: number;
-	let mtime: number;
-	if (typeof arg2 === 'number') {
-		size = arg1;
-		mtime = arg2;
-	} else {
-		size = (<fs.Stats>arg1).size;
-		mtime = (<fs.Stats>arg1).mtime.getTime();
-	}
-
-	return `"${crypto.createHash('sha1').update(String(size) + String(mtime)).digest('hex')}"`;
-}
-
-class BufferPool {
-
-	static _64K = new BufferPool(64 * 1024, 5);
-
-	constructor(
-		readonly bufferSize: number,
-		private readonly _capacity: number,
-		private readonly _free: Buffer[] = [],
-	) {
-		//
-	}
-
-	acquire(): Buffer {
-		if (this._free.length === 0) {
-			return Buffer.allocUnsafe(this.bufferSize);
-		} else {
-			return this._free.shift();
-		}
-	}
-
-	release(buf: Buffer): void {
-		if (this._free.length <= this._capacity) {
-			this._free.push(buf);
-		}
-	}
-}
-
 export class FileService implements IFileService {
 
 	public _serviceBrand: any;
@@ -118,17 +63,12 @@ export class FileService implements IFileService {
 	protected readonly _onFileChanges: Emitter<FileChangesEvent>;
 	protected readonly _onAfterOperation: Emitter<FileOperationEvent>;
 
-	private tmpPath: string;
-
 	private toDispose: IDisposable[];
 
 	private activeWorkspaceFileChangeWatcher: IDisposable;
 	private activeFileChangesWatchers: ResourceMap<fs.FSWatcher>;
 	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
-
-	private useExperimentalFileWatcher: boolean;
-	private watcherIgnoredPatterns: string[];
 
 	private encodingOverride: IEncodingOverride[];
 
@@ -143,7 +83,6 @@ export class FileService implements IFileService {
 		private options: IFileServiceTestOptions = Object.create(null)
 	) {
 		this.toDispose = [];
-		this.tmpPath = this.options.tmpDir || os.tmpdir();
 
 		this._onFileChanges = new Emitter<FileChangesEvent>();
 		this.toDispose.push(this._onFileChanges);
@@ -154,15 +93,6 @@ export class FileService implements IFileService {
 		this.activeFileChangesWatchers = new ResourceMap<fs.FSWatcher>();
 		this.fileChangesWatchDelayer = new ThrottledDelayer<void>(FileService.FS_EVENT_DELAY);
 		this.undeliveredRawFileChangesEvents = [];
-
-		const configuration = this.configurationService.getValue<IFilesConfiguration>();
-
-		this.watcherIgnoredPatterns = [];
-		if (configuration.files && configuration.files.watcherExclude) {
-			this.watcherIgnoredPatterns = Object.keys(configuration.files.watcherExclude).filter(k => !!configuration.files.watcherExclude[k]);
-		}
-
-		this.useExperimentalFileWatcher = configuration.files && configuration.files.useExperimentalFileWatcher;
 
 		this.encodingOverride = this.options.encodingOverride || this.getEncodingOverrides();
 
@@ -281,26 +211,32 @@ export class FileService implements IFileService {
 		}
 
 		// new watcher: use it if setting tells us so or we run in multi-root environment
-		if (this.useExperimentalFileWatcher || workbenchState === WorkbenchState.WORKSPACE) {
+		const configuration = this.configurationService.getValue<IFilesConfiguration>();
+		if ((configuration.files && configuration.files.useExperimentalFileWatcher) || workbenchState === WorkbenchState.WORKSPACE) {
 			this.activeWorkspaceFileChangeWatcher = toDisposable(this.setupNsfwWorkspaceWatching().startWatching());
 		}
 
 		// old watcher
 		else {
+			let watcherIgnoredPatterns: string[] = [];
+			if (configuration.files && configuration.files.watcherExclude) {
+				watcherIgnoredPatterns = Object.keys(configuration.files.watcherExclude).filter(k => !!configuration.files.watcherExclude[k]);
+			}
+
 			if (isWindows) {
-				this.activeWorkspaceFileChangeWatcher = toDisposable(this.setupWin32WorkspaceWatching().startWatching());
+				this.activeWorkspaceFileChangeWatcher = toDisposable(this.setupWin32WorkspaceWatching(watcherIgnoredPatterns).startWatching());
 			} else {
-				this.activeWorkspaceFileChangeWatcher = toDisposable(this.setupUnixWorkspaceWatching().startWatching());
+				this.activeWorkspaceFileChangeWatcher = toDisposable(this.setupUnixWorkspaceWatching(watcherIgnoredPatterns).startWatching());
 			}
 		}
 	}
 
-	private setupWin32WorkspaceWatching(): WindowsWatcherService {
-		return new WindowsWatcherService(this.contextService, this.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), err => this.handleError(err), this.environmentService.verbose);
+	private setupWin32WorkspaceWatching(watcherIgnoredPatterns: string[]): WindowsWatcherService {
+		return new WindowsWatcherService(this.contextService, watcherIgnoredPatterns, e => this._onFileChanges.fire(e), err => this.handleError(err), this.environmentService.verbose);
 	}
 
-	private setupUnixWorkspaceWatching(): UnixWatcherService {
-		return new UnixWatcherService(this.contextService, this.watcherIgnoredPatterns, e => this._onFileChanges.fire(e), err => this.handleError(err), this.environmentService.verbose);
+	private setupUnixWorkspaceWatching(watcherIgnoredPatterns: string[]): UnixWatcherService {
+		return new UnixWatcherService(this.contextService, watcherIgnoredPatterns, e => this._onFileChanges.fire(e), err => this.handleError(err), this.environmentService.verbose);
 	}
 
 	private setupNsfwWorkspaceWatching(): NsfwWatcherService {
@@ -745,7 +681,7 @@ export class FileService implements IFileService {
 			writeOptions.encoding = this.getEncoding(resource, options.encoding);
 
 			// 2.) write to a temporary file to be able to copy over later
-			const tmpPath = paths.join(this.tmpPath, `code-elevated-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 6)}`);
+			const tmpPath = paths.join(os.tmpdir(), `code-elevated-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 6)}`);
 			return this.updateContent(uri.file(tmpPath), value, writeOptions).then(() => {
 
 				// 3.) invoke our CLI as super user
@@ -773,7 +709,7 @@ export class FileService implements IFileService {
 				}).then(() => {
 
 					// 3.) delete temp file
-					return pfs.del(tmpPath, this.tmpPath).then(() => {
+					return pfs.del(tmpPath, os.tmpdir()).then(() => {
 
 						// 4.) resolve again
 						return this.resolve(resource);
@@ -1033,7 +969,7 @@ export class FileService implements IFileService {
 	private doDelete(resource: uri): TPromise<void> {
 		const absolutePath = this.toAbsolutePath(resource);
 
-		return pfs.del(absolutePath, this.tmpPath).then(() => {
+		return pfs.del(absolutePath, os.tmpdir()).then(() => {
 
 			// Events
 			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
@@ -1242,6 +1178,60 @@ export class FileService implements IFileService {
 
 		this.activeFileChangesWatchers.forEach(watcher => watcher.close());
 		this.activeFileChangesWatchers.clear();
+	}
+}
+
+export interface IEncodingOverride {
+	parent?: uri;
+	extension?: string;
+	encoding: string;
+}
+
+export interface IFileServiceTestOptions {
+	disableWatcher?: boolean;
+	encodingOverride?: IEncodingOverride[];
+}
+
+function etag(stat: fs.Stats): string;
+function etag(size: number, mtime: number): string;
+function etag(arg1: any, arg2?: any): string {
+	let size: number;
+	let mtime: number;
+	if (typeof arg2 === 'number') {
+		size = arg1;
+		mtime = arg2;
+	} else {
+		size = (<fs.Stats>arg1).size;
+		mtime = (<fs.Stats>arg1).mtime.getTime();
+	}
+
+	return `"${crypto.createHash('sha1').update(String(size) + String(mtime)).digest('hex')}"`;
+}
+
+class BufferPool {
+
+	static _64K = new BufferPool(64 * 1024, 5);
+
+	constructor(
+		readonly bufferSize: number,
+		private readonly _capacity: number,
+		private readonly _free: Buffer[] = [],
+	) {
+		//
+	}
+
+	acquire(): Buffer {
+		if (this._free.length === 0) {
+			return Buffer.allocUnsafe(this.bufferSize);
+		} else {
+			return this._free.shift();
+		}
+	}
+
+	release(buf: Buffer): void {
+		if (this._free.length <= this._capacity) {
+			this._free.push(buf);
+		}
 	}
 }
 
