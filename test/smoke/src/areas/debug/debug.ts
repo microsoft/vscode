@@ -13,7 +13,6 @@ import { findElement, Element } from '../../driver';
 const VIEWLET = 'div[id="workbench.view.debug"]';
 const DEBUG_VIEW = `${VIEWLET} .debug-view-content`;
 const CONFIGURE = `div[id="workbench.parts.sidebar"] .actions-container .configure`;
-const START = `.icon[title="Start Debugging"]`;
 const STOP = `.debug-actions-widget .debug-action.stop`;
 const STEP_OVER = `.debug-actions-widget .debug-action.step-over`;
 const STEP_IN = `.debug-actions-widget .debug-action.step-into`;
