@@ -95,7 +95,7 @@ export class OneSnippet {
 
 		} else {
 			// the selection of the current placeholder might
-			// not acurate any more -> simply restore it
+			// not accurate any more -> simply restore it
 		}
 
 		return this._editor.getModel().changeDecorations(accessor => {
