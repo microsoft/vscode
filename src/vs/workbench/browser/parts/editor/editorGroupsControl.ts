@@ -2037,7 +2037,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		// Apply to visible editors
 		let totalSize = 0;
 
-		// Set preferred dimensions based on ratio to previous dimenions
+		// Set preferred dimensions based on ratio to previous dimensions
 		let wasInitialRatioRestored = false;
 		const oldTotalSize = this.layoutVertically ? oldDimension.width : oldDimension.height;
 		POSITIONS.forEach(position => {

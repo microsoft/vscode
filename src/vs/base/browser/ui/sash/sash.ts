@@ -333,7 +333,7 @@ export class VSash extends Disposable implements IVerticalSashLayoutProvider {
 		return this.dimension.height;
 	}
 
-	public setDimenesion(dimension: Dimension) {
+	public setDimension(dimension: Dimension) {
 		this.dimension = dimension;
 		this.compute(this.ratio);
 	}
