@@ -350,7 +350,7 @@ export interface MainThreadTelemetryShape extends IDisposable {
 export type WebviewHandle = string;
 
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebview(handle: WebviewHandle, viewType: string, title: string, column: EditorPosition, options: vscode.WebviewOptions, extensionFolderPath: string): void;
+	$createWebview(handle: WebviewHandle, viewType: string, title: string, column: EditorPosition, options: vscode.WebviewEditorOptions & vscode.WebviewOptions, extensionFolderPath: string): void;
 	$disposeWebview(handle: WebviewHandle): void;
 	$reveal(handle: WebviewHandle, column: EditorPosition): void;
 	$setTitle(handle: WebviewHandle, value: string): void;
@@ -365,7 +365,7 @@ export interface ExtHostWebviewsShape {
 	$onMessage(handle: WebviewHandle, message: any): void;
 	$onDidChangeWeviewViewState(handle: WebviewHandle, active: boolean, position: EditorPosition): void;
 	$onDidDisposeWeview(handle: WebviewHandle): Thenable<void>;
-	$deserializeWebview(newWebviewHandle: WebviewHandle, viewType: string, state: any, position: EditorPosition, options: vscode.WebviewOptions): Thenable<void>;
+	$deserializeWebview(newWebviewHandle: WebviewHandle, viewType: string, title: string, state: any, position: EditorPosition, options: vscode.WebviewOptions): Thenable<void>;
 	$serializeWebview(webviewHandle: WebviewHandle): Thenable<any>;
 }
 

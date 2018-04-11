@@ -129,7 +129,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			this._webviews.set(handle, webview);
 			webview._events = this.createWebviewEventDelegate(handle);
 
-			return this._proxy.$deserializeWebview(handle, webview.state.viewType, webview.state.state, webview.position, webview.options)
+			return this._proxy.$deserializeWebview(handle, webview.state.viewType, webview.getTitle(), webview.state.state, webview.position, webview.options)
 				.then(undefined, () => {
 					webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
 				});

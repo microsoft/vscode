@@ -21,12 +21,12 @@ suite('ExtHostWebview', function () {
 		const shape = createNoopMainThreadWebviews();
 		const extHostWebviews = new ExtHostWebviews(SingleProxyRPCProtocol(shape));
 
-		let lastInvokedDeserializer: vscode.WebviewSerializer | undefined = undefined;
+		let lastInvokedDeserializer: vscode.WebviewEditorSerializer | undefined = undefined;
 
-		class NoopSerializer implements vscode.WebviewSerializer {
-			async serializeWebview(webview: vscode.Webview): Promise<any> { /* noop */ }
+		class NoopSerializer implements vscode.WebviewEditorSerializer {
+			async serializeWebviewEditor(webview: vscode.WebviewEditor): Promise<any> { /* noop */ }
 
-			async deserializeWebview(webview: vscode.Webview, state: any): Promise<void> {
+			async deserializeWebviewEditor(webview: vscode.WebviewEditor, state: any): Promise<void> {
 				lastInvokedDeserializer = this;
 			}
 		}
@@ -34,20 +34,20 @@ suite('ExtHostWebview', function () {
 		const serializerA = new NoopSerializer();
 		const serializerB = new NoopSerializer();
 
-		const serializerARegistration = extHostWebviews.registerWebviewSerializer(viewType, serializerA);
+		const serializerARegistration = extHostWebviews.registerWebviewEditorSerializer(viewType, serializerA);
 
-		await extHostWebviews.$deserializeWebview('x', viewType, {}, EditorPosition.ONE, {});
+		await extHostWebviews.$deserializeWebview('x', viewType, 'title', {}, EditorPosition.ONE, {});
 		assert.strictEqual(lastInvokedDeserializer, serializerA);
 
 		assert.throws(
-			() => extHostWebviews.registerWebviewSerializer(viewType, serializerB),
+			() => extHostWebviews.registerWebviewEditorSerializer(viewType, serializerB),
 			'Should throw when registering two serializers for the same view');
 
 		serializerARegistration.dispose();
 
-		extHostWebviews.registerWebviewSerializer(viewType, serializerB);
+		extHostWebviews.registerWebviewEditorSerializer(viewType, serializerB);
 
-		await extHostWebviews.$deserializeWebview('x', viewType, {}, EditorPosition.ONE, {});
+		await extHostWebviews.$deserializeWebview('x', viewType, 'title', {}, EditorPosition.ONE, {});
 		assert.strictEqual(lastInvokedDeserializer, serializerB);
 	});
 });
