@@ -40,12 +40,12 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
 	) {
 		super();
-		this.updateLocaleDefintionSchema();
-		this._register(this.localizationService.onDidLanguagesChange(() => this.updateLocaleDefintionSchema()));
+		this.updateLocaleDefinitionSchema();
+		this._register(this.localizationService.onDidLanguagesChange(() => this.updateLocaleDefinitionSchema()));
 		this._register(this.extensionManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
 	}
 
-	private updateLocaleDefintionSchema(): void {
+	private updateLocaleDefinitionSchema(): void {
 		this.localizationService.getLanguageIds()
 			.then(languageIds => {
 				let lowercaseLanguageIds: string[] = [];
