@@ -185,17 +185,17 @@ suite('SearchResult', () => {
 		assert.equal(1, actual.length);
 		assert.equal('file://c:/', actual[0].resource().toString());
 
-		let actuaMatches = actual[0].matches();
-		assert.equal(3, actuaMatches.length);
+		let actualMatches = actual[0].matches();
+		assert.equal(3, actualMatches.length);
 
-		assert.equal('preview 1', actuaMatches[0].text());
-		assert.ok(new Range(2, 2, 2, 5).equalsRange(actuaMatches[0].range()));
+		assert.equal('preview 1', actualMatches[0].text());
+		assert.ok(new Range(2, 2, 2, 5).equalsRange(actualMatches[0].range()));
 
-		assert.equal('preview 1', actuaMatches[1].text());
-		assert.ok(new Range(2, 5, 2, 12).equalsRange(actuaMatches[1].range()));
+		assert.equal('preview 1', actualMatches[1].text());
+		assert.ok(new Range(2, 5, 2, 12).equalsRange(actualMatches[1].range()));
 
-		assert.equal('preview 2', actuaMatches[2].text());
-		assert.ok(new Range(2, 1, 2, 2).equalsRange(actuaMatches[2].range()));
+		assert.equal('preview 2', actualMatches[2].text());
+		assert.ok(new Range(2, 1, 2, 2).equalsRange(actualMatches[2].range()));
 	});
 
 	test('Adding multiple raw matches', function () {
@@ -210,17 +210,17 @@ suite('SearchResult', () => {
 		assert.equal(2, actual.length);
 		assert.equal('file://c:/1', actual[0].resource().toString());
 
-		let actuaMatches = actual[0].matches();
-		assert.equal(2, actuaMatches.length);
-		assert.equal('preview 1', actuaMatches[0].text());
-		assert.ok(new Range(2, 2, 2, 5).equalsRange(actuaMatches[0].range()));
-		assert.equal('preview 1', actuaMatches[1].text());
-		assert.ok(new Range(2, 5, 2, 12).equalsRange(actuaMatches[1].range()));
+		let actualMatches = actual[0].matches();
+		assert.equal(2, actualMatches.length);
+		assert.equal('preview 1', actualMatches[0].text());
+		assert.ok(new Range(2, 2, 2, 5).equalsRange(actualMatches[0].range()));
+		assert.equal('preview 1', actualMatches[1].text());
+		assert.ok(new Range(2, 5, 2, 12).equalsRange(actualMatches[1].range()));
 
-		actuaMatches = actual[1].matches();
-		assert.equal(1, actuaMatches.length);
-		assert.equal('preview 2', actuaMatches[0].text());
-		assert.ok(new Range(2, 1, 2, 2).equalsRange(actuaMatches[0].range()));
+		actualMatches = actual[1].matches();
+		assert.equal(1, actualMatches.length);
+		assert.equal('preview 2', actualMatches[0].text());
+		assert.ok(new Range(2, 1, 2, 2).equalsRange(actualMatches[0].range()));
 	});
 
 	test('Dispose disposes matches', function () {
