@@ -402,8 +402,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			shellLaunchConfig);
 		this._terminalInstances.splice(this._activeInstanceIndex + 1, 0, instance);
 		this._initInstanceListeners(instance);
-		// TODO: Ensure change event is fired
-		// TODO: Fire create event on service
 		this._setActiveInstance(instance);
 
 		if (this._splitPaneContainer) {
