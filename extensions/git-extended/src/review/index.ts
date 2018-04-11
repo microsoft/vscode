@@ -12,7 +12,8 @@ import { Comment } from '../common/models/comment';
 import { toGitUri } from '../common/uri';
 import { CommentsProvider } from '../commentsProvider';
 import { GitChangeType } from '../common/models/file';
-import { fetch, checkout } from '../common/operation';
+import { fetch, checkout, diff } from '../common/operation';
+import { mapCommentsToHead } from '../common/diff';
 
 const REVIEW_STATE = 'git-extended.state';
 
@@ -59,6 +60,23 @@ export async function restoreReviewState(repository: Repository, workspaceState:
 		provideComments: async (uri: vscode.Uri) => {
 			let matchingComments = commentsCache.get(uri.toString());
 			return matchingComments || [];
+		}
+	});
+	commentsProvider.registerCommentProvider({
+		provideComments: async (uri: vscode.Uri) => {
+			let fileName = uri.path;
+			let matchedFiles = localFileChanges.filter(fileChange => path.resolve(repository.path, fileChange.fileName) === fileName);
+			if (matchedFiles && matchedFiles.length) {
+				let matchedFile = matchedFiles[0];
+				// last commit sha of pr
+				let prHead = state['head'].sha;
+				// git diff sha -- fileName
+				let contentDiff = await diff(repository, matchedFile.fileName, prHead);
+				let matchingComments = comments.filter(comment => path.resolve(repository.path, comment.path) === fileName);
+				matchingComments = mapCommentsToHead(contentDiff, matchingComments);
+				return matchingComments || [];
+			}
+			return [];
 		}
 	});
 

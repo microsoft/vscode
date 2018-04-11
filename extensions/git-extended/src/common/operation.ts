@@ -8,6 +8,7 @@ import { GitProcess } from 'dugite';
 import { uniqBy } from './util';
 import { parseRemote } from './remote';
 import { Remote } from './models/remote';
+import { Resource } from './resources';
 
 export async function fetch(repository: Repository, remoteName: string, branch: string) {
 	const result = await GitProcess.exec(
@@ -140,6 +141,20 @@ export async function getRemotes(repository: Repository): Promise<Remote[]> {
 export async function show(repository: Repository, filePath: string): Promise<string> {
 	try {
 		const result = await GitProcess.exec(['show', filePath], repository.path);
+		return result.stdout.trim();
+	} catch (e) {
+		return '';
+	}
+}
+
+export async function diff(repository: Repository, filePath: string, compareWithCommit: string): Promise<string> {
+	try {
+		let args = ['diff', filePath];
+		if (compareWithCommit) {
+			args = ['diff', compareWithCommit, '--', filePath];
+		}
+
+		const result = await GitProcess.exec(args, repository.path);
 		return result.stdout.trim();
 	} catch (e) {
 		return '';

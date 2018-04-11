@@ -124,7 +124,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._actionbarWidget = new ActionBar(actionsContainer.getHTMLElement(), {});
 		this._disposables.push(this._actionbarWidget);
 
-		let toggleAction = new Action('review.expand', nls.localize('label.expand', "Expand"), 'expand-review-action octicon octicon-chevron-down', true, () => {
+		let toggleAction = new Action('review.expand', nls.localize('label.expand', "Expand"), 'expand-review-action octicon octicon-chevron-up', true, () => {
 			// let webView = await commentProvider.resolveComment(threadId)
 			// this._bodyElement.appendChild(webView);
 			if (toggleAction.class.indexOf('octicon-chevron-down') >= 0) {
@@ -154,7 +154,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._headElement.style.height = `${headHeight}px`;
 		this._headElement.style.lineHeight = this._headElement.style.height;
 
-		this._bodyElement.style.display = 'none';
+		this._bodyElement.style.display = 'block';
 		for (let i = 0; i < comments.length; i++) {
 			let singleCommentContainer = document.createElement('div');
 			singleCommentContainer.className = 'review-comment';

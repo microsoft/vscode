@@ -67,7 +67,8 @@ export class CommentsProvider implements vscode.CommentProvider {
 			let comments = sections[i];
 
 			const comment = comments[0];
-			const pos = new vscode.Position(comment.diff_hunk_range.start + comment.position - 1 - 1, 0);
+			const commentAbsolutePosition = comment.diff_hunk_range.start + (comment.position - 1);
+			const pos = new vscode.Position(comment.currentPosition ? comment.currentPosition - 1 - 1 : commentAbsolutePosition - /* after line */ 1 - /* it's zero based*/ 1, 0);
 			const range = new vscode.Range(pos, pos);
 			const newCommentStartPos = new vscode.Position(comment.diff_hunk_range.start - 1, 0);
 			const newCommentEndPos = new vscode.Position(comment.diff_hunk_range.start + comment.diff_hunk_range.length - 1 - 1, 0);
