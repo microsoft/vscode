@@ -5163,7 +5163,7 @@ declare module "crypto" {
         sign(private_key: string | { key: string; passphrase: string }): Buffer;
         sign(private_key: string | { key: string; passphrase: string }, output_format: HexBase64Latin1Encoding): string;
     }
-    export function createVerify(algorith: string): Verify;
+    export function createVerify(algorithm: string): Verify;
     export interface Verify extends NodeJS.WritableStream {
         update(data: string | Buffer | DataView): Verify;
         update(data: string | Buffer | DataView, input_encoding: Utf8AsciiLatin1Encoding): Verify;
