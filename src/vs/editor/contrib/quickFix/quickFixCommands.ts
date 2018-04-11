@@ -161,7 +161,7 @@ export class QuickFixAction extends EditorAction {
 	constructor() {
 		super({
 			id: QuickFixAction.Id,
-			label: nls.localize('quickfix.trigger.label', "Quick Fix"),
+			label: nls.localize('quickfix.trigger.label', "Quick Fix..."),
 			alias: 'Quick Fix',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
@@ -238,7 +238,7 @@ export class RefactorAction extends EditorAction {
 	constructor() {
 		super({
 			id: RefactorAction.Id,
-			label: nls.localize('refactor.label', "Refactor"),
+			label: nls.localize('refactor.label', "Refactor..."),
 			alias: 'Refactor',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
@@ -268,7 +268,7 @@ export class SourceAction extends EditorAction {
 	constructor() {
 		super({
 			id: SourceAction.Id,
-			label: nls.localize('source.label', "Source Action"),
+			label: nls.localize('source.label', "Source Action..."),
 			alias: 'Source Action',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			menuOpts: {
