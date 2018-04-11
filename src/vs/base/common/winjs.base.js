@@ -1404,7 +1404,7 @@ _winjs("WinJS/Promise/_StateMachine", ["WinJS/Core/_Global","WinJS/Core/_BaseCor
                     // suppress cancel
                     return;
                 }
-                // force the exception to be thrown asyncronously to avoid any try/catch blocks
+                // force the exception to be thrown asynchronously to avoid any try/catch blocks
                 //
                 Promise._doneHandler(value);
             },
