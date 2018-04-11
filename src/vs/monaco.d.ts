@@ -3809,7 +3809,7 @@ declare namespace monaco.editor {
 		addContentWidget(widget: IContentWidget): void;
 		/**
 		 * Layout/Reposition a content widget. This is a ping to the editor to call widget.getPosition()
-		 * and update appropiately.
+		 * and update appropriately.
 		 */
 		layoutContentWidget(widget: IContentWidget): void;
 		/**
@@ -3822,7 +3822,7 @@ declare namespace monaco.editor {
 		addOverlayWidget(widget: IOverlayWidget): void;
 		/**
 		 * Layout/Reposition an overlay widget. This is a ping to the editor to call widget.getPosition()
-		 * and update appropiately.
+		 * and update appropriately.
 		 */
 		layoutOverlayWidget(widget: IOverlayWidget): void;
 		/**
