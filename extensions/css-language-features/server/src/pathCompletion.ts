@@ -118,9 +118,9 @@ function pathToSuggestion(p: string, replaceRange: Range): CompletionItem {
 
 	if (isDir) {
 		return {
-			label: p,
+			label: escapePath(p),
 			kind: CompletionItemKind.Folder,
-			textEdit: TextEdit.replace(replaceRange, p),
+			textEdit: TextEdit.replace(replaceRange, escapePath(p)),
 			command: {
 				title: 'Suggest',
 				command: 'editor.action.triggerSuggest'
@@ -128,11 +128,16 @@ function pathToSuggestion(p: string, replaceRange: Range): CompletionItem {
 		};
 	} else {
 		return {
-			label: p,
+			label: escapePath(p),
 			kind: CompletionItemKind.File,
-			textEdit: TextEdit.replace(replaceRange, p)
+			textEdit: TextEdit.replace(replaceRange, escapePath(p))
 		};
 	}
+}
+
+// Escape https://www.w3.org/TR/CSS1/#url
+function escapePath(p: string) {
+	return p.replace(/(\s|\(|\)|,|"|')/g, '\\$1');
 }
 
 function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: WorkspaceFolder[]): string | undefined {

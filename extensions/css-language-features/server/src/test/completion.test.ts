@@ -150,4 +150,16 @@ suite('Completions', () => {
 		}, testUri, folders);
 	});
 
+	test('CSS Path Completion - Proper escaping', function () {
+		let testUri = Uri.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
+		let folders = [{ name: 'x', uri: Uri.file(path.resolve(__dirname, '../../test')).toString() }];
+
+		assertCompletions('html { background-image: url(./|)', {
+			items: [
+				{ label: `about\\ \\(\\,\\'\\".css`, resultText: `html { background-image: url(./about\\ \\(\\,\\'\\".css)` }
+			]
+		}, testUri, folders);
+	});
+
+
 });
