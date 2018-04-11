@@ -227,18 +227,13 @@ export class RemoteFileService extends FileService {
 
 	private _createReadStream(provider: IFileSystemProvider, resource: URI): Readable {
 		return new class extends Readable {
-			_done: boolean = false;
 			_read(size?: number): void {
-				if (this._done) {
-					this.push(null);
-					return;
-				}
 				provider.readFile(resource).then(data => {
-					this._done = true;
 					this.push(data);
+					this.push(null);
 				}, err => {
-					this._done = true;
 					this.emit('error', err);
+					this.push(null);
 				});
 			}
 		};
