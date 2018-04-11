@@ -78,7 +78,7 @@ export class SCM extends Viewlet {
 	async commit(message: string): Promise<void> {
 		await this.code.waitAndClick(SCM_INPUT);
 		await this.code.waitForActiveElement(SCM_INPUT);
-		await this.code.setValue(SCM_INPUT, message);
+		await this.code.waitForSetValue(SCM_INPUT, message);
 		await this.code.waitAndClick(COMMIT_COMMAND);
 	}
 }

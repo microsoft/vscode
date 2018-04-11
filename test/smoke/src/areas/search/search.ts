@@ -25,7 +25,7 @@ export class Search extends Viewlet {
 	async searchFor(text: string): Promise<void> {
 		await this.code.waitAndClick(INPUT);
 		await this.code.waitForActiveElement(INPUT);
-		await this.code.setValue(INPUT, text);
+		await this.code.waitForSetValue(INPUT, text);
 		await this.submitSearch();
 	}
 
@@ -40,23 +40,15 @@ export class Search extends Viewlet {
 	async setFilesToIncludeText(text: string): Promise<void> {
 		await this.code.waitAndClick(INCLUDE_INPUT);
 		await this.code.waitForActiveElement(INCLUDE_INPUT);
-		await this.code.setValue(INCLUDE_INPUT, text || '');
+		await this.code.waitForSetValue(INCLUDE_INPUT, text || '');
 	}
 
 	async showQueryDetails(): Promise<void> {
-		if (!await this.areDetailsVisible()) {
-			await this.code.waitAndClick(`${VIEWLET} .query-details .more`);
-		}
+		await this.code.waitAndClick(`${VIEWLET} .query-details .more`);
 	}
 
 	async hideQueryDetails(): Promise<void> {
-		if (await this.areDetailsVisible()) {
-			await this.code.waitAndClick(`${VIEWLET} .query-details.more .more`);
-		}
-	}
-
-	areDetailsVisible(): Promise<boolean> {
-		return this.code.doesElementExist(`${VIEWLET} .query-details.more`);
+		await this.code.waitAndClick(`${VIEWLET} .query-details.more .more`);
 	}
 
 	async removeFileMatch(index: number): Promise<void> {
@@ -73,7 +65,7 @@ export class Search extends Viewlet {
 	async setReplaceText(text: string): Promise<void> {
 		await this.code.waitAndClick(`${VIEWLET} .search-widget .replace-container .monaco-inputbox input[title="Replace"]`);
 		await this.code.waitForElement(`${VIEWLET} .search-widget .replace-container .monaco-inputbox.synthetic-focus input[title="Replace"]`);
-		await this.code.setValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox.synthetic-focus input[title="Replace"]`, text);
+		await this.code.waitForSetValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox.synthetic-focus input[title="Replace"]`, text);
 	}
 
 	async replaceFileMatch(index: number): Promise<void> {

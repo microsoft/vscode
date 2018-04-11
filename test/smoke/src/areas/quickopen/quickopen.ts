@@ -23,7 +23,7 @@ export class QuickOpen {
 		await this.waitForQuickOpenOpened();
 
 		if (value) {
-			await this.code.setValue(QuickOpen.QUICK_OPEN_INPUT, value);
+			await this.code.waitForSetValue(QuickOpen.QUICK_OPEN_INPUT, value);
 		}
 	}
 
@@ -50,7 +50,7 @@ export class QuickOpen {
 	}
 
 	async submit(text: string): Promise<void> {
-		await this.code.setValue(QuickOpen.QUICK_OPEN_INPUT, text);
+		await this.code.waitForSetValue(QuickOpen.QUICK_OPEN_INPUT, text);
 		await this.code.dispatchKeybinding('enter');
 		await this.waitForQuickOpenClosed();
 	}

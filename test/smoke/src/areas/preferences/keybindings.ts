@@ -15,7 +15,7 @@ export class KeybindingsEditor {
 	async updateKeybinding(command: string, keybinding: string, ariaLabel: string): Promise<any> {
 		await this.commands.runCommand('workbench.action.openGlobalKeybindings');
 		await this.code.waitForActiveElement(SEARCH_INPUT);
-		await this.code.setValue(SEARCH_INPUT, command);
+		await this.code.waitForSetValue(SEARCH_INPUT, command);
 
 		await this.code.waitAndClick('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item');
 		await this.code.waitForElement('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item.focused.selected');

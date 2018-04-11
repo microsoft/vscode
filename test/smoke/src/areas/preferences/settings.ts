@@ -39,6 +39,7 @@ export class SettingsEditor {
 		const settingsPath = path.join(this.userDataPath, 'User', 'settings.json');
 		await new Promise((c, e) => fs.writeFile(settingsPath, '{}', 'utf8', err => err ? e(err) : c()));
 
-		await this.editor.waitForEditorContents('settings.json', c => c.length === 0, '.editable-preferences-editor-container');
+		await this.commands.runCommand('workbench.action.openGlobalSettings');
+		await this.editor.waitForEditorContents('settings.json', c => c === '{}', '.editable-preferences-editor-container');
 	}
 }

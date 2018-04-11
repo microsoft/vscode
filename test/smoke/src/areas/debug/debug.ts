@@ -122,7 +122,7 @@ export class Debug extends Viewlet {
 	async waitForReplCommand(text: string, accept: (result: string) => boolean): Promise<void> {
 		await this.commands.runCommand('Debug: Focus Debug Console');
 		await this.code.waitForActiveElement(REPL_FOCUSED);
-		await this.code.setValue(REPL_FOCUSED, text);
+		await this.code.waitForSetValue(REPL_FOCUSED, text);
 
 		// Wait for the keys to be picked up by the editor model such that repl evalutes what just got typed
 		await this.editor.waitForEditorContents('debug:input', s => s.indexOf(text) >= 0);

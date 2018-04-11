@@ -27,7 +27,7 @@ export class Extensions extends Viewlet {
 	async searchForExtension(name: string): Promise<any> {
 		await this.code.waitAndClick(SEARCH_BOX);
 		await this.code.waitForActiveElement(SEARCH_BOX);
-		await this.code.setValue(SEARCH_BOX, name);
+		await this.code.waitForSetValue(SEARCH_BOX, name);
 	}
 
 	async installExtension(name: string): Promise<void> {

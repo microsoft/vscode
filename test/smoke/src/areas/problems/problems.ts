@@ -15,26 +15,16 @@ export class Problems {
 
 	static PROBLEMS_VIEW_SELECTOR = '.panel.markers-panel';
 
-	constructor(private code: Code, private commands: Commands) {
-		// noop
-	}
+	constructor(private code: Code, private commands: Commands) { }
 
 	public async showProblemsView(): Promise<any> {
-		if (!await this.isVisible()) {
-			await this.commands.runCommand('workbench.actions.view.problems');
-			await this.waitForProblemsView();
-		}
+		await this.commands.runCommand('workbench.actions.view.problems');
+		await this.waitForProblemsView();
 	}
 
 	public async hideProblemsView(): Promise<any> {
-		if (await this.isVisible()) {
-			await this.commands.runCommand('workbench.actions.view.problems');
-			await this.code.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR, el => !el);
-		}
-	}
-
-	isVisible(): Promise<boolean> {
-		return this.code.doesElementExist(Problems.PROBLEMS_VIEW_SELECTOR);
+		await this.commands.runCommand('workbench.actions.view.problems');
+		await this.code.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR, el => !el);
 	}
 
 	public async waitForProblemsView(): Promise<void> {

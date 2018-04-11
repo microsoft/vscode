@@ -33,7 +33,7 @@ export class Editor {
 		await this.commands.runCommand('Rename Symbol');
 
 		await this.code.waitForActiveElement(RENAME_INPUT);
-		await this.code.setValue(RENAME_INPUT, to);
+		await this.code.waitForSetValue(RENAME_INPUT, to);
 
 		await this.code.dispatchKeybinding('enter');
 	}
@@ -95,14 +95,13 @@ export class Editor {
 		const textarea = `${editor} textarea`;
 		await this.code.waitForActiveElement(textarea);
 
-		await this.code.typeInEditor(textarea, text);
+		await this.code.waitForTypeInEditor(textarea, text);
 
 		await this.waitForEditorContents(filename, c => c.indexOf(text) > -1, selectorPrefix);
 	}
 
 	async waitForEditorContents(filename: string, accept: (contents: string) => boolean, selectorPrefix = ''): Promise<any> {
 		const selector = [selectorPrefix || '', `${EDITOR(filename)} .view-lines`].join(' ');
-
 		return this.code.waitForTextContent(selector, undefined, c => accept(c.replace(/\u00a0/g, ' ')));
 	}
 
