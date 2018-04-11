@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { test as testPort } from 'portastic';
 import { API } from './api';
 import { ScreenCapturer } from './helpers/screenshot';
 import { Workbench } from './areas/workbench/workbench';
@@ -11,19 +10,6 @@ import * as fs from 'fs';
 import * as cp from 'child_process';
 import { CodeDriver } from './driver';
 import { Code, spawn, SpawnOptions } from './vscode/code';
-
-// Just hope random helps us here, cross your fingers!
-export async function findFreePort(): Promise<number> {
-	for (let i = 0; i < 10; i++) {
-		const port = 10000 + Math.round(Math.random() * 10000);
-
-		if (await testPort(port)) {
-			return port;
-		}
-	}
-
-	throw new Error('Could not find free port!');
-}
 
 export enum Quality {
 	Dev,
@@ -141,85 +127,6 @@ export class SpectronApplication {
 	}
 
 	private async startApplication(workspaceOrFolder: string, extraArgs: string[] = []): Promise<any> {
-
-		// let args: string[] = [];
-		// let chromeDriverArgs: string[] = [];
-
-		// if (process.env.VSCODE_REPOSITORY) {
-		// 	args.push(process.env.VSCODE_REPOSITORY as string);
-		// }
-
-		// args.push(workspaceOrFolder);
-
-		// // Prevent 'Getting Started' web page from opening on clean user-data-dir
-		// args.push('--skip-getting-started');
-
-		// // Prevent 'Getting Started' web page from opening on clean user-data-dir
-		// args.push('--skip-release-notes');
-
-		// // Prevent Quick Open from closing when focus is stolen, this allows concurrent smoketest suite running
-		// args.push('--sticky-quickopen');
-
-		// // Disable telemetry
-		// args.push('--disable-telemetry');
-
-		// // Disable updates
-		// args.push('--disable-updates');
-
-		// // Disable crash reporter
-		// // This seems to be the fix for the strange hangups in which Code stays unresponsive
-		// // and tests finish badly with timeouts, leaving Code running in the background forever
-		// args.push('--disable-crash-reporter');
-
-		// // Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
-		// args.push(`--extensions-dir=${this.options.extensionsPath}`);
-
-		// args.push(...extraArgs);
-
-		// chromeDriverArgs.push(`--user-data-dir=${this.options.userDataDir}`);
-
-		// Spectron always uses the same port number for the chrome driver
-		// and it handles gracefully when two instances use the same port number
-		// This works, but when one of the instances quits, it takes down
-		// chrome driver with it, leaving the other instance in DISPAIR!!! :(
-		// const port = await findFreePort();
-
-		// We must get a different port for debugging the smoketest express app
-		// otherwise concurrent test runs will clash on those ports
-		// const env = { PORT: String(await findFreePort()), ...process.env };
-
-		// const opts = {
-		// 	path: this.options.electronPath,
-		// 	port,
-		// 	args,
-		// 	env,
-		// 	chromeDriverArgs,
-		// 	startTimeout: 10000,
-		// 	requireName: 'nodeRequire'
-		// };
-
-		// const runName = String(SpectronApplication.count++);
-		// let testsuiteRootPath: string | undefined = undefined;
-		// let screenshotsDirPath: string | undefined = undefined;
-
-		// if (this.options.artifactsPath) {
-		// 	testsuiteRootPath = path.join(this.options.artifactsPath, sanitize(runName));
-		// 	mkdirp.sync(testsuiteRootPath);
-
-		// 	// Collect screenshots
-		// 	screenshotsDirPath = path.join(testsuiteRootPath, 'screenshots');
-		// 	mkdirp.sync(screenshotsDirPath);
-
-		// 	// Collect chromedriver logs
-		// 	const chromedriverLogPath = path.join(testsuiteRootPath, 'chromedriver.log');
-		// 	opts.chromeDriverLogPath = chromedriverLogPath;
-
-		// 	// Collect webdriver logs
-		// 	const webdriverLogsPath = path.join(testsuiteRootPath, 'webdriver');
-		// 	mkdirp.sync(webdriverLogsPath);
-		// 	opts.webdriverLogPath = webdriverLogsPath;
-		// }
-
 		this.codeInstance = await spawn({
 			codePath: this.options.codePath,
 			workspacePath: workspaceOrFolder,
@@ -227,43 +134,6 @@ export class SpectronApplication {
 			extensionsPath: this.options.extensionsPath,
 			verbose: this.options.verbose
 		});
-
-		// if (testsuiteRootPath) {
-		// 	// Collect logs
-		// 	const mainProcessLogPath = path.join(testsuiteRootPath, 'main.log');
-		// 	const rendererProcessLogPath = path.join(testsuiteRootPath, 'renderer.log');
-
-		// 	const flush = async () => {
-		// 		if (!this.spectron) {
-		// 			return;
-		// 		}
-
-		// 		const mainLogs = await this.spectron.client.getMainProcessLogs();
-		// 		await new Promise((c, e) => fs.appendFile(mainProcessLogPath, mainLogs.join('\n'), { encoding: 'utf8' }, err => err ? e(err) : c()));
-
-		// 		const rendererLogs = (await this.spectron.client.getRenderProcessLogs()).map(m => `${m.timestamp} - ${m.level} - ${m.message}`);
-		// 		await new Promise((c, e) => fs.appendFile(rendererProcessLogPath, rendererLogs.join('\n'), { encoding: 'utf8' }, err => err ? e(err) : c()));
-		// 	};
-
-		// 	let running = true;
-		// 	const loopFlush = async () => {
-		// 		while (true) {
-		// 			await flush();
-
-		// 			if (!running) {
-		// 				return;
-		// 			}
-
-		// 			await new Promise(c => setTimeout(c, 1000));
-		// 		}
-		// 	};
-
-		// 	const loopPromise = loopFlush();
-		// 	this.stopLogCollection = () => {
-		// 		running = false;
-		// 		return loopPromise;
-		// 	};
-		// }
 
 		this._screenCapturer = new ScreenCapturer(null as any, this._suiteName, '');
 
