@@ -612,6 +612,16 @@ export function parseGitmodules(raw: string): Submodule[] {
 	return result;
 }
 
+export function parseGitCommit(raw: string): Commit | null {
+	const match = /^([0-9a-f]{40})\n(.*)\n([^]*)$/m.exec(raw.trim());
+	if (!match) {
+		return null;
+	}
+
+	const previousHashes = match[2] ? match[2].split(' ') : [];
+	return { hash: match[1], message: match[3], previousHashes };
+}
+
 export interface DiffOptions {
 	cached?: boolean;
 }
@@ -1294,14 +1304,7 @@ export class Repository {
 
 	async getCommit(ref: string): Promise<Commit> {
 		const result = await this.run(['show', '-s', '--format=%H\n%P\n%B', ref]);
-		const match = /^([0-9a-f]{40})\n(.*)\n([^]*)$/m.exec(result.stdout.trim());
-
-		if (!match) {
-			return Promise.reject<Commit>('bad commit format');
-		}
-
-		const previousHashes = match[2] ? match[2].split(' ') : [];
-		return { hash: match[1], message: match[3], previousHashes };
+		return parseGitCommit(result.stdout) || Promise.reject<Commit>('bad commit format');
 	}
 
 	async updateSubmodules(paths: string[]): Promise<void> {
