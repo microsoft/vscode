@@ -1016,7 +1016,7 @@ export class Builder implements IDisposable {
 	}
 
 	/**
-	 *  Allows to store arbritary data into the current element.
+	 *  Allows to store arbitrary data into the current element.
 	 */
 	public setProperty(key: string, value: any): Builder {
 		setPropertyOnElement(this.currentElement, key, value);
@@ -1025,7 +1025,7 @@ export class Builder implements IDisposable {
 	}
 
 	/**
-	 *  Allows to get arbritary data from the current element.
+	 *  Allows to get arbitrary data from the current element.
 	 */
 	public getProperty(key: string, fallback?: any): any {
 		return getPropertyFromElement(this.currentElement, key, fallback);
@@ -1314,14 +1314,14 @@ function offDOM(): Builder {
 // Binding functions
 
 /**
- *  Allows to store arbritary data into element.
+ *  Allows to store arbitrary data into element.
  */
 export function setPropertyOnElement(element: HTMLElement, key: string, value: any): void {
 	data(element)[key] = value;
 }
 
 /**
- *  Allows to get arbritary data from element.
+ *  Allows to get arbitrary data from element.
  */
 export function getPropertyFromElement(element: HTMLElement, key: string, fallback?: any): any {
 	if (hasData(element)) {
