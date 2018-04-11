@@ -23,7 +23,7 @@
 		const baseTheme = config.baseTheme || 'vs';
 		document.body.className = 'monaco-shell ' + baseTheme;
 
-		// adds a stylesheet with the backgrdound color
+		// adds a stylesheet with the background color
 		var backgroundColor = config.backgroundColor;
 		if (!backgroundColor) {
 			backgroundColor = baseTheme === 'hc-black' ? '#000000' : (baseTheme === 'vs' ? '#FFFFFF' : '#1E1E1E');
