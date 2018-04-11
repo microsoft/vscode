@@ -6094,7 +6094,7 @@ declare module 'vscode' {
 		 * all extensions but *not yet* from the task framework.
 		 *
 		 * @param resource A resource
-		 * @returns An arrary of [diagnostics](#Diagnostic) objects or an empty array.
+		 * @returns An array of [diagnostics](#Diagnostic) objects or an empty array.
 		 */
 		export function getDiagnostics(resource: Uri): Diagnostic[];
 

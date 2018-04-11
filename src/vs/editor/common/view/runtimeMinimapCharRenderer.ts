@@ -6,7 +6,7 @@
 
 import { MinimapCharRenderer } from 'vs/editor/common/view/minimapCharRenderer';
 
-function toUint8ClampedArrat(arr: number[]): Uint8ClampedArray {
+function toUint8ClampedArray(arr: number[]): Uint8ClampedArray {
 	let r = new Uint8ClampedArray(arr.length);
 	for (let i = 0, len = arr.length; i < len; i++) {
 		r[i] = arr[i];
@@ -17,10 +17,10 @@ function toUint8ClampedArrat(arr: number[]): Uint8ClampedArray {
 let minimapCharRenderer: MinimapCharRenderer = null;
 export function getOrCreateMinimapCharRenderer(): MinimapCharRenderer {
 	if (!minimapCharRenderer) {
-		let _x1Data = toUint8ClampedArrat(x1Data);
+		let _x1Data = toUint8ClampedArray(x1Data);
 		x1Data = null;
 
-		let _x2Data = toUint8ClampedArrat(x2Data);
+		let _x2Data = toUint8ClampedArray(x2Data);
 		x2Data = null;
 		minimapCharRenderer = new MinimapCharRenderer(_x2Data, _x1Data);
 	}
