@@ -329,7 +329,7 @@ export class CodeApplication {
 					return exists(localStorageLevelDB).then(localStorageLevelDBExists => {
 						return TPromise.join([
 							localStorageBackupFileExists ? unlink(localStorageBackupFile) : TPromise.as(null),
-							localStorageJournalBackupFile ? unlink(localStorageJournalBackupFile) : TPromise.as(null),
+							localStorageJournalBackupFileExists ? unlink(localStorageJournalBackupFile) : TPromise.as(null),
 							localStorageLevelDBExists ? del(localStorageLevelDB) : TPromise.as(null)
 						]);
 					});
