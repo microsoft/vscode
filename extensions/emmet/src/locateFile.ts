@@ -39,7 +39,7 @@ function resolveRelative(basePath: string, filePath: string): Promise<string> {
 }
 
 /**
- * Resolves absolute file path agaist given editor: tries to find file in every
+ * Resolves absolute file path against given editor: tries to find file in every
  * parent of editor’s file
  */
 function resolveAbsolute(basePath: string, filePath: string): Promise<string> {
