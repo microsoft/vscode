@@ -74,11 +74,11 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		this.dragArea = $().div().addClass('drag-area');
 		this.$el.append(this.dragArea);
 
-		const actionBarContainter = $().div().addClass('.action-bar-container');
-		this.$el.append(actionBarContainter);
+		const actionBarContainer = $().div().addClass('.action-bar-container');
+		this.$el.append(actionBarContainer);
 
 		this.activeActions = [];
-		this.actionBar = new ActionBar(actionBarContainter.getHTMLElement(), {
+		this.actionBar = new ActionBar(actionBarContainer.getHTMLElement(), {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action: IAction) => {
 				if (action.id === FocusProcessAction.ID) {
