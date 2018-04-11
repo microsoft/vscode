@@ -1931,6 +1931,13 @@ declare module 'vscode' {
 		 */
 		static readonly RefactorRewrite: CodeActionKind;
 
+		/**
+		 * Base kind for source actions.
+		 *
+		 * Source code actions apply to the entire file.
+		 */
+		static readonly Source: CodeActionKind;
+
 		private constructor(value: string);
 
 		/**

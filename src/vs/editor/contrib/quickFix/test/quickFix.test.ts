@@ -136,20 +136,20 @@ suite('QuickFix', () => {
 		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionKind('a'));
+			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { kind: new CodeActionKind('a') });
 			assert.equal(actions.length, 2);
 			assert.strictEqual(actions[0].title, 'a');
 			assert.strictEqual(actions[1].title, 'a.b');
 		}
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionKind('a.b'));
+			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { kind: new CodeActionKind('a.b') });
 			assert.equal(actions.length, 1);
 			assert.strictEqual(actions[0].title, 'a.b');
 		}
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionKind('a.b.c'));
+			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { kind: new CodeActionKind('a.b.c') });
 			assert.equal(actions.length, 0);
 		}
 	});
@@ -165,8 +165,33 @@ suite('QuickFix', () => {
 
 		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
 
-		const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionKind('a'));
+		const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { kind: new CodeActionKind('a') });
 		assert.equal(actions.length, 1);
 		assert.strictEqual(actions[0].title, 'a');
+	});
+
+	test('getCodeActions should not return source code action by default', async function () {
+		const provider = new class implements CodeActionProvider {
+			provideCodeActions(): CodeAction[] {
+				return [
+					{ title: 'a', kind: CodeActionKind.Source.value },
+					{ title: 'b', kind: 'b' }
+				];
+			}
+		};
+
+		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
+
+		{
+			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), {});
+			assert.equal(actions.length, 1);
+			assert.strictEqual(actions[0].title, 'b');
+		}
+
+		{
+			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), { kind: CodeActionKind.Source, includeSourceActions: true });
+			assert.equal(actions.length, 1);
+			assert.strictEqual(actions[0].title, 'a');
+		}
 	});
 });

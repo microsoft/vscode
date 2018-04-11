@@ -120,6 +120,7 @@ export default class LanguageProvider {
 		this.disposables.push(languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/quickFixProvider')).default(client, this.formattingOptionsManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport)));
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/refactorProvider')).default(client, this.formattingOptionsManager, commandManager)));
+		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/organizeImports')).OrganizeImportsCodeActionProvider(client)));
 
 		await this.initFoldingProvider();
 		this.disposables.push(workspace.onDidChangeConfiguration(c => {
