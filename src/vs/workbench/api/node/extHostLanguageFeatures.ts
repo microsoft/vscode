@@ -984,7 +984,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	}
 
 	$provideHover(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Hover> {
-		return this._withAdapter(handle, HoverAdapter, adpater => adpater.provideHover(URI.revive(resource), position));
+		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position));
 	}
 
 	// --- occurrences
