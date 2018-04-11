@@ -116,7 +116,7 @@ export interface IMonarchLanguageBracket {
 	 */
 	open: string;
 	/**
-	 * closeing bracket
+	 * closing bracket
 	 */
 	close: string;
 	/**

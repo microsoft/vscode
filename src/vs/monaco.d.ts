@@ -5155,7 +5155,7 @@ declare namespace monaco.languages {
 		 */
 		open: string;
 		/**
-		 * closeing bracket
+		 * closing bracket
 		 */
 		close: string;
 		/**
