@@ -432,7 +432,8 @@ function registerFileProtocol(
 				return;
 			}
 		}
-		callback({ error: 'Cannot load resource outside of protocol root' });
+		console.error('Webview: Cannot load resource outside of protocol root');
+		callback({ error: -10 /* ACCESS_DENIED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
 	}, (error) => {
 		if (error) {
 			console.error('Failed to register protocol ' + protocol);
