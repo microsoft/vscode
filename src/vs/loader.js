@@ -1140,7 +1140,7 @@ var AMDLoader;
         };
         /**
          * Defines an anonymous module (without an id). Its name will be resolved as we receive a callback from the scriptLoader.
-         * @param dependecies @see defineModule
+         * @param dependencies @see defineModule
          * @param callback @see defineModule
          */
         ModuleManager.prototype.enqueueDefineAnonymousModule = function (dependencies, callback) {

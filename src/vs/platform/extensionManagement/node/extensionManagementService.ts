@@ -550,7 +550,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			return this.uninstallWithDependencies(extension, dependencies, installed);
 		}
 
-		const message = nls.localize('uninstallDependeciesConfirmation', "Would you like to uninstall '{0}' only or its dependencies also?", extension.manifest.displayName || extension.manifest.name);
+		const message = nls.localize('uninstallDependenciesConfirmation', "Would you like to uninstall '{0}' only or its dependencies also?", extension.manifest.displayName || extension.manifest.name);
 		const buttons = [
 			nls.localize('uninstallOnly', "Extension Only"),
 			nls.localize('uninstallAll', "Uninstall All"),
