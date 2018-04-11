@@ -11,9 +11,9 @@ import * as minimist from 'minimist';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
-import { SpectronApplication, Quality } from './application';
-import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
+import { Application, Quality } from './application';
 
+import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
 import { setup as setupDataExplorerTests } from './areas/explorer/explorer.test';
 import { setup as setupDataPreferencesTests } from './areas/preferences/preferences.test';
@@ -26,7 +26,6 @@ import { setup as setupDataStatusbarTests } from './areas/statusbar/statusbar.te
 import { setup as setupDataExtensionTests } from './areas/extensions/extensions.test';
 import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
-// import './areas/terminal/terminal.test';
 
 const tmpDir = tmp.dirSync({ prefix: 't' }) as { name: string; removeCallback: Function; };
 const testDataPath = tmpDir.name;
@@ -37,7 +36,6 @@ const opts = minimist(args, {
 	string: [
 		'build',
 		'stable-build',
-		'log',
 		'wait-time',
 		'test-repo',
 		'keybindings'
@@ -49,8 +47,6 @@ const opts = minimist(args, {
 		verbose: false
 	}
 });
-
-const artifactsPath = opts.log || '';
 
 const workspaceFilePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
@@ -232,41 +228,19 @@ async function setup(): Promise<void> {
 	console.log('*** Smoketest setup done!\n');
 }
 
-/**
- * WebDriverIO 4.8.0 outputs all kinds of "deprecation" warnings
- * for common commands like `keys` and `moveToObject`.
- * According to https://github.com/Codeception/CodeceptJS/issues/531,
- * these deprecation warnings are for Firefox, and have no alternative replacements.
- * Since we can't downgrade WDIO as suggested (it's Spectron's dep, not ours),
- * we must suppress the warning with a classic monkey-patch.
- *
- * @see webdriverio/lib/helpers/depcrecationWarning.js
- * @see https://github.com/webdriverio/webdriverio/issues/2076
- */
-// Filter out the following messages:
-const wdioDeprecationWarning = /^WARNING: the "\w+" command will be deprecated soon../; // [sic]
-// Monkey patch:
-const warn = console.warn;
-console.warn = function suppressWebdriverWarnings(message) {
-	if (wdioDeprecationWarning.test(message)) { return; }
-	warn.apply(console, arguments);
-};
-
-function createApp(quality: Quality): SpectronApplication | null {
+function createApp(quality: Quality): Application | null {
 	const path = quality === Quality.Stable ? stablePath : electronPath;
 
 	if (!path) {
 		return null;
 	}
 
-	return new SpectronApplication({
+	return new Application({
 		quality,
 		codePath: opts.build,
-		electronPath: path,
 		workspacePath,
 		userDataDir,
 		extensionsPath,
-		artifactsPath,
 		workspaceFilePath,
 		waitTime: parseInt(opts['wait-time'] || '0') || 20,
 		verbose: opts.verbose

@@ -15,7 +15,6 @@ import { StatusBar } from '../statusbar/statusbar';
 import { Problems } from '../problems/problems';
 import { SettingsEditor } from '../preferences/settings';
 import { KeybindingsEditor } from '../preferences/keybindings';
-import { Terminal } from '../terminal/terminal';
 import { API } from '../../api';
 import { Editors } from '../editor/editors';
 
@@ -38,7 +37,6 @@ export class Workbench implements Commands {
 	readonly problems: Problems;
 	readonly settingsEditor: SettingsEditor;
 	readonly keybindingsEditor: KeybindingsEditor;
-	readonly terminal: Terminal;
 
 	constructor(private api: API, private keybindings: any[], userDataPath: string) {
 		this.editors = new Editors(api, this);
@@ -54,7 +52,6 @@ export class Workbench implements Commands {
 		this.problems = new Problems(api, this);
 		this.settingsEditor = new SettingsEditor(api, userDataPath, this, this.editors, this.editor);
 		this.keybindingsEditor = new KeybindingsEditor(api, this);
-		this.terminal = new Terminal(api, this);
 	}
 
 	/**

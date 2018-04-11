@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../application';
+import { Application } from '../../application';
 
 export function setup() {
 	describe('Dataloss', () => {
 		it(`verifies that 'hot exit' works for dirty files`, async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 			await app.workbench.editors.newUntitledFile();
 
 			const untitled = 'Untitled-1';

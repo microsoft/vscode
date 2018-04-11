@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import { SpectronApplication } from '../../application';
+import { Application } from '../../application';
 
 const DIFF_EDITOR_LINE_INSERT = '.monaco-diff-editor .editor.modified .line-insert';
 const SYNC_STATUSBAR = 'div[id="workbench.parts.statusbar"] .statusbar-entry a[title$="Synchronize Changes"]';
@@ -12,7 +12,7 @@ const SYNC_STATUSBAR = 'div[id="workbench.parts.statusbar"] .statusbar-entry a[t
 export function setup() {
 	describe('Git', () => {
 		it('reflects working tree changes', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.scm.openSCMViewlet();
 
@@ -30,7 +30,7 @@ export function setup() {
 		});
 
 		it('opens diff editor', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.scm.openSCMViewlet();
 			await app.workbench.scm.openChange('app.js');
@@ -38,7 +38,7 @@ export function setup() {
 		});
 
 		it('stages correctly', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.scm.openSCMViewlet();
 
@@ -52,7 +52,7 @@ export function setup() {
 		});
 
 		it(`stages, commits changes and verifies outgoing change`, async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.scm.openSCMViewlet();
 

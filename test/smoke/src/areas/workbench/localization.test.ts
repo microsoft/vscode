@@ -5,12 +5,12 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, Quality } from '../../application';
+import { Application, Quality } from '../../application';
 
 export function setup() {
 	describe('Localization', () => {
 		before(async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			if (app.quality === Quality.Dev) {
 				return;
@@ -20,7 +20,7 @@ export function setup() {
 		});
 
 		it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			if (app.quality === Quality.Dev) {
 				this.skip();

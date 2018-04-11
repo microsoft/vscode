@@ -5,13 +5,13 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication } from '../../application';
+import { Application } from '../../application';
 import { ActivityBarPosition } from '../activitybar/activityBar';
 
 export function setup() {
 	describe('Preferences', () => {
 		it('turns off editor line numbers and verifies the live change', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.explorer.openFile('app.js');
 			await app.api.waitForElements('.line-numbers', false, elements => !!elements.length);
@@ -22,7 +22,7 @@ export function setup() {
 		});
 
 		it(`changes 'workbench.action.toggleSidebarPosition' command key binding and verifies it`, async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 			assert.ok(await app.workbench.activitybar.getActivityBar(ActivityBarPosition.LEFT), 'Activity bar should be positioned on the left.');
 
 			await app.workbench.keybindingsEditor.updateKeybinding('workbench.action.toggleSidebarPosition', 'ctrl+u', 'Control+U');
@@ -32,7 +32,7 @@ export function setup() {
 		});
 
 		after(async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 			await app.workbench.settingsEditor.clearUserSettings();
 		});
 	});

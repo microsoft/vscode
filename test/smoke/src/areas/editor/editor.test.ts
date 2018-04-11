@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../application';
+import { Application } from '../../application';
 
 export function setup() {
 	describe('Editor', () => {
 		it('shows correct quick outline', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 			await app.workbench.quickopen.openFile('www');
 
 			await app.workbench.quickopen.openQuickOutline();
@@ -16,7 +16,7 @@ export function setup() {
 		});
 
 		it(`finds 'All References' to 'app'`, async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 			await app.workbench.quickopen.openFile('www');
 
 			const references = await app.workbench.editor.findReferences('app', 7);
@@ -27,7 +27,7 @@ export function setup() {
 		});
 
 		it(`renames local 'app' variable`, async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 			await app.workbench.quickopen.openFile('www');
 			await app.workbench.editor.rename('www', 7, 'app', 'newApp');
 			await app.workbench.editor.waitForEditorContents('www', contents => contents.indexOf('newApp') > -1);
@@ -50,7 +50,7 @@ export function setup() {
 		// });
 
 		it(`verifies that 'Go To Definition' works`, async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 			await app.workbench.quickopen.openFile('app.js');
 
 			await app.workbench.editor.gotoDefinition('express', 11);
@@ -59,7 +59,7 @@ export function setup() {
 		});
 
 		it(`verifies that 'Peek Definition' works`, async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 			await app.workbench.quickopen.openFile('app.js');
 
 			const peek = await app.workbench.editor.peekDefinition('express', 11);

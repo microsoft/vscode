@@ -8,12 +8,12 @@ import * as http from 'http';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as stripJsonComments from 'strip-json-comments';
-import { SpectronApplication } from '../../application';
+import { Application } from '../../application';
 
 export function setup() {
 	describe('Debug', () => {
 		it('configure launch json', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.debug.openDebugViewlet();
 			await app.workbench.quickopen.openFile('app.js');
@@ -37,7 +37,7 @@ export function setup() {
 		});
 
 		it('breakpoints', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.quickopen.openFile('index.js');
 			await app.workbench.debug.setBreakpointOnLine(6);
@@ -45,7 +45,7 @@ export function setup() {
 
 		let port: number;
 		it('start debugging', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			// TODO@isidor
 			await new Promise(c => setTimeout(c, 100));
@@ -60,7 +60,7 @@ export function setup() {
 		});
 
 		it('focus stack frames and variables', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.api.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 4, 'there should be 4 local variables');
 
@@ -75,7 +75,7 @@ export function setup() {
 		});
 
 		it('stepOver, stepIn, stepOut', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.debug.stepIn();
 
@@ -89,7 +89,7 @@ export function setup() {
 		});
 
 		it('continue', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.debug.continue();
 
@@ -102,13 +102,13 @@ export function setup() {
 		});
 
 		it('debug console', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.debug.waitForReplCommand('2 + 2', r => r === '4');
 		});
 
 		it('stop debugging', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.debug.stopDebugging();
 		});

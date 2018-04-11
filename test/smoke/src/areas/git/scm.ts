@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Viewlet } from '../workbench/viewlet';
-import { API } from '../../api';
+import { API, findElement, findElements } from '../../api';
 import { Commands } from '../workbench/workbench';
-import { Element, findElement, findElements } from '../../driver';
+import { IElement } from '../../vscode/driver';
 
 const VIEWLET = 'div[id="workbench.view.scm"]';
 const SCM_INPUT = `${VIEWLET} .scm-editor textarea`;
@@ -24,7 +24,7 @@ interface Change {
 	actions: string[];
 }
 
-function toChange(element: Element): Change {
+function toChange(element: IElement): Change {
 	const name = findElement(element, e => /\blabel-name\b/.test(e.className))!;
 	const type = element.attributes['data-tooltip'] || '';
 

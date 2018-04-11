@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../application';
+import { Application } from '../../application';
 import { ProblemSeverity, Problems } from '../problems/problems';
 
 export function setup() {
 	describe('CSS', () => {
 		it('verifies quick outline', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 			await app.workbench.quickopen.openFile('style.css');
 
 			await app.workbench.quickopen.openQuickOutline();
@@ -17,7 +17,7 @@ export function setup() {
 		});
 
 		it('verifies warnings for the empty rule', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 			await app.workbench.quickopen.openFile('style.css');
 			await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');
 
@@ -29,7 +29,7 @@ export function setup() {
 		});
 
 		it('verifies that warning becomes an error once setting changed', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 			await app.workbench.settingsEditor.addUserSetting('css.lint.emptyRules', '"error"');
 			await app.workbench.quickopen.openFile('style.css');
 			await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');

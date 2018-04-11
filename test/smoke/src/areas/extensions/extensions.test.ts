@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SpectronApplication, Quality } from '../../application';
+import { Application, Quality } from '../../application';
 
 export function setup() {
 	describe('Extensions', () => {
 		it(`install and activate vscode-smoketest-check extension`, async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			if (app.quality === Quality.Dev) {
 				this.skip();

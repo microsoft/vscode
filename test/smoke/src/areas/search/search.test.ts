@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../application';
+import { Application } from '../../application';
 
 export function setup() {
 	describe('Search', () => {
 		it('searches for body & checks for correct result number', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 			await app.workbench.search.openSearchViewlet();
 			await app.workbench.search.searchFor('body');
 
@@ -16,7 +16,7 @@ export function setup() {
 		});
 
 		it('searches only for *.js files & checks for correct result number', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 			await app.workbench.search.searchFor('body');
 			await app.workbench.search.showQueryDetails();
 			await app.workbench.search.setFilesToIncludeText('*.js');
@@ -28,14 +28,14 @@ export function setup() {
 		});
 
 		it('dismisses result & checks for correct result number', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 			await app.workbench.search.searchFor('body');
 			await app.workbench.search.removeFileMatch(1);
 			await app.workbench.search.waitForResultText('10 results in 4 files');
 		});
 
 		it('replaces first search result with a replace term', async function () {
-			const app = this.app as SpectronApplication;
+			const app = this.app as Application;
 
 			await app.workbench.search.searchFor('body');
 			await app.workbench.search.expandReplace();

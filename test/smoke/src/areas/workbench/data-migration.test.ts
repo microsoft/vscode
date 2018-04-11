@@ -5,11 +5,11 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, Quality } from '../../application';
+import { Application, Quality } from '../../application';
 import * as rimraf from 'rimraf';
 
 export interface ICreateAppFn {
-	(quality: Quality): SpectronApplication | null;
+	(quality: Quality): Application | null;
 }
 
 export function setup(userDataDir: string, createApp: ICreateAppFn) {

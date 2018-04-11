@@ -5,10 +5,10 @@
 
 import { Viewlet } from '../workbench/viewlet';
 import { Commands } from '../workbench/workbench';
-import { API } from '../../api';
+import { API, findElement } from '../../api';
 import { Editors } from '../editor/editors';
 import { Editor } from '../editor/editor';
-import { findElement, Element } from '../../driver';
+import { IElement } from '../../vscode/driver';
 
 const VIEWLET = 'div[id="workbench.view.debug"]';
 const DEBUG_VIEW = `${VIEWLET} .debug-view-content`;
@@ -37,7 +37,7 @@ export interface IStackFrame {
 	lineNumber: number;
 }
 
-function toStackFrame(element: Element): IStackFrame {
+function toStackFrame(element: IElement): IStackFrame {
 	const name = findElement(element, e => /\bfile-name\b/.test(e.className))!;
 	const line = findElement(element, e => /\bline-number\b/.test(e.className))!;
 	const lineNumber = line.textContent ? parseInt(line.textContent.split(':').shift() || '0') : 0;

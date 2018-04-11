@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { API } from './api';
+import { API, CodeDriver } from './api';
 import { Workbench } from './areas/workbench/workbench';
 import * as fs from 'fs';
 import * as cp from 'child_process';
-import { CodeDriver } from './driver';
 import { Code, spawn, SpawnOptions } from './vscode/code';
 
 export enum Quality {
@@ -16,22 +15,15 @@ export enum Quality {
 	Stable
 }
 
-export interface SpectronApplicationOptions extends SpawnOptions {
+export interface ApplicationOptions extends SpawnOptions {
 	quality: Quality;
-	electronPath: string;
 	workspacePath: string;
-	artifactsPath: string;
 	workspaceFilePath: string;
 	waitTime: number;
 	verbose: boolean;
 }
 
-/**
- * Wraps Spectron's Application instance with its used methods.
- */
-export class SpectronApplication {
-
-	// private static count = 0;
+export class Application {
 
 	private _api: API;
 	private _workbench: Workbench;
@@ -39,9 +31,7 @@ export class SpectronApplication {
 	private keybindings: any[];
 	private stopLogCollection: (() => Promise<void>) | undefined;
 
-	constructor(
-		private options: SpectronApplicationOptions
-	) { }
+	constructor(private options: ApplicationOptions) { }
 
 	get quality(): Quality {
 		return this.options.quality;
