@@ -615,15 +615,15 @@ declare module 'vscode' {
 		 * Should the webview editor's content (iframe) be kept around even when the editor
 		 * is no longer visible?
 		 *
-		 * Normally the editors html context is created when the editor becomes visible
-		 * and destroyed when the webview is hidden. Apps that have complex state
+		 * Normally the editor's html context is created when the editor becomes visible
+		 * and destroyed when it is is hidden. Apps that have complex state
 		 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
 		 * context around, even when the webview moves to a background tab. When
-		 * the webview becomes visible again, the context is automatically restored
+		 * the editor becomes visible again, the context is automatically restored
 		 * in the exact same state it was in originally.
 		 *
 		 * `retainContextWhenHidden` has a high memory overhead and should only be used if
-		 * your webview's context cannot be quickly saved and restored.
+		 * your editor's context cannot be quickly saved and restored.
 		 */
 		readonly retainContextWhenHidden?: boolean;
 	}
@@ -633,7 +633,7 @@ declare module 'vscode' {
 	 */
 	interface WebviewEditor {
 		/**
-		 * The type of the webview editor, such as `'markdown.preview'`
+		 * The type of the webview editor, such as `'markdown.preview'`.
 		 */
 		readonly viewType: string;
 
@@ -648,17 +648,22 @@ declare module 'vscode' {
 		readonly options: WebviewEditorOptions;
 
 		/**
-		 * The column in which the webview is showing.
+		 * The column in which the editor is showing.
 		 */
 		readonly viewColumn?: ViewColumn;
 
 		/**
-		 * Fired when the webview's view state changes.
+		 * Fired when the editor's view state changes.
 		 */
 		readonly onDidChangeViewState: Event<WebviewEditorOnDidChangeViewStateEvent>;
 
 		/**
-		 * Fired when the webview is disposed.
+		 * Fired when the editor is disposed.
+		 *
+		 * This may be because the user closed the editor or because `.dispose()` was
+		 * called on it.
+		 *
+		 * Trying to use the webview after it has been disposed throws an exception.
 		 */
 		readonly onDidDispose: Event<void>;
 
@@ -671,11 +676,11 @@ declare module 'vscode' {
 		reveal(viewColumn: ViewColumn): void;
 
 		/**
-		 * Dispose of the the webview editor.
+		 * Dispose of the webview editor.
 		 *
 		 * This closes the webview if it showing and disposes of the resources owned by the webview.
 		 * Webview are also disposed when the user closes the webview editor. Both cases fire `onDispose`
-		 * event. Trying to use the webview after it has been disposed throws an exception.
+		 * event.
 		 */
 		dispose(): any;
 	}
@@ -715,9 +720,9 @@ declare module 'vscode' {
 		/**
 		 * Create and show a new webview editor.
 		 *
-		 * @param viewType Identifies the type of the webview.
+		 * @param viewType Identifies the type of the webview editor.
 		 * @param title Title of the webview.
-		 * @param column Editor column to show the new webview in.
+		 * @param column Editor column to show the new webview editor in.
 		 * @param editorOptions Settings for the webview editor.
 		 */
 		export function createWebviewEditor(viewType: string, title: string, column: ViewColumn, options: WebviewEditorOptions & WebviewOptions): WebviewEditor;
