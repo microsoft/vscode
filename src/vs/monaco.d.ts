@@ -994,7 +994,7 @@ declare namespace monaco.editor {
 		contextMenuOrder?: number;
 		/**
 		 * Method that will be executed when the action is triggered.
-		 * @param editor The editor instance is passed in as a convinience
+		 * @param editor The editor instance is passed in as a convenience
 		 */
 		run(editor: ICodeEditor): void | Promise<void>;
 	}

@@ -22,7 +22,7 @@ declare module 'through2' {
 		}
 
 		/**
-		 * Convenvience method for creating object streams
+		 * Convenience method for creating object streams
 		 */
 		export function obj(transform?: TransformFunction, flush?: FlushCallback): stream.Transform;
 
