@@ -47,7 +47,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 			this._onDidChangeTreeData.fire();
 		}));
 
-		await restoreReviewState(this.repository, context.workspaceState, gitRepo, this.commentsProvider);
+		await restoreReviewState(this.repository, this.crendentialStore, context.workspaceState, gitRepo, this.commentsProvider);
 	}
 
 	getTreeItem(element: PRGroup | PullRequest | FileChange): vscode.TreeItem {

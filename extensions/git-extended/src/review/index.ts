@@ -14,6 +14,7 @@ import { CommentsProvider } from '../commentsProvider';
 import { GitChangeType } from '../common/models/file';
 import { fetch, checkout, diff } from '../common/operation';
 import { mapCommentsToHead } from '../common/diff';
+import { CredentialStore } from '../credentials';
 
 const REVIEW_STATE = 'git-extended.state';
 
@@ -27,7 +28,7 @@ export function parseCommitDiff(repository: Repository, head: string, base: stri
 	return ret;
 }
 
-export async function restoreReviewState(repository: Repository, workspaceState: vscode.Memento, gitRepo: any, commentsProvider: CommentsProvider) {
+export async function restoreReviewState(repository: Repository, crendentialStore: CredentialStore, workspaceState: vscode.Memento, gitRepo: any, commentsProvider: CommentsProvider) {
 	let branch = repository.HEAD.name;
 
 	if (!branch) {

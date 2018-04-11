@@ -7,6 +7,7 @@
 import 'vs/css!./review';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
+import * as arrays from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IViewZone, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
@@ -116,17 +117,18 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._secondaryHeading = $('span.dirname').appendTo(titleElement).getHTMLElement();
 		this._metaHeading = $('span.meta').appendTo(titleElement).getHTMLElement();
 
-		let primaryHeading = 'Discussion';
+		let primaryHeading = 'Reviewers:';
 		$(this._primaryHeading).safeInnerHtml(primaryHeading);
 		this._primaryHeading.setAttribute('aria-label', primaryHeading);
-		let secondaryHeading = `@${this._comments[0].userName}`;
+
+		let secondaryHeading = this._comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
 		$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
 
 		const actionsContainer = $('.review-actions').appendTo(this._headElement);
 		this._actionbarWidget = new ActionBar(actionsContainer.getHTMLElement(), {});
 		this._disposables.push(this._actionbarWidget);
 
-		let toggleAction = new Action('review.expand', nls.localize('label.expand', "Expand"), 'expand-review-action octicon octicon-chevron-up', true, () => {
+		let toggleAction = new Action('review.expand', nls.localize('label.expand', "Expand"), 'expand-review-action octicon octicon-chevron-down', true, () => {
 			// let webView = await commentProvider.resolveComment(threadId)
 			// this._bodyElement.appendChild(webView);
 			if (toggleAction.class.indexOf('octicon-chevron-down') >= 0) {
@@ -190,7 +192,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._headElement.style.height = `${headHeight}px`;
 		this._headElement.style.lineHeight = this._headElement.style.height;
 
-		this._bodyElement.style.display = 'block';
+		this._bodyElement.style.display = 'none';
 		this._commentsElement = $('div.comments-container').getHTMLElement();
 		this._bodyElement.appendChild(this._commentsElement);
 		for (let i = 0; i < comments.length; i++) {
@@ -528,10 +530,10 @@ export class ReviewController implements IEditorContribution {
 			return;
 		}
 
-		if (!this._reviewSwitch) {
-			this._reviewSwitch = new ReviewSwitchWidget(this._reviewModel);
-			this.editor.addOverlayWidget(this._reviewSwitch);
-		}
+		// if (!this._reviewSwitch) {
+		// 	this._reviewSwitch = new ReviewSwitchWidget(this._reviewModel);
+		// 	this.editor.addOverlayWidget(this._reviewSwitch);
+		// }
 
 		if (this._reviewModel.style === ReviewStyle.Gutter) {
 			this.editor.changeDecorations(accessor => {
