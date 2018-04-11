@@ -138,7 +138,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 			return Promise.all(promises).then(values => {
 				return _.flatten(values);
 			});
-		} else if (element.groupType === PRGroupType.All) {
+		} else {
 			let promises = this.repository.remotes.map(async remote => {
 				const octo = await this.crendentialStore.getOctokit(remote);
 				if (octo) {
@@ -185,7 +185,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 			case PRGroupType.RequestReview:
 				filter = `review-requested:${user}`;
 				break;
-			case PRGroupType.RequestReview:
+			case PRGroupType.Mine:
 				filter = `author:${user}`;
 				break;
 			default:

@@ -8,7 +8,6 @@ import { GitProcess } from 'dugite';
 import { uniqBy } from './util';
 import { parseRemote } from './remote';
 import { Remote } from './models/remote';
-import { Resource } from './resources';
 
 export async function fetch(repository: Repository, remoteName: string, branch: string) {
 	const result = await GitProcess.exec(
