@@ -1649,7 +1649,7 @@ declare namespace monaco.editor {
 		 */
 		getWordUntilPosition(position: IPosition): IWordAtPosition;
 		/**
-		 * Perform a minimum ammount of operations, in order to transform the decorations
+		 * Perform a minimum amount of operations, in order to transform the decorations
 		 * identified by `oldDecorations` to the decorations described by `newDecorations`
 		 * and returns the new identifiers associated with the resulting decorations.
 		 *
