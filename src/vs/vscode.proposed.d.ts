@@ -774,10 +774,16 @@ declare module 'vscode' {
 
 	export namespace window {
 		/**
+		 * The currently active terminals or an empty array.
+		 *
 		 * @readonly
 		 */
 		export let terminals: Terminal[];
 
+		/**
+		 * An [event](#Event) which fires when a terminal has been created, either through the
+		 * [createTerminal](#window.createTerminal) API or commands.
+		 */
 		export const onDidOpenTerminal: Event<Terminal>;
 	}
 
