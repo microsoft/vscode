@@ -88,7 +88,7 @@ suite('HTML Folding', () => {
 		assertRanges(input, [r(0, 7), r(5, 6)]);
 	});
 
-	test('Fold commment', () => {
+	test('Fold comment', () => {
 		let input = [
 			/*0*/'<!--',
 			/*1*/' multi line',
