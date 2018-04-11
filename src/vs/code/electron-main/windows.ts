@@ -214,7 +214,7 @@ export class WindowsManager implements IWindowsMainService {
 	//          and then onBeforeShutdown(). Using the quit action however will first issue onBeforeShutdown()
 	//          and then onBeforeWindowClose().
 	//
-	// Here is the behaviour on different OS dependig on action taken (Electron 1.7.x):
+	// Here is the behaviour on different OS depending on action taken (Electron 1.7.x):
 	//
 	// Legend
 	// -  quit(N): quit application with N windows opened
