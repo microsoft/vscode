@@ -21,18 +21,29 @@ export function getPathCompletionParticipant(
 ): ICompletionParticipant {
 	return {
 		onURILiteralValue: ({ position, range, uriValue }) => {
+			const isValueQuoted = startsWith(uriValue, `'`) || startsWith(uriValue, `"`);
 			const fullValue = stripQuotes(uriValue);
+			const valueBeforeCursor = isValueQuoted
+				? fullValue.slice(0, position.character - (range.start.character + 1))
+				: fullValue.slice(0, position.character - range.start.character);
 
-			if (shouldDoPathCompletion(fullValue)) {
-				if (!workspaceFolders || workspaceFolders.length === 0) {
-					return;
-				}
-				const workspaceRoot = resolveWorkspaceRoot(document, workspaceFolders);
-
-				const paths = providePaths(fullValue, URI.parse(document.uri).fsPath, workspaceRoot);
-				result.items = [...paths.map(p => pathToSuggestion(p, fullValue, fullValue, range)), ...result.items];
+			if (fullValue === '.' || fullValue === '..') {
+				result.isIncomplete = true;
+				return;
 			}
+
+			if (!workspaceFolders || workspaceFolders.length === 0) {
+				return;
+			}
+			const workspaceRoot = resolveWorkspaceRoot(document, workspaceFolders);
+			const paths = providePaths(valueBeforeCursor, URI.parse(document.uri).fsPath, workspaceRoot);
+
+			const fullValueRange = isValueQuoted ? shiftRange(range, 1, -1) : range;
+			const replaceRange = pathToReplaceRange(valueBeforeCursor, fullValue, fullValueRange);
+			const suggestions = paths.map(p => pathToSuggestion(p, replaceRange));
+			result.items = [...suggestions, ...result.items];
 		}
+
 	};
 }
 
@@ -42,13 +53,6 @@ function stripQuotes(fullValue: string) {
 	} else {
 		return fullValue;
 	}
-}
-
-function shouldDoPathCompletion(fullValue: string) {
-	if (fullValue === '.') {
-		return false;
-	}
-	return true;
 }
 
 /**
@@ -85,28 +89,32 @@ const isDir = (p: string) => {
 	}
 };
 
-function pathToSuggestion(p: string, valueBeforeCursor: string, fullValue: string, range: Range): CompletionItem {
-	const isDir = p[p.length - 1] === '/';
-
+function pathToReplaceRange(valueBeforeCursor: string, fullValue: string, fullValueRange: Range) {
 	let replaceRange: Range;
 	const lastIndexOfSlash = valueBeforeCursor.lastIndexOf('/');
 	if (lastIndexOfSlash === -1) {
-		replaceRange = shiftRange(range, 1, -1);
+		replaceRange = fullValueRange;
 	} else {
 		// For cases where cursor is in the middle of attribute value, like <script src="./s|rc/test.js">
 		// Find the last slash before cursor, and calculate the start of replace range from there
 		const valueAfterLastSlash = fullValue.slice(lastIndexOfSlash + 1);
-		const startPos = shiftPosition(range.end, -1 - valueAfterLastSlash.length);
+		const startPos = shiftPosition(fullValueRange.end, -valueAfterLastSlash.length);
 		// If whitespace exists, replace until it
 		const whiteSpaceIndex = valueAfterLastSlash.indexOf(' ');
 		let endPos;
 		if (whiteSpaceIndex !== -1) {
 			endPos = shiftPosition(startPos, whiteSpaceIndex);
 		} else {
-			endPos = shiftPosition(range.end, -1);
+			endPos = fullValueRange.end;
 		}
 		replaceRange = Range.create(startPos, endPos);
 	}
+
+	return replaceRange;
+}
+
+function pathToSuggestion(p: string, replaceRange: Range): CompletionItem {
+	const isDir = p[p.length - 1] === '/';
 
 	if (isDir) {
 		return {

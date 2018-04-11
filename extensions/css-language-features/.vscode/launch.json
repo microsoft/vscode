@@ -17,8 +17,8 @@
 			],
 			"stopOnEntry": false,
 			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/client/out/**/*.js"]
-			// "preLaunchTask": "npm"
+			"outFiles": ["${workspaceFolder}/client/out/**/*.js"],
+			"preLaunchTask": "npm"
 		},
 		{
 			"name": "Launch Tests",
