@@ -31,7 +31,6 @@ export function setup() {
 			fs.writeFileSync(launchJsonPath, JSON.stringify(config, undefined, 4), 'utf8');
 
 			await app.workbench.editor.waitForEditorContents('launch.json', contents => /"protocol": "inspector"/.test(contents));
-			await app.screenCapturer.capture('launch.json file');
 
 			assert.equal(config.configurations[0].request, 'launch');
 			assert.equal(config.configurations[0].type, 'node');
@@ -47,7 +46,6 @@ export function setup() {
 
 			await app.workbench.quickopen.openFile('index.js');
 			await app.workbench.debug.setBreakpointOnLine(6);
-			await app.screenCapturer.capture('breakpoints are set');
 		});
 
 		let port: number;
@@ -58,15 +56,12 @@ export function setup() {
 			await new Promise(c => setTimeout(c, 100));
 
 			port = await app.workbench.debug.startDebugging();
-			await app.screenCapturer.capture('debugging has started');
 
 			await new Promise((c, e) => {
 				const request = http.get(`http://localhost:${port}`);
 				request.on('error', e);
 				app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6, 'looking for index.js and line 6').then(c, e);
 			});
-
-			await app.screenCapturer.capture('debugging is paused');
 		});
 
 		it('focus stack frames and variables', async function () {
@@ -88,15 +83,12 @@ export function setup() {
 			const app = this.app as SpectronApplication;
 
 			await app.workbench.debug.stepIn();
-			await app.screenCapturer.capture('debugging has stepped in');
 
 			const first = await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js', 'looking for response.js');
 			await app.workbench.debug.stepOver();
-			await app.screenCapturer.capture('debugging has stepped over');
 
 			await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js' && sf.lineNumber === first.lineNumber + 1, `looking for response.js and line ${first.lineNumber + 1}`);
 			await app.workbench.debug.stepOut();
-			await app.screenCapturer.capture('debugging has stepped out');
 
 			await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 7, `looking for index.js and line 7`);
 		});
@@ -105,7 +97,6 @@ export function setup() {
 			const app = this.app as SpectronApplication;
 
 			await app.workbench.debug.continue();
-			await app.screenCapturer.capture('debugging has continued');
 
 			await new Promise((c, e) => {
 				const request = http.get(`http://localhost:${port}`);
@@ -113,7 +104,6 @@ export function setup() {
 				app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6, `looking for index.js and line 6`).then(c, e);
 			});
 
-			await app.screenCapturer.capture('debugging is paused');
 		});
 
 		it('debug console', async function () {
@@ -126,7 +116,6 @@ export function setup() {
 			const app = this.app as SpectronApplication;
 
 			await app.workbench.debug.stopDebugging();
-			await app.screenCapturer.capture('debugging has stopped');
 		});
 	});
 }

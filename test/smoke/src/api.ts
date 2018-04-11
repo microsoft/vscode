@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ScreenCapturer } from './helpers/screenshot';
 import { Driver, Element } from './driver';
 
 export class API {
@@ -15,7 +14,6 @@ export class API {
 
 	constructor(
 		private driver: Driver,
-		private screenCapturer: ScreenCapturer,
 		waitTime: number
 	) {
 		this.retryCount = (waitTime * 1000) / this.retryDuration;
@@ -99,7 +97,6 @@ export class API {
 
 			while (true) {
 				if (trial > retryCount) {
-					await this.screenCapturer.capture('timeout');
 					throw new Error(`${timeoutMessage}: Timed out after ${(retryCount * this.retryDuration) / 1000} seconds.`);
 				}
 

@@ -30,7 +30,6 @@ export function setup() {
 		it('shows workspace name in title', async function () {
 			const app = this.app as SpectronApplication;
 			const title = await app.api.getTitle();
-			await app.screenCapturer.capture('window title');
 			assert.ok(title.indexOf('smoketest (Workspace)') >= 0);
 		});
 	});

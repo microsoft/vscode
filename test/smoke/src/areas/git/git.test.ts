@@ -32,7 +32,6 @@ export function setup() {
 			await app.workbench.scm.refreshSCMViewlet();
 			await app.workbench.scm.waitForChange('app.js', 'Modified');
 			await app.workbench.scm.waitForChange('index.jade', 'Modified');
-			await app.screenCapturer.capture('changes');
 		});
 
 		it('opens diff editor', async function () {

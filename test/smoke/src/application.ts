@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { API } from './api';
-import { ScreenCapturer } from './helpers/screenshot';
 import { Workbench } from './areas/workbench/workbench';
 import * as fs from 'fs';
 import * as cp from 'child_process';
@@ -36,7 +35,6 @@ export class SpectronApplication {
 
 	private _api: API;
 	private _workbench: Workbench;
-	private _screenCapturer: ScreenCapturer;
 	private codeInstance: Code | undefined;
 	private keybindings: any[];
 	private stopLogCollection: (() => Promise<void>) | undefined;
@@ -51,10 +49,6 @@ export class SpectronApplication {
 
 	get api(): API {
 		return this._api;
-	}
-
-	get screenCapturer(): ScreenCapturer {
-		return this._screenCapturer;
 	}
 
 	get workbench(): Workbench {
@@ -81,7 +75,6 @@ export class SpectronApplication {
 
 	set suiteName(suiteName: string) {
 		this._suiteName = suiteName;
-		this._screenCapturer.suiteName = suiteName;
 	}
 
 	async start(waitForWelcome: boolean = true): Promise<any> {
@@ -135,10 +128,8 @@ export class SpectronApplication {
 			verbose: this.options.verbose
 		});
 
-		this._screenCapturer = new ScreenCapturer(null as any, this._suiteName, '');
-
 		const driver = new CodeDriver(this.codeInstance.driver, this.options.verbose);
-		this._api = new API(driver, this.screenCapturer, this.options.waitTime);
+		this._api = new API(driver, this.options.waitTime);
 		this._workbench = new Workbench(this._api, this.keybindings, this.userDataPath);
 	}
 

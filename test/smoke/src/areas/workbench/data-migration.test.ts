@@ -51,7 +51,6 @@ export function setup(userDataDir: string, createApp: ICreateAppFn) {
 			assert.ok(await app.workbench.editors.waitForActiveTab('Untitled-1', true), `Untitled-1 tab is not present after migration.`);
 
 			await app.workbench.editor.waitForEditorContents('Untitled-1', c => c.indexOf(textToType) > -1);
-			await app.screenCapturer.capture('Untitled file text');
 
 			await app.stop();
 		});

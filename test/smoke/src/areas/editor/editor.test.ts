@@ -35,7 +35,6 @@ export function setup() {
 			await app.workbench.quickopen.openFile('www');
 			await app.workbench.editor.rename('www', 7, 'app', 'newApp');
 			await app.workbench.editor.waitForEditorContents('www', contents => contents.indexOf('newApp') > -1);
-			await app.screenCapturer.capture('Rename result');
 		});
 
 		// it('folds/unfolds the code correctly', async function () {

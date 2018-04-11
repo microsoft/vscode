@@ -31,7 +31,6 @@ export function setup() {
 			await app.workbench.runCommand('Smoke Test Check');
 
 			const statusbarText = await app.workbench.statusbar.getStatusbarTextByTitle('smoke test');
-			await app.screenCapturer.capture('Statusbar');
 			assert.equal(statusbarText, 'VS Code Smoke Test Check');
 		});
 	});
