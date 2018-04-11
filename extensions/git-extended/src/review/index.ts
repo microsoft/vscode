@@ -59,7 +59,7 @@ export async function restoreReviewState(repository: Repository, workspaceState:
 	commentsProvider.registerCommentProvider({
 		provideComments: async (uri: vscode.Uri) => {
 			let matchingComments = commentsCache.get(uri.toString());
-			return matchingComments || [];
+			return [matchingComments || [], []];
 		}
 	});
 	commentsProvider.registerCommentProvider({
@@ -74,9 +74,9 @@ export async function restoreReviewState(repository: Repository, workspaceState:
 				let contentDiff = await diff(repository, matchedFile.fileName, prHead);
 				let matchingComments = comments.filter(comment => path.resolve(repository.path, comment.path) === fileName);
 				matchingComments = mapCommentsToHead(contentDiff, matchingComments);
-				return matchingComments || [];
+				return [matchingComments || [], []];
 			}
-			return [];
+			return [[], []];
 		}
 	});
 

@@ -109,10 +109,37 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroup | PullRequest
 				commentsCache.set(changedItem.filePath.toString(), changedItem.comments);
 				return changedItem;
 			});
+
+			vscode.commands.registerCommand(element.prItem.number + '-post', async (id: string, text: string) => {
+				try {
+					let ret = await element.otcokit.pullRequests.createCommentReply({
+						owner: element.remote.owner,
+						repo: element.remote.name,
+						number: element.prItem.number,
+						body: text,
+						in_reply_to: id
+					});
+					return {
+						body: new vscode.MarkdownString(ret.data.body),
+						userName: ret.data.user.login,
+						gravatar: ret.data.user.avatar_url
+					};
+				} catch (e) {
+					return null;
+				}
+			});
+
+			let actions = [
+				{
+					command: element.prItem.number + '-post',
+					title: 'Add single comment'
+				}
+			];
+
 			this.commentsProvider.registerCommentProvider({
 				provideComments: async (uri: vscode.Uri) => {
 					let matchingComments = commentsCache.get(uri.toString());
-					return matchingComments;
+					return [matchingComments, actions];
 				}
 			});
 			// fill in file changes and comments.

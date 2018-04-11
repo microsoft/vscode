@@ -33,6 +33,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { ReviewModel, ReviewStyle } from 'vs/editor/contrib/review/reviewModel';
+import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
 export const ID = 'editor.contrib.review';
@@ -74,6 +75,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	protected _metaHeading: HTMLElement;
 	protected _actionbarWidget: ActionBar;
 	private _bodyElement: HTMLElement;
+	private _commentsElement: HTMLElement;
 	private _resizeObserver: any;
 	private _comments: modes.Comment[];
 	private _onDidClose = new Emitter<ReviewZoneWidget>();
@@ -100,7 +102,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		container.appendChild(this._headElement);
 		this._fillHead(this._headElement);
 
-		this._bodyElement = <HTMLDivElement>$('.body').getHTMLElement(); document.createElement('div');
+		this._bodyElement = <HTMLDivElement>$('.body').getHTMLElement();
 		container.appendChild(this._bodyElement);
 	}
 
@@ -146,6 +148,40 @@ export class ReviewZoneWidget extends ZoneWidget {
 		// }), { label: false, icon: true });
 	}
 
+	createCommentElement(comment: modes.Comment) {
+		let singleCommentContainer = document.createElement('div');
+		singleCommentContainer.className = 'review-comment';
+		let avatar = document.createElement('span');
+		avatar.className = 'float-left';
+		let img = document.createElement('img');
+		img.className = 'avatar';
+		img.src = comment.gravatar;
+		avatar.appendChild(img);
+		let commentDetailsContainer = document.createElement('div');
+		commentDetailsContainer.className = 'review-comment-contents';
+
+		singleCommentContainer.appendChild(avatar);
+		singleCommentContainer.appendChild(commentDetailsContainer);
+
+		let header = document.createElement('h4');
+		let author = document.createElement('strong');
+		author.className = 'author';
+		author.innerText = comment.userName;
+		// let time = document.createElement('span');
+		// time.className = 'created_at';
+		// time.innerText = comment.created_at;
+		header.appendChild(author);
+		// header.appendChild(time);
+		commentDetailsContainer.appendChild(header);
+		let body = document.createElement('div');
+		body.className = 'comment-body';
+		commentDetailsContainer.appendChild(body);
+		let md = comment.body;
+		body.appendChild(renderMarkdown(md));
+
+		return singleCommentContainer;
+	}
+
 	display(commentThread: modes.CommentThread, lineNumber: number) {
 		const comments = commentThread.comments;
 		this.show({ lineNumber: lineNumber, column: 1 }, 2);
@@ -155,49 +191,36 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._headElement.style.lineHeight = this._headElement.style.height;
 
 		this._bodyElement.style.display = 'block';
+		this._commentsElement = $('div.comments-container').getHTMLElement();
+		this._bodyElement.appendChild(this._commentsElement);
 		for (let i = 0; i < comments.length; i++) {
-			let singleCommentContainer = document.createElement('div');
-			singleCommentContainer.className = 'review-comment';
-			let avatar = document.createElement('span');
-			avatar.className = 'float-left';
-			let img = document.createElement('img');
-			img.className = 'avatar';
-			img.src = comments[i].gravatar;
-			avatar.appendChild(img);
-			let commentDetailsContainer = document.createElement('div');
-			commentDetailsContainer.className = 'review-comment-contents';
-
-			singleCommentContainer.appendChild(avatar);
-			singleCommentContainer.appendChild(commentDetailsContainer);
-
-			let header = document.createElement('h4');
-			let author = document.createElement('strong');
-			author.className = 'author';
-			author.innerText = comments[i].userName;
-			// let time = document.createElement('span');
-			// time.className = 'created_at';
-			// time.innerText = comments[i].created_at;
-			header.appendChild(author);
-			// header.appendChild(time);
-			commentDetailsContainer.appendChild(header);
-			let body = document.createElement('div');
-			body.className = 'comment-body';
-			commentDetailsContainer.appendChild(body);
-			let md = comments[i].body;
-			body.appendChild(renderMarkdown(md));
-			this._bodyElement.appendChild(singleCommentContainer);
+			let singleCommentContainer = this.createCommentElement(comments[i]);
+			this._commentsElement.appendChild(singleCommentContainer);
 		}
 
+		const commentForm = document.createElement('div');
+		commentForm.className = 'comment-form';
+		this._bodyElement.appendChild(commentForm);
+
 		const textArea = document.createElement('textarea');
-		this._bodyElement.appendChild(textArea);
+		commentForm.appendChild(textArea);
+
+		const formActions = document.createElement('div');
+		formActions.className = 'form-actions';
+		commentForm.appendChild(formActions);
 
 		for (const action of commentThread.actions) {
 			const button = document.createElement('button');
-			button.onclick = () => {
-				this.commandService.executeCommand(action.id, commentThread.threadId, textArea.value);
+			button.onclick = async () => {
+				let newComment = await this.commandService.executeCommand(action.id, commentThread.threadId, textArea.value);
+				if (newComment) {
+					textArea.value = '';
+					let singleCommentContainer = this.createCommentElement(newComment);
+					this._commentsElement.appendChild(singleCommentContainer);
+				}
 			};
 			button.textContent = action.title;
-			this._bodyElement.appendChild(button);
+			formActions.appendChild(button);
 		}
 
 		this._resizeObserver = new ResizeObserver(entries => {
@@ -581,12 +604,30 @@ function closeReviewPanel(accessor: ServicesAccessor, args: any) {
 
 
 registerThemingParticipant((theme, collector) => {
-	let editorBackground = theme.getColor(peekViewEditorBackground);
-	if (editorBackground) {
+	let peekViewBackground = theme.getColor(peekViewEditorBackground);
+	if (peekViewBackground) {
 		collector.addRule(
 			`.monaco-editor .review-widget,` +
 			`.monaco-editor .review-widget {` +
-			`	background-color: ${editorBackground};` +
+			`	background-color: ${peekViewBackground};` +
 			`}`);
+	}
+
+	let monacoEditorBackground = theme.getColor(editorBackground);
+	if (monacoEditorBackground) {
+		collector.addRule(
+			`.monaco-editor .review-widget .body textarea {` +
+			`	background-color: ${monacoEditorBackground}` +
+			`}`
+		);
+	}
+
+	let monacoEditorForeground = theme.getColor(editorForeground);
+	if (monacoEditorForeground) {
+		collector.addRule(
+			`.monaco-editor .review-widget .body textarea {` +
+			`	color: ${monacoEditorForeground}` +
+			`}`
+		);
 	}
 });

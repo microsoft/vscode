@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import * as _ from 'lodash';
 import { Comment } from './common/models/comment';
 
-class PostCommentCommand {
+export class PostCommentCommand {
 	public static readonly id = 'pr.postComment';
 
 	public static run(id: string, text: string) {
@@ -17,18 +17,17 @@ class PostCommentCommand {
 }
 
 export interface ICommentsProvider {
-	provideComments(uri: vscode.Uri): Promise<Comment[]>;
+	provideComments(uri: vscode.Uri): Promise<[Comment[], any[]]>;
 }
 
 export class CommentsProvider implements vscode.CommentProvider {
 	private providers: Map<number, ICommentsProvider>;
 	private _id: number;
+
 	constructor() {
-		// vscode.workspace.registerTextDocumentContentProvider('review', this);
 		this.providers = new Map<number, ICommentsProvider>();
 		this._id = 0;
 		vscode.workspace.registerCommentProvider(this);
-
 		vscode.commands.registerCommand(PostCommentCommand.id, PostCommentCommand.run);
 	}
 
@@ -45,10 +44,47 @@ export class CommentsProvider implements vscode.CommentProvider {
 	async provideComments(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.CommentThread[]> {
 		let promises = [];
 		this.providers.forEach((value: ICommentsProvider) => {
-			promises.push(value.provideComments(document.uri));
+			promises.push(value.provideComments(document.uri).then(values => {
+				let matchingComments = values[0];
+				let actions = values[1];
+
+				if (!matchingComments || !matchingComments.length) {
+					return [];
+				}
+
+				let sections = _.groupBy(matchingComments, comment => comment.position);
+				let ret: vscode.CommentThread[] = [];
+
+				for (let i in sections) {
+					let comments = sections[i];
+
+					const comment = comments[0];
+					const commentAbsolutePosition = comment.diff_hunk_range.start + (comment.position - 1);
+					const pos = new vscode.Position(comment.currentPosition ? comment.currentPosition - 1 - 1 : commentAbsolutePosition - /* after line */ 1 - /* it's zero based*/ 1, 0);
+					const range = new vscode.Range(pos, pos);
+					const newCommentStartPos = new vscode.Position(comment.diff_hunk_range.start - 1, 0);
+					const newCommentEndPos = new vscode.Position(comment.diff_hunk_range.start + comment.diff_hunk_range.length - 1 - 1, 0);
+
+					ret.push({
+						threadId: comment.id,
+						range,
+						newCommentRange: new vscode.Range(newCommentStartPos, newCommentEndPos),
+						comments: comments.map(comment => {
+							return {
+								body: new vscode.MarkdownString(comment.body),
+								userName: comment.user.login,
+								gravatar: comment.user.avatar_url
+							};
+						}),
+						actions: actions
+					});
+				}
+
+				return ret;
+			}));
 		});
 
-		let matchingComments: Comment[] = [];
+		let matchingComments: vscode.CommentThread[] = [];
 		let allComments = await Promise.all(promises);
 		allComments.forEach(comments => {
 			if (comments) {
@@ -56,57 +92,6 @@ export class CommentsProvider implements vscode.CommentProvider {
 			}
 		});
 
-		if (!matchingComments || !matchingComments.length) {
-			return [];
-		}
-
-		let sections = _.groupBy(matchingComments, comment => comment.position);
-		let ret: vscode.CommentThread[] = [];
-
-		for (let i in sections) {
-			let comments = sections[i];
-
-			const comment = comments[0];
-			const commentAbsolutePosition = comment.diff_hunk_range.start + (comment.position - 1);
-			const pos = new vscode.Position(comment.currentPosition ? comment.currentPosition - 1 - 1 : commentAbsolutePosition - /* after line */ 1 - /* it's zero based*/ 1, 0);
-			const range = new vscode.Range(pos, pos);
-			const newCommentStartPos = new vscode.Position(comment.diff_hunk_range.start - 1, 0);
-			const newCommentEndPos = new vscode.Position(comment.diff_hunk_range.start + comment.diff_hunk_range.length - 1 - 1, 0);
-
-			ret.push({
-				threadId: comment.id,
-				range,
-				newCommentRange: new vscode.Range(newCommentStartPos, newCommentEndPos),
-				comments: comments.map(comment => {
-					return {
-						body: new vscode.MarkdownString(comment.body),
-						userName: comment.user.login,
-						gravatar: comment.user.avatar_url
-					};
-				}),
-				actions: [
-					{
-						command: PostCommentCommand.id,
-						title: 'Post'
-					}
-				]
-			});
-		}
-
-		return ret;
+		return matchingComments;
 	}
-
-	// async provideComments(uri: vscode.Uri, token?: vscode.CancellationToken): Promise<Comment[]> {
-	//     let promises = [];
-	//     this.providers.forEach((value: ICommentsProvider) => {
-	//         promises.push(value.provideComments(uri));
-	//     });
-
-	//     let ret: Comment[] = [];
-	//     (await Promise.all(promises)).forEach(comments => {
-	//         ret.push(...comments);
-	//     });
-
-	//     return ret;
-	// }
 }
