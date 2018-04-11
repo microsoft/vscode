@@ -5,12 +5,13 @@
   "description": "A browser based code editor",
   "author": "Microsoft Corporation",
   "license": "MIT",
+  "typings": "./esm/vs/editor/editor.api.d.ts",
   "module": "./esm/vs/editor/editor.main.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/Microsoft/vscode"
   },
-   "bugs": {
+  "bugs": {
     "url": "https://github.com/Microsoft/vscode/issues"
   }
 }
